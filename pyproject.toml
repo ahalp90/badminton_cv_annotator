@@ -144,7 +144,25 @@ ignore = [
     "E401",  # multiple imports on one line
     "E731",  # lambda assignment
     "E702",  # multiple statements on one line (semicolon)
+    # F722/F821 misfire on jaxtyping shape annotations like Float32[Tensor, "batch n_classes"]:
+    # ruff reads the shape strings as Python forward-refs, which they aren't. Both are off
+    # project-wide; pyrefly does the undefined-name check instead (see [tool.pyrefly] and the
+    # pyrefly step in the lint CI job), because it resolves jaxtyping's real types.
+    "F722",  # forward-annotation "syntax error" on multi-axis / scalar shapes
+    "F821",  # "undefined name" on single-axis shapes
 ]
+
+# Undefined-name linting that ruff's F821 handed off above. Narrowed to unknown-name only
+# (preset off), so it's a name check, not a type checker: no torch type-inference noise. Only
+# needs jaxtyping importable to resolve the shape annotations (not torch), so the CI install is light.
+[tool.pyrefly]
+project-includes = ["src", "scripts", "tests"]
+project-excludes = ["**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**"]
+search-path = ["src"]
+preset = "off"
+
+[tool.pyrefly.errors]
+unknown-name = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
