@@ -424,8 +424,8 @@ Stage 5 spans two files:
 #### Training flow
 
 ```
-Task(taxonomy, pose_style)
-  .prepare_dataloaders(root_dir, train_partial)
+Task(taxonomy, hyp)
+  .prepare_dataloaders(root_dir)
   .get_network_architecture(model_name='BST_CG_AP', in_channels=2)
   .seek_network_weights(model_info, serial_no)   # trains if no checkpoint found
   dumps = .dump_predictions(run_dir, serial_no, k=5)   # one forward pass per split

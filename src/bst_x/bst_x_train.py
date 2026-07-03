@@ -838,7 +838,7 @@ def train_network(
 
 class Task:
     def __init__(self, taxonomy: Taxonomy, hyp: Hyp, n_joints=COCO_N_JOINTS,
-                 pose_style='JnB_bone', weight_dir: Path = Path('weight')) -> None:
+                 weight_dir: Path = Path('weight')) -> None:
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
         self.n_joints = n_joints
@@ -847,7 +847,7 @@ class Task:
         self.hyp = hyp
         # pose_style lives here (not on prepare_dataloaders) so get_network_architecture
         # can build without a prior loader step; kills the old call-order trap.
-        self.pose_style = pose_style
+        self.pose_style = hyp.pose_style
         # Head dim and class names come straight off the taxonomy now: labels.npy
         # lands in [0, taxonomy.n_classes) at collation time, so there's no
         # runtime active/full remap and no data-derived head sizing.
@@ -857,11 +857,7 @@ class Task:
         # runs never collide with older weights — see __main__ setup.
         self.weight_dir = weight_dir
 
-    def prepare_dataloaders(
-        self,
-        root_dir: Path,
-        train_partial=1.0
-    ):
+    def prepare_dataloaders(self, root_dir: Path):
         self.train_loader, \
         self.val_loader, \
         self.test_loader \
@@ -871,7 +867,7 @@ class Task:
                 batch_size=self.hyp.batch_size,
                 use_cuda=self.use_cuda,
                 num_workers=(0, 0, 0),
-                train_partial=train_partial
+                train_partial=self.hyp.train_partial
             )
 
         self._assert_label_coverage()
@@ -1356,12 +1352,9 @@ if __name__ == '__main__':
             print(f'Running serial {serial_no} ...')
             task = Task(
                 n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
-                pose_style=hyp.pose_style, weight_dir=weight_dir,
+                weight_dir=weight_dir,
             )
-            task.prepare_dataloaders(
-                root_dir=collated_root,
-                train_partial=hyp.train_partial
-            )
+            task.prepare_dataloaders(root_dir=collated_root)
 
             task.get_network_architecture(model_name='BST_X', in_channels=(3 if hyp.use_3d_pose else 2))
 
