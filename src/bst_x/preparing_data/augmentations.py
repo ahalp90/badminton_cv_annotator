@@ -35,6 +35,7 @@ import torch
 from torch import Tensor
 
 from pipeline.config import COCO_N_JOINTS
+from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 from preparing_data.shuttleset_dataset import get_bone_pairs
 
 
@@ -223,9 +224,10 @@ class ConstrainedJitter:
                   distinguishes shot classes.
     :param cap_x: maximum shift magnitude on x. Default 0.10; looser
                   because x carries less direct class information.
-    :param eps: margin matching ``sticky_anchor.generous_margin = 0.15``,
-                the band outside which the model treats positions
-                as invalid.
+    :param eps: court-border margin, the band outside which the model treats
+                positions as invalid. Defaults to
+                ``StickyAnchorParams().generous_margin`` so it tracks the
+                heuristic's value rather than a hardcoded snapshot.
     """
 
     def __init__(
@@ -233,7 +235,7 @@ class ConstrainedJitter:
         p_roll: float = 0.2,
         cap_y: float = 0.05,
         cap_x: float = 0.10,
-        eps: float = 0.15,
+        eps: float = StickyAnchorParams().generous_margin,
     ) -> None:
         self.p_roll = p_roll
         self.cap_y = cap_y
@@ -288,9 +290,11 @@ class ConstrainedJitter:
         # on most clips, so the cap is what limits the shift, not the
         # bounds. The bounds only become the active constraint if cap_y
         # is raised.
-        is_sentinel = (pos == 0.0).all(dim=-1)  # (n, t, m)
-        pos_for_max = pos.masked_fill(is_sentinel.unsqueeze(-1), float('-inf'))
-        pos_for_min = pos.masked_fill(is_sentinel.unsqueeze(-1), float('+inf'))
+        # pos_zero: any frame whose xy entries are both zero. Serves both the
+        # min/max sentinel exclusion here and the post-shift zero restore below.
+        pos_zero = (pos == 0.0).all(dim=-1)  # (n, t, m)
+        pos_for_max = pos.masked_fill(pos_zero.unsqueeze(-1), float('-inf'))
+        pos_for_min = pos.masked_fill(pos_zero.unsqueeze(-1), float('+inf'))
 
         y_top_max = pos_for_max[:, :, 0, 1].amax(dim=1)  # (n,)
         y_top_min = pos_for_min[:, :, 0, 1].amin(dim=1)
@@ -331,12 +335,10 @@ class ConstrainedJitter:
         # in either direction independently, so a clip with dy_max = 0.30
         # and cap_y = 0.05 ends up with dy_hi = 0.05 (cap binds) and
         # dy_lo = -0.05 (cap binds on the other side too if dy_min permits).
-        cap_y_t = torch.full_like(dy_max, self.cap_y)
-        cap_x_t = torch.full_like(dx_max, self.cap_x)
-        dy_hi = torch.minimum(dy_max, cap_y_t)
-        dy_lo = torch.maximum(dy_min, -cap_y_t)
-        dx_hi = torch.minimum(dx_max, cap_x_t)
-        dx_lo = torch.maximum(dx_min, -cap_x_t)
+        dy_hi = dy_max.clamp(max=self.cap_y)
+        dy_lo = dy_min.clamp(min=-self.cap_y)
+        dx_hi = dx_max.clamp(max=self.cap_x)
+        dx_lo = dx_min.clamp(min=-self.cap_x)
 
         # Flag axes the layered constraints leave no room to shift (dy_hi <= dy_lo,
         # reachable only when both bounds are exactly 0). These feed the
@@ -356,19 +358,15 @@ class ConstrainedJitter:
         dx = torch.where(roll_mask, dx, torch.zeros_like(dx))
         dy = torch.where(roll_mask, dy, torch.zeros_like(dy))
 
-        # Build pre-shift zero masks for stream-aware sentinel preservation.
-        # pos_zero: any frame whose xy entries are both zero. Shape (n, t, m).
-        # shuttle_zero: same on (n, t).
-        pos_zero = (pos == 0.0).all(dim=-1)
+        # Pre-shift zero mask for the shuttle stream (pos_zero was already built
+        # above). shuttle_zero: any frame whose xy entries are both zero, (n, t).
         shuttle_zero = (shuttle == 0.0).all(dim=-1)
 
-        # Apply shift. Broadcast dx/dy across (t, m) for pos and (t,) for shuttle.
-        shift_pos = torch.stack([dx, dy], dim=-1)        # (n, 2)
-        shift_pos = shift_pos.view(n, 1, 1, 2)
-        pos_shifted = pos + shift_pos
-
-        shift_shuttle = torch.stack([dx, dy], dim=-1).view(n, 1, 2)
-        shuttle_shifted = shuttle + shift_shuttle
+        # Apply the one per-clip shift, broadcast across (t, m) for pos and (t,)
+        # for shuttle. Same (dx, dy) tensor, viewed to each stream's rank.
+        shift = torch.stack([dx, dy], dim=-1)  # (n, 2): one shift per clip
+        pos_shifted = pos + shift.view(n, 1, 1, 2)
+        shuttle_shifted = shuttle + shift.view(n, 1, 2)
 
         # Restore pre-existing zeros.
         pos_shifted = torch.where(

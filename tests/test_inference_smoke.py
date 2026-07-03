@@ -155,9 +155,11 @@ def test_dump_run_predictions_default_lands_in_run_dir_not_predictions(tmp_path,
     assert not (run_dir / 'predictions').exists()
 
 
-def test_dump_run_predictions_missing_serial_exits(tmp_path):
+def test_dump_run_predictions_missing_serial_raises(tmp_path):
+    # dump_run_predictions raises inside the library (the CLI catches and exits);
+    # a missing serial is a ValueError.
     run_dir, collated_data_root = _build_fake_run(tmp_path)
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         bst_x_infer.dump_run_predictions(
             run_dir=run_dir, serial=99, fe_output_dir=tmp_path / 'fe',
             splits=('test',), collated_data_root=collated_data_root,

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from pipeline.config import SET_INFO_DIR, HOMOGRAPHY_RESOLUTION
+from pipeline.config import HOMOGRAPHY_RESOLUTION
 
 
 def get_H(homography_info: pd.Series) -> np.ndarray:
@@ -167,13 +167,14 @@ def check_pos_in_court(
     return in_court, pos_court_normalized
 
 
-def load_all_court_info(
-    homo_csv_path: Path = SET_INFO_DIR / 'homography.csv',
-) -> dict:
-    """Load court info for all videos from homography.csv.
+def build_all_court_info(set_info_dir: Path, res_df: pd.DataFrame) -> dict:
+    """Build ``{vid: court_info}`` for every video in ``res_df``.
 
-    :param homo_csv_path: Path to homography.csv.
-    :return: Dict mapping video ID to court_info dict.
+    Reads homography.csv from ``set_info_dir`` and keys the result on
+    ``res_df.index`` (the resolution rows), NOT on homography.csv's own index,
+    on purpose: a video with a resolution row but no homography row KeyErrors
+    here, loud and early, rather than being silently dropped and failing
+    deeper in the pipeline.
     """
-    homo_df = pd.read_csv(homo_csv_path).set_index('id')
-    return {vid: get_court_info(homo_df, vid) for vid in homo_df.index}
+    homo_df = pd.read_csv(set_info_dir / 'homography.csv').set_index('id')
+    return {vid: get_court_info(homo_df, vid) for vid in res_df.index}

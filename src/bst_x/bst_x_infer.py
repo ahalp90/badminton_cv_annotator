@@ -38,11 +38,12 @@ from pipeline.config import (
     derive_npy_collated_dir_basename,
     taxonomy_lookup,
 )
-from pipeline.data_access import env_path_or_none, load_repo_dotenv
+from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
 from bst_x_common import (
     write_prediction_npz,
     build_bst_x_network,
     dump_topk_predictions,
+    flatten_pose_features,
 )
 
 
@@ -61,7 +62,7 @@ def infer(
         pos: Tensor = pos.to(device)
         video_len: Tensor = video_len.to(device)
 
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
+        human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos, video_len)
 
         pred = torch.argmax(logits, dim=1).cpu()
@@ -147,29 +148,31 @@ def _resolve_collated_dir(
 
     Prefers the recorded ``extra.data_provenance.npy_collated_dir`` (carries the
     historical basename verbatim, including pre-split-fold names like
-    ``npy_wipe_drop``); falls back to deriving it from the recorded config.
-
-    Root order: ``--collated-data-root`` override, then
-    ``BST_X_COLLATED_DATA_ROOT`` (e.g. /scratch/comp320a on bourbaki), then the
-    in-repo ``preparing_data/`` convention. ``run_dir`` is shaped
-    ``experiments/bst_x/shuttleset/run_<id>/`` after the Plan 3 restructure, so
-    ``run_dir.parents[3]`` walks back up to the repo root.
+    ``npy_wipe_drop``); falls back to deriving it from the recorded config. The
+    root comes from ``resolve_collated_data_root`` (``--collated-data-root``
+    override, then ``BST_X_COLLATED_DATA_ROOT``, then the in-repo
+    ``preparing_data/`` convention).
     """
-    recorded_dir = (
-        (manifest.get('extra') or {}).get('data_provenance', {}).get('npy_collated_dir')
-    )
+    extra = manifest.get('extra') or {}
+    provenance = extra.get('data_provenance') or {}
+    recorded_dir = provenance.get('npy_collated_dir')
+    collation_id = collation_id_from_manifest(manifest)
+    if recorded_dir is None and collation_id is None:
+        # Neither a recorded dir nor a collation tag: deriving would format the
+        # None into an ``npy_..._None`` path that dies later naming that path,
+        # not the real cause. Fail here on the actual problem.
+        raise ValueError(
+            f'{run_dir}/manifest.yaml records neither npy_collated_dir nor a '
+            f'collation id; cannot resolve the collated dir.'
+        )
     basename = recorded_dir or derive_npy_collated_dir_basename(
         use_3d_pose=config['use_3d_pose'],
         seq_len=config['seq_len'],
         split_column=config['split_column'],
-        collation_id=collation_id_from_manifest(manifest),
+        collation_id=collation_id,
     )
-    if collated_data_root is None:
-        collated_data_root = (
-            env_path_or_none('BST_X_COLLATED_DATA_ROOT')
-            or run_dir.parents[3] / 'src' / 'bst_x' / 'preparing_data'
-        )
-    return collated_data_root / f"ShuttleSet_data_{config['taxonomy']}" / basename
+    root = resolve_collated_data_root(collated_data_root)
+    return root / f"ShuttleSet_data_{config['taxonomy']}" / basename
 
 
 def dump_run_predictions(
@@ -206,15 +209,17 @@ def dump_run_predictions(
     target = next(
         (s for s in manifest.get('serials', []) if s['serial_no'] == serial), None
     )
+    # Raise inside the library so an importer (api/notebook) gets an exception,
+    # not a process exit; __main__ maps these back to sys.exit for the CLI.
     if target is None:
-        sys.exit(f'serial {serial} not found in {run_dir}/manifest.yaml')
+        raise ValueError(f'serial {serial} not found in {run_dir}/manifest.yaml')
     weights_path = run_dir / 'weights' / Path(target['weights_path']).name
     if not weights_path.is_file():
-        sys.exit(f'weights file missing: {weights_path}')
+        raise FileNotFoundError(f'weights file missing: {weights_path}')
 
     collated_dir = _resolve_collated_dir(manifest, config, collated_data_root, run_dir)
     if not collated_dir.is_dir():
-        sys.exit(f'collated dir missing: {collated_dir}')
+        raise FileNotFoundError(f'collated dir missing: {collated_dir}')
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     net, _n_bones = build_bst_x_network(
@@ -320,11 +325,16 @@ if __name__ == '__main__':
     if args.run_dir is None:
         parser.error('--fe requires --run-dir <experiments/bst_x/shuttleset/run_...>')
 
-    dump_run_predictions(
-        run_dir=args.run_dir.resolve(),
-        serial=args.serial,
-        fe_output_dir=args.fe_output_dir,
-        splits=tuple(s.strip() for s in args.splits.split(',') if s.strip()),
-        collated_data_root=args.collated_data_root,
-        model_name=args.model_name,
-    )
+    # dump_run_predictions raises inside the library; the CLI turns those into
+    # a clean exit-with-message.
+    try:
+        dump_run_predictions(
+            run_dir=args.run_dir.resolve(),
+            serial=args.serial,
+            fe_output_dir=args.fe_output_dir,
+            splits=tuple(s.strip() for s in args.splits.split(',') if s.strip()),
+            collated_data_root=args.collated_data_root,
+            model_name=args.model_name,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        sys.exit(str(exc))

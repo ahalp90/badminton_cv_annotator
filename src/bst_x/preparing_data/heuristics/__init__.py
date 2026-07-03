@@ -10,11 +10,11 @@ Dispatch is by name via ``REGISTRY``.
 from __future__ import annotations
 
 from . import current, sticky_anchor
-from .base import ClipContext, HeuristicOutput, RawClip
+from .base import RAW_SUFFIXES, ClipContext, HeuristicOutput, RawClip
 
 REGISTRY = {
     "current": current.apply,
     "sticky_anchor": sticky_anchor.apply,
 }
 
-__all__ = ["REGISTRY", "ClipContext", "HeuristicOutput", "RawClip"]
+__all__ = ["REGISTRY", "RAW_SUFFIXES", "ClipContext", "HeuristicOutput", "RawClip"]

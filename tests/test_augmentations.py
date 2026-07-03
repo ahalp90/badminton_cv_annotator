@@ -38,7 +38,11 @@ from preparing_data.augmentations import (
     ConstrainedJitter,
     recompute_bones_torch,
 )
-from preparing_data.shuttleset_dataset import create_bones, get_bone_pairs
+from preparing_data.shuttleset_dataset import (
+    create_bones,
+    get_bone_pairs,
+    interpolate_joints,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +151,61 @@ def test_bone_recompute_zero_suppression_per_component():
     # bone.x suppressed (start.x is 0); bone.y survives (4-2=2)
     assert bones[0, 0, 0, 0, 0].item() == 0.0
     assert bones[0, 0, 0, 0, 1].item() == 2.0
+
+
+# ---------------------------------------------------------------------------
+# Section 2b: create_bones / interpolate_joints vectorisation equivalence
+# ---------------------------------------------------------------------------
+# Pins the numpy collation helpers against their pre-vectorised loop forms
+# (kept inline as oracles), so the fancy-index rewrite stays bit-exact,
+# including the zero-suppression on missing endpoints.
+
+def _old_create_bones(joints: np.ndarray, pairs) -> np.ndarray:
+    """Pre-vectorisation loop form of create_bones, the equivalence oracle."""
+    bones = []
+    for start, end in pairs:
+        start_j = joints[:, :, start, :]
+        end_j = joints[:, :, end, :]
+        bone = np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
+        bones.append(bone)
+    return np.stack(bones, axis=-2)
+
+
+def _old_interpolate_joints(joints: np.ndarray, pairs) -> np.ndarray:
+    """Pre-vectorisation loop form of interpolate_joints, the equivalence oracle."""
+    mid_joints = []
+    for start, end in pairs:
+        start_j = joints[:, :, start, :]
+        end_j = joints[:, :, end, :]
+        mid_j = np.where((start_j != 0.0) & (end_j != 0.0), (start_j + end_j) / 2, 0.0)
+        mid_joints.append(mid_j)
+    bones_center = np.stack(mid_joints, axis=-2)
+    return np.concatenate((joints, bones_center), axis=-2)
+
+
+def _joints_with_zeroed_frames_and_slots(seed: int = 7) -> np.ndarray:
+    """Random ``(t, m, J, 2)`` joints with a whole frame, a whole player slot,
+    and a single joint zeroed, so the zero-suppression path is exercised.
+    """
+    rng = np.random.default_rng(seed)
+    joints = ((rng.standard_normal((6, 2, 17, 2)) - 0.5) * 0.8).astype(np.float32)
+    joints[2] = 0.0        # a fully-zeroed frame (pose failed on every slot)
+    joints[4, 1] = 0.0     # a zeroed player slot in one frame
+    joints[0, 0, 9] = 0.0  # a single zeroed joint (left wrist)
+    return joints
+
+
+def test_create_bones_and_interpolate_joints_match_loop_oracle():
+    """Both vectorised helpers stay bit-exact to their loop oracles, including
+    zero-suppression where an endpoint (whole frame, slot, or single joint) is
+    zeroed.
+    """
+    pairs = get_bone_pairs('coco')
+    joints = _joints_with_zeroed_frames_and_slots()
+    assert np.array_equal(create_bones(joints, pairs), _old_create_bones(joints, pairs))
+    assert np.array_equal(
+        interpolate_joints(joints, pairs), _old_interpolate_joints(joints, pairs)
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -43,6 +43,7 @@ from preparing_data.shuttleset_dataset import (
     interpolate_joints,
 )
 from pipeline.config import (
+    CLIP_WINDOW,
     CLIPS_OUTPUT_DIR,
     COCO_N_JOINTS,
     SET_INFO_DIR,
@@ -57,7 +58,7 @@ from pipeline.config import (
 from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
-from pipeline.court_utils import check_pos_in_court, get_court_info  # noqa: F401
+from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
 
 if TYPE_CHECKING:  # type-only: keeps mmpose out of the runtime import (see module-top note)
     from mmpose.apis import MMPoseInferencer
@@ -80,7 +81,7 @@ def normalize_joints(
     """
     # If v_height == None and center_align == False,
     # this normalization method is same as that used in TemPose.
-    if v_height:
+    if v_height is not None:
         dist = v_height / 4
     else:  # bbox diagonal dist
         dist = np.linalg.norm(bbox[:, 2:] - bbox[:, :2], axis=-1, keepdims=True)
@@ -401,8 +402,7 @@ def _prepare_dataset_from_raw_video(
 
     all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
 
-    pbar = tqdm(range(len(all_mp4_paths)), desc="Yield .npy files", unit="video")
-    for video_path in all_mp4_paths:
+    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
         save_branch = str(save_root_dir / video_path.stem)
 
         if not Path(save_branch + "_failed.npy").exists():
@@ -421,9 +421,6 @@ def _prepare_dataset_from_raw_video(
             # ~100ms when these ran unconditionally).
             gc.collect()
             torch.cuda.empty_cache()
-
-        pbar.update()
-    pbar.close()
 
 
 def prepare_2d_dataset_npy_from_raw_video(
@@ -1034,7 +1031,7 @@ def main():
         default=env_path_or_none('BST_X_MMPOSE_NPY_DIR'),
         help="FLAT per-clip dir (Step 2 writer + Step 3 reader). Default reads "
              "BST_X_MMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
-             "preparing_root + 'dataset[_3d]_npy_between_2_hits_with_max_limits_flat'.",
+             f"preparing_root + 'dataset[_3d]_npy_{CLIP_WINDOW}_flat'.",
     )
     parser.add_argument(
         "--unknown-clip-npy-dir",
@@ -1116,7 +1113,7 @@ def main():
         default_flat_dir = preparing_root / f"dataset{str_3d}_npy_flat"
     else:  # 100
         default_flat_dir = (
-            preparing_root / f"dataset{str_3d}_npy_between_2_hits_with_max_limits_flat"
+            preparing_root / f"dataset{str_3d}_npy_{CLIP_WINDOW}_flat"
         )
 
     # FLAT per-clip dir. Step 2 writes per-clip files here ({clip_stem}_*.npy),
@@ -1148,10 +1145,9 @@ def main():
         print("\n=== End dry run ===")
         return
 
-    # ---- Load homography and resolution data (needed by all steps) ----
-    homo_df = pd.read_csv(str(SET_INFO_DIR / "homography.csv")).set_index("id")
+    # ---- Load resolution data + court info (needed by all steps) ----
     resolution_df = pd.read_csv(str(RESOLUTION_CSV_PATH)).set_index("id")
-    all_court_info = {vid: get_court_info(homo_df, vid) for vid in resolution_df.index}
+    all_court_info = build_all_court_info(SET_INFO_DIR, resolution_df)
 
     # ---- Step 1: Shuttle trajectory detection ----
     if not args.skip_trajectory:

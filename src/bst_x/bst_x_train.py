@@ -39,7 +39,7 @@ from pipeline.config import (
     derive_npy_collated_dir_basename,
     taxonomy_lookup,
 )
-from pipeline.data_access import env_path_or_none, load_repo_dotenv
+from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
 from run_tracker import track_run, track_serial
 from bst_x_common import (
     Tee,
@@ -47,6 +47,7 @@ from bst_x_common import (
     build_bst_x_network,
     compute_data_provenance,
     dump_topk_predictions,
+    flatten_pose_features,
 )
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
@@ -219,8 +220,7 @@ def train_one_epoch(
         jitter_n_oob += n_oob
         jitter_n_total += human_pose.shape[0]
 
-        # Flatten last two dims (joints/bones, xy) into one feature dim for the model
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
+        human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos, video_len)
         loss: Tensor = loss_fn(logits, labels)
 
@@ -235,7 +235,7 @@ def train_one_epoch(
         # Per-class confusion counts on argmax preds. no_grad() because preds
         # are detached labels; nothing here needs an autograd graph.
         with torch.no_grad():
-            preds = logits.argmax(dim=-1)
+            preds = logits.argmax(dim=1)
             batch_tp, batch_fp, batch_fn = accumulate_class_counts(
                 preds, labels, n_classes,
             )
@@ -272,7 +272,7 @@ def validate(
         video_len: Tensor = video_len.to(device)
         labels: Tensor = labels.to(device)
 
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
+        human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos, video_len)
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
@@ -662,9 +662,10 @@ def train_network(
         elif curr_min > second_min:
             second_min, second_min_epoch = curr_min, epoch
 
-        best_val_loss, best_val_loss_epoch = min(
-            (best_val_loss, best_val_loss_epoch), (val_loss, epoch)
-        )
+        # Strict <: a later epoch that merely ties the best val loss doesn't
+        # replace it, so the earliest epoch reaching the minimum is kept.
+        if val_loss < best_val_loss:
+            best_val_loss, best_val_loss_epoch = val_loss, epoch
 
         if early_stop_count == hyp.early_stop_n_epochs:
             print(f'Early stop with best value {best_macro:.3f}')
@@ -1222,25 +1223,16 @@ if __name__ == '__main__':
     )
     weight_dir = run_dir / 'weights'
 
-    # Collated dir, resolved the same way the collator wrote it:
-    # BST_X_COLLATED_DATA_ROOT (e.g. /scratch/comp320a on bourbaki) when set,
-    # else the in-repo preparing_data/ convention for local dev. taxonomy.name
-    # is the resolved canonical name, matching the writer's parent dir. Without
-    # the env var the reader looks in-repo while the writer wrote to /scratch,
-    # so the runner would never find the cells.
-    collated_data_root = env_path_or_none('BST_X_COLLATED_DATA_ROOT')
-    if collated_data_root is not None:
-        collated_root = (
-            collated_data_root / f'ShuttleSet_data_{taxonomy.name}' / npy_collated_dir
-        )
-    else:
-        # bst_x_train.py lives at src/bst_x/; preparing_data/ is a sibling, so
-        # one .parent walks to src/bst_x/ and then into preparing_data/.
-        collated_root = (
-            Path(__file__).resolve().parent
-            / f'preparing_data/ShuttleSet_data_{taxonomy.name}'
-            / npy_collated_dir
-        )
+    # Collated dir, resolved the same way the collator wrote it, via the shared
+    # root helper (BST_X_COLLATED_DATA_ROOT, e.g. /scratch/comp320a on bourbaki,
+    # else the in-repo preparing_data/ convention). taxonomy.name is the resolved
+    # canonical name, matching the writer's parent dir. Without the env var the
+    # reader looks in-repo while the writer wrote to /scratch, so keep them in sync.
+    collated_root = (
+        resolve_collated_data_root()
+        / f'ShuttleSet_data_{taxonomy.name}'
+        / npy_collated_dir
+    )
 
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so

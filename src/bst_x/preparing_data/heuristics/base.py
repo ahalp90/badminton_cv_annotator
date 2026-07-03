@@ -37,6 +37,18 @@ class RawClip(NamedTuple):
     ndet: np.ndarray
 
 
+# Per-clip raw file suffixes, one per RawClip field above (kps, bboxes, scores,
+# kp_scores, ndet). raw_extract writes all five; apply_heuristic requires all
+# five present. Shared here so the writer/reader contract has one home.
+RAW_SUFFIXES = (
+    "_raw_kps.npy",
+    "_raw_bboxes.npy",
+    "_raw_scores.npy",
+    "_raw_kp_scores.npy",
+    "_raw_ndet.npy",
+)
+
+
 @dataclass
 class ClipContext:
     """Per-clip context needed to project pixel coords into court coords.

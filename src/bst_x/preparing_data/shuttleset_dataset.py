@@ -33,18 +33,20 @@ POSE_BONE_MULTIPLIER = {'J_only': 0, 'JnB_bone': 1, 'JnB_interp': 1, 'Jn2B': 2}
 
 
 def get_bone_pairs(skeleton_format='coco'):
-    match skeleton_format:
-        case 'coco':
-            pairs = [
-                (0,1),(0,2),(1,2),(1,3),(2,4),   # head
-                (3,5),(4,6),                     # ears to shoulders
-                (5,7),(7,9),(6,8),(8,10),        # arms
-                (5,6),(5,11),(6,12),(11,12),     # torso
-                (11,13),(13,15),(12,14),(14,16)  # legs
-            ]
-        case _:
-            raise NotImplementedError
-    return pairs
+    """(start, end) joint-index pairs for the skeleton's bone table.
+
+    create_bones and recompute_bones_torch both depend on this
+    (start, end) orientation: bone vector = end - start.
+    """
+    if skeleton_format != 'coco':
+        raise NotImplementedError(f'unknown skeleton_format: {skeleton_format!r}')
+    return [
+        (0,1),(0,2),(1,2),(1,3),(2,4),   # head
+        (3,5),(4,6),                     # ears to shoulders
+        (5,7),(7,9),(6,8),(8,10),        # arms
+        (5,6),(5,11),(6,12),(11,12),     # torso
+        (11,13),(13,15),(12,14),(14,16)  # legs
+    ]
 
 
 def _pad_tail_to(
@@ -91,30 +93,29 @@ def make_seq_len_same(
 
 
 def create_bones(joints: np.ndarray, pairs) -> np.ndarray:
-    '''Same as create_bones_robust in TemPose.'''
-    # joints: (t, m, J, 2)
-    bones = []
-    for start, end in pairs:
-        start_j = joints[:, :, start, :]
-        end_j = joints[:, :, end, :]
-        bone = np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
-        # bone: (t, m, 2)
-        bones.append(bone)
-    return np.stack(bones, axis=-2)
+    """Bone vectors (end - start) per pair; zero where either endpoint is missing.
+
+    Same semantics as create_bones_robust in TemPose.
+    joints (t, m, J, 2) -> bones (t, m, B, 2).
+    """
+    starts, ends = zip(*pairs)
+    start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
+    end_j = joints[:, :, list(ends), :]
+    return np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
 
 
 def interpolate_joints(joints: np.ndarray, pairs) -> np.ndarray:
-    '''Same as create_limbs_robust when 'num_steps' set to 3 in TemPose.'''
-    # joints: (t, m, J, 2)
-    mid_joints = []
-    for start, end in pairs:
-        start_j = joints[:, :, start, :]
-        end_j = joints[:, :, end, :]
-        mid_j = np.where((start_j != 0.0) & (end_j != 0.0), (start_j + end_j) / 2, 0.0)
-        # mid_j: (t, m, 2)
-        mid_joints.append(mid_j)
-    bones_center = np.stack(mid_joints, axis=-2)  # bones_center: (t, m, B, 2)
-    return np.concatenate((joints, bones_center), axis=-2)  # (t, m, J+B, 2)
+    """Joints plus a midpoint 'limb' per pair; midpoint zeroed where either
+    endpoint is missing.
+
+    Same as create_limbs_robust with 'num_steps' set to 3 in TemPose.
+    joints (t, m, J, 2) -> (t, m, J+B, 2).
+    """
+    starts, ends = zip(*pairs)
+    start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
+    end_j = joints[:, :, list(ends), :]
+    mid = np.where((start_j != 0.0) & (end_j != 0.0), (start_j + end_j) / 2, 0.0)
+    return np.concatenate((joints, mid), axis=-2)  # (t, m, J+B, 2)
 
 
 class Dataset_npy_collated(Dataset):

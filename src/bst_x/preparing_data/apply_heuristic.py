@@ -32,10 +32,10 @@ import pandas as pd
 from tqdm import tqdm
 
 from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-from pipeline.court_utils import get_court_info
+from pipeline.court_utils import build_all_court_info
 from pipeline.data_access import load_repo_dotenv
 
-from preparing_data.heuristics import REGISTRY, ClipContext, RawClip
+from preparing_data.heuristics import RAW_SUFFIXES, REGISTRY, ClipContext, RawClip
 from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 
 # Pull BST_X_MMPOSE_NPY_DIR from the repo-root .env so the output-dir
@@ -43,14 +43,6 @@ from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 # so importing run() also loads .env.
 load_repo_dotenv()
 
-
-RAW_SUFFIXES = (
-    "_raw_kps.npy",
-    "_raw_bboxes.npy",
-    "_raw_scores.npy",
-    "_raw_kp_scores.npy",
-    "_raw_ndet.npy",
-)
 
 OUT_SUFFIXES = ("_pos.npy", "_joints.npy", "_failed.npy")
 
@@ -167,11 +159,6 @@ def _build_stem_list(
     return eligible
 
 
-def _build_all_court_info(set_info_dir: Path, res_df: pd.DataFrame) -> dict:
-    homo_df = pd.read_csv(set_info_dir / "homography.csv").set_index("id")
-    return {vid: get_court_info(homo_df, vid) for vid in res_df.index}
-
-
 def run(
     *,
     raw_dir: Path,
@@ -222,7 +209,7 @@ def run(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     res_df = pd.read_csv(str(RESOLUTION_CSV_PATH)).set_index("id")
-    all_court_info = _build_all_court_info(SET_INFO_DIR, res_df)
+    all_court_info = build_all_court_info(SET_INFO_DIR, res_df)
 
     heuristic_fn = REGISTRY[heuristic]
     hyperparams = hyperparams or {}

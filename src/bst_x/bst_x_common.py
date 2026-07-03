@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from pipeline.config import Taxonomy
 from preparing_data.shuttleset_dataset import (
@@ -88,6 +88,16 @@ def build_bst_x_network(
     return net, n_bones
 
 
+def flatten_pose_features(human_pose: Tensor) -> Tensor:
+    """Flatten the trailing (joints/bones, channels) axes into one feature axis.
+
+    ``(n, t, m, J+B, 2) -> (n, t, m, (J+B)*2)``. Every BST forward pass needs
+    this massage; keeping it in one place stops the four call sites (train,
+    validate, infer, dump) from drifting.
+    """
+    return human_pose.view(*human_pose.shape[:-2], -1)
+
+
 @torch.no_grad()
 def dump_topk_predictions(
     model: nn.Module,
@@ -121,23 +131,32 @@ def dump_topk_predictions(
         shuttle = shuttle.to(device)
         pos = pos.to(device)
         video_len = video_len.to(device)
-        # Flatten the (joints/bones, channels) trailing dims into one feature
-        # dim, mirroring the train/infer forward massage.
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
+        human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos, video_len)
         k_eff = min(k, logits.shape[-1])
         topk_idx = torch.topk(logits, k=k_eff, dim=-1).indices
         logits_ls.append(logits.cpu().numpy())
         y_true_ls.append(labels.numpy())
-        # top-1 via argmax to match every other metric site (equals topk_idx[:, 0] on
-        # the tie-free logits a trained model produces; the tie-guard downstream catches any tie).
-        top1_ls.append(logits.argmax(dim=-1).cpu().numpy())
+        # top-1 via argmax to match every other metric site.
+        top1_ls.append(logits.argmax(dim=1).cpu().numpy())
         topk_idx_ls.append(topk_idx.cpu().numpy())
+
+    # Pin the npz schema regardless of upstream dtype drift; copy=False skips
+    # the copy when the array is already the target dtype.
+    y_pred_top1 = np.concatenate(top1_ls).astype(np.int64, copy=False)
+    topk_idx = np.concatenate(topk_idx_ls).astype(np.int64, copy=False)
+    # Tie-guard enforced here at the origin: argmax top-1 must equal the top
+    # topk column, so every consumer can trust y_pred_top1 == topk_idx[:, 0]
+    # without re-checking. A trained model produces tie-free logits; a mismatch
+    # means degenerate logits worth failing on.
+    assert (y_pred_top1 == topk_idx[:, 0]).all(), (
+        'y_pred_top1 disagrees with topk_idx[:, 0]: logit ties in the dump.'
+    )
     return {
-        'logits':      np.concatenate(logits_ls).astype(np.float32),
-        'y_true':      np.concatenate(y_true_ls).astype(np.int64),
-        'y_pred_top1': np.concatenate(top1_ls).astype(np.int64),
-        'topk_idx':    np.concatenate(topk_idx_ls).astype(np.int64),
+        'logits':      np.concatenate(logits_ls).astype(np.float32, copy=False),
+        'y_true':      np.concatenate(y_true_ls).astype(np.int64, copy=False),
+        'y_pred_top1': y_pred_top1,
+        'topk_idx':    topk_idx,
     }
 
 

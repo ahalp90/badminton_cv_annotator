@@ -46,6 +46,7 @@ import torch
 from tqdm import tqdm
 
 from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
+from preparing_data.heuristics.base import RAW_SUFFIXES
 
 
 def extract_raw_frame(
@@ -156,15 +157,6 @@ def build_stem_to_path(clips_dir: Path) -> dict[str, Path]:
 def load_stems(path: Path) -> list[str]:
     with path.open() as fh:
         return [line.strip() for line in fh if line.strip()]
-
-
-RAW_SUFFIXES = (
-    "_raw_kps.npy",
-    "_raw_bboxes.npy",
-    "_raw_scores.npy",
-    "_raw_kp_scores.npy",
-    "_raw_ndet.npy",
-)
 
 
 def _stored_n_max(save_branch: str) -> int | None:

@@ -159,6 +159,21 @@ def env_path_or_none(var: str) -> Path | None:
     return Path(val) if val else None
 
 
+def resolve_collated_data_root(override: Path | None = None) -> Path:
+    """Root dir holding the per-taxonomy ``ShuttleSet_data_<tax>/`` trees.
+
+    Resolution order: explicit ``override``, then ``BST_X_COLLATED_DATA_ROOT``
+    (e.g. /scratch/comp320a on bourbaki), then the in-repo
+    ``src/bst_x/preparing_data`` convention for local dev where /scratch isn't
+    mounted. bst_x_train and bst_x_infer both resolve their collated dir through
+    here, so the env-var-then-fallback convention has one home.
+    """
+    # data_access.py lives at src/bst_x/pipeline/; preparing_data/ is a sibling
+    # of pipeline/ under src/bst_x/.
+    in_repo_fallback = Path(__file__).resolve().parent.parent / 'preparing_data'
+    return override or env_path_or_none('BST_X_COLLATED_DATA_ROOT') or in_repo_fallback
+
+
 @dataclass
 class DataPaths:
     """Root directories for each data type plus the master clips CSV.
@@ -330,6 +345,23 @@ def get_clip_records(
     else:
         path_by_stem = {}
 
+    # Prescan each data-type dir once (mirroring the clips_dir index above), then
+    # test set membership per row instead of stat-ing three files per CSV row.
+    # Each dir is is_dir-guarded because it's an optional config path that need
+    # not exist (fresh checkout, laptop without the extract).
+    if paths.shuttle_npy_dir.is_dir():
+        shuttle_stems = {p.stem for p in paths.shuttle_npy_dir.glob('*.npy')}
+    else:
+        shuttle_stems = set()
+
+    # mmpose files carry _joints/_pos suffixes; strip back to the clip stem.
+    mmpose_dir = paths.mmpose_npy_dir
+    if mmpose_dir is not None and mmpose_dir.is_dir():
+        joints_stems = {p.name.removesuffix('_joints.npy') for p in mmpose_dir.glob('*_joints.npy')}
+        pos_stems = {p.name.removesuffix('_pos.npy') for p in mmpose_dir.glob('*_pos.npy')}
+    else:
+        joints_stems, pos_stems = set(), set()
+
     records: list[ClipRecord] = []
     for row in df.itertuples(index=False):
         stem = row.clip_stem
@@ -345,16 +377,17 @@ def get_clip_records(
 
         clip = path_by_stem.get(stem)
 
-        shuttle = paths.shuttle_npy_dir / f'{stem}.npy'
-        shuttle = shuttle if shuttle.exists() else None
-
-        joints: Path | None = None
-        pos: Path | None = None
-        if paths.mmpose_npy_dir is not None:
-            j = paths.mmpose_npy_dir / f'{stem}_joints.npy'
-            p = paths.mmpose_npy_dir / f'{stem}_pos.npy'
-            joints = j if j.exists() else None
-            pos = p if p.exists() else None
+        # A stem only lands in joints_stems/pos_stems when mmpose_npy_dir is a
+        # real dir, so the path build here is never reached with a None dir.
+        shuttle = (
+            paths.shuttle_npy_dir / f'{stem}.npy' if stem in shuttle_stems else None
+        )
+        joints = (
+            paths.mmpose_npy_dir / f'{stem}_joints.npy' if stem in joints_stems else None
+        )
+        pos = (
+            paths.mmpose_npy_dir / f'{stem}_pos.npy' if stem in pos_stems else None
+        )
 
         records.append(ClipRecord(
             split=getattr(row, split_column),
@@ -403,9 +436,9 @@ def summarise(
         c['clips'] += 1
         if r.clip is not None:
             c['clips_on_disk'] += 1
-        if r.shuttle_npy:
+        if r.shuttle_npy is not None:
             c['shuttle'] += 1
-        if r.mmpose_joints:
+        if r.mmpose_joints is not None:
             c['mmpose'] += 1
 
     for sp in SPLITS:
@@ -413,7 +446,7 @@ def summarise(
             continue
         print(f'\n{sp}:')
         for cls_name, c in sorted(counts[sp].items()):
-            mmpose_str = f"  mmpose={c['mmpose']}" if paths.mmpose_npy_dir else ''
+            mmpose_str = f"  mmpose={c['mmpose']}" if paths.mmpose_npy_dir is not None else ''
             print(
                 f"  {cls_name:<40}  clips={c['clips']}"
                 f"  on_disk={c['clips_on_disk']}"
@@ -422,13 +455,13 @@ def summarise(
 
     total = len(records)
     on_disk_total = sum(1 for r in records if r.clip is not None)
-    shuttle_total = sum(1 for r in records if r.shuttle_npy)
+    shuttle_total = sum(1 for r in records if r.shuttle_npy is not None)
     print(
         f'\nTotal: {total} clip rows, {on_disk_total} clips on disk, '
         f'{shuttle_total} shuttle npys'
     )
-    if paths.mmpose_npy_dir:
-        mmpose_total = sum(1 for r in records if r.mmpose_joints)
+    if paths.mmpose_npy_dir is not None:
+        mmpose_total = sum(1 for r in records if r.mmpose_joints is not None)
         print(f'       {mmpose_total} mmpose npy sets')
 
 
