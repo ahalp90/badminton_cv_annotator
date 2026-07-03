@@ -28,9 +28,9 @@ decision can diverge for that frame; this is documented in
 ``docs/architecture_notes/mmpose_heuristic/historical_mmpose_heuristic_investigation.md``.
 
 The imports from ``prepare_train_on_shuttleset`` are deferred to ``apply``'s
-first call because that module has a top-level ``from mmpose.apis import
-MMPoseInferencer``; we want module-level ``import current`` to work in
-environments without MMPose (e.g. local smoke tests).
+first call because that module imports torch and the extraction pipeline at module
+load (the 2D rtmlib adapter and 3D mmpose are themselves lazy); we want
+module-level ``import current`` to work without those heavy deps (e.g. local smoke tests).
 """
 from __future__ import annotations
 
@@ -45,7 +45,8 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     ``_hyperparams`` is accepted and ignored so the CLI can pass the
     sticky_anchor hyperparam block uniformly to every registered variant.
     """
-    # Lazy import: prepare_train_on_shuttleset pulls in mmpose at module load.
+    # Lazy import: prepare_train_on_shuttleset imports torch + the extraction
+    # pipeline at module load (the 2D path is rtmlib now, not mmpose).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         check_pos_in_court,
         normalize_joints,

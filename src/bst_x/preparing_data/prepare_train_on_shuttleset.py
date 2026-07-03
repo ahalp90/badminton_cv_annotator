@@ -8,7 +8,7 @@
 Bridges the gap between the pipeline's clip output and BST's expected input format.
 Three steps, each independently skippable:
   Step 1: Shuttle trajectory detection via TrackNetV3
-  Step 2: 2D/3D player pose estimation via MMPose + court projection
+  Step 2: player pose estimation (2D via rtmlib; 3D via MMPose, dormant) + court projection
   Step 3: Collate per-clip .npy files into batch-ready arrays
 
 Run from the repo root with both package roots on PYTHONPATH::
@@ -17,11 +17,12 @@ Run from the repo root with both package roots on PYTHONPATH::
         python -m preparing_data.prepare_train_on_shuttleset --help
 """
 
-# Deferred annotations so the MMPoseInferencer type hints (detect_players_2d/3d) don't force
-# the mmpose import at module load. That keeps collate_npy and the pose-style joint helpers
-# -- none of which touch mmpose -- importable without the GPU dep (e.g. venv-bst-x collation,
-# the CPU goldens). mmpose is imported lazily inside the three functions that instantiate it,
-# and under TYPE_CHECKING for the static type hints. Keep this: reverting re-couples the module.
+# Deferred annotations so the RtmlibPoseExtractor (2D) and MMPoseInferencer (3D)
+# type hints don't force their imports at module load. That keeps collate_npy and the
+# pose-style joint helpers -- none of which touch either extractor -- importable without
+# the extraction deps (e.g. venv-bst-x collation, the CPU goldens). The 2D rtmlib adapter
+# is imported lazily in detect_players_2d; mmpose lazily in the 3D functions; both under
+# TYPE_CHECKING for the static hints. Keep this: reverting re-couples the module.
 from __future__ import annotations
 
 import argparse
@@ -58,8 +59,10 @@ from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import check_pos_in_court, get_court_info  # noqa: F401
 
-if TYPE_CHECKING:  # type-only: keeps mmpose out of the runtime import (see module-top note)
-    from mmpose.apis import MMPoseInferencer
+if TYPE_CHECKING:  # type-only: keeps mmpose/rtmlib out of the runtime import (see module-top note)
+    from mmpose.apis import MMPoseInferencer  # 3D path only (quarantined)
+
+    from preparing_data.rtmlib_pose import RtmlibPoseExtractor  # 2D path
 
 
 def normalize_joints(
@@ -158,7 +161,7 @@ def _order_two_on_court(
 
 
 def detect_players_2d(
-    inferencer: MMPoseInferencer,
+    extractor: RtmlibPoseExtractor,
     video_path: Path,
     all_court_info: dict,
     res_df: pd.DataFrame,
@@ -166,7 +169,8 @@ def detect_players_2d(
     normalized_by_v_height=False,
     center_align=False,
 ):
-    """
+    """Detect the two on-court players per frame via the rtmlib adapter.
+
     Outputs
     -------
     failed_ls: list
@@ -181,11 +185,11 @@ def detect_players_2d(
     players_positions = []
     players_joints = []
 
-    for frame_num, result in enumerate(inferencer(str(video_path), show=False)):
-        keypoints = np.array(
-            [person["keypoints"] for person in result["predictions"][0]]
-        )  # batch_size=1 (default)
-        # keypoints: (m, J, 2)
+    for det in extractor.iter_video(video_path):
+        # float64 to match the old mmpose np.array(list-of-lists) dtype: rtmlib
+        # returns float32, and _order_two_on_court / normalize_joints / court
+        # projection are gated against the committed float64 output at atol (G3).
+        keypoints = det.keypoints.astype(np.float64)  # (m, J, 2)
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 3).
@@ -197,10 +201,7 @@ def detect_players_2d(
             continue
         in_court_pid, pos_normalized = ordered
 
-        bboxes = np.array(
-            [person["bbox"][0] for person in result["predictions"][0]]
-        )  # batch_size=1 (default)
-        # bboxes: (m, 4)
+        bboxes = det.bboxes.astype(np.float64)  # (m, 4)
 
         failed_ls.append(False)
         players_positions.append(pos_normalized[in_court_pid])
@@ -377,7 +378,7 @@ def _prepare_dataset_from_raw_video(
     detect_fn,
     detect_kwargs: dict,
 ):
-    """Shared per-clip MMPose iteration for 2D and 3D pose extraction.
+    """Shared per-clip pose-extraction iteration for the 2D (rtmlib) and 3D (MMPose) paths.
 
     For each clip in ``my_clips_folder``: skip if ``{stem}_failed.npy`` already
     exists (resume marker), otherwise call ``detect_fn(**detect_kwargs, video_path=...)``
@@ -415,10 +416,13 @@ def _prepare_dataset_from_raw_video(
             np.save(save_branch + "_joints.npy", joints)
             np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
 
-            # Free GPU memory after inference to prevent fragmentation over
-            # ~33k clips. Skips don't allocate on GPU, so no cleanup needed
-            # in that branch -- keeps resume-path iterations cheap (~1ms vs
-            # ~100ms when these ran unconditionally).
+            # Free memory after inference to limit fragmentation over ~33k clips.
+            # torch.cuda.empty_cache() serves the 3D (mmpose/torch) path; the 2D
+            # rtmlib path allocates no torch CUDA tensors, so it is a harmless
+            # no-op there (onnxruntime manages its own memory). This runner is
+            # shared by both, so the call stays. Skips don't allocate, so no
+            # cleanup is needed in that branch -- keeps resume-path iterations
+            # cheap (~1ms vs ~100ms when these ran unconditionally).
             gc.collect()
             torch.cuda.empty_cache()
 
@@ -433,8 +437,9 @@ def prepare_2d_dataset_npy_from_raw_video(
     all_court_info: dict,
     joints_normalized_by_v_height=False,
     joints_center_align=False,
+    device: str = "cuda",
 ):
-    """Run MMPose 2D pose estimation on clips and save per-clip .npy files.
+    """Run rtmlib 2D pose estimation on clips and save per-clip .npy files.
 
     For each clip, detects player keypoints (COCO 17-joint), extracts court
     positions via homography, and normalizes joints. Saves _joints.npy
@@ -448,16 +453,17 @@ def prepare_2d_dataset_npy_from_raw_video(
     :param joints_normalized_by_v_height: If True, normalize joints by video height
         instead of bounding box diagonal.
     :param joints_center_align: If True, center-align joints within bounding box.
+    :param device: onnxruntime device for the rtmlib adapter ("cuda" or "cpu").
     """
-    from mmpose.apis import MMPoseInferencer  # lazy: keeps the module mmpose-free at import (see top)
-    pose_inferencer = MMPoseInferencer("human")
+    from preparing_data.rtmlib_pose import RtmlibPoseExtractor  # lazy: keeps the module rtmlib-free at import (see top)
+    pose_extractor = RtmlibPoseExtractor(device=device)
 
     _prepare_dataset_from_raw_video(
         my_clips_folder=my_clips_folder,
         save_root_dir=save_root_dir,
         detect_fn=detect_players_2d,
         detect_kwargs={
-            "inferencer": pose_inferencer,
+            "extractor": pose_extractor,
             "all_court_info": all_court_info,
             "res_df": resolution_df,
             "normalized_by_v_height": joints_normalized_by_v_height,
@@ -685,8 +691,8 @@ def _align_shuttle_and_truncate(
     agnostic, so decoupling lets the ~1.5-3 day GPU pose job run without them
     and collation re-run cheaply per taxonomy.
 
-    Temporal alignment: MMPose and TrackNetV3 use different video backends
-    that can disagree by 1-2 frames on the tail of the same .mp4. Truncating
+    Temporal alignment: the pose extractor and TrackNetV3 use different video
+    backends that can disagree by 1-2 frames on the tail of the same .mp4. Truncating
     to the shorter length preserves frame alignment (both decoders start at
     frame 0). Truncation propagates to joints AND pos so pose frame k stays
     paired with shuttle frame k (B4 INV-5).
@@ -930,7 +936,7 @@ def main():
         description=(
             "Prepare ShuttleSet training data in 3 steps:\n"
             "  Step 1: Shuttle trajectory detection (TrackNetV3)\n"
-            "  Step 2: 2D/3D pose estimation (MMPose)\n"
+            "  Step 2: pose estimation (2D rtmlib / 3D MMPose)\n"
             "  Step 3: Collate per-clip .npy files into batch arrays\n"
             "\n"
             "Each step can be skipped independently."
@@ -973,6 +979,12 @@ def main():
         "--use-3d-pose",
         action="store_true",
         help="Use 3D pose estimation instead of 2D",
+    )
+    parser.add_argument(
+        "--device",
+        default="cuda",
+        help="onnxruntime device for the rtmlib 2D adapter: 'cuda' (default, "
+             "needs onnxruntime-gpu) or 'cpu'. Ignored for --use-3d-pose (mmpose).",
     )
 
     # Path overrides (only the ones that genuinely vary)
@@ -1188,6 +1200,7 @@ def main():
                 all_court_info=all_court_info,
                 joints_normalized_by_v_height=False,
                 joints_center_align=True,
+                device=args.device,
             )
     else:
         print("Step 2: Skipped (--skip-pose)")
