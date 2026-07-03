@@ -384,7 +384,7 @@ To gate the 3D leg the way the 2D leg is gated, a future implementer would
 need, on the GPU box under `venv-mmpose`:
 
 1. A 3D reference extract: run `prepare_3d_dataset_npy_from_raw_video` (or
-   `main --use-3d-pose --skip-trajectory --skip-collate`) on a fixed handful of
+   `main --use-3d-pose --skip-collate`) on a fixed handful of
    mp4 stems on `main`, capturing `{stem}_pos.npy` (`(F,2,2)`),
    `{stem}_joints.npy` (`(F,2,J,3)`), `{stem}_failed.npy` per clip. None of
    these exist today.

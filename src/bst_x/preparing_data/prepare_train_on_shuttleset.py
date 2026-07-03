@@ -3,13 +3,12 @@
 # Licence. See src/bst_x/THIRD_PARTY_NOTICES.md. This project is otherwise
 # licensed LGPL-3.0-or-later.
 
-"""Prepare ShuttleSet training data: shuttle detection, pose estimation, and collation.
+"""Prepare ShuttleSet training data: pose estimation and collation.
 
 Bridges the gap between the pipeline's clip output and BST's expected input format.
-Three steps, each independently skippable:
-  Step 1: Shuttle trajectory detection via TrackNetV3
-  Step 2: 2D/3D player pose estimation via MMPose + court projection
-  Step 3: Collate per-clip .npy files into batch-ready arrays
+Two steps, each independently skippable:
+  Step 1: 2D/3D player pose estimation via MMPose + court projection
+  Step 2: Collate per-clip .npy files into batch-ready arrays
 
 Run from the repo root with both package roots on PYTHONPATH::
 
@@ -57,7 +56,6 @@ from pipeline.config import (
     taxonomy_lookup,
 )
 from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
-from pipeline.shuttle_extractor import extract_all_shuttles
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
@@ -200,7 +198,7 @@ def detect_players_2d(
         # keypoints: (m, J, 2)
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
-        # Shuttle coords for these frames are zeroed at collation (Step 3).
+        # Shuttle coords for these frames are zeroed at collation (Step 2).
         ordered = _order_two_on_court(keypoints, vid, all_court_info, res_df)
         if ordered is None:
             failed_ls.append(True)
@@ -326,7 +324,7 @@ def _prepare_dataset_from_raw_video(
 
     The resume marker is `_failed.npy` because it is saved last; its presence
     means all three outputs are complete for the clip. Shuttle data is read
-    from the canonical pipeline CSV dir at collation (Step 3); this expensive
+    from the canonical pipeline CSV dir at collation (Step 2); this expensive
     GPU step stays focused solely on pose estimation.
 
     :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
@@ -336,7 +334,7 @@ def _prepare_dataset_from_raw_video(
         besides ``video_path``.
     """
     # Flat layout: per-clip files sit alongside each other under save_root_dir.
-    # Split + label come from clips_master.csv at collation time (Step 3).
+    # Split + label come from clips_master.csv at collation time (Step 2).
     save_root_dir.mkdir(parents=True, exist_ok=True)
 
     all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
@@ -854,9 +852,7 @@ def main():
         PYTHONPATH=src/bst_x \\
             python -m preparing_data.prepare_train_on_shuttleset --dry-run
         PYTHONPATH=src/bst_x \\
-            python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose
-        PYTHONPATH=src/bst_x \\
-            python -m preparing_data.prepare_train_on_shuttleset --tracknet-dir /path/to/TrackNetV3
+            python -m preparing_data.prepare_train_on_shuttleset --skip-pose
     """
     # Populate os.environ from <repo>/.env so argparse defaults below can
     # read BST_* vars. Same pattern as pipeline.data_access.
@@ -864,10 +860,9 @@ def main():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare ShuttleSet training data in 3 steps:\n"
-            "  Step 1: Shuttle trajectory detection (TrackNetV3)\n"
-            "  Step 2: 2D/3D pose estimation (MMPose)\n"
-            "  Step 3: Collate per-clip .npy files into batch arrays\n"
+            "Prepare ShuttleSet training data in 2 steps:\n"
+            "  Step 1: 2D/3D pose estimation (MMPose)\n"
+            "  Step 2: Collate per-clip .npy files into batch arrays\n"
             "\n"
             "Each step can be skipped independently."
         ),
@@ -876,17 +871,12 @@ def main():
 
     # Step control
     parser.add_argument(
-        "--skip-trajectory",
-        action="store_true",
-        help="Skip Step 1 (shuttle trajectory detection)",
-    )
-    parser.add_argument(
-        "--skip-pose", action="store_true", help="Skip Step 2 (pose estimation)"
+        "--skip-pose", action="store_true", help="Skip Step 1 (pose estimation)"
     )
     parser.add_argument(
         "--skip-collate",
         action="store_true",
-        help="Skip Step 3 (collation into batch arrays)",
+        help="Skip Step 2 (collation into batch arrays)",
     )
 
     # Data configuration
@@ -922,38 +912,13 @@ def main():
         help=f"Clip .mp4 input directory (default: BST_X_CLIPS_DIR or {CLIPS_OUTPUT_DIR})",
     )
     parser.add_argument(
-        "--tracknet-dir",
-        type=Path,
-        default=None,
-        help="Path to TrackNetV3 repo (required for Step 1)",
-    )
-    # Step 1 extraction knobs, mirroring pipeline.build_dataset's names.
-    parser.add_argument(
-        "--tracknet-python",
-        type=Path,
-        default=None,
-        help="Python executable for the TrackNet workers (default: this one)",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=2,
-        help="Parallel TrackNet workers for Step 1 (each loads its own model)",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=32,
-        help="Batch size for the TrackNet DataLoader (default 32, use 64 with --workers 1)",
-    )
-    parser.add_argument(
         "--shuttle-csv-dir",
         type=Path,
         default=env_path('BST_X_SHUTTLE_CSV_DIR', SHUTTLE_CSV_DIR),
         help=f"Directory with TrackNetV3 shuttle CSVs (default: BST_X_SHUTTLE_CSV_DIR or {SHUTTLE_CSV_DIR})",
     )
 
-    # Step 3 (collation) configuration: drives split + label assignment from
+    # Step 2 (collation) configuration: drives split + label assignment from
     # the master clips CSV instead of the on-disk folder layout. The flat
     # per-clip dir holds {clip_stem}_*.npy files shared across all ablations;
     # the collated dir is per-cell -- the parent dir carries the taxonomy and
@@ -989,7 +954,7 @@ def main():
         "--clip-npy-dir",
         type=Path,
         default=env_path_or_none('BST_X_MMPOSE_NPY_DIR'),
-        help="FLAT per-clip dir (Step 2 writer + Step 3 reader). Default reads "
+        help="FLAT per-clip dir (Step 1 writer + Step 2 reader). Default reads "
              "BST_X_MMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
              f"preparing_root + 'dataset[_3d]_npy_{CLIP_WINDOW}_flat'.",
     )
@@ -1007,7 +972,7 @@ def main():
         "--pose-styles",
         default="JnB_bone",
         help="Comma-separated pose representations to compute and save at "
-             "Step 3. Default 'JnB_bone' (the only style BST training has "
+             "Step 2. Default 'JnB_bone' (the only style BST training has "
              f"used in this tracker). Valid choices: {','.join(VALID_POSE_STYLES)}.",
     )
 
@@ -1076,8 +1041,8 @@ def main():
             preparing_root / f"dataset{str_3d}_npy_{CLIP_WINDOW}_flat"
         )
 
-    # FLAT per-clip dir. Step 2 writes per-clip files here ({clip_stem}_*.npy),
-    # Step 3 reads from here. Split + label come from clips_master.csv at
+    # FLAT per-clip dir. Step 1 writes per-clip files here ({clip_stem}_*.npy),
+    # Step 2 reads from here. Split + label come from clips_master.csv at
     # collation time -- the layout is taxonomy- and split-independent.
     flat_clip_npy_dir = args.clip_npy_dir or default_flat_dir
 
@@ -1089,7 +1054,7 @@ def main():
         print(f"  use_3d_pose:      {args.use_3d_pose}")
         print(f"  clips_dir:        {args.clips_dir}")
         print(f"  shuttle_csv_dir:  {args.shuttle_csv_dir}")
-        print(f"  flat_clip_npy:    {flat_clip_npy_dir}  (Step 2 writer + Step 3 reader)")
+        print(f"  flat_clip_npy:    {flat_clip_npy_dir}  (Step 1 writer + Step 2 reader)")
         print(f"  npy_collated:     {npy_collated_dir}")
         print(f"  clips_csv:        {args.clips_csv}")
         print(f"  split_column:     {args.split_column}")
@@ -1099,9 +1064,8 @@ def main():
         print(f"  pose_styles:      {sorted(pose_styles)}")
         print(f'  homography:       {SET_INFO_DIR / "homography.csv"}')
         print(f"  resolution:       {RESOLUTION_CSV_PATH}")
-        print(f'\n  Step 1 (trajectory): {"SKIP" if args.skip_trajectory else "RUN"}')
-        print(f'  Step 2 (pose):       {"SKIP" if args.skip_pose else "RUN"}')
-        print(f'  Step 3 (collate):    {"SKIP" if args.skip_collate else "RUN"}')
+        print(f'\n  Step 1 (pose):    {"SKIP" if args.skip_pose else "RUN"}')
+        print(f'  Step 2 (collate): {"SKIP" if args.skip_collate else "RUN"}')
         print("\n=== End dry run ===")
         return
 
@@ -1109,31 +1073,9 @@ def main():
     resolution_df = pd.read_csv(str(RESOLUTION_CSV_PATH)).set_index("id")
     all_court_info = build_all_court_info(SET_INFO_DIR, resolution_df)
 
-    # ---- Step 1: Shuttle trajectory detection ----
-    if not args.skip_trajectory:
-        if args.tracknet_dir is None:
-            parser.error(
-                "--tracknet-dir is required for Step 1 (trajectory detection)."
-            )
-        print("\n--- Step 1: Shuttle trajectory detection ---")
-        # output_csv_dir passed explicitly: the extractor's own default writes to
-        # clips_dir.parent/shuttle_csv, not the dir configured here. InpaintNet
-        # rides the extractor default (on when its weights are present), matching
-        # every production extract.
-        extract_all_shuttles(
-            tracknet_dir=args.tracknet_dir,
-            clips_dir=args.clips_dir,
-            output_csv_dir=args.shuttle_csv_dir,
-            tracknet_python=args.tracknet_python,
-            max_workers=args.workers,
-            batch_size=args.batch_size,
-        )
-    else:
-        print("Step 1: Skipped (--skip-trajectory)")
-
-    # ---- Step 2: Pose estimation ----
+    # ---- Step 1: Pose estimation ----
     if not args.skip_pose:
-        print("\n--- Step 2: Pose estimation ---")
+        print("\n--- Step 1: Pose estimation ---")
         if args.use_3d_pose:
             prepare_3d_dataset_npy_from_raw_video(
                 my_clips_folder=args.clips_dir,
@@ -1151,17 +1093,17 @@ def main():
                 joints_center_align=True,
             )
     else:
-        print("Step 2: Skipped (--skip-pose)")
+        print("Step 1: Skipped (--skip-pose)")
 
-    # ---- Step 3: Collation ----
+    # ---- Step 2: Collation ----
     if not args.skip_collate:
-        print("\n--- Step 3: Collate .npy files ---")
+        print("\n--- Step 2: Collate .npy files ---")
         if not args.clips_csv.exists():
             parser.error(f"--clips-csv path does not exist: {args.clips_csv}")
         if not flat_clip_npy_dir.exists():
             parser.error(
                 f"flat per-clip dir does not exist: {flat_clip_npy_dir}\n"
-                "  Run Step 2 first (drop --skip-pose) or pass --clip-npy-dir."
+                "  Run Step 1 first (drop --skip-pose) or pass --clip-npy-dir."
             )
         for set_name in ["train", "val", "test"]:
             collate_npy(
@@ -1178,7 +1120,7 @@ def main():
                 resolution_df=resolution_df,
             )
     else:
-        print("Step 3: Skipped (--skip-collate)")
+        print("Step 2: Skipped (--skip-collate)")
 
     print("\nAll requested steps complete.")
 

@@ -28,7 +28,7 @@ The project uses three separate Python environments because the OpenMMLab stack 
 | Environment | Requirements file | Purpose |
 |---|---|---|
 | **Pipeline** | `pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (steps 1-2 of data preparation) |
+| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
 | **BST training** | `requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
 
 ### Environment setup
@@ -79,14 +79,14 @@ source venv-mmpose/bin/activate
 export PYTHONPATH=src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
-    --skip-trajectory --skip-collate                       # pose only (no shuttle CSV needed)
+    --skip-collate                                         # pose only (no shuttle CSV needed)
 
 # ── Stage 3: Collation + training (BST venv) ────────────────────────
 source venv-bst-x/bin/activate
 export PYTHONPATH=src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
-    --skip-trajectory --skip-pose                          # collate (reads shuttle CSVs)
+    --skip-pose                                            # collate (reads shuttle CSVs)
 
 python -m bst_x_train                     # train (5 serial trials)
 python -m bst_x_infer                     # inference
@@ -153,7 +153,7 @@ The pipeline produces **video clips** and **shuttle .npy files**. BST-X does not
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | **Step 1**: `extract_all_shuttles()` (from `pipeline/shuttle_extractor.py`, the same batched TrackNetV3 driver `build_dataset` uses) -- saves CSVs to `data/shuttleset/shuttle_csv/` (if shuttle extraction wasn't done in the pipeline stage). **Step 2**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of CSV availability prevents a missing CSV from silently blocking the expensive GPU job. **Step 3**: `collate_npy(taxonomy=..., shuttle_csv_dir=..., resolution_df=...)` -- reads shuttle CSVs from the canonical `data/shuttleset/shuttle_csv/` dir, applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
+| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction is owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle CSVs already exist under `data/shuttleset/shuttle_csv/`. **Step 1**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of CSV availability prevents a missing CSV from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_csv_dir=..., resolution_df=...)` -- reads shuttle CSVs from the canonical `data/shuttleset/shuttle_csv/` dir, applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
 
 #### Setup
 
@@ -182,20 +182,20 @@ python -m preparing_data.prepare_train_on_shuttleset --dry-run
 
 # Common case: shuttle CSVs already exist from the pipeline.
 # Run pose only (no shuttle CSV dependency -- can run without them present):
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-collate
+python -m preparing_data.prepare_train_on_shuttleset --skip-collate
 
 # Then collate (reads shuttle CSVs from data/shuttleset/shuttle_csv/):
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose
+python -m preparing_data.prepare_train_on_shuttleset --skip-pose
 
 # Point to a non-default shuttle CSV location:
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose \
+python -m preparing_data.prepare_train_on_shuttleset --skip-pose \
     --shuttle-csv-dir /scratch/comp320a/ShuttleSet/shuttle_csv
 
-# Full run including TrackNetV3 shuttle extraction:
-python -m preparing_data.prepare_train_on_shuttleset --tracknet-dir /path/to/TrackNetV3
+# Full run (pose then collate; shuttle CSVs must already exist):
+python -m preparing_data.prepare_train_on_shuttleset
 ```
 
-Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--use-3d-pose`, `--skip-trajectory`, `--skip-pose`, `--skip-collate`, `--clips-dir`, `--tracknet-dir`, `--shuttle-csv-dir` (default: `data/shuttleset/shuttle_csv/`), `--dry-run`.
+Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--use-3d-pose`, `--skip-pose`, `--skip-collate`, `--clips-dir`, `--shuttle-csv-dir` (default: `data/shuttleset/shuttle_csv/`), `--dry-run`.
 
 #### Data transformations in detail
 
@@ -203,7 +203,7 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 
 2. **Joint normalization** (`normalize_joints`): Keypoints are normalized relative to the player's bounding box diagonal. Optionally center-aligned.
 
-3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done at collation time (Step 3). Frames where pose detection failed (recorded in `_failed.npy` by Step 2) have their shuttle coordinates zeroed out. This zeroing is baked into the saved collated `shuttle.npy` -- the model receives pre-zeroed data, not a separate mask. The per-clip `_failed.npy` files preserve the raw boolean mask for debugging or future use, but the source `shuttle_csv/` files are never modified.
+3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done at collation time (Step 2). Frames where pose detection failed (recorded in `_failed.npy` by Step 1) have their shuttle coordinates zeroed out. This zeroing is baked into the saved collated `shuttle.npy` -- the model receives pre-zeroed data, not a separate mask. The per-clip `_failed.npy` files preserve the raw boolean mask for debugging or future use, but the source `shuttle_csv/` files are never modified.
 
 4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or linspace-sampled) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
    - `J_only`: raw joints `(t, 2, 17, 2)`

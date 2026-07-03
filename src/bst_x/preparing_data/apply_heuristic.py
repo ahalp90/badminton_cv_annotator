@@ -4,7 +4,7 @@ Reads per-clip raw arrays produced by ``preparing_data.raw_extract`` and
 dispatches to a heuristic variant registered under ``preparing_data.heuristics``.
 Writes the existing per-clip pipeline schema (``{stem}_pos.npy``,
 ``{stem}_joints.npy``, ``{stem}_failed.npy``) to ``--output-dir`` so that
-downstream collation (``prepare_train_on_shuttleset`` step 3) is unchanged.
+downstream collation (``prepare_train_on_shuttleset`` step 2) is unchanged.
 
 Refuses to run if ``--output-dir`` collides with ``--raw-dir`` or with the
 ``BST_X_MMPOSE_NPY_DIR`` environment variable -- the committed filtered

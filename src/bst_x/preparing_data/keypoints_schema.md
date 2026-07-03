@@ -1,6 +1,6 @@
 # COCO 17-Keypoint Schema (RTMPose)
 
-Reference for the keypoint format extracted by MMPose RTMPose-L in the pose estimation step (`prepare_train_on_shuttleset.py` Step 2).
+Reference for the keypoint format extracted by MMPose RTMPose-L in the pose estimation step (`prepare_train_on_shuttleset.py` Step 1).
 
 ---
 
@@ -46,7 +46,7 @@ Defined in `shuttleset_dataset.py:get_bone_pairs()`. Each pair is `(start_index,
 
 ## JnB (Joints and Bones) Representations
 
-Built during collation (Step 3). All shapes are per-frame, per-player.
+Built during collation (Step 2). All shapes are per-frame, per-player.
 
 | Style        | Content                           | Features | Shape `(t, 2, F, 2)` |
 |--------------|-----------------------------------|----------|-----------------------|

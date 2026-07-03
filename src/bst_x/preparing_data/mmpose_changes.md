@@ -22,7 +22,7 @@ The MMPose integration is almost entirely unchanged from the [original BST repo]
 shuttle_result[failed_ls, :] = 0
 ```
 
-**Fix**: Shuttle CSV reading was moved out of the pose step entirely and into `collate_npy()` (Step 3). The pose step now saves `_failed.npy` (a bool array marking frames where MMPose failed to detect 2 players) instead of `_shuttle.npy`. The resume check uses `_failed.npy`.
+**Fix**: Shuttle CSV reading was moved out of the pose step entirely and into `collate_npy()` (Step 2). The pose step now saves `_failed.npy` (a bool array marking frames where MMPose failed to detect 2 players) instead of `_shuttle.npy`. The resume check uses `_failed.npy`.
 
 Temporal alignment and failed-frame masking now happen in `collate_npy()`:
 
@@ -113,9 +113,9 @@ Every helper function in the pose processing chain is byte-identical:
 ### Call chain
 
 ```
-prepare_train_on_shuttleset.py    main() dispatches 3 steps
+prepare_train_on_shuttleset.py    main() dispatches 2 steps
     |
-    Step 2:  prepare_2d_dataset_npy_from_raw_video()
+    Step 1:  prepare_2d_dataset_npy_from_raw_video()
     |            |
     |            +-- MMPoseInferencer('human')    loaded once
     |            |
@@ -128,7 +128,7 @@ prepare_train_on_shuttleset.py    main() dispatches 3 steps
     |            +-- save _joints.npy, _pos.npy, _failed.npy
     |            +-- gc.collect() + torch.cuda.empty_cache()
     |
-    Step 3:  collate_npy(shuttle_csv_dir, resolution_df)
+    Step 2:  collate_npy(shuttle_csv_dir, resolution_df)
                  |
                  +-- load _joints.npy, _pos.npy, _failed.npy (ThreadPoolExecutor)
                  +-- per clip: get_shuttle_result() from data/shuttleset/shuttle_csv/
@@ -159,7 +159,7 @@ Files land flat under `save_root_dir`, one set per clip stem. Split and label as
 | `{clip_stem}_pos.npy` | `(F, 2, 2)` | Court-projected player positions |
 | `{clip_stem}_failed.npy` | `(F,)` bool | True where MMPose failed to detect 2 players |
 
-Shuttle data (`*_shuttle.npy`) is no longer saved per-clip by the pose step. It is read from `data/shuttleset/shuttle_csv/` and merged at collation time (Step 3).
+Shuttle data (`*_shuttle.npy`) is no longer saved per-clip by the pose step. It is read from `data/shuttleset/shuttle_csv/` and merged at collation time (Step 2).
 
 ### Resume logic
 
