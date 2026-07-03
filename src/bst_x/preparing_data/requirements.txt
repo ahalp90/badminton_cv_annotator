@@ -1,51 +1,39 @@
-# Prepare training data — MMPose pose estimation + collation into batch arrays.
-# Python 3.11.X — mmcv 2.1.0 cannot build on 3.12 (no wheels, distutils removed).
-# Run once per dataset build, then switch to the BST training venv.
+# Prepare training data — rtmlib pose extraction + collation into batch arrays.
+# Python 3.11+ (validated on 3.13). Run once per dataset build, then switch to
+# the BST training venv.
+#
+# The 2D extraction path (raw_extract.py, prepare_train_on_shuttleset's
+# detect_players_2d) migrated off OpenMMLab onto rtmlib: onnxruntime-backed,
+# numpy-2 clean, no source build, no separate-venv numpy<2 pin. Same model
+# family as before (RTMDet-nano person + RTMPose-L body7 COCO-17). Versions below
+# are the set the migration gate ladder (G1-G6) was validated against.
 #
 # --- Manual install steps (can't go in requirements.txt) ---
-# pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-# mim install mmcv==2.1.0
-# pip install -r requirements.txt
+# CPU:  pip install -r requirements.txt
+# GPU (production re-extract on the CUDA box): swap onnxruntime -> onnxruntime-gpu
+#   pip install -r requirements.txt
+#   pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.27.0
+#   (rtmlib installs the CPU onnxruntime by default; confirm CUDAExecutionProvider
+#    is present after the swap.)
 #
-# mmcv 2.1.0 has no prebuilt wheel for PyTorch 2.3.1 + CUDA 12.1, so mim
-# builds from source. Requires a C++ compiler and the CUDA toolkit (on HPC,
-# load the CUDA module first). ninja speeds up the build.
+# torch is NOT required by the production raw_extract path (Batch 2 dropped it;
+# onnxruntime manages its own memory). It is needed ONLY if you run the secondary
+# prepare_train_on_shuttleset module path (it imports torch at module load for the
+# shared 2D/3D runner) — install any modern CPU/CUDA build separately, e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
 #
-# --- OpenMMLab version constraints ---
-#   mmdet 3.2.0  requires mmcv     >= 2.0.0rc4, < 2.2.0
-#   mmpose 1.3.2 requires mmdet    >= 3.0.0,    < 3.3.0
-#   mmpose 1.3.2 requires mmcv     >= 2.0.0,    < 2.2.0
-#   Both require          mmengine >= 0.7.1,     < 1.0.0
-#
-# numpy < 2.0: mmcv/mmdet/mmpose predate NumPy 2.0 and use removed APIs
-# internally. Our code is fine with NumPy 2.x, but importing mmcv crashes.
-#
-# opencv-python < 4.12: 4.12+ requires numpy >= 2, conflicts with numpy < 2.0.
-#
-# pandas < 3.0: codebase uses inplace= and chained iloc assignments that
-# pandas 3.0 Copy-on-Write default would break.
-#
-# --- Original author's note (preserved) ---
-# The original prepare_train_env.txt left OpenMMLab deps unpinned, causing
-# mim to install mmcv >= 2.2.0 which mmdet rejected at import time. The
-# author worked around it by manually editing mmdet/__init__.py:
-#   "Changed mmdet/init.py line9 '2.2.0' to '2.2.1' to forcely make it compatible."
-# The pins below eliminate the need for this hack.
+# The dormant 3D pose path (detect_players_3d / --use-3d-pose) still needs the
+# OpenMMLab stack — see requirements-legacy-3d.txt (install in a separate venv;
+# its numpy<2 pin cannot coexist with the numpy>=2 here).
 
-# Build tools
-ninja==1.13.0                    # Speeds up mmcv source build
+# rtmlib pose extraction (RTMDet + RTMPose over onnxruntime)
+rtmlib==0.0.15                   # low-level RTMDet/RTMPose classes; pin (repo main drifts from PyPI)
+onnxruntime==1.27.0              # CPU inference (deterministic); use onnxruntime-gpu==1.27.0 on the CUDA box
 
 # Standard libraries
-opencv-python==4.11.0.86         # Last version before numpy >= 2 requirement
-tqdm==4.67.3                     # Progress bars
-pandas>=2.0.0,<3.0.0             # CoW default in 3.0 would break inplace/iloc patterns
-numpy>=1.26.0,<2.0.0             # OpenMMLab packages crash on NumPy 2.x
-scipy==1.17.1                    # Used by MMPose internally
-parse==1.21.1                    # Pure Python, no deps
-
-# OpenMMLab ecosystem (strictly pinned — enforce mutual version bounds at import)
-openmim==0.3.9
-mmengine==0.10.4
-mmdet==3.2.0
-mmpose==1.3.2
-# mmcv==2.1.0 — install via: mim install mmcv==2.1.0
+numpy==2.4.6                     # numpy-2 clean now that OpenMMLab is off the 2D path
+opencv-python==4.13.0.92         # cv2: video decode + the RGB-fix cvtColor in the adapter
+pandas==3.0.3                    # collation; G5 verified byte-identical downstream on 3.0.3
+scipy==1.17.1                    # court projection / geometry helpers
+tqdm==4.68.3                     # progress bars
+parse==1.22.1                    # pure Python, no deps
