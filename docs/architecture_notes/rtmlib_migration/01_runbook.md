@@ -161,5 +161,5 @@ isolated preparing_data extraction venv.)
 - `PYTHONUNBUFFERED=1` for long redirected GPU runs (or `tee` shows nothing until end).
 - rtmlib caches models to `~/.cache/rtmlib/hub/checkpoints/` (override `XDG_CACHE_HOME`); no SHA check by default — pin + verify in Batch 0.
 - onnxruntime sets thread count = physical cores by default; rtmlib exposes no `SessionOptions`, so set `OMP_NUM_THREADS=1` in a gate's run command when it needs a fixed thread count (G4).
-- For GPU: install `onnxruntime-gpu` (rtmlib pulls only CPU `onnxruntime`); confirm `CUDAExecutionProvider` present.
+- For GPU: uninstall the CPU `onnxruntime` rtmlib pulls, then install `onnxruntime-gpu==1.27.0` + pip `nvidia-cudnn-cu13~=9.0` against a system CUDA-13 toolkit (e.g. `module load cuda/13.3`) — the `[cuda,cudnn]` extras don't resolve; confirm `CUDAExecutionProvider` present (full recipe: 05_gpu_handoff.md).
 - Pool env: local `python3` lacks pandas; the CPU raw→clean gate needs a venv with numpy + pandas. (Originally cautioned pandas<3 for the codebase's inplace/iloc patterns; **G5 then verified byte-identical downstream on pandas 3.0.3** over 50 clips, so the extraction venv pins 3.0.3.)
