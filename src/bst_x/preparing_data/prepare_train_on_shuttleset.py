@@ -31,6 +31,8 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 import torch
+from beartype import beartype
+from jaxtyping import Float, jaxtyped
 from typing import TYPE_CHECKING
 
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
@@ -64,17 +66,16 @@ if TYPE_CHECKING:  # type-only: keeps mmpose out of the runtime import (see modu
     from mmpose.apis import MMPoseInferencer
 
 
+@jaxtyped(typechecker=beartype)
 def normalize_joints(
-    arr: np.ndarray,
-    bbox: np.ndarray,
+    arr: Float[np.ndarray, 'm j 2'],
+    bbox: Float[np.ndarray, 'm 4'],
     v_height=None,
     center_align=False,
-):
-    """
-    - `arr`: (m, J, 2), m=2.
-    - `bbox`: (m, 4), m=2.
-
-    Output: (m, J, 2), m=2.
+) -> Float[np.ndarray, 'm j 2']:
+    """Normalise per-player joints; shapes carried by the annotations (m=2 in
+    detect/current, m=1 per-slot in sticky_anchor). ``Float`` not ``Float32``:
+    callers feed float32 MMPose keypoints with float64 bboxes interchangeably.
 
     Signature defaults are BST-upstream; ``main()`` overrides
     ``center_align=True`` (what the committed extracts used).
@@ -106,12 +107,18 @@ def normalize_joints(
     return np.stack((x_normalized, y_normalized), axis=-1)
 
 
-def normalize_shuttlecock(arr: np.ndarray, v_width, v_height):
-    """
-    Normalized by the video resolution.
+@jaxtyped(typechecker=beartype)
+def normalize_shuttlecock(
+    arr: Float[np.ndarray, 't d'],
+    v_width,
+    v_height,
+) -> Float[np.ndarray, 't 2']:
+    """Normalise shuttle xy by the video resolution.
 
-    `arr`: (t, 2). There are t 'x' and t 'y'.
-    Output: (t, 2). Every 'x', 'y' in-court should be in [0, 1].
+    ``arr`` last dim is ``d`` not a fixed 2: get_shuttle_result passes (t, 2),
+    shuttle_extractor passes (t, 3) with a trailing Visibility column that the
+    ``arr[:, 0]`` / ``arr[:, 1]`` slicing ignores. Output is always (t, 2),
+    every in-court 'x', 'y' in [0, 1].
     """
     x_normalized = arr[:, 0] / v_width
     y_normalized = arr[:, 1] / v_height
@@ -432,11 +439,12 @@ def prepare_3d_dataset_npy_from_raw_video(
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")
 
 
+@jaxtyped(typechecker=beartype)
 def pad_and_derive_pose_styles(
     seq_len: int,
-    joints: np.ndarray,
-    pos: np.ndarray,
-    shuttle: np.ndarray,
+    joints: Float[np.ndarray, 't m j d'],
+    pos: Float[np.ndarray, 't m xy'],
+    shuttle: Float[np.ndarray, 't xy'],
     bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
@@ -446,11 +454,12 @@ def pad_and_derive_pose_styles(
     derived arrays (``create_bones``, ``interpolate_joints``) are skipped if
     nothing downstream needs them.
 
+    The three arrays share a 't' (frame count): make_seq_len_same resamples them
+    with one index. ``Float`` not ``Float32`` because they arrive as whatever the
+    per-clip npys hold and get cast to float32 in the body below.
+
     :param seq_len: Target sequence length. Shorter clips are zero-padded; longer
-        clips are strided (subsampled) to fit.
-    :param joints: Joint keypoints, shape (t, 2, J, d).
-    :param pos: Player court positions, shape (t, 2, xy).
-    :param shuttle: Shuttle coordinates, shape (t, xy).
+        clips are resampled (linspace index sampling) to fit.
     :param bone_pairs: List of (start_joint, end_joint) index pairs for bone computation.
     :param pose_styles: Which pose representations to compute. Subset of
         ``VALID_POSE_STYLES``. Defaults to ``{'JnB_bone'}`` (the only style

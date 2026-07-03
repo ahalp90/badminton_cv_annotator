@@ -15,6 +15,8 @@
 
 import torch
 from torch import nn, Tensor
+from beartype import beartype
+from jaxtyping import Bool, Float32, Int64, jaxtyped
 from positional_encodings.torch_encodings import PositionalEncoding1D
 from functools import partial
 
@@ -60,8 +62,15 @@ class MultiHeadCrossAttention(nn.Module):
             nn.Dropout(drop_p, inplace=True)
         ) if n_head != 1 or d_cat != d_model else nn.Identity()
 
-    def forward(self, x1: Tensor, x2: Tensor, mask: Tensor = None):
-        # x1, x2: (b, t, d_model)
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        # x1, x2 share a 'time' symbol: forward reads b, t off x1 and reuses
+        # them to reshape x2's keys/values, so both must be the same length.
+        x1: Float32[Tensor, 'batch time d_model'],
+        x2: Float32[Tensor, 'batch time d_model'],
+        mask: Bool[Tensor, 'batch time'],
+    ):
         q: Tensor = self.to_q(x1)   # queries from x1
         kv: Tensor = self.to_kv(x2)  # keys+values from x2
         b, t, _ = q.shape
@@ -110,7 +119,13 @@ class CrossTransformerLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm(d_model)
         self.ff = FeedForward(d_model, d_model, hd_mlp, drop_p)
 
-    def forward(self, x1: Tensor, x2: Tensor, mask=None):
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x1: Float32[Tensor, 'batch time d_model'],
+        x2: Float32[Tensor, 'batch time d_model'],
+        mask: Bool[Tensor, 'batch time'],
+    ):
         x1 = self.layer_norm1_x1(x1)
         x2 = self.layer_norm1_x2(x2)
         x = self.cross_attn(x1, x2, mask)  # x1 queries, x2 provides context
@@ -135,7 +150,7 @@ class BST(nn.Module):
       BST_CG_AP = BST(use_ppf=True,  use_cg=True,  use_ap=True)
     '''
     def __init__(
-        self, in_dim, seq_len, n_class=35, n_people=2,
+        self, in_dim, seq_len, n_class, n_people=2,
         d_model=100, d_head=128, n_head=6, depth_tem=2, depth_inter=1,
         drop_p=0.3, mlp_d_scale=4, tcn_kernel_size=5,
         use_ppf=True, use_cg=False, use_ap=False
@@ -251,15 +266,22 @@ class BST(nn.Module):
         elif isinstance(m, nn.Conv1d):
             nn.init.xavier_normal_(m.weight)
 
+    @jaxtyped(typechecker=beartype)
     def forward(
         self,
-        JnB: Tensor,       # (b, t, n, input_dim): skeleton joint/bone features per player
-        shuttle: Tensor,    # (b, t, 2): shuttle xy coordinates per frame
-        pos: Tensor = None, # (b, t, n, 2): player court xy positions (required if use_ppf)
-        video_len: Tensor = None  # (b,): real frame count per sample (rest is zero-padding)
-    ):
+        JnB: Float32[Tensor, 'batch time players in_dim'],  # skeleton joint/bone features per player
+        shuttle: Float32[Tensor, 'batch time 2'],           # shuttle xy per frame
+        # court xy per player; read only when use_ppf, may be None otherwise.
+        # No default: video_len below is required and must stay positional.
+        pos: Float32[Tensor, 'batch time players 2'] | None,
+        video_len: Int64[Tensor, 'batch'],                  # real frame count per sample (rest is zero-padding)
+    ) -> Float32[Tensor, 'batch n_class']:
         """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
         Pipeline: TCN -> Temporal Transformer -> Cross Transformer -> Interactional Transformer -> Head
+
+        t must equal the seq_len the model was built with: shorter clips are
+        padded upstream and masked via video_len. The positional embeddings are
+        sized 1+seq_len at construction, so any other t crashes the broadcast.
         """
         b, t, n_people, input_dim = JnB.shape
         # Conv1d wants (batch, channels, length); stack both players in the batch dim

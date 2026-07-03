@@ -31,8 +31,12 @@ device the inputs live on. Both run only during training.
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import torch
 from torch import Tensor
+from beartype import beartype
+from jaxtyping import Float32, jaxtyped
 
 from pipeline.config import COCO_N_JOINTS
 from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
@@ -135,9 +139,17 @@ class CoupledFlip:
                 f'pair-table the collation used.'
             )
 
+    @jaxtyped(typechecker=beartype)
     def __call__(
-        self, human_pose: Tensor, pos: Tensor, shuttle: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+        self,
+        human_pose: Float32[Tensor, 'n t m jb 2'],
+        pos: Float32[Tensor, 'n t m 2'],
+        shuttle: Float32[Tensor, 'n t 2'],
+    ) -> tuple[
+        Float32[Tensor, 'n t m jb 2'],
+        Float32[Tensor, 'n t m 2'],
+        Float32[Tensor, 'n t 2'],
+    ]:
         """Flip selected clips across all three streams together.
 
         :param human_pose: ``(n, t, m, J+B, 2)``. The first ``J`` slots
@@ -197,6 +209,17 @@ class CoupledFlip:
         return human_pose_out, pos_out, shuttle_out
 
 
+class JitterResult(NamedTuple):
+    """ConstrainedJitter output. Field order matches the old 5-tuple so callers
+    still unpack ``human_pose, pos, shuttle, n_eff, n_oob = jitter(...)``; the
+    named counters are the readability win over anonymous positions 4 and 5."""
+    human_pose: Tensor
+    pos: Tensor
+    shuttle: Tensor
+    n_effective: int
+    n_oob: int
+
+
 class ConstrainedJitter:
     """Shifts the clip's player and shuttle positions by a small ``(dx, dy)``.
 
@@ -242,12 +265,16 @@ class ConstrainedJitter:
         self.cap_x = cap_x
         self.eps = eps
 
+    @jaxtyped(typechecker=beartype)
     def __call__(
-        self, human_pose: Tensor, pos: Tensor, shuttle: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor, int, int]:
+        self,
+        human_pose: Float32[Tensor, 'n t m jb 2'],
+        pos: Float32[Tensor, 'n t m 2'],
+        shuttle: Float32[Tensor, 'n t 2'],
+    ) -> JitterResult:
         """Apply the per-clip shift to pos and shuttle.
 
-        :return: ``(human_pose, pos_out, shuttle_out, n_effective, n_oob)``.
+        :return: ``JitterResult(human_pose, pos_out, shuttle_out, n_effective, n_oob)``.
                  ``n_effective`` is the number of clips that actually
                  received a non-zero shift this batch (rolled in, plus
                  had at least one axis with room to shift). Used for
@@ -261,11 +288,11 @@ class ConstrainedJitter:
         device = pos.device
 
         if self.p_roll <= 0.0:
-            return human_pose, pos, shuttle, 0, 0
+            return JitterResult(human_pose, pos, shuttle, 0, 0)
 
         roll_mask = torch.rand(n, device=device) < self.p_roll
         if not roll_mask.any():
-            return human_pose, pos, shuttle, 0, 0
+            return JitterResult(human_pose, pos, shuttle, 0, 0)
 
         # Compute the per-clip min and max of pos along x and y. These set
         # the bounds for the shift: e.g. if the bottom player's lowest y
@@ -411,4 +438,4 @@ class ConstrainedJitter:
         clip_had_oob = oob_aug_induced.any(dim=-1)  # (n,)
         n_oob = int((effective & clip_had_oob).sum().item())
 
-        return human_pose, pos_shifted, shuttle_shifted, n_effective, n_oob
+        return JitterResult(human_pose, pos_shifted, shuttle_shifted, n_effective, n_oob)

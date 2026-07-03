@@ -103,6 +103,7 @@ class Hyp(NamedTuple):
     #       'warm_up_epochs': 5, 'f1_floor': 0.0,
     #   }
     # Full design + paper-verified equations: docs/architecture_notes/class_f1_focal_design.md.
+    # NamedTuple defaults are class-level: these dicts are shared across instances; treat as read-only.
     adaptive_focal: dict | None = {
         # tau=1, gamma=1 is the swept sweet spot (floor-lift on wrist_smash);
         # see class_f1_focal_design.md.
@@ -156,6 +157,31 @@ def aux_schedule_factor(epoch: int, fade_end_epoch: int) -> float:
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
+class EpochStats(NamedTuple):
+    """One training epoch's aggregates. ``tp``/``fp``/``fn`` are length-n_classes
+    int64 count tensors on device; the jitter counters are plain ints over the
+    epoch's clips."""
+    train_loss: float
+    tp: Tensor
+    fp: Tensor
+    fn: Tensor
+    jitter_n_effective: int
+    jitter_n_oob: int
+    jitter_n_total: int
+
+
+class ValStats(NamedTuple):
+    """One validation pass. ``f1_macro``/``f1_min`` are 0-dim tensors (caller
+    ``.item()``s them); ``f1_per_class`` and ``present`` are length-n_classes."""
+    val_loss: float
+    f1_macro: Tensor
+    f1_min: Tensor
+    f1_per_class: Tensor
+    present: Tensor
+    accuracy: float
+    top2_accuracy: float
+
+
 def train_one_epoch(
     model: nn.Module,
     loader,
@@ -166,7 +192,7 @@ def train_one_epoch(
     optimizer: optim.Optimizer,
     scheduler: optim.lr_scheduler.LambdaLR,  # learning rate scheduler
     device,
-) -> tuple[float, Tensor, Tensor, Tensor, int, int, int]:
+) -> EpochStats:
     """Train for one epoch, accumulating per-class TP / FP / FN alongside loss.
 
     Per-class counts feed ``AdaptiveFocalLoss.update_alpha`` at the call site.
@@ -185,9 +211,7 @@ def train_one_epoch(
       previously-real shuttle frame off-screen, triggering the
       ``(0, 0)`` sentinel; for ``Aug/shuttle_oob_rate``.
 
-    :return: ``(train_loss, tp, fp, fn, jitter_n_effective, jitter_n_oob,
-        jitter_n_total)``. Counts are length-``n_classes`` int64 tensors on
-        ``device``; jitter accumulators are plain ints over the epoch's clips.
+    :return: an ``EpochStats`` (field types/shapes on the NamedTuple).
     """
     model.train()  # enable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
@@ -244,7 +268,13 @@ def train_one_epoch(
             fn += batch_fn
 
     train_loss = total_loss / len(loader)
-    return train_loss, tp, fp, fn, jitter_n_effective, jitter_n_oob, jitter_n_total
+    return EpochStats(
+        train_loss=train_loss,
+        tp=tp, fp=fp, fn=fn,
+        jitter_n_effective=jitter_n_effective,
+        jitter_n_oob=jitter_n_oob,
+        jitter_n_total=jitter_n_total,
+    )
 
 
 @torch.no_grad()  # disables gradient computation — saves memory during eval
@@ -254,7 +284,7 @@ def validate(
     loader,
     device,
     n_classes: int,
-):
+) -> ValStats:
     model.eval()  # disable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
     # Accumulate per-class TP/FP/FN on device (mirrors train_one_epoch);
@@ -318,7 +348,15 @@ def validate(
     # right) or an FN for it (if wrong), so the correct count is sum(cum_tp).
     accuracy = float(cum_tp.sum() / cum_n) if cum_n else 0.0
     top2_accuracy = cum_top2 / cum_n if cum_n else 0.0
-    return val_loss, f1_score_avg, f1_score_min, f1_score, present, accuracy, top2_accuracy
+    return ValStats(
+        val_loss=val_loss,
+        f1_macro=f1_score_avg,
+        f1_min=f1_score_min,
+        f1_per_class=f1_score,
+        present=present,
+        accuracy=accuracy,
+        top2_accuracy=top2_accuracy,
+    )
 
 
 # ==========================================================================
@@ -431,29 +469,16 @@ def _split_param_groups(model: nn.Module):
     return decay, no_decay
 
 
-def train_network(
-    model: nn.Module,
-    train_loader,
-    val_loader,
-    device,
-    save_path: Path,
-    n_bones,
-    n_classes: int,
-    class_ls: list[str],
-    taxonomy: Taxonomy,
-    tb_dir: Path | None = None,
-):
-    # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
-    # TB folders pair with the run they came from. Default SummaryWriter() writes
-    # to ./runs/<host_time>/, which is what older runs used.
-    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+def _build_augmentations(n_bones):
+    """Build the locked Task-2 augmentation pair: centreline flip across all
+    three streams (COCO bilateral joint-index swap + bone recompute) plus
+    constrained pos+shuttle jitter (layered conditional bounds, joints
+    untouched). Reads the module-global ``hyp.augmentation`` (pre-B7 shape).
 
-    # Locked Task-2 augmentation set: centreline flip across all three streams
-    # (with COCO bilateral joint-index swap and bone recompute) plus
-    # constrained pos+shuttle jitter (layered conditional bounds, joints
-    # untouched). Bone recompute requires the JnB_bone pose style; other
-    # styles (J_only, JnB_interp, Jn2B) need their own recompute helpers
-    # which are out of scope per docs/architecture_notes/augmentation_framework.md.
+    Bone recompute requires the JnB_bone pose style; other styles (J_only,
+    JnB_interp, Jn2B) need their own recompute helpers which are out of scope
+    per docs/architecture_notes/augmentation_framework.md.
+    """
     if hyp.pose_style != 'JnB_bone':
         raise NotImplementedError(
             f'Augmentation framework currently supports pose_style=JnB_bone only; '
@@ -483,12 +508,16 @@ def train_network(
         f"(cap_y={constrained_jitter.cap_y}, cap_x={constrained_jitter.cap_x}, "
         f"eps={constrained_jitter.eps})"
     )
+    return coupled_flip, constrained_jitter
 
-    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device)
 
-    # AdamW with decoupled weight decay. _split_param_groups owns the decay
-    # rules; this site owns the per-group weight_decay + hyp.lr wiring so the
-    # optimiser construction stays co-located with its hparams.
+def _build_optimiser(model, n_batches):
+    """AdamW (decoupled weight decay) + cosine schedule. _split_param_groups owns
+    the decay rules; this helper owns the per-group weight_decay + hyp.lr wiring so
+    the optimiser construction stays co-located with its hparams. Reads the
+    module-global hyp (pre-B7 shape). ``n_batches`` = len(train_loader), for the
+    scheduler's total-steps count. Returns ``(optimizer, scheduler)``.
+    """
     decay, no_decay = _split_param_groups(model)
     print(f'[optim] AdamW lr={hyp.lr} weight_decay={hyp.weight_decay} '
           f'(decay={len(decay)} tensors, no_decay={len(no_decay)})')
@@ -503,9 +532,132 @@ def train_network(
     scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=hyp.warm_up_step,
-        num_training_steps=(hyp.n_epochs * len(train_loader)),  # total batches across all epochs
+        num_training_steps=(hyp.n_epochs * n_batches),  # total batches across all epochs
         num_cycles=0.5
     )
+    return optimizer, scheduler
+
+
+def _log_epoch_tb(
+    writer,
+    epoch,
+    epoch_stats: EpochStats,
+    val_stats: ValStats,
+    train_per_class_f1,
+    aux_factor,
+    scheduler,
+    loss_fn,
+    class_ls,
+):
+    """Per-epoch TensorBoard scalars: train/val loss, macro/min F1 (train + val),
+    the aux schedule factor + LR, the two jitter-rate diagnostics, and the
+    per-class train/val F1 (and per-class alpha under adaptive focal).
+    """
+    writer.add_scalar('Loss/Train', epoch_stats.train_loss, epoch)
+    writer.add_scalar('Loss/Val', val_stats.val_loss, epoch)
+    writer.add_scalar('F1/Val_macro', val_stats.f1_macro, epoch)
+    writer.add_scalar('F1/Val_min', val_stats.f1_min, epoch)
+    # Train F1 macro/min summaries mirror the val pair above, so the
+    # train-vs-val gap reads off two scalars per epoch instead of needing
+    # to re-aggregate the per-class arrays. .mean()/.min() over the
+    # length-n_classes tensor of active-class F1s, .item() unwraps to float.
+    writer.add_scalar('F1_train/macro', train_per_class_f1.mean().item(), epoch)
+    writer.add_scalar('F1_train/min', train_per_class_f1.min().item(), epoch)
+    writer.add_scalar('Schedule/aux_factor', aux_factor, epoch)
+    # Cosine LR per epoch. Deterministic from the schedule, but logging it
+    # saves the reconstruction and overlays cleanly with the per-class F1 /
+    # alpha arcs. get_last_lr()[0] = LR after this epoch's final step.
+    writer.add_scalar('Schedule/learning_rate', scheduler.get_last_lr()[0], epoch)
+    # Jitter effective rate: fraction of clips that rolled yes AND had at
+    # least one non-degenerate axis. Watching this scalar shows whether the
+    # case-1 (fully-degenerate envelope) skip rate is eating into the
+    # nominal p_jitter target. See augmentation_framework.md.
+    jitter_effective_rate = (
+        epoch_stats.jitter_n_effective / epoch_stats.jitter_n_total
+        if epoch_stats.jitter_n_total > 0 else 0.0
+    )
+    writer.add_scalar('Aug/jitter_effective_rate', jitter_effective_rate, epoch)
+    # Shuttle OOB rate: fraction of clips where the effective shift
+    # pushed a previously-real shuttle frame off-screen, triggering the
+    # (0, 0) sentinel. Diagnostic for the cap_x trade-off the doc flags
+    # around edge-of-frame shuttle classes (cross_court_net_shot, rush
+    # trajectories). High rate = cap_x is replacing a meaningful fraction
+    # of real shuttle observations with the off-screen sentinel.
+    shuttle_oob_rate = (
+        epoch_stats.jitter_n_oob / epoch_stats.jitter_n_total
+        if epoch_stats.jitter_n_total > 0 else 0.0
+    )
+    writer.add_scalar('Aug/shuttle_oob_rate', shuttle_oob_rate, epoch)
+    for i, c in enumerate(class_ls):
+        writer.add_scalar(f'F1_train/{c}', train_per_class_f1[i].item(), epoch)
+        # Val per-class F1 only for classes present in val this epoch; an
+        # absent class scores F1=0 by construction and would read as a real
+        # regression on the TB curve.
+        if val_stats.present[i]:
+            writer.add_scalar(f'F1_val/{c}', val_stats.f1_per_class[i].item(), epoch)
+        if isinstance(loss_fn, AdaptiveFocalLoss):
+            writer.add_scalar(f'Alpha/{c}', loss_fn.alpha[i].item(), epoch)
+
+
+def _write_hparams_summary(
+    writer,
+    best_macro, best_macro_epoch, second_macro, second_macro_epoch,
+    best_min, best_min_epoch, second_min, second_min_epoch,
+    best_val_loss, best_val_loss_epoch, stopped_epoch,
+):
+    """HParams summary: one row per run, sortable in TB's HParams tab.
+    stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
+    Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
+    only accepts int / float / str / bool / Tensor. Reads the module-global hyp
+    (pre-B7 shape); closes the writer when done.
+    """
+    hparam_dict = {}
+    for key, value in hyp._asdict().items():
+        is_tb_scalar = isinstance(value, (int, float, str, bool)) or torch.is_tensor(value)
+        hparam_dict[key] = value if is_tb_scalar else str(value)
+
+    writer.add_hparams(
+        hparam_dict=hparam_dict,
+        metric_dict={
+            'best/macro_f1':        best_macro,
+            'best/macro_f1_epoch':  best_macro_epoch,
+            'best/macro_f1_2nd':    second_macro,
+            'best/macro_f1_2nd_ep': second_macro_epoch,
+            'best/min_f1':          best_min,
+            'best/min_f1_epoch':    best_min_epoch,
+            'best/min_f1_2nd':      second_min,
+            'best/min_f1_2nd_ep':   second_min_epoch,
+            'best/val_loss':        best_val_loss,
+            'best/val_loss_epoch':  best_val_loss_epoch,
+            'stopped_epoch':        stopped_epoch,
+        },
+        # run_name='.' stops TB nesting a timestamped subdir per add_hparams call.
+        run_name='.',
+        global_step=stopped_epoch,
+    )
+    writer.close()
+
+
+def train_network(
+    model: nn.Module,
+    train_loader,
+    val_loader,
+    device,
+    save_path: Path,
+    n_bones,
+    n_classes: int,
+    class_ls: list[str],
+    taxonomy: Taxonomy,
+    tb_dir: Path | None = None,
+):
+    # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
+    # TB folders pair with the run they came from. Default SummaryWriter() writes
+    # to ./runs/<host_time>/, which is what older runs used.
+    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+
+    coupled_flip, constrained_jitter = _build_augmentations(n_bones)
+    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device)
+    optimizer, scheduler = _build_optimiser(model, len(train_loader))
 
     # Track top-2 of each metric (for HParams summary + verifying early-stop vs crash)
     best_macro = second_macro = 0.0
@@ -534,8 +686,7 @@ def train_network(
         model.set_schedule_factors(cg_factor=aux_factor, ap_factor=aux_factor)
 
         t0 = time.time()
-        train_loss, train_tp, train_fp, train_fn, \
-            jitter_n_eff, jitter_n_oob, jitter_n_total = train_one_epoch(
+        epoch_stats = train_one_epoch(
             model=model,
             loader=train_loader,
             coupled_flip=coupled_flip,
@@ -548,11 +699,13 @@ def train_network(
         )
         # End-of-epoch per-class train F1 feeds AdaptiveFocalLoss; otherwise
         # the values are still computed (cheap) and logged to TB for context.
-        train_per_class_f1 = per_class_f1_from_counts(train_tp, train_fp, train_fn)
+        train_per_class_f1 = per_class_f1_from_counts(
+            epoch_stats.tp, epoch_stats.fp, epoch_stats.fn,
+        )
         if isinstance(loss_fn, AdaptiveFocalLoss):
             loss_fn.update_alpha(train_per_class_f1)
 
-        val_loss, f1_score_avg, f1_score_min, f1_per_class, present, val_accuracy, val_top2 = validate(
+        val_stats = validate(
             model=model,
             loss_fn=loss_fn,
             loader=val_loader,
@@ -560,9 +713,9 @@ def train_network(
             n_classes=n_classes,
         )
         t1 = time.time()
-        print(f'Epoch({epoch}/{hyp.n_epochs}): train_loss={train_loss:.3f}, '
-              f'val_loss={val_loss:.3f}, macro_f1={f1_score_avg:.3f}, min_f1={f1_score_min:.3f} '
-              f'- {t1 - t0:.2f} s')
+        print(f'Epoch({epoch}/{hyp.n_epochs}): train_loss={epoch_stats.train_loss:.3f}, '
+              f'val_loss={val_stats.val_loss:.3f}, macro_f1={val_stats.f1_macro:.3f}, '
+              f'min_f1={val_stats.f1_min:.3f} - {t1 - t0:.2f} s')
 
         if isinstance(loss_fn, AdaptiveFocalLoss):
             # Top-3 / bot-3 alpha summary so the operator can eyeball whether
@@ -576,50 +729,19 @@ def train_network(
                 f'{class_ls[i]}={alpha_np[i]:.2f}' for i in order[-3:][::-1]
             ))
 
-        writer.add_scalar('Loss/Train', train_loss, epoch)
-        writer.add_scalar('Loss/Val', val_loss, epoch)
-        writer.add_scalar('F1/Val_macro', f1_score_avg, epoch)
-        writer.add_scalar('F1/Val_min', f1_score_min, epoch)
-        # Train F1 macro/min summaries mirror the val pair above, so the
-        # train-vs-val gap reads off two scalars per epoch instead of needing
-        # to re-aggregate the per-class arrays. .mean()/.min() over the
-        # length-n_classes tensor of active-class F1s, .item() unwraps to float.
-        writer.add_scalar('F1_train/macro', train_per_class_f1.mean().item(), epoch)
-        writer.add_scalar('F1_train/min', train_per_class_f1.min().item(), epoch)
-        writer.add_scalar('Schedule/aux_factor', aux_factor, epoch)
-        # Cosine LR per epoch. Deterministic from the schedule, but logging it
-        # saves the reconstruction and overlays cleanly with the per-class F1 /
-        # alpha arcs. get_last_lr()[0] = LR after this epoch's final step.
-        writer.add_scalar('Schedule/learning_rate', scheduler.get_last_lr()[0], epoch)
-        # Jitter effective rate: fraction of clips that rolled yes AND had at
-        # least one non-degenerate axis. Watching this scalar shows whether the
-        # case-1 (fully-degenerate envelope) skip rate is eating into the
-        # nominal p_jitter target. See augmentation_framework.md.
-        jitter_effective_rate = (
-            jitter_n_eff / jitter_n_total if jitter_n_total > 0 else 0.0
+        _log_epoch_tb(
+            writer=writer,
+            epoch=epoch,
+            epoch_stats=epoch_stats,
+            val_stats=val_stats,
+            train_per_class_f1=train_per_class_f1,
+            aux_factor=aux_factor,
+            scheduler=scheduler,
+            loss_fn=loss_fn,
+            class_ls=class_ls,
         )
-        writer.add_scalar('Aug/jitter_effective_rate', jitter_effective_rate, epoch)
-        # Shuttle OOB rate: fraction of clips where the effective shift
-        # pushed a previously-real shuttle frame off-screen, triggering the
-        # (0, 0) sentinel. Diagnostic for the cap_x trade-off the doc flags
-        # around edge-of-frame shuttle classes (cross_court_net_shot, rush
-        # trajectories). High rate = cap_x is replacing a meaningful fraction
-        # of real shuttle observations with the off-screen sentinel.
-        shuttle_oob_rate = (
-            jitter_n_oob / jitter_n_total if jitter_n_total > 0 else 0.0
-        )
-        writer.add_scalar('Aug/shuttle_oob_rate', shuttle_oob_rate, epoch)
-        for i, c in enumerate(class_ls):
-            writer.add_scalar(f'F1_train/{c}', train_per_class_f1[i].item(), epoch)
-            # Val per-class F1 only for classes present in val this epoch; an
-            # absent class scores F1=0 by construction and would read as a real
-            # regression on the TB curve.
-            if present[i]:
-                writer.add_scalar(f'F1_val/{c}', f1_per_class[i].item(), epoch)
-            if isinstance(loss_fn, AdaptiveFocalLoss):
-                writer.add_scalar(f'Alpha/{c}', loss_fn.alpha[i].item(), epoch)
 
-        curr_macro, curr_min = f1_score_avg.item(), f1_score_min.item()
+        curr_macro, curr_min = val_stats.f1_macro.item(), val_stats.f1_min.item()
 
         # Early stop + snapshot best weights (piggybacks on new-best detection)
         early_stop_count += 1
@@ -631,18 +753,18 @@ def train_network(
             best_state = deepcopy(model.state_dict())
             # Snapshot the per-class val F1 at this same best-macro epoch so the
             # recorded breakdown matches the saved checkpoint.
-            best_val_f1_per_class = f1_per_class.detach().cpu().numpy()
-            best_val_present = present.detach().cpu().numpy()
-            best_val_accuracy = val_accuracy
-            best_val_top2 = val_top2
+            best_val_f1_per_class = val_stats.f1_per_class.detach().cpu().numpy()
+            best_val_present = val_stats.present.detach().cpu().numpy()
+            best_val_accuracy = val_stats.accuracy
+            best_val_top2 = val_stats.top2_accuracy
             best_macro_epoch_snap = epoch
             print(f'Picked! => Best value {curr_macro:.3f}')
             # Compact per-class snapshot on new-best epochs: top-5 and bot-5
             # of present classes, one line each. Full per-class breakdown
             # lands in the test-time log at the end of each serial.
-            present_idx = present.nonzero(as_tuple=True)[0].tolist()
+            present_idx = val_stats.present.nonzero(as_tuple=True)[0].tolist()
             scored = sorted(
-                [(class_ls[i], f1_per_class[i].item()) for i in present_idx],
+                [(class_ls[i], val_stats.f1_per_class[i].item()) for i in present_idx],
                 key=lambda t: t[1],
             )
             print('  val top5: ' + ' '.join(
@@ -663,8 +785,8 @@ def train_network(
 
         # Strict <: a later epoch that merely ties the best val loss doesn't
         # replace it, so the earliest epoch reaching the minimum is kept.
-        if val_loss < best_val_loss:
-            best_val_loss, best_val_loss_epoch = val_loss, epoch
+        if val_stats.val_loss < best_val_loss:
+            best_val_loss, best_val_loss_epoch = val_stats.val_loss, epoch
 
         if early_stop_count == hyp.early_stop_n_epochs:
             print(f'Early stop with best value {best_macro:.3f}')
@@ -676,35 +798,12 @@ def train_network(
     torch.save(best_state, str(save_path))
     model.load_state_dict(best_state)
 
-    # HParams summary: one row per run, sortable in TB's HParams tab.
-    # stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
-    # Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
-    # only accepts int / float / str / bool / Tensor.
-    hparam_dict = {}
-    for key, value in hyp._asdict().items():
-        is_tb_scalar = isinstance(value, (int, float, str, bool)) or torch.is_tensor(value)
-        hparam_dict[key] = value if is_tb_scalar else str(value)
-
-    writer.add_hparams(
-        hparam_dict=hparam_dict,
-        metric_dict={
-            'best/macro_f1':        best_macro,
-            'best/macro_f1_epoch':  best_macro_epoch,
-            'best/macro_f1_2nd':    second_macro,
-            'best/macro_f1_2nd_ep': second_macro_epoch,
-            'best/min_f1':          best_min,
-            'best/min_f1_epoch':    best_min_epoch,
-            'best/min_f1_2nd':      second_min,
-            'best/min_f1_2nd_ep':   second_min_epoch,
-            'best/val_loss':        best_val_loss,
-            'best/val_loss_epoch':  best_val_loss_epoch,
-            'stopped_epoch':        epoch,
-        },
-        # run_name='.' stops TB nesting a timestamped subdir per add_hparams call.
-        run_name='.',
-        global_step=epoch,
+    _write_hparams_summary(
+        writer,
+        best_macro, best_macro_epoch, second_macro, second_macro_epoch,
+        best_min, best_min_epoch, second_min, second_min_epoch,
+        best_val_loss, best_val_loss_epoch, epoch,
     )
-    writer.close()
 
     # Val metrics at the best-macro epoch (the checkpoint that gets saved):
     # macro/min/accuracy/top-2 + the present-class per-class F1, for the serial

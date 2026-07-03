@@ -91,15 +91,18 @@ class AdaptiveFocalLoss(nn.Module):
         self.epoch = 0
 
     @torch.no_grad()
-    def update_alpha(self, per_class_f1: torch.Tensor) -> None:
+    @jaxtyped(typechecker=beartype)
+    def update_alpha(self, per_class_f1: Float32[torch.Tensor, 'n_classes']) -> None:
         """EMA-smooth ``per_class_f1`` into ``f1_running``, refresh ``alpha``.
 
         Called once per epoch from the train loop after ``train_one_epoch``
         returns the per-class TP/FP/FN counters. Bumps the internal epoch
         counter so the warm-up gate in ``forward`` advances.
 
-        :param per_class_f1: shape ``[n_classes]`` train F1 vector for the
-            epoch just finished.
+        :param per_class_f1: train F1 vector for the epoch just finished. The
+            annotation pins the dtype and rank; the length-vs-n_classes check
+            below is the real guard (jaxtyping binds its symbol per call and
+            can't tie it to ``self.n_classes``).
         """
         if per_class_f1.shape != (self.n_classes,):
             raise ValueError(
