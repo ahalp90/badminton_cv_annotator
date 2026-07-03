@@ -75,7 +75,7 @@ class MultiHeadCrossAttention(nn.Module):
         k, v = map(lambda ts: ts.transpose(1, 2), kv)
         # q, k, v: (b, h, t, d_head)
 
-        dots: Tensor = (q.contiguous() @ k.transpose(-1, -2).contiguous()) * self.scale
+        dots: Tensor = (q @ k.transpose(-1, -2)) * self.scale
         # dots: (b, h, t, t): attention score for every (query_pos, key_pos) pair
         if mask is not None:
             # mask: (b, t): True for real frames, False for padding
@@ -84,7 +84,7 @@ class MultiHeadCrossAttention(nn.Module):
             dots = dots.masked_fill(~mask, -torch.inf)
 
         coef = self.attend(dots)  # softmax -> dropout
-        attention: Tensor = coef @ v.contiguous()  # weighted sum of values
+        attention: Tensor = coef @ v  # weighted sum of values
         # attention: (b, h, t, d_head)
 
         # Merge heads: (b, h, t, d_head) -> (b, t, h*d_head)
@@ -285,6 +285,8 @@ class BST(nn.Module):
         JnB = JnB.view(b, n_people, -1, t).transpose(-2, -1)
         # JnB: (b, n_people, t, d_model)
 
+        # .contiguous() kept on purpose: Conv1d accepts strided input, but a
+        # contiguous buffer here is a perf choice, not a .view() prerequisite.
         shuttle = shuttle.transpose(1, 2).contiguous()
         # shuttle: (b, 2, t)
         shuttle = self.tcn_shuttle(shuttle)
@@ -328,20 +330,19 @@ class BST(nn.Module):
         # p1, p2, shuttle: each (b, 1+t, d_model)
 
         # CLS tokens (position 0): learned summaries of each stream
-        p1_cls, p2_cls, shuttle_cls = \
-            p1[:, 0].contiguous(), p2[:, 0].contiguous(), shuttle[:, 0].contiguous()
+        p1_cls, p2_cls, shuttle_cls = p1[:, 0], p2[:, 0], shuttle[:, 0]
         # *_cls: (b, d_model): one summary vector per stream per batch item
 
         # Remaining sequence positions (frames 1..t), with fresh positional embeddings
-        p1 = p1[:, 1:].contiguous() + self.embedding_cross
-        p2 = p2[:, 1:].contiguous() + self.embedding_cross
-        shuttle = shuttle[:, 1:].contiguous() + self.embedding_cross
+        p1 = p1[:, 1:] + self.embedding_cross
+        p2 = p2[:, 1:] + self.embedding_cross
+        shuttle = shuttle[:, 1:] + self.embedding_cross
         # p1, p2, shuttle: (b, t, d_model)
 
         # ====================================================================
         # Cross Transformer: player-shuttle interaction
         # ====================================================================
-        cross_mask = mask[:, 1:].contiguous()
+        cross_mask = mask[:, 1:]
         p1_shuttle = self.cross_trans(p1, shuttle, cross_mask)
         p2_shuttle = self.cross_trans(p2, shuttle, cross_mask)
         # p1_shuttle, p2_shuttle: (b, t, d_model)
@@ -357,8 +358,8 @@ class BST(nn.Module):
         p1_shuttle: Tensor = self.encoder_inter(p1_shuttle, mask)
         p2_shuttle: Tensor = self.encoder_inter(p2_shuttle, mask)
 
-        p1_shuttle_cls = p1_shuttle[:, 0, :].contiguous()
-        p2_shuttle_cls = p2_shuttle[:, 0, :].contiguous()
+        p1_shuttle_cls = p1_shuttle[:, 0, :]
+        p2_shuttle_cls = p2_shuttle[:, 0, :]
         # p1_shuttle_cls, p2_shuttle_cls: (b, d_model)
 
         # ====================================================================
