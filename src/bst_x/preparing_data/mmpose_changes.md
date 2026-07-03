@@ -83,7 +83,7 @@ Every helper function in the pose processing chain is byte-identical:
 | `normalize_joints()` | `preparing_data/prepare_train_on_shuttleset.py` | Normalize keypoints by bbox diagonal or video height |
 | `normalize_shuttlecock()` | `preparing_data/prepare_train_on_shuttleset.py` | Normalize by video resolution to [0, 1] |
 | `get_shuttle_result()` | `preparing_data/prepare_train_on_shuttleset.py` | Read TrackNetV3 CSV and normalize |
-| `make_seq_len_same()` | `preparing_data/shuttleset_dataset.py` | Pad/stride clips to uniform seq_len |
+| `make_seq_len_same()` | `preparing_data/shuttleset_dataset.py` | Pad/linspace-sample clips to uniform seq_len |
 | `create_bones()` | `preparing_data/shuttleset_dataset.py` | Compute bone vectors from joint pairs |
 | `interpolate_joints()` | `preparing_data/shuttleset_dataset.py` | Compute bone midpoints |
 | `pad_and_derive_pose_styles()` | `preparing_data/shuttleset_dataset.py` | Full per-clip augmentation pipeline |

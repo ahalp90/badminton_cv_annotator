@@ -53,8 +53,8 @@ Helpers (out of split scope, but the contracts they impose are):
   Casts joints/pos/shuttle to float32 (688-690), calls `make_seq_len_same`, then builds
   only the requested pose styles. The per-clip pad/augment maths is already factored out;
   S7 is only the ProcessPool orchestration around it.
-- `make_seq_len_same` (`src/bst_x/preparing_data/shuttleset_dataset.py:50-83`): stride/pad
-  to `seq_len`, returns `new_video_len = len(pos)` (real frame count, pre-pad).
+- `make_seq_len_same` (`src/bst_x/preparing_data/shuttleset_dataset.py:50-83`): pad short clips / linspace-sample long ones
+  to `seq_len`; returns the real (pre-pad) frame count for short clips, `target_len` for sampled long ones.
 - `create_bones` (shuttleset_dataset.py:86-96), `interpolate_joints` (99-110),
   `get_bone_pairs` (35-47): pure, 19 coco bone pairs.
 - `get_shuttle_result` (prepare_train:490-497): reads `{stem}_ball.csv`, normalises by

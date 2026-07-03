@@ -68,7 +68,7 @@ def make_seq_len_same(
     joints: np.ndarray,
     pos: np.ndarray,
     shuttle: np.ndarray
-):
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     video_len = len(pos)
 
     # Already at or under target: arrays are normalized, so pad rather than interpolate.
@@ -76,20 +76,16 @@ def make_seq_len_same(
         joints, pos, shuttle = _pad_tail_to(target_len, joints, pos, shuttle)
         return joints, pos, shuttle, video_len
 
-    # Longer than target: stride-subsample. Pad the remainder when the leftover
-    # frames exceed half a stride (otherwise they'd be silently dropped).
-    need_padding = (video_len % target_len) > (target_len // 2)
-    stride = video_len // target_len + int(need_padding)
-
-    joints = joints[::stride][:target_len]
-    pos = pos[::stride][:target_len]
-    shuttle = shuttle[::stride][:target_len]
-    new_video_len = len(pos)
-
-    if need_padding:
-        joints, pos, shuttle = _pad_tail_to(target_len, joints, pos, shuttle)
-
-    return joints, pos, shuttle, new_video_len
+    # Longer than target: linspace index sampling. Covers the whole clip with
+    # the first and last frames always included; the sampling gap wobbles by
+    # at most one frame (floor/ceil of the true ratio). The old fixed-stride +
+    # conditional-pad scheme silently discarded up to half a stride of clip
+    # tail (the post-hit trajectory) whenever the remainder was small. This
+    # branch is empty on all current data (max clip 97 frames vs seq_len 100;
+    # the clip window caps at 3*fps + fps//4) and goes live with higher-fps
+    # sources.
+    idx = np.round(np.linspace(0, video_len - 1, target_len)).astype(int)
+    return joints[idx], pos[idx], shuttle[idx], target_len
 
 
 def create_bones(joints: np.ndarray, pairs) -> np.ndarray:

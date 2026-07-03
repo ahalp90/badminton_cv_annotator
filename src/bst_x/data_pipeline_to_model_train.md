@@ -205,7 +205,7 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 
 3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done at collation time (Step 3). Frames where pose detection failed (recorded in `_failed.npy` by Step 2) have their shuttle coordinates zeroed out. This zeroing is baked into the saved collated `shuttle.npy` -- the model receives pre-zeroed data, not a separate mask. The per-clip `_failed.npy` files preserve the raw boolean mask for debugging or future use, but the source `shuttle_csv/` files are never modified.
 
-4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or strided) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
+4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or linspace-sampled) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
    - `J_only`: raw joints `(t, 2, 17, 2)`
    - `JnB_interp`: joints + bone midpoints `(t, 2, 36, 2)`
    - `JnB_bone`: joints + bone vectors `(t, 2, 36, 2)` — **default**, what BST-X training loads
@@ -282,7 +282,7 @@ Bridges collated `.npy` files to PyTorch `DataLoader`s. Imports `Taxonomy` from 
 |------|------|
 | `Dataset_npy_collated` | Primary Dataset class for BST-X. Loads pre-collated arrays from disk. Supports `train_partial` to use a fraction of training data. Returns `(human_pose, pos, shuttle), video_len, label` per sample. **Filters out zero-length clips at load time** (see known divergence below). |
 | `prepare_npy_collated_loaders()` | Convenience function: creates train/val/test `DataLoader`s from a collated directory. |
-| `make_seq_len_same()` | Pads or strides a sample to match `seq_len`. Used by `collate_npy`. |
+| `make_seq_len_same()` | Pads short samples or linspace-samples long ones to match `seq_len`. Used by `collate_npy`. |
 | `create_bones()` / `interpolate_joints()` | Bone vector and midpoint computation from joint arrays. |
 | `POSE_BONE_MULTIPLIER` | Dict mapping pose style names to bone-set multipliers: `{'J_only': 0, 'JnB_bone': 1, 'JnB_interp': 1, 'Jn2B': 2}`. Used by train/infer scripts to compute `in_dim`. |
 | `pad_class_labels()` | Pads class label strings to uniform width for aligned F1 display. |
