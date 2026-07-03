@@ -44,6 +44,7 @@ from preparing_data.shuttleset_dataset import (
 )
 from pipeline.config import (
     CLIPS_OUTPUT_DIR,
+    COCO_N_JOINTS,
     SET_INFO_DIR,
     RESOLUTION_CSV_PATH,
     SHUTTLE_CSV_DIR,
@@ -167,18 +168,16 @@ def detect_players_2d(
     video_path: Path,
     all_court_info: dict,
     res_df: pd.DataFrame,
-    J=17,
+    J=COCO_N_JOINTS,
     normalized_by_v_height=False,
     center_align=False,
 ):
-    """
-    Outputs
-    -------
-    failed_ls: list
+    """Detect the two on-court players' 2D pose and court positions per frame.
 
-    players_positions: (t, m, xy), m=xy=2
-
-    players_joints: (t, m, J, xy), m=xy=2
+    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
+        is a per-frame bool list (True where no valid two-player pair was found;
+        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
+        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xy)``.
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -232,16 +231,14 @@ def detect_players_3d(
     video_path: Path,
     all_court_info: dict,
     res_df: pd.DataFrame,
-    J=17,
+    J=COCO_N_JOINTS,
 ):
-    """
-    Outputs
-    -------
-    failed_ls: list
+    """Detect the two on-court players' 3D pose and court positions per frame.
 
-    players_positions: (t, m, xy), m=xy=2
-
-    players_joints: (t, m, J, xy), m=xy=2
+    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
+        is a per-frame bool list (True where no valid two-player pair was found;
+        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
+        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xyz)`` (3D keypoints).
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -506,7 +503,7 @@ def prepare_3d_dataset_npy_from_raw_video(
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")
 
 
-def pad_and_augment_one_npy_video(
+def pad_and_derive_pose_styles(
     seq_len: int,
     joints: np.ndarray,
     pos: np.ndarray,
@@ -660,16 +657,16 @@ def _load_clip_npys(
     """
     print(f"Load .npy files for {set_name} set ...")
     with ThreadPoolExecutor() as executor:
-        tasks1: list[Future] = []
-        tasks2: list[Future] = []
-        tasks3: list[Future] = []
+        joint_tasks: list[Future] = []
+        pos_tasks: list[Future] = []
+        failed_tasks: list[Future] = []
         for branch in data_branches:
-            tasks1.append(executor.submit(np.load, branch + "_joints.npy"))
-            tasks2.append(executor.submit(np.load, branch + "_pos.npy"))
-            tasks3.append(executor.submit(np.load, branch + "_failed.npy"))
-        joints_ls = [t1.result() for t1 in tasks1]
-        pos_ls = [t2.result() for t2 in tasks2]
-        failed_ls = [t3.result() for t3 in tasks3]
+            joint_tasks.append(executor.submit(np.load, branch + "_joints.npy"))
+            pos_tasks.append(executor.submit(np.load, branch + "_pos.npy"))
+            failed_tasks.append(executor.submit(np.load, branch + "_failed.npy"))
+        joints_ls = [task.result() for task in joint_tasks]
+        pos_ls = [task.result() for task in pos_tasks]
+        failed_ls = [task.result() for task in failed_tasks]
     print("Finish loading.")
     return joints_ls, pos_ls, failed_ls
 
@@ -726,7 +723,7 @@ def _align_shuttle_and_truncate(
     return joints_ls, pos_ls, shuttle_ls
 
 
-def _pad_augment_stack_save(
+def _pad_derive_stack_save(
     joints_ls: list[np.ndarray],
     pos_ls: list[np.ndarray],
     shuttle_ls: list[np.ndarray],
@@ -762,7 +759,7 @@ def _pad_augment_stack_save(
         for joints, pos, shuttle in zip(joints_ls, pos_ls, shuttle_ls):
             tasks.append(
                 executor.submit(
-                    pad_and_augment_one_npy_video,
+                    pad_and_derive_pose_styles,
                     seq_len=seq_len,
                     joints=joints,
                     pos=pos,
@@ -834,7 +831,7 @@ def collate_npy(
     Four staged helpers: ``_resolve_clips_and_labels`` builds the row order,
     ``_load_clip_npys`` parallel-loads joints/pos/failed, ``_align_shuttle_and_truncate``
     reads shuttle CSVs and truncates the triple to a common length, and
-    ``_pad_augment_stack_save`` runs the ProcessPool and writes the stacked
+    ``_pad_derive_stack_save`` runs the ProcessPool and writes the stacked
     arrays. The argument guards stay here so a bad call fails before any work.
 
     :param root_dir: FLAT per-clip dir containing
@@ -899,7 +896,7 @@ def collate_npy(
         shuttle_csv_dir=shuttle_csv_dir,
         resolution_df=resolution_df,
     )
-    _pad_augment_stack_save(
+    _pad_derive_stack_save(
         joints_ls=joints_ls,
         pos_ls=pos_ls,
         shuttle_ls=shuttle_ls,

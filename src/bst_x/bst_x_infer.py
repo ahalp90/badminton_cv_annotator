@@ -40,7 +40,7 @@ from pipeline.config import (
 )
 from pipeline.data_access import env_path_or_none, load_repo_dotenv
 from bst_x_common import (
-    _write_prediction_npz,
+    write_prediction_npz,
     build_bst_x_network,
     dump_topk_predictions,
 )
@@ -92,10 +92,10 @@ class Task:
         npy_collated_dir: Path,
         batch_size=128,
     ):
-        your_set = Dataset_npy_collated(npy_collated_dir, 'test', self.pose_style)
+        dataset = Dataset_npy_collated(npy_collated_dir, 'test', self.pose_style)
 
         self.infer_loader = DataLoader(
-            dataset=your_set,
+            dataset=dataset,
             batch_size=batch_size
         )
 
@@ -249,7 +249,7 @@ def dump_run_predictions(
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         dump = dump_topk_predictions(net, loader, device, k=5)
         out_path = out_dir / f'{split}_serial_{serial}.npz'
-        _write_prediction_npz(
+        write_prediction_npz(
             out_path, dump, dataset, taxonomy, run_dir.name, serial,
         )
         written.append(out_path.name)

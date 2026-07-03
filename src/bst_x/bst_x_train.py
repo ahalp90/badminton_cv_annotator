@@ -33,6 +33,8 @@ from preparing_data.shuttleset_dataset import prepare_npy_collated_loaders, \
 from preparing_data.augmentations import CoupledFlip, ConstrainedJitter
 from result_utils import show_f1_results, plot_confusion_matrix
 from pipeline.config import (
+    CLIP_WINDOW,
+    COCO_N_JOINTS,
     Taxonomy,
     derive_npy_collated_dir_basename,
     taxonomy_lookup,
@@ -41,7 +43,7 @@ from pipeline.data_access import env_path_or_none, load_repo_dotenv
 from run_tracker import track_run, track_serial
 from bst_x_common import (
     Tee,
-    _write_prediction_npz,
+    write_prediction_npz,
     build_bst_x_network,
     compute_data_provenance,
     dump_topk_predictions,
@@ -467,7 +469,7 @@ def train_network(
     aug_cfg = hyp.augmentation
     coupled_flip = CoupledFlip(
         p=aug_cfg['p_flip'],
-        n_joints=17,
+        n_joints=COCO_N_JOINTS,
         n_bones=n_bones,
     )
     constrained_jitter = ConstrainedJitter(
@@ -735,7 +737,7 @@ def train_network(
 
 
 class Task:
-    def __init__(self, taxonomy: Taxonomy, n_joints=17, pose_style='JnB_bone',
+    def __init__(self, taxonomy: Taxonomy, n_joints=COCO_N_JOINTS, pose_style='JnB_bone',
                  weight_dir: Path = Path('weight')) -> None:
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
@@ -850,19 +852,17 @@ class Task:
             trained. ``val_at_best`` is the per-class val F1 snapshot from
             ``train_network`` (None on the load path or a degenerate run).
         """
-        model_info = f'_{model_info}' if model_info != '' else ''
-        taxonomy_info = f'_{self.taxonomy.name}'
-        serial_str = f'_{serial_no}' if serial_no != 1 else ''
+        parts = [self.pose_style]
+        if model_info:
+            parts.append(model_info)
+        parts.append(self.taxonomy.name)
+        if serial_no != 1:
+            parts.append(str(serial_no))
+        config_tag = '_'.join(parts)  # pose style, data config, taxonomy, serial
 
-        model_postfix = '_' + self.pose_style \
-            + model_info + taxonomy_info + serial_str
-
-        save_name = self.model_name.lower()
-        save_name += model_postfix
-
-        self.model_name += model_postfix
-
-        weight_path = self.weight_dir / f'{save_name}.pt'
+        weight_stem = f'{self.model_name.lower()}_{config_tag}'
+        self.display_name = f'{self.model_name}_{config_tag}'  # printed name; model_name stays the arch key
+        weight_path = self.weight_dir / f'{weight_stem}.pt'
         self.weight_path = weight_path
         if weight_path.exists():
             self.net.load_state_dict(
@@ -910,7 +910,7 @@ class Task:
         class_ls = list(self.taxonomy.classes)
 
         show_f1_results(
-            model_name=self.model_name,
+            model_name=self.display_name,
             f1_score_each=f1_score_each[present_idx] if present_idx else f1_score_each,
             class_ls=pad_class_labels(
                 [class_ls[i] for i in present_idx] if present_idx else class_ls
@@ -926,7 +926,7 @@ class Task:
                 y_true=gt,
                 y_pred=pred,
                 need_pre_argmax=False,
-                model_name=self.model_name,
+                model_name=self.display_name,
                 font_size=6,
                 save=False
             )
@@ -1009,7 +1009,7 @@ class Task:
                 shuffle=False, num_workers=0, pin_memory=False,
             )
             dump = dump_topk_predictions(self.net, ordered, self.device, k=k)
-            _write_prediction_npz(
+            write_prediction_npz(
                 out_dir / f'{split_name}_serial_{serial_no}.npz',
                 dump, dataset, self.taxonomy, run_dir.name, serial_no,
             )
@@ -1166,12 +1166,13 @@ if __name__ == '__main__':
     str_3d = '_3d' if hyp.use_3d_pose else ''
     model_info_parts: list[str] = []
     if hyp.seq_len == 100:
-        model_info_parts.append(f'between_2_hits_with_max_limits_seq_100{str_3d}')
+        model_info_parts.append(f'{CLIP_WINDOW}_seq_100{str_3d}')
     elif hyp.use_3d_pose:
         model_info_parts.append('3d')
-    assert 0 < hyp.train_partial <= 1, 'hyp.train_partial should be in (0, 1].'
+    if not 0 < hyp.train_partial <= 1:
+        raise ValueError(f'hyp.train_partial must be in (0, 1], got {hyp.train_partial}')
     if hyp.train_partial != 1:
-        model_info_parts.append(f'train_partial_0p{str(hyp.train_partial)[2:]}')
+        model_info_parts.append(f"train_partial_{str(hyp.train_partial).replace('0.', '0p', 1)}")
     model_info = '_'.join(model_info_parts)
 
     # ----------------------------------------------------------------------
@@ -1257,7 +1258,7 @@ if __name__ == '__main__':
         for serial_no in serial_range:
             print(f'Running serial {serial_no} ...')
             task = Task(
-                n_joints=17, taxonomy=taxonomy, pose_style=hyp.pose_style,
+                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, pose_style=hyp.pose_style,
                 weight_dir=weight_dir,
             )
             task.prepare_dataloaders(
@@ -1279,7 +1280,7 @@ if __name__ == '__main__':
             dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
 
             with redirect_stdout(tee):
-                print(f'\n=== Serial {serial_no} ({task.model_name}) ===')
+                print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
                 test_metrics = task.test(
                     dump=dumps['test'],
                     show_details=True, show_confusion_matrix=False,

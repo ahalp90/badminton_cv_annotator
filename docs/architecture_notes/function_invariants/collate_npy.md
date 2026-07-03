@@ -40,7 +40,7 @@ S3  798-852   per-row label derivation + unknown routing + file-existence filter
 S4  854-869   threaded npy load -> joints_ls, pos_ls, failed_ls (ThreadPoolExecutor)
 S5  871-907   per-clip shuttle read (get_shuttle_result) + temporal align (truncate to min_t)
 S6  909-916   pose_styles validation (bad_styles raise) + bone_pairs = get_bone_pairs('coco')
-S7  918-947   pad/augment per clip via ProcessPoolExecutor (pad_and_augment_one_npy_video)
+S7  918-947   pad/augment per clip via ProcessPoolExecutor (pad_and_derive_pose_styles)
               + collect results in submission order -> pose_ls, pos_ls, shuttle_ls, videos_len
 S8  949-952   np.stack pos / shuttle / videos_len
 S9  954-959   mkdir save_dir, save_dir/set_name
@@ -49,7 +49,7 @@ S11 970       done print
 ```
 
 Helpers (out of split scope, but the contracts they impose are):
-- `pad_and_augment_one_npy_video` (prepare_train:661-716): already a separate function.
+- `pad_and_derive_pose_styles` (prepare_train:661-716): already a separate function.
   Casts joints/pos/shuttle to float32 (688-690), calls `make_seq_len_same`, then builds
   only the requested pose styles. The per-clip pad/augment maths is already factored out;
   S7 is only the ProcessPool orchestration around it.
@@ -128,7 +128,7 @@ is the trap.
 
 Both executors collect by iterating the task list in submission order, which is the row
 order:
-- S4 ThreadPool: `joints_ls = [t1.result() for t1 in tasks1]` etc. (866-868).
+- S4 ThreadPool: `joints_ls = [task.result() for task in joint_tasks]` etc. (866-868).
 - S7 ProcessPool: `for task in tasks: ... task.result()` (941-947).
 
 This is THE determinism guarantee for row alignment. Switching either to
@@ -240,7 +240,7 @@ clip_stems.npy  (n,)               object      # saved allow_pickle=True
 
 `T = seq_len` (100 or 30). Last dim `d = 2` for 2D, `3` for 3D (`--use-3d-pose`), so the
 3D pose arrays are `(n, T, 2, K, 3)`. Contract sources the split must preserve:
-- float32 on the pose/pos/shuttle arrays: the cast is in `pad_and_augment_one_npy_video`
+- float32 on the pose/pos/shuttle arrays: the cast is in `pad_and_derive_pose_styles`
   (688-690); on-disk per-clip joints/pos/shuttle are float64. Do not move the cast.
 - `videos_len` int64: `np.stack(videos_len)` (951) of Python ints
   (`new_video_len = len(pos)`).
@@ -372,7 +372,7 @@ the doc is sound.
 | id | severity | what's wrong / missing | evidence | suggested fix |
 |----|----------|------------------------|----------|---------------|
 | R1 | medium | INV-12: "All stacks (S8, 949-951, plus the per-style `np.stack(arrs)` at 962) currently complete before any `np.save`" is false. The pos/shuttle/videos_len stacks (949-951) do finish first, but the per-style pose stacks at 962 are computed *inline as the argument to* `np.save` inside the 961 loop, so `J_only.npy` is on disk before `JnB_bone` is even stacked. The "mid-pipeline failure leaves no partial `set_dir`" claim is therefore overstated: `set_dir` is `mkdir`'d at 958, and a stack failure on the k-th style leaves styles 0..k-1 written. | `prepare_train:961-962` `for k, arrs in pose_ls.items(): np.save(..., np.stack(arrs))`; `set_dir.mkdir()` at 958. In practice 962 won't raise (uniform padded shapes; per-task errors already surface at the S7 `.result()` 941-947), so blast radius is ~nil, but the structural claim is wrong. | Reword: pos/shuttle/videos_len stacks complete before the save block; the per-style pose stacks run inline within the save loop. Row count `n` is final before any save (the load-bearing point). Drop the "no partial set_dir" guarantee or qualify it (set_dir exists from 958; partial pose files possible if a 962 stack ever raised). |
-| R2 | low-medium | Section 4 item 4 asserts the HPC bit-exact "covers unknown-routing + sides + val/test that the CPU golden misses", but the simplification-pass plan doesn't state the HPC comparison *granularity* for collation. Val/test aggregate metrics are row-order-invariant and `train_partial` reorders the train dump, so a pure block-permutation of val/test rows in `collate_npy` (with `label[i]`/`pose[i]`/`stem[i]` kept aligned) would not move metrics and would only surface if the HPC leg compares the collated `.npy` (or the row-aligned prediction npz) directly. Label-desync IS caught (it changes metrics). | Reorder noted at `bst_x_train.py:1090-1091` (`adjust_to_partial_train_set`, called `shuttleset_dataset.py:224`). Mitigation: a clean split preserving INV-4 cannot introduce such a permutation, so residual risk is low. | Add one line: for the HPC leg to actually cover collation row-order on val/test/bst_25, it must compare the collated `.npy` arrays (or the row-aligned npz), not just aggregate test metrics. |
+| R2 | low-medium | Section 4 item 4 asserts the HPC bit-exact "covers unknown-routing + sides + val/test that the CPU golden misses", but the simplification-pass plan doesn't state the HPC comparison *granularity* for collation. Val/test aggregate metrics are row-order-invariant and `train_partial` reorders the train dump, so a pure block-permutation of val/test rows in `collate_npy` (with `label[i]`/`pose[i]`/`stem[i]` kept aligned) would not move metrics and would only surface if the HPC leg compares the collated `.npy` (or the row-aligned prediction npz) directly. Label-desync IS caught (it changes metrics). | Reorder noted at `bst_x_train.py:1090-1091` (`adjust_to_deterministic_partial_train_set`, called `shuttleset_dataset.py:224`). Mitigation: a clean split preserving INV-4 cannot introduce such a permutation, so residual risk is low. | Add one line: for the HPC leg to actually cover collation row-order on val/test/bst_25, it must compare the collated `.npy` arrays (or the row-aligned npz), not just aggregate test metrics. |
 | R3 | low | Missed input guard. S2 spans 789-796 but the invariant list never enumerates the `split_column not in clips_df.columns -> KeyError` guard (791-795), though it does enumerate the S1 guards (INV-8). If concern 1 extracts the CSV read+filter, this guard must travel with it. | `prepare_train:791-795`. | Note in INV-1/concern-1 contract that the split_column-membership KeyError (791-795) is part of concern 1's CSV-read step. |
 | R4 | low | Missed rebinding. S7 reuses the names `pos_ls`/`shuttle_ls` for a *different generation*: the S4-loaded, S5-truncated lists are consumed by the zip at 923, then `pos_ls`/`shuttle_ls` are rebound to `[]` (937-938) and refilled with the post-pad outputs (941-947); `joints_ls` is consumed, not rebound (its padded form lives in `pose_ls[k]`). The stage map mentions both generations but never flags the name collision as a split hazard. | `prepare_train:923` (consume), `937-938` (rebind), `941-947` (refill). | Note the rebinding; recommend distinct names across the concern-3/concern-4 boundary (e.g. `loaded_pos` vs `padded_pos`) so an inlined orchestrator doesn't shadow. |
 | R5 | low/info | "Nine outputs" in INV-1 reads as fixed, but INV-9 correctly says only requested pose styles are written (6 files for the default `JnB_bone`, 9 only when all four are requested as in the golden). Minor internal inconsistency. | INV-1 vs INV-9; golden writes 9 because it requests all four styles (verified: `J_only, Jn2B, JnB_bone, JnB_interp, clip_stems, labels, pos, shuttle, videos_len`). | Say "all outputs (5 non-pose + 1-to-4 pose; 9 in the all-styles golden)". |
@@ -382,7 +382,7 @@ the doc is sound.
 
 Line-ref / structure:
 - Stage map S0..S11 (719-970): every boundary verified against source. `collate_npy` def at 719, body ends at the 970 print. All ten internal boundaries (768, 790/796, 807-836/838-846/847-852, 856-869, 883-907, 909-916, 920-947, 949-951, 954-959, 961-969) match.
-- Helper list: `pad_and_augment_one_npy_video` 661-716 + float32 cast 688-690; `make_seq_len_same` 50-83 (return desc consistent with the function's own docstring); `create_bones` 86-96, `interpolate_joints` 99-110, `get_bone_pairs` 35-47 (counted 19 coco pairs); `get_shuttle_result` 490-497 (returns float64 (t,2)); `derive_class_index` config.py:333-366 with ordered logic 349-357; `VALID_POSE_STYLES` prepare_train:658. All accurate.
+- Helper list: `pad_and_derive_pose_styles` 661-716 + float32 cast 688-690; `make_seq_len_same` 50-83 (return desc consistent with the function's own docstring); `create_bones` 86-96, `interpolate_joints` 99-110, `get_bone_pairs` 35-47 (counted 19 coco pairs); `get_shuttle_result` 490-497 (returns float64 (t,2)); `derive_class_index` config.py:333-366 with ordered logic 349-357; `VALID_POSE_STYLES` prepare_train:658. All accurate.
 
 Invariants:
 - INV-1..INV-8, INV-10, INV-11: all line refs correct and behaviour correctly described. INV-7's "single source of truth shared with `_derive_class_label`" verified: `data_access.py:299` `_derive_class_label` is a thin wrapper calling `derive_class_index`. INV-5b's "frame-zeroing removed" verified: comment at 902-905 + `docs/architecture_notes/frame_zeroing.md` exists; `failed = failed[:min_t]` at 900 is genuinely dead (reassigned at 893 next iter, unread after 900); `len(failed)==len(pos_ls[i])` holds by `detect_players_2d/3d` per-frame appends.
@@ -399,7 +399,7 @@ Section 4 / 5:
   section 0; the artefact was in fact captured and green on 2026-06-29. The HPC
   bit-exact on une_v1_14 / bst_25 was the gating leg.
 
-Open questions: Q1 (golden is 2D-only) correct; Q2 (in-place vs return for the truncation) real and well-scoped; Q3 (`train_partial` reorders the dump, noted at `bst_x_train.py:1091`) accurate (the cite is to the `dump_predictions` docstring where it's noted; the reorder itself is `adjust_to_partial_train_set`). The only missing risk is R2's HPC-granularity caveat, which sits next to Q3 since the two share the reorder mechanism.
+Open questions: Q1 (golden is 2D-only) correct; Q2 (in-place vs return for the truncation) real and well-scoped; Q3 (`train_partial` reorders the dump, noted at `bst_x_train.py:1091`) accurate (the cite is to the `dump_predictions` docstring where it's noted; the reorder itself is `adjust_to_deterministic_partial_train_set`). The only missing risk is R2's HPC-granularity caveat, which sits next to Q3 since the two share the reorder mechanism.
 
 ---
 

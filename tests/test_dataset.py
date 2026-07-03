@@ -116,7 +116,7 @@ def test_dataset_clip_stems_after_zero_length_filter():
 
 
 def test_dataset_clip_stems_after_partial_train():
-    """adjust_to_partial_train_set mirrors clip_stems slicing with labels.
+    """adjust_to_deterministic_partial_train_set mirrors clip_stems slicing with labels.
 
     Per-class slicing keeps the first ``int(n_per_class * train_partial)``
     clips per label; clip_stems must stay row-aligned after the concatenation.

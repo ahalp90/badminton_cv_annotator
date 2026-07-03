@@ -45,9 +45,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from pipeline.config import CLIPS_OUTPUT_DIR
-
-J = 17  # COCO keypoints returned by MMPoseInferencer("human") / RTMPose-L
+from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
 
 
 def extract_raw_frame(
@@ -74,10 +72,10 @@ def extract_raw_frame(
             )
             over_det_warned.add(clip_stem)
 
-    kps = np.full((n_max, J, 2), np.nan, dtype=np.float32)
+    kps = np.full((n_max, COCO_N_JOINTS, 2), np.nan, dtype=np.float32)
     bboxes = np.full((n_max, 4), np.nan, dtype=np.float32)
     scores = np.full((n_max,), np.nan, dtype=np.float32)
-    kp_scores = np.full((n_max, J), np.nan, dtype=np.float32)
+    kp_scores = np.full((n_max, COCO_N_JOINTS), np.nan, dtype=np.float32)
 
     for i, person in enumerate(preds):
         kps[i] = np.asarray(person["keypoints"], dtype=np.float32)

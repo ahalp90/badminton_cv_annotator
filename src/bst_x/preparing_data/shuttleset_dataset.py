@@ -191,12 +191,19 @@ class Dataset_npy_collated(Dataset):
                 self.clip_stems = self.clip_stems[valid]
 
         if set_name == 'train' and train_partial < 1:
-            self.adjust_to_partial_train_set(train_partial)
+            self.adjust_to_deterministic_partial_train_set(train_partial)
 
         # human_pose: (n, t, m, J[+B], d); pos: (n, t, m, xy); shuttle: (n, t, xy)
         # videos_len: (n); labels: (n)
 
-    def adjust_to_partial_train_set(self, train_partial):
+    def adjust_to_deterministic_partial_train_set(self, train_partial):
+        """Keep the first ``train_partial`` fraction of each class, in row order.
+
+        Deterministic prefix, not a random sample; ``int()`` floors, so a small
+        class under a small fraction can drop to zero. The per-class regroup
+        reorders rows here: this is the ``train_partial`` reorder the
+        prediction-dump docstrings refer to.
+        """
         new_human_pose = []
         new_pos = []
         new_shuttle = []

@@ -290,7 +290,7 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
         tmp_path, n_bones=n_bones,
         labels={'train': [0, 1, 2, 0, 1, 2, 0, 1], 'val': [0, 1, 2], 'test': [0]},
     )
-    # train_partial=0.5 -> adjust_to_partial_train_set groups by class + halves.
+    # train_partial=0.5 -> adjust_to_deterministic_partial_train_set groups by class + halves.
     train_ds = Dataset_npy_collated(coll, 'train', 'JnB_bone', train_partial=0.5)
     task = bt.Task.__new__(bt.Task)
     task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net

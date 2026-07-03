@@ -36,7 +36,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .base import ClipContext, HeuristicOutput, J, RawClip
+from pipeline.config import COCO_N_JOINTS
+from .base import ClipContext, HeuristicOutput, RawClip
 
 
 def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
@@ -55,7 +56,7 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
 
     failed = np.zeros(num_frames, dtype=bool)
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
-    joints = np.zeros((num_frames, 2, J, 2), dtype=np.float64)
+    joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
 
     for f in range(num_frames):
         n = int(raw.ndet[f])

@@ -130,6 +130,10 @@ NOSIDE_FOLDERS: frozenset[str] = frozenset({'unknown', 'driven_flight'})
 # ---------------------------------------------------------------------------
 CLIP_WINDOW = 'between_2_hits_with_max_limits'
 
+# COCO-17 keypoint count. MMPoseInferencer('human') / RTMPose-L return 17
+# joints per person; every pose tensor's joint axis is sized by this.
+COCO_N_JOINTS = 17
+
 # homography.csv matrices were computed at this resolution; coordinates must
 # scale to match before applying the homography.
 HOMOGRAPHY_RESOLUTION = (1280, 720)

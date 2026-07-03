@@ -34,6 +34,7 @@ from __future__ import annotations
 import torch
 from torch import Tensor
 
+from pipeline.config import COCO_N_JOINTS
 from preparing_data.shuttleset_dataset import get_bone_pairs
 
 
@@ -117,7 +118,7 @@ class CoupledFlip:
     def __init__(
         self,
         p: float = 0.5,
-        n_joints: int = 17,
+        n_joints: int = COCO_N_JOINTS,
         n_bones: int = 19,
         bone_pairs: list[tuple[int, int]] | None = None,
     ) -> None:

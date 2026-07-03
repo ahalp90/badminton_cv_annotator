@@ -13,7 +13,12 @@ import numpy as np
 import torch
 from torch import nn
 
-from preparing_data.shuttleset_dataset import POSE_BONE_MULTIPLIER, get_bone_pairs
+from pipeline.config import Taxonomy
+from preparing_data.shuttleset_dataset import (
+    Dataset_npy_collated,
+    POSE_BONE_MULTIPLIER,
+    get_bone_pairs,
+)
 from model.bst import BST_0, BST_PPF, BST_CG, BST_AP, BST_CG_AP
 
 
@@ -136,7 +141,14 @@ def dump_topk_predictions(
     }
 
 
-def _write_prediction_npz(out_path, dump, dataset, taxonomy, run_id, serial):
+def write_prediction_npz(
+    out_path: Path,
+    dump: dict[str, np.ndarray],
+    dataset: Dataset_npy_collated,
+    taxonomy: Taxonomy,
+    run_id: str,
+    serial: int,
+) -> None:
     """Write a per-split prediction npz with the shared 9-key schema.
 
     The single payload source for ``bst_x_train.Task.dump_predictions`` and

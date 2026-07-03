@@ -86,7 +86,7 @@ Every helper function in the pose processing chain is byte-identical:
 | `make_seq_len_same()` | `preparing_data/shuttleset_dataset.py` | Pad/stride clips to uniform seq_len |
 | `create_bones()` | `preparing_data/shuttleset_dataset.py` | Compute bone vectors from joint pairs |
 | `interpolate_joints()` | `preparing_data/shuttleset_dataset.py` | Compute bone midpoints |
-| `pad_and_augment_one_npy_video()` | `preparing_data/shuttleset_dataset.py` | Full per-clip augmentation pipeline |
+| `pad_and_derive_pose_styles()` | `preparing_data/shuttleset_dataset.py` | Full per-clip augmentation pipeline |
 | `collate_npy()` | `preparing_data/prepare_train_on_shuttleset.py` | Stack per-clip .npy files into batch arrays |
 
 ---
@@ -134,7 +134,7 @@ prepare_train_on_shuttleset.py    main() dispatches 3 steps
                  +-- per clip: get_shuttle_result() from data/shuttleset/shuttle_csv/
                  |             tail-truncate to align MMPose/TrackNetV3 frame counts
                  |             zero shuttle coords where _failed is True
-                 +-- pad_and_augment_one_npy_video() per clip (ProcessPoolExecutor)
+                 +-- pad_and_derive_pose_styles() per clip (ProcessPoolExecutor)
                  +-- np.stack() all clips into batch arrays
                  +-- save {pose_style}.npy per --pose-styles (default: JnB_bone.npy), ...
 ```

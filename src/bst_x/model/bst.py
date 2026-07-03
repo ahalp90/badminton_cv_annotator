@@ -42,7 +42,7 @@ class MultiHeadCrossAttention(nn.Module):
         super().__init__()
         d_cat = d_head * n_head
 
-        self.h = n_head
+        self.n_head = n_head
         # Queries come from x1, keys+values come from x2 (this is what makes it "cross")
         self.to_q = nn.Linear(d_model, d_cat, bias=False)
         self.to_kv = nn.Linear(d_model, d_cat * 2, bias=False)  # *2: K and V packed together
@@ -69,9 +69,9 @@ class MultiHeadCrossAttention(nn.Module):
         # Split into heads: (b, t, d_cat) -> (b, h, t, d_head).
         # .view (not .reshape): no-copy reshape that needs contiguous memory;
         # .reshape is the more common default but copies when it can't view.
-        q = q.view(b, t, self.h, -1).transpose(1, 2)
+        q = q.view(b, t, self.n_head, -1).transpose(1, 2)
         # chunk(2) splits the packed projection back into K and V
-        kv = kv.view(b, t, self.h, -1).chunk(2, dim=-1)
+        kv = kv.view(b, t, self.n_head, -1).chunk(2, dim=-1)
         k, v = map(lambda ts: ts.transpose(1, 2), kv)
         # q, k, v: (b, h, t, d_head)
 
@@ -261,20 +261,20 @@ class BST(nn.Module):
         """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
         Pipeline: TCN -> Temporal Transformer -> Cross Transformer -> Interactional Transformer -> Head
         """
-        b, t, n_people, in_dim = JnB.shape
+        b, t, n_people, input_dim = JnB.shape
         # Conv1d wants (batch, channels, length); stack both players in the batch dim
         # so the TCN processes them in parallel.
-        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, in_dim, t)
-        # JnB: (b*n_people, in_dim, t)
+        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
+        # JnB: (b*n_people, input_dim, t)
 
         # ====================================================================
         # [PPF] Pose Position Fusion: modulate skeleton features by court position
         # ====================================================================
         if self.use_ppf:
             pos = self.mlp_positions(pos)
-            # pos: (b, t, n, in_dim)
-            pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, in_dim, t)
-            # pos_impact: (b*n_people, in_dim, t)
+            # pos: (b, t, n, input_dim)
+            pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
+            # pos_impact: (b*n_people, input_dim, t)
             JnB = JnB * pos_impact + JnB
             # Multiplicative fusion with residual: JnB * (1 + pos_impact)
 

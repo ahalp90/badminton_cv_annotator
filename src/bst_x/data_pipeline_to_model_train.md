@@ -205,7 +205,7 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 
 3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done at collation time (Step 3). Frames where pose detection failed (recorded in `_failed.npy` by Step 2) have their shuttle coordinates zeroed out. This zeroing is baked into the saved collated `shuttle.npy` -- the model receives pre-zeroed data, not a separate mask. The per-clip `_failed.npy` files preserve the raw boolean mask for debugging or future use, but the source `shuttle_csv/` files are never modified.
 
-4. **Padding and augmentation** (`pad_and_augment_one_npy_video`): Each sample is padded (or strided) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
+4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or strided) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
    - `J_only`: raw joints `(t, 2, 17, 2)`
    - `JnB_interp`: joints + bone midpoints `(t, 2, 36, 2)`
    - `JnB_bone`: joints + bone vectors `(t, 2, 36, 2)` — **default**, what BST-X training loads
