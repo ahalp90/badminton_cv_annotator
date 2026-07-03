@@ -150,7 +150,9 @@ class CoupledFlip:
         Float32[Tensor, 'n t m 2'],
         Float32[Tensor, 'n t 2'],
     ]:
-        """Flip selected clips across all three streams together.
+        """Flip selected clips across all three streams together. (0, 0)
+        pos/shuttle sentinel frames pass through unflipped, matching the
+        jitter's sentinel handling.
 
         :param human_pose: ``(n, t, m, J+B, 2)``. The first ``J`` slots
                            are joints; the last ``B`` slots are bones.
@@ -170,21 +172,39 @@ class CoupledFlip:
         if not flip_mask.any():
             return human_pose, pos, shuttle
 
+        # Pre-flip sentinel masks, mirroring the jitter's restore. (0, 0) is
+        # the out-of-band missing code (pose-failed frame, off-screen shuttle,
+        # padded tail), not a location; x -> 1 - x would relabel it as an
+        # in-band (1, 0). Joints need no mask: their x -> -x fixes zero.
+        pos_zero = (pos == 0.0).all(dim=-1)          # (n, t, m)
+        shuttle_zero = (shuttle == 0.0).all(dim=-1)  # (n, t)
+
         joints = human_pose[..., :-self.n_bones, :]
         # Build the fully-flipped tensor first, then use torch.where to
         # keep unflipped clips untouched. torch.where keeps fixed shapes and no
         # data-dependent sync point, unlike boolean-mask indexing (which gathers
         # a variable number of rows).
 
-        # pos: x -> 1 - x in court frame
+        # pos: x -> 1 - x in court frame, then the sentinel restore, so the
+        # flip-select below hands unflipped clips their originals untouched
         pos_flipped = pos.clone()
         pos_flipped[..., 0] = 1.0 - pos_flipped[..., 0]
+        pos_flipped = torch.where(
+            pos_zero.unsqueeze(-1).expand_as(pos_flipped),
+            torch.zeros_like(pos_flipped),
+            pos_flipped,
+        )
         pos_mask = flip_mask.view(n, 1, 1, 1).expand_as(pos)
         pos_out = torch.where(pos_mask, pos_flipped, pos)
 
-        # shuttle: x -> 1 - x in camera frame
+        # shuttle: x -> 1 - x in camera frame, same sentinel restore
         shuttle_flipped = shuttle.clone()
         shuttle_flipped[..., 0] = 1.0 - shuttle_flipped[..., 0]
+        shuttle_flipped = torch.where(
+            shuttle_zero.unsqueeze(-1).expand_as(shuttle_flipped),
+            torch.zeros_like(shuttle_flipped),
+            shuttle_flipped,
+        )
         shuttle_mask = flip_mask.view(n, 1, 1).expand_as(shuttle)
         shuttle_out = torch.where(shuttle_mask, shuttle_flipped, shuttle)
 

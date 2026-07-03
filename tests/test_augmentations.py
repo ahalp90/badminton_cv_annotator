@@ -230,6 +230,30 @@ def test_flip_shuttle_x_mirrored_in_camera_frame():
     assert torch.allclose(shuttle_out[..., 1], shuttle_orig[..., 1], atol=1e-6)
 
 
+def test_zero_sentinel_pos_and_shuttle_frames_survive_flip():
+    """(0, 0) pos/shuttle frames are the out-of-band missing code (pose-failed
+    frame, off-screen shuttle, padded tail), not locations. The mirror maps
+    x -> 1 - x, which would turn them into an in-band (1, 0); CoupledFlip masks
+    them before the mirror and restores them after, matching the jitter's
+    sentinel handling.
+    """
+    flip = CoupledFlip(p=1.0, n_joints=17, n_bones=19)
+    human_pose, pos, shuttle, _, _ = _random_clip_tensors(seed=11)
+    # Plant sentinels: player slot 0 pose-fails on frame 1; shuttle goes
+    # off-screen on frame 0.
+    pos[0, 1, 0, :] = 0.0
+    shuttle[0, 0, :] = 0.0
+    pos_orig = pos.clone()
+    shuttle_orig = shuttle.clone()
+    _, pos_out, shuttle_out = flip(human_pose, pos, shuttle)
+    # Sentinel frames come through exactly (0, 0)...
+    assert (pos_out[0, 1, 0] == 0.0).all()
+    assert (shuttle_out[0, 0] == 0.0).all()
+    # ...while real frames on the same clip still mirror.
+    assert torch.allclose(pos_out[0, 0, :, 0], 1.0 - pos_orig[0, 0, :, 0], atol=1e-6)
+    assert torch.allclose(shuttle_out[0, 1, 0], 1.0 - shuttle_orig[0, 1, 0], atol=1e-6)
+
+
 def test_flip_joints_x_negated_around_bbox_centre():
     """Joints are bbox-centre-relative, so the flip is x -> -x (mirror
     around 0 in joint coords) rather than x -> 1-x.
