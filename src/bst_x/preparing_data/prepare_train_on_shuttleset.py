@@ -33,7 +33,6 @@ from tqdm import tqdm
 import torch
 from typing import TYPE_CHECKING
 
-import subprocess
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 
 from preparing_data.shuttleset_dataset import (
@@ -56,6 +55,7 @@ from pipeline.config import (
     taxonomy_lookup,
 )
 from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
+from pipeline.shuttle_extractor import extract_all_shuttles
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
@@ -293,43 +293,6 @@ def detect_players_3d(
     return failed_ls, players_positions, players_joints
 
 
-def detect_shuttlecock_by_TrackNetV3_with_attention(
-    cur_i: int,
-    total_tasks: int,
-    video_path: Path,
-    save_dir: Path,
-    model_folder: Path,
-):
-    """TrackNetV3 (using attention).
-
-    https://github.com/alenzenx/TrackNetV3
-
-    :param cur_i: Current task index (for progress printing).
-    :param total_tasks: Total number of tasks (for progress printing).
-    :param video_path: Path to the clip .mp4 file.
-    :param save_dir: Directory to save the shuttle detection CSV.
-    :param model_folder: Path to the cloned TrackNetV3 repository.
-    """
-    process_args = [
-        "python",
-        str(model_folder / "predict.py"),
-        "--video_file",
-        str(video_path),
-        "--tracknet_file",
-        str(model_folder / "ckpts" / "TrackNet_best.pt"),
-        "--save_dir",
-        str(save_dir),
-    ]
-    r = subprocess.run(process_args)
-    assert r.returncode == 0, "Subprocess failed!"
-
-    type_path = video_path.parent
-    set_name = type_path.parent.name
-    print(
-        f"Shuttlecock detection ({cur_i}/{total_tasks}): {set_name}/{type_path.name}/{video_path.name} done!"
-    )
-
-
 def get_shuttle_result(path: Path, v_width, v_height):
     # TrackNetV3-with-attention's raw CSV can emit more than one row for the same
     # Frame; keep-first collapses each to a single row so the set_index("Frame")
@@ -339,37 +302,6 @@ def get_shuttle_result(path: Path, v_width, v_height):
     shuttle_camera = df.to_numpy().astype(float)
     # shuttle_camera: (t, 2)
     return normalize_shuttlecock(shuttle_camera, v_width, v_height)
-
-
-def prepare_trajectory(
-    my_clips_folder: Path,
-    model_folder: Path,
-    save_shuttle_dir: Path,
-):
-    """Run TrackNetV3 shuttle trajectory detection on all clips.
-
-    Scans my_clips_folder for .mp4 files and runs TrackNetV3 on each one,
-    saving shuttle detection CSVs to save_shuttle_dir. Skips clips that
-    already have a corresponding CSV.
-
-    :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
-    :param model_folder: Path to cloned TrackNetV3 repository.
-    :param save_shuttle_dir: Directory to save shuttle detection CSVs.
-    """
-    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
-
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        for i, video_path in enumerate(all_mp4_paths, start=1):
-            shuttle_result_path = save_shuttle_dir / (video_path.stem + "_ball.csv")
-            if not shuttle_result_path.exists():
-                executor.submit(
-                    detect_shuttlecock_by_TrackNetV3_with_attention,
-                    i,
-                    len(all_mp4_paths),
-                    video_path=video_path,
-                    save_dir=save_shuttle_dir,
-                    model_folder=model_folder,
-                )
 
 
 def _prepare_dataset_from_raw_video(
@@ -986,6 +918,25 @@ def main():
         default=None,
         help="Path to TrackNetV3 repo (required for Step 1)",
     )
+    # Step 1 extraction knobs, mirroring pipeline.build_dataset's names.
+    parser.add_argument(
+        "--tracknet-python",
+        type=Path,
+        default=None,
+        help="Python executable for the TrackNet workers (default: this one)",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=2,
+        help="Parallel TrackNet workers for Step 1 (each loads its own model)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="Batch size for the TrackNet DataLoader (default 32, use 64 with --workers 1)",
+    )
     parser.add_argument(
         "--shuttle-csv-dir",
         type=Path,
@@ -1156,11 +1107,17 @@ def main():
                 "--tracknet-dir is required for Step 1 (trajectory detection)."
             )
         print("\n--- Step 1: Shuttle trajectory detection ---")
-        args.shuttle_csv_dir.mkdir(parents=True, exist_ok=True)
-        prepare_trajectory(
-            my_clips_folder=args.clips_dir,
-            model_folder=args.tracknet_dir,
-            save_shuttle_dir=args.shuttle_csv_dir,
+        # output_csv_dir passed explicitly: the extractor's own default writes to
+        # clips_dir.parent/shuttle_csv, not the dir configured here. InpaintNet
+        # rides the extractor default (on when its weights are present), matching
+        # every production extract.
+        extract_all_shuttles(
+            tracknet_dir=args.tracknet_dir,
+            clips_dir=args.clips_dir,
+            output_csv_dir=args.shuttle_csv_dir,
+            tracknet_python=args.tracknet_python,
+            max_workers=args.workers,
+            batch_size=args.batch_size,
         )
     else:
         print("Step 1: Skipped (--skip-trajectory)")
