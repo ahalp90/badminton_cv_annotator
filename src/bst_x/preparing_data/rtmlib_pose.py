@@ -47,7 +47,17 @@ DET_URL = _MODEL_BASE + "rtmdet_nano_8xb32-100e_coco-obj365-person-05d8511e.zip"
 POSE_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504.zip"
 DET_INPUT_SIZE = (320, 320)   # fixed by the person ONNX export
 POSE_INPUT_SIZE = (192, 256)  # (W, H), i.e. 256x192
-DET_SCORE_THR = 0.3           # mmpose's detector kept score > ~0.30 (min observed 0.301)
+# Detector keep-filter. Deliberately BELOW mmpose's ~0.3: rtmlib runs RTMDet at a
+# fixed 320x320 (mmpose used a larger test size), so it scores the SAME players lower.
+# At 0.3 those players fall below the cut on hard/contact/blur frames and the frame is
+# lost (authoritative G-4: 5 clips dropped a player, per-clip failed-rate to 18.75pp,
+# a 50:7 one-directional loss bias). No player is ever genuinely undetected at 320 --
+# they are under-scored (0.10-0.30, median 0.18); 0.15 recovers them and sticky_anchor
+# geometry-rejects the extra crowd it admits (G-4 at 0.15: dropped players 5->0,
+# directional 50:7->15:20, aggregate failed-rate 0.48->0.01pp). NOT a model change --
+# a post-inference filter on the identical ONNX's scores. See
+# docs/architecture_notes/rtmlib_migration/06_phase_a_decision.md.
+DET_SCORE_THR = 0.15
 
 
 class FrameDetections(NamedTuple):
@@ -101,7 +111,8 @@ class RtmlibPoseExtractor:
     :param pose_url: pose ONNX (defaults to RTMPose-L body7 COCO-17, 256x192).
     :param det_input_size: detector input (H, W); fixed at 320x320 for the default ONNX.
     :param pose_input_size: pose input (W, H); 192x256 for the default 256x192 model.
-    :param det_score_thr: keep detections with score above this (0.30 mirrors mmpose).
+    :param det_score_thr: keep detections scoring above this (default 0.15; see the
+        module ``DET_SCORE_THR`` comment for the 0.3->0.15 recalibration rationale).
     """
 
     def __init__(
