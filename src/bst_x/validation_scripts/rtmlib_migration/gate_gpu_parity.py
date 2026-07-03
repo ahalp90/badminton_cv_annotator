@@ -59,9 +59,14 @@ from gate_deployed_parity import (
 )
 from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 
-from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
+# Detector keep-threshold override for the calibration sweep. This is a
+# post-inference filter on the identical ONNX's output scores -- NOT a model
+# change. Defaults to the shipped adapter's DET_SCORE_THR (0.15 after the G-4
+# recalibration; the 0.3->0.15 sweep is recorded in 06_phase_a_decision.md).
+DET_THR = float(os.environ.get("RTMLIB_GATE_DET_THR", DET_SCORE_THR))
 STEMFILE = Path(os.environ.get(
     "RTMLIB_GATE_STEMFILE",
     "/srv/mergerfs/main_pool/320_cosc594_data-bourbaki/"
@@ -141,10 +146,10 @@ def _verdict(r: dict) -> bool:
 
 def main() -> int:
     setup = _setup()
-    ext = RtmlibPoseExtractor(device=DEVICE)
+    ext = RtmlibPoseExtractor(device=DEVICE, det_score_thr=DET_THR)
     stems = _stems()
-    print(f"G8 GPU extraction parity | device={DEVICE} | {len(stems)} clip(s) "
-          f"| confident joint = both kp_score>{CONF_THR}\n")
+    print(f"G8 GPU extraction parity | device={DEVICE} | det_thr={DET_THR} | "
+          f"{len(stems)} clip(s) | confident joint = both kp_score>{CONF_THR}\n")
     hdr = (f"  {'stem':13s} {'dF':>3} {'kpMed':>6} {'kpP90':>6} {'rtNd':>5} {'mmNd':>5} "
            f"{'fmatch':>6} {'posMed':>7} {'jntMed':>7} {'rt<2':>4} {'mm<2':>4}  verdict")
     print(hdr + "\n  " + "-" * (len(hdr) - 2))
