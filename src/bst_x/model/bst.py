@@ -94,15 +94,14 @@ class MultiHeadCrossAttention(nn.Module):
 
 
 class CrossTransformerLayer(nn.Module):
-    """One transformer layer using cross-attention (x1 attends to x2) + feed-forward.
-    Used here so each player's representation can attend to the shuttle trajectory.
+    """One transformer layer using cross-attention (x1 attends to x2) + feed-forward. Used here so each player's
+    representation can attend to the shuttle trajectory.
 
-    NOTE: The residual connection is only around the FFN, NOT around the cross-attention.
-    A standard transformer would do: x = cross_attn(x1, x2) + x1 (residual back to query).
-    Here the cross-attention output *replaces* x1 entirely. This likely anchors the output
-    in shuttle-space rather than mixing back in raw player pose features, consistent with
-    BST's thesis that shuttle trajectory is a better stroke descriptor than player pose.
-    Under investigation with the original author — could also be a bug."""
+    NOTE: The residual connection is only around the FFN, NOT around the cross-attention. A standard transformer would
+    do: x = cross_attn(x1, x2) + x1 (residual back to query). Here the cross-attention output *replaces* x1 entirely.
+    This anchors the output in shuttle-space rather than mixing back in raw player pose features. This was the BST paper
+    thesis: shuttle trajectory is a better stroke descriptor than player pose.
+    """
     def __init__(self, d_model, d_head, n_head, hd_mlp, drop_p) -> None:
         super().__init__()
         self.layer_norm1_x1 = nn.LayerNorm(d_model)
