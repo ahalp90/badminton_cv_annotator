@@ -296,12 +296,11 @@ def validate(
     cum_fn = cum_fn.cpu()
     val_loss = total_loss / len(loader)
 
-    # Per-class F1, then macro average (mean across classes)
-    precision = cum_tp / (cum_tp + cum_fp)
-    recall = cum_tp / (cum_tp + cum_fn)
-
-    f1_score = 2 * precision * recall / (precision + recall)
-    f1_score[f1_score.isnan()] = 0  # classes with no predictions get NaN -> 0
+    # Per-class F1 via the shared eps-guarded helper, the same definition the
+    # train side feeds update_alpha. Value-identical to the old NaN-fill
+    # hand-roll: the eps only rescues zero-count denominators (where NaN-fill
+    # gave 0 anyway), and at float32 it vanishes against any nonzero count.
+    f1_score = per_class_f1_from_counts(cum_tp, cum_fp, cum_fn)
 
     # Only classes present in the val set count toward macro/min. Generic
     # zero-support guard: any class with no ground-truth this epoch would
@@ -899,6 +898,8 @@ class Task:
         gt = torch.from_numpy(dump['y_true'])
         print(f'Test (num_strokes: {len(pred)}) =>')
 
+        # torcheval on purpose: the headline manifest metric keeps an
+        # implementation independent of the count-based helper train/val share.
         f1_score_each = multiclass_f1_score(
             pred, gt, num_classes=self.taxonomy.n_classes, average=None
         )

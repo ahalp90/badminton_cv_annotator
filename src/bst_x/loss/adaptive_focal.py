@@ -155,7 +155,8 @@ def per_class_f1_from_counts(
 ) -> Float32[torch.Tensor, 'n_classes']:
     """Per-class F1 from running TP / FP / FN counts.
 
-    Called by the train loop at end-of-epoch to feed ``AdaptiveFocalLoss.update_alpha``.
+    Called at end-of-epoch by the train loop (feeding ``AdaptiveFocalLoss.update_alpha``)
+    and by ``validate()`` for the val-side per-class F1.
     ``eps`` does two jobs: guards the no-prediction-no-ground-truth case (returns 0
     rather than NaN), and promotes the int64 counts through the arithmetic to float32.
 
