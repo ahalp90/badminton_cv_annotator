@@ -99,10 +99,9 @@ def main() -> int:
     print(f"MODEL_NAME   : {model_name}")
     print(f"OUT_PATH     : {out_path}")
 
-    task = Task(n_joints=17)
+    task = Task(n_joints=17, pose_style=pose_style)
     task.prepare_loader(
         npy_collated_dir=bst_data_dir,
-        pose_style=pose_style,
         batch_size=128,
     )
     task.get_network_architecture(

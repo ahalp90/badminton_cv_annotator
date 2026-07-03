@@ -53,8 +53,8 @@ def normalize_shuttlecock(arr: np.ndarray, v_width: float, v_height: float) -> n
 # TrackNetV3 subprocess invocation
 # ---------------------------------------------------------------------------
 def extract_all_shuttles(
+    tracknet_dir: Path,
     clips_dir: Path = CLIPS_OUTPUT_DIR,
-    tracknet_dir: Path = Path('.'),
     output_csv_dir: Path | None = None,
     model_path: Path | None = None,
     inpaintnet_path: Path | None = None,
@@ -73,8 +73,8 @@ def extract_all_shuttles(
     requires enough VRAM for multiple models (e.g. A100 40GB). On V100
     16GB, use max_workers=1.
 
-    :param clips_dir: Root clips directory to scan for .mp4 files.
     :param tracknet_dir: Path to the cloned TrackNetV3 repository.
+    :param clips_dir: Root clips directory to scan for .mp4 files.
     :param output_csv_dir: Directory for TrackNetV3 CSV outputs.
         Defaults to clips_dir/../shuttle_csv.
     :param model_path: Path to TrackNet weights. Defaults to tracknet_dir/ckpts/TrackNet_best.pt.

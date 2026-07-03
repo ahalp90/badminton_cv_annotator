@@ -147,7 +147,7 @@ def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
@@ -156,7 +156,7 @@ def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     )
 
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4, shuffle=True)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4, shuffle=False)
@@ -185,7 +185,7 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     test_labels = [2, 0, 1, 2, 0]
@@ -194,7 +194,7 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
         labels={'train': [0, 1, 2], 'val': [0], 'test': test_labels},
     )
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -214,7 +214,7 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     # test split: clip index 1 is zero-length -> dropped at load.
@@ -224,7 +224,7 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
         videos_len={'test': [100, 0, 100, 100]},
     )
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -253,7 +253,7 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
@@ -263,7 +263,7 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
     # train_partial=0.5 -> adjust_to_partial_train_set groups by class + halves.
     train_ds = Dataset_npy_collated(coll, 'train', 'JnB_bone', train_partial=0.5)
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(train_ds, batch_size=4, shuffle=True)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -299,7 +299,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = _make_collation(
         tmp_path, n_bones=n_bones,
@@ -309,7 +309,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
     val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
 
     result = bt.train_network(
-        model=net, train_loader=train_loader, val_loader=val_loader, device='cpu',
+        model=net, train_loader=train_loader, val_loader=val_loader, device=torch.device('cpu'),
         save_path=tmp_path / 'w.pt', n_bones=n_bones, n_classes=TAX3.n_classes,
         class_ls=list(TAX3.classes), taxonomy=TAX3, tb_dir=tmp_path / 'tb',
     )

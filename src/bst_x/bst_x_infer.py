@@ -79,24 +79,25 @@ class Task:
     runtime remap), so the head dim is just the taxonomy size.
     """
 
-    def __init__(self, n_joints=17) -> None:
+    def __init__(self, n_joints=17, pose_style='JnB_bone') -> None:
         self.use_cuda = torch.cuda.is_available()
-        self.device = 'cuda' if self.use_cuda else 'cpu'
+        self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
         self.n_joints = n_joints
+        # pose_style lives here (not on prepare_loader) so get_network_architecture
+        # can build without a prior loader step; kills the old call-order trap.
+        self.pose_style = pose_style
 
     def prepare_loader(
         self,
         npy_collated_dir: Path,
-        pose_style='Jn2B',
         batch_size=128,
     ):
-        your_set = Dataset_npy_collated(npy_collated_dir, 'test', pose_style)
+        your_set = Dataset_npy_collated(npy_collated_dir, 'test', self.pose_style)
 
         self.infer_loader = DataLoader(
             dataset=your_set,
             batch_size=batch_size
         )
-        self.pose_style = pose_style
 
     def get_network_architecture(
         self,
@@ -216,7 +217,7 @@ def dump_run_predictions(
     if not collated_dir.is_dir():
         sys.exit(f'collated dir missing: {collated_dir}')
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     net, _n_bones = build_bst_x_network(
         model_name,
         n_joints=n_joints,

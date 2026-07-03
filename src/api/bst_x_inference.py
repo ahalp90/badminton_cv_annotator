@@ -79,7 +79,7 @@ ACTIVE_CLASS_LIST = [
 N_CLASS = len(ACTIVE_CLASS_LIST)
 TOP_K = 5
 
-DEVICE = "cpu"  # backend container is CPU-only by design
+DEVICE = torch.device("cpu")  # backend container is CPU-only by design
 
 
 # ─── Lazy globals ───────────────────────────────────────────────────

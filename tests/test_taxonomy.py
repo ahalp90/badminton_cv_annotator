@@ -337,7 +337,7 @@ def test_bst_forward_backward_sized_by_taxonomy(tax):
     net, n_bones = build_bst_x_network(
         model_name='BST_CG_AP',
         n_joints=n_joints, pose_style=pose_style, in_channels=in_channels,
-        n_class=tax.n_classes, seq_len=seq_len, device='cpu',
+        n_class=tax.n_classes, seq_len=seq_len, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
 

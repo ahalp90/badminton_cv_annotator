@@ -737,15 +737,18 @@ def train_network(
 
 
 class Task:
-    def __init__(self, n_joints=17, taxonomy: Taxonomy = None,
+    def __init__(self, taxonomy: Taxonomy, n_joints=17, pose_style='JnB_bone',
                  weight_dir: Path = Path('weight')) -> None:
         self.use_cuda = torch.cuda.is_available()
-        self.device = 'cuda' if self.use_cuda else 'cpu'
+        self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
         self.n_joints = n_joints
+        # pose_style lives here (not on prepare_dataloaders) so get_network_architecture
+        # can build without a prior loader step; kills the old call-order trap.
+        self.pose_style = pose_style
         # Head dim and class names come straight off the taxonomy now: labels.npy
         # lands in [0, taxonomy.n_classes) at collation time, so there's no
         # runtime active/full remap and no data-derived head sizing.
-        self.taxonomy = taxonomy or taxonomy_lookup(hyp.taxonomy)
+        self.taxonomy = taxonomy
         # Where to save/load weights for this run. Caller should pass a
         # per-invocation subdir (e.g. weight/run_YYYYMMDD_HHMMSS) so fresh
         # runs never collide with older weights — see __main__ setup.
@@ -754,7 +757,6 @@ class Task:
     def prepare_dataloaders(
         self,
         root_dir: Path,
-        pose_style='Jn2B',
         train_partial=1.0
     ):
         self.train_loader, \
@@ -762,14 +764,13 @@ class Task:
         self.test_loader \
             = prepare_npy_collated_loaders(
                 root_dir=root_dir,
-                pose_style=pose_style,
+                pose_style=self.pose_style,
                 batch_size=hyp.batch_size,
                 use_cuda=self.use_cuda,
                 num_workers=(0, 0, 0),
                 train_partial=train_partial
             )
 
-        self.pose_style = pose_style
         self._assert_label_coverage()
 
     def _assert_label_coverage(self) -> None:
@@ -1258,11 +1259,11 @@ if __name__ == '__main__':
         for serial_no in serial_range:
             print(f'Running serial {serial_no} ...')
             task = Task(
-                n_joints=17, taxonomy=taxonomy, weight_dir=weight_dir,
+                n_joints=17, taxonomy=taxonomy, pose_style=hyp.pose_style,
+                weight_dir=weight_dir,
             )
             task.prepare_dataloaders(
                 root_dir=collated_root,
-                pose_style=hyp.pose_style,
                 train_partial=hyp.train_partial
             )
 

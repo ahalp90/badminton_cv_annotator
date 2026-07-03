@@ -3,6 +3,12 @@
 # Licence. See src/bst_x/THIRD_PARTY_NOTICES.md. This project is otherwise
 # licensed LGPL-3.0-or-later.
 
+"""Dataset + loaders over the collated per-clip npy arrays.
+
+Also holds the pose-style derivation helpers (bones, interpolated joints)
+shared with the collator in prepare_train_on_shuttleset.
+"""
+
 import warnings
 
 from torch.utils.data import Dataset, DataLoader
@@ -112,6 +118,13 @@ def interpolate_joints(joints: np.ndarray, pairs) -> np.ndarray:
 
 
 class Dataset_npy_collated(Dataset):
+    """One split (train/val/test) of the pre-collated per-clip arrays.
+
+    Loads the split's pose/pos/shuttle stacks plus videos_len, labels, and the
+    row-aligned clip_stems sidecar, drops zero-length clips at load, and can
+    keep only the first ``train_partial`` fraction of each class.
+    """
+
     def __init__(
         self,
         root_dir: Path,
@@ -119,15 +132,15 @@ class Dataset_npy_collated(Dataset):
         pose_style='J_only',
         train_partial=1.0
     ):
-        """Load pre-collated arrays for one split.
+        """Load one split's arrays and drop zero-length clips.
 
         :param set_name: 'train', 'val', or 'test'.
         :param pose_style: 'J_only', 'JnB_interp', 'JnB_bone', or 'Jn2B'.
         """
         super().__init__()
-        
+
         assert set_name in ['train', 'val', 'test'], 'Invalid set_name.'
-        assert pose_style in ['J_only', 'JnB_interp', 'JnB_bone', 'Jn2B'], 'Invalid pose_style.'
+        assert pose_style in POSE_BONE_MULTIPLIER, 'Invalid pose_style.'
 
         branch = root_dir/set_name
 
@@ -217,15 +230,17 @@ class Dataset_npy_collated(Dataset):
 
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, i):
+        # Producer of the nested batch contract every consumer unpacks:
+        # ((human_pose, pos, shuttle), videos_len, labels).
         return (self.human_pose[i], self.pos[i], self.shuttle[i]), \
                 self.videos_len[i], self.labels[i]
 
 
 def prepare_npy_collated_loaders(
     root_dir: Path,
-    pose_style='Jn2B',
+    pose_style='JnB_bone',
     batch_size=128,
     use_cuda=True,
     num_workers=(0, 0, 0),

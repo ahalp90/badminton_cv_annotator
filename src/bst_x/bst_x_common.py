@@ -60,7 +60,7 @@ def build_bst_x_network(
     seq_len: int = 100,
     depth_tem: int = 2,
     depth_inter: int = 1,
-    device: str = 'cuda',
+    device: torch.device = torch.device('cuda'),
 ) -> tuple[nn.Module, int]:
     """Construct a BST variant with feature-dim wiring shared between train and infer.
 

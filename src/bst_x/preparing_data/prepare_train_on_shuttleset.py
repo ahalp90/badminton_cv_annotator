@@ -294,7 +294,7 @@ def detect_shuttlecock_by_TrackNetV3_with_attention(
     total_tasks: int,
     video_path: Path,
     save_dir: Path,
-    model_folder: Path = None,
+    model_folder: Path,
 ):
     """TrackNetV3 (using attention).
 
@@ -305,10 +305,7 @@ def detect_shuttlecock_by_TrackNetV3_with_attention(
     :param video_path: Path to the clip .mp4 file.
     :param save_dir: Directory to save the shuttle detection CSV.
     :param model_folder: Path to the cloned TrackNetV3 repository.
-    :raises ValueError: If model_folder is None.
     """
-    if model_folder is None:
-        raise ValueError("model_folder is required for shuttle detection.")
     process_args = [
         "python",
         str(model_folder / "predict.py").replace("\\", "/"),
@@ -508,7 +505,7 @@ def pad_and_augment_one_npy_video(
     joints: np.ndarray,
     pos: np.ndarray,
     shuttle: np.ndarray,
-    bone_pairs: list[int, int],
+    bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
     """Pad to uniform sequence length and compute requested pose augmentations.
@@ -812,8 +809,8 @@ def collate_npy(
     clips_csv: Path,
     split_column: str,
     taxonomy: Taxonomy,
-    shuttle_csv_dir: Path | None = None,
-    resolution_df: pd.DataFrame | None = None,
+    shuttle_csv_dir: Path,
+    resolution_df: pd.DataFrame,
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
     unknown_root_dir: Path | None = None,
 ):
@@ -859,11 +856,8 @@ def collate_npy(
         be None when the taxonomy has ``'unknown'`` in
         ``excluded_base_stroke_types`` (those rows get dropped anyway).
     """
-    assert set_name in ["train", "val", "test"], "Invalid set_name."
-    if shuttle_csv_dir is None:
-        raise ValueError("shuttle_csv_dir is required")
-    if resolution_df is None:
-        raise ValueError("resolution_df is required")
+    if set_name not in ("train", "val", "test"):
+        raise ValueError(f"Invalid set_name {set_name!r}; expected 'train', 'val', or 'test'.")
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
     if unknown_root_dir is not None and 'unknown' in excluded:
         raise ValueError(
