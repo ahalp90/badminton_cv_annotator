@@ -349,7 +349,7 @@ def test_bst_forward_backward_sized_by_taxonomy(tax):
     video_len = torch.full((batch_size,), seq_len, dtype=torch.long)
     labels = torch.randint(0, tax.n_classes, (batch_size,))
 
-    logits = net(human_pose_flat, shuttle, pos, video_len)
+    logits = net(human_pose_flat, shuttle, pos=pos, video_len=video_len)
     assert logits.shape == (batch_size, tax.n_classes)
     assert torch.isfinite(logits).all()
 

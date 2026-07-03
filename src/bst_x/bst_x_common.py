@@ -132,7 +132,7 @@ def dump_topk_predictions(
         pos = pos.to(device)
         video_len = video_len.to(device)
         human_pose = flatten_pose_features(human_pose)
-        logits = model(human_pose, shuttle, pos, video_len)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         k_eff = min(k, logits.shape[-1])
         topk_idx = torch.topk(logits, k=k_eff, dim=-1).indices
         logits_ls.append(logits.cpu().numpy())

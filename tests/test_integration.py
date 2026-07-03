@@ -133,7 +133,7 @@ def test_pipeline_dataloader_to_model_forward_pass():
     model.eval()
 
     with torch.no_grad():
-        output = model(human_pose, shuttle, pos, video_len)
+        output = model(human_pose, shuttle, pos=pos, video_len=video_len)
 
     assert output.shape == (4, n_classes), (
         f"Expected output shape (4, {n_classes}), got {output.shape} — "

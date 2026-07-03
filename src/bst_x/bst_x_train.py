@@ -245,7 +245,7 @@ def train_one_epoch(
         jitter_n_total += human_pose.shape[0]
 
         human_pose = flatten_pose_features(human_pose)
-        logits = model(human_pose, shuttle, pos, video_len)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
 
         # Manual gradient step: zero grads, backprop, update weights.
@@ -303,7 +303,7 @@ def validate(
         labels: Tensor = labels.to(device)
 
         human_pose = flatten_pose_features(human_pose)
-        logits = model(human_pose, shuttle, pos, video_len)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
 

@@ -86,11 +86,10 @@ class MultiHeadCrossAttention(nn.Module):
 
         dots: Tensor = (q @ k.transpose(-1, -2)) * self.scale
         # dots: (b, h, t, t): attention score for every (query_pos, key_pos) pair
-        if mask is not None:
-            # mask: (b, t): True for real frames, False for padding
-            mask = mask.view(b, 1, 1, t)
-            # Padded positions -> -inf so softmax gives them zero weight
-            dots = dots.masked_fill(~mask, -torch.inf)
+        # mask: (b, t): True for real frames, False for padding
+        mask = mask.view(b, 1, 1, t)
+        # Padded positions -> -inf so softmax gives them zero weight
+        dots = dots.masked_fill(~mask, -torch.inf)
 
         coef = self.attend(dots)  # softmax -> dropout
         attention: Tensor = coef @ v  # weighted sum of values
@@ -271,9 +270,9 @@ class BST(nn.Module):
         self,
         JnB: Float32[Tensor, 'batch time players in_dim'],  # skeleton joint/bone features per player
         shuttle: Float32[Tensor, 'batch time 2'],           # shuttle xy per frame
-        # court xy per player; read only when use_ppf, may be None otherwise.
-        # No default: video_len below is required and must stay positional.
-        pos: Float32[Tensor, 'batch time players 2'] | None,
+        # court xy per player; read only when use_ppf, so None is honest otherwise.
+        pos: Float32[Tensor, 'batch time players 2'] | None = None,
+        *,  # video_len stays required; callers name it (and pos) at the call site
         video_len: Int64[Tensor, 'batch'],                  # real frame count per sample (rest is zero-padding)
     ) -> Float32[Tensor, 'batch n_class']:
         """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
@@ -458,7 +457,6 @@ if __name__ == '__main__':
     shuttle = torch.randn((b, t, 2), dtype=torch.float)
     pos = torch.randn((b, t, n, 2), dtype=torch.float)
     videos_len = torch.tensor([t], dtype=torch.long).repeat(b)
-    input_data = [pose, shuttle, pos, videos_len]
 
     # Test all variants produce valid output shapes
     variants = {
@@ -469,7 +467,7 @@ if __name__ == '__main__':
         'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
     }
     for name, model in variants.items():
-        output = model(*input_data)
+        output = model(pose, shuttle, pos=pos, video_len=videos_len)
         print(f"{name:10s} output shape: {output.shape}")
 
     # FLOP counting on BST_CG_AP
@@ -477,7 +475,7 @@ if __name__ == '__main__':
     model = variants['BST_CG_AP']
     flop_counter = FlopCounterMode(display=False)
     with flop_counter:
-        output = model(*input_data)
+        output = model(pose, shuttle, pos=pos, video_len=videos_len)
     flops_per_forward = flop_counter.get_total_flops()
     print(f"\nFLOPs (per forward pass): {flops_per_forward / 1e9:.2f} GFLOPS")
 

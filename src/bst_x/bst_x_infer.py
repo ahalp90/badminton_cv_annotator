@@ -63,7 +63,7 @@ def infer(
         video_len: Tensor = video_len.to(device)
 
         human_pose = flatten_pose_features(human_pose)
-        logits = model(human_pose, shuttle, pos, video_len)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
 
         pred = torch.argmax(logits, dim=1).cpu()
 
