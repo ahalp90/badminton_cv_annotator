@@ -64,11 +64,10 @@ def build_bst_x_network(
 ) -> tuple[nn.Module, int]:
     """Construct a BST variant with feature-dim wiring shared between train and infer.
 
-    Returns ``(net, n_bones)``. ``n_bones`` is the count of bone tokens
-    appended after the joint tokens along the pose axis of ``human_pose``
-    (``len(get_bone_pairs()) * POSE_BONE_MULTIPLIER[pose_style]``). The
-    training loop slices ``human_pose[..., -n_bones:, :]`` to keep
-    random-translation off the bone rows; inference can ignore it.
+    Returns ``(network, n_bones)``. ``n_bones`` counts the bone rows appended
+    after the joints along human_pose's pose axis; CoupledFlip uses it to
+    split joints from bones (flip the joints, recompute the bones).
+    Inference can ignore it.
 
     :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
     """
@@ -105,9 +104,7 @@ def dump_topk_predictions(
     ``clip_stems.npy``. Callers that want the stems pull them from the same
     dataset and store them alongside (see ``Task.dump_predictions``).
 
-    :param model: a built BST network (any variant); set to eval here.
     :param loader: yields ``((human_pose, pos, shuttle), video_len, labels)``.
-    :param device: torch device the model lives on.
     :param k: top-k width; clamped to the head size when the head is smaller.
     :return: dict with ``logits`` (n, n_classes) float32, ``y_true`` (n,)
         int64, ``y_pred_top1`` (n,) int64, ``topk_idx`` (n, k_eff) int64.
@@ -144,9 +141,8 @@ def _write_prediction_npz(out_path, dump, dataset, taxonomy, run_id, serial):
 
     The single payload source for ``bst_x_train.Task.dump_predictions`` and
     ``bst_x_infer.dump_run_predictions``. Both writers always produced the same
-    9 keys (proven byte-for-byte in 03 section 6.4); this helper makes that an
-    enforced contract instead of an accident. Out_path, the directory, the
-    split-loop, and any caller-specific manifest (e.g. the inference run's
+    9 keys; this helper makes that an enforced contract. Out_path, the directory,
+    the split-loop, and any caller-specific manifest (e.g. the inference run's
     inference_manifest.yaml) stay per-caller.
 
     ``topk_idx`` ships as ``(N, k_eff) int64`` where ``k_eff = min(k, head_size)``;

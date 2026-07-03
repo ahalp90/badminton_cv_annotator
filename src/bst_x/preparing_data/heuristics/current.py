@@ -28,9 +28,9 @@ decision can diverge for that frame; this is documented in
 ``docs/architecture_notes/mmpose_heuristic/historical_mmpose_heuristic_investigation.md``.
 
 The imports from ``prepare_train_on_shuttleset`` are deferred to ``apply``'s
-first call because that module has a top-level ``from mmpose.apis import
-MMPoseInferencer``; we want module-level ``import current`` to work in
-environments without MMPose (e.g. local smoke tests).
+first call because importing that module at load pulls in its heavy deps
+(torch/pandas); we want module-level ``import current`` to stay light for
+local smoke tests.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     ``_hyperparams`` is accepted and ignored so the CLI can pass the
     sticky_anchor hyperparam block uniformly to every registered variant.
     """
-    # Lazy import: prepare_train_on_shuttleset pulls in mmpose at module load.
+    # Lazy import: importing prepare_train_on_shuttleset pulls in torch/pandas at module load.
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         check_pos_in_court,
         normalize_joints,
@@ -85,11 +85,11 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
 
         pos[f] = pos_normalized[in_court_pid]
         # center_align=True matches the CLI invocation that produced the
-        # committed extract (prepare_train_on_shuttleset.py line 1172;
-        # joints_center_align=True there overrides detect_players_2d's
-        # function-level default of False). Without this, normalised joints
-        # land ~0.47 higher because the (bbox-centre - bbox-top-left) / dist
-        # offset (~0.5, 0.5 for roughly square bboxes) is not subtracted.
+        # committed extract (prepare_train_on_shuttleset's CLI path hardwires
+        # joints_center_align=True, overriding detect_players_2d's function-level
+        # default of False). Without this, normalised joints land ~0.47 higher
+        # because the (bbox-centre - bbox-top-left) / dist offset (~0.5, 0.5 for
+        # roughly square bboxes) is not subtracted.
         joints[f] = normalize_joints(
             arr=keypoints[in_court_pid],
             bbox=bboxes[in_court_pid],

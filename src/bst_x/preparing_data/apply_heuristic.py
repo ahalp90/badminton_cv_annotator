@@ -39,7 +39,8 @@ from preparing_data.heuristics import REGISTRY, ClipContext, RawClip
 from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 
 # Pull BST_X_MMPOSE_NPY_DIR from the repo-root .env so the output-dir
-# collision guard works without a prior shell export.
+# collision guard works without a prior shell export. Fires at module import,
+# so importing run() also loads .env.
 load_repo_dotenv()
 
 
@@ -246,7 +247,7 @@ def run(
     print(
         f"\nDone. attempted={stats.attempted} processed={stats.processed} "
         f"skipped_existing={stats.skipped_existing} "
-        f"skipped_missing_metadata={stats.skipped_missing_mp4_metadata}"
+        f"skipped_missing_mp4_metadata={stats.skipped_missing_mp4_metadata}"
     )
     return stats
 

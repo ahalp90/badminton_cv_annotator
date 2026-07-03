@@ -71,11 +71,8 @@ class Hyp(NamedTuple):
     n_epochs: int = 80
     batch_size: int = 128
     lr: float = 5e-4
-    # AdamW decoupled weight decay. 0.01 is PyTorch's AdamW default and what
-    # every prior run used implicitly; kept as the default so non-sweep runs
-    # barely move (norm/bias/embeddings now excluded from decay, but 0.01 on
-    # them was near-inert anyway). The sweep overrides this per cell. Optimal
-    # lambda for this dataset/LR/run-length is likely 0.1-0.3; see
+    # AdamW decoupled weight decay. 0.01 is PyTorch's AdamW default; the sweep
+    # overrides it per cell (norm/bias/embeddings excluded from decay). See
     # docs/architecture_notes/hp_and_aug_speculations_30_05_2026.md (Q2).
     weight_decay: float = 0.01
     warm_up_step: int = 100
@@ -92,11 +89,8 @@ class Hyp(NamedTuple):
     collation_id: str = 'taxon_pinned_w_preds'
     ablation_id: str | None = None
     label_smoothing: float = 0.0  # CDB-F1 cell forces LS=0; LS softens targets so confident-correct samples have p_t < 1.0, contaminating focal's per-sample hardness signal
-    # Manual per-class CE weights for the wrist_smash <-> smash confusion-pair smoke test.
-    # Pair-balanced (both at 2.0) so the gradient has no directional bias toward one class:
-    # tests whether loss-side reweighting alone can move the wrist_smash F1 floor without
-    # stealing recall from smash. Weights renormalised to mean 1.0 inside the loss build so
-    # overall loss scale stays comparable to uniform CE. Set to None for uniform CE.
+    # Manual per-class CE weights, renormalised to mean 1.0 in the loss build so
+    # overall loss scale stays comparable to uniform CE; None for uniform CE.
     class_weights: dict | None = None
     # Class-F1-driven adaptive focal loss (CDB-F1). Mutually exclusive with
     # class_weights, and forces label_smoothing=0 (LS contaminates focal's
@@ -107,13 +101,8 @@ class Hyp(NamedTuple):
     #   }
     # Full design + paper-verified equations: docs/architecture_notes/class_f1_focal_design.md.
     adaptive_focal: dict | None = {
-        # First-run sweet spot from run_20260501_164658: tau=1, gamma=1.
-        # All four CDB knob variants tried that sweep (gamma=0, tau=0.5,
-        # pair-cap, gamma=2) traded wrist_smash back for smash without macro
-        # moving, so this combo holds the floor-lift sweet spot (+8.7 pp
-        # wrist_smash on the LS=0.1 baseline). The pair-cap variant has since
-        # been removed; see docs/architecture_notes/focal_alpha_revert_sketch.md.
-        # Active default for the capacity-bump runs.
+        # tau=1, gamma=1 is the swept sweet spot (floor-lift on wrist_smash);
+        # see class_f1_focal_design.md.
         'tau': 1.0,
         'gamma': 1.0,
         'momentum': 0.9,
@@ -199,7 +188,7 @@ def train_one_epoch(
         jitter_n_total)``. Counts are length-``n_classes`` int64 tensors on
         ``device``; jitter accumulators are plain ints over the epoch's clips.
     """
-    model.train()  # enable dropout + batchnorm training mode
+    model.train()  # enable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
     tp = torch.zeros(n_classes, dtype=torch.long, device=device)
     fp = torch.zeros(n_classes, dtype=torch.long, device=device)
@@ -266,7 +255,7 @@ def validate(
     device,
     n_classes: int,
 ):
-    model.eval()  # disable dropout + set batchnorm to eval mode
+    model.eval()  # disable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
     # Accumulate per-class TP/FP/FN on device (mirrors train_one_epoch);
     # one .cpu() after the loop, not four per batch.
@@ -711,6 +700,7 @@ def train_network(
             'best/val_loss_epoch':  best_val_loss_epoch,
             'stopped_epoch':        epoch,
         },
+        # run_name='.' stops TB nesting a timestamped subdir per add_hparams call.
         run_name='.',
         global_step=epoch,
     )
@@ -902,8 +892,8 @@ class Task:
         """Derive test top-1 metrics from a precomputed dump.
 
         ``dump`` is one split's output from ``dump_topk_predictions``: top-1 reads
-        straight off ``y_pred_top1`` (argmax, unified in Batch 2), no second forward
-        pass through the test loader.
+        straight off ``y_pred_top1`` (argmax), no second forward pass through the
+        test loader.
         """
         pred = torch.from_numpy(dump['y_pred_top1'])
         gt = torch.from_numpy(dump['y_true'])
@@ -998,7 +988,7 @@ class Task:
         sidecar and no re-deriving the collation filters.
 
         Returns the per-split dump dicts so the caller can derive test metrics
-        from the same forward pass (B2: one test pass, not three).
+        from the same forward pass.
 
         :param run_dir: experiments/<run_id>/ for this run.
         :param serial_no: serial whose weights are currently loaded in self.net.
@@ -1035,15 +1025,8 @@ class Task:
 def _print_taxonomy_block(taxonomy: Taxonomy, tee) -> None:
     """Loud one-time taxonomy summary at run start, captured by the tee'd log.
 
-    Replaces the old ``_validate_and_record_arch`` + ``extra.arch`` manifest
-    block: with labels in active class space and the head pinned to the
-    taxonomy, there's no data-derived architecture to validate or record. The
-    resolved class list lives in the manifest's ``config.classes`` field
-    (written at ``track_run`` time); the train/val/test coverage invariants are
-    enforced by ``Task._assert_label_coverage``.
-
-    :param taxonomy: the resolved taxonomy the run trains under.
-    :param tee: file-like writing to terminal + log_path so the line lands in both.
+    Resolved class list lives in the manifest's ``config.classes``; train/val/test
+    coverage invariants are enforced by ``Task._assert_label_coverage``.
     """
     with redirect_stdout(tee):
         print(f'[taxonomy] {taxonomy.name}: {taxonomy.n_classes} classes, '
@@ -1072,7 +1055,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--serial-no', type=int, default=None,
-        help='Run only this serial (1-5) and exit. Used by hparam_sweep to '
+        help='Run only this serial (1-indexed) and exit. Used by hparam_sweep to '
              'pause between serials for kill checks. Requires --log-path and '
              '--run-id when serial-no > 1.',
     )
@@ -1293,7 +1276,7 @@ if __name__ == '__main__':
             # Per-stroke logits dump (all splits) for the FE / calibration. Runs
             # every serial; non-best are pruned manually after the runner finishes.
             # Returns the per-split dumps so test_metrics/topk_metrics can derive
-            # off the same forward pass (B2: one test pass, not three).
+            # off the same forward pass.
             dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
 
             with redirect_stdout(tee):

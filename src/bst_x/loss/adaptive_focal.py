@@ -32,9 +32,12 @@ class AdaptiveFocalLoss(nn.Module):
 
     Forward signature mirrors ``nn.CrossEntropyLoss(reduction='mean')``: takes
     pre-softmax logits ``[B, n_classes]`` and integer labels ``[B]``, returns
-    a scalar loss. The per-class weight vector ``alpha`` is held as a buffer
-    so it persists across forward passes, moves with ``.to(device)``, and is
-    saved in ``state_dict()``.
+    a scalar loss.
+
+    ``alpha`` and ``f1_running`` are registered buffers: tensors the module
+    owns but the optimiser never trains. Registering them makes PyTorch treat
+    them as part of the module, so .to(device) moves them and checkpoints
+    include them.
 
     During the first ``warm_up_epochs`` epochs the EMA still updates in the
     background but the forward pass uses static uniform alpha, so the running F1
@@ -48,9 +51,8 @@ class AdaptiveFocalLoss(nn.Module):
     :param gamma: per-sample focal exponent on ``(1 - p_t)``. ``gamma=0`` is
         pure CDB (no focal modulation); ``gamma=1`` is the gentle default
         chosen for ShuttleSet's known label noise.
-    :param momentum: EMA momentum on the running F1 estimate; ``momentum=0.9``
-        gives a half-life of ~6.6 epochs (matches PyTorch BatchNorm and Adam
-        first-moment convention).
+    :param momentum: F1 window decay. 0.9 (sane default) implies 10% weight to
+        the most recent epoch.
     :param warm_up_epochs: n epochs of static uniform alpha before adaptive kicks-in.
     :param f1_floor: lower clip on F1 readings before mapping to alpha. F1 is
         naturally bounded so the default 0.0 is fine; raise to ~0.05 only if
@@ -105,9 +107,8 @@ class AdaptiveFocalLoss(nn.Module):
             )
 
         f1 = per_class_f1.to(self.f1_running).clamp(min=self.f1_floor, max=1.0)
-        # In-place buffer updates: keeps the registered buffer identity stable
-        # across calls, so state_dict round-trips and .to(device) propagation
-        # don't depend on PyTorch's __setattr__ buffer-rebind path.
+        # In-place on purpose: reassigning would swap the registered buffer for a
+        # new tensor (device/dtype can drift in the swap).
         self.f1_running.mul_(self.momentum).add_(f1, alpha=1.0 - self.momentum)
         # clamp(min=eps) keeps the base strictly positive so tau ** anything
         # stays defined; no class can saturate alpha to literal zero.

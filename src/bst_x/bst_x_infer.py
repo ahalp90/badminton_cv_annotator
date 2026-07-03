@@ -295,7 +295,8 @@ if __name__ == '__main__':
         help='experiments/bst_x/shuttleset/run_<id>/ whose weights to dump. Required when --fe is set.',
     )
     parser.add_argument('--serial', type=int, default=5,
-                        help='Serial number whose weights to evaluate.')
+                        help='Serial number whose weights to evaluate. Default 5: '
+                             'the last serial of a standard 5-serial run.')
     parser.add_argument('--splits', default='val,test',
                         help='Comma-separated splits to dump (default: val,test).')
     parser.add_argument(
@@ -305,8 +306,7 @@ if __name__ == '__main__':
     )
     parser.add_argument('--model-name', default='BST_X',
                         help='BST variant; defaults to BST_X (the project name for BST_CG_AP). '
-                             'Pass --model-name BST_CG_AP for a Chang-configuration build; '
-                             'saves and resumes lowercase bst_cg_ap_*.pt.')
+                             'Must match the variant the run was trained with.')
     args = parser.parse_args()
 
     # --fe-output-dir is an optional override that only makes sense in --fe mode.

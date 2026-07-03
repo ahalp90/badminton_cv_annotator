@@ -157,9 +157,9 @@ class CoupledFlip:
 
         joints = human_pose[..., :-self.n_bones, :]
         # Build the fully-flipped tensor first, then use torch.where to
-        # keep unflipped clips untouched. Faster than indexing into the
-        # batch with a boolean mask since the underlying ops are all
-        # vectorised.
+        # keep unflipped clips untouched. torch.where keeps fixed shapes and no
+        # data-dependent sync point, unlike boolean-mask indexing (which gathers
+        # a variable number of rows).
 
         # pos: x -> 1 - x in court frame
         pos_flipped = pos.clone()
@@ -277,10 +277,10 @@ class ConstrainedJitter:
         # would read its minimum as 0 and incorrectly drop the centreline
         # constraint.
         #
-        # Real positions never land at exactly (0, 0): normalize_position
-        # divides camera-frame coords by the court borders, and the result
-        # almost never hits 0 by coincidence. The substitution stays local
-        # to this block; the original pos tensor is what gets shifted later.
+        # Real positions should hardly ever land at exactly (0,0): normalize_position
+        # divides camera-frame coords by the court borders, so the result hardly
+        # ever hits 0 by coincidence. The substitution stays local to this block;
+        # the original pos tensor is what gets shifted later.
         #
         # At the current cap_y = 0.05, the cap is smaller than the bounds
         # on most clips, so the cap is what limits the shift, not the
