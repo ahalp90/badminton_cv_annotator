@@ -86,8 +86,14 @@ def normalize_joints(
 
     arr_x = arr[:, :, 0]
     arr_y = arr[:, :, 1]
-    x_normalized = np.where(arr_x != 0.0, (arr_x - bbox[:, None, 0]) / dist, 0.0)
-    y_normalized = np.where(arr_y != 0.0, (arr_y - bbox[:, None, 1]) / dist, 0.0)
+    # No missing-joint guard on purpose: failed frames/slots are zeroed upstream
+    # and never reach this function, and MMPose regression coords are continuous
+    # floats (exact 0.0 doesn't occur). If a future pose backend can emit zero or
+    # sentinel coords for missing joints, reintroduce a zero-preserving mask here
+    # (and exempt sentinels from center_align) so "missing" can't be read as a
+    # real on-court position.
+    x_normalized = (arr_x - bbox[:, None, 0]) / dist
+    y_normalized = (arr_y - bbox[:, None, 1]) / dist
 
     if center_align:
         center = (bbox[:, :2] + bbox[:, 2:]) / 2
@@ -308,13 +314,13 @@ def detect_shuttlecock_by_TrackNetV3_with_attention(
     """
     process_args = [
         "python",
-        str(model_folder / "predict.py").replace("\\", "/"),
+        str(model_folder / "predict.py"),
         "--video_file",
-        str(video_path).replace("\\", "/"),
+        str(video_path),
         "--tracknet_file",
-        str(model_folder / "ckpts" / "TrackNet_best.pt").replace("\\", "/"),
+        str(model_folder / "ckpts" / "TrackNet_best.pt"),
         "--save_dir",
-        str(save_dir).replace("\\", "/"),
+        str(save_dir),
     ]
     r = subprocess.run(process_args)
     assert r.returncode == 0, "Subprocess failed!"

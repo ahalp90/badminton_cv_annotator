@@ -324,7 +324,8 @@ def main() -> int:
     except (ValueError, FileNotFoundError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    return 0 if stats else 1
+    # 0 eligible stems is more likely a mis-pointed --raw-dir than a success.
+    return 0 if stats.attempted else 1
 
 
 if __name__ == "__main__":

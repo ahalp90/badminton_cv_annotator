@@ -149,8 +149,6 @@ def aux_schedule_factor(epoch: int, fade_end_epoch: int) -> float:
     """
     if epoch >= fade_end_epoch:
         return 0.0
-    if fade_end_epoch <= 1:
-        return 1.0
     progress = (epoch - 1) / (fade_end_epoch - 1)
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
@@ -399,7 +397,7 @@ def _build_loss_fn(
                 )
             weights[class_ls.index(cls_name)] = multiplier
         weights = weights * (n_classes / weights.sum())  # renormalise mean to 1.0
-        print(f"[loss] class-weighted CE (renormalised, mean=1.0):")
+        print("[loss] class-weighted CE (renormalised, mean=1.0):")
         for i, c in enumerate(class_ls):
             print(f"    {c:25s} weight={weights[i].item():.3f}")
         return nn.CrossEntropyLoss(weight=weights, label_smoothing=hyp.label_smoothing)
@@ -1270,7 +1268,7 @@ if __name__ == '__main__':
             task.get_network_architecture(model_name='BST_X', in_channels=(3 if hyp.use_3d_pose else 2))
 
             tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
-            weight_exists, val_at_best = task.seek_network_weights(
+            _weight_exists, val_at_best = task.seek_network_weights(
                 model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
             )
 
@@ -1304,9 +1302,6 @@ if __name__ == '__main__':
             )
 
             print('Serial', serial_no, 'done.')
-
-            if not weight_exists:
-                time.sleep(3)
 
     print(f'\nTest log saved to: {log_path}')
     print(f'Run manifest:    {run_dir / "manifest.yaml"}')

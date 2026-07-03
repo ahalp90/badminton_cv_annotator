@@ -456,16 +456,13 @@ def _print_paths_tsv(records: list[ClipRecord]) -> None:
         )
 
 
-def interactive(
-    paths: DataPaths,
-    split_column: str = DEFAULT_SPLIT_COLUMN,
-    taxonomy_name: str = DEFAULT_TAXONOMY_NAME,
-) -> None:
+def interactive(paths: DataPaths) -> None:
     """Step-through TUI: pick split, class, and output type interactively.
 
+    Every choice is prompted, so the split column and taxonomy are read from
+    the menus here, not from CLI flags (those apply to non-interactive runs).
+
     :param paths: Root directories for each data type.
-    :param split_column: Initial split column; overridable at the split-column prompt.
-    :param taxonomy_name: Initial taxonomy; overridable at the taxonomy prompt.
     """
     # Step 0: split column (only the columns present in the CSV).
     df = pd.read_csv(paths.clips_csv)
@@ -473,8 +470,6 @@ def interactive(
     if not available_split_cols:
         print(f'No split_* columns found in {paths.clips_csv}.')
         return
-    if split_column not in available_split_cols:
-        split_column = available_split_cols[0]
     split_column = _menu('Select split column:', available_split_cols)
 
     # Step 1: taxonomy.
@@ -529,12 +524,14 @@ def _build_cli() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         '--split-column', default=DEFAULT_SPLIT_COLUMN,
-        help=f'CSV column giving train/val/test (default: {DEFAULT_SPLIT_COLUMN}).',
+        help=f'CSV column giving train/val/test; non-interactive runs only '
+             f'(the TUI prompts for it). (default: {DEFAULT_SPLIT_COLUMN}).',
     )
     parser.add_argument(
         '--taxonomy', choices=list(TAXONOMIES), default=DEFAULT_TAXONOMY_NAME,
-        help=f'Taxonomy for label derivation and class validation. The chosen '
-             f"taxonomy's excluded_base_stroke_types drives row filtering "
+        help=f'Taxonomy for label derivation and class validation; non-interactive '
+             f"runs only (the TUI prompts for it). The chosen taxonomy's "
+             f'excluded_base_stroke_types drives row filtering '
              f'(no separate drop-unknown flag any more). '
              f'(default: {DEFAULT_TAXONOMY_NAME}).',
     )
@@ -589,11 +586,7 @@ def main(argv: list[str] | None = None) -> None:
         args.split, args.taxonomy_class, args.summary, args.list_classes,
     ])
     if no_flags:
-        interactive(
-            paths,
-            split_column=args.split_column,
-            taxonomy_name=args.taxonomy,
-        )
+        interactive(paths)
     elif args.list_classes:
         for name in TAXONOMIES[args.taxonomy].classes:
             print(name)

@@ -46,19 +46,19 @@ BILATERAL_JOINT_PAIRS: tuple[tuple[int, int], ...] = (
 )
 
 
-def _coco_swap_index(n_joints: int, device: torch.device) -> Tensor:
-    """Build a lookup index that swaps left/right joint pairs.
+def _coco_swap_index(n_joints: int) -> Tensor:
+    """Build a lookup index (on CPU) that swaps left/right joint pairs.
 
     Applying ``joints[..., swap_idx, :]`` moves the data at slot 5 (left
     shoulder) into slot 6 (right shoulder) and vice versa, and similarly
     for every other left/right pair. Slot 0 (nose) has no mirror partner
-    and stays in place.
+    and stays in place. Built once at construction; the caller moves it to
+    the batch device at call time.
     """
-    swap_idx = torch.arange(n_joints, device=device)
+    swap_idx = torch.arange(n_joints)
     for a, b in BILATERAL_JOINT_PAIRS:
-        if a < n_joints and b < n_joints:
-            swap_idx[a] = b
-            swap_idx[b] = a
+        swap_idx[a] = b
+        swap_idx[b] = a
     return swap_idx
 
 
@@ -124,6 +124,7 @@ class CoupledFlip:
         self.p = p
         self.n_joints = n_joints
         self.n_bones = n_bones
+        self.swap_idx = _coco_swap_index(n_joints)
         self.bone_pairs = bone_pairs if bone_pairs is not None else get_bone_pairs('coco')
         if len(self.bone_pairs) != n_bones:
             raise ValueError(
@@ -174,7 +175,7 @@ class CoupledFlip:
         shuttle_out = torch.where(shuttle_mask, shuttle_flipped, shuttle)
 
         # joints: x -> -x around each player's bbox centre, then bilateral slot swap
-        swap_idx = _coco_swap_index(self.n_joints, device)
+        swap_idx = self.swap_idx.to(device)
         joints_xflipped = joints.clone()
         joints_xflipped[..., 0] = -joints_xflipped[..., 0]
         joints_swapped = joints_xflipped.index_select(dim=-2, index=swap_idx)
@@ -336,14 +337,13 @@ class ConstrainedJitter:
         dx_hi = torch.minimum(dx_max, cap_x_t)
         dx_lo = torch.maximum(dx_min, -cap_x_t)
 
-        # Per-axis degeneracy: clamp the sample range to a single point at 0
-        # when the layered constraints leave no room. Floats: dy_hi <= dy_lo.
+        # Flag axes the layered constraints leave no room to shift (dy_hi <= dy_lo,
+        # reachable only when both bounds are exactly 0). These feed the
+        # non-degenerate test for the Aug/jitter_effective_rate metric below; the
+        # envelope is already the zero-width point a clamp would write, so the
+        # sample collapses to 0 with no explicit clamp needed.
         dy_degenerate = dy_hi <= dy_lo
         dx_degenerate = dx_hi <= dx_lo
-        dy_hi = torch.where(dy_degenerate, torch.zeros_like(dy_hi), dy_hi)
-        dy_lo = torch.where(dy_degenerate, torch.zeros_like(dy_lo), dy_lo)
-        dx_hi = torch.where(dx_degenerate, torch.zeros_like(dx_hi), dx_hi)
-        dx_lo = torch.where(dx_degenerate, torch.zeros_like(dx_lo), dx_lo)
 
         # Sample uniform in the per-axis envelope.
         u_y = torch.rand(n, device=device)

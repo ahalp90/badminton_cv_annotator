@@ -98,6 +98,36 @@ def _make_collation(
 
 
 # ---------------------------------------------------------------------------
+# aux_schedule_factor ladder (CG/AP cosine fade across epochs)
+# ---------------------------------------------------------------------------
+
+def test_aux_schedule_factor_ladder():
+    """Cosine fade: 1.0 at epoch 1, 0.5 at mid-fade, 0.0 at and past fade_end.
+
+    Epochs are 1-indexed (the loop runs ``range(1, n_epochs + 1)``), so with
+    ``fade_end_epoch == 1`` the ``epoch >= fade_end_epoch`` branch owns every
+    real call and the factor is 0.0 there; a fade_end <= 1 special case can
+    never fire. This ladder pins the whole surface and was recorded green
+    against the code both before and after the unreachable-branch delete.
+    """
+    fade_end = 11
+
+    # Endpoints and the exact midpoint of the 1..fade_end interval.
+    assert bt.aux_schedule_factor(1, fade_end) == 1.0
+    assert bt.aux_schedule_factor(6, fade_end) == pytest.approx(0.5)
+    assert bt.aux_schedule_factor(fade_end, fade_end) == 0.0
+    assert bt.aux_schedule_factor(fade_end + 1, fade_end) == 0.0
+
+    # Strictly monotone decreasing across the fading interior (cosine shape).
+    ladder = [bt.aux_schedule_factor(e, fade_end) for e in range(1, fade_end + 1)]
+    assert all(earlier > later for earlier, later in zip(ladder, ladder[1:]))
+
+    # fade_end_epoch == 1: the epoch >= fade_end_epoch branch fires for epoch 1,
+    # giving 0.0; the aux head is off from the first epoch, never 1.0.
+    assert bt.aux_schedule_factor(1, fade_end_epoch=1) == 0.0
+
+
+# ---------------------------------------------------------------------------
 # 1. _assert_label_coverage
 # ---------------------------------------------------------------------------
 

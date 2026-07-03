@@ -119,7 +119,6 @@ class Task:
         :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
         """
         self.taxonomy = taxonomy
-        self.class_list = list(taxonomy.classes)
         self.net, _n_bones = build_bst_x_network(
             model_name,
             n_joints=self.n_joints,
