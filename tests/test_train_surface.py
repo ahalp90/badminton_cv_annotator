@@ -48,11 +48,13 @@ TAX3 = Taxonomy(
 def _task_with_labels(taxonomy, train, val, test) -> bt.Task:
     """A Task carrying loaders whose datasets expose only ``.labels``.
 
-    Enough for ``_assert_label_coverage``, which only reads
-    ``self.*_loader.dataset.labels``.
+    Enough for ``_assert_label_coverage``, which reads
+    ``self.*_loader.dataset.labels`` plus ``self.hyp.train_partial`` when
+    formatting the missing-class error.
     """
     task = bt.Task.__new__(bt.Task)
     task.taxonomy = taxonomy
+    task.hyp = bt.hyp  # default Hyp; only train_partial is read, in the error text
 
     def loader(lbls):
         ds = types.SimpleNamespace(labels=np.array(lbls, dtype=np.int64))
@@ -314,18 +316,18 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
 # 3. train_network return contract: (model, val_at_best)
 # ---------------------------------------------------------------------------
 
-def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
+def test_train_network_returns_model_and_val_at_best(tmp_path):
     """A short real train returns ``(model, val_at_best)``; the snapshot, when
     present, is a dict with an epoch + a per-class F1 map over present classes.
     """
-    # Tiny, deterministic Hyp: plain CE, 2 epochs, no aux schedule. train_network
-    # reads the module-global hyp, so patch it for the duration of the call.
-    monkeypatch.setattr(bt, 'hyp', bt.hyp._replace(
+    # Tiny, deterministic Hyp: plain CE, 2 epochs, no aux schedule. Passed to
+    # train_network explicitly (same overrides the old module-global patch used).
+    test_hyp = bt.hyp._replace(
         n_epochs=2, early_stop_n_epochs=10, warm_up_step=1,
         adaptive_focal=None, class_weights=None, label_smoothing=0.0,
         use_aux_schedule=False, pose_style='JnB_bone',
         augmentation={'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15},
-    ))
+    )
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
@@ -341,7 +343,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
     result = bt.train_network(
         model=net, train_loader=train_loader, val_loader=val_loader, device=torch.device('cpu'),
         save_path=tmp_path / 'w.pt', n_bones=n_bones, n_classes=TAX3.n_classes,
-        class_ls=list(TAX3.classes), taxonomy=TAX3, tb_dir=tmp_path / 'tb',
+        class_ls=list(TAX3.classes), taxonomy=TAX3, hyp=test_hyp, tb_dir=tmp_path / 'tb',
     )
     assert isinstance(result, tuple) and len(result) == 2
     model, val_at_best = result

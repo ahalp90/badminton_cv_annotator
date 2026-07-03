@@ -368,14 +368,13 @@ def _build_loss_fn(
     class_ls: list[str],
     taxonomy: Taxonomy,
     device,
+    hyp: Hyp,
 ):
     """Resolve hyp's three loss branches (CE / class-weighted CE / adaptive-focal)
     into a single ``loss_fn`` instance.
 
     Owns the two fail-loud guards: ``adaptive_focal`` is mutually exclusive
     with ``class_weights``; ``adaptive_focal`` requires ``label_smoothing=0.0``.
-    All read the module-global ``hyp`` to mirror the pre-B7 shape (the rest of
-    ``train_network`` does the same).
 
     ``label_smoothing`` softens targets from [0,1] to reduce overconfidence.
     BST paper / TemPose default is 0.1; we sweep this knob to test whether it's
@@ -469,11 +468,11 @@ def _split_param_groups(model: nn.Module):
     return decay, no_decay
 
 
-def _build_augmentations(n_bones):
+def _build_augmentations(n_bones, hyp: Hyp):
     """Build the locked Task-2 augmentation pair: centreline flip across all
     three streams (COCO bilateral joint-index swap + bone recompute) plus
     constrained pos+shuttle jitter (layered conditional bounds, joints
-    untouched). Reads the module-global ``hyp.augmentation`` (pre-B7 shape).
+    untouched). ``hyp`` supplies pose_style and the augmentation dict.
 
     Bone recompute requires the JnB_bone pose style; other styles (J_only,
     JnB_interp, Jn2B) need their own recompute helpers which are out of scope
@@ -511,12 +510,12 @@ def _build_augmentations(n_bones):
     return coupled_flip, constrained_jitter
 
 
-def _build_optimiser(model, n_batches):
+def _build_optimiser(model, n_batches, hyp: Hyp):
     """AdamW (decoupled weight decay) + cosine schedule. _split_param_groups owns
     the decay rules; this helper owns the per-group weight_decay + hyp.lr wiring so
-    the optimiser construction stays co-located with its hparams. Reads the
-    module-global hyp (pre-B7 shape). ``n_batches`` = len(train_loader), for the
-    scheduler's total-steps count. Returns ``(optimizer, scheduler)``.
+    the optimiser construction stays co-located with its hparams. ``n_batches`` =
+    len(train_loader), for the scheduler's total-steps count. Returns
+    ``(optimizer, scheduler)``.
     """
     decay, no_decay = _split_param_groups(model)
     print(f'[optim] AdamW lr={hyp.lr} weight_decay={hyp.weight_decay} '
@@ -604,12 +603,12 @@ def _write_hparams_summary(
     best_macro, best_macro_epoch, second_macro, second_macro_epoch,
     best_min, best_min_epoch, second_min, second_min_epoch,
     best_val_loss, best_val_loss_epoch, stopped_epoch,
+    hyp: Hyp,
 ):
     """HParams summary: one row per run, sortable in TB's HParams tab.
     stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
     Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
-    only accepts int / float / str / bool / Tensor. Reads the module-global hyp
-    (pre-B7 shape); closes the writer when done.
+    only accepts int / float / str / bool / Tensor. Closes the writer when done.
     """
     hparam_dict = {}
     for key, value in hyp._asdict().items():
@@ -648,6 +647,7 @@ def train_network(
     n_classes: int,
     class_ls: list[str],
     taxonomy: Taxonomy,
+    hyp: Hyp,
     tb_dir: Path | None = None,
 ):
     # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
@@ -655,9 +655,9 @@ def train_network(
     # to ./runs/<host_time>/, which is what older runs used.
     writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
 
-    coupled_flip, constrained_jitter = _build_augmentations(n_bones)
-    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device)
-    optimizer, scheduler = _build_optimiser(model, len(train_loader))
+    coupled_flip, constrained_jitter = _build_augmentations(n_bones, hyp)
+    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device, hyp)
+    optimizer, scheduler = _build_optimiser(model, len(train_loader), hyp)
 
     # Track top-2 of each metric (for HParams summary + verifying early-stop vs crash)
     best_macro = second_macro = 0.0
@@ -803,6 +803,7 @@ def train_network(
         best_macro, best_macro_epoch, second_macro, second_macro_epoch,
         best_min, best_min_epoch, second_min, second_min_epoch,
         best_val_loss, best_val_loss_epoch, epoch,
+        hyp,
     )
 
     # Val metrics at the best-macro epoch (the checkpoint that gets saved):
@@ -836,11 +837,14 @@ def train_network(
 
 
 class Task:
-    def __init__(self, taxonomy: Taxonomy, n_joints=COCO_N_JOINTS, pose_style='JnB_bone',
-                 weight_dir: Path = Path('weight')) -> None:
+    def __init__(self, taxonomy: Taxonomy, hyp: Hyp, n_joints=COCO_N_JOINTS,
+                 pose_style='JnB_bone', weight_dir: Path = Path('weight')) -> None:
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
         self.n_joints = n_joints
+        # Run config, threaded explicitly from here down (loaders, model build,
+        # train_network); no helper reads the module-global default.
+        self.hyp = hyp
         # pose_style lives here (not on prepare_dataloaders) so get_network_architecture
         # can build without a prior loader step; kills the old call-order trap.
         self.pose_style = pose_style
@@ -864,7 +868,7 @@ class Task:
             = prepare_npy_collated_loaders(
                 root_dir=root_dir,
                 pose_style=self.pose_style,
-                batch_size=hyp.batch_size,
+                batch_size=self.hyp.batch_size,
                 use_cuda=self.use_cuda,
                 num_workers=(0, 0, 0),
                 train_partial=train_partial
@@ -899,7 +903,7 @@ class Task:
                 f'taxonomy {self.taxonomy.name!r} has {len(expected)} classes '
                 f'but train covers only {len(train_present)}. Missing class '
                 f'indices: {sorted(missing_in_train)} ({named}). Either lift '
-                f'train_partial (currently {hyp.train_partial}) or use a '
+                f'train_partial (currently {self.hyp.train_partial}) or use a '
                 f'taxonomy whose head matches what train can teach.'
             )
 
@@ -936,7 +940,7 @@ class Task:
             pose_style=self.pose_style,
             in_channels=in_channels,
             n_class=self.taxonomy.n_classes,
-            seq_len=hyp.seq_len,
+            seq_len=self.hyp.seq_len,
             device=self.device,
         )
         self.model_name = model_name
@@ -980,6 +984,7 @@ class Task:
                 n_classes=self.taxonomy.n_classes,
                 class_ls=list(self.taxonomy.classes),
                 taxonomy=self.taxonomy,
+                hyp=self.hyp,
                 tb_dir=tb_dir,
             )
             t = timedelta(seconds=int(time.time() - train_t0))
@@ -1350,8 +1355,8 @@ if __name__ == '__main__':
         for serial_no in serial_range:
             print(f'Running serial {serial_no} ...')
             task = Task(
-                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, pose_style=hyp.pose_style,
-                weight_dir=weight_dir,
+                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
+                pose_style=hyp.pose_style, weight_dir=weight_dir,
             )
             task.prepare_dataloaders(
                 root_dir=collated_root,
