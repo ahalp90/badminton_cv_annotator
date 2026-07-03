@@ -89,8 +89,8 @@ def extract_all_shuttles(
     # Preflight: verify TrackNetV3 is set up correctly
     if not tracknet_dir.is_dir():
         raise FileNotFoundError(f'TrackNetV3 directory not found: {tracknet_dir}')
-    if not (tracknet_dir / 'predict.py').exists():
-        raise FileNotFoundError(f'predict.py not found in: {tracknet_dir}')
+    if not (tracknet_dir / 'batch_predict.py').exists():
+        raise FileNotFoundError(f'batch_predict.py not found in: {tracknet_dir}')
 
     resolved_model = model_path or (tracknet_dir / _DEFAULT_TRACKNET_SUBPATH)
     if not resolved_model.exists():

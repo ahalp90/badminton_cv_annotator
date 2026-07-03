@@ -58,8 +58,8 @@ def _validate_inputs(
     :param skip_download: Whether the download step is skipped.
     :param skip_shuttle: Whether the shuttle step is skipped.
     :raises ValueError: If shuttle extraction is expected but no tracknet_dir given.
-    :raises FileNotFoundError: If tracknet_dir doesn't exist or is missing predict.py,
-        or if raw videos are missing when download is skipped.
+    :raises FileNotFoundError: If tracknet_dir doesn't exist or is missing
+        batch_predict.py, or if raw videos are missing when download is skipped.
     """
     # Shuttle extraction requires --tracknet-dir
     if not skip_shuttle:
@@ -71,9 +71,9 @@ def _validate_inputs(
             raise FileNotFoundError(
                 f'TrackNetV3 directory not found: {tracknet_dir}'
             )
-        if not (tracknet_dir / 'predict.py').exists():
+        if not (tracknet_dir / 'batch_predict.py').exists():
             raise FileNotFoundError(
-                f'predict.py not found in TrackNetV3 directory: {tracknet_dir}'
+                f'batch_predict.py not found in TrackNetV3 directory: {tracknet_dir}'
             )
 
     # If skipping download, raw videos must already exist
