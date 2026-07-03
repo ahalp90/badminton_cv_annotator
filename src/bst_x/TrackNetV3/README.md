@@ -25,7 +25,7 @@ unzip TrackNetV3_ckpts.zip
 
 ### Via the pipeline (recommended)
 
-The pipeline's `shuttle_extractor.py` calls `predict.py` as a subprocess. Point `--tracknet-python` at the BST venv's Python:
+The pipeline's `shuttle_extractor.py` calls `batch_predict.py` as a subprocess (`predict.py` remains for manual single-clip runs). Point `--tracknet-python` at the BST venv's Python:
 
 ```bash
 python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
