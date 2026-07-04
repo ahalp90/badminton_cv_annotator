@@ -1,7 +1,7 @@
 """Pin + verify + vendor the rtmlib ONNX models (Batch-0 harness).
 
-Fetches the two model archives the adapter uses -- via rtmlib's own downloader,
-so the cached ``.onnx`` names match what the adapter loads at runtime -- asserts
+Fetches the two model archives the adapter uses, via rtmlib's own downloader,
+so the cached ``.onnx`` names match what the adapter loads at runtime; asserts
 each *extracted* ``.onnx`` SHA256 against a pinned constant, and vendors the
 verified ``.onnx`` to a durable pool dir so extraction no longer depends on the
 openmmlab URL staying up (H3).
@@ -35,7 +35,7 @@ from rtmlib.tools.file import download_checkpoint
 from preparing_data.rtmlib_pose import DET_URL, POSE_URL
 
 # SHA256 of the extracted .onnx, computed 2026-07-02 from the openmmlab archives.
-# A mismatch means upstream re-released the model -- stop and re-pin deliberately.
+# A mismatch means upstream re-released the model; stop and re-pin deliberately.
 PINNED = {
     DET_URL: "8297e829ccc5590c8e2d32d5a211f322a0585fb7467eec85eb12c9525b0b95d6",
     POSE_URL: "cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2",

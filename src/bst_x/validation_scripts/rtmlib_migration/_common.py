@@ -145,7 +145,7 @@ def matched_kp_l2(
     Matches each frame's real mmpose detections to the rtmlib detections by IoU,
     then stacks the per-joint Euclidean distance and a "confident in both models"
     mask. The mask lets a gate separate coordinate correctness (all joints) from
-    model agreement on the signal-bearing joints (confident only) -- occluded
+    model agreement on the signal-bearing joints (confident only): occluded
     extremities legitimately differ between body7 and the old RTMPose-L.
 
     :param mm: committed mmpose raw for the clip.

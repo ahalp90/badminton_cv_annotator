@@ -1,9 +1,9 @@
-"""G4 -- CPU determinism gate.
+"""G4: CPU determinism gate.
 
 Two independent adapter instances (fresh onnxruntime sessions) over the same clip
 must produce bit-identical detections. onnxruntime's CPU EP is deterministic for
 a fixed input + model + thread count, so any run-to-run drift here means a
-nondeterministic op or random initialisation slipped into the extract -- which
+nondeterministic op or random initialisation slipped into the extract, which
 would make the raw arrays (and every downstream stage) unreproducible.
 
 This asserts *run-to-run on one machine*. Cross-machine determinism additionally

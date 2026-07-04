@@ -1,4 +1,4 @@
-"""G6 -- deployed-output parity gate (CPU).
+"""G6: deployed-output parity gate (CPU).
 
 The end-to-end check: run the shipped adapter over a clip, assemble the raw
 arrays exactly as ``raw_extract`` would (``_common.assemble_raw_clip``), feed
@@ -10,7 +10,7 @@ detection set.
 
 This gate is *bbox-driven*: ``sticky_anchor`` selects players by box, so it can
 agree here even if keypoint values drifted. The keypoint values are gated
-separately by G1 (``gate_keypoint_value.py``) -- run both.
+separately by G1 (``gate_keypoint_value.py``); run both.
 
 Per-clip checks split by category, because the built-in set mixes representative
 clips with deliberately-degenerate stress clips:
@@ -20,8 +20,8 @@ clips with deliberately-degenerate stress clips:
   drop a salient player mmpose kept).
 * Value (``diverse`` clips only): ``pos_med`` <= POS_MED_MAX (normalised court
   coords) and ``jnt_med`` <= JNT_MED_MAX (bbox-diagonal-normalised).
-* ``busted`` stress clips: value deltas are reported as *diagnostic*, not gated
-  -- the mmpose baseline on these was already bad, so matching it to a few
+* ``busted`` stress clips: value deltas are reported as *diagnostic*, not gated.
+  The mmpose baseline on these was already bad, so matching it to a few
   percent is not the acceptance criterion; keeping the players and the frame
   count is.
 
@@ -83,7 +83,7 @@ DIVERSE: list[tuple[str, str]] = [
     ("40_1_23_6", "HSBC-DARK women Xnet"),
     ("21_1_12_8", "Thailand women Bot_smash"),
 ]
-# Known-hard busted clips (mmpose baseline already degenerate) -- structural only.
+# Known-hard busted clips (mmpose baseline already degenerate): structural only.
 BUSTED: list[tuple[str, str]] = [
     ("11_2_25_10", "busted g2"),
     ("11_2_29_12", "busted g2"),
@@ -196,7 +196,7 @@ def main() -> int:
         r = _gate_clip(ext, stem, category, setup)
         if r is None:
             missing.append(stem)
-            print(f"  {stem:13s}  -- no mp4 (skipped, logged)")
+            print(f"  {stem:13s}  no mp4 (skipped, logged)")
             continue
         r["ok"] = _verdict(r)
         results.append(r)
@@ -227,9 +227,11 @@ def main() -> int:
           f"  pos_med(max)={np.nanmax([r['pos_med'] for r in results]):.4f}"
           f"  jnt_med(max)={np.nanmax([r['jnt_med'] for r in results]):.4f}")
     print(f"  directional frame loss (all clips): rtmlib-only-fail={tot_rt_only}  "
-          f"mmpose-only-fail={tot_mm_only}  -- a one-directional rtmlib excess is model "
-          f"behavior (320-input detector misses some salient players); Phase-A decides "
-          f"acceptability, a 640-input detector is the mitigation")
+          f"mmpose-only-fail={tot_mm_only}  a one-directional rtmlib excess is model "
+          f"behaviour (the 320-input detector misses some salient players); Phase-A "
+          f"decided GO at 0.15, and the mitigation was the 0.15 keep-threshold "
+          f"(post-inference filter, model unchanged), not a 640 detector (considered "
+          f"and rejected as a different ONNX)")
     if missing:
         print(f"  missing stems (not evaluated): {', '.join(missing)}")
     if not per_clip_ok:

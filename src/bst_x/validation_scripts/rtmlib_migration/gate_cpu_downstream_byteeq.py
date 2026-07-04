@@ -1,15 +1,15 @@
-"""G5 -- CPU downstream byte-equality precondition (dual-invocation).
+"""G5: CPU downstream byte-equality precondition (dual-invocation).
 
 Proves the migration touches nothing downstream of the extractor, and that the
 new numpy-2 / pandas-3 environment reproduces the committed pipeline output.
 
-Mechanism (inference-free -- pure heuristic on fixed input):
+Mechanism (inference-free, pure heuristic on fixed input):
 
 * Feed the *committed mmpose raw* (the fixed reference input, unchanged by this
   branch) through the repo's CURRENT ``sticky_anchor``.
 * Determinism: run it twice; the two outputs must be bit-identical.
 * Reproduction: compare to the committed clean (``sticky_anchor`` over the same
-  mmpose raw, produced on main) -- ``_failed`` exact, ``_pos`` / ``_joints``
+  mmpose raw, produced on main): ``_failed`` exact, ``_pos`` / ``_joints``
   within ``ATOL``.
 
 If this passes, ``sticky_anchor`` + collate are provably untouched and env-stable,
@@ -18,8 +18,8 @@ not to downstream drift or a pandas-version change. If ``_pos`` / ``_joints``
 drift above ``ATOL``, the new env perturbs the heuristic (e.g. a pandas-3
 inplace/iloc behaviour change) and must be investigated before trusting G6.
 
-The reference here is the committed clean -- a durable production artifact, not a
-capture this script writes -- so it will not rot when paths flip.
+The reference here is the committed clean, a durable production artifact, not a
+capture this script writes, so it will not rot when paths flip.
 
 Stems: ``RTMLIB_GATE_STEMS`` (comma-separated) or the first ``MAX_CLIPS`` (sorted)
 present in both the committed raw and clean dirs.

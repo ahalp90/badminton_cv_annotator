@@ -1,4 +1,4 @@
-"""G9 -- Phase-A decision gate (HALT-AND-HANDOFF, Bourbaki).
+"""G9: Phase-A decision gate (HALT-AND-HANDOFF, Bourbaki).
 
 (Gate numbering follows 03_verification.md: G7 = CUDA self-variance, G8 =
 extraction parity, G9 = this decision.)
@@ -7,7 +7,7 @@ Consumes the G8 parity JSON (per-clip extraction + deployed metrics) and, if
 present, the G7 self-variance floors, and applies the concrete Phase-A
 acceptance thresholds (03_verification.md replaces the open O3 with these):
 
-* Frame count: 100% of clips ``dF == 0`` -- any mismatch is a hard NO-GO.
+* Frame count: 100% of clips ``dF == 0``; any mismatch is a hard NO-GO.
 * Deployed failed-rate: aggregate ``|Δ|`` <= FAIL_DELTA_AGG_PP, per-clip
   ``|Δ|`` <= FAIL_DELTA_CLIP_PP; per-frame failed-agreement >= FMATCH_AGG_MIN.
 * Keypoint agreement: aggregate median L2 <= KP_MED_MAX, confident p90 <=
@@ -21,7 +21,7 @@ acceptance thresholds (03_verification.md replaces the open O3 with these):
 
 Stratification: the decision is authoritative only when the sample covers every
 distinct video-id in ``res_df`` (court homography is per-video). smoke50 alone is
-mostly one match, so a smoke50-only run reports **GO (provisional)** -- add
+mostly one match, so a smoke50-only run reports **GO (provisional)**; add
 shard_00/01 + a per-video top-up for the authoritative call.
 
 Env / args:
@@ -78,7 +78,7 @@ def main() -> int:
         eps_fail_pp = float(np.max([f["eps_fail"] for f in floors])) * 100
     else:
         eps_kp = eps_fail_pp = 0.0
-        print("WARNING: no G7 floor JSON -- assuming 0 (valid only for a CPU/deterministic run)\n")
+        print("WARNING: no G7 floor JSON, assuming 0 (valid only for a CPU/deterministic run)\n")
 
     # --- criteria ---
     frame_ok = all(r["dF"] == 0 for r in rows)
@@ -145,9 +145,11 @@ def main() -> int:
     print(f"  joints delta (report only): median-of-clip-medians {jnt_med_agg:.4f}")
     print(f"  directional loss: rtmlib-only-fail={rt_only} mmpose-only-fail={mm_only} "
           f"(signed failed-rate delta {signed_fail_pp:+.2f}pp; a one-directional rtmlib "
-          f"excess is the 320-input-detector bias -- a 640-input detector is the mitigation)")
+          f"excess is the 320-input-detector bias; the mitigation was the 0.15 "
+          f"keep-threshold (post-inference filter, model unchanged), not a 640 detector "
+          f"(considered and rejected as a different ONNX))")
     print(f"  video-id coverage: {covered}/{total} "
-          f"{'(full)' if full_coverage else '(PARTIAL -- add shards for authoritative)'}")
+          f"{'(full)' if full_coverage else '(PARTIAL: add shards for authoritative)'}")
 
     hard_ok = (frame_ok and clip_fail_ok and agg_fail_ok and fmatch_ok
                and kp_med_ok and kp_p90_ok and kp_clip_ok and g8_ok
@@ -155,7 +157,7 @@ def main() -> int:
     if not hard_ok:
         decision = "NO-GO"
     elif not full_coverage:
-        decision = "GO (provisional -- sample does not cover all video-ids)"
+        decision = "GO (provisional: sample does not cover all video-ids)"
     else:
         decision = "GO"
     print(f"\nPhase-A: {decision}")

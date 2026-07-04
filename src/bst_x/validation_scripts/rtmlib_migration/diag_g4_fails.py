@@ -5,7 +5,7 @@ A. Dropped-player clips (video 4 + 16_1_10_6 + the 18.75pp 2_1_10_2): for every 
    whether the missing mm detection is GENUINELY ABSENT at 320 (only a 640-input
    detector recovers it) or merely UNDER-SCORED below 0.3 (present at 320, a scoring
    issue). This is the 320-vs-640 decider.
-B. 5_1_10_1 keypoint tail: how much of the raw p90 an L/R swap explains -- if most of
+B. 5_1_10_1 keypoint tail: how much of the raw p90 an L/R swap explains. If most of
    it, the 35.6px p90 is the benign body7 L/R model drift G1 already corrects for
    (_confident_tail_lr) and G8 simply doesn't, i.e. a gate-metric gap not a defect.
 
@@ -82,7 +82,7 @@ def diag_dropped(ext, stem):
         print(f"  -> {stem}: {genuine} genuine-miss vs {underscored} under-scored "
               f"across {hits} short frame(s)")
     else:
-        print("  (no rt<mm frame reproduced -- check CUDA determinism / thresholds)")
+        print("  (no rt<mm frame reproduced: check CUDA determinism / thresholds)")
 
 
 def diag_lr(ext, stem):

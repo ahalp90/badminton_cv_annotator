@@ -1,4 +1,4 @@
-"""G3 -- dtype-parity on the detect_players_2d path (RUN IN BATCH 3).
+"""G3: dtype-parity on the detect_players_2d path (RUN IN BATCH 3).
 
 Under mmpose, ``detect_players_2d`` built ``np.array([p["keypoints"] for p ...])``
 from Python lists -> float64. rtmlib returns float32 arrays, so without a cast the
@@ -6,7 +6,7 @@ computation stays float32, shifting ``normalize_joints`` / court projection at t
 atol boundary. Batch 3's fix casts the adapter's keypoints/bbox to float64. This
 gate asserts the fix is in effect.
 
-Decisiveness -- output dtype alone is NOT enough: rtmlib's smaller detection set
+Decisiveness: output dtype alone is NOT enough: rtmlib's smaller detection set
 makes ``_order_two_on_court`` fail some frames, and ``np.stack`` of float32
 success rows + float64 failed-zeros promotes the whole array to float64, masking a
 missing cast. So the gate checks the success-frame joints carry float64
@@ -16,7 +16,7 @@ round-trip. This is decisive on any clip with >=1 success frame.
 
 Targets the Batch-3 signature ``detect_players_2d(extractor, video_path, ...)``.
 Pre-migration the first parameter is still ``inferencer``, so the gate SKIPs
-(exit 2) by signature inspection -- it never swallows exceptions, so a real
+(exit 2) by signature inspection; it never swallows exceptions, so a real
 post-migration error surfaces as a failure.
 
 Env:
@@ -55,7 +55,7 @@ def _court_setup():
 def main() -> int:
     from preparing_data.prepare_train_on_shuttleset import detect_players_2d
 
-    # Pre/post-migration switch by signature, NOT by catching exceptions -- so a
+    # Pre/post-migration switch by signature, NOT by catching exceptions, so a
     # real post-migration error surfaces instead of masquerading as a skip.
     first_param = next(iter(inspect.signature(detect_players_2d).parameters))
     if first_param == "inferencer":
@@ -73,7 +73,7 @@ def main() -> int:
 
     failed = np.asarray(failed_ls, dtype=bool)
     n_success = int((~failed).sum())
-    succ = joints[~failed]  # (n_success, 2, J, 2) -- the cast-carrying rows
+    succ = joints[~failed]  # (n_success, 2, J, 2); the cast-carrying rows
 
     pos_ok = positions.dtype == np.float64
     jnt_ok = joints.dtype == np.float64

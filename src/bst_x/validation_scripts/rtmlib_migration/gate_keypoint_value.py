@@ -1,4 +1,4 @@
-"""G1 -- keypoint-value gate (CPU, committed mmpose reference).
+"""G1: keypoint-value gate (CPU, committed mmpose reference).
 
 The critical value gate the bbox-driven deployed parity (G6) does not cover:
 sticky_anchor selects players by bounding box, so G6 can pass even if the
@@ -8,10 +8,10 @@ mmpose raw.
 Per clip, run the shipped adapter, IoU-match to the committed mmpose detections
 (``_common.matched_kp_l2``) and assert:
 
-* all-joint median L2 <= ``MEDIAN_MAX`` px -- proves the coordinate system, COCO
+* all-joint median L2 <= ``MEDIAN_MAX`` px: proves the coordinate system, COCO
   ordering and pixel units;
 * both-confident joints (kp_score > 0.5 in both models) p90 <= ``CONF_P90_MAX``
-  and a **mirror-labeling-robust** p95 <= ``CONF_P95_MAX`` -- the signal-bearing
+  and a **mirror-labeling-robust** p95 <= ``CONF_P95_MAX``: the signal-bearing
   joints agree tightly. body7 and the old RTMPose-L legitimately assign left/right
   oppositely on some ambiguous rotational poses (a shoulder/hip-width L2 that is
   not a coordinate error), so the p95 is taken over the per-person minimum of the
@@ -20,20 +20,20 @@ Per clip, run the shipped adapter, IoU-match to the committed mmpose detections
   ``SWAP_FRAC_MAX`` trips. The residual tail is model-noise the Phase-B retrain
   absorbs, not a coordinate error;
 * order-sanity backstop: on the cleanest detection (highest mean joint
-  confidence) the head sits above the knees and ankles -- a reference-free
+  confidence) the head sits above the knees and ankles, a reference-free
   flip/reorder trip.
 
 An x/y swap, flip, reorder or unit error shows tens-hundreds of px on every
 joint, including the confident ones, so it fails the px thresholds loudly.
 
-A **reverted RGB fix does not** -- RTMPose-L body7 is channel-robust, so a BGR
+A **reverted RGB fix does not**: RTMPose-L body7 is channel-robust, so a BGR
 feed lands ~0.1px (median) from RGB, inside MEDIAN_MAX (measured BGR 2.60px vs
 RGB 2.54px on 11_1_10_2, both under 5px). The px thresholds cannot separate them,
 so G1 also runs ``_rgb_fix_counterfactual``: a byte-exact structural check that
 the shipped adapter feeds RTMPose an RGB crop (not BGR), independent of accuracy.
 
 Stems: ``RTMLIB_GATE_STEMS`` (comma-separated) or one present clip from each of
-the first ``N_DEFAULT_VIDS`` distinct video-ids -- breadth across courts/lighting,
+the first ``N_DEFAULT_VIDS`` distinct video-ids: breadth across courts/lighting,
 not three clips of one match (where channel/exposure effects vanish).
 Parity-at-scale against the mmpose baseline is the GPU gate (G8).
 
@@ -77,7 +77,7 @@ def _resolve_stems() -> list[str]:
 
     The default spreads across the first ``N_DEFAULT_VIDS`` video-ids present in
     both the committed raw and the clip tree, rather than the first N clips of one
-    match -- colour/exposure differences are exactly what a single-match sample
+    match: colour/exposure differences are exactly what a single-match sample
     hides. The clip tree is indexed once (a recursive glob per stem over ~32k
     stems would be O(minutes)).
     """
@@ -132,7 +132,7 @@ def _confident_tail_lr(mm, frames: list) -> tuple[float, float]:
     0.74-0.90, an L/R swap collapses ~29px -> ~1.4px). That mirror-labeling
     inflates the *raw* confident p95 without being an adapter defect, so the tail
     check uses the per-person minimum of the direct and L/R-swapped L2. A
-    *systematic* adapter L/R swap instead needs relabeling on ~every match -- that
+    *systematic* adapter L/R swap instead needs relabeling on ~every match; that
     is what ``SWAP_FRAC_MAX`` catches, so the mirror-robustness can't hide a real
     L/R bug.
 
@@ -175,9 +175,9 @@ def _rgb_fix_counterfactual(
     each sampled frame with detections, recompute the pose independently under an
     RGB feed and a BGR feed on the detector's own boxes, then require:
 
-    1. the shipped adapter's keypoints equal the RGB feed byte-for-byte -- a
+    1. the shipped adapter's keypoints equal the RGB feed byte-for-byte: a
        reverted fix flips them onto the BGR feed and trips this;
-    2. the RGB and BGR feeds actually differ -- so the equality in (1) has teeth
+    2. the RGB and BGR feeds actually differ, so the equality in (1) has teeth
        (RTMPose is not channel-invariant; if it were, a revert wouldn't matter).
 
     The median RGB<->BGR px gap is reported to make the channel-robustness that
@@ -261,7 +261,7 @@ def main() -> int:
         print(f"  [{'PASS' if ok else 'FAIL'}] {stem}: {msg}")
         all_ok &= ok
 
-    # RGB fix is a byte-exact structural check -- the px thresholds above are
+    # RGB fix is a byte-exact structural check; the px thresholds above are
     # channel-robust and cannot catch a reverted fix on their own.
     rgb_ok, rgb_msg = _rgb_fix_counterfactual(ext, find_clip(stems[0]))
     print(f"\n  [{'PASS' if rgb_ok else 'FAIL'}] RGB-fix byte-exact ({stems[0]}): {rgb_msg}")

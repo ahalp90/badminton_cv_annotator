@@ -1,4 +1,4 @@
-"""G7 -- CUDA self-variance floor (HALT-AND-HANDOFF, Bourbaki; run FIRST).
+"""G7: CUDA self-variance floor (HALT-AND-HANDOFF, Bourbaki; run FIRST).
 
 (Gate numbering follows 03_verification.md: G7 = this self-variance floor, G8 =
 extraction parity, G9 = Phase-A decision.)
@@ -6,9 +6,9 @@ extraction parity, G9 = Phase-A decision.)
 The CUDA EP is nondeterministic, so two runs of the same clip on the same GPU
 differ slightly. This gate measures that run-to-run noise floor:
 
-* ``eps_kp`` -- median / p90 / max per-keypoint L2 between two CUDA runs
+* ``eps_kp``: median / p90 / max per-keypoint L2 between two CUDA runs
   (IoU-matched detections, raw keypoints);
-* ``eps_fail`` -- max per-clip |failed-rate(run A) - failed-rate(run B)| after
+* ``eps_fail``: max per-clip |failed-rate(run A) - failed-rate(run B)| after
   the unchanged ``sticky_anchor``.
 
 Every mmpose-vs-rtmlib threshold in G8/G9 must sit ABOVE these floors, else the
@@ -119,7 +119,7 @@ def main() -> int:
     ok = eps_kp_med <= KP_FLOOR_MAX and eps_fail_max <= FAIL_FLOOR_MAX
     if not ok:
         print(f"  IMPLAUSIBLE NOISE: eps_kp_med>{KP_FLOOR_MAX} or eps_fail>{FAIL_FLOOR_MAX} "
-              "-- extract is not reproducible on this device")
+              "(extract is not reproducible on this device)")
     print(f"\n{'PASS' if ok else 'FAIL'}: G7 CUDA self-variance floor")
     return 0 if ok else 1
 

@@ -1,7 +1,7 @@
 """Build a stratified Phase-A stem sample for the GPU parity gates (G8/G9).
 
 G9's authoritative decision needs coverage of **every distinct video-id** (court
-homography is per-video), but the full extract list is ~30k clips -- far more than
+homography is per-video), but the full extract list is ~30k clips, far more than
 a decision run needs. This takes the first ``--per-video`` clips of each video-id
 present in the source list, giving all-court coverage at ~10k frames (a few clips
 per video) instead of a full re-extract.

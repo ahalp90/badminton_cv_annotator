@@ -1,4 +1,4 @@
-"""G8 -- GPU extraction parity at scale (HALT-AND-HANDOFF, Bourbaki).
+"""G8: GPU extraction parity at scale (HALT-AND-HANDOFF, Bourbaki).
 
 (Gate numbering follows 03_verification.md, the authoritative spec: G7 = CUDA
 self-variance floor, G8 = this extraction parity, G9 = the Phase-A decision.)
@@ -63,7 +63,7 @@ from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
 # Detector keep-threshold override for the calibration sweep. This is a
-# post-inference filter on the identical ONNX's output scores -- NOT a model
+# post-inference filter on the identical ONNX's output scores, NOT a model
 # change. Defaults to the shipped adapter's DET_SCORE_THR (0.15 after the G-4
 # recalibration; the 0.3->0.15 sweep is recorded in 06_phase_a_decision.md).
 DET_THR = float(os.environ.get("RTMLIB_GATE_DET_THR", DET_SCORE_THR))
@@ -159,7 +159,7 @@ def main() -> int:
         r = _gate_clip(ext, stem, setup)
         if r is None:
             missing.append(stem)
-            print(f"  {stem:13s}  -- no mp4 (skipped, logged)")
+            print(f"  {stem:13s}  no mp4 (skipped, logged)")
             continue
         r["ok"] = _verdict(r)
         results.append(r)

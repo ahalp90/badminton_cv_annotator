@@ -2,7 +2,7 @@
 
 Drives rtmlib's low-level RTMDet (person detector) + RTMPose (COCO-17 estimator)
 over onnxruntime to reproduce the per-person output the mmpose extraction path
-consumed -- ``keypoints`` / ``bbox`` / ``bbox_score`` / ``keypoint_scores`` --
+consumed (``keypoints`` / ``bbox`` / ``bbox_score`` / ``keypoint_scores``)
 without the mmcv / mmdet / mmpose / mmengine stack or its ``numpy < 2`` pin. It
 replaces ``MMPoseInferencer("human")`` for ``raw_extract`` and
 ``detect_players_2d``.
@@ -51,10 +51,10 @@ POSE_INPUT_SIZE = (192, 256)  # (W, H), i.e. 256x192
 # fixed 320x320 (mmpose used a larger test size), so it scores the SAME players lower.
 # At 0.3 those players fall below the cut on hard/contact/blur frames and the frame is
 # lost (authoritative G-4: 5 clips dropped a player, per-clip failed-rate to 18.75pp,
-# a 50:7 one-directional loss bias). No player is ever genuinely undetected at 320 --
+# a 50:7 one-directional loss bias). No player is ever genuinely undetected at 320:
 # they are under-scored (0.10-0.30, median 0.18); 0.15 recovers them and sticky_anchor
 # geometry-rejects the extra crowd it admits (G-4 at 0.15: dropped players 5->0,
-# directional 50:7->15:20, aggregate failed-rate 0.48->0.01pp). NOT a model change --
+# directional 50:7->15:20, aggregate failed-rate 0.48->0.01pp). NOT a model change:
 # a post-inference filter on the identical ONNX's scores. See
 # docs/architecture_notes/rtmlib_migration/06_phase_a_decision.md.
 DET_SCORE_THR = 0.15
@@ -101,11 +101,11 @@ class RtmlibPoseExtractor:
 
     CPU inference is deterministic run-to-run at a fixed thread count. rtmlib's
     ``BaseTool`` builds the onnxruntime session with no ``SessionOptions``, so
-    ``intra_op_num_threads`` is not a constructor knob -- pin threads via
+    ``intra_op_num_threads`` is not a constructor knob; pin threads via
     ``OMP_NUM_THREADS`` in the environment when a caller needs bit-reproducibility
     (the CPU determinism gate does). CUDA is nondeterministic regardless.
 
-    :param device: onnxruntime device -- ``"cpu"`` or ``"cuda"`` (needs
+    :param device: onnxruntime device, ``"cpu"`` or ``"cuda"`` (needs
         ``onnxruntime-gpu`` for the latter).
     :param det_url: person-detector ONNX (defaults to the mmpose-identical rtmdet-nano).
     :param pose_url: pose ONNX (defaults to RTMPose-L body7 COCO-17, 256x192).

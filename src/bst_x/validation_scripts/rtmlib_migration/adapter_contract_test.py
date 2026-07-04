@@ -1,8 +1,8 @@
-"""G2 -- rtmlib adapter contract test (CPU, reference-free).
+"""G2: rtmlib adapter contract test (CPU, reference-free).
 
 Exercises the SHIPPED ``preparing_data.rtmlib_pose.RtmlibPoseExtractor`` (not the
 scratchpad prototype) and asserts the per-frame *contract* both consumers depend
-on -- shape, dtype, COCO-17 count, box/score validity, the empty-frame guard,
+on: shape, dtype, COCO-17 count, box/score validity, the empty-frame guard,
 and a reference-free order-sanity check. Keypoint *values* vs the committed
 mmpose raw are gated separately by G1 (``gate_keypoint_value.py``).
 
@@ -18,7 +18,7 @@ Checks (on one real clip + a synthetic black frame):
 * box validity: xyxy ordered (x2>x1, y2>y1) and finite.
 * score ranges: ``bbox_scores`` in ``(det_score_thr, 1]``; ``kp_scores`` in
   ``[0, KP_SCORE_MAX]`` (RTMPose simcc confidence is a peak product, not a strict
-  probability -- the committed mmpose raw itself reaches ~1.16; a loose upper
+  probability: the committed mmpose raw itself reaches ~1.16; a loose upper
   bound still catches NaN / negatives / un-sigmoided logits).
 * empty-frame guard: an all-black frame yields ``m == 0`` with correctly-shaped,
   correctly-typed empty arrays (no fabricated whole-image "person").
