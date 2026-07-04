@@ -71,7 +71,6 @@ def main() -> int:
     taxonomy_name = os.environ.get("TAXONOMY", "une_v1_14")
     pose_style = os.environ.get("POSE_STYLE", "JnB_bone")
     seq_len = int(os.environ.get("SEQ_LEN", "100"))
-    in_channels = int(os.environ.get("IN_CHANNELS", "2"))
     model_name = os.environ.get("MODEL_NAME", "BST_CG_AP")
     out_path = Path(os.environ.get("OUT_PATH", "/tmp/smoke_infer_preds.npy")).resolve()
 
@@ -95,7 +94,6 @@ def main() -> int:
     print(f"TAXONOMY     : {taxonomy_name} ({taxonomy.n_classes} classes)")
     print(f"POSE_STYLE   : {pose_style}")
     print(f"SEQ_LEN      : {seq_len}")
-    print(f"IN_CHANNELS  : {in_channels}")
     print(f"MODEL_NAME   : {model_name}")
     print(f"OUT_PATH     : {out_path}")
 
@@ -108,7 +106,6 @@ def main() -> int:
         taxonomy=taxonomy,
         model_name=model_name,
         seq_len=seq_len,
-        in_channels=in_channels,
     )
     task.load_weight(weight_path)
     preds = task.infer()

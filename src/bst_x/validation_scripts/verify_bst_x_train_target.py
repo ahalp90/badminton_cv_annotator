@@ -49,13 +49,11 @@ def main() -> int:
     print(f'  collation_id:    {hyp.collation_id}')
     print(f'  ablation_id:     {hyp.ablation_id}  (training tag; not in the path)')
     print(f'  seq_len:         {hyp.seq_len}')
-    print(f'  use_3d_pose:     {hyp.use_3d_pose}')
     print(f'  pose_style:      {hyp.pose_style}')
     print(f'  n_epochs:        {hyp.n_epochs}')
     print(f'  batch_size:      {hyp.batch_size}')
 
     basename = derive_npy_collated_dir_basename(
-        use_3d_pose=hyp.use_3d_pose,
         seq_len=hyp.seq_len,
         split_column=hyp.split_column,
         collation_id=hyp.collation_id,

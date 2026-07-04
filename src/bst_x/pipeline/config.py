@@ -382,19 +382,18 @@ def derive_class_index(taxonomy: Taxonomy, raw_type: str, side: str,) -> int | N
 # ---------------------------------------------------------------------------
 
 def derive_npy_collated_dir_basename(
-    *, use_3d_pose: bool, seq_len: int, split_column: str, collation_id: str,
+    *, seq_len: int, split_column: str, collation_id: str,
 ) -> str:
-    """Format the collated dir basename: ``npy_[3d_][seq{N}_]{split}_{collation_id}``.
+    """Format the collated dir basename: ``npy_[seq{N}_]{split}_{collation_id}``.
 
     Taxonomy lives in the parent dir (``ShuttleSet_data_<tax>/``), so isn't
     repeated here. ``seq_len=100`` is canonical and skips the ``seq{N}_`` tag.
     ``split_column`` has its ``split_`` prefix stripped at tag.
     Example ``collation_id`` values: ``'taxon_pinned_w_preds'``, ``'wipe_drop'``.
     """
-    three_d_tag = '3d_' if use_3d_pose else ''
     seq_tag = '' if seq_len == 100 else f'seq{seq_len}_'
     split_tag = split_column.removeprefix('split_')
-    return f'npy_{three_d_tag}{seq_tag}{split_tag}_{collation_id}'
+    return f'npy_{seq_tag}{split_tag}_{collation_id}'
 
 
 def collation_id_from_manifest(manifest: dict) -> str | None:

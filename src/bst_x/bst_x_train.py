@@ -83,7 +83,6 @@ class Hyp(NamedTuple):
     seq_len: int = 100
     early_stop_n_epochs: int = 40
     pose_style: str = 'JnB_bone'
-    use_3d_pose: bool = False
     train_partial: float = 1.0
     use_aux_schedule: bool = True
     aux_fade_end_epoch: int = 15
@@ -921,10 +920,8 @@ class Task:
                     f'the data shape.'
                 )
 
-    def get_network_architecture(self, model_name='BST_X', in_channels=2):
+    def get_network_architecture(self, model_name='BST_X'):
         """Create the model at the taxonomy head dim and ground its inputs.
-
-        :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
 
         Output dim is ``taxonomy.n_classes`` directly; labels on disk are
         already in that index space (no runtime remap), and
@@ -934,7 +931,6 @@ class Task:
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            in_channels=in_channels,
             n_class=self.taxonomy.n_classes,
             seq_len=self.hyp.seq_len,
             device=self.device,
@@ -1256,21 +1252,17 @@ if __name__ == '__main__':
     if hyp.seq_len not in (30, 100):
         raise NotImplementedError(f'Unsupported hyp.seq_len={hyp.seq_len!r}; expected 30 or 100.')
     npy_collated_dir = derive_npy_collated_dir_basename(
-        use_3d_pose=hyp.use_3d_pose,
         seq_len=hyp.seq_len,
         split_column=hyp.split_column,
         collation_id=hyp.collation_id,
     )
 
     # Weights filename suffix. Independent of the collated-dir name; encodes
-    # config knobs that change per run (seq_len-derived window tag, 3d flag,
-    # train_partial). Empty string is a valid value (seq_len=30, 2D, full data).
-    str_3d = '_3d' if hyp.use_3d_pose else ''
+    # config knobs that change per run (seq_len-derived window tag,
+    # train_partial). Empty string is a valid value (seq_len=30, full data).
     model_info_parts: list[str] = []
     if hyp.seq_len == 100:
-        model_info_parts.append(f'{CLIP_WINDOW}_seq_100{str_3d}')
-    elif hyp.use_3d_pose:
-        model_info_parts.append('3d')
+        model_info_parts.append(f'{CLIP_WINDOW}_seq_100')
     if not 0 < hyp.train_partial <= 1:
         raise ValueError(f'hyp.train_partial must be in (0, 1], got {hyp.train_partial}')
     if hyp.train_partial != 1:
@@ -1356,7 +1348,7 @@ if __name__ == '__main__':
             )
             task.prepare_dataloaders(root_dir=collated_root)
 
-            task.get_network_architecture(model_name='BST_X', in_channels=(3 if hyp.use_3d_pose else 2))
+            task.get_network_architecture(model_name='BST_X')
 
             tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
             _weight_exists, val_at_best = task.seek_network_weights(

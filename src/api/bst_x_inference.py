@@ -97,7 +97,6 @@ def _build_model() -> torch.nn.Module:
         "BST_X",
         n_joints=17,
         pose_style=POSE_STYLE,
-        in_channels=2,
         n_class=N_CLASS,
         seq_len=100,
         device=DEVICE,

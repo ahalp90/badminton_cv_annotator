@@ -178,7 +178,7 @@ NPZ_FIELDS = {
 def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
         n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
@@ -216,7 +216,7 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
     with clip_stems), so a downstream row->stem join is valid."""
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
         n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
@@ -245,7 +245,7 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
     """
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
         n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
@@ -284,7 +284,7 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
     """
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
         n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
@@ -330,7 +330,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
     )
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
         n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = _make_collation(

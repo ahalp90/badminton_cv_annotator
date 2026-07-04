@@ -106,7 +106,6 @@ class Task:
         taxonomy: Taxonomy,
         model_name: str = 'BST_X',
         seq_len: int = 100,
-        in_channels: int = 2,
     ):
         """Build the inference model at the taxonomy head dim.
 
@@ -117,14 +116,12 @@ class Task:
         recorded (``taxonomy_lookup(manifest['config']['taxonomy'])``).
 
         :param taxonomy: the taxonomy the weights were trained under.
-        :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
         """
         self.taxonomy = taxonomy
         self.net, _n_bones = build_bst_x_network(
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            in_channels=in_channels,
             n_class=taxonomy.n_classes,
             seq_len=seq_len,
             device=self.device,
@@ -166,7 +163,6 @@ def _resolve_collated_dir(
             f'collation id; cannot resolve the collated dir.'
         )
     basename = recorded_dir or derive_npy_collated_dir_basename(
-        use_3d_pose=config['use_3d_pose'],
         seq_len=config['seq_len'],
         split_column=config['split_column'],
         collation_id=collation_id,
@@ -226,7 +222,6 @@ def dump_run_predictions(
         model_name,
         n_joints=n_joints,
         pose_style=config['pose_style'],
-        in_channels=(3 if config['use_3d_pose'] else 2),
         n_class=taxonomy.n_classes,
         seq_len=config['seq_len'],
         device=device,

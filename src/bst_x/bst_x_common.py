@@ -60,7 +60,6 @@ def build_bst_x_network(
     *,
     n_joints: int,
     pose_style: str,
-    in_channels: int,
     n_class: int,
     seq_len: int = 100,
     depth_tem: int = 2,
@@ -73,11 +72,9 @@ def build_bst_x_network(
     after the joints along human_pose's pose axis; CoupledFlip uses it to
     split joints from bones (flip the joints, recompute the bones).
     Inference can ignore it.
-
-    :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
     """
     n_bones = len(get_bone_pairs()) * POSE_BONE_MULTIPLIER[pose_style]
-    in_dim = (n_joints + n_bones) * in_channels
+    in_dim = (n_joints + n_bones) * 2
     net = MODELS[model_name](
         in_dim=in_dim,
         n_class=n_class,

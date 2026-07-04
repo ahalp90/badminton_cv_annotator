@@ -217,7 +217,7 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 #### Collated output structure
 
 ```
-preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[3d_][seq{N}_]{split}_{collation_id}/
+preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[seq{N}_]{split}_{collation_id}/
   train/
     JnB_bone.npy                                    # default single pose file
     pos.npy, shuttle.npy, videos_len.npy, labels.npy
@@ -408,7 +408,7 @@ Stage 5 spans two files:
 
 | Name | Lives in | Role |
 |------|----------|------|
-| `Hyp` (namedtuple) | `bst_x_train.py` | Active training config, in the `Hyp`/`hyp` block near the top of `bst_x_train.py`.<br>• Schedule: `n_epochs=80`, `early_stop_n_epochs=40`, `warm_up_step=100`, `use_aux_schedule=True`, `aux_fade_end_epoch=15` (compressed warm-start-then-finetune, paired with the CG/AP cosine fade).<br>• Data: `taxonomy='une_v1_14'`, `split_column='split_v2'`, `collation_id='taxon_pinned_w_preds'`, `seq_len=100`, `pose_style='JnB_bone'`, `use_3d_pose=False`, `train_partial=1.0`.<br>• Optim: `batch_size=128`, `lr=5e-4`.<br>• `ablation_id` is a nullable training-time tag, separate from the `collation_id` path tag. `drop_unknown`/`expected_active_classes` were removed in the taxon_pinned_w_preds refactor: `excluded_base_stroke_types` carries the unknown-drop rule and labels.npy lands in active class space.<br>• BST-paper originals (`n_epochs=1600`, `warm_up_step=400`, `early_stop_n_epochs=300`, `taxonomy='merged_25'`, `aux_fade_end_epoch=60`) live verbatim in `historical_bst.md`; current LR + schedule rationale in `bst_x_overview.md`. |
+| `Hyp` (namedtuple) | `bst_x_train.py` | Active training config, in the `Hyp`/`hyp` block near the top of `bst_x_train.py`.<br>• Schedule: `n_epochs=80`, `early_stop_n_epochs=40`, `warm_up_step=100`, `use_aux_schedule=True`, `aux_fade_end_epoch=15` (compressed warm-start-then-finetune, paired with the CG/AP cosine fade).<br>• Data: `taxonomy='une_v1_14'`, `split_column='split_v2'`, `collation_id='taxon_pinned_w_preds'`, `seq_len=100`, `pose_style='JnB_bone'`, `train_partial=1.0`.<br>• Optim: `batch_size=128`, `lr=5e-4`.<br>• `ablation_id` is a nullable training-time tag, separate from the `collation_id` path tag. `drop_unknown`/`expected_active_classes` were removed in the taxon_pinned_w_preds refactor: `excluded_base_stroke_types` carries the unknown-drop rule and labels.npy lands in active class space.<br>• BST-paper originals (`n_epochs=1600`, `warm_up_step=400`, `early_stop_n_epochs=300`, `taxonomy='merged_25'`, `aux_fade_end_epoch=60`) live verbatim in `historical_bst.md`; current LR + schedule rationale in `bst_x_overview.md`. |
 | `train_one_epoch()` | `bst_x_train.py` | Standard PyTorch training loop: forward pass, cross-entropy loss (with label smoothing 0.1), backward, optimizer step, scheduler step. Applies the live augmentations (`CoupledFlip` then `ConstrainedJitter`) per batch and accumulates per-class TP/FP/FN counts via `accumulate_class_counts` for downstream `AdaptiveFocalLoss.update_alpha`. |
 | `validate()` | `bst_x_train.py` | Evaluates on val set. Accumulates per-class TP/FP/FN across batches, computes macro F1 and min-class F1. |
 | `Task.test()` | `bst_x_train.py` | Derives top-1 macro/min F1 + accuracy from a precomputed test-split dump (no second forward pass); returns a metrics dict. |
@@ -426,7 +426,7 @@ Stage 5 spans two files:
 ```
 Task(taxonomy, hyp)
   .prepare_dataloaders(root_dir)
-  .get_network_architecture(model_name='BST_CG_AP', in_channels=2)
+  .get_network_architecture(model_name='BST_CG_AP')
   .seek_network_weights(model_info, serial_no)   # trains if no checkpoint found
   dumps = .dump_predictions(run_dir, serial_no, k=5)   # one forward pass per split
   .test(dump=dumps['test'], show_details, show_confusion_matrix)
@@ -501,10 +501,10 @@ pipeline/build_dataset.py             # Orchestrates Steps 1-6 (--taxonomy flag)
     v  (produces data/shuttleset/clips/ and data/shuttleset/shuttle_npy/)
     |
 preparing_data/prepare_train_on_shuttleset.py  (--taxonomy, --split-column, --collation-id, --clip-npy-dir)
-  -> MMPose (2D/3D pose estimation)   # Writes {clip_stem}_*.npy flat
+  -> MMPose (2D pose estimation)   # Writes {clip_stem}_*.npy flat
   -> collate_npy(clips_csv, split_column, taxonomy, ...)  # CSV-driven; stacks per collation
     |
-    v  (produces preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[3d_][seq{N}_]{split}_{collation_id}/)
+    v  (produces preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[seq{N}_]{split}_{collation_id}/)
     |
 validation_scripts/validate_zeroed_frames.py  # Data quality check (optional, pre-training)
   -> validation_scripts/hit_frame_lookup.py   # Hit-frame index derivation from set CSVs

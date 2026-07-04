@@ -332,17 +332,16 @@ def test_bst_forward_backward_sized_by_taxonomy(tax):
     seq_len = 100
     batch_size = 4
     n_joints = 17
-    in_channels = 2
 
     net, n_bones = build_bst_x_network(
         model_name='BST_CG_AP',
-        n_joints=n_joints, pose_style=pose_style, in_channels=in_channels,
+        n_joints=n_joints, pose_style=pose_style,
         n_class=tax.n_classes, seq_len=seq_len, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
 
     j_plus_b = n_joints + n_bones
-    human_pose = torch.randn(batch_size, seq_len, 2, j_plus_b, in_channels)
+    human_pose = torch.randn(batch_size, seq_len, 2, j_plus_b, 2)
     human_pose_flat = human_pose.view(*human_pose.shape[:-2], -1)
     pos = torch.randn(batch_size, seq_len, 2, 2)
     shuttle = torch.randn(batch_size, seq_len, 2)
@@ -406,35 +405,30 @@ def test_class_weights_uniform_when_empty():
 
 @pytest.mark.parametrize('kwargs,expected', [
     (
-        dict(use_3d_pose=False, seq_len=100,
+        dict(seq_len=100,
              split_column='split_v2', collation_id='taxon_pinned_w_preds'),
         'npy_v2_taxon_pinned_w_preds',
     ),
     (
-        dict(use_3d_pose=False, seq_len=100,
+        dict(seq_len=100,
              split_column='split_bst_baseline', collation_id='taxon_pinned_w_preds'),
         'npy_bst_baseline_taxon_pinned_w_preds',
     ),
     (
-        dict(use_3d_pose=True, seq_len=100,
-             split_column='split_v2', collation_id='wipe_drop'),
-        'npy_3d_v2_wipe_drop',
-    ),
-    (
-        dict(use_3d_pose=False, seq_len=30,
+        dict(seq_len=30,
              split_column='split_v2', collation_id='wipe_drop'),
         'npy_seq30_v2_wipe_drop',
     ),
 ])
 def test_derive_npy_collated_dir_basename_folds_split(kwargs, expected):
-    """Split is always in the basename; 3d_ and seq{N}_ tags prepend as before."""
+    """Split is always in the basename; the seq{N}_ tag prepends as before."""
     assert derive_npy_collated_dir_basename(**kwargs) == expected
 
 
 def test_bst_24_split_variants_get_distinct_basenames():
     """The collision this fold fixes: the same taxonomy + collation_id on the
     two splits must not resolve to the same dir."""
-    common = dict(use_3d_pose=False, seq_len=100, collation_id='taxon_pinned_w_preds')
+    common = dict(seq_len=100, collation_id='taxon_pinned_w_preds')
     v2 = derive_npy_collated_dir_basename(split_column='split_v2', **common)
     baseline = derive_npy_collated_dir_basename(split_column='split_bst_baseline', **common)
     assert v2 != baseline
