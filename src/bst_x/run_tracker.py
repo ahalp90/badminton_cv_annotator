@@ -86,7 +86,7 @@ def track_run(
     if _manifest_path(run_dir).exists():
         return run_dir, run_id
 
-    proj_root = Path(project_root) if project_root is not None else Path.cwd()
+    proj_root = Path(project_root) if project_root else Path.cwd()
     manifest = {
         'run_id': run_id,
         'started_at': datetime.now().isoformat(timespec='seconds'),
@@ -96,7 +96,7 @@ def track_run(
         'config': _config_to_dict(config),
         'serials': [],
     }
-    if log_path is not None:
+    if log_path:
         manifest['log_path'] = _relpath(log_path)
     if extra:
         manifest['extra'] = extra
@@ -135,7 +135,7 @@ def track_serial(
     entry = {
         'serial_no': serial_no,
         'weights_path': _relpath(weights_path),
-        'tb_dir': _relpath(tb_dir) if tb_dir is not None else None,
+        'tb_dir': _relpath(tb_dir) if tb_dir else None,
         'metrics': dict(metrics) if metrics else {},
         'recorded_at': datetime.now().isoformat(timespec='seconds'),
     }
@@ -270,7 +270,7 @@ def _set_run_created_at(repo: Any, run_hash: str, when: datetime) -> None:
         from aim.storage.structured.sql_engine.models import Run as RunModel
         session = repo.structured_db.get_session()
         run_model = session.query(RunModel).filter_by(hash=run_hash).first()
-        if run_model is not None:
+        if run_model:
             run_model.created_at = when
             session.commit()
     except Exception as e:
@@ -320,7 +320,7 @@ def mirror_to_aim(
             log_system_params=False,
             capture_terminal_logs=False,
         )
-        aim_run.name = name if name is not None else f'{run_id}_s{serial_no}'
+        aim_run.name = name if name else f'{run_id}_s{serial_no}'
         aim_run['hparams'] = manifest.get('config', {})
         aim_run['run_id'] = run_id
         aim_run['serial_no'] = serial_no
@@ -328,7 +328,7 @@ def mirror_to_aim(
             aim_run['git_sha'] = manifest['git_sha']
         if manifest.get('notes'):
             aim_run['run_notes'] = manifest['notes']
-        if description is not None:
+        if description:
             aim_run.description = description
         for tag in (tags or []):
             aim_run.add_tag(tag)
@@ -347,7 +347,7 @@ def mirror_to_aim(
             RepoIndexManager.get_index_manager(run_repo).index(run_hash)
         # Date the run to when it actually trained, not when it was mirrored.
         when = _parse_run_datetime(manifest)
-        if when is not None:
+        if when:
             _set_run_created_at(run_repo, run_hash, when)
         return True
     except Exception as e:

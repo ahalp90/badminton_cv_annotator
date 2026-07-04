@@ -769,6 +769,8 @@ def _render_cell_section(cell_name: str, cs: dict, state: dict, tunables: dict) 
     parts.append(f'## Cell: {cell_name}\n\n')
     parts.append(f'- Run id: `{cs.get("run_id") or "—"}`\n')
     parts.append(f'- Augmentation: `{cs.get("augmentation") or "—"}`\n')
+    # Display fields above fall back on any falsy value (absent -> em dash); the
+    # ref-macro guard keeps is-not-None because a 0.0 threshold is a real value.
     if cs.get('kill_ref_macro') is not None:
         parts.append(
             f'- Cell-start ref: macro {cs["verdict_ref_macro"]:.4f}, '
@@ -1043,7 +1045,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.new_session is not None:
+    if args.new_session:
         cmd_new_session(args.new_session)
         return
 

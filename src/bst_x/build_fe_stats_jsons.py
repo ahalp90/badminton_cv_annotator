@@ -190,9 +190,9 @@ def main() -> None:
     # the collator do; DataPaths then picks them up (or the in-repo defaults).
     load_repo_dotenv()
     path_kwargs = {}
-    if args.clips_csv is not None:
+    if args.clips_csv:
         path_kwargs["clips_csv"] = args.clips_csv
-    if args.clips_dir is not None:
+    if args.clips_dir:
         path_kwargs["clips_dir"] = args.clips_dir
     paths = DataPaths(**path_kwargs)
 

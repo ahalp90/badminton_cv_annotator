@@ -652,7 +652,7 @@ def train_network(
     # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
     # TB folders pair with the run they came from. Default SummaryWriter() writes
     # to ./runs/<host_time>/, which is what older runs used.
-    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir else SummaryWriter()
 
     coupled_flip, constrained_jitter = _build_augmentations(n_bones, hyp)
     loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device, hyp)
@@ -1201,7 +1201,7 @@ if __name__ == '__main__':
             raise ValueError(
                 f'--serial-no must be >= 1, got {args.serial_no!r}.'
             )
-        if args.serial_no > 1 and (args.log_path is None or args.run_id is None):
+        if args.serial_no > 1 and (not args.log_path or not args.run_id):
             raise ValueError(
                 '--serial-no > 1 requires both --log-path and --run-id so '
                 'subsequent serials append to the same log and share the run dir.'
@@ -1211,12 +1211,13 @@ if __name__ == '__main__':
     # cell-config dict (base + overrides resolved); manual invocations leave
     # them all None and use the module-level Hyp defaults.
     aug_overrides = [args.p_flip, args.p_jitter, args.cap_y, args.cap_x, args.eps]
-    if any(x is not None for x in aug_overrides):
-        if not all(x is not None for x in aug_overrides):
-            raise ValueError(
-                'Augmentation CLI overrides must be all-or-nothing. Pass either '
-                'all five (--p-flip --p-jitter --cap-y --cap-x --eps) or none.'
-            )
+    provided = [x is not None for x in aug_overrides]
+    if any(provided) and not all(provided):
+        raise ValueError(
+            'Augmentation CLI overrides must be all-or-nothing. Pass either '
+            'all five (--p-flip --p-jitter --cap-y --cap-x --eps) or none.'
+        )
+    if all(provided):
         hyp = hyp._replace(augmentation={
             'p_flip':   args.p_flip,
             'p_jitter': args.p_jitter,
@@ -1228,13 +1229,13 @@ if __name__ == '__main__':
     # Cell selectors: override the Hyp defaults when the runner (or a manual
     # invocation) passes them. Each is independent and nullable.
     cell_overrides = {}
-    if args.taxonomy is not None:
+    if args.taxonomy:
         cell_overrides['taxonomy'] = args.taxonomy
-    if args.split_column is not None:
+    if args.split_column:
         cell_overrides['split_column'] = args.split_column
-    if args.collation_id is not None:
+    if args.collation_id:
         cell_overrides['collation_id'] = args.collation_id
-    if args.ablation_id is not None:
+    if args.ablation_id:
         cell_overrides['ablation_id'] = args.ablation_id
     if args.weight_decay is not None:
         cell_overrides['weight_decay'] = args.weight_decay
@@ -1330,7 +1331,7 @@ if __name__ == '__main__':
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so
     # later per-serial invocations don't clobber the earlier blocks.
-    if args.serial_no is not None:
+    if args.serial_no:
         serial_range = range(args.serial_no, args.serial_no + 1)
         log_open_mode = 'a' if args.serial_no > 1 else 'w'
     else:

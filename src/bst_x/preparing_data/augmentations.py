@@ -114,10 +114,6 @@ class CoupledFlip:
                     slice; ``human_pose[..., -n_bones:, :]`` is the
                     bone slice. The caller asserts ``pose_style ==
                     'JnB_bone'`` so this is always positive.
-    :param bone_pairs: list of ``(start_joint, end_joint)`` tuples,
-                       one per bone, matching the table used at
-                       collation time. Defaults to
-                       ``get_bone_pairs('coco')``.
     """
 
     def __init__(
@@ -125,13 +121,12 @@ class CoupledFlip:
         p: float = 0.5,
         n_joints: int = COCO_N_JOINTS,
         n_bones: int = 19,
-        bone_pairs: list[tuple[int, int]] | None = None,
     ) -> None:
         self.p = p
         self.n_joints = n_joints
         self.n_bones = n_bones
         self.swap_idx = _coco_swap_index(n_joints)
-        self.bone_pairs = bone_pairs if bone_pairs is not None else get_bone_pairs('coco')
+        self.bone_pairs = get_bone_pairs('coco')
         if len(self.bone_pairs) != n_bones:
             raise ValueError(
                 f'bone_pairs length ({len(self.bone_pairs)}) does not match '

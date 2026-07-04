@@ -177,7 +177,7 @@ def detect_players_2d(
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 2).
         ordered = _order_two_on_court(keypoints, vid, all_court_info, res_df)
-        if ordered is None:
+        if not ordered:
             failed_ls.append(True)
             players_positions.append(np.zeros((2, 2), dtype=float))
             players_joints.append(np.zeros((2, J, 2), dtype=float))
@@ -429,7 +429,7 @@ def _resolve_clips_and_labels(
             continue  # filtered out via excluded_base_stroke_types
         chosen_root = (
             unknown_root_dir
-            if (raw_type == "unknown" and unknown_root_dir is not None)
+            if (raw_type == "unknown" and unknown_root_dir)
             else root_dir
         )
         branch = str(chosen_root / stem)
@@ -446,7 +446,7 @@ def _resolve_clips_and_labels(
     if missing:
         unknown_hint = (
             f" (or {unknown_root_dir} for unknown rows)"
-            if unknown_root_dir is not None else ""
+            if unknown_root_dir else ""
         )
         print(
             f"  [{set_name}] WARNING: {missing} clips in master CSV had no "
@@ -671,13 +671,13 @@ def collate_npy(
     if set_name not in ("train", "val", "test"):
         raise ValueError(f"Invalid set_name {set_name!r}; expected 'train', 'val', or 'test'.")
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
-    if unknown_root_dir is not None and 'unknown' in excluded:
+    if unknown_root_dir and 'unknown' in excluded:
         raise ValueError(
             f"unknown_root_dir set but taxonomy {taxonomy.name!r} excludes "
             f"unknown rows (excluded_base_stroke_types contains 'unknown'). "
             f"Either drop unknown_root_dir or pick a taxonomy that retains unknown."
         )
-    if taxonomy.has_unknown and unknown_root_dir is None:
+    if taxonomy.has_unknown and not unknown_root_dir:
         raise ValueError(
             f"taxonomy {taxonomy.name!r} retains unknown in its class list, "
             f"but unknown_root_dir is None. The 1,278 ShuttleSet unknown-class clips "
@@ -854,13 +854,13 @@ def main():
     # ---- Resolve taxonomy and derive intermediate paths ----
     taxonomy = taxonomy_lookup(args.taxonomy)
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
-    if args.unknown_clip_npy_dir is not None and 'unknown' in excluded:
+    if args.unknown_clip_npy_dir and 'unknown' in excluded:
         parser.error(
             f"--unknown-clip-npy-dir is set but taxonomy {taxonomy.name!r} "
             f"excludes unknown rows (excluded_base_stroke_types={sorted(excluded)}). "
             f"Either drop the flag or pick a taxonomy that retains unknown."
         )
-    if taxonomy.has_unknown and args.unknown_clip_npy_dir is None:
+    if taxonomy.has_unknown and not args.unknown_clip_npy_dir:
         parser.error(
             f"--taxonomy {taxonomy.name!r} retains unknown in its class list, "
             f"but --unknown-clip-npy-dir is not set. The 1,278 ShuttleSet "
@@ -875,7 +875,7 @@ def main():
     # otherwise falls back to the in-repo preparing_data/ convention for
     # local dev where /scratch isn't available.
     collated_data_root = env_path_or_none('BST_X_COLLATED_DATA_ROOT')
-    if collated_data_root is not None:
+    if collated_data_root:
         preparing_root = collated_data_root / f"ShuttleSet_data_{taxonomy.name}"
     else:
         preparing_root = (

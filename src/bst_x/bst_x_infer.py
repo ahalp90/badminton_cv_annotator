@@ -154,7 +154,7 @@ def _resolve_collated_dir(
     provenance = extra.get('data_provenance') or {}
     recorded_dir = provenance.get('npy_collated_dir')
     collation_id = collation_id_from_manifest(manifest)
-    if recorded_dir is None and collation_id is None:
+    if not recorded_dir and not collation_id:
         # Neither a recorded dir nor a collation tag: deriving would format the
         # None into an ``npy_..._None`` path that dies later naming that path,
         # not the real cause. Fail here on the actual problem.
@@ -207,7 +207,7 @@ def dump_run_predictions(
     )
     # Raise inside the library so an importer (api/notebook) gets an exception,
     # not a process exit; __main__ maps these back to sys.exit for the CLI.
-    if target is None:
+    if not target:
         raise ValueError(f'serial {serial} not found in {run_dir}/manifest.yaml')
     weights_path = run_dir / 'weights' / Path(target['weights_path']).name
     if not weights_path.is_file():
@@ -239,7 +239,7 @@ def dump_run_predictions(
     # fe_output_dir/<run_id> when overridden. Never the run's training-time
     # predictions/ dir, so a re-dump can't clobber it.
     now = datetime.now()
-    base = (fe_output_dir / run_dir.name) if fe_output_dir is not None else run_dir
+    base = (fe_output_dir / run_dir.name) if fe_output_dir else run_dir
     out_dir = base / 'inference_runs' / f'{now:%Y%m%d_%H%M%S}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -310,14 +310,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # --fe-output-dir is an optional override that only makes sense in --fe mode.
-    if args.fe_output_dir is not None and not args.fe:
+    if args.fe_output_dir and not args.fe:
         parser.error('--fe-output-dir requires --fe (no implicit dump mode)')
     if not args.fe:
         parser.error(
             'bst_x_infer CLI currently only implements --fe (batch dump) mode. '
             'For live single-clip inference, import infer() / Task instead.'
         )
-    if args.run_dir is None:
+    if not args.run_dir:
         parser.error('--fe requires --run-dir <experiments/bst_x/shuttleset/run_...>')
 
     # dump_run_predictions raises inside the library; the CLI turns those into

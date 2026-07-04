@@ -101,7 +101,7 @@ def verify_class_merge(
     :param taxonomy: Taxonomy whose merge_map defines expected merges.
     :return: True if all source folders are empty or absent.
     """
-    if taxonomy.merge_map is None:
+    if not taxonomy.merge_map:
         print('Taxonomy has no merge_map — nothing to verify.')
         return True
     violations = []
@@ -174,7 +174,7 @@ def warn_orphan_files(
     :param clips_dir: Root clips directory.
     :param clip_paths: Pre-scanned list of .mp4 paths.
     """
-    orphans = [mp4 for mp4 in clip_paths if _parse_clip_filename(mp4.name) is None]
+    orphans = [mp4 for mp4 in clip_paths if not _parse_clip_filename(mp4.name)]
     if orphans:
         print(f'WARNING: {len(orphans)} .mp4 files don\'t match expected '
               f'naming pattern ({{vid}}_{{set}}_{{rally}}_{{ball_round}}.mp4):')

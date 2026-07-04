@@ -230,7 +230,7 @@ def main() -> int:
     missing: list[str] = []
     for stem in stems:
         path = stem_to_path.get(stem)
-        if path is None:
+        if not path:
             missing.append(stem)
         else:
             resolved.append((stem, path))
