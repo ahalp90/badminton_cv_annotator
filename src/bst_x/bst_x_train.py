@@ -15,11 +15,14 @@ from torch import Tensor, nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter  # TensorBoard logging
 from torcheval.metrics.functional import multiclass_f1_score
+from beartype import beartype
+from jaxtyping import Bool, Float32, Int64, jaxtyped
 
 from transformers import get_cosine_schedule_with_warmup  # from HuggingFace, not a custom module
 
 from pathlib import Path
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import NamedTuple
 from contextlib import redirect_stdout
 import argparse
@@ -163,27 +166,29 @@ def aux_schedule_factor(epoch: int, fade_end_epoch: int) -> float:
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
-class EpochStats(NamedTuple):
-    """One training epoch's aggregates. ``tp``/``fp``/``fn`` are length-n_classes
-    int64 count tensors on device; the jitter counters are plain ints over the
-    epoch's clips."""
+@jaxtyped(typechecker=beartype)
+@dataclass(frozen=True)
+class EpochStats:
+    """One training epoch's aggregates. ``tp``/``fp``/``fn`` stay on the train
+    device; the jitter counters are plain ints over the epoch's clips."""
     train_loss: float
-    tp: Tensor
-    fp: Tensor
-    fn: Tensor
+    tp: Int64[Tensor, 'classes']
+    fp: Int64[Tensor, 'classes']
+    fn: Int64[Tensor, 'classes']
     jitter_n_effective: int
     jitter_n_oob: int
     jitter_n_total: int
 
 
-class ValStats(NamedTuple):
-    """One validation pass. ``f1_macro``/``f1_min`` are 0-dim tensors (caller
-    ``.item()``s them); ``f1_per_class`` and ``present`` are length-n_classes."""
+@jaxtyped(typechecker=beartype)
+@dataclass(frozen=True)
+class ValStats:
+    """One validation pass. The caller ``.item()``s ``f1_macro`` / ``f1_min``."""
     val_loss: float
-    f1_macro: Tensor
-    f1_min: Tensor
-    f1_per_class: Tensor
-    present: Tensor
+    f1_macro: Float32[Tensor, '']
+    f1_min: Float32[Tensor, '']
+    f1_per_class: Float32[Tensor, 'classes']
+    present: Bool[Tensor, 'classes']
     accuracy: float
     top2_accuracy: float
 
@@ -247,7 +252,7 @@ def train_one_epoch(
       previously-real shuttle frame off-screen, triggering the
       ``(0, 0)`` sentinel; for ``Aug/shuttle_oob_rate``.
 
-    :return: an ``EpochStats`` (field types/shapes on the NamedTuple).
+    :return: an ``EpochStats`` (field types/shapes on the dataclass).
     """
     model.train()  # enable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0

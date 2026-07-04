@@ -70,7 +70,7 @@ def main() -> int:
     ).to(device)
     loss_fn = nn.CrossEntropyLoss()
     try:
-        val_loss, f1_avg, f1_min, f1_per_class, present, acc, top2 = validate(
+        val_stats = validate(
             model=model,
             loss_fn=loss_fn,
             loader=fake_loader(device),
@@ -80,12 +80,13 @@ def main() -> int:
     except RuntimeError as e:
         print(f"FAIL: validate() crashed on cuda: {e}")
         return 1
-    if not (f1_per_class.is_floating_point() and present.dtype == torch.bool):
-        print(f"FAIL: unexpected dtypes; f1={f1_per_class.dtype}, present={present.dtype}")
+    if not (val_stats.f1_per_class.is_floating_point() and val_stats.present.dtype == torch.bool):
+        print(f"FAIL: unexpected dtypes; f1={val_stats.f1_per_class.dtype}, "
+              f"present={val_stats.present.dtype}")
         return 1
     print(f"OK: validate() ran on cuda with no device mismatch "
-          f"(val_loss={val_loss:.4f}, acc={acc:.4f}, top2={top2:.4f}, "
-          f"macro_f1={float(f1_avg):.4f})")
+          f"(val_loss={val_stats.val_loss:.4f}, acc={val_stats.accuracy:.4f}, "
+          f"top2={val_stats.top2_accuracy:.4f}, macro_f1={float(val_stats.f1_macro):.4f})")
     return 0
 
 

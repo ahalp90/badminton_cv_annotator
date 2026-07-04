@@ -137,23 +137,22 @@ class CoupledFlip:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'n t m jb 2'],
-        pos: Float32[Tensor, 'n t m 2'],
-        shuttle: Float32[Tensor, 'n t 2'],
+        human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
+        pos: Float32[Tensor, 'clips time players 2'],
+        shuttle: Float32[Tensor, 'clips time 2'],
     ) -> tuple[
-        Float32[Tensor, 'n t m jb 2'],
-        Float32[Tensor, 'n t m 2'],
-        Float32[Tensor, 'n t 2'],
+        Float32[Tensor, 'clips time players joints_bones 2'],
+        Float32[Tensor, 'clips time players 2'],
+        Float32[Tensor, 'clips time 2'],
     ]:
         """Flip selected clips across all three streams together. (0, 0)
         pos/shuttle sentinel frames pass through unflipped, matching the
         jitter's sentinel handling.
 
-        :param human_pose: ``(n, t, m, J+B, 2)``. The first ``J`` slots
-                           are joints; the last ``B`` slots are bones.
-        :param pos: ``(n, t, m, 2)`` player position in court coordinates.
-        :param shuttle: ``(n, t, 2)`` shuttle position in camera
-                        coordinates.
+        :param human_pose: the first ``J`` slots are joints; the last ``B``
+                           slots are bones.
+        :param pos: player position in court coordinates.
+        :param shuttle: shuttle position in camera coordinates.
         :return: the three input tensors with flipped clips updated.
                  The originals are not modified.
         """
@@ -283,9 +282,9 @@ class ConstrainedJitter:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'n t m jb 2'],
-        pos: Float32[Tensor, 'n t m 2'],
-        shuttle: Float32[Tensor, 'n t 2'],
+        human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
+        pos: Float32[Tensor, 'clips time players 2'],
+        shuttle: Float32[Tensor, 'clips time 2'],
     ) -> JitterResult:
         """Apply the per-clip shift to pos and shuttle.
 

@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import Tensor, nn
+from beartype import beartype
+from jaxtyping import Float32, jaxtyped
 
 from pipeline.config import Taxonomy
 from preparing_data.shuttleset_dataset import (
@@ -81,12 +83,14 @@ def build_bst_x_network(
     return net, n_bones
 
 
-def flatten_pose_features(human_pose: Tensor) -> Tensor:
+@jaxtyped(typechecker=beartype)
+def flatten_pose_features(
+    human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
+) -> Float32[Tensor, 'clips time players 2*joints_bones']:
     """Flatten the trailing (joints/bones, channels) axes into one feature axis.
 
-    ``(n, t, m, J+B, 2) -> (n, t, m, (J+B)*2)``. Every BST forward pass needs
-    this massage; keeping it in one place stops the four call sites (train,
-    validate, infer, dump) from drifting.
+    Every BST forward pass needs this massage; keeping it in one place stops
+    the four call sites (train, validate, infer, dump) from drifting.
     """
     return human_pose.view(*human_pose.shape[:-2], -1)
 

@@ -320,9 +320,9 @@ VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B"
 @jaxtyped(typechecker=beartype)
 def pad_and_derive_pose_styles(
     seq_len: int,
-    joints: Float[np.ndarray, 't m j d'],
-    pos: Float[np.ndarray, 't m xy'],
-    shuttle: Float[np.ndarray, 't xy'],
+    joints: Float[np.ndarray, 't m j 2'],
+    pos: Float[np.ndarray, 't m 2'],
+    shuttle: Float[np.ndarray, 't 2'],
     bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
