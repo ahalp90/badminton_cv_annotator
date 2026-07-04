@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Retry extraction for specific YouTube IDs with a different timestamp strategy.
 
-Usage: python scripts/extract_frames_retry.py <id1> <id2> ...
+Usage: python scripts/archive/extract_frames_retry.py <id1> <id2> ...
 
 Tries multiple (set, position) candidates per match and stops at the first
 that produces a non-zero JPG. Outputs to the same data/frames/ directory.

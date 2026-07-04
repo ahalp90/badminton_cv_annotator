@@ -40,7 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CLIPS_CSV = REPO_ROOT / "notebooks" / "clips_master.csv"
 DEFAULT_BUSTED = (
     REPO_ROOT
-    / "scratch"
+    / "docs"
     / "architecture_notes"
     / "busted_hit_zone_clips_phase1.txt"
 )

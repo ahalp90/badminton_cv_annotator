@@ -351,7 +351,7 @@ For ad-hoc queries or when a Dataset wants a higher-level "give me clip + shuttl
 | Module | Role |
 |--------|------|
 | `tempose.py` | Building blocks reused by BST-X: `TCN` (dilated 1D temporal convolutions), `MLP`, `MLP_Head` (LayerNorm + MLP), `FeedForward` (MLP + Dropout), `MultiHeadAttention`, `TransformerLayer`, `TransformerEncoder`. The four standalone TemPose variants (`TemPose_V`/`PF`/`SF`/`TF`) were excised pre-phase-2 and live verbatim in `docs/architecture_notes/historical_bst.md` section 1. |
-| `bst.py` | The BST-X model. Imports `TCN`, `FeedForward`, `MLP`, `MLP_Head`, `TransformerEncoder` from `tempose.py`. Adds `MultiHeadCrossAttention` and `CrossTransformerLayer` for player-shuttle interaction. Also defines pre-configured variant partials (`BST_0`, `BST_PPF`, `BST_CG`, `BST_AP`, `BST_CG_AP`) — these are the single source of truth for variant flag combinations, imported by the train/infer scripts. |
+| `bst.py` | The BST-X model. Imports `TCN`, `FeedForward`, `MLP`, `MLP_Head`, `TransformerEncoder` from `tempose.py`. Adds `MultiHeadCrossAttention` and `CrossTransformerLayer` for player-shuttle interaction. Exposes `BST_CG_AP` as a plain alias of the one `BST` graph (PPF, CG and AP always on), imported unchanged by the train/infer scripts. |
 
 #### BST-X architecture (forward pass)
 
@@ -375,13 +375,13 @@ The training loop calls `model.set_schedule_factors(cg_factor, ap_factor)` once 
 
 #### BST variants
 
+One graph now: PPF, CG and AP always run. `BST_CG_AP` stays as a plain alias of `BST` so the registry and train/infer scripts import an unchanged name.
+
 ```python
-BST_0     = BST(use_ppf=False, use_cg=False, use_ap=False)  # Bare transformer
-BST_PPF   = BST(use_ppf=True,  use_cg=False, use_ap=False)  # + Pose Position Fusion
-BST_CG    = BST(use_ppf=True,  use_cg=True,  use_ap=False)  # + Clean Gate
-BST_AP    = BST(use_ppf=True,  use_cg=False, use_ap=True)   # + Aim Player
-BST_CG_AP = BST(use_ppf=True,  use_cg=True,  use_ap=True)   # Full model
+BST_CG_AP = BST  # PPF/CG/AP always on; the one graph the project trains
 ```
+
+The old `use_ppf` / `use_cg` / `use_ap` flags and the `BST_0` / `BST_PPF` / `BST_CG` / `BST_AP` partials came out when CG and AP went always-on; their wiring lives in `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md`.
 
 #### Key hyperparameters (defaults from `bst_x_train.py`)
 
@@ -416,7 +416,7 @@ Stage 5 spans two files:
 | `Task.dump_predictions()` | `bst_x_train.py` | Runs each split through one shuffle=False forward pass, writes the per-split prediction npz (logits + y_true + top-k + clip_stems), and returns the per-split dumps so `Task.test()` / `Task.test_topk_acc()` can reuse the test dump. |
 | `train_network()` | `bst_x_train.py` | Full training loop with AdamW optimizer, cosine LR schedule with warmup, early stopping on macro F1, and best-checkpoint saving. Applies the CG/AP warm-start schedule at the top of each epoch via `model.set_schedule_factors(cg_factor, ap_factor)`. Logs per-epoch scalars (`Loss/Train`, `Loss/Val`, `F1/Val_macro`, `F1/Val_min`, `Schedule/aux_factor`) plus an end-of-run **HParams** entry: best + 2nd-best macro F1 and min F1 (with their epochs), best val loss (with epoch), and `stopped_epoch`. `stopped_epoch - best/macro_f1_epoch == early_stop_n_epochs` confirms a clean early-stop vs a crash. |
 | `Task` (class) | `bst_x_train.py` | Orchestrates the full workflow: `prepare_dataloaders()` -> `get_network_architecture()` -> `seek_network_weights()` (loads existing or trains) -> `test()`. |
-| `MODELS` (dict) | `bst_x_common.py` | Maps variant names (`'BST_0'`, `'BST'`, etc.) to pre-configured partials imported from `model/bst.py`. Single dispatch point shared by `bst_x_train.py` and `bst_x_infer.py`. |
+| `MODELS` (dict) | `bst_x_common.py` | Maps model names (`'BST_CG_AP'`, `'BST_X'`) to the one `BST` graph imported from `model/bst.py`, with a commented `'BST_X_RGB'` placeholder parked for the X3D-S fusion variant. Single dispatch point shared by `bst_x_train.py` and `bst_x_infer.py`. |
 | `build_bst_x_network()` | `bst_x_common.py` | Builds the network from `MODELS[name]` and returns `(net, n_bones)`. `n_bones` is the trailing-bone-channel count derived from `pose_style` x `get_bone_pairs()` and is the single source of truth used downstream. |
 | `Tee` (class) | `bst_x_common.py` | Duplicates writes across multiple streams (terminal + file). Used by `bst_x_train.py`'s `__main__` to auto-tee test output to `test_logs/test_<timestamp>.log` so test metrics survive a dropped terminal. Training output stays terminal-only (TB has it). |
 | `compute_data_provenance()` | `bst_x_common.py` | Hashes `clips_master.csv` + collated-dir naming into the `extra:` block of the manifest so each run is rebindable to its exact data input. |
