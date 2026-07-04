@@ -75,6 +75,7 @@ def recompute_bones_torch(joints: Tensor, pairs: list[tuple[int, int]]) -> Tenso
     from its start joint to its end joint. If either endpoint's x or y
     is zero (meaning the joint detection failed there), the corresponding
     bone component is set to zero too.
+    Keep in lockstep with create_bones so the flip aug's bones match the collated on-disk bones.
 
     :param joints: tensor of shape ``(..., J, 2)``.
     :param pairs: list of ``(start_idx, end_idx)`` tuples, one per bone,

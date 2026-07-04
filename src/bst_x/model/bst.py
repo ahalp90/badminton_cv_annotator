@@ -58,6 +58,7 @@ class MultiHeadCrossAttention(nn.Module):
         # (nn.Identity) if the dimensions already match.
         self.tail = nn.Sequential(
             nn.Linear(d_cat, d_model),
+            # inplace ok here: nothing reads this output in backward, unlike the attention dropout above
             nn.Dropout(drop_p, inplace=True)
         ) if n_head != 1 or d_cat != d_model else nn.Identity()
 
@@ -88,6 +89,10 @@ class MultiHeadCrossAttention(nn.Module):
         # mask: (b, t): True for real frames, False for padding
         mask = mask.view(b, 1, 1, t)
         # Padded positions -> -inf so softmax gives them zero weight
+        # A fully-masked row would make softmax(all -inf) = NaN, but that can't
+        # happen: shuttleset_dataset drops zero-length clips, so every clip
+        # keeps at least one real frame. (The mask here is frame-only; the
+        # caller strips the CLS slot before handing it over.)
         dots = dots.masked_fill(~mask, -torch.inf)
 
         coef = self.attend(dots)  # softmax -> dropout
@@ -337,7 +342,7 @@ class BST(nn.Module):
         # ====================================================================
         # Split the 3 streams back apart and extract their CLS tokens
         # ====================================================================
-        p1, p2, shuttle = map(lambda ts: ts.squeeze(1), x.chunk(3, dim=1))
+        p1, p2, shuttle = x[:, 0], x[:, 1], x[:, 2]
         # p1, p2, shuttle: each (b, 1+t, d_model)
 
         # CLS tokens (position 0): learned summaries of each stream

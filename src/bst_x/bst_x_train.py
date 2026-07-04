@@ -536,6 +536,10 @@ def _build_optimiser(model, n_batches, hyp: Hyp):
     ``(optimizer, scheduler)``.
     """
     decay, no_decay = _split_param_groups(model)
+    assert (len(decay), len(no_decay)) == (27, 55), (
+        f'decay split drifted to {(len(decay), len(no_decay))}, expected (27, 55); '
+        'see the _split_param_groups docstring inventory pin'
+    )
     print(f'[optim] AdamW lr={hyp.lr} weight_decay={hyp.weight_decay} '
           f'(decay={len(decay)} tensors, no_decay={len(no_decay)})')
     optimizer = optim.AdamW(
@@ -969,8 +973,9 @@ class Task:
         logits = torch.from_numpy(dump['logits'])
         gt = torch.from_numpy(dump['y_true'])
         pred = torch.topk(logits, k=k, dim=1).indices
-        gt = gt.unsqueeze(1).repeat(1, k)
-        acc = torch.any(pred == gt, dim=1).sum().item() / len(gt)
+        gt_in_topk = torch.any(pred == gt.unsqueeze(1), dim=1)  # one bool per sample: ground truth among the top-k
+        # sum/len keeps exact float64; .float().mean() would round through float32 and drift the recorded accuracy
+        acc = gt_in_topk.sum().item() / len(gt)
         print(f'Top{k} Accuracy: {acc:.3f}')
         return {f'top{k}_accuracy': float(acc)}
 
