@@ -48,6 +48,7 @@ from bst_x_common import (
     compute_data_provenance,
     dump_topk_predictions,
     flatten_pose_features,
+    to_device,
 )
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
@@ -187,6 +188,36 @@ class ValStats(NamedTuple):
     top2_accuracy: float
 
 
+def accumulate(
+    logits: Tensor, labels: Tensor, n_classes: int,
+    tp: Tensor, fp: Tensor, fn: Tensor,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Add this batch's per-class TP / FP / FN onto the running totals.
+
+    Shared by the train and validate loops. Context-agnostic: the caller owns
+    the grad context (train wraps the call in ``torch.no_grad()``; validate runs
+    under the ``@torch.no_grad()`` decorator). The returned tensors stay on the
+    inputs' device, so the accumulators never round-trip to CPU per batch.
+    """
+    preds = logits.argmax(dim=1)
+    batch_tp, batch_fp, batch_fn = accumulate_class_counts(preds, labels, n_classes)
+    return tp + batch_tp, fp + batch_fp, fn + batch_fn
+
+
+def macro_min_over_present(f1: Tensor, present: Tensor) -> tuple[Tensor, Tensor]:
+    """Macro (mean) and min F1 over the present classes only.
+
+    Shared zero-support guard for ``validate`` and ``Task.test``: any class with
+    no ground truth this pass would otherwise score F1=0 by construction,
+    dragging macro down by 1/n and pinning min at 0. ``present`` is a boolean
+    mask over classes; an all-absent pass returns ``(0.0, 0.0)``.
+    """
+    if present.any():
+        masked = f1[present]
+        return masked.mean(), masked.min()
+    return torch.tensor(0.0), torch.tensor(0.0)
+
+
 def train_one_epoch(
     model: nn.Module,
     loader,
@@ -228,13 +259,9 @@ def train_one_epoch(
     jitter_n_total = 0
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        # .to(device) = move tensors to GPU/CPU; PyTorch needs explicit
-        # placement for every tensor.
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
-        labels: Tensor = labels.to(device)
+        human_pose, shuttle, pos, video_len, labels = to_device(
+            device, human_pose, shuttle, pos, video_len, labels,
+        )
 
         # Augmentations: flip first (clean spatial transform), then jitter.
         # Each rolls independently per-clip; coupled_flip mirrors all three
@@ -264,13 +291,7 @@ def train_one_epoch(
         # Per-class confusion counts on argmax preds. no_grad() because preds
         # are detached labels; nothing here needs an autograd graph.
         with torch.no_grad():
-            preds = logits.argmax(dim=1)
-            batch_tp, batch_fp, batch_fn = accumulate_class_counts(
-                preds, labels, n_classes,
-            )
-            tp += batch_tp
-            fp += batch_fp
-            fn += batch_fn
+            tp, fp, fn = accumulate(logits, labels, n_classes, tp, fp, fn)
 
     train_loss = total_loss / len(loader)
     return EpochStats(
@@ -301,24 +322,18 @@ def validate(
     cum_n = 0     # total samples seen
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
-        labels: Tensor = labels.to(device)
+        human_pose, shuttle, pos, video_len, labels = to_device(
+            device, human_pose, shuttle, pos, video_len, labels,
+        )
 
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
 
-        preds = logits.argmax(dim=1)
-        batch_tp, batch_fp, batch_fn = accumulate_class_counts(
-            preds, labels, n_classes,
+        cum_tp, cum_fp, cum_fn = accumulate(
+            logits, labels, n_classes, cum_tp, cum_fp, cum_fn,
         )
-        cum_tp += batch_tp
-        cum_fp += batch_fp
-        cum_fn += batch_fn
 
         # Top-2 accuracy needs the two highest logits, so it's the one metric
         # not already in the confusion counts; accumulate it here.
@@ -337,17 +352,9 @@ def validate(
     # gave 0 anyway), and at float32 it vanishes against any nonzero count.
     f1_score = per_class_f1_from_counts(cum_tp, cum_fp, cum_fn)
 
-    # Only classes present in the val set count toward macro/min. Generic
-    # zero-support guard: any class with no ground-truth this epoch would
-    # otherwise score F1=0 by construction, dragging macro down by 1/n
-    # and pinning min at 0.
+    # Only classes present in the val set count toward macro/min.
     present = (cum_tp + cum_fn) > 0
-    if present.any():
-        f1_score_avg = f1_score[present].mean()
-        f1_score_min = f1_score[present].min()
-    else:
-        f1_score_avg = torch.tensor(0.0)
-        f1_score_min = torch.tensor(0.0)
+    f1_score_avg, f1_score_min = macro_min_over_present(f1_score, present)
 
     # Accuracy is exactly correct/total: every sample is a TP for its class (if
     # right) or an FN for it (if wrong), so the correct count is sum(cum_tp).
@@ -714,6 +721,10 @@ def train_network(
             if best_val_present[i]
         }
         f1s = list(per_class.values())
+        # Python-float sum/len here on purpose, not macro_min_over_present:
+        # these are float64 values headed for the YAML manifest, and routing
+        # them through a float32 tensor .mean() would drift the recorded
+        # numbers. present-filtered above, same zero-support rule as the helper.
         val_at_best = {
             'epoch': best_macro_epoch_snap,
             'macro_f1': sum(f1s) / len(f1s),
@@ -897,9 +908,8 @@ class Task:
             pred, gt, num_classes=self.taxonomy.n_classes, average=None
         )
 
-        # Mirror validate(): generic zero-support guard. Any class with no
-        # ground truth in the test set would otherwise score F1=0 by
-        # construction, dragging macro down by 1/n and pinning min at 0.
+        # Present = classes with test ground truth. torcheval's bincount here
+        # stays independent of the count helper (see the note above).
         present = torch.bincount(gt, minlength=self.taxonomy.n_classes) > 0
         present_idx = present.nonzero(as_tuple=True)[0].tolist()
         class_ls = list(self.taxonomy.classes)
@@ -926,20 +936,16 @@ class Task:
                 save=False
             )
 
-        if present_idx:
-            macro_f1 = float(f1_score_each[present_idx].mean().item())
-            min_f1 = float(f1_score_each[present_idx].min().item())
-            per_class_f1 = {
-                class_ls[i]: float(f1_score_each[i].item()) for i in present_idx
-            }
-        else:
-            macro_f1 = 0.0
-            min_f1 = 0.0
-            per_class_f1 = {}
+        macro_f1, min_f1 = macro_min_over_present(f1_score_each, present)
+        # per-class stays list-indexed by present_idx: empty present_idx yields
+        # {} (matching the all-absent macro/min of 0.0 from the helper).
+        per_class_f1 = {
+            class_ls[i]: float(f1_score_each[i].item()) for i in present_idx
+        }
 
         return {
-            'macro_f1':     macro_f1,
-            'min_f1':       min_f1,
+            'macro_f1':     float(macro_f1.item()),
+            'min_f1':       float(min_f1.item()),
             'accuracy':     float(acc),
             'num_strokes':  int(len(pred)),
             'per_class_f1': per_class_f1,

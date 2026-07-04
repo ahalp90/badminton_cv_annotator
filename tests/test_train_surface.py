@@ -28,6 +28,7 @@ import numpy as np
 import pytest
 import torch
 from torch.utils.data import DataLoader
+from torcheval.metrics.functional import multiclass_f1_score
 
 import bst_x_train as bt
 from pipeline.config import Taxonomy
@@ -361,3 +362,47 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
         for cls, f1 in val_at_best['per_class_f1'].items():
             assert cls in TAX3.classes
             assert isinstance(f1, float)
+
+
+# ---------------------------------------------------------------------------
+# 4. Task.test present-guarded reduction (list-index vs boolean-mask parity)
+# ---------------------------------------------------------------------------
+
+def test_task_test_macro_min_excludes_absent_class():
+    """Task.test reduces macro/min over present classes only, and the list-index
+    gather (``f1[present_idx]``) and boolean-mask gather (``f1[present]``) must
+    agree on the same per-class F1.
+
+    GREEN-first oracle for the C9 swap of Task.test's reduction to
+    ``macro_min_over_present`` (which gathers by boolean mask): the dump carries
+    an absent class with no ground truth, so a correct present-guard keeps its
+    F1=0 out of macro/min. b7 doesn't exercise Task.test, so this pins it.
+    """
+    # 3-class taxonomy; class 2 ('c') never appears in the ground truth.
+    y_true = np.array([0, 0, 1, 1], dtype=np.int64)
+    y_pred = np.array([0, 1, 1, 1], dtype=np.int64)
+    dump = {'y_pred_top1': y_pred, 'y_true': y_true}
+
+    task = bt.Task.__new__(bt.Task)
+    task.taxonomy = TAX3
+    task.display_name = 'surface3_test'
+    metrics = task.test(dump)
+
+    # Reference: the two gather forms over the same per-class F1 are identical.
+    f1_each = multiclass_f1_score(
+        torch.from_numpy(y_pred), torch.from_numpy(y_true),
+        num_classes=TAX3.n_classes, average=None,
+    )
+    present = torch.bincount(
+        torch.from_numpy(y_true), minlength=TAX3.n_classes,
+    ) > 0
+    present_idx = present.nonzero(as_tuple=True)[0].tolist()
+    assert present_idx == [0, 1]  # class 2 absent from the dump
+    assert f1_each[present_idx].mean().item() == f1_each[present].mean().item()
+    assert f1_each[present_idx].min().item() == f1_each[present].min().item()
+
+    assert metrics['macro_f1'] == pytest.approx(f1_each[present].mean().item())
+    assert metrics['min_f1'] == pytest.approx(f1_each[present].min().item())
+    # Absent class 'c' contributes no per-class entry, so its F1=0 never enters
+    # the macro/min reduction.
+    assert set(metrics['per_class_f1']) == {'a', 'b'}

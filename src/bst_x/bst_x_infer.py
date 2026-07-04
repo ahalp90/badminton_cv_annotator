@@ -28,7 +28,7 @@ from pathlib import Path
 
 import torch
 import yaml
-from torch import Tensor, nn
+from torch import nn
 from torch.utils.data import DataLoader
 
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
@@ -44,6 +44,7 @@ from bst_x_common import (
     build_bst_x_network,
     dump_topk_predictions,
     flatten_pose_features,
+    to_device,
 )
 
 
@@ -57,10 +58,9 @@ def infer(
     pred_ls = []
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
+        human_pose, shuttle, pos, video_len = to_device(
+            device, human_pose, shuttle, pos, video_len,
+        )
 
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)

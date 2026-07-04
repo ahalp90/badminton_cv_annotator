@@ -91,6 +91,16 @@ def flatten_pose_features(human_pose: Tensor) -> Tensor:
     return human_pose.view(*human_pose.shape[:-2], -1)
 
 
+def to_device(device, *tensors: Tensor) -> tuple[Tensor, ...]:
+    """Move each tensor onto ``device``, returning them in the same order.
+
+    The per-batch move every forward pass repeats (train, validate, infer,
+    dump). Variadic so each call site lists exactly the tensors it uses: the two
+    dump paths omit ``labels``, which stays on CPU for its later ``.numpy()``.
+    """
+    return tuple(t.to(device) for t in tensors)
+
+
 @torch.no_grad()
 def dump_topk_predictions(
     model: nn.Module,
@@ -120,10 +130,9 @@ def dump_topk_predictions(
     model.eval()
     logits_ls, y_true_ls, top1_ls, topk_idx_ls = [], [], [], []
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose = human_pose.to(device)
-        shuttle = shuttle.to(device)
-        pos = pos.to(device)
-        video_len = video_len.to(device)
+        human_pose, shuttle, pos, video_len = to_device(
+            device, human_pose, shuttle, pos, video_len,
+        )
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         k_eff = min(k, logits.shape[-1])
