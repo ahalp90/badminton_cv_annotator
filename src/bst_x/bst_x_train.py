@@ -1016,16 +1016,12 @@ class Task:
 # Main: train and test on ShuttleSet
 # ==========================================================================
 
-if __name__ == '__main__':
-    # Load .env so BST_X_COLLATED_DATA_ROOT (and any BST_* paths) resolve the
-    # same way the collator does; shell exports still win. No-op without .env.
-    load_repo_dotenv()
 
-    # CLI is wrapper-friendly: hparam_sweep.py drives per-serial invocations
-    # by setting --serial-no with a fixed --run-id and --log-path so all five
-    # serials share a run dir and a single test log. Manual invocations leave
-    # everything unset to fall back to the module-level Hyp defaults plus a
-    # fresh timestamped run dir / log file.
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser; parse_args stays in main so the parser is testable
+    in isolation. The per-serial sharing contract the flags serve is enforced
+    (and documented) in resolve_hyp.
+    """
     parser = argparse.ArgumentParser(
         description='BST training entry point. CLI flags exist mainly for the '
                     'hparam_sweep wrapper; running with no flags trains a full '
@@ -1071,8 +1067,16 @@ if __name__ == '__main__':
     # that don't want the full 80-epoch default). Not piped through
     # hparam_sweep; for production sweeps, edit Hyp.n_epochs directly.
     parser.add_argument('--n-epochs', type=int, default=None)
-    args = parser.parse_args()
+    return parser
 
+
+def resolve_hyp(args: argparse.Namespace) -> Hyp:
+    """Validate the CLI args and layer any overrides onto the module-level Hyp.
+
+    Returns a fresh Hyp built from the module-global defaults. Raises on a bad
+    serial-no contract or a partial augmentation override, both before any
+    filesystem write.
+    """
     # Per-serial invocation contract: pass all three sharing-flags together so
     # every serial lands in one run dir with one continuous log file. The
     # runner drives serial count per cell (5 default, 10 for headline cells),
@@ -1098,8 +1102,9 @@ if __name__ == '__main__':
             'Augmentation CLI overrides must be all-or-nothing. Pass either '
             'all five (--p-flip --p-jitter --cap-y --cap-x --eps) or none.'
         )
+    resolved = hyp  # module-level production defaults; the global is never rebound
     if all(provided):
-        hyp = hyp._replace(augmentation={
+        resolved = resolved._replace(augmentation={
             'p_flip':   args.p_flip,
             'p_jitter': args.p_jitter,
             'cap_y':    args.cap_y,
@@ -1123,12 +1128,19 @@ if __name__ == '__main__':
     if args.n_epochs is not None:
         cell_overrides['n_epochs'] = args.n_epochs
     if cell_overrides:
-        hyp = hyp._replace(**cell_overrides)
+        resolved = resolved._replace(**cell_overrides)
+    return resolved
 
-    # Resolve the taxonomy; its canonical name drives the on-disk dir +
-    # weight-file naming, matching what the collator wrote.
-    taxonomy = taxonomy_lookup(hyp.taxonomy)
 
+def resolve_run_paths(
+    args: argparse.Namespace, hyp: Hyp, taxonomy: Taxonomy,
+) -> tuple[Path, str, Path, Path, Path, str]:
+    """Resolve the run dir, run id, log path, weight dir, collated data root and
+    the weight-name suffix, and register the run.
+
+    Side effect: creates the test_logs dir and writes the run manifest via
+    track_run, so the manifest exists before any serial appends to it.
+    """
     # Collated dir naming via shared helper (mirrored on the prepare_train
     # writer side); see ``pipeline.config.derive_npy_collated_dir_basename``.
     if hyp.seq_len not in (30, 100):
@@ -1208,6 +1220,78 @@ if __name__ == '__main__':
         / f'ShuttleSet_data_{taxonomy.name}'
         / npy_collated_dir
     )
+    return run_dir, run_id, log_path, weight_dir, collated_root, model_info
+
+
+def run_serial(
+    serial_no: int, taxonomy: Taxonomy, hyp: Hyp, weight_dir: Path,
+    collated_root: Path, run_dir: Path, model_info: str, tee: Tee,
+) -> None:
+    """Run one serial end to end: build the model, load-or-train its weights,
+    dump per-stroke predictions, test through the tee, and register the serial's
+    metrics in the manifest."""
+    print(f'Running serial {serial_no} ...')
+    task = Task(
+        n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
+        weight_dir=weight_dir,
+    )
+    task.prepare_dataloaders(root_dir=collated_root)
+
+    task.get_network_architecture(model_name='BST_X')
+
+    tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
+    _weight_exists, val_at_best = task.seek_network_weights(
+        model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
+    )
+
+    # Per-stroke logits dump (all splits) for the FE / calibration. Runs
+    # every serial; non-best are pruned manually after the runner finishes.
+    # Returns the per-split dumps so test_metrics/topk_metrics can derive
+    # off the same forward pass.
+    dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
+
+    with redirect_stdout(tee):
+        print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
+        test_metrics = task.test(
+            dump=dumps['test'],
+            show_details=True, show_confusion_matrix=False,
+        )
+        topk_metrics = task.test_topk_acc(dump=dumps['test'], k=2)
+
+    # Writes the manifest entry, and if aim is installed (it isn't on
+    # the HPC train venv, so usually a no-op) mirrors this serial into
+    # Aim as a fresh run each call (aim 3.29 can't reopen a stable
+    # hash). Re-running a serial adds another Aim run rather than
+    # overwriting; the clean, idempotent rebuild is aim_backfill.py --wipe.
+    track_serial(
+        run_dir=run_dir,
+        serial_no=serial_no,
+        weights_path=task.weight_path,
+        tb_dir=tb_dir,
+        metrics={**test_metrics, **topk_metrics},
+        extra=({'val_at_best_macro_epoch': val_at_best}
+               if val_at_best else None),
+    )
+
+    print('Serial', serial_no, 'done.')
+
+
+def main() -> None:
+    # Load .env so BST_X_COLLATED_DATA_ROOT (and any BST_* paths) resolve the
+    # same way the collator does; shell exports still win. No-op without .env.
+    load_repo_dotenv()
+
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    hyp = resolve_hyp(args)  # main-local shadow of the module global
+
+    # Resolve the taxonomy; its canonical name drives the on-disk dir +
+    # weight-file naming, matching what the collator wrote.
+    taxonomy = taxonomy_lookup(hyp.taxonomy)
+
+    run_dir, run_id, log_path, weight_dir, collated_root, model_info = (
+        resolve_run_paths(args, hyp, taxonomy)
+    )
 
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so
@@ -1223,50 +1307,14 @@ if __name__ == '__main__':
         tee = Tee(sys.stdout, log_f)
         _print_taxonomy_block(taxonomy, tee)
         for serial_no in serial_range:
-            print(f'Running serial {serial_no} ...')
-            task = Task(
-                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
-                weight_dir=weight_dir,
+            run_serial(
+                serial_no, taxonomy, hyp, weight_dir, collated_root,
+                run_dir, model_info, tee,
             )
-            task.prepare_dataloaders(root_dir=collated_root)
-
-            task.get_network_architecture(model_name='BST_X')
-
-            tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
-            _weight_exists, val_at_best = task.seek_network_weights(
-                model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
-            )
-
-            # Per-stroke logits dump (all splits) for the FE / calibration. Runs
-            # every serial; non-best are pruned manually after the runner finishes.
-            # Returns the per-split dumps so test_metrics/topk_metrics can derive
-            # off the same forward pass.
-            dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
-
-            with redirect_stdout(tee):
-                print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
-                test_metrics = task.test(
-                    dump=dumps['test'],
-                    show_details=True, show_confusion_matrix=False,
-                )
-                topk_metrics = task.test_topk_acc(dump=dumps['test'], k=2)
-
-            # Writes the manifest entry, and if aim is installed (it isn't on
-            # the HPC train venv, so usually a no-op) mirrors this serial into
-            # Aim as a fresh run each call (aim 3.29 can't reopen a stable
-            # hash). Re-running a serial adds another Aim run rather than
-            # overwriting; the clean, idempotent rebuild is aim_backfill.py --wipe.
-            track_serial(
-                run_dir=run_dir,
-                serial_no=serial_no,
-                weights_path=task.weight_path,
-                tb_dir=tb_dir,
-                metrics={**test_metrics, **topk_metrics},
-                extra=({'val_at_best_macro_epoch': val_at_best}
-                       if val_at_best else None),
-            )
-
-            print('Serial', serial_no, 'done.')
 
     print(f'\nTest log saved to: {log_path}')
     print(f'Run manifest:    {run_dir / "manifest.yaml"}')
+
+
+if __name__ == '__main__':
+    main()
