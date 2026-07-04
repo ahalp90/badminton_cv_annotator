@@ -53,12 +53,19 @@ L256_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_2
 L384_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504.zip"
 
 # name -> (det_url, det_input, det_thr, pose_url, pose_input (W, H))
+# The nano rows run at both thresholds: 0.15 is the nano-era shipped crutch
+# (recovers under-scored players, admits crowd the pose stage then pays for);
+# 0.3 is the fast-but-lossy nano (the dropped-player behaviour that forced
+# 0.15 in the first place, see 06/07).
 CONFIGS = {
     "nano_L256@0.15": (NANO_URL, (320, 320), 0.15, L256_URL, (192, 256)),
+    "nano_L256@0.30": (NANO_URL, (320, 320), 0.30, L256_URL, (192, 256)),
     "nano_L384@0.15": (NANO_URL, (320, 320), 0.15, L384_URL, (288, 384)),
+    "nano_L384@0.30": (NANO_URL, (320, 320), 0.30, L384_URL, (288, 384)),
     "m_L256@0.30":    (M_URL,    (640, 640), 0.30, L256_URL, (192, 256)),
     "m_L384@0.30":    (M_URL,    (640, 640), 0.30, L384_URL, (288, 384)),
 }
+ONLY = [s for s in os.environ.get("RTMLIB_BENCH_ONLY", "").split(",") if s]
 
 
 class _Timed:
@@ -149,6 +156,8 @@ def main() -> int:
     print(header)
     print("  " + "-" * (len(header) - 2))
     for name, spec in CONFIGS.items():
+        if ONLY and name not in ONLY:
+            continue
         r = bench_config(name, spec, clips)
         print(f"  {r['name']:<16} {r['det']:>7.1f} {r['pose']:>8.1f} "
               f"{r['total']:>9.1f} {r['fps']:>6.1f} {r['ppl']:>7.2f} "
