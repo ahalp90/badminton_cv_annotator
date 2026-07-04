@@ -112,6 +112,47 @@ Known, accepted semantic gaps vs mmpose (measured, not patched):
 | G8 parity smoke50 + authoritative | vs committed raw | Bourbaki (user) | pending — write `g8_parity_m_*.json` |
 | G9 Phase-A re-decision | verdict | Bourbaki run, adjudicated | pending |
 
+Bourbaki loop (same env/loop as 05; only the `_m` names and one dep are new):
+
+```bash
+# once: pure-python deps the main merge added to prepare_train's import chain
+~/venv-rtmlib-gpu/bin/pip install beartype jaxtyping
+
+source gpu_env.sh   # the 05 env (data paths, cache, LD_LIBRARY_PATH)
+
+# models: downloads the M ONNX from the CDN, SHA-verifies, vendors (~97 MB)
+PYTHONPATH=src/bst_x ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/download_and_verify_models.py
+
+# G7 fresh CUDA floors
+RTMLIB_GATE_G7_JSON=g7_selfvariance_m.json PYTHONUNBUFFERED=1 \
+  PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/gate_cuda_selfvariance.py 2>&1 | tee g7_m.out
+
+# G8 smoke50, then the authoritative stratified run — point RTMLIB_GATE_STEMFILE
+# at the SAME phase_a_stems.txt the nano G-4 used, for a like-for-like rerun
+RTMLIB_GATE_G8_JSON=g8_parity_m_smoke50.json PYTHONUNBUFFERED=1 \
+  PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/gate_gpu_parity.py 2>&1 | tee g8_m_smoke50.out
+RTMLIB_GATE_G8_JSON=g8_parity_m_full.json RTMLIB_GATE_STEMFILE=<phase_a_stems.txt> \
+  PYTHONUNBUFFERED=1 PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda \
+  ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/gate_gpu_parity.py 2>&1 | tee g8_m_full.out
+
+# G9 decision over the _m JSONs
+RTMLIB_GATE_G7_JSON=g7_selfvariance_m.json RTMLIB_GATE_G8_JSON=g8_parity_m_full.json \
+  PYTHONPATH=src/bst_x:src ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/phase_a_decision.py 2>&1 | tee g9_m.out
+
+# timed config benchmark (teammate request), GPU flavour
+PYTHONUNBUFFERED=1 PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda \
+  ~/venv-rtmlib-gpu/bin/python \
+  src/bst_x/validation_scripts/rtmlib_migration/bench_detector_pose_configs.py 2>&1 | tee bench_m_gpu.out
+```
+
+While it runs, note over-detection (>16) warnings and rough s/frame (Phase-B
+budget). Bring back the `_m` JSONs + tee logs for adjudication.
+
 Nano-era artifacts (`g7_selfvariance.json`, `g8_parity_*.json`, tee logs, the
 vendored nano `.onnx`) are evidence — kept, never overwritten; all M runs
 write `_m` names. Expected shape of the rerun: the directional frame-loss
