@@ -10,11 +10,13 @@
 #   register_buffer   a tensor that is NOT trained but still moves with
 #                     .to(device) and is saved in the checkpoint
 #   .contiguous()     repack a tensor into contiguous memory after a
-#                     transpose/permute; required before .view()
+#                     transpose/permute; .view() needs it, most ops don't
 #   forward()         runs when you call model(x)
 
 import torch
 from torch import nn, Tensor
+from beartype import beartype
+from jaxtyping import Bool, Float32, Int64, jaxtyped
 from positional_encodings.torch_encodings import PositionalEncoding1D
 from functools import partial
 
@@ -30,7 +32,7 @@ from model.tempose import TCN, FeedForward, MLP, MLP_Head, TransformerEncoder
 class MultiHeadCrossAttention(nn.Module):
     """Cross-attention: x1 asks questions (queries), x2 provides answers (keys+values).
     Unlike self-attention where one input attends to itself, cross-attention lets one
-    sequence attend to a different sequence — here, a player attending to the shuttle.
+    sequence attend to a different sequence: here, a player attending to the shuttle.
 
     Key dimensions:
         d_model = feature size of input/output (e.g. 100)
@@ -42,7 +44,7 @@ class MultiHeadCrossAttention(nn.Module):
         super().__init__()
         d_cat = d_head * n_head
 
-        self.h = n_head
+        self.n_head = n_head
         # Queries come from x1, keys+values come from x2 (this is what makes it "cross")
         self.to_q = nn.Linear(d_model, d_cat, bias=False)
         self.to_kv = nn.Linear(d_model, d_cat * 2, bias=False)  # *2: K and V packed together
@@ -50,7 +52,7 @@ class MultiHeadCrossAttention(nn.Module):
 
         self.attend = nn.Sequential(
             nn.Softmax(dim=-1),
-            nn.Dropout(drop_p)  # This shouldn't be inplace.
+            nn.Dropout(drop_p)  # not inplace: would overwrite the softmax output autograd needs for backward
         )
 
         # Project multi-head output back to d_model, or pass through unchanged
@@ -60,8 +62,15 @@ class MultiHeadCrossAttention(nn.Module):
             nn.Dropout(drop_p, inplace=True)
         ) if n_head != 1 or d_cat != d_model else nn.Identity()
 
-    def forward(self, x1: Tensor, x2: Tensor, mask: Tensor = None):
-        # x1, x2: (b, t, d_model)
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        # x1, x2 share a 'time' symbol: forward reads b, t off x1 and reuses
+        # them to reshape x2's keys/values, so both must be the same length.
+        x1: Float32[Tensor, 'batch time d_model'],
+        x2: Float32[Tensor, 'batch time d_model'],
+        mask: Bool[Tensor, 'batch time'],
+    ):
         q: Tensor = self.to_q(x1)   # queries from x1
         kv: Tensor = self.to_kv(x2)  # keys+values from x2
         b, t, _ = q.shape
@@ -69,22 +78,21 @@ class MultiHeadCrossAttention(nn.Module):
         # Split into heads: (b, t, d_cat) -> (b, h, t, d_head).
         # .view (not .reshape): no-copy reshape that needs contiguous memory;
         # .reshape is the more common default but copies when it can't view.
-        q = q.view(b, t, self.h, -1).transpose(1, 2)
+        q = q.view(b, t, self.n_head, -1).transpose(1, 2)
         # chunk(2) splits the packed projection back into K and V
-        kv = kv.view(b, t, self.h, -1).chunk(2, dim=-1)
+        kv = kv.view(b, t, self.n_head, -1).chunk(2, dim=-1)
         k, v = map(lambda ts: ts.transpose(1, 2), kv)
         # q, k, v: (b, h, t, d_head)
 
-        dots: Tensor = (q.contiguous() @ k.transpose(-1, -2).contiguous()) * self.scale
-        # dots: (b, h, t, t) — attention score for every (query_pos, key_pos) pair
-        if mask is not None:
-            # mask: (b, t) — True for real frames, False for padding
-            mask = mask.view(b, 1, 1, t)
-            # Padded positions -> -inf so softmax gives them zero weight
-            dots = dots.masked_fill(~mask, -torch.inf)
+        dots: Tensor = (q @ k.transpose(-1, -2)) * self.scale
+        # dots: (b, h, t, t): attention score for every (query_pos, key_pos) pair
+        # mask: (b, t): True for real frames, False for padding
+        mask = mask.view(b, 1, 1, t)
+        # Padded positions -> -inf so softmax gives them zero weight
+        dots = dots.masked_fill(~mask, -torch.inf)
 
         coef = self.attend(dots)  # softmax -> dropout
-        attention: Tensor = coef @ v.contiguous()  # weighted sum of values
+        attention: Tensor = coef @ v  # weighted sum of values
         # attention: (b, h, t, d_head)
 
         # Merge heads: (b, h, t, d_head) -> (b, t, h*d_head)
@@ -110,7 +118,13 @@ class CrossTransformerLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm(d_model)
         self.ff = FeedForward(d_model, d_model, hd_mlp, drop_p)
 
-    def forward(self, x1: Tensor, x2: Tensor, mask=None):
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x1: Float32[Tensor, 'batch time d_model'],
+        x2: Float32[Tensor, 'batch time d_model'],
+        mask: Bool[Tensor, 'batch time'],
+    ):
         x1 = self.layer_norm1_x1(x1)
         x2 = self.layer_norm1_x2(x2)
         x = self.cross_attn(x1, x2, mask)  # x1 queries, x2 provides context
@@ -123,9 +137,9 @@ class BST(nn.Module):
     '''Unified BST (Badminton Stroke-type Transformer) with optional modules.
 
     Three boolean flags control which optional modules are active:
-      use_ppf : Pose Position Fusion — fuses court xy into skeleton features before TCN
-      use_cg  : Clean Gate — subtracts shared player noise from shuttle representation
-      use_ap  : Aim Player — weights player contributions by cosine similarity to shuttle
+      use_ppf : Pose Position Fusion, fuses court xy into skeleton features before TCN
+      use_cg  : Clean Gate, subtracts shared player noise from shuttle representation
+      use_ap  : Aim Player, weights player contributions by cosine similarity to shuttle
 
     Original variant mapping:
       BST_0     = BST(use_ppf=False, use_cg=False, use_ap=False)
@@ -135,7 +149,7 @@ class BST(nn.Module):
       BST_CG_AP = BST(use_ppf=True,  use_cg=True,  use_ap=True)
     '''
     def __init__(
-        self, in_dim, seq_len, n_class=35, n_people=2,
+        self, in_dim, seq_len, n_class, n_people=2,
         d_model=100, d_head=128, n_head=6, depth_tem=2, depth_inter=1,
         drop_p=0.3, mlp_d_scale=4, tcn_kernel_size=5,
         use_ppf=True, use_cg=False, use_ap=False
@@ -223,6 +237,7 @@ class BST(nn.Module):
         # Sinusoidal positional encodings give the transformer a sense of frame order.
         # .copy_() overwrites each parameter's values in place; written out per
         # embedding (not a loop) to keep the reassignment chain explicit.
+        # p_enc_1d needs to be seeded by a template tensor for shape/device/dtype
         p_enc_1d_model = PositionalEncoding1D(self.d_model)
         pos_encoding: Tensor = p_enc_1d_model(self.embedding_tem)
         self.embedding_tem.copy_(pos_encoding)
@@ -250,30 +265,37 @@ class BST(nn.Module):
         elif isinstance(m, nn.Conv1d):
             nn.init.xavier_normal_(m.weight)
 
+    @jaxtyped(typechecker=beartype)
     def forward(
         self,
-        JnB: Tensor,       # (b, t, n, input_dim) — skeleton joint/bone features per player
-        shuttle: Tensor,    # (b, t, 2) — shuttle xy coordinates per frame
-        pos: Tensor = None, # (b, t, n, 2) — player court xy positions (required if use_ppf)
-        video_len: Tensor = None  # (b,) — real frame count per sample (rest is zero-padding)
-    ):
+        JnB: Float32[Tensor, 'batch time players in_dim'],  # skeleton joint/bone features per player
+        shuttle: Float32[Tensor, 'batch time 2'],           # shuttle xy per frame
+        # court xy per player; read only when use_ppf, so None is honest otherwise.
+        pos: Float32[Tensor, 'batch time players 2'] | None = None,
+        *,  # video_len stays required; callers name it (and pos) at the call site
+        video_len: Int64[Tensor, 'batch'],                  # real frame count per sample (rest is zero-padding)
+    ) -> Float32[Tensor, 'batch n_class']:
         """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
         Pipeline: TCN -> Temporal Transformer -> Cross Transformer -> Interactional Transformer -> Head
+
+        t must equal the seq_len the model was built with: shorter clips are
+        padded upstream and masked via video_len. The positional embeddings are
+        sized 1+seq_len at construction, so any other t crashes the broadcast.
         """
-        b, t, n_people, in_dim = JnB.shape
+        b, t, n_people, input_dim = JnB.shape
         # Conv1d wants (batch, channels, length); stack both players in the batch dim
         # so the TCN processes them in parallel.
-        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, in_dim, t)
-        # JnB: (b*n_people, in_dim, t)
+        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
+        # JnB: (b*n_people, input_dim, t)
 
         # ====================================================================
         # [PPF] Pose Position Fusion: modulate skeleton features by court position
         # ====================================================================
         if self.use_ppf:
             pos = self.mlp_positions(pos)
-            # pos: (b, t, n, in_dim)
-            pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, in_dim, t)
-            # pos_impact: (b*n_people, in_dim, t)
+            # pos: (b, t, n, input_dim)
+            pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
+            # pos_impact: (b*n_people, input_dim, t)
             JnB = JnB * pos_impact + JnB
             # Multiplicative fusion with residual: JnB * (1 + pos_impact)
 
@@ -284,6 +306,8 @@ class BST(nn.Module):
         JnB = JnB.view(b, n_people, -1, t).transpose(-2, -1)
         # JnB: (b, n_people, t, d_model)
 
+        # .contiguous() kept on purpose: Conv1d accepts strided input, but a
+        # contiguous buffer here is a perf choice, not a .view() prerequisite.
         shuttle = shuttle.transpose(1, 2).contiguous()
         # shuttle: (b, 2, t)
         shuttle = self.tcn_shuttle(shuttle)
@@ -303,7 +327,7 @@ class BST(nn.Module):
         x = x.view(b*n_streams, t, d)
         # Concatenate CLS token at position 0, then add positional embeddings
         x = torch.cat((class_token_tem, x), dim=1) + self.embedding_tem
-        # x: (b*n_streams, 1+t, d_model) — "1+" because CLS token is prepended
+        # x: (b*n_streams, 1+t, d_model): "1+" because CLS token is prepended
 
         # Padding mask: True for real frames + CLS, False for zero-padded frames, so
         # the transformer never attends to meaningless padding positions.
@@ -318,7 +342,7 @@ class BST(nn.Module):
         x: Tensor = self.pre_dropout(x)
         x = self.encoder_tem(x, mask_n)  # self-attention across time within each stream
         x = x.view(b, n_streams, 1+t, d)
-        # x: (b, 3, 1+t, d_model) — 3 streams: [player1, player2, shuttle]
+        # x: (b, 3, 1+t, d_model); 3 streams: [player1, player2, shuttle]
 
         # ====================================================================
         # Split the 3 streams back apart and extract their CLS tokens
@@ -327,20 +351,19 @@ class BST(nn.Module):
         # p1, p2, shuttle: each (b, 1+t, d_model)
 
         # CLS tokens (position 0): learned summaries of each stream
-        p1_cls, p2_cls, shuttle_cls = \
-            p1[:, 0].contiguous(), p2[:, 0].contiguous(), shuttle[:, 0].contiguous()
-        # *_cls: (b, d_model) — one summary vector per stream per batch item
+        p1_cls, p2_cls, shuttle_cls = p1[:, 0], p2[:, 0], shuttle[:, 0]
+        # *_cls: (b, d_model): one summary vector per stream per batch item
 
         # Remaining sequence positions (frames 1..t), with fresh positional embeddings
-        p1 = p1[:, 1:].contiguous() + self.embedding_cross
-        p2 = p2[:, 1:].contiguous() + self.embedding_cross
-        shuttle = shuttle[:, 1:].contiguous() + self.embedding_cross
+        p1 = p1[:, 1:] + self.embedding_cross
+        p2 = p2[:, 1:] + self.embedding_cross
+        shuttle = shuttle[:, 1:] + self.embedding_cross
         # p1, p2, shuttle: (b, t, d_model)
 
         # ====================================================================
         # Cross Transformer: player-shuttle interaction
         # ====================================================================
-        cross_mask = mask[:, 1:].contiguous()
+        cross_mask = mask[:, 1:]
         p1_shuttle = self.cross_trans(p1, shuttle, cross_mask)
         p2_shuttle = self.cross_trans(p2, shuttle, cross_mask)
         # p1_shuttle, p2_shuttle: (b, t, d_model)
@@ -356,8 +379,8 @@ class BST(nn.Module):
         p1_shuttle: Tensor = self.encoder_inter(p1_shuttle, mask)
         p2_shuttle: Tensor = self.encoder_inter(p2_shuttle, mask)
 
-        p1_shuttle_cls = p1_shuttle[:, 0, :].contiguous()
-        p2_shuttle_cls = p2_shuttle[:, 0, :].contiguous()
+        p1_shuttle_cls = p1_shuttle[:, 0, :]
+        p2_shuttle_cls = p2_shuttle[:, 0, :]
         # p1_shuttle_cls, p2_shuttle_cls: (b, d_model)
 
         # ====================================================================
@@ -374,12 +397,12 @@ class BST(nn.Module):
             p1_shuttle_sim = self.cos_sim(p1_shuttle_cls, shuttle_cls)
             p2_shuttle_sim = self.cos_sim(p2_shuttle_cls, shuttle_cls)
             alpha: Tensor = (p1_shuttle_sim - p2_shuttle_sim + 2) / 4
-            # alpha: (b,) in [0, 1] — higher means p1 is more relevant
+            # alpha: (b,) in [0, 1]: higher means p1 is more relevant
             alpha = alpha.unsqueeze(1)
             # alpha: (b, 1)
             # Warm-start schedule: blend each multiplier toward 1.0 as ap_factor -> 0.
             # ap_factor=1 recovers original AP; ap_factor=0 makes both multipliers exactly 1
-            # (pass-through — p1_conclusion and p2_conclusion are unchanged).
+            # (pass-through: p1_conclusion and p2_conclusion are unchanged).
             eff_alpha_p1 = self.ap_factor * alpha + (1 - self.ap_factor)
             eff_alpha_p2 = self.ap_factor * (1 - alpha) + (1 - self.ap_factor)
             p1_conclusion = eff_alpha_p1 * p1_conclusion
@@ -410,7 +433,7 @@ class BST(nn.Module):
 
 
 # ==========================================================================
-# Pre-configured BST variants — the single source of truth for flag combos.
+# Pre-configured BST variants: the single source of truth for flag combos.
 # partial(BST, use_ppf=True, ...) pre-fills the flags, so BST_CG_AP(in_dim=72, ...)
 # behaves like a class with those options already set.
 # ==========================================================================
@@ -426,12 +449,14 @@ if __name__ == '__main__':
     n_class = taxonomy_lookup('une_v1_14').n_classes
 
     b, t, n = 1, 100, 2
-    n_features = (17 + 19 * 1) * n
+    # in_dim per player = (joints + bones) * xy channels. n_bones = 19 bone pairs
+    # * POSE_BONE_MULTIPLIER['JnB_bone'] (=1); Jn2B would double it.
+    n_joints, n_bones, in_channels = 17, 19, 2
+    n_features = (n_joints + n_bones) * in_channels
     pose = torch.randn((b, t, n, n_features), dtype=torch.float)
     shuttle = torch.randn((b, t, 2), dtype=torch.float)
     pos = torch.randn((b, t, n, 2), dtype=torch.float)
     videos_len = torch.tensor([t], dtype=torch.long).repeat(b)
-    input_data = [pose, shuttle, pos, videos_len]
 
     # Test all variants produce valid output shapes
     variants = {
@@ -442,7 +467,7 @@ if __name__ == '__main__':
         'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
     }
     for name, model in variants.items():
-        output = model(*input_data)
+        output = model(pose, shuttle, pos=pos, video_len=videos_len)
         print(f"{name:10s} output shape: {output.shape}")
 
     # FLOP counting on BST_CG_AP
@@ -450,15 +475,17 @@ if __name__ == '__main__':
     model = variants['BST_CG_AP']
     flop_counter = FlopCounterMode(display=False)
     with flop_counter:
-        output = model(*input_data)
+        output = model(pose, shuttle, pos=pos, video_len=videos_len)
     flops_per_forward = flop_counter.get_total_flops()
     print(f"\nFLOPs (per forward pass): {flops_per_forward / 1e9:.2f} GFLOPS")
 
-    n_epochs_about = 350
-    # on ShuttleSet
-    n_training_samples = 25741
-    n_validate_samples = 4241
-    n_testing_samples = 3499
+    # * 3: backward pass costs ~2x the forward, so one training step is ~3x
+    # forward FLOPs. Sample counts + epochs are frozen estimates (split_v2 /
+    # une_v1_14: 22,743 train / 5,250 val / 4,210 test; 80 epochs).
+    n_epochs_about = 80
+    n_training_samples = 22743
+    n_validate_samples = 5250
+    n_testing_samples = 4210
 
     training_flops = flops_per_forward * n_training_samples * n_epochs_about * 3
     validate_flops = flops_per_forward * n_validate_samples * n_epochs_about

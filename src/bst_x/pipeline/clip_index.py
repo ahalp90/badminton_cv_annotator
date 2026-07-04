@@ -7,14 +7,16 @@ is deferred to Phase 3, which is indefinitely parked). Any CSV-driven
 ``__init__`` via the helper below and use the returned dict for O(1)
 per-sample lookup rather than walking the tree per ``__getitem__``.
 
-Expected consumers (not in-repo yet):
-- Arch 2 3D CNN video Dataset.
-- Arch 1 wrist-crop Dataset that pairs pose-derived wrist coords with
-  cropped video frames.
+Consumers:
+- ``build_fe_stats_jsons.py`` resolves each clip's serving mp4 path for the
+  frontend stats JSONs.
+- ``pipeline.data_access.get_clip_records`` wraps this helper (see below).
+- BRIC (Architecture 2) ships its own video indexing under ``src/bric`` and
+  does not use this helper; a future Arch 1 wrist-crop Dataset would.
 
-Both should pair the returned lookup with a split + label derivation
-driven by ``notebooks/clips_master.csv``, the same way
-``collate_npy`` does for the pose + shuttle npys.
+Consumers pair the returned lookup with a split + label derivation driven by
+``notebooks/clips_master.csv``, the same way ``collate_npy`` does for the
+pose + shuttle npys.
 
 For a higher-level API that does the CSV read, taxonomy label derivation,
 and flat shuttle / mmpose path resolution in one call, see

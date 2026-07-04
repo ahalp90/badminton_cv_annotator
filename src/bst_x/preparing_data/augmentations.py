@@ -31,9 +31,15 @@ device the inputs live on. Both run only during training.
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import torch
 from torch import Tensor
+from beartype import beartype
+from jaxtyping import Float32, jaxtyped
 
+from pipeline.config import COCO_N_JOINTS
+from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 from preparing_data.shuttleset_dataset import get_bone_pairs
 
 
@@ -46,19 +52,19 @@ BILATERAL_JOINT_PAIRS: tuple[tuple[int, int], ...] = (
 )
 
 
-def _coco_swap_index(n_joints: int, device: torch.device) -> Tensor:
-    """Build a lookup index that swaps left/right joint pairs.
+def _coco_swap_index(n_joints: int) -> Tensor:
+    """Build a lookup index (on CPU) that swaps left/right joint pairs.
 
     Applying ``joints[..., swap_idx, :]`` moves the data at slot 5 (left
     shoulder) into slot 6 (right shoulder) and vice versa, and similarly
     for every other left/right pair. Slot 0 (nose) has no mirror partner
-    and stays in place.
+    and stays in place. Built once at construction; the caller moves it to
+    the batch device at call time.
     """
-    swap_idx = torch.arange(n_joints, device=device)
+    swap_idx = torch.arange(n_joints)
     for a, b in BILATERAL_JOINT_PAIRS:
-        if a < n_joints and b < n_joints:
-            swap_idx[a] = b
-            swap_idx[b] = a
+        swap_idx[a] = b
+        swap_idx[b] = a
     return swap_idx
 
 
@@ -117,13 +123,14 @@ class CoupledFlip:
     def __init__(
         self,
         p: float = 0.5,
-        n_joints: int = 17,
+        n_joints: int = COCO_N_JOINTS,
         n_bones: int = 19,
         bone_pairs: list[tuple[int, int]] | None = None,
     ) -> None:
         self.p = p
         self.n_joints = n_joints
         self.n_bones = n_bones
+        self.swap_idx = _coco_swap_index(n_joints)
         self.bone_pairs = bone_pairs if bone_pairs is not None else get_bone_pairs('coco')
         if len(self.bone_pairs) != n_bones:
             raise ValueError(
@@ -132,10 +139,20 @@ class CoupledFlip:
                 f'pair-table the collation used.'
             )
 
+    @jaxtyped(typechecker=beartype)
     def __call__(
-        self, human_pose: Tensor, pos: Tensor, shuttle: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        """Flip selected clips across all three streams together.
+        self,
+        human_pose: Float32[Tensor, 'n t m jb 2'],
+        pos: Float32[Tensor, 'n t m 2'],
+        shuttle: Float32[Tensor, 'n t 2'],
+    ) -> tuple[
+        Float32[Tensor, 'n t m jb 2'],
+        Float32[Tensor, 'n t m 2'],
+        Float32[Tensor, 'n t 2'],
+    ]:
+        """Flip selected clips across all three streams together. (0, 0)
+        pos/shuttle sentinel frames pass through unflipped, matching the
+        jitter's sentinel handling.
 
         :param human_pose: ``(n, t, m, J+B, 2)``. The first ``J`` slots
                            are joints; the last ``B`` slots are bones.
@@ -155,26 +172,44 @@ class CoupledFlip:
         if not flip_mask.any():
             return human_pose, pos, shuttle
 
+        # Pre-flip sentinel masks, mirroring the jitter's restore. (0, 0) is
+        # the out-of-band missing code (pose-failed frame, off-screen shuttle,
+        # padded tail), not a location; x -> 1 - x would relabel it as an
+        # in-band (1, 0). Joints need no mask: their x -> -x fixes zero.
+        pos_zero = (pos == 0.0).all(dim=-1)          # (n, t, m)
+        shuttle_zero = (shuttle == 0.0).all(dim=-1)  # (n, t)
+
         joints = human_pose[..., :-self.n_bones, :]
         # Build the fully-flipped tensor first, then use torch.where to
-        # keep unflipped clips untouched. Faster than indexing into the
-        # batch with a boolean mask since the underlying ops are all
-        # vectorised.
+        # keep unflipped clips untouched. torch.where keeps fixed shapes and no
+        # data-dependent sync point, unlike boolean-mask indexing (which gathers
+        # a variable number of rows).
 
-        # pos: x -> 1 - x in court frame
+        # pos: x -> 1 - x in court frame, then the sentinel restore, so the
+        # flip-select below hands unflipped clips their originals untouched
         pos_flipped = pos.clone()
         pos_flipped[..., 0] = 1.0 - pos_flipped[..., 0]
+        pos_flipped = torch.where(
+            pos_zero.unsqueeze(-1).expand_as(pos_flipped),
+            torch.zeros_like(pos_flipped),
+            pos_flipped,
+        )
         pos_mask = flip_mask.view(n, 1, 1, 1).expand_as(pos)
         pos_out = torch.where(pos_mask, pos_flipped, pos)
 
-        # shuttle: x -> 1 - x in camera frame
+        # shuttle: x -> 1 - x in camera frame, same sentinel restore
         shuttle_flipped = shuttle.clone()
         shuttle_flipped[..., 0] = 1.0 - shuttle_flipped[..., 0]
+        shuttle_flipped = torch.where(
+            shuttle_zero.unsqueeze(-1).expand_as(shuttle_flipped),
+            torch.zeros_like(shuttle_flipped),
+            shuttle_flipped,
+        )
         shuttle_mask = flip_mask.view(n, 1, 1).expand_as(shuttle)
         shuttle_out = torch.where(shuttle_mask, shuttle_flipped, shuttle)
 
         # joints: x -> -x around each player's bbox centre, then bilateral slot swap
-        swap_idx = _coco_swap_index(self.n_joints, device)
+        swap_idx = self.swap_idx.to(device)
         joints_xflipped = joints.clone()
         joints_xflipped[..., 0] = -joints_xflipped[..., 0]
         joints_swapped = joints_xflipped.index_select(dim=-2, index=swap_idx)
@@ -192,6 +227,17 @@ class CoupledFlip:
         human_pose_out = torch.cat([joints_out, bones_recomputed], dim=-2)
 
         return human_pose_out, pos_out, shuttle_out
+
+
+class JitterResult(NamedTuple):
+    """ConstrainedJitter output. Field order matches the old 5-tuple so callers
+    still unpack ``human_pose, pos, shuttle, n_eff, n_oob = jitter(...)``; the
+    named counters are the readability win over anonymous positions 4 and 5."""
+    human_pose: Tensor
+    pos: Tensor
+    shuttle: Tensor
+    n_effective: int
+    n_oob: int
 
 
 class ConstrainedJitter:
@@ -221,9 +267,10 @@ class ConstrainedJitter:
                   distinguishes shot classes.
     :param cap_x: maximum shift magnitude on x. Default 0.10; looser
                   because x carries less direct class information.
-    :param eps: margin matching ``sticky_anchor.generous_margin = 0.15``,
-                the band outside which the model treats positions
-                as invalid.
+    :param eps: court-border margin, the band outside which the model treats
+                positions as invalid. Defaults to
+                ``StickyAnchorParams().generous_margin`` so it tracks the
+                heuristic's value rather than a hardcoded snapshot.
     """
 
     def __init__(
@@ -231,19 +278,23 @@ class ConstrainedJitter:
         p_roll: float = 0.2,
         cap_y: float = 0.05,
         cap_x: float = 0.10,
-        eps: float = 0.15,
+        eps: float = StickyAnchorParams().generous_margin,
     ) -> None:
         self.p_roll = p_roll
         self.cap_y = cap_y
         self.cap_x = cap_x
         self.eps = eps
 
+    @jaxtyped(typechecker=beartype)
     def __call__(
-        self, human_pose: Tensor, pos: Tensor, shuttle: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor, int, int]:
+        self,
+        human_pose: Float32[Tensor, 'n t m jb 2'],
+        pos: Float32[Tensor, 'n t m 2'],
+        shuttle: Float32[Tensor, 'n t 2'],
+    ) -> JitterResult:
         """Apply the per-clip shift to pos and shuttle.
 
-        :return: ``(human_pose, pos_out, shuttle_out, n_effective, n_oob)``.
+        :return: ``JitterResult(human_pose, pos_out, shuttle_out, n_effective, n_oob)``.
                  ``n_effective`` is the number of clips that actually
                  received a non-zero shift this batch (rolled in, plus
                  had at least one axis with room to shift). Used for
@@ -257,11 +308,11 @@ class ConstrainedJitter:
         device = pos.device
 
         if self.p_roll <= 0.0:
-            return human_pose, pos, shuttle, 0, 0
+            return JitterResult(human_pose, pos, shuttle, 0, 0)
 
         roll_mask = torch.rand(n, device=device) < self.p_roll
         if not roll_mask.any():
-            return human_pose, pos, shuttle, 0, 0
+            return JitterResult(human_pose, pos, shuttle, 0, 0)
 
         # Compute the per-clip min and max of pos along x and y. These set
         # the bounds for the shift: e.g. if the bottom player's lowest y
@@ -277,18 +328,20 @@ class ConstrainedJitter:
         # would read its minimum as 0 and incorrectly drop the centreline
         # constraint.
         #
-        # Real positions never land at exactly (0, 0): normalize_position
-        # divides camera-frame coords by the court borders, and the result
-        # almost never hits 0 by coincidence. The substitution stays local
-        # to this block; the original pos tensor is what gets shifted later.
+        # Real positions should hardly ever land at exactly (0,0): normalize_position
+        # divides camera-frame coords by the court borders, so the result hardly
+        # ever hits 0 by coincidence. The substitution stays local to this block;
+        # the original pos tensor is what gets shifted later.
         #
         # At the current cap_y = 0.05, the cap is smaller than the bounds
         # on most clips, so the cap is what limits the shift, not the
         # bounds. The bounds only become the active constraint if cap_y
         # is raised.
-        is_sentinel = (pos == 0.0).all(dim=-1)  # (n, t, m)
-        pos_for_max = pos.masked_fill(is_sentinel.unsqueeze(-1), float('-inf'))
-        pos_for_min = pos.masked_fill(is_sentinel.unsqueeze(-1), float('+inf'))
+        # pos_zero: any frame whose xy entries are both zero. Serves both the
+        # min/max sentinel exclusion here and the post-shift zero restore below.
+        pos_zero = (pos == 0.0).all(dim=-1)  # (n, t, m)
+        pos_for_max = pos.masked_fill(pos_zero.unsqueeze(-1), float('-inf'))
+        pos_for_min = pos.masked_fill(pos_zero.unsqueeze(-1), float('+inf'))
 
         y_top_max = pos_for_max[:, :, 0, 1].amax(dim=1)  # (n,)
         y_top_min = pos_for_min[:, :, 0, 1].amin(dim=1)
@@ -329,21 +382,18 @@ class ConstrainedJitter:
         # in either direction independently, so a clip with dy_max = 0.30
         # and cap_y = 0.05 ends up with dy_hi = 0.05 (cap binds) and
         # dy_lo = -0.05 (cap binds on the other side too if dy_min permits).
-        cap_y_t = torch.full_like(dy_max, self.cap_y)
-        cap_x_t = torch.full_like(dx_max, self.cap_x)
-        dy_hi = torch.minimum(dy_max, cap_y_t)
-        dy_lo = torch.maximum(dy_min, -cap_y_t)
-        dx_hi = torch.minimum(dx_max, cap_x_t)
-        dx_lo = torch.maximum(dx_min, -cap_x_t)
+        dy_hi = dy_max.clamp(max=self.cap_y)
+        dy_lo = dy_min.clamp(min=-self.cap_y)
+        dx_hi = dx_max.clamp(max=self.cap_x)
+        dx_lo = dx_min.clamp(min=-self.cap_x)
 
-        # Per-axis degeneracy: clamp the sample range to a single point at 0
-        # when the layered constraints leave no room. Floats: dy_hi <= dy_lo.
+        # Flag axes the layered constraints leave no room to shift (dy_hi <= dy_lo,
+        # reachable only when both bounds are exactly 0). These feed the
+        # non-degenerate test for the Aug/jitter_effective_rate metric below; the
+        # envelope is already the zero-width point a clamp would write, so the
+        # sample collapses to 0 with no explicit clamp needed.
         dy_degenerate = dy_hi <= dy_lo
         dx_degenerate = dx_hi <= dx_lo
-        dy_hi = torch.where(dy_degenerate, torch.zeros_like(dy_hi), dy_hi)
-        dy_lo = torch.where(dy_degenerate, torch.zeros_like(dy_lo), dy_lo)
-        dx_hi = torch.where(dx_degenerate, torch.zeros_like(dx_hi), dx_hi)
-        dx_lo = torch.where(dx_degenerate, torch.zeros_like(dx_lo), dx_lo)
 
         # Sample uniform in the per-axis envelope.
         u_y = torch.rand(n, device=device)
@@ -355,19 +405,15 @@ class ConstrainedJitter:
         dx = torch.where(roll_mask, dx, torch.zeros_like(dx))
         dy = torch.where(roll_mask, dy, torch.zeros_like(dy))
 
-        # Build pre-shift zero masks for stream-aware sentinel preservation.
-        # pos_zero: any frame whose xy entries are both zero. Shape (n, t, m).
-        # shuttle_zero: same on (n, t).
-        pos_zero = (pos == 0.0).all(dim=-1)
+        # Pre-shift zero mask for the shuttle stream (pos_zero was already built
+        # above). shuttle_zero: any frame whose xy entries are both zero, (n, t).
         shuttle_zero = (shuttle == 0.0).all(dim=-1)
 
-        # Apply shift. Broadcast dx/dy across (t, m) for pos and (t,) for shuttle.
-        shift_pos = torch.stack([dx, dy], dim=-1)        # (n, 2)
-        shift_pos = shift_pos.view(n, 1, 1, 2)
-        pos_shifted = pos + shift_pos
-
-        shift_shuttle = torch.stack([dx, dy], dim=-1).view(n, 1, 2)
-        shuttle_shifted = shuttle + shift_shuttle
+        # Apply the one per-clip shift, broadcast across (t, m) for pos and (t,)
+        # for shuttle. Same (dx, dy) tensor, viewed to each stream's rank.
+        shift = torch.stack([dx, dy], dim=-1)  # (n, 2): one shift per clip
+        pos_shifted = pos + shift.view(n, 1, 1, 2)
+        shuttle_shifted = shuttle + shift.view(n, 1, 2)
 
         # Restore pre-existing zeros.
         pos_shifted = torch.where(
@@ -412,4 +458,4 @@ class ConstrainedJitter:
         clip_had_oob = oob_aug_induced.any(dim=-1)  # (n,)
         n_oob = int((effective & clip_had_oob).sum().item())
 
-        return human_pose, pos_shifted, shuttle_shifted, n_effective, n_oob
+        return JitterResult(human_pose, pos_shifted, shuttle_shifted, n_effective, n_oob)

@@ -1,18 +1,14 @@
-"""Optional court projection utilities for ShuttleSet.
+"""Homography-based projection from camera pixels to normalised court
+coordinates [0, 1].
 
-Provides homography-based coordinate transformation from camera pixel space
-to normalised court coordinates [0, 1]. Available for architectures that need
-court-relative features -- not a required pipeline step.
-
-Copied (not moved) from prepare_train_on_shuttleset.py so that downstream
-consumers can import court utilities without pulling in the full BST preparation
-pipeline. BST's own code continues to use prepare_train_on_shuttleset.py directly.
+Single source for court maths: the pose filter (check_pos_in_court) and the
+sticky_anchor heuristic import from here.
 """
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from pipeline.config import SET_INFO_DIR, HOMOGRAPHY_RESOLUTION
+from pipeline.config import HOMOGRAPHY_RESOLUTION
 
 
 def get_H(homography_info: pd.Series) -> np.ndarray:
@@ -92,6 +88,8 @@ def get_court_info(homo_df: pd.DataFrame, vid: int) -> dict:
     corner_camera = get_corner_camera(homography_info)
     corner_camera = convert_homogeneous(corner_camera)
     corner_court = project(H, corner_camera)
+    # CSV corner columns arrive (upleft, upright, downleft, downright), so R
+    # reads from column 1 (upright) and D from column 2 (downleft).
     return {
         'H': H,
         'border_L': corner_court[0, 0],
@@ -156,11 +154,11 @@ def check_pos_in_court(
     n_people = keypoints.shape[0]
 
     # Use foot keypoints (last 2 joints in COCO format) as position proxy
-    feet_camera = keypoints[:, -2:, :].reshape(-1, 2).T  # (2, m*J)
+    feet_camera = keypoints[:, -2:, :].reshape(-1, 2).T  # (2, n_people*2)
     feet_court = to_court_coordinate(feet_camera, vid, all_court_info, res_df)
-    feet_court = feet_court.reshape(2, n_people, -1)  # (2, m, J)
+    feet_court = feet_court.reshape(2, n_people, -1)  # (2, n_people, 2)
 
-    pos_court = feet_court.mean(axis=-1)  # midpoint between feet, (2, m)
+    pos_court = feet_court.mean(axis=-1)  # midpoint between feet, (2, n_people)
     pos_court_normalized = normalize_position(pos_court, court_info=all_court_info[vid]).T  # (m, 2)
 
     eps = 0.01  # soft border tolerance
@@ -169,13 +167,14 @@ def check_pos_in_court(
     return in_court, pos_court_normalized
 
 
-def load_all_court_info(
-    homo_csv_path: Path = SET_INFO_DIR / 'homography.csv',
-) -> dict:
-    """Load court info for all videos from homography.csv.
+def build_all_court_info(set_info_dir: Path, res_df: pd.DataFrame) -> dict:
+    """Build ``{vid: court_info}`` for every video in ``res_df``.
 
-    :param homo_csv_path: Path to homography.csv.
-    :return: Dict mapping video ID to court_info dict.
+    Reads homography.csv from ``set_info_dir`` and keys the result on
+    ``res_df.index`` (the resolution rows), NOT on homography.csv's own index,
+    on purpose: a video with a resolution row but no homography row KeyErrors
+    here, loud and early, rather than being silently dropped and failing
+    deeper in the pipeline.
     """
-    homo_df = pd.read_csv(homo_csv_path).set_index('id')
-    return {vid: get_court_info(homo_df, vid) for vid in homo_df.index}
+    homo_df = pd.read_csv(set_info_dir / 'homography.csv').set_index('id')
+    return {vid: get_court_info(homo_df, vid) for vid in res_df.index}

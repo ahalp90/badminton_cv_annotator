@@ -28,7 +28,7 @@ The project uses three separate Python environments because the OpenMMLab stack 
 | Environment | Requirements file | Purpose |
 |---|---|---|
 | **Pipeline** | `pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (steps 1-2 of data preparation) |
+| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
 | **BST training** | `requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
 
 ### Environment setup
@@ -79,14 +79,14 @@ source venv-mmpose/bin/activate
 export PYTHONPATH=src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
-    --skip-trajectory --skip-collate                       # pose only (no shuttle CSV needed)
+    --skip-collate                                         # pose only (no shuttle CSV needed)
 
 # ── Stage 3: Collation + training (BST venv) ────────────────────────
 source venv-bst-x/bin/activate
 export PYTHONPATH=src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
-    --skip-trajectory --skip-pose                          # collate (reads shuttle CSVs)
+    --skip-pose                                            # collate (reads shuttle npys)
 
 python -m bst_x_train                     # train (5 serial trials)
 python -m bst_x_infer                     # inference
@@ -114,7 +114,7 @@ The pipeline downloads match videos, cuts them into labeled stroke clips, option
 | `clip_generator.py` | Extracts individual stroke clips from full match videos. Reads ShuttleSet CSV annotations (Chinese column names), maps A/B players to Top/Bottom, filters excluded videos and removed shots, and organizes clips into `{split}/{Player}_{stroke_type}/` folders. | `generate_all_clips()`, `apply_class_merge()` (moves clips from rare subtype folders into their parent type folders per the active taxonomy's merge map). Three clip window modes: `middle_in_a_sec`, `between_2_hits`, `between_2_hits_with_max_limits` (default, clamps to 1.5s each side). |
 | `player_mapping.py` | Maps the A/B player labels in ShuttleSet annotations to Top/Bottom court positions. Handles set-3 court switches. | `get_top_bottom_mapping(video_id, set_num)`. |
 | `verify.py` | Post-generation sanity checks: all splits present, no clips from excluded videos, no removed shots, merged subtype folders empty, no orphan files. | `verify_splits_present()`, `verify_no_excluded()`, `verify_no_removed_shots()`, `verify_class_merge()`, `verify_shuttle_sync()`, `print_dataset_summary()`. |
-| `shuttle_extractor.py` | Runs TrackNetV3 on each clip to detect shuttle positions, then converts CSVs to normalized `(t, 3)` numpy arrays `[x_norm, y_norm, visibility]`. Uses **batch mode** (`batch_predict.py`) to load models once per worker and iterate over clips in-process, avoiding the ~8s model-reload per clip. Uses the default `eval_mode='weight'` (full temporal ensemble) for maximum detection accuracy. `--batch_size` (default 32, configurable via CLI) controls GPU utilization. Inference runs in **FP32** to preserve detection accuracy on fast-moving shuttles (FP16 rounding can flip the 0.5 heatmap threshold on faint responses). Frames are pre-resized during loading using PIL BICUBIC (bit-identical to the Dataset's own resize). VideoCapture handles are explicitly released and `gc.collect()` + `torch.cuda.empty_cache()` run between clips to prevent resource exhaustion. `--workers N` launches N parallel batch workers, each with its own model copy (use 1 on V100 16GB, 2+ on larger GPUs). On V100 16GB, batch_size 16 fits most clips; a few may OOM, so re-run with batch_size 8 to pick up stragglers (resume logic skips clips that already have CSVs). `--dry-run` processes clips without writing output files (for testing). TrackNetV3 shares the BST training venv. **Pretrained weights** (`ckpts/TrackNet_best.pt`, `ckpts/InpaintNet_best.pt`) must be downloaded separately (~150 MB, gitignored) — see `TrackNetV3/README.md`. | `extract_all_shuttles(tracknet_dir, tracknet_python, max_workers, batch_size, dry_run)`, `shuttle_csvs_to_npy()`. Intermediate output: `data/shuttleset/shuttle_csv/` (flat dir of per-clip CSVs, taxonomy/split independent). Final output: `data/shuttleset/shuttle_npy/{clip}.npy` (flat; split + label come from `notebooks/clips_master.csv` at collation time). |
+| `shuttle_extractor.py` | Runs TrackNetV3 on each clip to detect shuttle positions, then converts CSVs to normalized `(t, 3)` numpy arrays `[x_norm, y_norm, visibility]`. The CSV->npy conversion regenerates every npy unconditionally (no skip-existing), so a re-extract pops a fresh npy rather than leaving a stale one. Uses **batch mode** (`batch_predict.py`) to load models once per worker and iterate over clips in-process, avoiding the ~8s model-reload per clip. Uses the default `eval_mode='weight'` (full temporal ensemble) for maximum detection accuracy. `--batch_size` (default 32, configurable via CLI) controls GPU utilization. Inference runs in **FP32** to preserve detection accuracy on fast-moving shuttles (FP16 rounding can flip the 0.5 heatmap threshold on faint responses). Frames are pre-resized during loading using PIL BICUBIC (bit-identical to the Dataset's own resize). VideoCapture handles are explicitly released and `gc.collect()` + `torch.cuda.empty_cache()` run between clips to prevent resource exhaustion. `--workers N` launches N parallel batch workers, each with its own model copy (use 1 on V100 16GB, 2+ on larger GPUs). On V100 16GB, batch_size 16 fits most clips; a few may OOM, so re-run with batch_size 8 to pick up stragglers (resume logic skips clips that already have CSVs). `--dry-run` processes clips without writing output files (for testing). TrackNetV3 shares the BST training venv. **Pretrained weights** (`ckpts/TrackNet_best.pt`, `ckpts/InpaintNet_best.pt`) must be downloaded separately (~150 MB, gitignored) — see `TrackNetV3/README.md`. | `extract_all_shuttles(tracknet_dir, tracknet_python, max_workers, batch_size, dry_run)`, `shuttle_csvs_to_npy()`. Intermediate output: `data/shuttleset/shuttle_csv/` (flat dir of per-clip CSVs, taxonomy/split independent). Final output: `data/shuttleset/shuttle_npy/{clip}.npy` (flat; split + label come from `notebooks/clips_master.csv` at collation time). |
 | `court_utils.py` | Optional. Homography-based camera-to-court coordinate projection. Not required for the core pipeline. | `project_to_court()`, `normalize_court_position()`. |
 
 #### Pipeline output structure
@@ -153,7 +153,7 @@ The pipeline produces **video clips** and **shuttle .npy files**. BST-X does not
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | **Step 1**: `prepare_trajectory()` -- run TrackNetV3 on clips, saving CSVs to `data/shuttleset/shuttle_csv/` (if shuttle extraction wasn't done in the pipeline stage). **Step 2**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of CSV availability prevents a missing CSV from silently blocking the expensive GPU job. **Step 3**: `collate_npy(taxonomy=..., shuttle_csv_dir=..., resolution_df=...)` -- reads shuttle CSVs from the canonical `data/shuttleset/shuttle_csv/` dir, applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
+| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
 
 #### Setup
 
@@ -180,22 +180,22 @@ export PYTHONPATH=src/bst_x
 # Preview what would be done:
 python -m preparing_data.prepare_train_on_shuttleset --dry-run
 
-# Common case: shuttle CSVs already exist from the pipeline.
-# Run pose only (no shuttle CSV dependency -- can run without them present):
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-collate
+# Common case: shuttle npys already exist from the pipeline.
+# Run pose only (no shuttle-npy dependency -- can run without them present):
+python -m preparing_data.prepare_train_on_shuttleset --skip-collate
 
-# Then collate (reads shuttle CSVs from data/shuttleset/shuttle_csv/):
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose
+# Then collate (reads shuttle npys from data/shuttleset/shuttle_npy/):
+python -m preparing_data.prepare_train_on_shuttleset --skip-pose
 
-# Point to a non-default shuttle CSV location:
-python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose \
-    --shuttle-csv-dir /scratch/comp320a/ShuttleSet/shuttle_csv
+# Point to a non-default shuttle npy location:
+python -m preparing_data.prepare_train_on_shuttleset --skip-pose \
+    --shuttle-npy-dir /scratch/comp320a/ShuttleSet/shuttle_npy
 
-# Full run including TrackNetV3 shuttle extraction:
-python -m preparing_data.prepare_train_on_shuttleset --tracknet-dir /path/to/TrackNetV3
+# Full run (pose then collate; shuttle npys must already exist):
+python -m preparing_data.prepare_train_on_shuttleset
 ```
 
-Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--use-3d-pose`, `--skip-trajectory`, `--skip-pose`, `--skip-collate`, `--clips-dir`, `--tracknet-dir`, `--shuttle-csv-dir` (default: `data/shuttleset/shuttle_csv/`), `--dry-run`.
+Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--use-3d-pose`, `--skip-pose`, `--skip-collate`, `--clips-dir`, `--shuttle-npy-dir` (default: `data/shuttleset/shuttle_npy/`), `--dry-run`.
 
 #### Data transformations in detail
 
@@ -203,9 +203,9 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 
 2. **Joint normalization** (`normalize_joints`): Keypoints are normalized relative to the player's bounding box diagonal. Optionally center-aligned.
 
-3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done at collation time (Step 3). Frames where pose detection failed (recorded in `_failed.npy` by Step 2) have their shuttle coordinates zeroed out. This zeroing is baked into the saved collated `shuttle.npy` -- the model receives pre-zeroed data, not a separate mask. The per-clip `_failed.npy` files preserve the raw boolean mask for debugging or future use, but the source `shuttle_csv/` files are never modified.
+3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done once at the converter (`pipeline/shuttle_extractor.py`), upstream of collation; collation (Step 2) just loads the saved npy. Pose-fail frames keep their shuttle values: TrackNet still sees the shuttle on frames where MMPose loses a player, so only TrackNet's own misses carry the (0,0) sentinel. The per-clip `_failed.npy` files (Step 1) still record the pose-fail mask for debugging or future use; collation never modifies the source npys or CSVs.
 
-4. **Padding and augmentation** (`pad_and_augment_one_npy_video`): Each sample is padded (or strided) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
+4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or linspace-sampled) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
    - `J_only`: raw joints `(t, 2, 17, 2)`
    - `JnB_interp`: joints + bone midpoints `(t, 2, 36, 2)`
    - `JnB_bone`: joints + bone vectors `(t, 2, 36, 2)` — **default**, what BST-X training loads
@@ -282,7 +282,7 @@ Bridges collated `.npy` files to PyTorch `DataLoader`s. Imports `Taxonomy` from 
 |------|------|
 | `Dataset_npy_collated` | Primary Dataset class for BST-X. Loads pre-collated arrays from disk. Supports `train_partial` to use a fraction of training data. Returns `(human_pose, pos, shuttle), video_len, label` per sample. **Filters out zero-length clips at load time** (see known divergence below). |
 | `prepare_npy_collated_loaders()` | Convenience function: creates train/val/test `DataLoader`s from a collated directory. |
-| `make_seq_len_same()` | Pads or strides a sample to match `seq_len`. Used by `collate_npy`. |
+| `make_seq_len_same()` | Pads short samples or linspace-samples long ones to match `seq_len`. Used by `collate_npy`. |
 | `create_bones()` / `interpolate_joints()` | Bone vector and midpoint computation from joint arrays. |
 | `POSE_BONE_MULTIPLIER` | Dict mapping pose style names to bone-set multipliers: `{'J_only': 0, 'JnB_bone': 1, 'JnB_interp': 1, 'Jn2B': 2}`. Used by train/infer scripts to compute `in_dim`. |
 | `pad_class_labels()` | Pads class label strings to uniform width for aligned F1 display. |
@@ -424,8 +424,8 @@ Stage 5 spans two files:
 #### Training flow
 
 ```
-Task()
-  .prepare_dataloaders(root_dir, pose_style, train_partial)
+Task(taxonomy, hyp)
+  .prepare_dataloaders(root_dir)
   .get_network_architecture(model_name='BST_CG_AP', in_channels=2)
   .seek_network_weights(model_info, serial_no)   # trains if no checkpoint found
   dumps = .dump_predictions(run_dir, serial_no, k=5)   # one forward pass per split

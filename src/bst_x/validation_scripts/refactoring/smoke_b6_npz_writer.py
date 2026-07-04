@@ -1,7 +1,7 @@
 """Byte-compare smoke for the prediction-npz writer.
 
 Writes the same payload via the verbatim pre-refactor inline ``savez`` block
-and via ``bst_x_common._write_prediction_npz``, then diffs the two npz files
+and via ``bst_x_common.write_prediction_npz``, then diffs the two npz files
 on key set, key order, per-key dtype + shape, and ``np.array_equal``. Both
 ``bst_x_train.Task.dump_predictions`` and ``bst_x_infer.dump_run_predictions``
 used to inline the same payload; lifting it to the helper has to leave the
@@ -45,7 +45,7 @@ import numpy as np
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 
-from bst_x_common import _write_prediction_npz  # noqa: E402
+from bst_x_common import write_prediction_npz  # noqa: E402
 
 N, N_CLASSES, K = 32, 14, 5
 
@@ -92,7 +92,7 @@ def main() -> int:
         old_path = Path(tmp) / "old.npz"
         new_path = Path(tmp) / "new.npz"
         old_inline_savez(old_path, dump, dataset, taxonomy, run_id, serial)
-        _write_prediction_npz(new_path, dump, dataset, taxonomy, run_id, serial)
+        write_prediction_npz(new_path, dump, dataset, taxonomy, run_id, serial)
 
         a = np.load(old_path, allow_pickle=True)
         b = np.load(new_path, allow_pickle=True)
@@ -115,10 +115,10 @@ def main() -> int:
             elif not np.array_equal(av, bv):
                 bad.append(f"  {k}: values differ (max abs {float(np.abs(av.astype(float) - bv.astype(float)).max()):.3e})")
         if bad:
-            print("FAIL: old inline savez vs _write_prediction_npz diverge")
+            print("FAIL: old inline savez vs write_prediction_npz diverge")
             print("\n".join(bad))
             return 1
-        print(f"OK: pre-refactor inline savez and _write_prediction_npz produce "
+        print(f"OK: pre-refactor inline savez and write_prediction_npz produce "
               f"byte-identical npz ({len(a.files)} keys, "
               f"{[f'{k}={a[k].shape}{a[k].dtype}' for k in a.files]})")
         return 0

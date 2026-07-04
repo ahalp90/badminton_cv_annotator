@@ -3,6 +3,12 @@
 # Licence. See src/bst_x/THIRD_PARTY_NOTICES.md. This project is otherwise
 # licensed LGPL-3.0-or-later.
 
+"""Dataset + loaders over the collated per-clip npy arrays.
+
+Also holds the pose-style derivation helpers (bones, interpolated joints)
+shared with the collator in prepare_train_on_shuttleset.
+"""
+
 import warnings
 
 from torch.utils.data import Dataset, DataLoader
@@ -27,18 +33,20 @@ POSE_BONE_MULTIPLIER = {'J_only': 0, 'JnB_bone': 1, 'JnB_interp': 1, 'Jn2B': 2}
 
 
 def get_bone_pairs(skeleton_format='coco'):
-    match skeleton_format:
-        case 'coco':
-            pairs = [
-                (0,1),(0,2),(1,2),(1,3),(2,4),   # head
-                (3,5),(4,6),                     # ears to shoulders
-                (5,7),(7,9),(6,8),(8,10),        # arms
-                (5,6),(5,11),(6,12),(11,12),     # torso
-                (11,13),(13,15),(12,14),(14,16)  # legs
-            ]
-        case _:
-            raise NotImplementedError
-    return pairs
+    """(start, end) joint-index pairs for the skeleton's bone table.
+
+    create_bones and recompute_bones_torch both depend on this
+    (start, end) orientation: bone vector = end - start.
+    """
+    if skeleton_format != 'coco':
+        raise NotImplementedError(f'unknown skeleton_format: {skeleton_format!r}')
+    return [
+        (0,1),(0,2),(1,2),(1,3),(2,4),   # head
+        (3,5),(4,6),                     # ears to shoulders
+        (5,7),(7,9),(6,8),(8,10),        # arms
+        (5,6),(5,11),(6,12),(11,12),     # torso
+        (11,13),(13,15),(12,14),(14,16)  # legs
+    ]
 
 
 def _pad_tail_to(
@@ -60,7 +68,7 @@ def make_seq_len_same(
     joints: np.ndarray,
     pos: np.ndarray,
     shuttle: np.ndarray
-):
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     video_len = len(pos)
 
     # Already at or under target: arrays are normalized, so pad rather than interpolate.
@@ -68,50 +76,52 @@ def make_seq_len_same(
         joints, pos, shuttle = _pad_tail_to(target_len, joints, pos, shuttle)
         return joints, pos, shuttle, video_len
 
-    # Longer than target: stride-subsample. Pad the remainder when the leftover
-    # frames exceed half a stride (otherwise they'd be silently dropped).
-    need_padding = (video_len % target_len) > (target_len // 2)
-    stride = video_len // target_len + int(need_padding)
-
-    joints = joints[::stride][:target_len]
-    pos = pos[::stride][:target_len]
-    shuttle = shuttle[::stride][:target_len]
-    new_video_len = len(pos)
-
-    if need_padding:
-        joints, pos, shuttle = _pad_tail_to(target_len, joints, pos, shuttle)
-
-    return joints, pos, shuttle, new_video_len
+    # Longer than target: linspace index sampling. Covers the whole clip with
+    # the first and last frames always included; the sampling gap wobbles by
+    # at most one frame (floor/ceil of the true ratio). The old fixed-stride +
+    # conditional-pad scheme silently discarded up to half a stride of clip
+    # tail (the post-hit trajectory) whenever the remainder was small. This
+    # branch is empty on all current data (max clip 97 frames vs seq_len 100;
+    # the clip window caps at 3*fps + fps//4) and goes live with higher-fps
+    # sources.
+    idx = np.round(np.linspace(0, video_len - 1, target_len)).astype(int)
+    return joints[idx], pos[idx], shuttle[idx], target_len
 
 
 def create_bones(joints: np.ndarray, pairs) -> np.ndarray:
-    '''Same as create_bones_robust in TemPose.'''
-    # joints: (t, m, J, 2)
-    bones = []
-    for start, end in pairs:
-        start_j = joints[:, :, start, :]
-        end_j = joints[:, :, end, :]
-        bone = np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
-        # bone: (t, m, 2)
-        bones.append(bone)
-    return np.stack(bones, axis=-2)
+    """Bone vectors (end - start) per pair; zero where either endpoint is missing.
+
+    Same semantics as create_bones_robust in TemPose.
+    joints (t, m, J, 2) -> bones (t, m, B, 2).
+    """
+    starts, ends = zip(*pairs)
+    start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
+    end_j = joints[:, :, list(ends), :]
+    return np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
 
 
 def interpolate_joints(joints: np.ndarray, pairs) -> np.ndarray:
-    '''Same as create_limbs_robust when 'num_steps' set to 3 in TemPose.'''
-    # joints: (t, m, J, 2)
-    mid_joints = []
-    for start, end in pairs:
-        start_j = joints[:, :, start, :]
-        end_j = joints[:, :, end, :]
-        mid_j = np.where((start_j != 0.0) & (end_j != 0.0), (start_j + end_j) / 2, 0.0)
-        # mid_j: (t, m, 2)
-        mid_joints.append(mid_j)
-    bones_center = np.stack(mid_joints, axis=-2)  # bones_center: (t, m, B, 2)
-    return np.concatenate((joints, bones_center), axis=-2)  # (t, m, J+B, 2)
+    """Joints plus a midpoint 'limb' per pair; midpoint zeroed where either
+    endpoint is missing.
+
+    Same as create_limbs_robust with 'num_steps' set to 3 in TemPose.
+    joints (t, m, J, 2) -> (t, m, J+B, 2).
+    """
+    starts, ends = zip(*pairs)
+    start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
+    end_j = joints[:, :, list(ends), :]
+    mid = np.where((start_j != 0.0) & (end_j != 0.0), (start_j + end_j) / 2, 0.0)
+    return np.concatenate((joints, mid), axis=-2)  # (t, m, J+B, 2)
 
 
 class Dataset_npy_collated(Dataset):
+    """One split (train/val/test) of the pre-collated per-clip arrays.
+
+    Loads the split's pose/pos/shuttle stacks plus videos_len, labels, and the
+    row-aligned clip_stems sidecar, drops zero-length clips at load, and can
+    keep only the first ``train_partial`` fraction of each class.
+    """
+
     def __init__(
         self,
         root_dir: Path,
@@ -119,15 +129,15 @@ class Dataset_npy_collated(Dataset):
         pose_style='J_only',
         train_partial=1.0
     ):
-        """Load pre-collated arrays for one split.
+        """Load one split's arrays and drop zero-length clips.
 
         :param set_name: 'train', 'val', or 'test'.
         :param pose_style: 'J_only', 'JnB_interp', 'JnB_bone', or 'Jn2B'.
         """
         super().__init__()
-        
+
         assert set_name in ['train', 'val', 'test'], 'Invalid set_name.'
-        assert pose_style in ['J_only', 'JnB_interp', 'JnB_bone', 'Jn2B'], 'Invalid pose_style.'
+        assert pose_style in POSE_BONE_MULTIPLIER, 'Invalid pose_style.'
 
         branch = root_dir/set_name
 
@@ -178,12 +188,19 @@ class Dataset_npy_collated(Dataset):
                 self.clip_stems = self.clip_stems[valid]
 
         if set_name == 'train' and train_partial < 1:
-            self.adjust_to_partial_train_set(train_partial)
+            self.adjust_to_deterministic_partial_train_set(train_partial)
 
         # human_pose: (n, t, m, J[+B], d); pos: (n, t, m, xy); shuttle: (n, t, xy)
         # videos_len: (n); labels: (n)
 
-    def adjust_to_partial_train_set(self, train_partial):
+    def adjust_to_deterministic_partial_train_set(self, train_partial):
+        """Keep the first ``train_partial`` fraction of each class, in row order.
+
+        Deterministic prefix, not a random sample; ``int()`` floors, so a small
+        class under a small fraction can drop to zero. The per-class regroup
+        reorders rows here: this is the ``train_partial`` reorder the
+        prediction-dump docstrings refer to.
+        """
         new_human_pose = []
         new_pos = []
         new_shuttle = []
@@ -217,15 +234,17 @@ class Dataset_npy_collated(Dataset):
 
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, i):
+        # Producer of the nested batch contract every consumer unpacks:
+        # ((human_pose, pos, shuttle), videos_len, labels).
         return (self.human_pose[i], self.pos[i], self.shuttle[i]), \
                 self.videos_len[i], self.labels[i]
 
 
 def prepare_npy_collated_loaders(
     root_dir: Path,
-    pose_style='Jn2B',
+    pose_style='JnB_bone',
     batch_size=128,
     use_cuda=True,
     num_workers=(0, 0, 0),

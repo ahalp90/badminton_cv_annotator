@@ -116,7 +116,7 @@ def test_dataset_clip_stems_after_zero_length_filter():
 
 
 def test_dataset_clip_stems_after_partial_train():
-    """adjust_to_partial_train_set mirrors clip_stems slicing with labels.
+    """adjust_to_deterministic_partial_train_set mirrors clip_stems slicing with labels.
 
     Per-class slicing keeps the first ``int(n_per_class * train_partial)``
     clips per label; clip_stems must stay row-aligned after the concatenation.
@@ -133,3 +133,54 @@ def test_dataset_clip_stems_after_partial_train():
     # Per-class slicing keeps choose_i[:typ_n], i.e. the FIRST clip per class.
     # Original first-of-class indices were 0, 2, 4, 6 -> stems 0, 2, 4, 6.
     assert set(dataset.clip_stems.tolist()) == {'stem_0', 'stem_2', 'stem_4', 'stem_6'}
+
+
+# ---------------------------------------------------------------------------
+# make_seq_len_same: live-band equivalence pin (C10 linspace swap)
+# ---------------------------------------------------------------------------
+
+def _old_make_seq_len_same(target_len, joints, pos, shuttle):
+    """Pre-linspace stride/pad form of make_seq_len_same, the equivalence oracle."""
+    def pad_tail(arrs, t_len):
+        out = []
+        for a in arrs:
+            pad_len = t_len - len(a)
+            out.append(np.pad(a, ((0, pad_len), *([(0, 0)] * (a.ndim - 1)))))
+        return out
+
+    video_len = len(pos)
+    if video_len <= target_len:
+        joints, pos, shuttle = pad_tail((joints, pos, shuttle), target_len)
+        return joints, pos, shuttle, video_len
+
+    need_padding = (video_len % target_len) > (target_len // 2)
+    stride = video_len // target_len + int(need_padding)
+    joints = joints[::stride][:target_len]
+    pos = pos[::stride][:target_len]
+    shuttle = shuttle[::stride][:target_len]
+    new_video_len = len(pos)
+    if need_padding:
+        joints, pos, shuttle = pad_tail((joints, pos, shuttle), target_len)
+    return joints, pos, shuttle, new_video_len
+
+
+def test_make_seq_len_same_matches_old_form_across_live_band():
+    """Bit-exact vs the old stride/pad form for every video_len 1..target_len.
+
+    The live band is the pad branch (no current clip exceeds seq_len; max 97
+    vs 100, structurally capped at 3*fps + fps//4). Beyond-target clips are
+    the declared divergence of the linspace swap and deliberately not pinned.
+    """
+    from src.bst_x.preparing_data.shuttleset_dataset import make_seq_len_same
+
+    rng = np.random.default_rng(11)
+    for target_len in (30, 100):
+        for video_len in range(1, target_len + 1):
+            joints = rng.standard_normal((video_len, 2, 3, 2)).astype(np.float32)
+            pos = rng.standard_normal((video_len, 2, 2)).astype(np.float32)
+            shuttle = rng.standard_normal((video_len, 2)).astype(np.float32)
+            new = make_seq_len_same(target_len, joints, pos, shuttle)
+            old = _old_make_seq_len_same(target_len, joints, pos, shuttle)
+            assert new[3] == old[3], (target_len, video_len)
+            for got, want in zip(new[:3], old[:3]):
+                assert np.array_equal(got, want), (target_len, video_len)

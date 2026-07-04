@@ -85,10 +85,15 @@ def _frame_to_time(frame_number: int, fps: float) -> str:
     :param fps: Video frames per second.
     :return: Time string formatted as HH:MM:SS.ssssss.
     """
-    total_seconds = frame_number / fps
+    # Half-frame offset added before the split so it flows through the
+    # hours/minutes/seconds carry (same total as adding it after, but the string
+    # stays canonical near minute boundaries). Rounding to the printed 6 dp
+    # happens before the split too: a float a hair under a minute boundary
+    # would otherwise format as seconds=60.000000 instead of carrying.
+    total_seconds = round((frame_number + 0.5) / fps, 6)
     hours = int(total_seconds // 3600)
     minutes = int(total_seconds % 3600 // 60)
-    seconds = total_seconds % 60 + 0.5 / fps
+    seconds = total_seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:09.6f}"
 
 
@@ -120,7 +125,9 @@ def _compute_clip_bounds(row, clip_window: str, fps: float) -> tuple[int, int]:
         start_f = max(start_f, frame_num - limit)
         end_f = min(end_f, frame_num + limit + eps)
 
-    return start_f, end_f
+    # Clamp the start to 0: insurance for a shot in the first half-second of a
+    # video (unreachable on real match footage, where play starts minutes in).
+    return max(0, start_f), end_f
 
 
 def _write_clips_for_video(
@@ -154,7 +161,7 @@ def _write_clips_for_video(
             for player in players:
                 (out_folder / f'{player}_{typ}').mkdir(parents=True, exist_ok=True)
 
-    # Open the source video — bare next() on an empty glob raises StopIteration
+    # Open the source video. list() so an absent video is a warning, not a StopIteration.
     video_matches = list(raw_video_dir.glob(f"{video_id} *"))
     if not video_matches:
         print(f"Warning: Raw video for ID {video_id} not found. Skipping.")
@@ -195,8 +202,9 @@ def _filter_removed_shots(
 ) -> pd.DataFrame:
     """Drop rows matching entries in removed_shots.
 
-    Creates a composite string key per row ("set_rally_ballround") and checks
-    membership against the same key format built from removed_shots.
+    Builds a ``(set, rally, ball_round)`` tuple per row and checks membership
+    against the removals for this video. Numpy int tuples hash equal to plain
+    int tuples, so no per-column casting is needed.
 
     :param shots_df: DataFrame with 'set', 'rally', 'ball_round' columns.
     :param vid: Video ID (first element of each removed_shots tuple).
@@ -204,16 +212,14 @@ def _filter_removed_shots(
     :return: Filtered DataFrame.
     """
     # Keep only the removals for this video
-    to_remove = {
-        f'{s}_{r}_{b}' for v, s, r, b in removed_shots if v == vid
-    }
+    to_remove = {(s, r, b) for v, s, r, b in removed_shots if v == vid}
     if not to_remove:
         return shots_df
 
-    # Build one string key per row, then check set membership
-    row_keys = (shots_df['set'].astype(int).astype(str)
-                + '_' + shots_df['rally'].astype(int).astype(str)
-                + '_' + shots_df['ball_round'].astype(int).astype(str))
+    row_keys = pd.Series(
+        list(zip(shots_df['set'], shots_df['rally'], shots_df['ball_round'])),
+        index=shots_df.index,
+    )
     return shots_df[~row_keys.isin(to_remove)]
 
 
@@ -313,7 +319,18 @@ def apply_class_merge(
     move_ops = []
     for split_dir in split_dirs:
         for src_type, dst_type in taxonomy.merge_map.items():
-            if src_type in NOSIDE_FOLDERS or dst_type in NOSIDE_FOLDERS:
+            noside_src = src_type in NOSIDE_FOLDERS
+            noside_dst = dst_type in NOSIDE_FOLDERS
+            if noside_dst and not noside_src:
+                raise NotImplementedError(
+                    f'sided source {src_type!r} -> NOSIDE destination {dst_type!r}: '
+                    f'clips live under Top_/Bottom_ and this branch would '
+                    f'silently merge zero clips.'
+                )
+            if noside_src:
+                # driven_flight -> drive: NOSIDE source folders carry no Top_/Bottom_,
+                # so these clips merge into a flat drive/ beside the sided pair.
+                # Harmless: downstream lookups are stem-keyed.
                 src = split_dir / src_type
                 dst = split_dir / dst_type
                 if src.exists():
@@ -344,7 +361,7 @@ if __name__ == '__main__':
         description='Generate labeled ShuttleSet stroke clips from raw match videos.',
     )
     parser.add_argument('--clip-window', default=CLIP_WINDOW,
-                        choices=VALID_CLIP_WINDOWS,
+                        choices=sorted(VALID_CLIP_WINDOWS),
                         help='Temporal clipping window')
     parser.add_argument('--no-merge', action='store_true',
                         help='Skip class merging (keep all 19 types)')

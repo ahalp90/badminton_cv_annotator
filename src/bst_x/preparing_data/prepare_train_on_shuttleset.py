@@ -3,13 +3,12 @@
 # Licence. See src/bst_x/THIRD_PARTY_NOTICES.md. This project is otherwise
 # licensed LGPL-3.0-or-later.
 
-"""Prepare ShuttleSet training data: shuttle detection, pose estimation, and collation.
+"""Prepare ShuttleSet training data: pose estimation and collation.
 
 Bridges the gap between the pipeline's clip output and BST's expected input format.
-Three steps, each independently skippable:
-  Step 1: Shuttle trajectory detection via TrackNetV3
-  Step 2: 2D/3D player pose estimation via MMPose + court projection
-  Step 3: Collate per-clip .npy files into batch-ready arrays
+Two steps, each independently skippable:
+  Step 1: 2D/3D player pose estimation via MMPose + court projection
+  Step 2: Collate per-clip .npy files into batch-ready arrays
 
 Run from the repo root with both package roots on PYTHONPATH::
 
@@ -31,9 +30,10 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 import torch
+from beartype import beartype
+from jaxtyping import Float, jaxtyped
 from typing import TYPE_CHECKING
 
-import subprocess
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 
 from preparing_data.shuttleset_dataset import (
@@ -43,10 +43,12 @@ from preparing_data.shuttleset_dataset import (
     interpolate_joints,
 )
 from pipeline.config import (
+    CLIP_WINDOW,
     CLIPS_OUTPUT_DIR,
+    COCO_N_JOINTS,
     SET_INFO_DIR,
     RESOLUTION_CSV_PATH,
-    SHUTTLE_CSV_DIR,
+    SHUTTLE_OUTPUT_DIR,
     Taxonomy,
     TAXONOMIES,
     derive_npy_collated_dir_basename,
@@ -56,38 +58,43 @@ from pipeline.config import (
 from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
-from pipeline.court_utils import check_pos_in_court, get_court_info  # noqa: F401
+from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
 
 if TYPE_CHECKING:  # type-only: keeps mmpose out of the runtime import (see module-top note)
     from mmpose.apis import MMPoseInferencer
 
 
+@jaxtyped(typechecker=beartype)
 def normalize_joints(
-    arr: np.ndarray,
-    bbox: np.ndarray,
+    arr: Float[np.ndarray, 'm j 2'],
+    bbox: Float[np.ndarray, 'm 4'],
     v_height=None,
     center_align=False,
-):
-    """
-    - `arr`: (m, J, 2), m=2.
-    - `bbox`: (m, 4), m=2.
-
-    Output: (m, J, 2), m=2.
+) -> Float[np.ndarray, 'm j 2']:
+    """Normalise per-player joints; shapes carried by the annotations (m=2 in
+    detect/current, m=1 per-slot in sticky_anchor). ``Float`` not ``Float32``:
+    callers feed float32 MMPose keypoints with float64 bboxes interchangeably.
 
     Signature defaults are BST-upstream; ``main()`` overrides
     ``center_align=True`` (what the committed extracts used).
     """
     # If v_height == None and center_align == False,
     # this normalization method is same as that used in TemPose.
-    if v_height:
+    if v_height is not None:
         dist = v_height / 4
     else:  # bbox diagonal dist
         dist = np.linalg.norm(bbox[:, 2:] - bbox[:, :2], axis=-1, keepdims=True)
 
     arr_x = arr[:, :, 0]
     arr_y = arr[:, :, 1]
-    x_normalized = np.where(arr_x != 0.0, (arr_x - bbox[:, None, 0]) / dist, 0.0)
-    y_normalized = np.where(arr_y != 0.0, (arr_y - bbox[:, None, 1]) / dist, 0.0)
+    # No missing-joint guard on purpose: failed frames/slots are zeroed upstream
+    # and never reach this function, and MMPose regression coords are continuous
+    # floats (exact 0.0 doesn't occur). If a future pose backend can emit zero or
+    # sentinel coords for missing joints, reintroduce a zero-preserving mask here
+    # (and exempt sentinels from center_align) so "missing" can't be read as a
+    # real on-court position.
+    x_normalized = (arr_x - bbox[:, None, 0]) / dist
+    y_normalized = (arr_y - bbox[:, None, 1]) / dist
 
     if center_align:
         center = (bbox[:, :2] + bbox[:, 2:]) / 2
@@ -98,18 +105,7 @@ def normalize_joints(
     return np.stack((x_normalized, y_normalized), axis=-1)
 
 
-def normalize_shuttlecock(arr: np.ndarray, v_width, v_height):
-    """
-    Normalized by the video resolution.
-
-    `arr`: (t, 2). There are t 'x' and t 'y'.
-    Output: (t, 2). Every 'x', 'y' in-court should be in [0, 1].
-    """
-    x_normalized = arr[:, 0] / v_width
-    y_normalized = arr[:, 1] / v_height
-    return np.stack((x_normalized, y_normalized), axis=-1)
-
-
+@jaxtyped(typechecker=beartype)
 def _order_two_on_court(
     keypoints_2d: np.ndarray,
     vid: int,
@@ -121,25 +117,24 @@ def _order_two_on_court(
     The shared per-frame decision called by detect_players_2d AND detect_players_3d.
     Shape-agnostic: takes only the 2D keypoints + court info, never the joint payload
     or any 3D array. The per-variant tails (failed-frame zero shapes, normalize_joints
-    + bbox in 2D, raw keypoints_3d in 3D) stay in the callers (B5 invariants 3.1, 3.7).
+    + bbox in 2D, raw keypoints_3d in 3D) stay in the callers.
 
     The ``< 2`` short-circuit precedes ``check_pos_in_court`` because the latter slices
-    ``keypoints[:, -2:, :]``, which raises on an empty detection (B5 invariant 3.2). The
-    flip is strict ``>``: on a y-tie the original ascending-index order is kept (B5
-    invariant 3.3). The flip relies on the ``!= 2`` guard upstream so ``np.flip`` on a
-    2-element array is a swap (same invariant).
+    ``keypoints[:, -2:, :]``, which raises on an empty detection. The flip is strict
+    ``>``: on a y-tie the original ascending-index order is kept. The flip relies on
+    the ``!= 2`` guard upstream so ``np.flip`` on a 2-element array is a swap.
 
     :param keypoints_2d: (m, J, 2). The 2D keypoints, in both variants (the 3D caller
         passes its `keypoints_2d`, not `keypoints_3d`; the court projection needs 2D
-        pixel coords; B5 invariant 3.5).
+        pixel coords).
     :param vid: clip's source video id, used to look up homography + resolution.
     :param all_court_info: dict from get_court_info.
     :param res_df: resolution DataFrame indexed by video id.
     :return: ``(in_court_pid, pos_normalized)`` on success (exactly 2 on court,
         ordered Top-before-Bottom); ``None`` on either failure path. ``pos_normalized``
         is the full ``(m, 2)`` array, not the 2-row slice -- the caller does its own
-        ``pos_normalized[in_court_pid]`` (B5 invariant: helper returns the full array
-        so the caller's existing index expression stays correct).
+        ``pos_normalized[in_court_pid]`` (helper returns the full array so the
+        caller's existing index expression stays correct).
     """
     if len(keypoints_2d) < 2:
         return None
@@ -162,18 +157,16 @@ def detect_players_2d(
     video_path: Path,
     all_court_info: dict,
     res_df: pd.DataFrame,
-    J=17,
+    J=COCO_N_JOINTS,
     normalized_by_v_height=False,
     center_align=False,
 ):
-    """
-    Outputs
-    -------
-    failed_ls: list
+    """Detect the two on-court players' 2D pose and court positions per frame.
 
-    players_positions: (t, m, xy), m=xy=2
-
-    players_joints: (t, m, J, xy), m=xy=2
+    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
+        is a per-frame bool list (True where no valid two-player pair was found;
+        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
+        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xy)``.
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -188,7 +181,7 @@ def detect_players_2d(
         # keypoints: (m, J, 2)
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
-        # Shuttle coords for these frames are zeroed at collation (Step 3).
+        # Shuttle coords for these frames are zeroed at collation (Step 2).
         ordered = _order_two_on_court(keypoints, vid, all_court_info, res_df)
         if ordered is None:
             failed_ls.append(True)
@@ -227,16 +220,14 @@ def detect_players_3d(
     video_path: Path,
     all_court_info: dict,
     res_df: pd.DataFrame,
-    J=17,
+    J=COCO_N_JOINTS,
 ):
-    """
-    Outputs
-    -------
-    failed_ls: list
+    """Detect the two on-court players' 3D pose and court positions per frame.
 
-    players_positions: (t, m, xy), m=xy=2
-
-    players_joints: (t, m, J, xy), m=xy=2
+    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
+        is a per-frame bool list (True where no valid two-player pair was found;
+        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
+        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xyz)`` (3D keypoints).
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -290,85 +281,19 @@ def detect_players_3d(
     return failed_ls, players_positions, players_joints
 
 
-def detect_shuttlecock_by_TrackNetV3_with_attention(
-    cur_i: int,
-    total_tasks: int,
-    video_path: Path,
-    save_dir: Path,
-    model_folder: Path = None,
-):
-    """TrackNetV3 (using attention).
+def get_shuttle_result(npy_path: Path) -> np.ndarray:
+    """Load a clip's normalised shuttle trajectory, xy only.
 
-    https://github.com/alenzenx/TrackNetV3
+    The npy is the converter's output (``shuttle_csvs_to_npy`` in
+    ``pipeline/shuttle_extractor.py``), which already did the keep-first
+    Frame dedup and the resolution-normalisation once at extract time. Here we
+    just slice off column 2 (Visibility); misses stay as their saved (0, 0)
+    sentinel, untouched.
 
-    :param cur_i: Current task index (for progress printing).
-    :param total_tasks: Total number of tasks (for progress printing).
-    :param video_path: Path to the clip .mp4 file.
-    :param save_dir: Directory to save the shuttle detection CSV.
-    :param model_folder: Path to the cloned TrackNetV3 repository.
-    :raises ValueError: If model_folder is None.
+    :param npy_path: Flat shuttle npy for the clip (``{stem}.npy``).
+    :return: (t, 2) normalised ``[x, y]``, each in [0, 1].
     """
-    if model_folder is None:
-        raise ValueError("model_folder is required for shuttle detection.")
-    process_args = [
-        "python",
-        str(model_folder / "predict.py").replace("\\", "/"),
-        "--video_file",
-        str(video_path).replace("\\", "/"),
-        "--tracknet_file",
-        str(model_folder / "ckpts" / "TrackNet_best.pt").replace("\\", "/"),
-        "--save_dir",
-        str(save_dir).replace("\\", "/"),
-    ]
-    r = subprocess.run(process_args)
-    assert r.returncode == 0, "Subprocess failed!"
-
-    type_path = video_path.parent
-    set_name = type_path.parent.name
-    print(
-        f"Shuttlecock detection ({cur_i}/{total_tasks}): {set_name}/{type_path.name}/{video_path.name} done!"
-    )
-
-
-def get_shuttle_result(path: Path, v_width, v_height):
-    df = pd.read_csv(str(path)).drop_duplicates(
-        "Frame"
-    )  # for the .csv generated by TrackNetV3 with attention
-    df = df.set_index("Frame").drop(columns="Visibility")
-    shuttle_camera = df.to_numpy().astype(float)
-    # shuttle_camera: (t, 2)
-    return normalize_shuttlecock(shuttle_camera, v_width, v_height)
-
-
-def prepare_trajectory(
-    my_clips_folder: Path,
-    model_folder: Path,
-    save_shuttle_dir: Path,
-):
-    """Run TrackNetV3 shuttle trajectory detection on all clips.
-
-    Scans my_clips_folder for .mp4 files and runs TrackNetV3 on each one,
-    saving shuttle detection CSVs to save_shuttle_dir. Skips clips that
-    already have a corresponding CSV.
-
-    :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
-    :param model_folder: Path to cloned TrackNetV3 repository.
-    :param save_shuttle_dir: Directory to save shuttle detection CSVs.
-    """
-    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
-
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        for i, video_path in enumerate(all_mp4_paths, start=1):
-            shuttle_result_path = save_shuttle_dir / (video_path.stem + "_ball.csv")
-            if not shuttle_result_path.exists():
-                executor.submit(
-                    detect_shuttlecock_by_TrackNetV3_with_attention,
-                    i,
-                    len(all_mp4_paths),
-                    video_path=video_path,
-                    save_dir=save_shuttle_dir,
-                    model_folder=model_folder,
-                )
+    return np.load(str(npy_path))[:, :2]
 
 
 def _prepare_dataset_from_raw_video(
@@ -386,7 +311,7 @@ def _prepare_dataset_from_raw_video(
 
     The resume marker is `_failed.npy` because it is saved last; its presence
     means all three outputs are complete for the clip. Shuttle data is read
-    from the canonical pipeline CSV dir at collation (Step 3); this expensive
+    from the canonical shuttle-npy dir at collation (Step 2); this expensive
     GPU step stays focused solely on pose estimation.
 
     :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
@@ -396,13 +321,12 @@ def _prepare_dataset_from_raw_video(
         besides ``video_path``.
     """
     # Flat layout: per-clip files sit alongside each other under save_root_dir.
-    # Split + label come from clips_master.csv at collation time (Step 3).
+    # Split + label come from clips_master.csv at collation time (Step 2).
     save_root_dir.mkdir(parents=True, exist_ok=True)
 
     all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
 
-    pbar = tqdm(range(len(all_mp4_paths)), desc="Yield .npy files", unit="video")
-    for video_path in all_mp4_paths:
+    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
         save_branch = str(save_root_dir / video_path.stem)
 
         if not Path(save_branch + "_failed.npy").exists():
@@ -421,9 +345,6 @@ def _prepare_dataset_from_raw_video(
             # ~100ms when these ran unconditionally).
             gc.collect()
             torch.cuda.empty_cache()
-
-        pbar.update()
-    pbar.close()
 
 
 def prepare_2d_dataset_npy_from_raw_video(
@@ -503,12 +424,13 @@ def prepare_3d_dataset_npy_from_raw_video(
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")
 
 
-def pad_and_augment_one_npy_video(
+@jaxtyped(typechecker=beartype)
+def pad_and_derive_pose_styles(
     seq_len: int,
-    joints: np.ndarray,
-    pos: np.ndarray,
-    shuttle: np.ndarray,
-    bone_pairs: list[int, int],
+    joints: Float[np.ndarray, 't m j d'],
+    pos: Float[np.ndarray, 't m xy'],
+    shuttle: Float[np.ndarray, 't xy'],
+    bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
     """Pad to uniform sequence length and compute requested pose augmentations.
@@ -517,11 +439,12 @@ def pad_and_augment_one_npy_video(
     derived arrays (``create_bones``, ``interpolate_joints``) are skipped if
     nothing downstream needs them.
 
+    The three arrays share a 't' (frame count): make_seq_len_same resamples them
+    with one index. ``Float`` not ``Float32`` because they arrive as whatever the
+    per-clip npys hold and get cast to float32 in the body below.
+
     :param seq_len: Target sequence length. Shorter clips are zero-padded; longer
-        clips are strided (subsampled) to fit.
-    :param joints: Joint keypoints, shape (t, 2, J, d).
-    :param pos: Player court positions, shape (t, 2, xy).
-    :param shuttle: Shuttle coordinates, shape (t, xy).
+        clips are resampled (linspace index sampling) to fit.
     :param bone_pairs: List of (start_joint, end_joint) index pairs for bone computation.
     :param pose_styles: Which pose representations to compute. Subset of
         ``VALID_POSE_STYLES``. Defaults to ``{'JnB_bone'}`` (the only style
@@ -575,7 +498,7 @@ def _resolve_clips_and_labels(
     one loop that does the label call, the unknown-root routing, the
     existence check, and the three appends together. The single-loop
     discipline keeps ``data_branches`` / ``labels`` / ``clip_stems_arr``
-    row-aligned in the same ``[0, n)`` space (B4 INV-1, INV-2, INV-3).
+    row-aligned in the same ``[0, n)`` space.
 
     Returns the trio so every later stage indexes one shared row order.
     """
@@ -651,22 +574,22 @@ def _load_clip_npys(
     """Concern 2: parallel-load joints / pos / failed per clip.
 
     `result()`s are collected in submission order; that's the row-alignment
-    contract every downstream stage depends on (B4 INV-4). Do not switch to
+    contract every downstream stage depends on. Do not switch to
     `as_completed`. `failed_ls` content is unused -- only `len(failed)` feeds
-    the temporal-align truncation (B4 INV-5b).
+    the temporal-align truncation.
     """
     print(f"Load .npy files for {set_name} set ...")
     with ThreadPoolExecutor() as executor:
-        tasks1: list[Future] = []
-        tasks2: list[Future] = []
-        tasks3: list[Future] = []
+        joint_tasks: list[Future] = []
+        pos_tasks: list[Future] = []
+        failed_tasks: list[Future] = []
         for branch in data_branches:
-            tasks1.append(executor.submit(np.load, branch + "_joints.npy"))
-            tasks2.append(executor.submit(np.load, branch + "_pos.npy"))
-            tasks3.append(executor.submit(np.load, branch + "_failed.npy"))
-        joints_ls = [t1.result() for t1 in tasks1]
-        pos_ls = [t2.result() for t2 in tasks2]
-        failed_ls = [t3.result() for t3 in tasks3]
+            joint_tasks.append(executor.submit(np.load, branch + "_joints.npy"))
+            pos_tasks.append(executor.submit(np.load, branch + "_pos.npy"))
+            failed_tasks.append(executor.submit(np.load, branch + "_failed.npy"))
+        joints_ls = [task.result() for task in joint_tasks]
+        pos_ls = [task.result() for task in pos_tasks]
+        failed_ls = [task.result() for task in failed_tasks]
     print("Finish loading.")
     return joints_ls, pos_ls, failed_ls
 
@@ -676,35 +599,31 @@ def _align_shuttle_and_truncate(
     joints_ls: list[np.ndarray],
     pos_ls: list[np.ndarray],
     failed_ls: list[np.ndarray],
-    shuttle_csv_dir: Path,
-    resolution_df: pd.DataFrame,
+    shuttle_npy_dir: Path,
 ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
-    """Concern 3: read shuttle CSVs + truncate joints/pos/shuttle to a common length.
+    """Concern 3: read shuttle npys + truncate joints/pos/shuttle to a common length.
 
-    Shuttle is read here, not in the pose step: the CSVs are taxonomy/split-
+    Shuttle is read here, not in the pose step: the npys are taxonomy/split-
     agnostic, so decoupling lets the ~1.5-3 day GPU pose job run without them
-    and collation re-run cheaply per taxonomy.
+    and collation re-run cheaply per taxonomy. The keep-first Frame dedup and
+    the resolution-normalisation already happened once at the converter
+    (pipeline/shuttle_extractor.py); this just loads the saved npy.
 
     Temporal alignment: MMPose and TrackNetV3 use different video backends
     that can disagree by 1-2 frames on the tail of the same .mp4. Truncating
     to the shorter length preserves frame alignment (both decoders start at
     frame 0). Truncation propagates to joints AND pos so pose frame k stays
-    paired with shuttle frame k (B4 INV-5).
+    paired with shuttle frame k.
 
-    Returns the joints / pos / shuttle triple explicitly (per pre-analysis Q2)
+    Returns the joints / pos / shuttle triple explicitly
     so concern 4 doesn't need to know that joints_ls / pos_ls were also
     mutated in place.
     """
     shuttle_ls = []
     for i, branch in enumerate(data_branches):
         clip_stem = Path(branch).name  # e.g. '35_1_10_17'
-        csv_path = shuttle_csv_dir / (clip_stem + "_ball.csv")
-        vid = int(clip_stem.split("_", 1)[0])
-        shuttle = get_shuttle_result(
-            path=csv_path,
-            v_width=resolution_df.loc[vid, "width"],
-            v_height=resolution_df.loc[vid, "height"],
-        )
+        npy_path = shuttle_npy_dir / (clip_stem + ".npy")
+        shuttle = get_shuttle_result(npy_path)
         failed = failed_ls[i]
 
         min_t = min(len(failed), len(shuttle))
@@ -723,7 +642,7 @@ def _align_shuttle_and_truncate(
     return joints_ls, pos_ls, shuttle_ls
 
 
-def _pad_augment_stack_save(
+def _pad_derive_stack_save(
     joints_ls: list[np.ndarray],
     pos_ls: list[np.ndarray],
     shuttle_ls: list[np.ndarray],
@@ -737,8 +656,8 @@ def _pad_augment_stack_save(
     """Concern 4: per-clip pad/augment via ProcessPool, then stack + save.
 
     `bad_styles` runs BEFORE the ProcessPool so a typo fails fast without
-    spinning workers (B4 INV-10). ProcessPool `.result()`s are collected in
-    submission order to preserve row alignment (B4 INV-4). The non-pose
+    spinning workers. ProcessPool `.result()`s are collected in
+    submission order to preserve row alignment. The non-pose
     stacks (pos / shuttle / videos_len) complete before any save; the
     per-style pose stack is computed inline as `np.save`'s argument, so a
     stack failure on style k would leave styles 0..k-1 written -- the live
@@ -759,7 +678,7 @@ def _pad_augment_stack_save(
         for joints, pos, shuttle in zip(joints_ls, pos_ls, shuttle_ls):
             tasks.append(
                 executor.submit(
-                    pad_and_augment_one_npy_video,
+                    pad_and_derive_pose_styles,
                     seq_len=seq_len,
                     joints=joints,
                     pos=pos,
@@ -812,8 +731,7 @@ def collate_npy(
     clips_csv: Path,
     split_column: str,
     taxonomy: Taxonomy,
-    shuttle_csv_dir: Path | None = None,
-    resolution_df: pd.DataFrame | None = None,
+    shuttle_npy_dir: Path,
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
     unknown_root_dir: Path | None = None,
 ):
@@ -821,8 +739,8 @@ def collate_npy(
 
     Reads split assignment and label from the master clips CSV, resolves
     per-clip files at FLAT path ``{root_dir}/{clip_stem}_*.npy``, reads
-    shuttle trajectories from the canonical CSV dir, aligns temporal
-    dimensions, applies failed-frame masking, pads to uniform seq_len,
+    shuttle trajectories from the canonical shuttle-npy dir, aligns temporal
+    dimensions, truncates pose and shuttle to a common length, pads to uniform seq_len,
     computes bone vectors and interpolations, then saves the stacked arrays
     into ``save_dir/set_name/``. A row-aligned ``clip_stems.npy`` sidecar
     is saved alongside ``labels.npy`` so downstream consumers can join row
@@ -830,8 +748,8 @@ def collate_npy(
 
     Four staged helpers: ``_resolve_clips_and_labels`` builds the row order,
     ``_load_clip_npys`` parallel-loads joints/pos/failed, ``_align_shuttle_and_truncate``
-    reads shuttle CSVs and truncates the triple to a common length, and
-    ``_pad_augment_stack_save`` runs the ProcessPool and writes the stacked
+    reads shuttle npys and truncates the triple to a common length, and
+    ``_pad_derive_stack_save`` runs the ProcessPool and writes the stacked
     arrays. The argument guards stay here so a bad call fails before any work.
 
     :param root_dir: FLAT per-clip dir containing
@@ -847,10 +765,8 @@ def collate_npy(
     :param taxonomy: Taxonomy. ``derive_class_index`` drives per-row class index +
         the unknown-filter rule (via ``excluded_base_stroke_types``); no
         separate drop_unknown flag any more.
-    :param shuttle_csv_dir: Directory containing TrackNetV3 shuttle CSVs
-        ({clip}_ball.csv). Required.
-    :param resolution_df: DataFrame with video resolutions (width/height), indexed
-        by video ID. Required.
+    :param shuttle_npy_dir: Flat dir of converter-output shuttle npys
+        ({clip}.npy: normalised (t, 3) [x, y, visibility]). Required.
     :param unknown_root_dir: Optional FLAT per-clip dir for rows whose
         ``raw_type_en == 'unknown'``. When set, unknown rows resolve their
         per-clip files from this dir instead of ``root_dir``. Used to point
@@ -859,11 +775,8 @@ def collate_npy(
         be None when the taxonomy has ``'unknown'`` in
         ``excluded_base_stroke_types`` (those rows get dropped anyway).
     """
-    assert set_name in ["train", "val", "test"], "Invalid set_name."
-    if shuttle_csv_dir is None:
-        raise ValueError("shuttle_csv_dir is required")
-    if resolution_df is None:
-        raise ValueError("resolution_df is required")
+    if set_name not in ("train", "val", "test"):
+        raise ValueError(f"Invalid set_name {set_name!r}; expected 'train', 'val', or 'test'.")
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
     if unknown_root_dir is not None and 'unknown' in excluded:
         raise ValueError(
@@ -874,7 +787,8 @@ def collate_npy(
     if taxonomy.has_unknown and unknown_root_dir is None:
         raise ValueError(
             f"taxonomy {taxonomy.name!r} retains unknown in its class list, "
-            f"but unknown_root_dir is None. The 1,278 unknown clips don't have "
+            f"but unknown_root_dir is None. The 1,278 ShuttleSet unknown-class clips "
+            f"don't have "
             f"per-clip files under the canonical extract; they need to come "
             f"from the sibling _unknown extract. Pass unknown_root_dir=<that "
             f"sibling dir>, OR pick a taxonomy whose excluded_base_stroke_types "
@@ -895,10 +809,9 @@ def collate_npy(
         joints_ls=joints_ls,
         pos_ls=pos_ls,
         failed_ls=failed_ls,
-        shuttle_csv_dir=shuttle_csv_dir,
-        resolution_df=resolution_df,
+        shuttle_npy_dir=shuttle_npy_dir,
     )
-    _pad_augment_stack_save(
+    _pad_derive_stack_save(
         joints_ls=joints_ls,
         pos_ls=pos_ls,
         shuttle_ls=shuttle_ls,
@@ -918,9 +831,7 @@ def main():
         PYTHONPATH=src/bst_x \\
             python -m preparing_data.prepare_train_on_shuttleset --dry-run
         PYTHONPATH=src/bst_x \\
-            python -m preparing_data.prepare_train_on_shuttleset --skip-trajectory --skip-pose
-        PYTHONPATH=src/bst_x \\
-            python -m preparing_data.prepare_train_on_shuttleset --tracknet-dir /path/to/TrackNetV3
+            python -m preparing_data.prepare_train_on_shuttleset --skip-pose
     """
     # Populate os.environ from <repo>/.env so argparse defaults below can
     # read BST_* vars. Same pattern as pipeline.data_access.
@@ -928,10 +839,9 @@ def main():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare ShuttleSet training data in 3 steps:\n"
-            "  Step 1: Shuttle trajectory detection (TrackNetV3)\n"
-            "  Step 2: 2D/3D pose estimation (MMPose)\n"
-            "  Step 3: Collate per-clip .npy files into batch arrays\n"
+            "Prepare ShuttleSet training data in 2 steps:\n"
+            "  Step 1: 2D/3D pose estimation (MMPose)\n"
+            "  Step 2: Collate per-clip .npy files into batch arrays\n"
             "\n"
             "Each step can be skipped independently."
         ),
@@ -940,17 +850,12 @@ def main():
 
     # Step control
     parser.add_argument(
-        "--skip-trajectory",
-        action="store_true",
-        help="Skip Step 1 (shuttle trajectory detection)",
-    )
-    parser.add_argument(
-        "--skip-pose", action="store_true", help="Skip Step 2 (pose estimation)"
+        "--skip-pose", action="store_true", help="Skip Step 1 (pose estimation)"
     )
     parser.add_argument(
         "--skip-collate",
         action="store_true",
-        help="Skip Step 3 (collation into batch arrays)",
+        help="Skip Step 2 (collation into batch arrays)",
     )
 
     # Data configuration
@@ -986,19 +891,13 @@ def main():
         help=f"Clip .mp4 input directory (default: BST_X_CLIPS_DIR or {CLIPS_OUTPUT_DIR})",
     )
     parser.add_argument(
-        "--tracknet-dir",
+        "--shuttle-npy-dir",
         type=Path,
-        default=None,
-        help="Path to TrackNetV3 repo (required for Step 1)",
-    )
-    parser.add_argument(
-        "--shuttle-csv-dir",
-        type=Path,
-        default=env_path('BST_X_SHUTTLE_CSV_DIR', SHUTTLE_CSV_DIR),
-        help=f"Directory with TrackNetV3 shuttle CSVs (default: BST_X_SHUTTLE_CSV_DIR or {SHUTTLE_CSV_DIR})",
+        default=env_path('BST_X_SHUTTLE_NPY_DIR', SHUTTLE_OUTPUT_DIR),
+        help=f"Directory with converter-output shuttle npys (default: BST_X_SHUTTLE_NPY_DIR or {SHUTTLE_OUTPUT_DIR})",
     )
 
-    # Step 3 (collation) configuration: drives split + label assignment from
+    # Step 2 (collation) configuration: drives split + label assignment from
     # the master clips CSV instead of the on-disk folder layout. The flat
     # per-clip dir holds {clip_stem}_*.npy files shared across all ablations;
     # the collated dir is per-cell -- the parent dir carries the taxonomy and
@@ -1034,9 +933,9 @@ def main():
         "--clip-npy-dir",
         type=Path,
         default=env_path_or_none('BST_X_MMPOSE_NPY_DIR'),
-        help="FLAT per-clip dir (Step 2 writer + Step 3 reader). Default reads "
+        help="FLAT per-clip dir (Step 1 writer + Step 2 reader). Default reads "
              "BST_X_MMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
-             "preparing_root + 'dataset[_3d]_npy_between_2_hits_with_max_limits_flat'.",
+             f"preparing_root + 'dataset[_3d]_npy_{CLIP_WINDOW}_flat'.",
     )
     parser.add_argument(
         "--unknown-clip-npy-dir",
@@ -1052,7 +951,7 @@ def main():
         "--pose-styles",
         default="JnB_bone",
         help="Comma-separated pose representations to compute and save at "
-             "Step 3. Default 'JnB_bone' (the only style BST training has "
+             "Step 2. Default 'JnB_bone' (the only style BST training has "
              f"used in this tracker). Valid choices: {','.join(VALID_POSE_STYLES)}.",
     )
 
@@ -1076,8 +975,9 @@ def main():
     if taxonomy.has_unknown and args.unknown_clip_npy_dir is None:
         parser.error(
             f"--taxonomy {taxonomy.name!r} retains unknown in its class list, "
-            f"but --unknown-clip-npy-dir is not set. The 1,278 unknown clips "
-            f"don't have per-clip files under the canonical extract; they need "
+            f"but --unknown-clip-npy-dir is not set. The 1,278 ShuttleSet "
+            f"unknown-class clips don't have per-clip files under the canonical "
+            f"extract; they need "
             f"to come from the sibling _unknown extract. Pass "
             f"--unknown-clip-npy-dir <that sibling dir>, OR pick a taxonomy "
             f"whose excluded_base_stroke_types includes 'unknown'."
@@ -1117,11 +1017,11 @@ def main():
         default_flat_dir = preparing_root / f"dataset{str_3d}_npy_flat"
     else:  # 100
         default_flat_dir = (
-            preparing_root / f"dataset{str_3d}_npy_between_2_hits_with_max_limits_flat"
+            preparing_root / f"dataset{str_3d}_npy_{CLIP_WINDOW}_flat"
         )
 
-    # FLAT per-clip dir. Step 2 writes per-clip files here ({clip_stem}_*.npy),
-    # Step 3 reads from here. Split + label come from clips_master.csv at
+    # FLAT per-clip dir. Step 1 writes per-clip files here ({clip_stem}_*.npy),
+    # Step 2 reads from here. Split + label come from clips_master.csv at
     # collation time -- the layout is taxonomy- and split-independent.
     flat_clip_npy_dir = args.clip_npy_dir or default_flat_dir
 
@@ -1132,8 +1032,8 @@ def main():
         print(f"  taxonomy:         {taxonomy.name} ({taxonomy.n_classes} classes)")
         print(f"  use_3d_pose:      {args.use_3d_pose}")
         print(f"  clips_dir:        {args.clips_dir}")
-        print(f"  shuttle_csv_dir:  {args.shuttle_csv_dir}")
-        print(f"  flat_clip_npy:    {flat_clip_npy_dir}  (Step 2 writer + Step 3 reader)")
+        print(f"  shuttle_npy_dir:  {args.shuttle_npy_dir}")
+        print(f"  flat_clip_npy:    {flat_clip_npy_dir}  (Step 1 writer + Step 2 reader)")
         print(f"  npy_collated:     {npy_collated_dir}")
         print(f"  clips_csv:        {args.clips_csv}")
         print(f"  split_column:     {args.split_column}")
@@ -1143,36 +1043,18 @@ def main():
         print(f"  pose_styles:      {sorted(pose_styles)}")
         print(f'  homography:       {SET_INFO_DIR / "homography.csv"}')
         print(f"  resolution:       {RESOLUTION_CSV_PATH}")
-        print(f'\n  Step 1 (trajectory): {"SKIP" if args.skip_trajectory else "RUN"}')
-        print(f'  Step 2 (pose):       {"SKIP" if args.skip_pose else "RUN"}')
-        print(f'  Step 3 (collate):    {"SKIP" if args.skip_collate else "RUN"}')
+        print(f'\n  Step 1 (pose):    {"SKIP" if args.skip_pose else "RUN"}')
+        print(f'  Step 2 (collate): {"SKIP" if args.skip_collate else "RUN"}')
         print("\n=== End dry run ===")
         return
 
-    # ---- Load homography and resolution data (needed by all steps) ----
-    homo_df = pd.read_csv(str(SET_INFO_DIR / "homography.csv")).set_index("id")
+    # ---- Load resolution data + court info (needed by all steps) ----
     resolution_df = pd.read_csv(str(RESOLUTION_CSV_PATH)).set_index("id")
-    all_court_info = {vid: get_court_info(homo_df, vid) for vid in resolution_df.index}
+    all_court_info = build_all_court_info(SET_INFO_DIR, resolution_df)
 
-    # ---- Step 1: Shuttle trajectory detection ----
-    if not args.skip_trajectory:
-        if args.tracknet_dir is None:
-            parser.error(
-                "--tracknet-dir is required for Step 1 (trajectory detection)."
-            )
-        print("\n--- Step 1: Shuttle trajectory detection ---")
-        args.shuttle_csv_dir.mkdir(parents=True, exist_ok=True)
-        prepare_trajectory(
-            my_clips_folder=args.clips_dir,
-            model_folder=args.tracknet_dir,
-            save_shuttle_dir=args.shuttle_csv_dir,
-        )
-    else:
-        print("Step 1: Skipped (--skip-trajectory)")
-
-    # ---- Step 2: Pose estimation ----
+    # ---- Step 1: Pose estimation ----
     if not args.skip_pose:
-        print("\n--- Step 2: Pose estimation ---")
+        print("\n--- Step 1: Pose estimation ---")
         if args.use_3d_pose:
             prepare_3d_dataset_npy_from_raw_video(
                 my_clips_folder=args.clips_dir,
@@ -1190,17 +1072,17 @@ def main():
                 joints_center_align=True,
             )
     else:
-        print("Step 2: Skipped (--skip-pose)")
+        print("Step 1: Skipped (--skip-pose)")
 
-    # ---- Step 3: Collation ----
+    # ---- Step 2: Collation ----
     if not args.skip_collate:
-        print("\n--- Step 3: Collate .npy files ---")
+        print("\n--- Step 2: Collate .npy files ---")
         if not args.clips_csv.exists():
             parser.error(f"--clips-csv path does not exist: {args.clips_csv}")
         if not flat_clip_npy_dir.exists():
             parser.error(
                 f"flat per-clip dir does not exist: {flat_clip_npy_dir}\n"
-                "  Run Step 2 first (drop --skip-pose) or pass --clip-npy-dir."
+                "  Run Step 1 first (drop --skip-pose) or pass --clip-npy-dir."
             )
         for set_name in ["train", "val", "test"]:
             collate_npy(
@@ -1213,11 +1095,10 @@ def main():
                 pose_styles=pose_styles,
                 taxonomy=taxonomy,
                 unknown_root_dir=args.unknown_clip_npy_dir,
-                shuttle_csv_dir=args.shuttle_csv_dir,
-                resolution_df=resolution_df,
+                shuttle_npy_dir=args.shuttle_npy_dir,
             )
     else:
-        print("Step 3: Skipped (--skip-collate)")
+        print("Step 2: Skipped (--skip-collate)")
 
     print("\nAll requested steps complete.")
 
