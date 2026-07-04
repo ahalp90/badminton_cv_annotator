@@ -7,7 +7,7 @@ the per-batch ``cum_tp += batch_tp`` line is where a mismatch (cum_* on CPU,
 batch_* on GPU) would crash. This script reproduces that line's conditions
 with a synthetic two-batch loader and fails loud if it crashes.
 
-No real data needed. Self-contained: a BST_PPF model + two synthetic batches.
+No real data needed. Self-contained: a BST_CG_AP model + two synthetic batches.
 
 Run on bourbaki / engelbart under venv-bst-x:
     cd ~/badminton_stroke_classification
@@ -33,7 +33,7 @@ SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 
 from bst_x_train import validate  # noqa: E402
-from model.bst import BST_PPF  # noqa: E402
+from model.bst import BST_CG_AP  # noqa: E402
 from pipeline.config import taxonomy_lookup  # noqa: E402
 
 N_CLASSES = taxonomy_lookup("une_v1_14").n_classes
@@ -65,7 +65,7 @@ def main() -> int:
         return 2
     device = torch.device("cuda")
     torch.manual_seed(2)
-    model = BST_PPF(
+    model = BST_CG_AP(
         in_dim=IN_DIM, seq_len=T, n_class=N_CLASSES, d_model=100,
     ).to(device)
     loss_fn = nn.CrossEntropyLoss()
