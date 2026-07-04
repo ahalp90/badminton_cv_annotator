@@ -1,5 +1,12 @@
 # rtmlib migration: verification plan
 
+> **Detector superseded (2026-07-04):** results recorded below were measured
+> with rtmdet-nano@320 (at thr 0.3, then 0.15 after the G-4 recalibration); the
+> detector is now RTMDet-M@640 at 0.3
+> ([07_detector_restoration.md](07_detector_restoration.md)) and G1/G6/G7/G8/G9
+> are to be re-run under it (status table in 07). The gate designs and
+> thresholds stay.
+
 > Two gate families: **byte-equality** (things that must not change) and
 > **parity** (the model changed, so compare, don't byte-match). Revised
 > 2026-07-01 after an adversarial gate-review (findings in

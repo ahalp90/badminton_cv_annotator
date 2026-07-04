@@ -1,5 +1,11 @@
 # mmpose to rtmlib migration: findings & scope
 
+> **Superseded on the detector (2026-07-04):** the premise that the rtmdet-nano
+> ONNX matched mmpose's detector is false — mmpose 1.3.2 ran RTMDet-M person
+> @640. Detector and 0.3 keep-threshold restored in
+> [07_detector_restoration.md](07_detector_restoration.md); the nano-era record
+> below is kept as the audit trail.
+
 > **Status (2026-07-04):** all batches built. The adapter (`rtmlib_pose.py`), the
 > CPU + GPU gate harness (`validation_scripts/rtmlib_migration/`), and the
 > `raw_extract.py` / `detect_players_2d` migrations are in the tree and green on
@@ -125,10 +131,14 @@ don't delete.
 rtmlib repo `Tau-J/rtmlib` (Apache-2.0, PyPI 0.0.15 2026-02, repo `main` newer,
 so pin the version). onnxruntime backend; CPU + CUDA execution providers.
 
-- **COCO-17 with a hash-identical detector is available.** The rtmlib-loadable
-  `rtmdet-nano-person` ONNX (`...-05d8511e.zip`) is byte-identical to the
-  detector inside `MMPoseInferencer("human")`; `rtmpose-l_simcc-body7-256x192`
-  is exactly "RTMPose-L COCO-17, updated (7-dataset) weights".
+- **~~COCO-17 with a hash-identical detector is available.~~ False — corrected
+  2026-07-04.** The claim that the `rtmdet-nano-person` ONNX (`...-05d8511e.zip`)
+  is byte-identical to the detector inside `MMPoseInferencer("human")` carried
+  no recorded evidence and is wrong: mmpose 1.3.2 resolves RTMDet-M person
+  (`235e8209`) at 640x640 (`07_detector_restoration.md` has the receipts).
+  `rtmpose-l_simcc-body7-256x192` is "RTMPose-L COCO-17, updated (7-dataset)
+  weights"; the alias's own pose model was RTMPose-M body7, so the migration
+  also upgraded the pose model (kept, by decision).
 
 - **Finding 1: solutions return only `(keypoints, scores)`; no bbox / no
   detection score.** Low-level `RTMDet` returns boxes but *discards* the

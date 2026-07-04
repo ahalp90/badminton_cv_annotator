@@ -15,7 +15,7 @@ const ARCH_LABELS = { 'bst-x': 'BST-X', 'bric': 'BRIC' };
 // the card body describes what the *architecture* is, not the run. Falls back
 // to the registry entry's own description for any arch not listed here.
 const ARCH_NOTES = {
-  'bst-x': 'Skeleton keypoint and shuttle trajectory transformer. No pre-training. Built on BST-CG-AP. Adds: player detection, CDB-F1 loss, scheduling and augmentations. 1.85M trainable parameters, fed by a frozen perception stack (RTMPose-L pose, RTMDet-nano detector, TrackNetV3 shuttle; ~40M params).',
+  'bst-x': 'Skeleton keypoint and shuttle trajectory transformer. No pre-training. Built on BST-CG-AP. Adds: player detection, CDB-F1 loss, scheduling and augmentations. 1.85M trainable parameters, fed by a frozen perception stack (RTMPose-L pose, RTMDet-M detector, TrackNetV3 shuttle; ~64M params).',
   'bric': 'R(2+1)D-18 RGB backbone (Kinetics-400 pretrained, fine-tuned end-to-end) fused with a shuttle-trajectory TCN. 31.3M trainable parameters, plus a frozen perception stack (YOLO11n player crops, TrackNetV3 shuttle; ~14.5M params).',
 };
 

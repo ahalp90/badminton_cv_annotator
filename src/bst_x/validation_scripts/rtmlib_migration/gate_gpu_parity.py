@@ -63,9 +63,10 @@ from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
 # Detector keep-threshold override for the calibration sweep. This is a
-# post-inference filter on the identical ONNX's output scores, NOT a model
-# change. Defaults to the shipped adapter's DET_SCORE_THR (0.15 after the G-4
-# recalibration; the 0.3->0.15 sweep is recorded in 06_phase_a_decision.md).
+# post-inference filter on the detector's output scores, NOT a model change.
+# Defaults to the shipped adapter's DET_SCORE_THR (0.3, mmpose's cut, restored
+# with the RTMDet-M detector; the nano-era 0.3->0.15 sweep is recorded in
+# 06_phase_a_decision.md, the restoration in 07_detector_restoration.md).
 DET_THR = float(os.environ.get("RTMLIB_GATE_DET_THR", DET_SCORE_THR))
 STEMFILE = Path(os.environ.get(
     "RTMLIB_GATE_STEMFILE",

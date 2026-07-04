@@ -135,7 +135,7 @@ def main() -> int:
     line("floors below thresholds", floor_valid,
          f"eps_kp={eps_kp:.2f}px eps_fail={eps_fail_pp:.2f}pp")
     # directional failed-frame loss (the one-directional-bias finding): the
-    # migration's residual disagreement is ~all rtmlib-fails-where-mmpose-keeps.
+    # nano-era residual disagreement was ~all rtmlib-fails-where-mmpose-keeps.
     rt_only = sum(r.get("rt_only_fail", 0) for r in rows)
     mm_only = sum(r.get("mm_only_fail", 0) for r in rows)
     signed_fail_pp = (float(np.mean([r["rt_failrate"] for r in rows]))
@@ -144,10 +144,9 @@ def main() -> int:
     jnt_med_agg = float(np.median(jnt_meds)) if jnt_meds else float("nan")
     print(f"  joints delta (report only): median-of-clip-medians {jnt_med_agg:.4f}")
     print(f"  directional loss: rtmlib-only-fail={rt_only} mmpose-only-fail={mm_only} "
-          f"(signed failed-rate delta {signed_fail_pp:+.2f}pp; a one-directional rtmlib "
-          f"excess is the 320-input-detector bias; the mitigation was the 0.15 "
-          f"keep-threshold (post-inference filter, model unchanged), not a 640 detector "
-          f"(considered and rejected as a different ONNX))")
+          f"(signed failed-rate delta {signed_fail_pp:+.2f}pp; the nano-era run showed "
+          f"a one-directional rtmlib excess from 320-input under-scoring; with the "
+          f"restored RTMDet-M at 640 and the 0.3 cut, expect near-symmetric noise)")
     print(f"  video-id coverage: {covered}/{total} "
           f"{'(full)' if full_coverage else '(PARTIAL: add shards for authoritative)'}")
 

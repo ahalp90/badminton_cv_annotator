@@ -1,5 +1,10 @@
 # rtmlib adapter: design + pre-analysis
 
+> **Superseded on the detector (2026-07-04):** the "hash-identical" premise
+> below is false — mmpose ran RTMDet-M @640, restored in
+> [07_detector_restoration.md](07_detector_restoration.md). The adapter design
+> itself (score recovery, RGB fix, contract) is unchanged and current.
+
 > The single new module both `raw_extract` and `detect_players_2d` depend on.
 > Design first, then the invariants it must preserve, then the empirical
 > validation from the 2026-07-01 CPU prototype spike.
@@ -42,7 +47,9 @@ classes (not the `Body` solution, which returns only keypoints+scores):
    assemble into `N_max`-padded arrays with the top-`N_max`-by-`det_score`
    truncation. This is `raw_extract.extract_raw_frame` sourced from rtmlib.
 
-Models: detector `rtmdet_nano...05d8511e` @ 320x320 (hash-identical to mmpose's);
+Models: detector `rtmdet_nano...05d8511e` @ 320x320 (recorded then as
+"hash-identical to mmpose's" — false; corrected 2026-07-04, RTMDet-M `235e8209`
+@640 restored, see 07);
 pose `rtmpose-l_simcc-body7...256x192` @ `model_input_size=(192,256)`. Device
 `cpu`|`cuda` via rtmlib's `device=`. Module hard-imports rtmlib; consumers import
 it lazily (inside the functions) so `prepare_train_on_shuttleset` keeps
@@ -110,8 +117,9 @@ rtmlib always found ≥2 (the two salient players). Whether this perturbs the
 deployed 2-player output is settled by the end-to-end parity test below and
 the Phase-A GPU gate, not assumed.
 
-Options if end-to-end parity is insufficient: (a) accept (hash-identical
-detector, cleaner detection set); (b) swap to a 640-input YOLOX-HumanArt
+Options if end-to-end parity is insufficient: (a) accept (premised then on a
+"hash-identical detector" — the premise the 2026-07-04 correction overturned;
+cleaner detection set); (b) swap to a 640-input YOLOX-HumanArt
 detector to match density (different detector, more boxes). Resolution: (b) was
 considered and REJECTED, since 640 means a different ONNX (YOLOX-HumanArt),
 off-limits under "don't change the model." The frame-loss motivating it was

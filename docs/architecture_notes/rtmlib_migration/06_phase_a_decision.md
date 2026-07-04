@@ -1,5 +1,12 @@
 # rtmlib migration: Phase-A decision (authoritative)
 
+> **Superseded (2026-07-04):** this verdict's premise — "the identical RTMDet
+> ONNX, the 320x320 input unchanged" — is false; mmpose ran RTMDet-M @640, and
+> the 0.15 threshold below compensated the unintended nano downgrade. The
+> detector and mmpose's 0.3 cut are restored and Phase-A re-runs under them:
+> [07_detector_restoration.md](07_detector_restoration.md). Kept whole as the
+> nano-era audit trail.
+
 > The record of executing `03_verification.md`'s gate ladder via the
 > `05_gpu_handoff.md` loop, and the decision it supports. This is the
 > authoritative call over the stratified all-courts sample. It supersedes the

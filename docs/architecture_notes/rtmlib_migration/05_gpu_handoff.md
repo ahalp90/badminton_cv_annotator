@@ -1,6 +1,9 @@
 # GPU handoff: Phase-A parity gates (Bourbaki)
 
 > STATUS: complete. Phase-A GO at 0.15 (see `06_phase_a_decision.md`); retained as the run record.
+> **Superseded (2026-07-04):** that run used rtmdet-nano@320; the detector is now
+> RTMDet-M@640 at 0.3 and this loop re-runs with `_m`-named gate JSONs
+> ([07_detector_restoration.md](07_detector_restoration.md)). Env recipe below stays valid.
 
 > The CPU gates (G1-G6 + raw-schema) are green on the dev box. G7/G8/G9 run the
 > CUDA extract-and-compare that can only run where Phase B will run: the CUDA

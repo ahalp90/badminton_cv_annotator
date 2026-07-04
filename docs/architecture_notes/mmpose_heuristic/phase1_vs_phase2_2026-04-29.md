@@ -3,7 +3,7 @@
 Same 32,203-clip universe, same 1,722,058 total frames, same `une_merge_v1` taxonomy + `split_v2` for both sides. Pose extracts compared:
 
 - **Phase-1** (baseline): legacy `/scratch/comp320a/ShuttleSet_data_merged_25/dataset_npy_between_2_hits_with_max_limits_flat/`. Source report: `analysis_unemergev1_v2_20260421_1159.txt`.
-- **Phase-2**: new unified raw extract (RTMDet-nano + RTMPose-L, `N_max=16`) + `sticky_anchor` heuristic, written to `/scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor/`. Source report: `analysis_unemergev1_v2_20260429_1905.txt`.
+- **Phase-2**: new unified raw extract (recorded here as "RTMDet-nano + RTMPose-L"; corrected 2026-07-04 — `MMPoseInferencer("human")` ran RTMDet-M @640, and its alias pose model is RTMPose-M body7, see `../rtmlib_migration/07_detector_restoration.md`; `N_max=16`) + `sticky_anchor` heuristic, written to `/scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor/`. Source report: `analysis_unemergev1_v2_20260429_1905.txt`.
 
 Both reports live alongside each other in `src/bst_x/validation_scripts/zeroed_frames_analysis_outputs/`.
 

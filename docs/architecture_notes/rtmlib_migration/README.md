@@ -1,10 +1,16 @@
 # rtmlib migration: overview
 
+> **Detector corrected (2026-07-04):** the migration first shipped RTMDet-nano
+> @320 on a false "byte-identical to mmpose's" claim; mmpose actually ran
+> RTMDet-M @640. Restored, with the 0.3 keep-threshold, in
+> [07_detector_restoration.md](07_detector_restoration.md) — the nano-era
+> numbers below are the superseded audit trail.
+
 Moves the 2D pose-extraction path (`raw_extract`, `detect_players_2d`) off the pinned
 mmpose / mmcv / mmdet / mmengine stack onto rtmlib (onnxruntime, numpy-2 clean, no source
-builds), keeping the same model family: RTMDet-nano person 320x320 plus RTMPose-L body7
-COCO-17. The detector ONNX is byte-identical to mmpose's; the pose model is the updated
-body7 RTMPose-L.
+builds). Models as restored: RTMDet-M person 640x640 (the detector
+`MMPoseInferencer("human")` actually resolved) plus RTMPose-L body7 COCO-17 (a deliberate
+upgrade over the alias's RTMPose-M body7).
 
 ## Outcome
 
@@ -51,4 +57,5 @@ Result and reproduction: `06_phase_a_decision.md`.
 | `03_verification.md` | the gate ladder (byte-equal vs parity) |
 | `04_adversarial_review.md` | gate-review findings |
 | `05_gpu_handoff.md` | the Bourbaki GPU run loop (G7-G9) |
-| `06_phase_a_decision.md` | the authoritative Phase-A decision, start here for the result |
+| `06_phase_a_decision.md` | the nano-era Phase-A decision (superseded audit trail) |
+| `07_detector_restoration.md` | the detector correction: nano to RTMDet-M@640, threshold back to 0.3 — start here for current state |

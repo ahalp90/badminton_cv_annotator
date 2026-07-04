@@ -4,9 +4,11 @@
 #
 # The 2D extraction path (raw_extract.py, prepare_train_on_shuttleset's
 # detect_players_2d) migrated off OpenMMLab onto rtmlib: onnxruntime-backed,
-# numpy-2 clean, no source build, no separate-venv numpy<2 pin. Same model
-# family as before (RTMDet-nano person + RTMPose-L body7 COCO-17). Versions below
-# are the set the migration gate ladder (G1-G6) was validated against.
+# numpy-2 clean, no source build, no separate-venv numpy<2 pin. Models:
+# RTMDet-M person @640 (the detector mmpose's inferencer actually ran; restored
+# 2026-07-04, docs/architecture_notes/rtmlib_migration/07_detector_restoration.md)
+# + RTMPose-L body7 COCO-17. Versions below are the set the migration gate
+# ladder was validated against.
 #
 # --- Manual install steps (can't go in requirements.txt) ---
 # CPU:  pip install -r requirements.txt

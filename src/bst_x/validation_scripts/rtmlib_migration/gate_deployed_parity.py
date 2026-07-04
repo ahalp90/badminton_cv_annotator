@@ -5,8 +5,8 @@ arrays exactly as ``raw_extract`` would (``_common.assemble_raw_clip``), feed
 them through the repo's UNCHANGED ``sticky_anchor``, and compare the deployed
 2-player output (``pos`` / ``joints`` / ``failed``) against the committed clean
 (``sticky_anchor`` over the old mmpose raw). Proves the migration preserves what
-the model actually consumes, despite the model swap and rtmlib's smaller
-detection set.
+the model actually consumes, despite the model swap and the detection-set
+differences (nano-era: fewer boxes than mmpose; restored M@640: slightly more).
 
 This gate is *bbox-driven*: ``sticky_anchor`` selects players by box, so it can
 agree here even if keypoint values drifted. The keypoint values are gated
@@ -143,10 +143,10 @@ def _gate_clip(ext, stem, category, setup) -> dict | None:
     F = min(Frt, Fmm)
     rt_f, mm_f = out.failed[:F], ref_failed[:F]
     fmatch = float((rt_f == mm_f).mean())
-    # Directional failed-frame split: the migration's residual disagreement is
-    # ~100% rtmlib-fails-where-mmpose-keeps (rtmlib's 320-input detector misses a
-    # salient player on hard/blur frames), a one-directional data-loss bias the
-    # mean agreement hides. Surface both directions so it can't.
+    # Directional failed-frame split: the nano-era residual disagreement was
+    # ~100% rtmlib-fails-where-mmpose-keeps (the 320-input detector under-scored
+    # salient players on hard/blur frames), a one-directional data-loss bias the
+    # mean agreement hides. Surface both directions so it can't hide again.
     rt_only_fail = int((rt_f & ~mm_f).sum())  # rtmlib zeroes a frame mmpose kept
     mm_only_fail = int((~rt_f & mm_f).sum())  # the reverse (near-zero in practice)
     both = (~rt_f) & (~mm_f)
@@ -227,11 +227,10 @@ def main() -> int:
           f"  pos_med(max)={np.nanmax([r['pos_med'] for r in results]):.4f}"
           f"  jnt_med(max)={np.nanmax([r['jnt_med'] for r in results]):.4f}")
     print(f"  directional frame loss (all clips): rtmlib-only-fail={tot_rt_only}  "
-          f"mmpose-only-fail={tot_mm_only}  a one-directional rtmlib excess is model "
-          f"behaviour (the 320-input detector misses some salient players); Phase-A "
-          f"decided GO at 0.15, and the mitigation was the 0.15 keep-threshold "
-          f"(post-inference filter, model unchanged), not a 640 detector (considered "
-          f"and rejected as a different ONNX)")
+          f"mmpose-only-fail={tot_mm_only}  the nano-era run had a one-directional "
+          f"rtmlib excess (320-input under-scoring, mitigated then by the 0.15 "
+          f"keep-threshold); with the restored RTMDet-M at 640 and mmpose's 0.3 cut "
+          f"the split should sit near symmetric noise")
     if missing:
         print(f"  missing stems (not evaluated): {', '.join(missing)}")
     if not per_clip_ok:
