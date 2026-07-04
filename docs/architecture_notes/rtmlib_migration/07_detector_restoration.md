@@ -1,10 +1,11 @@
 # Detector restoration: rtmdet-nano@320 back to RTMDet-M@640
 
-> **Status (2026-07-04):** code restored (adapter constants + SHA pin) and all
-> CPU gates green, including the G1/G6 parity reruns — G6 hit fmatch 1.000 on
-> all 20 clips with a 0:0 directional split. Only the Bourbaki GPU ladder
-> (G7/G8/G9, `_m` JSONs) remains. Until G9 re-adjudicates, the nano-era
-> Phase-A GO (06) authorises nothing.
+> **Status (2026-07-05): Phase-A-M = GO.** Code restored, all CPU gates green,
+> and the Bourbaki ladder (G7/G8/G9 over the same 200 nano-era stems) is
+> adjudicated GO — see the decision section below. This verdict supersedes
+> 06's nano-era GO and authorises Phase B at RTMDet-M@640, `DET_SCORE_THR
+> = 0.3`. Outstanding: the GPU config benchmark (driver aborted before it;
+> rerun one-liner below).
 
 ## What happened
 
@@ -108,9 +109,9 @@ Known, accepted semantic gaps vs mmpose (measured, not patched):
 | G2/G3/G4/raw-schema | contract/dtype/determinism/schema | dev CPU | **green** (2026-07-04) |
 | G1 keypoint value | vs committed raw | dev CPU (user) | **green** (2026-07-04): 5 clips, medians 1.17-2.17px [gate 5], conf p90 2.48-5.34 [gate 12], L/R-swap 0-5% [cap 20%], RGB counterfactual byte-exact |
 | G6 deployed parity | vs committed clean | dev CPU (user) | **green** (2026-07-04): 20 clips, fmatch 1.000 on every clip, dF=0, posMed 0.0000, jntMed max 0.0043 [gate 0.03], directional loss 0:0 |
-| G7 self-variance | fresh CUDA floors | Bourbaki (user) | pending — write `g7_selfvariance_m.json` |
-| G8 parity smoke50 + authoritative | vs committed raw | Bourbaki (user) | pending — write `g8_parity_m_*.json` |
-| G9 Phase-A re-decision | verdict | Bourbaki run, adjudicated | pending |
+| G7 self-variance | fresh CUDA floors | Bourbaki (user) | **green** (2026-07-04): eps_kp median AND max 0.000px, eps_fail 0.00pp over 50 clips — CUDA reruns bit-identical |
+| G8 parity smoke50 + authoritative | vs committed raw | Bourbaki (user) | **green** (2026-07-04): 200-clip run over the nano-era `phase_a_stems.txt`; `g8_parity_m_full.json` |
+| G9 Phase-A re-decision | verdict | Bourbaki run, adjudicated | **GO** (adjudicated 2026-07-05); mechanical print NO-GO on one rtmlib-favourable artifact, see below |
 
 Bourbaki loop (same env/loop as 05; only the `_m` names and one dep are new):
 
@@ -159,6 +160,45 @@ write `_m` names. Expected shape of the rerun: the directional frame-loss
 split collapses toward symmetric noise, the 06 residual `2_1_10_2` and the
 `4_1_10_x` dropped-player family resolve, and over-detection (>16) warnings
 stay near the baseline rate (mmpose itself hit the 16 cap).
+
+## Phase-A-M decision (run 2026-07-04 on Bourbaki; adjudicated 2026-07-05)
+
+**GO.** The authoritative 200-clip rerun — same stratified `phase_a_stems.txt`
+as the nano-era G-4, so like-for-like — against the committed mmpose raw:
+
+- Frame count: 200/200 clips at dF=0. Failed-agreement 1.000. Aggregate
+  failed-rate delta 0.03pp [gate 2pp].
+- Keypoints: median 1.72px, p90 3.93px [gates 5/12px], every clip within
+  per-clip bounds (the nano-era `5_1_10_1` L/R p90 tail is gone).
+- **Zero rtmlib-only failed frames across all 200 clips** and zero dropped
+  players. Directional split 0:3 — the three disagreeing frames are all
+  frames mmpose zeroed and rtmlib-M keeps.
+- G7 floors: 0.000px / 0.00pp (CUDA reruns bit-identical), so the keypoint
+  gates above ran with no slack.
+
+The mechanical print says NO-GO on exactly one line: per-clip failed-rate
+|delta| max 5.45pp [gate 5pp] on `43_1_10_2` — 55 frames, mmpose failed 15,
+rtmlib-M failed 12. That is the symmetric-gate artifact 06 pre-registered by
+name ("flags clips where rtmlib beats mmpose: 33_1_12_2, 43_1_10_2"): the
+violation is rtmlib recovering 3 frames. The 40/44 video-id coverage note is
+the nano-era denominator artifact (40 extractable of 44). Both read-pasts are
+rtmlib-favourable; no fidelity-direction metric failed anywhere.
+
+Progression across the three authoritative runs, same 200 stems:
+
+| run | verdict | rt-only:mm-only fails | dropped players | kp med/p90 |
+|---|---|---|---|---|
+| nano@0.3 (G-4) | NO-GO | 50:7 | 5 clips | 1.74 / 4.58px |
+| nano@0.15 (06 GO) | GO + residual `2_1_10_2` | 15:20 | 0 | 1.93 / 4.21px |
+| **M@0.3 (this)** | **GO, no residuals** | **0:3** | **0** | **1.72 / 3.93px** |
+
+This section supersedes 06's verdict. Phase B is authorised at RTMDet-M@640,
+`DET_SCORE_THR = 0.3`.
+
+Operational note: `phase_a_decision.py` exits non-zero on a mechanical NO-GO,
+which aborted the `run_b4.sh` driver before the GPU config benchmark; rerun
+just the benchmark with:
+`cd ~/rtmlib_m_restoration/repo && source ../remote_env.sh && RTMLIB_GATE_DEVICE=cuda PYTHONPATH=src/bst_x:src PYTHONUNBUFFERED=1 ~/venv-rtmlib-gpu/bin/python src/bst_x/validation_scripts/rtmlib_migration/bench_detector_pose_configs.py 2>&1 | tee ../logs/bench_m_gpu.out`
 
 Phase-B consequences: collation tag moves off `rtmlib_015` (0.15 is no longer
 the shipped threshold); the external `phase_b_run.sh` must drop
