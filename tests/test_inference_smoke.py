@@ -60,7 +60,7 @@ def _build_fake_run(tmp_path: Path) -> tuple[Path, Path]:
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=taxonomy.n_classes, seq_len=100, device='cpu',
+        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
 
     # Collation under collated_data_root/ShuttleSet_data_<tax>/<basename>/.
@@ -155,9 +155,11 @@ def test_dump_run_predictions_default_lands_in_run_dir_not_predictions(tmp_path,
     assert not (run_dir / 'predictions').exists()
 
 
-def test_dump_run_predictions_missing_serial_exits(tmp_path):
+def test_dump_run_predictions_missing_serial_raises(tmp_path):
+    # dump_run_predictions raises inside the library (the CLI catches and exits);
+    # a missing serial is a ValueError.
     run_dir, collated_data_root = _build_fake_run(tmp_path)
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         bst_x_infer.dump_run_predictions(
             run_dir=run_dir, serial=99, fe_output_dir=tmp_path / 'fe',
             splits=('test',), collated_data_root=collated_data_root,
@@ -170,13 +172,30 @@ def test_dump_topk_predictions_k_clamps_to_head(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=taxonomy.n_classes, seq_len=100, device='cpu',
+        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = tmp_path / 'coll'
     _write_split(coll / 'test', n_bones=n_bones, labels=[0, 1, 2, 3])
     loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=2, shuffle=False)
 
-    dump = dump_topk_predictions(net, loader, 'cpu', k=50)  # k >> head
+    dump = dump_topk_predictions(net, loader, torch.device('cpu'), k=50)  # k >> head
     assert dump['logits'].shape == (4, taxonomy.n_classes)
     assert dump['topk_idx'].shape == (4, taxonomy.n_classes)  # clamped to 12
     assert dump['y_pred_top1'].tolist() == dump['topk_idx'][:, 0].tolist()
+
+
+def test_get_network_architecture_before_prepare_loader_builds(monkeypatch):
+    """pose_style lives on Task.__init__, so the network builds without a prior
+    prepare_loader call. Guards the old ordering trap, where
+    get_network_architecture read self.pose_style and only prepare_loader set it.
+    """
+    # Force CPU: build_bst_x_network calls .to(device) and Task picks cuda when
+    # available, which fails on a host whose GPU is too old for the torch build.
+    monkeypatch.setattr(torch.cuda, 'is_available', lambda: False)
+    taxonomy = taxonomy_lookup(TAX_NAME)
+
+    task = bst_x_infer.Task(n_joints=17)
+    # Deliberately out of order: build the net first, no loader prepared.
+    task.get_network_architecture(taxonomy=taxonomy, seq_len=100, in_channels=2)
+
+    assert isinstance(task.net, torch.nn.Module)

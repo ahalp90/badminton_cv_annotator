@@ -48,11 +48,13 @@ TAX3 = Taxonomy(
 def _task_with_labels(taxonomy, train, val, test) -> bt.Task:
     """A Task carrying loaders whose datasets expose only ``.labels``.
 
-    Enough for ``_assert_label_coverage``, which only reads
-    ``self.*_loader.dataset.labels``.
+    Enough for ``_assert_label_coverage``, which reads
+    ``self.*_loader.dataset.labels`` plus ``self.hyp.train_partial`` when
+    formatting the missing-class error.
     """
     task = bt.Task.__new__(bt.Task)
     task.taxonomy = taxonomy
+    task.hyp = bt.hyp  # default Hyp; only train_partial is read, in the error text
 
     def loader(lbls):
         ds = types.SimpleNamespace(labels=np.array(lbls, dtype=np.int64))
@@ -95,6 +97,36 @@ def _make_collation(
         stems = np.array([f'{split}_clip_{i}' for i in range(n)], dtype=object)
         np.save(sd / 'clip_stems.npy', stems, allow_pickle=True)
     return coll
+
+
+# ---------------------------------------------------------------------------
+# aux_schedule_factor ladder (CG/AP cosine fade across epochs)
+# ---------------------------------------------------------------------------
+
+def test_aux_schedule_factor_ladder():
+    """Cosine fade: 1.0 at epoch 1, 0.5 at mid-fade, 0.0 at and past fade_end.
+
+    Epochs are 1-indexed (the loop runs ``range(1, n_epochs + 1)``), so with
+    ``fade_end_epoch == 1`` the ``epoch >= fade_end_epoch`` branch owns every
+    real call and the factor is 0.0 there; a fade_end <= 1 special case can
+    never fire. This ladder pins the whole surface and was recorded green
+    against the code both before and after the unreachable-branch delete.
+    """
+    fade_end = 11
+
+    # Endpoints and the exact midpoint of the 1..fade_end interval.
+    assert bt.aux_schedule_factor(1, fade_end) == 1.0
+    assert bt.aux_schedule_factor(6, fade_end) == pytest.approx(0.5)
+    assert bt.aux_schedule_factor(fade_end, fade_end) == 0.0
+    assert bt.aux_schedule_factor(fade_end + 1, fade_end) == 0.0
+
+    # Strictly monotone decreasing across the fading interior (cosine shape).
+    ladder = [bt.aux_schedule_factor(e, fade_end) for e in range(1, fade_end + 1)]
+    assert all(earlier > later for earlier, later in zip(ladder, ladder[1:]))
+
+    # fade_end_epoch == 1: the epoch >= fade_end_epoch branch fires for epoch 1,
+    # giving 0.0; the aux head is off from the first epoch, never 1.0.
+    assert bt.aux_schedule_factor(1, fade_end_epoch=1) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +179,7 @@ def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
@@ -156,7 +188,7 @@ def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     )
 
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4, shuffle=True)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4, shuffle=False)
@@ -185,7 +217,7 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     test_labels = [2, 0, 1, 2, 0]
@@ -194,7 +226,7 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
         labels={'train': [0, 1, 2], 'val': [0], 'test': test_labels},
     )
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -214,7 +246,7 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     # test split: clip index 1 is zero-length -> dropped at load.
@@ -224,7 +256,7 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
         videos_len={'test': [100, 0, 100, 100]},
     )
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(Dataset_npy_collated(coll, 'train', 'JnB_bone'), batch_size=4)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -253,17 +285,17 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
         tmp_path, n_bones=n_bones,
         labels={'train': [0, 1, 2, 0, 1, 2, 0, 1], 'val': [0, 1, 2], 'test': [0]},
     )
-    # train_partial=0.5 -> adjust_to_partial_train_set groups by class + halves.
+    # train_partial=0.5 -> adjust_to_deterministic_partial_train_set groups by class + halves.
     train_ds = Dataset_npy_collated(coll, 'train', 'JnB_bone', train_partial=0.5)
     task = bt.Task.__new__(bt.Task)
-    task.taxonomy, task.device, task.net = TAX3, 'cpu', net
+    task.taxonomy, task.device, task.net = TAX3, torch.device('cpu'), net
     task.train_loader = DataLoader(train_ds, batch_size=4, shuffle=True)
     task.val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
     task.test_loader = DataLoader(Dataset_npy_collated(coll, 'test', 'JnB_bone'), batch_size=4)
@@ -284,22 +316,22 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
 # 3. train_network return contract: (model, val_at_best)
 # ---------------------------------------------------------------------------
 
-def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
+def test_train_network_returns_model_and_val_at_best(tmp_path):
     """A short real train returns ``(model, val_at_best)``; the snapshot, when
     present, is a dict with an epoch + a per-class F1 map over present classes.
     """
-    # Tiny, deterministic Hyp: plain CE, 2 epochs, no aux schedule. train_network
-    # reads the module-global hyp, so patch it for the duration of the call.
-    monkeypatch.setattr(bt, 'hyp', bt.hyp._replace(
+    # Tiny, deterministic Hyp: plain CE, 2 epochs, no aux schedule. Passed to
+    # train_network explicitly (same overrides the old module-global patch used).
+    test_hyp = bt.hyp._replace(
         n_epochs=2, early_stop_n_epochs=10, warm_up_step=1,
         adaptive_focal=None, class_weights=None, label_smoothing=0.0,
         use_aux_schedule=False, pose_style='JnB_bone',
         augmentation={'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15},
-    ))
+    )
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device='cpu',
+        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = _make_collation(
         tmp_path, n_bones=n_bones,
@@ -309,9 +341,9 @@ def test_train_network_returns_model_and_val_at_best(tmp_path, monkeypatch):
     val_loader = DataLoader(Dataset_npy_collated(coll, 'val', 'JnB_bone'), batch_size=4)
 
     result = bt.train_network(
-        model=net, train_loader=train_loader, val_loader=val_loader, device='cpu',
+        model=net, train_loader=train_loader, val_loader=val_loader, device=torch.device('cpu'),
         save_path=tmp_path / 'w.pt', n_bones=n_bones, n_classes=TAX3.n_classes,
-        class_ls=list(TAX3.classes), taxonomy=TAX3, tb_dir=tmp_path / 'tb',
+        class_ls=list(TAX3.classes), taxonomy=TAX3, hyp=test_hyp, tb_dir=tmp_path / 'tb',
     )
     assert isinstance(result, tuple) and len(result) == 2
     model, val_at_best = result

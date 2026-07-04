@@ -28,7 +28,8 @@ import sys
 
 import numpy as np
 
-from preparing_data.raw_extract import J, extract_raw_frame
+from pipeline.config import COCO_N_JOINTS
+from preparing_data.raw_extract import extract_raw_frame
 from preparing_data.rtmlib_pose import FrameDetections
 
 
@@ -36,9 +37,9 @@ def _frame(scores: list[float]) -> FrameDetections:
     """Synthetic frame: detection i tagged with marker i on every field."""
     m = len(scores)
     markers = np.arange(m, dtype=np.float32)
-    kps = np.tile(markers.reshape(m, 1, 1), (1, J, 2))            # (m, J, 2), all == i
+    kps = np.tile(markers.reshape(m, 1, 1), (1, COCO_N_JOINTS, 2))  # (m, J, 2), all == i
     bboxes = np.stack([markers, markers, markers + 1, markers + 1], axis=1)  # valid xyxy
-    kp_scores = np.full((m, J), 0.9, dtype=np.float32)
+    kp_scores = np.full((m, COCO_N_JOINTS), 0.9, dtype=np.float32)
     return FrameDetections(
         keypoints=kps, bboxes=bboxes.astype(np.float32),
         bbox_scores=np.asarray(scores, dtype=np.float32), kp_scores=kp_scores,

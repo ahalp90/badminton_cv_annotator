@@ -45,9 +45,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pipeline.config import COCO_N_JOINTS
 from pipeline.court_utils import normalize_position, to_court_coordinate
 
-from .base import ClipContext, HeuristicOutput, J, RawClip
+from .base import ClipContext, HeuristicOutput, RawClip
 
 
 @dataclass(frozen=True)
@@ -283,7 +284,7 @@ def _run_clip(
     num_frames = raw.kps.shape[0]
     failed = np.zeros(num_frames, dtype=bool)
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
-    joints = np.zeros((num_frames, 2, J, 2), dtype=np.float64)
+    joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
     ema_history = np.zeros((num_frames, 2, 2), dtype=np.float64)
 
     # Per-slot EMA, initialised to halfcourt_centre.
@@ -330,8 +331,8 @@ def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:
     Keeps the registry-contract ``apply(raw, ctx, **kw)`` signature; the
     ``StickyAnchorParams`` instance is constructed at this boundary.
     """
-    # Lazy import: prepare_train_on_shuttleset imports torch + the extraction
-    # pipeline at module load (the 2D path is rtmlib now, not mmpose).
+    # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
+    # load (its rtmlib/mmpose imports are themselves lazy).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         normalize_joints,
     )

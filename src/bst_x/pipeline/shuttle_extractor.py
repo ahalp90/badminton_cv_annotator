@@ -53,8 +53,8 @@ def normalize_shuttlecock(arr: np.ndarray, v_width: float, v_height: float) -> n
 # TrackNetV3 subprocess invocation
 # ---------------------------------------------------------------------------
 def extract_all_shuttles(
+    tracknet_dir: Path,
     clips_dir: Path = CLIPS_OUTPUT_DIR,
-    tracknet_dir: Path = Path('.'),
     output_csv_dir: Path | None = None,
     model_path: Path | None = None,
     inpaintnet_path: Path | None = None,
@@ -73,8 +73,8 @@ def extract_all_shuttles(
     requires enough VRAM for multiple models (e.g. A100 40GB). On V100
     16GB, use max_workers=1.
 
-    :param clips_dir: Root clips directory to scan for .mp4 files.
     :param tracknet_dir: Path to the cloned TrackNetV3 repository.
+    :param clips_dir: Root clips directory to scan for .mp4 files.
     :param output_csv_dir: Directory for TrackNetV3 CSV outputs.
         Defaults to clips_dir/../shuttle_csv.
     :param model_path: Path to TrackNet weights. Defaults to tracknet_dir/ckpts/TrackNet_best.pt.
@@ -89,8 +89,8 @@ def extract_all_shuttles(
     # Preflight: verify TrackNetV3 is set up correctly
     if not tracknet_dir.is_dir():
         raise FileNotFoundError(f'TrackNetV3 directory not found: {tracknet_dir}')
-    if not (tracknet_dir / 'predict.py').exists():
-        raise FileNotFoundError(f'predict.py not found in: {tracknet_dir}')
+    if not (tracknet_dir / 'batch_predict.py').exists():
+        raise FileNotFoundError(f'batch_predict.py not found in: {tracknet_dir}')
 
     resolved_model = model_path or (tracknet_dir / _DEFAULT_TRACKNET_SUBPATH)
     if not resolved_model.exists():
@@ -179,7 +179,15 @@ def shuttle_csvs_to_npy(
     npy_output_dir: Path = SHUTTLE_OUTPUT_DIR,
     resolution_csv_path: Path = RESOLUTION_CSV_PATH,
 ) -> None:
-    """Convert TrackNetV3 CSV outputs to normalized .npy files.
+    """Convert TrackNetV3 CSV outputs to normalised .npy files, one per clip.
+
+    Regenerates every npy on every run (no skip-existing): a re-extract that
+    pops a fresh CSV then pops a fresh npy rather than leaving a stale one.
+
+    Each saved npy holds resolution-NORMALISED coordinates -- x divided by the
+    video width, y by the height, both in [0, 1] -- with the TrackNetV3
+    Visibility flag passed through untouched. Raw pixel coordinates are always
+    rederivable from the source CSV, so saving normalised loses nothing.
 
     Writes flat: each clip gets one .npy named after its stem. Split and
     class labels are carried by clips_master.csv at collation time, not by
@@ -190,8 +198,8 @@ def shuttle_csvs_to_npy(
     :param clips_dir: Root clips directory (used to discover all clips).
     :param csv_dir: Directory containing TrackNetV3 CSV outputs.
         Defaults to clips_dir/../shuttle_csv.
-    :param npy_output_dir: Output directory for normalized .npy files (flat).
-    :param resolution_csv_path: Path to video resolution CSV (for normalization).
+    :param npy_output_dir: Output directory for normalised .npy files (flat).
+    :param resolution_csv_path: Path to video resolution CSV (for normalisation).
     """
     if csv_dir is None:
         csv_dir = _default_csv_dir(clips_dir)
@@ -205,12 +213,13 @@ def shuttle_csvs_to_npy(
     for clip_path in sorted(clips_dir.rglob('*.mp4')):
         npy_path = npy_output_dir / (clip_path.stem + '.npy')
 
-        if npy_path.exists():
-            continue
-
         # Find corresponding TrackNetV3 CSV
         csv_path = csv_dir / (clip_path.stem + '_ball.csv')
         if not csv_path.exists():
+            # A clip with no CSV must not keep an old npy: collation reads
+            # the npy as its source now, so a missing file fails loud there
+            # instead of serving outdated coordinates.
+            npy_path.unlink(missing_ok=True)
             missing += 1
             continue
 

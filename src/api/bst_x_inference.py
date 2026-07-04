@@ -79,7 +79,7 @@ ACTIVE_CLASS_LIST = [
 N_CLASS = len(ACTIVE_CLASS_LIST)
 TOP_K = 5
 
-DEVICE = "cpu"  # backend container is CPU-only by design
+DEVICE = torch.device("cpu")  # backend container is CPU-only by design
 
 
 # ─── Lazy globals ───────────────────────────────────────────────────
@@ -243,7 +243,7 @@ def predict(stem: str, split: str | None = None) -> dict:
     shuttle_t    = torch.from_numpy(shuttle).unsqueeze(0).to(DEVICE)      # (1, T, 2)
     video_len_t  = torch.tensor([video_len], device=DEVICE)               # (1,)
 
-    logits = _model(human_pose_t, shuttle_t, pos_t, video_len_t)  # (1, n_class)
+    logits = _model(human_pose_t, shuttle_t, pos=pos_t, video_len=video_len_t)  # (1, n_class)
     probs = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()  # (n_class,)
     top_idx = np.argsort(-probs)[:TOP_K]
     predicted_class = ACTIVE_CLASS_LIST[int(np.argmax(probs))]

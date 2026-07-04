@@ -51,7 +51,9 @@ def find_set3_switch_rally(df: pd.DataFrame) -> int:
     :param df: DataFrame with 'roundscore_A', 'roundscore_B', and 'rally' columns.
     :return: iloc index splitting the DataFrame into pre-switch and post-switch.
     """
-    # Find the first index where either player reaches 11 points.
+    # Find the first index where either player reaches 11 points. roundscore is
+    # the score after the rally, so the rally that first shows 11 was played on
+    # the pre-switch sides.
     i_A = df['roundscore_A'].searchsorted(11, side='left')
     i_B = df['roundscore_B'].searchsorted(11, side='left')
     i = min(i_A, i_B)
@@ -61,6 +63,7 @@ def find_set3_switch_rally(df: pd.DataFrame) -> int:
         return len(df)
 
     switch_rally = df.iloc[i]['rally']
+    # np array insertion side: i.e., after the switch rally's rows
     return df['rally'].searchsorted(switch_rally, side='right')
 
 
@@ -103,6 +106,8 @@ def collect_shots(
         df = pd.read_csv(csv_path)[_SHOT_COLS]
         df.insert(0, 'set', np.full(len(df), 3, dtype=int))
 
+        # switch detection needs the unfiltered frame: positional index +
+        # complete scores; filter after splitting.
         i_split = find_set3_switch_rally(df)
         # Before switch: same court sides as set 1
         df_before = map_players(df.iloc[:i_split], first_A_is_top, 1)

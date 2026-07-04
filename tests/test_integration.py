@@ -77,9 +77,10 @@ def test_pipeline_dataloader_to_model_forward_pass():
     #   Owner: Jared
     #   Script: pipeline/clip_generator.py -> apply_class_merge()
     #
-    # Step 3: Pose extraction (MMPose) and shuttle extraction (TrackNetV3) -> npy files
+    # Step 3: Pose extraction (MMPose) -> npy files; shuttle extraction (TrackNetV3) -> CSVs
     #   Owner: Ariel
-    #   Script: preparing_data/prepare_train_on_shuttleset.py
+    #   Scripts: preparing_data/prepare_train_on_shuttleset.py (pose, collate);
+    #            pipeline/shuttle_extractor.py via build_dataset step 6 (shuttle)
     #
     # Once the above are complete, point BST_X_DATA_DIR at the
     # npy_[3d_][seq{N}_]{split}_{collation_id} directory (3d_/seq{N}_ prefixes
@@ -133,7 +134,7 @@ def test_pipeline_dataloader_to_model_forward_pass():
     model.eval()
 
     with torch.no_grad():
-        output = model(human_pose, shuttle, pos, video_len)
+        output = model(human_pose, shuttle, pos=pos, video_len=video_len)
 
     assert output.shape == (4, n_classes), (
         f"Expected output shape (4, {n_classes}), got {output.shape} — "

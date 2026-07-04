@@ -17,7 +17,7 @@ equivalence gates land here too.
 | Script | Surface | Cost | Venv | Why it's needed |
 |---|---|---|---|---|
 | `smoke_b1_validate_gpu.py` | `bst_x_train.validate()` | ~seconds on bourbaki / engelbart | venv-bst-x | Device-mismatch bugs in the per-class accumulators are silent on CPU and crash on GPU; this is the only GPU-only gate |
-| `smoke_b6_npz_writer.py` | `bst_x_common._write_prediction_npz` | ~seconds local | badminton-cicd | The npz schema is consumed by `build_fe_stats_jsons`, `calibration_ece`, and the FE downstream; protects against silent schema drift + same-dtype field transposes |
+| `smoke_b6_npz_writer.py` | `bst_x_common.write_prediction_npz` | ~seconds local | badminton-cicd | The npz schema is consumed by `build_fe_stats_jsons`, `calibration_ece`, and the FE downstream; protects against silent schema drift + same-dtype field transposes |
 | `smoke_b7_seeded_train.py` | `bst_x_train.train_network` | ~seconds CPU / ~minute cuda | badminton-cicd (CPU) or venv-bst-x (cuda) | End-to-end bit-exact for any future change in the training loop or its setup |
 | `seed_and_run_bst_x_train.py` | Tooling, not a gate | Depends on the wrapped run | venv-bst-x for cuda | The only way to drive a real `bst_x_train` run with a pinned RNG without editing the production source |
 | `compare_b7_real_runs.py` | Tooling, not a gate | ~seconds local | badminton-cicd | Consumer side of the launcher above; diffs two run dirs (checkpoint .pt SHA, prediction npz per-key, manifest per-serial metrics) |

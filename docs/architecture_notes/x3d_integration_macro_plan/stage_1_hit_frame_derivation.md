@@ -48,7 +48,7 @@ The deliverable is data + diagnostics, not training. Implementation happens in a
 
 - Clip windowing rule is `between_2_hits_with_max_limits` with the 100-frame cap. Stem format is `{vid}_{set}_{rally}_{ball_round}`. Source: `pipeline/clip_generator.py:_compute_clip_bounds`.
 - Method A scaffold exists at `src/bst_x/validation_scripts/hit_frame_lookup.py:25`. It returns a `dict[stem -> hit_idx_disk]` derived from `ShuttleSet/set/*.csv` plus `video_metadata.csv`. CPU-only, runs in seconds. Not yet writing sidecars.
-- Collation pads everything to seq_len=100 via `make_seq_len_same` at `src/bst_x/preparing_data/shuttleset_dataset.py:43`. Two cases: `videos_len > 100` strides the disk clip; `videos_len <= 100` zero-pads on the right. Striding shifts the hit index; padding does not.
+- Collation pads everything to seq_len=100 via `make_seq_len_same` at `src/bst_x/preparing_data/shuttleset_dataset.py:66`. Two cases: `videos_len > 100` resamples the disk clip by linspace index sampling, `np.round(np.linspace(0, videos_len - 1, 100)).astype(int)` (the readability pass replaced the old fixed-stride + pad scheme; identical on all current data since no clip exceeds 100 frames); `videos_len <= 100` zero-pads on the right. Resampling shifts the hit index; padding does not.
 - Shuttle stream: `shuttle.npy` per split is `(n_clips, 100, 2)` xy in court-normalised coordinates. The TrackNetV3-inpaint version is what `wipe_drop` collation pulls in; gaps are the inpaint output's own residual misses, not raw zeros.
 - Collated trees live under `npy_wipe_drop/{train,val,test}/` per `bst_x_overview.md` X3D-S anchor section. Sidecars from Stage 1 land in the same dirs.
 - Source clips on engelbart at `BST_X_CLIPS_DIR=/scratch/comp320a/ShuttleSet/clips/{split}/{Top|Bottom}_{stroke}/{stem}.mp4`. Source `clips_master.csv` at `notebooks/clips_master.csv` carries `clip_stem`, `raw_type_en`, `player_side`, `split_v2`, plus `aroundhead` / `backhand` flags.
@@ -57,10 +57,10 @@ The deliverable is data + diagnostics, not training. Implementation happens in a
 
 `hit_frame_lookup.build_hit_frame_lookup` returns the disk-clip hit-frame index. Wrap it to write `hit_frame_idx_method_a_disk.npy` per split aligned to the collated stem order.
 
-For the collated-tensor index, push the disk index through `make_seq_len_same`'s stride logic:
+For the collated-tensor index, push the disk index through `make_seq_len_same`'s sampling logic:
 
 - `videos_len <= 100`: collated index = disk index (right-padding doesn't move existing frames).
-- `videos_len > 100`: stride = `videos_len // 100 + int((videos_len % 100) > 50)`; collated index = `min(disk_idx // stride, 99)`. Frames after stride sampling are not the same physical frames as the disk clip's frames at the same index, so this conversion is intrinsic to using the collated tensor for Stage 4 onwards.
+- `videos_len > 100`: the sampled indices are `np.round(np.linspace(0, videos_len - 1, 100)).astype(int)`; collated index = the position in that array of the sampled index nearest `disk_idx` (`np.argmin(np.abs(sampled - disk_idx))`). Frames after resampling are not the same physical frames as the disk clip's frames at the same index, so this conversion is intrinsic to using the collated tensor for Stage 4 onwards.
 
 Method A is the cheap, deterministic baseline. Inherits whatever drift the ShuttleSet CSV annotators introduced when they marked the contact frame by eye, especially on fast strokes where a 1-2 frame slip is plausible.
 
@@ -115,7 +115,7 @@ Per clip, given `shuttle[:videos_len]` of shape `(videos_len, 2)` and `joints[:v
    - 4+ reversals: noisy shuttle stream. Wrist-peak score picks among candidates; flag `method_b_status='noisy_multi_candidate'`.
    - Both shuttle and wrist degenerate (very rare): fall back to Method A. Flag `method_b_status='fallback_to_a'`.
 6. **Confidence flag.** Carry per-clip `wrist_shuttle_agreement_frames` (the abs frame distance between the picked candidate and the nearest dominant-wrist velocity peak) into the diagnostic CSV. Clips where agreement is > 5 frames are the suspect ones for the random-sample pass to prioritise.
-7. **Output the disk-clip hit-frame index.** Convert to collated-tensor index via the same stride logic as Method A.
+7. **Output the disk-clip hit-frame index.** Convert to collated-tensor index via the same sampling logic as Method A.
 
 The shuttle-only fallback (Method B without the wrist cross-reference) is implemented as the same code path with the wrist-score step short-circuited — useful if Stage 2's wrist-loss-rate check finds the dominant-wrist signal too unreliable in the hit window for some class.
 
@@ -174,7 +174,7 @@ All four aligned to the same stem order as the existing `pose.npy` / `pos.npy` /
 - `player_side` — Top / Bottom.
 - `videos_len` — pre-collation frame count.
 - `videos_len_collated` — `min(videos_len, 100)`.
-- `disk_to_collated_stride` — 1 if `videos_len <= 100`, else the strided value.
+- `disk_to_collated_resampled` — bool, True when `videos_len > 100`. The linspace mapping is fully determined by `videos_len`, so no per-clip stride parameter is needed any more.
 - `method_a_idx_disk` — disk-clip index from Method A.
 - `method_a_idx_collated` — collated-tensor index from Method A.
 - `method_b_idx_disk` — disk-clip index from Method B; empty if `method_b_status != 'ok'`.
@@ -280,7 +280,7 @@ These are the items the plan deliberately leaves to the implementer rather than 
 - Macro plan: `x3d_integration_macro_plan.md` §Stage 1.
 - Method A + B framing: `augmentation_framework.md` "How hit-frame metadata would get derived" section (around line 836).
 - Method A scaffold: `src/bst_x/validation_scripts/hit_frame_lookup.py`.
-- Collation pad/stride logic: `src/bst_x/preparing_data/shuttleset_dataset.py:43` (`make_seq_len_same`).
+- Collation pad/resample logic: `src/bst_x/preparing_data/shuttleset_dataset.py:66` (`make_seq_len_same`).
 - Clips master: `notebooks/clips_master.csv`.
 - HPC paths: `~/.claude/projects/.../memory/reference_hpc.md`.
 - Hsu et al. paper: `~/Documents/COSC594/enhancing_badminton_game_analysis_an_approach_to_shot_refinement.pdf`.

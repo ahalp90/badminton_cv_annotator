@@ -33,18 +33,21 @@ from preparing_data.shuttleset_dataset import prepare_npy_collated_loaders, \
 from preparing_data.augmentations import CoupledFlip, ConstrainedJitter
 from result_utils import show_f1_results, plot_confusion_matrix
 from pipeline.config import (
+    CLIP_WINDOW,
+    COCO_N_JOINTS,
     Taxonomy,
     derive_npy_collated_dir_basename,
     taxonomy_lookup,
 )
-from pipeline.data_access import env_path_or_none, load_repo_dotenv
+from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
 from run_tracker import track_run, track_serial
 from bst_x_common import (
     Tee,
-    _write_prediction_npz,
+    write_prediction_npz,
     build_bst_x_network,
     compute_data_provenance,
     dump_topk_predictions,
+    flatten_pose_features,
 )
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
@@ -71,11 +74,8 @@ class Hyp(NamedTuple):
     n_epochs: int = 80
     batch_size: int = 128
     lr: float = 5e-4
-    # AdamW decoupled weight decay. 0.01 is PyTorch's AdamW default and what
-    # every prior run used implicitly; kept as the default so non-sweep runs
-    # barely move (norm/bias/embeddings now excluded from decay, but 0.01 on
-    # them was near-inert anyway). The sweep overrides this per cell. Optimal
-    # lambda for this dataset/LR/run-length is likely 0.1-0.3; see
+    # AdamW decoupled weight decay. 0.01 is PyTorch's AdamW default; the sweep
+    # overrides it per cell (norm/bias/embeddings excluded from decay). See
     # docs/architecture_notes/hp_and_aug_speculations_30_05_2026.md (Q2).
     weight_decay: float = 0.01
     warm_up_step: int = 100
@@ -92,11 +92,8 @@ class Hyp(NamedTuple):
     collation_id: str = 'taxon_pinned_w_preds'
     ablation_id: str | None = None
     label_smoothing: float = 0.0  # CDB-F1 cell forces LS=0; LS softens targets so confident-correct samples have p_t < 1.0, contaminating focal's per-sample hardness signal
-    # Manual per-class CE weights for the wrist_smash <-> smash confusion-pair smoke test.
-    # Pair-balanced (both at 2.0) so the gradient has no directional bias toward one class:
-    # tests whether loss-side reweighting alone can move the wrist_smash F1 floor without
-    # stealing recall from smash. Weights renormalised to mean 1.0 inside the loss build so
-    # overall loss scale stays comparable to uniform CE. Set to None for uniform CE.
+    # Manual per-class CE weights, renormalised to mean 1.0 in the loss build so
+    # overall loss scale stays comparable to uniform CE; None for uniform CE.
     class_weights: dict | None = None
     # Class-F1-driven adaptive focal loss (CDB-F1). Mutually exclusive with
     # class_weights, and forces label_smoothing=0 (LS contaminates focal's
@@ -106,14 +103,10 @@ class Hyp(NamedTuple):
     #       'warm_up_epochs': 5, 'f1_floor': 0.0,
     #   }
     # Full design + paper-verified equations: docs/architecture_notes/class_f1_focal_design.md.
+    # NamedTuple defaults are class-level: these dicts are shared across instances; treat as read-only.
     adaptive_focal: dict | None = {
-        # First-run sweet spot from run_20260501_164658: tau=1, gamma=1.
-        # All four CDB knob variants tried that sweep (gamma=0, tau=0.5,
-        # pair-cap, gamma=2) traded wrist_smash back for smash without macro
-        # moving, so this combo holds the floor-lift sweet spot (+8.7 pp
-        # wrist_smash on the LS=0.1 baseline). The pair-cap variant has since
-        # been removed; see docs/architecture_notes/focal_alpha_revert_sketch.md.
-        # Active default for the capacity-bump runs.
+        # tau=1, gamma=1 is the swept sweet spot (floor-lift on wrist_smash);
+        # see class_f1_focal_design.md.
         'tau': 1.0,
         'gamma': 1.0,
         'momentum': 0.9,
@@ -160,10 +153,33 @@ def aux_schedule_factor(epoch: int, fade_end_epoch: int) -> float:
     """
     if epoch >= fade_end_epoch:
         return 0.0
-    if fade_end_epoch <= 1:
-        return 1.0
     progress = (epoch - 1) / (fade_end_epoch - 1)
     return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+
+class EpochStats(NamedTuple):
+    """One training epoch's aggregates. ``tp``/``fp``/``fn`` are length-n_classes
+    int64 count tensors on device; the jitter counters are plain ints over the
+    epoch's clips."""
+    train_loss: float
+    tp: Tensor
+    fp: Tensor
+    fn: Tensor
+    jitter_n_effective: int
+    jitter_n_oob: int
+    jitter_n_total: int
+
+
+class ValStats(NamedTuple):
+    """One validation pass. ``f1_macro``/``f1_min`` are 0-dim tensors (caller
+    ``.item()``s them); ``f1_per_class`` and ``present`` are length-n_classes."""
+    val_loss: float
+    f1_macro: Tensor
+    f1_min: Tensor
+    f1_per_class: Tensor
+    present: Tensor
+    accuracy: float
+    top2_accuracy: float
 
 
 def train_one_epoch(
@@ -176,7 +192,7 @@ def train_one_epoch(
     optimizer: optim.Optimizer,
     scheduler: optim.lr_scheduler.LambdaLR,  # learning rate scheduler
     device,
-) -> tuple[float, Tensor, Tensor, Tensor, int, int, int]:
+) -> EpochStats:
     """Train for one epoch, accumulating per-class TP / FP / FN alongside loss.
 
     Per-class counts feed ``AdaptiveFocalLoss.update_alpha`` at the call site.
@@ -195,11 +211,9 @@ def train_one_epoch(
       previously-real shuttle frame off-screen, triggering the
       ``(0, 0)`` sentinel; for ``Aug/shuttle_oob_rate``.
 
-    :return: ``(train_loss, tp, fp, fn, jitter_n_effective, jitter_n_oob,
-        jitter_n_total)``. Counts are length-``n_classes`` int64 tensors on
-        ``device``; jitter accumulators are plain ints over the epoch's clips.
+    :return: an ``EpochStats`` (field types/shapes on the NamedTuple).
     """
-    model.train()  # enable dropout + batchnorm training mode
+    model.train()  # enable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
     tp = torch.zeros(n_classes, dtype=torch.long, device=device)
     fp = torch.zeros(n_classes, dtype=torch.long, device=device)
@@ -230,9 +244,8 @@ def train_one_epoch(
         jitter_n_oob += n_oob
         jitter_n_total += human_pose.shape[0]
 
-        # Flatten last two dims (joints/bones, xy) into one feature dim for the model
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
-        logits = model(human_pose, shuttle, pos, video_len)
+        human_pose = flatten_pose_features(human_pose)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
 
         # Manual gradient step: zero grads, backprop, update weights.
@@ -246,7 +259,7 @@ def train_one_epoch(
         # Per-class confusion counts on argmax preds. no_grad() because preds
         # are detached labels; nothing here needs an autograd graph.
         with torch.no_grad():
-            preds = logits.argmax(dim=-1)
+            preds = logits.argmax(dim=1)
             batch_tp, batch_fp, batch_fn = accumulate_class_counts(
                 preds, labels, n_classes,
             )
@@ -255,7 +268,13 @@ def train_one_epoch(
             fn += batch_fn
 
     train_loss = total_loss / len(loader)
-    return train_loss, tp, fp, fn, jitter_n_effective, jitter_n_oob, jitter_n_total
+    return EpochStats(
+        train_loss=train_loss,
+        tp=tp, fp=fp, fn=fn,
+        jitter_n_effective=jitter_n_effective,
+        jitter_n_oob=jitter_n_oob,
+        jitter_n_total=jitter_n_total,
+    )
 
 
 @torch.no_grad()  # disables gradient computation — saves memory during eval
@@ -265,8 +284,8 @@ def validate(
     loader,
     device,
     n_classes: int,
-):
-    model.eval()  # disable dropout + set batchnorm to eval mode
+) -> ValStats:
+    model.eval()  # disable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
     # Accumulate per-class TP/FP/FN on device (mirrors train_one_epoch);
     # one .cpu() after the loop, not four per batch.
@@ -283,8 +302,8 @@ def validate(
         video_len: Tensor = video_len.to(device)
         labels: Tensor = labels.to(device)
 
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
-        logits = model(human_pose, shuttle, pos, video_len)
+        human_pose = flatten_pose_features(human_pose)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
 
@@ -307,12 +326,11 @@ def validate(
     cum_fn = cum_fn.cpu()
     val_loss = total_loss / len(loader)
 
-    # Per-class F1, then macro average (mean across classes)
-    precision = cum_tp / (cum_tp + cum_fp)
-    recall = cum_tp / (cum_tp + cum_fn)
-
-    f1_score = 2 * precision * recall / (precision + recall)
-    f1_score[f1_score.isnan()] = 0  # classes with no predictions get NaN -> 0
+    # Per-class F1 via the shared eps-guarded helper, the same definition the
+    # train side feeds update_alpha. Value-identical to the old NaN-fill
+    # hand-roll: the eps only rescues zero-count denominators (where NaN-fill
+    # gave 0 anyway), and at float32 it vanishes against any nonzero count.
+    f1_score = per_class_f1_from_counts(cum_tp, cum_fp, cum_fn)
 
     # Only classes present in the val set count toward macro/min. Generic
     # zero-support guard: any class with no ground-truth this epoch would
@@ -330,7 +348,15 @@ def validate(
     # right) or an FN for it (if wrong), so the correct count is sum(cum_tp).
     accuracy = float(cum_tp.sum() / cum_n) if cum_n else 0.0
     top2_accuracy = cum_top2 / cum_n if cum_n else 0.0
-    return val_loss, f1_score_avg, f1_score_min, f1_score, present, accuracy, top2_accuracy
+    return ValStats(
+        val_loss=val_loss,
+        f1_macro=f1_score_avg,
+        f1_min=f1_score_min,
+        f1_per_class=f1_score,
+        present=present,
+        accuracy=accuracy,
+        top2_accuracy=top2_accuracy,
+    )
 
 
 # ==========================================================================
@@ -342,14 +368,13 @@ def _build_loss_fn(
     class_ls: list[str],
     taxonomy: Taxonomy,
     device,
+    hyp: Hyp,
 ):
     """Resolve hyp's three loss branches (CE / class-weighted CE / adaptive-focal)
     into a single ``loss_fn`` instance.
 
     Owns the two fail-loud guards: ``adaptive_focal`` is mutually exclusive
     with ``class_weights``; ``adaptive_focal`` requires ``label_smoothing=0.0``.
-    All read the module-global ``hyp`` to mirror the pre-B7 shape (the rest of
-    ``train_network`` does the same).
 
     ``label_smoothing`` softens targets from [0,1] to reduce overconfidence.
     BST paper / TemPose default is 0.1; we sweep this knob to test whether it's
@@ -410,7 +435,7 @@ def _build_loss_fn(
                 )
             weights[class_ls.index(cls_name)] = multiplier
         weights = weights * (n_classes / weights.sum())  # renormalise mean to 1.0
-        print(f"[loss] class-weighted CE (renormalised, mean=1.0):")
+        print("[loss] class-weighted CE (renormalised, mean=1.0):")
         for i, c in enumerate(class_ls):
             print(f"    {c:25s} weight={weights[i].item():.3f}")
         return nn.CrossEntropyLoss(weight=weights, label_smoothing=hyp.label_smoothing)
@@ -443,29 +468,16 @@ def _split_param_groups(model: nn.Module):
     return decay, no_decay
 
 
-def train_network(
-    model: nn.Module,
-    train_loader,
-    val_loader,
-    device,
-    save_path: Path,
-    n_bones,
-    n_classes: int,
-    class_ls: list[str],
-    taxonomy: Taxonomy,
-    tb_dir: Path | None = None,
-):
-    # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
-    # TB folders pair with the run they came from. Default SummaryWriter() writes
-    # to ./runs/<host_time>/, which is what older runs used.
-    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+def _build_augmentations(n_bones, hyp: Hyp):
+    """Build the locked Task-2 augmentation pair: centreline flip across all
+    three streams (COCO bilateral joint-index swap + bone recompute) plus
+    constrained pos+shuttle jitter (layered conditional bounds, joints
+    untouched). ``hyp`` supplies pose_style and the augmentation dict.
 
-    # Locked Task-2 augmentation set: centreline flip across all three streams
-    # (with COCO bilateral joint-index swap and bone recompute) plus
-    # constrained pos+shuttle jitter (layered conditional bounds, joints
-    # untouched). Bone recompute requires the JnB_bone pose style; other
-    # styles (J_only, JnB_interp, Jn2B) need their own recompute helpers
-    # which are out of scope per docs/architecture_notes/augmentation_framework.md.
+    Bone recompute requires the JnB_bone pose style; other styles (J_only,
+    JnB_interp, Jn2B) need their own recompute helpers which are out of scope
+    per docs/architecture_notes/augmentation_framework.md.
+    """
     if hyp.pose_style != 'JnB_bone':
         raise NotImplementedError(
             f'Augmentation framework currently supports pose_style=JnB_bone only; '
@@ -480,7 +492,7 @@ def train_network(
     aug_cfg = hyp.augmentation
     coupled_flip = CoupledFlip(
         p=aug_cfg['p_flip'],
-        n_joints=17,
+        n_joints=COCO_N_JOINTS,
         n_bones=n_bones,
     )
     constrained_jitter = ConstrainedJitter(
@@ -495,12 +507,16 @@ def train_network(
         f"(cap_y={constrained_jitter.cap_y}, cap_x={constrained_jitter.cap_x}, "
         f"eps={constrained_jitter.eps})"
     )
+    return coupled_flip, constrained_jitter
 
-    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device)
 
-    # AdamW with decoupled weight decay. _split_param_groups owns the decay
-    # rules; this site owns the per-group weight_decay + hyp.lr wiring so the
-    # optimiser construction stays co-located with its hparams.
+def _build_optimiser(model, n_batches, hyp: Hyp):
+    """AdamW (decoupled weight decay) + cosine schedule. _split_param_groups owns
+    the decay rules; this helper owns the per-group weight_decay + hyp.lr wiring so
+    the optimiser construction stays co-located with its hparams. ``n_batches`` =
+    len(train_loader), for the scheduler's total-steps count. Returns
+    ``(optimizer, scheduler)``.
+    """
     decay, no_decay = _split_param_groups(model)
     print(f'[optim] AdamW lr={hyp.lr} weight_decay={hyp.weight_decay} '
           f'(decay={len(decay)} tensors, no_decay={len(no_decay)})')
@@ -515,9 +531,133 @@ def train_network(
     scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=hyp.warm_up_step,
-        num_training_steps=(hyp.n_epochs * len(train_loader)),  # total batches across all epochs
+        num_training_steps=(hyp.n_epochs * n_batches),  # total batches across all epochs
         num_cycles=0.5
     )
+    return optimizer, scheduler
+
+
+def _log_epoch_tb(
+    writer,
+    epoch,
+    epoch_stats: EpochStats,
+    val_stats: ValStats,
+    train_per_class_f1,
+    aux_factor,
+    scheduler,
+    loss_fn,
+    class_ls,
+):
+    """Per-epoch TensorBoard scalars: train/val loss, macro/min F1 (train + val),
+    the aux schedule factor + LR, the two jitter-rate diagnostics, and the
+    per-class train/val F1 (and per-class alpha under adaptive focal).
+    """
+    writer.add_scalar('Loss/Train', epoch_stats.train_loss, epoch)
+    writer.add_scalar('Loss/Val', val_stats.val_loss, epoch)
+    writer.add_scalar('F1/Val_macro', val_stats.f1_macro, epoch)
+    writer.add_scalar('F1/Val_min', val_stats.f1_min, epoch)
+    # Train F1 macro/min summaries mirror the val pair above, so the
+    # train-vs-val gap reads off two scalars per epoch instead of needing
+    # to re-aggregate the per-class arrays. .mean()/.min() over the
+    # length-n_classes tensor of active-class F1s, .item() unwraps to float.
+    writer.add_scalar('F1_train/macro', train_per_class_f1.mean().item(), epoch)
+    writer.add_scalar('F1_train/min', train_per_class_f1.min().item(), epoch)
+    writer.add_scalar('Schedule/aux_factor', aux_factor, epoch)
+    # Cosine LR per epoch. Deterministic from the schedule, but logging it
+    # saves the reconstruction and overlays cleanly with the per-class F1 /
+    # alpha arcs. get_last_lr()[0] = LR after this epoch's final step.
+    writer.add_scalar('Schedule/learning_rate', scheduler.get_last_lr()[0], epoch)
+    # Jitter effective rate: fraction of clips that rolled yes AND had at
+    # least one non-degenerate axis. Watching this scalar shows whether the
+    # case-1 (fully-degenerate envelope) skip rate is eating into the
+    # nominal p_jitter target. See augmentation_framework.md.
+    jitter_effective_rate = (
+        epoch_stats.jitter_n_effective / epoch_stats.jitter_n_total
+        if epoch_stats.jitter_n_total > 0 else 0.0
+    )
+    writer.add_scalar('Aug/jitter_effective_rate', jitter_effective_rate, epoch)
+    # Shuttle OOB rate: fraction of clips where the effective shift
+    # pushed a previously-real shuttle frame off-screen, triggering the
+    # (0, 0) sentinel. Diagnostic for the cap_x trade-off the doc flags
+    # around edge-of-frame shuttle classes (cross_court_net_shot, rush
+    # trajectories). High rate = cap_x is replacing a meaningful fraction
+    # of real shuttle observations with the off-screen sentinel.
+    shuttle_oob_rate = (
+        epoch_stats.jitter_n_oob / epoch_stats.jitter_n_total
+        if epoch_stats.jitter_n_total > 0 else 0.0
+    )
+    writer.add_scalar('Aug/shuttle_oob_rate', shuttle_oob_rate, epoch)
+    for i, c in enumerate(class_ls):
+        writer.add_scalar(f'F1_train/{c}', train_per_class_f1[i].item(), epoch)
+        # Val per-class F1 only for classes present in val this epoch; an
+        # absent class scores F1=0 by construction and would read as a real
+        # regression on the TB curve.
+        if val_stats.present[i]:
+            writer.add_scalar(f'F1_val/{c}', val_stats.f1_per_class[i].item(), epoch)
+        if isinstance(loss_fn, AdaptiveFocalLoss):
+            writer.add_scalar(f'Alpha/{c}', loss_fn.alpha[i].item(), epoch)
+
+
+def _write_hparams_summary(
+    writer,
+    best_macro, best_macro_epoch, second_macro, second_macro_epoch,
+    best_min, best_min_epoch, second_min, second_min_epoch,
+    best_val_loss, best_val_loss_epoch, stopped_epoch,
+    hyp: Hyp,
+):
+    """HParams summary: one row per run, sortable in TB's HParams tab.
+    stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
+    Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
+    only accepts int / float / str / bool / Tensor. Closes the writer when done.
+    """
+    hparam_dict = {}
+    for key, value in hyp._asdict().items():
+        is_tb_scalar = isinstance(value, (int, float, str, bool)) or torch.is_tensor(value)
+        hparam_dict[key] = value if is_tb_scalar else str(value)
+
+    writer.add_hparams(
+        hparam_dict=hparam_dict,
+        metric_dict={
+            'best/macro_f1':        best_macro,
+            'best/macro_f1_epoch':  best_macro_epoch,
+            'best/macro_f1_2nd':    second_macro,
+            'best/macro_f1_2nd_ep': second_macro_epoch,
+            'best/min_f1':          best_min,
+            'best/min_f1_epoch':    best_min_epoch,
+            'best/min_f1_2nd':      second_min,
+            'best/min_f1_2nd_ep':   second_min_epoch,
+            'best/val_loss':        best_val_loss,
+            'best/val_loss_epoch':  best_val_loss_epoch,
+            'stopped_epoch':        stopped_epoch,
+        },
+        # run_name='.' stops TB nesting a timestamped subdir per add_hparams call.
+        run_name='.',
+        global_step=stopped_epoch,
+    )
+    writer.close()
+
+
+def train_network(
+    model: nn.Module,
+    train_loader,
+    val_loader,
+    device,
+    save_path: Path,
+    n_bones,
+    n_classes: int,
+    class_ls: list[str],
+    taxonomy: Taxonomy,
+    hyp: Hyp,
+    tb_dir: Path | None = None,
+):
+    # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
+    # TB folders pair with the run they came from. Default SummaryWriter() writes
+    # to ./runs/<host_time>/, which is what older runs used.
+    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+
+    coupled_flip, constrained_jitter = _build_augmentations(n_bones, hyp)
+    loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device, hyp)
+    optimizer, scheduler = _build_optimiser(model, len(train_loader), hyp)
 
     # Track top-2 of each metric (for HParams summary + verifying early-stop vs crash)
     best_macro = second_macro = 0.0
@@ -546,8 +686,7 @@ def train_network(
         model.set_schedule_factors(cg_factor=aux_factor, ap_factor=aux_factor)
 
         t0 = time.time()
-        train_loss, train_tp, train_fp, train_fn, \
-            jitter_n_eff, jitter_n_oob, jitter_n_total = train_one_epoch(
+        epoch_stats = train_one_epoch(
             model=model,
             loader=train_loader,
             coupled_flip=coupled_flip,
@@ -560,11 +699,13 @@ def train_network(
         )
         # End-of-epoch per-class train F1 feeds AdaptiveFocalLoss; otherwise
         # the values are still computed (cheap) and logged to TB for context.
-        train_per_class_f1 = per_class_f1_from_counts(train_tp, train_fp, train_fn)
+        train_per_class_f1 = per_class_f1_from_counts(
+            epoch_stats.tp, epoch_stats.fp, epoch_stats.fn,
+        )
         if isinstance(loss_fn, AdaptiveFocalLoss):
             loss_fn.update_alpha(train_per_class_f1)
 
-        val_loss, f1_score_avg, f1_score_min, f1_per_class, present, val_accuracy, val_top2 = validate(
+        val_stats = validate(
             model=model,
             loss_fn=loss_fn,
             loader=val_loader,
@@ -572,9 +713,9 @@ def train_network(
             n_classes=n_classes,
         )
         t1 = time.time()
-        print(f'Epoch({epoch}/{hyp.n_epochs}): train_loss={train_loss:.3f}, '
-              f'val_loss={val_loss:.3f}, macro_f1={f1_score_avg:.3f}, min_f1={f1_score_min:.3f} '
-              f'- {t1 - t0:.2f} s')
+        print(f'Epoch({epoch}/{hyp.n_epochs}): train_loss={epoch_stats.train_loss:.3f}, '
+              f'val_loss={val_stats.val_loss:.3f}, macro_f1={val_stats.f1_macro:.3f}, '
+              f'min_f1={val_stats.f1_min:.3f} - {t1 - t0:.2f} s')
 
         if isinstance(loss_fn, AdaptiveFocalLoss):
             # Top-3 / bot-3 alpha summary so the operator can eyeball whether
@@ -588,50 +729,19 @@ def train_network(
                 f'{class_ls[i]}={alpha_np[i]:.2f}' for i in order[-3:][::-1]
             ))
 
-        writer.add_scalar('Loss/Train', train_loss, epoch)
-        writer.add_scalar('Loss/Val', val_loss, epoch)
-        writer.add_scalar('F1/Val_macro', f1_score_avg, epoch)
-        writer.add_scalar('F1/Val_min', f1_score_min, epoch)
-        # Train F1 macro/min summaries mirror the val pair above, so the
-        # train-vs-val gap reads off two scalars per epoch instead of needing
-        # to re-aggregate the per-class arrays. .mean()/.min() over the
-        # length-n_classes tensor of active-class F1s, .item() unwraps to float.
-        writer.add_scalar('F1_train/macro', train_per_class_f1.mean().item(), epoch)
-        writer.add_scalar('F1_train/min', train_per_class_f1.min().item(), epoch)
-        writer.add_scalar('Schedule/aux_factor', aux_factor, epoch)
-        # Cosine LR per epoch. Deterministic from the schedule, but logging it
-        # saves the reconstruction and overlays cleanly with the per-class F1 /
-        # alpha arcs. get_last_lr()[0] = LR after this epoch's final step.
-        writer.add_scalar('Schedule/learning_rate', scheduler.get_last_lr()[0], epoch)
-        # Jitter effective rate: fraction of clips that rolled yes AND had at
-        # least one non-degenerate axis. Watching this scalar shows whether the
-        # case-1 (fully-degenerate envelope) skip rate is eating into the
-        # nominal p_jitter target. See augmentation_framework.md.
-        jitter_effective_rate = (
-            jitter_n_eff / jitter_n_total if jitter_n_total > 0 else 0.0
+        _log_epoch_tb(
+            writer=writer,
+            epoch=epoch,
+            epoch_stats=epoch_stats,
+            val_stats=val_stats,
+            train_per_class_f1=train_per_class_f1,
+            aux_factor=aux_factor,
+            scheduler=scheduler,
+            loss_fn=loss_fn,
+            class_ls=class_ls,
         )
-        writer.add_scalar('Aug/jitter_effective_rate', jitter_effective_rate, epoch)
-        # Shuttle OOB rate: fraction of clips where the effective shift
-        # pushed a previously-real shuttle frame off-screen, triggering the
-        # (0, 0) sentinel. Diagnostic for the cap_x trade-off the doc flags
-        # around edge-of-frame shuttle classes (cross_court_net_shot, rush
-        # trajectories). High rate = cap_x is replacing a meaningful fraction
-        # of real shuttle observations with the off-screen sentinel.
-        shuttle_oob_rate = (
-            jitter_n_oob / jitter_n_total if jitter_n_total > 0 else 0.0
-        )
-        writer.add_scalar('Aug/shuttle_oob_rate', shuttle_oob_rate, epoch)
-        for i, c in enumerate(class_ls):
-            writer.add_scalar(f'F1_train/{c}', train_per_class_f1[i].item(), epoch)
-            # Val per-class F1 only for classes present in val this epoch; an
-            # absent class scores F1=0 by construction and would read as a real
-            # regression on the TB curve.
-            if present[i]:
-                writer.add_scalar(f'F1_val/{c}', f1_per_class[i].item(), epoch)
-            if isinstance(loss_fn, AdaptiveFocalLoss):
-                writer.add_scalar(f'Alpha/{c}', loss_fn.alpha[i].item(), epoch)
 
-        curr_macro, curr_min = f1_score_avg.item(), f1_score_min.item()
+        curr_macro, curr_min = val_stats.f1_macro.item(), val_stats.f1_min.item()
 
         # Early stop + snapshot best weights (piggybacks on new-best detection)
         early_stop_count += 1
@@ -643,18 +753,18 @@ def train_network(
             best_state = deepcopy(model.state_dict())
             # Snapshot the per-class val F1 at this same best-macro epoch so the
             # recorded breakdown matches the saved checkpoint.
-            best_val_f1_per_class = f1_per_class.detach().cpu().numpy()
-            best_val_present = present.detach().cpu().numpy()
-            best_val_accuracy = val_accuracy
-            best_val_top2 = val_top2
+            best_val_f1_per_class = val_stats.f1_per_class.detach().cpu().numpy()
+            best_val_present = val_stats.present.detach().cpu().numpy()
+            best_val_accuracy = val_stats.accuracy
+            best_val_top2 = val_stats.top2_accuracy
             best_macro_epoch_snap = epoch
             print(f'Picked! => Best value {curr_macro:.3f}')
             # Compact per-class snapshot on new-best epochs: top-5 and bot-5
             # of present classes, one line each. Full per-class breakdown
             # lands in the test-time log at the end of each serial.
-            present_idx = present.nonzero(as_tuple=True)[0].tolist()
+            present_idx = val_stats.present.nonzero(as_tuple=True)[0].tolist()
             scored = sorted(
-                [(class_ls[i], f1_per_class[i].item()) for i in present_idx],
+                [(class_ls[i], val_stats.f1_per_class[i].item()) for i in present_idx],
                 key=lambda t: t[1],
             )
             print('  val top5: ' + ' '.join(
@@ -673,9 +783,10 @@ def train_network(
         elif curr_min > second_min:
             second_min, second_min_epoch = curr_min, epoch
 
-        best_val_loss, best_val_loss_epoch = min(
-            (best_val_loss, best_val_loss_epoch), (val_loss, epoch)
-        )
+        # Strict <: a later epoch that merely ties the best val loss doesn't
+        # replace it, so the earliest epoch reaching the minimum is kept.
+        if val_stats.val_loss < best_val_loss:
+            best_val_loss, best_val_loss_epoch = val_stats.val_loss, epoch
 
         if early_stop_count == hyp.early_stop_n_epochs:
             print(f'Early stop with best value {best_macro:.3f}')
@@ -687,34 +798,13 @@ def train_network(
     torch.save(best_state, str(save_path))
     model.load_state_dict(best_state)
 
-    # HParams summary: one row per run, sortable in TB's HParams tab.
-    # stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
-    # Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
-    # only accepts int / float / str / bool / Tensor.
-    hparam_dict = {}
-    for key, value in hyp._asdict().items():
-        is_tb_scalar = isinstance(value, (int, float, str, bool)) or torch.is_tensor(value)
-        hparam_dict[key] = value if is_tb_scalar else str(value)
-
-    writer.add_hparams(
-        hparam_dict=hparam_dict,
-        metric_dict={
-            'best/macro_f1':        best_macro,
-            'best/macro_f1_epoch':  best_macro_epoch,
-            'best/macro_f1_2nd':    second_macro,
-            'best/macro_f1_2nd_ep': second_macro_epoch,
-            'best/min_f1':          best_min,
-            'best/min_f1_epoch':    best_min_epoch,
-            'best/min_f1_2nd':      second_min,
-            'best/min_f1_2nd_ep':   second_min_epoch,
-            'best/val_loss':        best_val_loss,
-            'best/val_loss_epoch':  best_val_loss_epoch,
-            'stopped_epoch':        epoch,
-        },
-        run_name='.',
-        global_step=epoch,
+    _write_hparams_summary(
+        writer,
+        best_macro, best_macro_epoch, second_macro, second_macro_epoch,
+        best_min, best_min_epoch, second_min, second_min_epoch,
+        best_val_loss, best_val_loss_epoch, epoch,
+        hyp,
     )
-    writer.close()
 
     # Val metrics at the best-macro epoch (the checkpoint that gets saved):
     # macro/min/accuracy/top-2 + the present-class per-class F1, for the serial
@@ -747,39 +837,39 @@ def train_network(
 
 
 class Task:
-    def __init__(self, n_joints=17, taxonomy: Taxonomy = None,
+    def __init__(self, taxonomy: Taxonomy, hyp: Hyp, n_joints=COCO_N_JOINTS,
                  weight_dir: Path = Path('weight')) -> None:
         self.use_cuda = torch.cuda.is_available()
-        self.device = 'cuda' if self.use_cuda else 'cpu'
+        self.device = torch.device('cuda') if self.use_cuda else torch.device('cpu')
         self.n_joints = n_joints
+        # Run config, threaded explicitly from here down (loaders, model build,
+        # train_network); no helper reads the module-global default.
+        self.hyp = hyp
+        # pose_style lives here (not on prepare_dataloaders) so get_network_architecture
+        # can build without a prior loader step; kills the old call-order trap.
+        self.pose_style = hyp.pose_style
         # Head dim and class names come straight off the taxonomy now: labels.npy
         # lands in [0, taxonomy.n_classes) at collation time, so there's no
         # runtime active/full remap and no data-derived head sizing.
-        self.taxonomy = taxonomy or taxonomy_lookup(hyp.taxonomy)
+        self.taxonomy = taxonomy
         # Where to save/load weights for this run. Caller should pass a
         # per-invocation subdir (e.g. weight/run_YYYYMMDD_HHMMSS) so fresh
         # runs never collide with older weights — see __main__ setup.
         self.weight_dir = weight_dir
 
-    def prepare_dataloaders(
-        self,
-        root_dir: Path,
-        pose_style='Jn2B',
-        train_partial=1.0
-    ):
+    def prepare_dataloaders(self, root_dir: Path):
         self.train_loader, \
         self.val_loader, \
         self.test_loader \
             = prepare_npy_collated_loaders(
                 root_dir=root_dir,
-                pose_style=pose_style,
-                batch_size=hyp.batch_size,
+                pose_style=self.pose_style,
+                batch_size=self.hyp.batch_size,
                 use_cuda=self.use_cuda,
                 num_workers=(0, 0, 0),
-                train_partial=train_partial
+                train_partial=self.hyp.train_partial
             )
 
-        self.pose_style = pose_style
         self._assert_label_coverage()
 
     def _assert_label_coverage(self) -> None:
@@ -809,7 +899,7 @@ class Task:
                 f'taxonomy {self.taxonomy.name!r} has {len(expected)} classes '
                 f'but train covers only {len(train_present)}. Missing class '
                 f'indices: {sorted(missing_in_train)} ({named}). Either lift '
-                f'train_partial (currently {hyp.train_partial}) or use a '
+                f'train_partial (currently {self.hyp.train_partial}) or use a '
                 f'taxonomy whose head matches what train can teach.'
             )
 
@@ -846,7 +936,7 @@ class Task:
             pose_style=self.pose_style,
             in_channels=in_channels,
             n_class=self.taxonomy.n_classes,
-            seq_len=hyp.seq_len,
+            seq_len=self.hyp.seq_len,
             device=self.device,
         )
         self.model_name = model_name
@@ -861,19 +951,17 @@ class Task:
             trained. ``val_at_best`` is the per-class val F1 snapshot from
             ``train_network`` (None on the load path or a degenerate run).
         """
-        model_info = f'_{model_info}' if model_info != '' else ''
-        taxonomy_info = f'_{self.taxonomy.name}'
-        serial_str = f'_{serial_no}' if serial_no != 1 else ''
+        parts = [self.pose_style]
+        if model_info:
+            parts.append(model_info)
+        parts.append(self.taxonomy.name)
+        if serial_no != 1:
+            parts.append(str(serial_no))
+        config_tag = '_'.join(parts)  # pose style, data config, taxonomy, serial
 
-        model_postfix = '_' + self.pose_style \
-            + model_info + taxonomy_info + serial_str
-
-        save_name = self.model_name.lower()
-        save_name += model_postfix
-
-        self.model_name += model_postfix
-
-        weight_path = self.weight_dir / f'{save_name}.pt'
+        weight_stem = f'{self.model_name.lower()}_{config_tag}'
+        self.display_name = f'{self.model_name}_{config_tag}'  # printed name; model_name stays the arch key
+        weight_path = self.weight_dir / f'{weight_stem}.pt'
         self.weight_path = weight_path
         if weight_path.exists():
             self.net.load_state_dict(
@@ -892,6 +980,7 @@ class Task:
                 n_classes=self.taxonomy.n_classes,
                 class_ls=list(self.taxonomy.classes),
                 taxonomy=self.taxonomy,
+                hyp=self.hyp,
                 tb_dir=tb_dir,
             )
             t = timedelta(seconds=int(time.time() - train_t0))
@@ -902,13 +991,15 @@ class Task:
         """Derive test top-1 metrics from a precomputed dump.
 
         ``dump`` is one split's output from ``dump_topk_predictions``: top-1 reads
-        straight off ``y_pred_top1`` (argmax, unified in Batch 2), no second forward
-        pass through the test loader.
+        straight off ``y_pred_top1`` (argmax), no second forward pass through the
+        test loader.
         """
         pred = torch.from_numpy(dump['y_pred_top1'])
         gt = torch.from_numpy(dump['y_true'])
         print(f'Test (num_strokes: {len(pred)}) =>')
 
+        # torcheval on purpose: the headline manifest metric keeps an
+        # implementation independent of the count-based helper train/val share.
         f1_score_each = multiclass_f1_score(
             pred, gt, num_classes=self.taxonomy.n_classes, average=None
         )
@@ -921,7 +1012,7 @@ class Task:
         class_ls = list(self.taxonomy.classes)
 
         show_f1_results(
-            model_name=self.model_name,
+            model_name=self.display_name,
             f1_score_each=f1_score_each[present_idx] if present_idx else f1_score_each,
             class_ls=pad_class_labels(
                 [class_ls[i] for i in present_idx] if present_idx else class_ls
@@ -937,7 +1028,7 @@ class Task:
                 y_true=gt,
                 y_pred=pred,
                 need_pre_argmax=False,
-                model_name=self.model_name,
+                model_name=self.display_name,
                 font_size=6,
                 save=False
             )
@@ -998,7 +1089,7 @@ class Task:
         sidecar and no re-deriving the collation filters.
 
         Returns the per-split dump dicts so the caller can derive test metrics
-        from the same forward pass (B2: one test pass, not three).
+        from the same forward pass.
 
         :param run_dir: experiments/<run_id>/ for this run.
         :param serial_no: serial whose weights are currently loaded in self.net.
@@ -1020,7 +1111,7 @@ class Task:
                 shuffle=False, num_workers=0, pin_memory=False,
             )
             dump = dump_topk_predictions(self.net, ordered, self.device, k=k)
-            _write_prediction_npz(
+            write_prediction_npz(
                 out_dir / f'{split_name}_serial_{serial_no}.npz',
                 dump, dataset, self.taxonomy, run_dir.name, serial_no,
             )
@@ -1035,15 +1126,8 @@ class Task:
 def _print_taxonomy_block(taxonomy: Taxonomy, tee) -> None:
     """Loud one-time taxonomy summary at run start, captured by the tee'd log.
 
-    Replaces the old ``_validate_and_record_arch`` + ``extra.arch`` manifest
-    block: with labels in active class space and the head pinned to the
-    taxonomy, there's no data-derived architecture to validate or record. The
-    resolved class list lives in the manifest's ``config.classes`` field
-    (written at ``track_run`` time); the train/val/test coverage invariants are
-    enforced by ``Task._assert_label_coverage``.
-
-    :param taxonomy: the resolved taxonomy the run trains under.
-    :param tee: file-like writing to terminal + log_path so the line lands in both.
+    Resolved class list lives in the manifest's ``config.classes``; train/val/test
+    coverage invariants are enforced by ``Task._assert_label_coverage``.
     """
     with redirect_stdout(tee):
         print(f'[taxonomy] {taxonomy.name}: {taxonomy.n_classes} classes, '
@@ -1072,7 +1156,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--serial-no', type=int, default=None,
-        help='Run only this serial (1-5) and exit. Used by hparam_sweep to '
+        help='Run only this serial (1-indexed) and exit. Used by hparam_sweep to '
              'pause between serials for kill checks. Requires --log-path and '
              '--run-id when serial-no > 1.',
     )
@@ -1184,12 +1268,13 @@ if __name__ == '__main__':
     str_3d = '_3d' if hyp.use_3d_pose else ''
     model_info_parts: list[str] = []
     if hyp.seq_len == 100:
-        model_info_parts.append(f'between_2_hits_with_max_limits_seq_100{str_3d}')
+        model_info_parts.append(f'{CLIP_WINDOW}_seq_100{str_3d}')
     elif hyp.use_3d_pose:
         model_info_parts.append('3d')
-    assert 0 < hyp.train_partial <= 1, 'hyp.train_partial should be in (0, 1].'
+    if not 0 < hyp.train_partial <= 1:
+        raise ValueError(f'hyp.train_partial must be in (0, 1], got {hyp.train_partial}')
     if hyp.train_partial != 1:
-        model_info_parts.append(f'train_partial_0p{str(hyp.train_partial)[2:]}')
+        model_info_parts.append(f"train_partial_{str(hyp.train_partial).replace('0.', '0p', 1)}")
     model_info = '_'.join(model_info_parts)
 
     # ----------------------------------------------------------------------
@@ -1239,25 +1324,16 @@ if __name__ == '__main__':
     )
     weight_dir = run_dir / 'weights'
 
-    # Collated dir, resolved the same way the collator wrote it:
-    # BST_X_COLLATED_DATA_ROOT (e.g. /scratch/comp320a on bourbaki) when set,
-    # else the in-repo preparing_data/ convention for local dev. taxonomy.name
-    # is the resolved canonical name, matching the writer's parent dir. Without
-    # the env var the reader looks in-repo while the writer wrote to /scratch,
-    # so the runner would never find the cells.
-    collated_data_root = env_path_or_none('BST_X_COLLATED_DATA_ROOT')
-    if collated_data_root is not None:
-        collated_root = (
-            collated_data_root / f'ShuttleSet_data_{taxonomy.name}' / npy_collated_dir
-        )
-    else:
-        # bst_x_train.py lives at src/bst_x/; preparing_data/ is a sibling, so
-        # one .parent walks to src/bst_x/ and then into preparing_data/.
-        collated_root = (
-            Path(__file__).resolve().parent
-            / f'preparing_data/ShuttleSet_data_{taxonomy.name}'
-            / npy_collated_dir
-        )
+    # Collated dir, resolved the same way the collator wrote it, via the shared
+    # root helper (BST_X_COLLATED_DATA_ROOT, e.g. /scratch/comp320a on bourbaki,
+    # else the in-repo preparing_data/ convention). taxonomy.name is the resolved
+    # canonical name, matching the writer's parent dir. Without the env var the
+    # reader looks in-repo while the writer wrote to /scratch, so keep them in sync.
+    collated_root = (
+        resolve_collated_data_root()
+        / f'ShuttleSet_data_{taxonomy.name}'
+        / npy_collated_dir
+    )
 
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so
@@ -1275,29 +1351,26 @@ if __name__ == '__main__':
         for serial_no in serial_range:
             print(f'Running serial {serial_no} ...')
             task = Task(
-                n_joints=17, taxonomy=taxonomy, weight_dir=weight_dir,
+                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
+                weight_dir=weight_dir,
             )
-            task.prepare_dataloaders(
-                root_dir=collated_root,
-                pose_style=hyp.pose_style,
-                train_partial=hyp.train_partial
-            )
+            task.prepare_dataloaders(root_dir=collated_root)
 
             task.get_network_architecture(model_name='BST_X', in_channels=(3 if hyp.use_3d_pose else 2))
 
             tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
-            weight_exists, val_at_best = task.seek_network_weights(
+            _weight_exists, val_at_best = task.seek_network_weights(
                 model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
             )
 
             # Per-stroke logits dump (all splits) for the FE / calibration. Runs
             # every serial; non-best are pruned manually after the runner finishes.
             # Returns the per-split dumps so test_metrics/topk_metrics can derive
-            # off the same forward pass (B2: one test pass, not three).
+            # off the same forward pass.
             dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
 
             with redirect_stdout(tee):
-                print(f'\n=== Serial {serial_no} ({task.model_name}) ===')
+                print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
                 test_metrics = task.test(
                     dump=dumps['test'],
                     show_details=True, show_confusion_matrix=False,
@@ -1320,9 +1393,6 @@ if __name__ == '__main__':
             )
 
             print('Serial', serial_no, 'done.')
-
-            if not weight_exists:
-                time.sleep(3)
 
     print(f'\nTest log saved to: {log_path}')
     print(f'Run manifest:    {run_dir / "manifest.yaml"}')

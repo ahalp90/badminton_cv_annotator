@@ -17,8 +17,6 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-J = 17  # COCO keypoint count, shared across heuristic variants.
-
 
 class RawClip(NamedTuple):
     """Per-clip raw MMPose output, as written by ``preparing_data.raw_extract``.
@@ -37,6 +35,18 @@ class RawClip(NamedTuple):
     scores: np.ndarray
     kp_scores: np.ndarray
     ndet: np.ndarray
+
+
+# Per-clip raw file suffixes, one per RawClip field above (kps, bboxes, scores,
+# kp_scores, ndet). raw_extract writes all five; apply_heuristic requires all
+# five present. Shared here so the writer/reader contract has one home.
+RAW_SUFFIXES = (
+    "_raw_kps.npy",
+    "_raw_bboxes.npy",
+    "_raw_scores.npy",
+    "_raw_kp_scores.npy",
+    "_raw_ndet.npy",
+)
 
 
 @dataclass

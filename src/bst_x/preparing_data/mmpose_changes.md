@@ -22,7 +22,7 @@ The MMPose integration is almost entirely unchanged from the [original BST repo]
 shuttle_result[failed_ls, :] = 0
 ```
 
-**Fix**: Shuttle CSV reading was moved out of the pose step entirely and into `collate_npy()` (Step 3). The pose step now saves `_failed.npy` (a bool array marking frames where MMPose failed to detect 2 players) instead of `_shuttle.npy`. The resume check uses `_failed.npy`.
+**Fix**: Shuttle CSV reading was moved out of the pose step entirely and into `collate_npy()` (Step 2). The pose step now saves `_failed.npy` (a bool array marking frames where MMPose failed to detect 2 players) instead of `_shuttle.npy`. The resume check uses `_failed.npy`.
 
 Temporal alignment and failed-frame masking now happen in `collate_npy()`:
 
@@ -83,10 +83,10 @@ Every helper function in the pose processing chain is byte-identical:
 | `normalize_joints()` | `preparing_data/prepare_train_on_shuttleset.py` | Normalize keypoints by bbox diagonal or video height |
 | `normalize_shuttlecock()` | `preparing_data/prepare_train_on_shuttleset.py` | Normalize by video resolution to [0, 1] |
 | `get_shuttle_result()` | `preparing_data/prepare_train_on_shuttleset.py` | Read TrackNetV3 CSV and normalize |
-| `make_seq_len_same()` | `preparing_data/shuttleset_dataset.py` | Pad/stride clips to uniform seq_len |
+| `make_seq_len_same()` | `preparing_data/shuttleset_dataset.py` | Pad/linspace-sample clips to uniform seq_len |
 | `create_bones()` | `preparing_data/shuttleset_dataset.py` | Compute bone vectors from joint pairs |
 | `interpolate_joints()` | `preparing_data/shuttleset_dataset.py` | Compute bone midpoints |
-| `pad_and_augment_one_npy_video()` | `preparing_data/shuttleset_dataset.py` | Full per-clip augmentation pipeline |
+| `pad_and_derive_pose_styles()` | `preparing_data/shuttleset_dataset.py` | Full per-clip augmentation pipeline |
 | `collate_npy()` | `preparing_data/prepare_train_on_shuttleset.py` | Stack per-clip .npy files into batch arrays |
 
 ---
@@ -113,9 +113,9 @@ Every helper function in the pose processing chain is byte-identical:
 ### Call chain
 
 ```
-prepare_train_on_shuttleset.py    main() dispatches 3 steps
+prepare_train_on_shuttleset.py    main() dispatches 2 steps
     |
-    Step 2:  prepare_2d_dataset_npy_from_raw_video()
+    Step 1:  prepare_2d_dataset_npy_from_raw_video()
     |            |
     |            +-- MMPoseInferencer('human')    loaded once
     |            |
@@ -128,13 +128,13 @@ prepare_train_on_shuttleset.py    main() dispatches 3 steps
     |            +-- save _joints.npy, _pos.npy, _failed.npy
     |            +-- gc.collect() + torch.cuda.empty_cache()
     |
-    Step 3:  collate_npy(shuttle_csv_dir, resolution_df)
+    Step 2:  collate_npy(shuttle_csv_dir, resolution_df)
                  |
                  +-- load _joints.npy, _pos.npy, _failed.npy (ThreadPoolExecutor)
                  +-- per clip: get_shuttle_result() from data/shuttleset/shuttle_csv/
                  |             tail-truncate to align MMPose/TrackNetV3 frame counts
                  |             zero shuttle coords where _failed is True
-                 +-- pad_and_augment_one_npy_video() per clip (ProcessPoolExecutor)
+                 +-- pad_and_derive_pose_styles() per clip (ProcessPoolExecutor)
                  +-- np.stack() all clips into batch arrays
                  +-- save {pose_style}.npy per --pose-styles (default: JnB_bone.npy), ...
 ```
@@ -159,7 +159,7 @@ Files land flat under `save_root_dir`, one set per clip stem. Split and label as
 | `{clip_stem}_pos.npy` | `(F, 2, 2)` | Court-projected player positions |
 | `{clip_stem}_failed.npy` | `(F,)` bool | True where MMPose failed to detect 2 players |
 
-Shuttle data (`*_shuttle.npy`) is no longer saved per-clip by the pose step. It is read from `data/shuttleset/shuttle_csv/` and merged at collation time (Step 3).
+Shuttle data (`*_shuttle.npy`) is no longer saved per-clip by the pose step. It is read from `data/shuttleset/shuttle_csv/` and merged at collation time (Step 2).
 
 ### Resume logic
 

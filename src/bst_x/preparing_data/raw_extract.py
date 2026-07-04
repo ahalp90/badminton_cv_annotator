@@ -21,6 +21,12 @@ so real detected coordinates at origin are not ambiguous with padding.
 The raw outputs feed downstream heuristic iteration (``apply_heuristic.py``
 and the ``sticky_anchor`` variant, both out of scope for this module).
 
+A 3D extraction path (via ``MMPoseInferencer(pose3d="human3d")``) is
+deliberately out of scope for this module's current phase. If needed later,
+mirror the dual-generator structure from
+``prepare_train_on_shuttleset.py:detect_players_3d`` and note the per-clip
+MMPose reload workaround documented there.
+
 Run from the repo root with both package roots on PYTHONPATH::
 
     PYTHONPATH=src/bst_x \\
@@ -39,12 +45,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 from tqdm import tqdm
 
-from pipeline.config import CLIPS_OUTPUT_DIR
+from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
+from preparing_data.heuristics.base import RAW_SUFFIXES
 
 if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads without rtmlib
     from preparing_data.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
-
-J = 17  # COCO keypoints from the rtmlib RTMPose-L body7 adapter
 
 
 def extract_raw_frame(
@@ -81,10 +86,10 @@ def extract_raw_frame(
             )
             over_det_warned.add(clip_stem)
 
-    kps = np.full((n_max, J, 2), np.nan, dtype=np.float32)
+    kps = np.full((n_max, COCO_N_JOINTS, 2), np.nan, dtype=np.float32)
     bboxes = np.full((n_max, 4), np.nan, dtype=np.float32)
     scores = np.full((n_max,), np.nan, dtype=np.float32)
-    kp_scores = np.full((n_max, J), np.nan, dtype=np.float32)
+    kp_scores = np.full((n_max, COCO_N_JOINTS), np.nan, dtype=np.float32)
 
     kps[:n] = det.keypoints[order]
     bboxes[:n] = det.bboxes[order]
@@ -163,15 +168,6 @@ def build_stem_to_path(clips_dir: Path) -> dict[str, Path]:
 def load_stems(path: Path) -> list[str]:
     with path.open() as fh:
         return [line.strip() for line in fh if line.strip()]
-
-
-RAW_SUFFIXES = (
-    "_raw_kps.npy",
-    "_raw_bboxes.npy",
-    "_raw_scores.npy",
-    "_raw_kp_scores.npy",
-    "_raw_ndet.npy",
-)
 
 
 def _stored_n_max(save_branch: str) -> int | None:
@@ -342,13 +338,6 @@ def main() -> int:
     else:
         print("No over-detection warnings fired.")
     return 0
-
-
-# NOTE: A 3D extraction path (via MMPoseInferencer(pose3d="human3d")) is
-# deliberately out of scope for this module's current phase. If needed
-# later, mirror the dual-generator structure from
-# prepare_train_on_shuttleset.py:detect_players_3d and note the per-clip
-# MMPose reload workaround documented there.
 
 
 if __name__ == "__main__":

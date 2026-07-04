@@ -11,9 +11,14 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch import nn
+from torch import Tensor, nn
 
-from preparing_data.shuttleset_dataset import POSE_BONE_MULTIPLIER, get_bone_pairs
+from pipeline.config import Taxonomy
+from preparing_data.shuttleset_dataset import (
+    Dataset_npy_collated,
+    POSE_BONE_MULTIPLIER,
+    get_bone_pairs,
+)
 from model.bst import BST_0, BST_PPF, BST_CG, BST_AP, BST_CG_AP
 
 
@@ -60,15 +65,14 @@ def build_bst_x_network(
     seq_len: int = 100,
     depth_tem: int = 2,
     depth_inter: int = 1,
-    device: str = 'cuda',
+    device: torch.device = torch.device('cuda'),
 ) -> tuple[nn.Module, int]:
     """Construct a BST variant with feature-dim wiring shared between train and infer.
 
-    Returns ``(net, n_bones)``. ``n_bones`` is the count of bone tokens
-    appended after the joint tokens along the pose axis of ``human_pose``
-    (``len(get_bone_pairs()) * POSE_BONE_MULTIPLIER[pose_style]``). The
-    training loop slices ``human_pose[..., -n_bones:, :]`` to keep
-    random-translation off the bone rows; inference can ignore it.
+    Returns ``(network, n_bones)``. ``n_bones`` counts the bone rows appended
+    after the joints along human_pose's pose axis; CoupledFlip uses it to
+    split joints from bones (flip the joints, recompute the bones).
+    Inference can ignore it.
 
     :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
     """
@@ -82,6 +86,16 @@ def build_bst_x_network(
         depth_inter=depth_inter,
     ).to(device)
     return net, n_bones
+
+
+def flatten_pose_features(human_pose: Tensor) -> Tensor:
+    """Flatten the trailing (joints/bones, channels) axes into one feature axis.
+
+    ``(n, t, m, J+B, 2) -> (n, t, m, (J+B)*2)``. Every BST forward pass needs
+    this massage; keeping it in one place stops the four call sites (train,
+    validate, infer, dump) from drifting.
+    """
+    return human_pose.view(*human_pose.shape[:-2], -1)
 
 
 @torch.no_grad()
@@ -105,9 +119,7 @@ def dump_topk_predictions(
     ``clip_stems.npy``. Callers that want the stems pull them from the same
     dataset and store them alongside (see ``Task.dump_predictions``).
 
-    :param model: a built BST network (any variant); set to eval here.
     :param loader: yields ``((human_pose, pos, shuttle), video_len, labels)``.
-    :param device: torch device the model lives on.
     :param k: top-k width; clamped to the head size when the head is smaller.
     :return: dict with ``logits`` (n, n_classes) float32, ``y_true`` (n,)
         int64, ``y_pred_top1`` (n,) int64, ``topk_idx`` (n, k_eff) int64.
@@ -119,34 +131,49 @@ def dump_topk_predictions(
         shuttle = shuttle.to(device)
         pos = pos.to(device)
         video_len = video_len.to(device)
-        # Flatten the (joints/bones, channels) trailing dims into one feature
-        # dim, mirroring the train/infer forward massage.
-        human_pose = human_pose.view(*human_pose.shape[:-2], -1)
-        logits = model(human_pose, shuttle, pos, video_len)
+        human_pose = flatten_pose_features(human_pose)
+        logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         k_eff = min(k, logits.shape[-1])
         topk_idx = torch.topk(logits, k=k_eff, dim=-1).indices
         logits_ls.append(logits.cpu().numpy())
         y_true_ls.append(labels.numpy())
-        # top-1 via argmax to match every other metric site (equals topk_idx[:, 0] on
-        # the tie-free logits a trained model produces; the tie-guard downstream catches any tie).
-        top1_ls.append(logits.argmax(dim=-1).cpu().numpy())
+        # top-1 via argmax to match every other metric site.
+        top1_ls.append(logits.argmax(dim=1).cpu().numpy())
         topk_idx_ls.append(topk_idx.cpu().numpy())
+
+    # Pin the npz schema regardless of upstream dtype drift; copy=False skips
+    # the copy when the array is already the target dtype.
+    y_pred_top1 = np.concatenate(top1_ls).astype(np.int64, copy=False)
+    topk_idx = np.concatenate(topk_idx_ls).astype(np.int64, copy=False)
+    # Tie-guard enforced here at the origin: argmax top-1 must equal the top
+    # topk column, so every consumer can trust y_pred_top1 == topk_idx[:, 0]
+    # without re-checking. A trained model produces tie-free logits; a mismatch
+    # means degenerate logits worth failing on.
+    assert (y_pred_top1 == topk_idx[:, 0]).all(), (
+        'y_pred_top1 disagrees with topk_idx[:, 0]: logit ties in the dump.'
+    )
     return {
-        'logits':      np.concatenate(logits_ls).astype(np.float32),
-        'y_true':      np.concatenate(y_true_ls).astype(np.int64),
-        'y_pred_top1': np.concatenate(top1_ls).astype(np.int64),
-        'topk_idx':    np.concatenate(topk_idx_ls).astype(np.int64),
+        'logits':      np.concatenate(logits_ls).astype(np.float32, copy=False),
+        'y_true':      np.concatenate(y_true_ls).astype(np.int64, copy=False),
+        'y_pred_top1': y_pred_top1,
+        'topk_idx':    topk_idx,
     }
 
 
-def _write_prediction_npz(out_path, dump, dataset, taxonomy, run_id, serial):
+def write_prediction_npz(
+    out_path: Path,
+    dump: dict[str, np.ndarray],
+    dataset: Dataset_npy_collated,
+    taxonomy: Taxonomy,
+    run_id: str,
+    serial: int,
+) -> None:
     """Write a per-split prediction npz with the shared 9-key schema.
 
     The single payload source for ``bst_x_train.Task.dump_predictions`` and
     ``bst_x_infer.dump_run_predictions``. Both writers always produced the same
-    9 keys (proven byte-for-byte in 03 section 6.4); this helper makes that an
-    enforced contract instead of an accident. Out_path, the directory, the
-    split-loop, and any caller-specific manifest (e.g. the inference run's
+    9 keys; this helper makes that an enforced contract. Out_path, the directory,
+    the split-loop, and any caller-specific manifest (e.g. the inference run's
     inference_manifest.yaml) stay per-caller.
 
     ``topk_idx`` ships as ``(N, k_eff) int64`` where ``k_eff = min(k, head_size)``;

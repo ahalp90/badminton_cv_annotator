@@ -119,7 +119,7 @@ def run_seeded_train(tmp_dir: Path, device: torch.device) -> tuple[str, dict | N
     n_bones_pairs = len(get_bone_pairs("coco"))  # 19
 
     # pin hyp for the smoke (n_epochs=2, seq_len=30, small batch, no early stop)
-    t.hyp = t.hyp._replace(
+    smoke_hyp = t.hyp._replace(
         n_epochs=N_EPOCHS,
         early_stop_n_epochs=100,
         warm_up_step=2,
@@ -158,6 +158,7 @@ def run_seeded_train(tmp_dir: Path, device: torch.device) -> tuple[str, dict | N
         n_classes=n_classes,
         class_ls=class_ls,
         taxonomy=taxonomy,
+        hyp=smoke_hyp,
         tb_dir=tb_dir,
     )
     sd = model_out.state_dict()

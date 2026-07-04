@@ -26,6 +26,10 @@
 # prepare_train_on_shuttleset module path (it imports torch at module load for the
 # shared 2D/3D runner) — install any modern CPU/CUDA build separately, e.g.:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# That same module path also imports beartype + jaxtyping at load (shape-checked
+# signatures from the 2026-07 readability pass), so they ship as requirements
+# below: pure-Python, needed by the G3/G5/G6 gates and the collate step, which
+# all import prepare_train.
 #
 # The dormant 3D pose path (detect_players_3d / --use-3d-pose) still needs the
 # OpenMMLab stack — see requirements-legacy-3d.txt (install in a separate venv;
@@ -42,3 +46,7 @@ pandas==3.0.3                    # collation; G5 verified byte-identical downstr
 scipy==1.17.1                    # court projection / geometry helpers
 tqdm==4.68.3                     # progress bars
 parse==1.22.1                    # pure Python, no deps
+
+# prepare_train_on_shuttleset module path (shape-checked signatures; see note above)
+beartype==0.22.9                 # runtime checker for the jaxtyping annotations
+jaxtyping==0.3.11                # shape annotations on the pose/collate helpers
