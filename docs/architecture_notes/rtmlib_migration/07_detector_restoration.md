@@ -1,5 +1,9 @@
 # Detector restoration: rtmdet-nano@320 back to RTMDet-M@640
 
+> Shorthand doc references (00-06, e.g. "00 §4", "05", "06") point at the
+> retired nano-era planning docs, removed from this directory after the
+> restoration landed; they live in git history at this file's parent commits.
+
 > **Status (2026-07-05): Phase-A-M = GO.** Code restored, all CPU gates green,
 > and the Bourbaki ladder (G7/G8/G9 over the same 200 nano-era stems) is
 > adjudicated GO — see the decision section below. This verdict supersedes
@@ -113,7 +117,8 @@ Known, accepted semantic gaps vs mmpose (measured, not patched):
 | G8 parity smoke50 + authoritative | vs committed raw | Bourbaki (user) | **green** (2026-07-04): 200-clip run over the nano-era `phase_a_stems.txt`; `g8_parity_m_full.json` |
 | G9 Phase-A re-decision | verdict | Bourbaki run, adjudicated | **GO** (adjudicated 2026-07-05); mechanical print NO-GO on one rtmlib-favourable artifact, see below |
 
-Bourbaki loop (same env/loop as 05; only the `_m` names and one dep are new):
+Bourbaki loop (same env/loop as the retired 05; the GPU env recipe also lives
+in `preparing_data/requirements.txt`; only the `_m` names and one dep are new):
 
 ```bash
 # once: pure-python deps the main merge added to prepare_train's import chain

@@ -55,8 +55,8 @@ POSE_INPUT_SIZE = (192, 256)  # (W, H), i.e. 256x192
 # 0.30008). The earlier 0.15 compensated the migration's rtmdet-nano at 320x320
 # under-scoring players that mmpose's 640 input scored above 0.3; restoring the
 # M detector at 640 removes that rationale. History:
-# docs/architecture_notes/rtmlib_migration/06_phase_a_decision.md (nano era) and
-# 07_detector_restoration.md (this restoration).
+# docs/architecture_notes/rtmlib_migration/07_detector_restoration.md (the
+# retired nano-era planning docs live in git history).
 DET_SCORE_THR = 0.3
 
 

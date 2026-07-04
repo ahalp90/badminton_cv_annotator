@@ -1,7 +1,7 @@
 """G7: CUDA self-variance floor (HALT-AND-HANDOFF, Bourbaki; run FIRST).
 
-(Gate numbering follows 03_verification.md: G7 = this self-variance floor, G8 =
-extraction parity, G9 = Phase-A decision.)
+(Gate numbering follows the retired 03_verification.md, in git history: G7 =
+this self-variance floor, G8 = extraction parity, G9 = Phase-A decision.)
 
 The CUDA EP is nondeterministic, so two runs of the same clip on the same GPU
 differ slightly. This gate measures that run-to-run noise floor:

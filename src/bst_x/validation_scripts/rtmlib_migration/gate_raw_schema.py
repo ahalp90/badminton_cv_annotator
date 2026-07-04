@@ -3,7 +3,7 @@
 The adapter returns only real detections; the N_max cap + NaN padding live in
 ``raw_extract.extract_raw_frame``. This gate exercises that assembly directly with
 synthetic ``FrameDetections``: the truncation/empty/partial edges a small real
-clip never hits (03_verification.md G2). ``_common.assemble_raw_clip`` calls this
+clip never hits (G2 in the retired 03_verification.md). ``_common.assemble_raw_clip`` calls this
 same function, so passing here validates the deployed-parity gates' assembly too.
 
 Each synthetic detection ``i`` is tagged: all its keypoints equal ``i``, so the

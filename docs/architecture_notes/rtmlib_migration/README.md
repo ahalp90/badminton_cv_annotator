@@ -1,61 +1,82 @@
-# rtmlib migration: overview
+# rtmlib migration and detector restoration
 
-> **Detector corrected (2026-07-04):** the migration first shipped RTMDet-nano
-> @320 on a false "byte-identical to mmpose's" claim; mmpose actually ran
-> RTMDet-M @640. Restored, with the 0.3 keep-threshold, in
-> [07_detector_restoration.md](07_detector_restoration.md) — the nano-era
-> numbers below are the superseded audit trail.
+The 2D pose-extraction path (`raw_extract`, `detect_players_2d`) runs on
+rtmlib (onnxruntime, numpy-2 clean, no source builds) instead of the pinned
+mmpose/mmcv/mmdet/mmengine stack. Models: **RTMDet-M person @640x640**
+(checkpoint 235e8209, the detector `MMPoseInferencer("human")` actually
+resolved at the pinned mmpose 1.3.2) with a strict `DET_SCORE_THR = 0.3` cut,
+and **RTMPose-L body7 COCO-17 @256x192** (a deliberate upgrade over the mmpose
+alias's RTMPose-M body7). The five-array raw schema, `sticky_anchor` player
+selection, and collation are byte-preserved; keypoint values are gated by
+parity against the committed mmpose extraction. The dormant 3D path stays on
+mmpose behind lazy imports (`requirements-legacy-3d.txt`).
 
-Moves the 2D pose-extraction path (`raw_extract`, `detect_players_2d`) off the pinned
-mmpose / mmcv / mmdet / mmengine stack onto rtmlib (onnxruntime, numpy-2 clean, no source
-builds). Models as restored: RTMDet-M person 640x640 (the detector
-`MMPoseInferencer("human")` actually resolved) plus RTMPose-L body7 COCO-17 (a deliberate
-upgrade over the alias's RTMPose-M body7).
+## The story, short
 
-## Outcome
+1. **Migration (2026-07-01..03).** Adapter (`preparing_data/rtmlib_pose.py`)
+   reproduces the mmpose per-person contract over onnxruntime, with two rtmlib
+   quirks fixed (detection-score recovery; a BGR/RGB normalisation bug). A
+   staged gate ladder (CPU byte-equality and parity gates, then GPU
+   self-variance/parity/decision on the HPC box) validated it against the
+   committed mmpose extraction. Initial detector: RTMDet-nano@320, believed
+   identical to mmpose's.
+2. **The gates kept complaining.** A one-directional frame-loss bias (rtmlib
+   dropping players mmpose kept) forced a keep-threshold recalibration from
+   0.3 to 0.15 to pass Phase-A.
+3. **Root cause (2026-07-04).** Primary sources (mmpose 1.3.2
+   `default_det_models`) showed the pre-migration detector was RTMDet-M@640,
+   not nano@320 — the identity claim was wrong, and the 0.15 crutch was
+   compensation for an unnoticed model downgrade.
+4. **Restoration.** Detector swapped to the RTMDet-M ONNX (same mmdeploy
+   export batch as the nano, drop-in), threshold returned to mmpose's 0.3,
+   SHA re-pinned, docs corrected, full ladder re-run. Verdict: GO with no
+   residuals. Details and receipts: `07_detector_restoration.md`.
 
-Phase-A: GO. Over a stratified all-courts sample (200 clips, all 40 extractable
-video-ids), rtmlib matches or beats the mmpose extraction on the Phase-A parity metrics
-(aggregate keypoint median 1.9px [gate 5px], failed-rate parity 0.01pp [gate 2pp], zero
-dropped players) on 199/200 clips. Downstream classification F1 is not measured here; that
-is Phase B. One hard motion-blur clip (`2_1_10_2`) is an accepted, documented residual.
-Result and reproduction: `06_phase_a_decision.md`.
+Authoritative 200-clip comparison vs the committed mmpose extraction (same
+stems all three runs):
 
-## Key decisions (metrics)
+| run | verdict | rtmlib-only : mmpose-only failed frames | dropped players | kp med/p90 |
+|---|---|---|---|---|
+| nano @0.3 | NO-GO | 50:7 | 5 clips | 1.74 / 4.58px |
+| nano @0.15 | GO + accepted residual | 15:20 | 0 | 1.93 / 4.21px |
+| **M @0.3 (shipped)** | **GO, no residuals** | **0:3** | **0** | **1.72 / 3.93px** |
 
-- Detector keep-threshold 0.3 to 0.15. The fixed-320 RTMDet under-scores players
-  (0.10-0.30, median 0.18) that mmpose, run at a larger test size, scored above ~0.3, so
-  0.3 dropped them on hard/contact frames (authoritative run: 5 clips lost a player,
-  per-clip loss to 18.75pp). 0.15 recovers them; `sticky_anchor` geometry-rejects the
-  extra crowd. It is a post-inference score filter; the model, weights, SHA pins and the
-  320 input are unchanged.
-- Joints delta is report-only. The bbox-normalised `jntMed` is confounded by the known
-  body7-vs-old-RTMPose-L drift (keypoint median ~1.4px, partly L/R relabeling). Keypoint
-  fidelity is gated in raw pixels (`kp_med`/`kp_p90`), which pass with margin.
-- Accepted residual `2_1_10_2`. One clip loses 5 frames to sub-0.15 under-scoring: 1/200,
-  aggregate parity intact; chasing it to 0.10 trades crowd for marginal gain.
-- Two gate-metric notes (logged for Phase-B, not defects): the per-clip failed-rate gate
-  is symmetric, so it flags clips where rtmlib beats mmpose (`33_1_12_2`, `43_1_10_2`); and
-  G8's confident-p90 lacks the L/R-swap correction G1 applies (`5_1_10_1`).
+## Benchmarks (A100; `bench_detector_pose_configs.py`)
 
-## What this means for you
+Pose cost scales with crops kept, so the nano+0.15 combination admits ~40
+crowd boxes/frame and pays for each:
 
-- The 2D extraction path now runs rtmlib; install via `preparing_data/requirements.txt`
-  plus the GPU recipe in `05_gpu_handoff.md`. The dormant 3D path still needs the legacy
-  OpenMMLab stack (`requirements-legacy-3d.txt`).
-- The committed keypoint dataset is unchanged until the Phase-B 30,487-stem re-extract at
-  0.15 (the mmpose baseline covered 32,203 clips) and retrain, which measures macro/min-F1
-  against the baseline.
+| config | total ms/frame | fps | kp px vs deployed |
+|---|---|---|---|
+| nano + L256 @0.15 | 243 | 4.1 | 1.96 |
+| nano + L256 @0.30 (lossy tail) | 45 | 22.1 | 2.00 |
+| **M + L256 @0.30 (shipped)** | **81** | **12.3** | **1.62** |
+| M + L384 @0.30 | 109 | 9.2 | 1.84 |
 
-## Docs
+The restoration is also the faster production config: ~3x quicker than the
+nano@0.15 setup that would otherwise have shipped.
 
-| | |
-|---|---|
-| `00_findings_and_scope.md` | touch-point map + scope |
-| `01_runbook.md` | env + run notes |
-| `02_adapter_design.md` | the adapter (raw-array parity, RGB fix, `ndet` analysis) |
-| `03_verification.md` | the gate ladder (byte-equal vs parity) |
-| `04_adversarial_review.md` | gate-review findings |
-| `05_gpu_handoff.md` | the Bourbaki GPU run loop (G7-G9) |
-| `06_phase_a_decision.md` | the nano-era Phase-A decision (superseded audit trail) |
-| `07_detector_restoration.md` | the detector correction: nano to RTMDet-M@640, threshold back to 0.3 — start here for current state |
+## Reproducing the verification
+
+- Models: `validation_scripts/rtmlib_migration/download_and_verify_models.py`
+  downloads, SHA-verifies against committed pins, and vendors both ONNX files.
+- CPU gates (dev box, from the repo root, `PYTHONPATH=src/bst_x:src`, a venv
+  per `preparing_data/requirements.txt`): `gate_raw_schema`,
+  `adapter_contract_test`, `gate_cpu_determinism` (OMP_NUM_THREADS=1),
+  `gate_dtype_parity`, `gate_keypoint_value` (G1), `gate_cpu_downstream_byteeq`
+  (G5), `gate_deployed_parity` (G6).
+- GPU gates (CUDA box; env recipe in `preparing_data/requirements.txt`):
+  `gate_cuda_selfvariance` (G7) then `gate_gpu_parity` (G8) then
+  `phase_a_decision` (G9); paths/knobs via `RTMLIB_GATE_*` env vars documented
+  in each script's docstring.
+- Timed config benchmark: `bench_detector_pose_configs.py` (CPU or
+  `RTMLIB_GATE_DEVICE=cuda`).
+
+## History
+
+The nano-era planning and decision docs (findings/scope, runbook, adapter
+design, verification plan, adversarial review, GPU handoff, and the superseded
+Phase-A decision) were retired from this directory once the restoration
+landed; they remain in git history at this file's parent commits, recorded
+with correction banners. `07_detector_restoration.md` is the surviving
+decision record and carries the primary-source receipts.

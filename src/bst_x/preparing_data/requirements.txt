@@ -21,7 +21,8 @@
 #   pip install "nvidia-cudnn-cu13~=9.0" --extra-index-url https://pypi.nvidia.com
 #   (needs a CUDA-13 toolkit on the box, e.g. `module load cuda/13.3`; rtmlib installs
 #    the CPU onnxruntime, so confirm CUDAExecutionProvider is present after the swap.
-#    Full recipe + the runtime LD_LIBRARY_PATH note: 05_gpu_handoff.md.)
+#    Runtime note: LD_LIBRARY_PATH must include the venv's
+#    site-packages/nvidia/cudnn/lib so onnxruntime-gpu finds cuDNN.)
 #
 # torch is NOT required by the production raw_extract path (Batch 2 dropped it;
 # onnxruntime manages its own memory). It is needed ONLY if you run the secondary
@@ -39,7 +40,7 @@
 
 # rtmlib pose extraction (RTMDet + RTMPose over onnxruntime)
 rtmlib==0.0.15                   # low-level RTMDet/RTMPose classes; pin (repo main drifts from PyPI)
-onnxruntime==1.27.0              # CPU inference (deterministic); CUDA box: onnxruntime-gpu==1.27.0 + a CUDA-13 toolkit + nvidia-cudnn-cu13 (see 05_gpu_handoff.md)
+onnxruntime==1.27.0              # CPU inference (deterministic); CUDA box: onnxruntime-gpu==1.27.0 + a CUDA-13 toolkit + nvidia-cudnn-cu13 (GPU steps above)
 
 # Standard libraries
 numpy==2.4.6                     # numpy-2 clean now that OpenMMLab is off the 2D path

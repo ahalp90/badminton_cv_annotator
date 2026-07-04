@@ -1,6 +1,7 @@
 """HISTORICAL (nano era): diagnose the G-4 real fails of the rtmdet-nano@320 run.
 
-Audit trail for the 0.3->0.15 recalibration decision (06_phase_a_decision.md).
+Audit trail for the 0.3->0.15 recalibration decision (the retired
+06_phase_a_decision.md, in git history).
 The detector has since been restored to RTMDet-M@640 at the 0.3 cut
 (07_detector_restoration.md), which removes the 320-input under-scoring this
 script diagnosed; the hard-coded fail stems below are from the nano G-4 run

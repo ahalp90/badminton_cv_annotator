@@ -1,11 +1,11 @@
 """G9: Phase-A decision gate (HALT-AND-HANDOFF, Bourbaki).
 
-(Gate numbering follows 03_verification.md: G7 = CUDA self-variance, G8 =
-extraction parity, G9 = this decision.)
+(Gate numbering follows the retired 03_verification.md, in git history: G7 =
+CUDA self-variance, G8 = extraction parity, G9 = this decision.)
 
 Consumes the G8 parity JSON (per-clip extraction + deployed metrics) and, if
 present, the G7 self-variance floors, and applies the concrete Phase-A
-acceptance thresholds (03_verification.md replaces the open O3 with these):
+acceptance thresholds:
 
 * Frame count: 100% of clips ``dF == 0``; any mismatch is a hard NO-GO.
 * Deployed failed-rate: aggregate ``|Δ|`` <= FAIL_DELTA_AGG_PP, per-clip
