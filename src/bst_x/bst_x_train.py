@@ -482,7 +482,10 @@ def _split_param_groups(model: nn.Module):
             continue
         norm_or_bias = param.ndim <= 1
         token_or_posemb = any(hint in name for hint in no_decay_name_hints)
-        (no_decay if norm_or_bias or token_or_posemb else decay).append(param)
+        if norm_or_bias or token_or_posemb:
+            no_decay.append(param)
+        else:
+            decay.append(param)
     return decay, no_decay
 
 
@@ -792,22 +795,41 @@ class Task:
     def _assert_label_coverage(self) -> None:
         """Contract guard replacing the old runtime active-class adapter.
 
-        Labels.npy lands in ``[0, taxonomy.n_classes)`` at collation time, so
-        the head is the full taxonomy. Two invariants, both fail loud:
+        Labels.npy is meant to land in ``[0, taxonomy.n_classes)`` at collation
+        time, so the head is the full taxonomy. Two invariants, both fail loud:
 
+        - no split may carry a label index outside the head (a corrupt or
+          stale-vintage collated set).
         - train must cover every class in the taxonomy. A class the head can
           emit but train never teaches would carry a label-smoothed ghost
           gradient every step; better to refuse the run.
-        - val/test must not carry any class absent from train (a class train
-          never saw can't be evaluated meaningfully).
 
-        Reads labels post-``train_partial`` slicing, so a too-aggressive
-        partial that starves a class is caught here too.
+        Together these imply val/test can't hold a class absent from train,
+        so there is no separate check for that. Reads labels
+        post-``train_partial`` slicing, so a too-aggressive partial that
+        starves a class is caught here too.
         """
         expected = set(range(self.taxonomy.n_classes))
         train_present = {int(x) for x in np.unique(self.train_loader.dataset.labels)}
         val_present = {int(x) for x in np.unique(self.val_loader.dataset.labels)}
         test_present = {int(x) for x in np.unique(self.test_loader.dataset.labels)}
+
+        splits = (('train', train_present), ('val', val_present), ('test', test_present))
+        oob_descriptions = []
+        for split_name, present in splits:
+            oob = sorted(present - expected)
+            if oob:
+                # taxonomy.classes can't name these; they sit past the head.
+                named = [f'<oob:{i}>' for i in oob]
+                oob_descriptions.append(f'{split_name}: {oob} ({named})')
+        if oob_descriptions:
+            raise ValueError(
+                f'label indices outside the taxonomy {self.taxonomy.name!r} '
+                f'head [0, {self.taxonomy.n_classes}): '
+                f'{"; ".join(oob_descriptions)}. The collated labels.npy is '
+                f'likely corrupt or a stale vintage; failing at startup rather '
+                f'than as a CUDA IndexError inside the loss.'
+            )
 
         missing_in_train = expected - train_present
         if missing_in_train:
@@ -819,24 +841,6 @@ class Task:
                 f'train_partial (currently {self.hyp.train_partial}) or use a '
                 f'taxonomy whose head matches what train can teach.'
             )
-
-        n = self.taxonomy.n_classes
-        for split_name, present in (('val', val_present), ('test', test_present)):
-            rogue = present - train_present
-            if rogue:
-                # After the coverage check, train_present holds every in-range
-                # class, so a rogue index is an out-of-range (corrupt) label;
-                # name it safely rather than IndexError on classes[i].
-                named = [
-                    self.taxonomy.classes[i] if 0 <= i < n else f'<oob:{i}>'
-                    for i in sorted(rogue)
-                ]
-                raise ValueError(
-                    f'{split_name} has classes absent from train: '
-                    f'{sorted(rogue)} ({named}). Fix the split assignment in '
-                    f'clips_master.csv or pick a taxonomy whose classes match '
-                    f'the data shape.'
-                )
 
     def get_network_architecture(self, model_name='BST_X'):
         """Create the model at the taxonomy head dim and ground its inputs.

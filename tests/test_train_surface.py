@@ -153,7 +153,7 @@ def test_assert_label_coverage_fails_when_train_misses_a_class():
 
 
 def test_assert_label_coverage_fails_on_rogue_eval_label():
-    """An out-of-range eval label is flagged without IndexError on naming."""
+    """An oob label in the TEST split is caught at startup, named safely."""
     tax2 = Taxonomy(
         name='surface2', classes=('a', 'b'), merge_map=None,
         has_sides=False, excluded_base_stroke_types=frozenset(),
@@ -163,8 +163,22 @@ def test_assert_label_coverage_fails_on_rogue_eval_label():
     with pytest.raises(ValueError) as exc:
         task._assert_label_coverage()
     msg = str(exc.value)
-    assert 'absent from train' in msg
     assert '<oob:5>' in msg  # OOB-safe naming, not an IndexError
+    assert 'test' in msg  # the offending split is named
+
+
+def test_assert_label_coverage_fails_on_oob_train_label():
+    """An out-of-range TRAIN label raises, naming the oob index safely.
+
+    A corrupt or stale-vintage labels.npy can carry an index past the head;
+    catch it at startup, not as a CUDA IndexError inside the loss.
+    """
+    # Train covers every in-range class (0, 1, 2) but also a corrupt index 6.
+    task = _task_with_labels(TAX3, train=[0, 1, 2, 6], val=[0, 1], test=[2, 0])
+    with pytest.raises(ValueError) as exc:
+        task._assert_label_coverage()
+    msg = str(exc.value)
+    assert '<oob:6>' in msg  # OOB-safe naming, not an IndexError
 
 
 # ---------------------------------------------------------------------------

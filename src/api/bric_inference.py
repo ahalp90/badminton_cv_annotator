@@ -499,7 +499,7 @@ def classify(
 
     with torch.no_grad():
         logits = _model(rgb_batch, **forward_kwargs)
-        probs = torch.softmax(logits, dim=1).cpu().numpy()  # (N, n_class)
+        probs = torch.softmax(logits, dim=1).cpu().numpy()  # (N, n_classes)
 
     top_k = 5
     top_idx = np.argsort(-probs, axis=1)[:, :top_k]
