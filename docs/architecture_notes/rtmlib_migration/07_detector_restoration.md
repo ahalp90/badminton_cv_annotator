@@ -1,10 +1,10 @@
 # Detector restoration: rtmdet-nano@320 back to RTMDet-M@640
 
-> **Status (2026-07-04):** code restored (adapter constants + SHA pin), CPU
-> Tier-1 gates green, single-clip parity beats the nano era. The formal CPU
-> parity reruns (G1/G6) and the Bourbaki GPU ladder (G7/G8/G9, `_m` JSONs) are
-> pending. Until G9 re-adjudicates, the nano-era Phase-A GO (06) authorises
-> nothing.
+> **Status (2026-07-04):** code restored (adapter constants + SHA pin) and all
+> CPU gates green, including the G1/G6 parity reruns — G6 hit fmatch 1.000 on
+> all 20 clips with a 0:0 directional split. Only the Bourbaki GPU ladder
+> (G7/G8/G9, `_m` JSONs) remains. Until G9 re-adjudicates, the nano-era
+> Phase-A GO (06) authorises nothing.
 
 ## What happened
 
@@ -94,14 +94,20 @@ Known, accepted semantic gaps vs mmpose (measured, not patched):
 - Gates: G2 adapter contract PASS (score floor auto-tracked to 0.3), G4 CPU
   determinism bit-identical (20 frames), G3 dtype parity PASS, raw-schema
   PASS.
+- G1/G6 reruns (user, dev CPU, same day): G1 PASS on all 5 clips with medians
+  1.17-2.17px and swap-fraction at most 5%; G6 PASS on all 20 clips at fmatch
+  1.000, posMed 0.0000, jntMed at most 0.0043, and **zero** directional frame
+  loss in either direction — the deployed failed-frame decisions reproduce
+  exactly on this sample, where the nano era managed mean 0.98 / min 0.86 with
+  a one-directional bias.
 
 ## Rerun ladder and status
 
 | Gate | Scope | Env | Status |
 |---|---|---|---|
 | G2/G3/G4/raw-schema | contract/dtype/determinism/schema | dev CPU | **green** (2026-07-04) |
-| G1 keypoint value | vs committed raw | dev CPU (user) | pending |
-| G6 deployed parity | vs committed clean | dev CPU (user) | pending |
+| G1 keypoint value | vs committed raw | dev CPU (user) | **green** (2026-07-04): 5 clips, medians 1.17-2.17px [gate 5], conf p90 2.48-5.34 [gate 12], L/R-swap 0-5% [cap 20%], RGB counterfactual byte-exact |
+| G6 deployed parity | vs committed clean | dev CPU (user) | **green** (2026-07-04): 20 clips, fmatch 1.000 on every clip, dF=0, posMed 0.0000, jntMed max 0.0043 [gate 0.03], directional loss 0:0 |
 | G7 self-variance | fresh CUDA floors | Bourbaki (user) | pending — write `g7_selfvariance_m.json` |
 | G8 parity smoke50 + authoritative | vs committed raw | Bourbaki (user) | pending — write `g8_parity_m_*.json` |
 | G9 Phase-A re-decision | verdict | Bourbaki run, adjudicated | pending |
