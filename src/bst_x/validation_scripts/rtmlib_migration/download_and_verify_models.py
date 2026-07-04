@@ -34,10 +34,11 @@ from rtmlib.tools.file import download_checkpoint
 
 from preparing_data.rtmlib_pose import DET_URL, POSE_URL
 
-# SHA256 of the extracted .onnx, computed 2026-07-02 from the openmmlab archives.
+# SHA256 of the extracted .onnx: pose computed 2026-07-02, detector 2026-07-04
+# (RTMDet-M restoration; hash identical across two independent downloads).
 # A mismatch means upstream re-released the model; stop and re-pin deliberately.
 PINNED = {
-    DET_URL: "8297e829ccc5590c8e2d32d5a211f322a0585fb7467eec85eb12c9525b0b95d6",
+    DET_URL: "4f4d7e07350b1753299111d1ae500fd64447a5b0e38e4bacbefab6573c742d30",
     POSE_URL: "cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2",
 }
 
