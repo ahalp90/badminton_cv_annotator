@@ -298,6 +298,9 @@ def parse_flaw_records(csv_path: Path = FLAW_RECORDS_PATH,
 # Pipeline steps that need the records fail loudly when they're empty.
 try:
     EXCLUDED_VIDEOS, REMOVED_SHOTS = parse_flaw_records()
+    # Read-only downstream (membership + iteration only); frozenset makes the
+    # download_videos frozenset[int] annotation honest.
+    EXCLUDED_VIDEOS = frozenset(EXCLUDED_VIDEOS)
 except FileNotFoundError:
     import warnings
     warnings.warn(
@@ -307,7 +310,7 @@ except FileNotFoundError:
         f'will produce incorrect results without this file.',
         stacklevel=2,
     )
-    EXCLUDED_VIDEOS, REMOVED_SHOTS = set(), set()
+    EXCLUDED_VIDEOS, REMOVED_SHOTS = frozenset(), set()
 
 
 # ---------------------------------------------------------------------------

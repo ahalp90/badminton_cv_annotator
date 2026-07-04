@@ -194,7 +194,7 @@ class ValStats:
     top2_accuracy: float
 
 
-def accumulate(
+def accumulate_tp_fp_fn(
     logits: Tensor, labels: Tensor, n_classes: int,
     tp: Tensor, fp: Tensor, fn: Tensor,
 ) -> tuple[Tensor, Tensor, Tensor]:
@@ -297,7 +297,7 @@ def train_one_epoch(
         # Per-class confusion counts on argmax preds. no_grad() because preds
         # are detached labels; nothing here needs an autograd graph.
         with torch.no_grad():
-            tp, fp, fn = accumulate(logits, labels, n_classes, tp, fp, fn)
+            tp, fp, fn = accumulate_tp_fp_fn(logits, labels, n_classes, tp, fp, fn)
 
     train_loss = total_loss / len(loader)
     return EpochStats(
@@ -337,7 +337,7 @@ def validate(
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
 
-        cum_tp, cum_fp, cum_fn = accumulate(
+        cum_tp, cum_fp, cum_fn = accumulate_tp_fp_fn(
             logits, labels, n_classes, cum_tp, cum_fp, cum_fn,
         )
 
@@ -856,14 +856,14 @@ class Task:
         self.model_name = model_name
 
     def seek_network_weights(self, model_info='', serial_no=1, tb_dir: Path | None = None):
-        """Load existing weights if found, otherwise train from scratch.
-        Weight filenames encode the full experiment config, e.g.:
-        'bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_2.pt'
+        """Load existing weights if found, otherwise train from scratch. Weight filenames encode the
+        full experiment config, e.g.: 'bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_2.pt'
 
-        :return: ``(weight_existed, val_at_best)``. ``weight_existed`` is True
-            when a checkpoint was loaded (no training ran), False when freshly
-            trained. ``val_at_best`` is the per-class val F1 snapshot from
-            ``train_network`` (None on the load path or a degenerate run).
+        :return: ``(weight_existed, val_at_best)``.
+        ``weight_existed`` is True when a checkpoint was loaded (no training ran),
+        False when freshly trained.
+        ``val_at_best`` is the per-class val F1 snapshot from ``train_network``
+        (None on the load path or a degenerate run).
         """
         parts = [self.pose_style]
         if model_info:
@@ -1090,14 +1090,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def resolve_hyp(args: argparse.Namespace) -> Hyp:
     """Validate the CLI args and layer any overrides onto the module-level Hyp.
 
-    Returns a fresh Hyp built from the module-global defaults. Raises on a bad
-    serial-no contract or a partial augmentation override, both before any
-    filesystem write.
+    Returns a fresh Hyp built from the module-global defaults. Raises on a bad serial-no
+    contract or a partial augmentation override, both before any filesystem write.
     """
-    # Per-serial invocation contract: pass all three sharing-flags together so
-    # every serial lands in one run dir with one continuous log file. The
-    # runner drives serial count per cell (5 default, 10 for headline cells),
-    # so there's no fixed upper bound here beyond "1-indexed".
+    # Per-serial invocation contract: pass all three sharing-flags together so every
+    # serial lands in one run dir with one continuous log file. The runner drives serial
+    # count per cell (5 default, 10 for headline cells), so there's no fixed upper bound
+    # here beyond "1-indexed".
     if args.serial_no is not None:
         if args.serial_no < 1:
             raise ValueError(
@@ -1109,9 +1108,9 @@ def resolve_hyp(args: argparse.Namespace) -> Hyp:
                 'subsequent serials append to the same log and share the run dir.'
             )
 
-    # Augmentation CLI overrides are all-or-nothing. Wrapper passes the full
-    # cell-config dict (base + overrides resolved); manual invocations leave
-    # them all None and use the module-level Hyp defaults.
+    # Augmentation CLI overrides are all-or-nothing. Wrapper passes the full cell-config
+    # dict (base + overrides resolved); manual invocations leave them all None and use
+    # the module-level Hyp defaults.
     aug_overrides = [args.p_flip, args.p_jitter, args.cap_y, args.cap_x, args.eps]
     provided = [x is not None for x in aug_overrides]
     if any(provided) and not all(provided):
@@ -1149,17 +1148,25 @@ def resolve_hyp(args: argparse.Namespace) -> Hyp:
     return resolved
 
 
+class RunPaths(NamedTuple):
+    run_dir: Path
+    run_id: str
+    log_path: Path
+    weight_dir: Path
+    collated_root: Path
+    model_info: str
+
+
 def resolve_run_paths(
     args: argparse.Namespace, hyp: Hyp, taxonomy: Taxonomy,
-) -> tuple[Path, str, Path, Path, Path, str]:
-    """Resolve the run dir, run id, log path, weight dir, collated data root and
-    the weight-name suffix, and register the run.
+) -> RunPaths:
+    """Resolve the run paths and register the run.
 
-    Side effect: creates the test_logs dir and writes the run manifest via
-    track_run, so the manifest exists before any serial appends to it.
+    Side effect: creates the test_logs dir and writes the run manifest via track_run, so
+    the manifest exists before any serial appends to it.
     """
-    # Collated dir naming via shared helper (mirrored on the prepare_train
-    # writer side); see ``pipeline.config.derive_npy_collated_dir_basename``.
+    # Collated dir naming via shared helper (mirrored on the prepare_train writer side);
+    # see ``pipeline.config.derive_npy_collated_dir_basename``.
     if hyp.seq_len not in (30, 100):
         raise NotImplementedError(f'Unsupported hyp.seq_len={hyp.seq_len!r}; expected 30 or 100.')
     npy_collated_dir = derive_npy_collated_dir_basename(
@@ -1168,9 +1175,9 @@ def resolve_run_paths(
         collation_id=hyp.collation_id,
     )
 
-    # Weights filename suffix. Independent of the collated-dir name; encodes
-    # config knobs that change per run (seq_len-derived window tag,
-    # train_partial). Empty string is a valid value (seq_len=30, full data).
+    # Weights filename suffix. Independent of the collated-dir name; encodes config
+    # knobs that change per run (seq_len-derived window tag, train_partial). Empty
+    # string is a valid value (seq_len=30, full data).
     model_info_parts: list[str] = []
     if hyp.seq_len == 100:
         model_info_parts.append(f'{CLIP_WINDOW}_seq_100')
@@ -1187,19 +1194,19 @@ def resolve_run_paths(
     #   weights/<save_name>.pt (best checkpoint per serial)
     #   tb/serial_N/           (TB event files per serial)
     #   predictions/<split>_serial_N.npz (per-stroke logits + top-k dump)
-    # The runner passes a fixed --run-id across a cell's serials so they share
-    # one run dir + log: serial 1 creates the manifest, later serials append via
-    # track_serial. Weights are per-serial, so re-running a serial with --run-id
-    # finds its .pt and skips training.
+    # The runner passes a fixed --run-id across a cell's serials so they share one run
+    # dir + log: serial 1 creates the manifest, later serials append via track_serial.
+    # Weights are per-serial, so re-running a serial with --run-id finds its .pt and
+    # skips training.
     # ----------------------------------------------------------------------
     timestamp = f'{datetime.now():%Y%m%d_%H%M%S}'
     run_id = args.run_id or f'run_{timestamp}'
 
-    # Test output is auto-teed to a timestamped log file so metrics are never
-    # lost to a dropped terminal. Training stdout stays on terminal only; TB
-    # captures it. One log file per script invocation, all serials inside.
-    # Uses the fresh invocation timestamp (not run_id) so resumed re-tests
-    # don't overwrite the original run's log file.
+    # Test output is auto-teed to a timestamped log file so metrics are never lost to a
+    # dropped terminal. Training stdout stays on terminal only; TB captures it. One log
+    # file per script invocation, all serials inside. Uses the fresh invocation
+    # timestamp (not run_id) so resumed re-tests don't overwrite the original run's log
+    # file.
     #
     # Anchor experiments/ and test_logs/ to the repo-root experiments/bst_x/shuttleset/
     # so write paths don't depend on cwd. Lets `python -m bst_x_train` land outputs in
@@ -1215,10 +1222,10 @@ def resolve_run_paths(
         collation_id=hyp.collation_id,
         npy_collated_dir=npy_collated_dir,
     )
-    # config.classes lands the resolved class list next to the Hyp dump,
-    # mirroring BRIC's manifest schema; the FE registry reads it without
-    # importing any taxonomy module. track_run treats the dict as a Mapping and
-    # stores it verbatim (config.collation_id / config.ablation_id ride along).
+    # config.classes lands the resolved class list next to the Hyp dump, mirroring
+    # BRIC's manifest schema; the FE registry reads it without importing any taxonomy
+    # module. track_run treats the dict as a Mapping and stores it verbatim
+    # (config.collation_id / config.ablation_id ride along).
     config_payload = dict(hyp._asdict())
     # The two frozendict fields must land as plain dict: yaml.safe_dump's
     # representers are exact-type and reject dict subclasses (frozendict included).
@@ -1238,11 +1245,9 @@ def resolve_run_paths(
     # canonical name, matching the writer's parent dir. Without the env var the
     # reader looks in-repo while the writer wrote to /scratch, so keep them in sync.
     collated_root = (
-        resolve_collated_data_root()
-        / f'ShuttleSet_data_{taxonomy.name}'
-        / npy_collated_dir
+        resolve_collated_data_root() / f'ShuttleSet_data_{taxonomy.name}' / npy_collated_dir
     )
-    return run_dir, run_id, log_path, weight_dir, collated_root, model_info
+    return RunPaths(run_dir, run_id, log_path, weight_dir, collated_root, model_info)
 
 
 def run_serial(
@@ -1311,9 +1316,7 @@ def main() -> None:
     # weight-file naming, matching what the collator wrote.
     taxonomy = taxonomy_lookup(hyp.taxonomy)
 
-    run_dir, run_id, log_path, weight_dir, collated_root, model_info = (
-        resolve_run_paths(args, hyp, taxonomy)
-    )
+    run_paths = resolve_run_paths(args, hyp, taxonomy)
 
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so
@@ -1325,17 +1328,17 @@ def main() -> None:
         serial_range = range(1, 6)
         log_open_mode = 'w'
 
-    with open(log_path, log_open_mode) as log_f:
+    with open(run_paths.log_path, log_open_mode) as log_f:
         tee = Tee(sys.stdout, log_f)
         _print_taxonomy_block(taxonomy, tee)
         for serial_no in serial_range:
             run_serial(
-                serial_no, taxonomy, hyp, weight_dir, collated_root,
-                run_dir, model_info, tee,
+                serial_no, taxonomy, hyp, run_paths.weight_dir, run_paths.collated_root,
+                run_paths.run_dir, run_paths.model_info, tee,
             )
 
-    print(f'\nTest log saved to: {log_path}')
-    print(f'Run manifest:    {run_dir / "manifest.yaml"}')
+    print(f'\nTest log saved to: {run_paths.log_path}')
+    print(f'Run manifest:    {run_paths.run_dir / "manifest.yaml"}')
 
 
 if __name__ == '__main__':

@@ -90,6 +90,8 @@ def recompute_bones_torch(joints: Tensor, pairs: list[tuple[int, int]]) -> Tenso
     )
     starts = joints.index_select(dim=-2, index=start_indices)
     ends = joints.index_select(dim=-2, index=end_indices)
+    # Per-coordinate zero-check: a joint at exactly 0.0 in one axis would half-zero the
+    # bone; unreachable since normalised MMPose coords never hit exact zero.
     both_present = (starts != 0.0) & (ends != 0.0)
     return torch.where(both_present, ends - starts, torch.zeros_like(ends))
 

@@ -98,6 +98,8 @@ def create_bones(joints: np.ndarray, pairs) -> np.ndarray:
     starts, ends = zip(*pairs)
     start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
     end_j = joints[:, :, list(ends), :]
+    # Per-coordinate zero-check: a joint at exactly 0.0 in one axis would half-zero the
+    # bone; unreachable since normalised MMPose coords never hit exact zero.
     return np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
 
 

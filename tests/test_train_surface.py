@@ -29,6 +29,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 from torcheval.metrics.functional import multiclass_f1_score
+from frozendict import frozendict
 
 import bst_x_train as bt
 from pipeline.config import Taxonomy
@@ -327,7 +328,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
         n_epochs=2, early_stop_n_epochs=10, warm_up_step=1,
         adaptive_focal=None, class_weights=None, label_smoothing=0.0,
         use_aux_schedule=False, pose_style='JnB_bone',
-        augmentation={'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15},
+        augmentation=frozendict({'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15}),
     )
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(

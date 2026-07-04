@@ -48,9 +48,9 @@ def test_manifest_write_round_trips_hyp_mapping_fields_to_plain_dict(tmp_path):
 
 
 def test_safe_dump_rejects_uncast_frozendict():
-    """The wall the boundary cast exists for: safe_dump's exact-type
-    representers reject frozendict. If a PyYAML upgrade ever makes this pass,
-    the cast in resolve_run_paths has gone vestigial and can come out."""
+    """safe_dump rejects dict subclasses like frozendict, which is why the manifest
+    writer casts to plain dict first. If a PyYAML upgrade ever accepts them this test
+    fails, flagging that the cast in resolve_run_paths is no longer needed."""
     hyp = Hyp()
     with pytest.raises(yaml.representer.RepresenterError):
         yaml.safe_dump({'augmentation': hyp.augmentation})
