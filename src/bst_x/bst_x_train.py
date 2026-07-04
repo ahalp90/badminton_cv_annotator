@@ -19,6 +19,7 @@ from beartype import beartype
 from jaxtyping import Bool, Float32, Int64, jaxtyped
 
 from transformers import get_cosine_schedule_with_warmup  # from HuggingFace, not a custom module
+from frozendict import frozendict
 
 from pathlib import Path
 from copy import deepcopy
@@ -112,8 +113,8 @@ class Hyp(NamedTuple):
     #       'warm_up_epochs': 5, 'f1_floor': 0.0,
     #   }
     # Full design + paper-verified equations: docs/architecture_notes/class_f1_focal_design.md.
-    # NamedTuple defaults are class-level: these dicts are shared across instances; treat as read-only.
-    adaptive_focal: dict | None = {
+    # NamedTuple defaults are class-level and shared across every instance; frozendict enforces the read-only contract.
+    adaptive_focal: frozendict | None = frozendict({
         # tau=1, gamma=1 is the swept sweet spot (floor-lift on wrist_smash);
         # see class_f1_focal_design.md.
         'tau': 1.0,
@@ -121,19 +122,19 @@ class Hyp(NamedTuple):
         'momentum': 0.9,
         'warm_up_epochs': 5,
         'f1_floor': 0.0,
-    }
+    })
     # Train-time augmentations. Replaces the inherited (broken) joints-only
     # RandomTranslation_batch. Flip is the literature-norm dataset-doubler;
     # constrained jitter is the corrected, pos+shuttle-only,
     # layered-conditional-bound formulation. Full design + verified code
     # traces in docs/architecture_notes/augmentation_framework.md.
-    augmentation: dict = {
+    augmentation: frozendict = frozendict({
         'p_flip':   0.5,
         'p_jitter': 0.3,
         'cap_y':    0.05,
         'cap_x':    0.10,
         'eps':      0.15,
-    }
+    })
 
 
 hyp = Hyp()
@@ -1115,13 +1116,13 @@ def resolve_hyp(args: argparse.Namespace) -> Hyp:
         )
     resolved = hyp  # module-level production defaults; the global is never rebound
     if all(provided):
-        resolved = resolved._replace(augmentation={
+        resolved = resolved._replace(augmentation=frozendict({
             'p_flip':   args.p_flip,
             'p_jitter': args.p_jitter,
             'cap_y':    args.cap_y,
             'cap_x':    args.cap_x,
             'eps':      args.eps,
-        })
+        }))
 
     # Cell selectors: override the Hyp defaults when the runner (or a manual
     # invocation) passes them. Each is independent and nullable.
@@ -1214,6 +1215,11 @@ def resolve_run_paths(
     # importing any taxonomy module. track_run treats the dict as a Mapping and
     # stores it verbatim (config.collation_id / config.ablation_id ride along).
     config_payload = dict(hyp._asdict())
+    # The two frozendict fields must land as plain dict: yaml.safe_dump's
+    # representers are exact-type and reject dict subclasses (frozendict included).
+    config_payload['augmentation'] = dict(hyp.augmentation)
+    if hyp.adaptive_focal is not None:
+        config_payload['adaptive_focal'] = dict(hyp.adaptive_focal)
     config_payload['classes'] = list(taxonomy.classes)
     run_dir, run_id = track_run(
         config=config_payload, run_id=run_id, log_path=log_path, extra=extra,
