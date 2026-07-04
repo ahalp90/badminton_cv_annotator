@@ -140,13 +140,13 @@ class CoupledFlip:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
-        pos: Float32[Tensor, 'clips time players 2'],
-        shuttle: Float32[Tensor, 'clips time 2'],
+        human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+        pos: Float32[Tensor, 'batch time players 2'],
+        shuttle: Float32[Tensor, 'batch time 2'],
     ) -> tuple[
-        Float32[Tensor, 'clips time players joints_bones 2'],
-        Float32[Tensor, 'clips time players 2'],
-        Float32[Tensor, 'clips time 2'],
+        Float32[Tensor, 'batch time players joints_bones 2'],
+        Float32[Tensor, 'batch time players 2'],
+        Float32[Tensor, 'batch time 2'],
     ]:
         """Flip selected clips across all three streams together. (0, 0)
         pos/shuttle sentinel frames pass through unflipped, matching the
@@ -285,9 +285,9 @@ class ConstrainedJitter:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
-        pos: Float32[Tensor, 'clips time players 2'],
-        shuttle: Float32[Tensor, 'clips time 2'],
+        human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+        pos: Float32[Tensor, 'batch time players 2'],
+        shuttle: Float32[Tensor, 'batch time 2'],
     ) -> JitterResult:
         """Apply the per-clip shift to pos and shuttle.
 

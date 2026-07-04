@@ -92,7 +92,7 @@ class AdaptiveFocalLoss(nn.Module):
 
     @torch.no_grad()
     @jaxtyped(typechecker=beartype)
-    def update_alpha(self, per_class_f1: Float32[torch.Tensor, 'n_classes']) -> None:
+    def update_alpha(self, per_class_f1: Float32[torch.Tensor, 'classes']) -> None:
         """EMA-smooth ``per_class_f1`` into ``f1_running``, refresh ``alpha``.
 
         Called once per epoch from the train loop after ``train_one_epoch``
@@ -124,7 +124,7 @@ class AdaptiveFocalLoss(nn.Module):
     @jaxtyped(typechecker=beartype)
     def forward(
         self,
-        logits: Float32[torch.Tensor, 'batch n_classes'],
+        logits: Float32[torch.Tensor, 'batch classes'],
         labels: Int64[torch.Tensor, 'batch'],
     ) -> Float32[torch.Tensor, '']:
         """Adaptive-focal CE on a batch.
@@ -153,9 +153,9 @@ class AdaptiveFocalLoss(nn.Module):
 
 @jaxtyped(typechecker=beartype)
 def per_class_f1_from_counts(
-    tp: Int64[torch.Tensor, 'n_classes'], fp: Int64[torch.Tensor, 'n_classes'], fn: Int64[torch.Tensor, 'n_classes'],
+    tp: Int64[torch.Tensor, 'classes'], fp: Int64[torch.Tensor, 'classes'], fn: Int64[torch.Tensor, 'classes'],
     eps: float = 1e-8,
-) -> Float32[torch.Tensor, 'n_classes']:
+) -> Float32[torch.Tensor, 'classes']:
     """Per-class F1 from running TP / FP / FN counts.
 
     Called at end-of-epoch by the train loop (feeding ``AdaptiveFocalLoss.update_alpha``)
@@ -181,7 +181,7 @@ def accumulate_class_counts(
     labels: Int64[torch.Tensor, 'batch'],
     n_classes: int,
 ) -> tuple[
-    Int64[torch.Tensor, 'n_classes'], Int64[torch.Tensor, 'n_classes'], Int64[torch.Tensor, 'n_classes'],
+    Int64[torch.Tensor, 'classes'], Int64[torch.Tensor, 'classes'], Int64[torch.Tensor, 'classes'],
 ]:
     """Vectorised per-class TP / FP / FN counters for one batch.
 

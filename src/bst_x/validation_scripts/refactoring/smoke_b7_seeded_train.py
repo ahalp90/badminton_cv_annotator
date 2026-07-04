@@ -143,7 +143,7 @@ def run_seeded_train(tmp_dir: Path, device: torch.device) -> tuple[str, dict | N
     if device.type == "cuda":
         torch.cuda.manual_seed_all(SEED)
     model = BST_CG_AP(
-        in_dim=J_PLUS_B * 2, seq_len=SEQ_LEN, n_class=n_classes, d_model=100,
+        in_dim=J_PLUS_B * 2, seq_len=SEQ_LEN, n_classes=n_classes, d_model=100,
     ).to(device)
 
     save_path = tmp_dir / "best.pt"

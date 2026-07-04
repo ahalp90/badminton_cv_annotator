@@ -66,7 +66,7 @@ def main() -> int:
     device = torch.device("cuda")
     torch.manual_seed(2)
     model = BST_CG_AP(
-        in_dim=IN_DIM, seq_len=T, n_class=N_CLASSES, d_model=100,
+        in_dim=IN_DIM, seq_len=T, n_classes=N_CLASSES, d_model=100,
     ).to(device)
     loss_fn = nn.CrossEntropyLoss()
     try:

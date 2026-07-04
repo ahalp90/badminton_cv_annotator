@@ -130,7 +130,7 @@ def test_pipeline_dataloader_to_model_forward_pass():
     )
 
     # Step 7: Instantiate BST_CG_AP and run forward pass
-    model = BST_CG_AP(in_dim=in_dim, seq_len=seq_len, n_class=n_classes, d_model=100)
+    model = BST_CG_AP(in_dim=in_dim, seq_len=seq_len, n_classes=n_classes, d_model=100)
     model.eval()
 
     with torch.no_grad():

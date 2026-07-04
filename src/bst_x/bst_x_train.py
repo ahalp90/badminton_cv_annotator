@@ -849,7 +849,7 @@ class Task:
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            n_class=self.taxonomy.n_classes,
+            n_classes=self.taxonomy.n_classes,
             seq_len=self.hyp.seq_len,
             device=self.device,
         )

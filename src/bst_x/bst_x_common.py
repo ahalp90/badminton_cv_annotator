@@ -58,7 +58,7 @@ def build_bst_x_network(
     *,
     n_joints: int,
     pose_style: str,
-    n_class: int,
+    n_classes: int,
     seq_len: int = 100,
     depth_tem: int = 2,
     depth_inter: int = 1,
@@ -75,7 +75,7 @@ def build_bst_x_network(
     in_dim = (n_joints + n_bones) * 2
     net = MODELS[model_name](
         in_dim=in_dim,
-        n_class=n_class,
+        n_classes=n_classes,
         seq_len=seq_len,
         depth_tem=depth_tem,
         depth_inter=depth_inter,
@@ -85,8 +85,8 @@ def build_bst_x_network(
 
 @jaxtyped(typechecker=beartype)
 def flatten_pose_features(
-    human_pose: Float32[Tensor, 'clips time players joints_bones 2'],
-) -> Float32[Tensor, 'clips time players 2*joints_bones']:
+    human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+) -> Float32[Tensor, 'batch time players 2*joints_bones']:
     """Flatten the trailing (joints/bones, channels) axes into one feature axis.
 
     Every BST forward pass needs this massage; keeping it in one place stops

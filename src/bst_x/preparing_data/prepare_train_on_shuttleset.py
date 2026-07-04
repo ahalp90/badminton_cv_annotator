@@ -66,13 +66,13 @@ if TYPE_CHECKING:  # type-only: keeps mmpose out of the runtime import (see modu
 
 @jaxtyped(typechecker=beartype)
 def normalize_joints(
-    arr: Float[np.ndarray, 'm j 2'],
-    bbox: Float[np.ndarray, 'm 4'],
+    arr: Float[np.ndarray, 'players joints 2'],
+    bbox: Float[np.ndarray, 'players 4'],
     v_height=None,
     center_align=False,
-) -> Float[np.ndarray, 'm j 2']:
-    """Normalise per-player joints; shapes carried by the annotations (m=2 in
-    detect/current, m=1 per-slot in sticky_anchor). ``Float`` not ``Float32``:
+) -> Float[np.ndarray, 'players joints 2']:
+    """Normalise per-player joints; shapes carried by the annotations (players=2 in
+    detect/current, players=1 for sticky_anchor's per-slot calls). ``Float`` not ``Float32``:
     callers feed float32 MMPose keypoints with float64 bboxes interchangeably.
 
     Signature defaults are BST-upstream; ``main()`` overrides
@@ -290,9 +290,9 @@ VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B"
 @jaxtyped(typechecker=beartype)
 def pad_and_derive_pose_styles(
     seq_len: int,
-    joints: Float[np.ndarray, 't m j 2'],
-    pos: Float[np.ndarray, 't m 2'],
-    shuttle: Float[np.ndarray, 't 2'],
+    joints: Float[np.ndarray, 'time players joints 2'],
+    pos: Float[np.ndarray, 'time players 2'],
+    shuttle: Float[np.ndarray, 'time 2'],
     bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
@@ -302,7 +302,7 @@ def pad_and_derive_pose_styles(
     derived arrays (``create_bones``, ``interpolate_joints``) are skipped if
     nothing downstream needs them.
 
-    The three arrays share a 't' (frame count): make_seq_len_same resamples them
+    The three arrays share a 'time' axis (frame count): make_seq_len_same resamples them
     with one index. ``Float`` not ``Float32`` because they arrive as whatever the
     per-clip npys hold and get cast to float32 in the body below.
 
@@ -313,8 +313,9 @@ def pad_and_derive_pose_styles(
         ``VALID_POSE_STYLES``. Defaults to ``{'JnB_bone'}`` (the only style
         BST training has ever used in this tracker).
     :return: Tuple of (pose_dict, pos, shuttle, video_len) where pose_dict maps
-        each requested style name to its (t, 2, K, d) array and video_len is
-        the number of real (non-padded) frames.
+        each requested style name to its (time, players, K, 2) array (K = the
+        style's keypoint count) and video_len is the number of real
+        (non-padded) frames.
     """
     joints = joints.astype(np.float32)
     pos = pos.astype(np.float32)

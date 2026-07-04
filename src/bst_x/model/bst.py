@@ -151,12 +151,12 @@ class BST(nn.Module):
     docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md.
     '''
     def __init__(
-        self, in_dim, seq_len, n_class, n_people=2,
+        self, in_dim, seq_len, n_classes, n_players=2,
         d_model=100, d_head=128, n_head=6, depth_tem=2, depth_inter=1,
         drop_p=0.3, mlp_d_scale=4, tcn_kernel_size=5,
     ):
         super().__init__()
-        if n_people > 2:
+        if n_players > 2:
             raise NotImplementedError
 
         # --- Pose Position Fusion (PPF) ---
@@ -200,7 +200,7 @@ class BST(nn.Module):
         # --- MLP Head ---
         # Head reads three CLS streams stacked: p1_conclusion, p2_conclusion, shuttle_cls
         head_dim = d_model * 3
-        self.mlp_head = MLP_Head(head_dim, n_class, d_model * mlp_d_scale, drop_p)
+        self.mlp_head = MLP_Head(head_dim, n_classes, d_model * mlp_d_scale, drop_p)
 
         self.d_model = d_model
 
@@ -252,15 +252,15 @@ class BST(nn.Module):
         # .apply() runs the given function on every sub-module recursively.
         self.apply(self.init_weights_recursive)
 
-    def init_weights_recursive(self, m):
+    def init_weights_recursive(self, module):
         """Per-submodule init called by .apply(). Xavier keeps signal variance
         stable through deep networks."""
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.Conv1d):
-            nn.init.xavier_normal_(m.weight)
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.constant_(module.bias, 0)
+        elif isinstance(module, nn.Conv1d):
+            nn.init.xavier_normal_(module.weight)
 
     @jaxtyped(typechecker=beartype)
     def forward(
@@ -270,27 +270,27 @@ class BST(nn.Module):
         pos: Float32[Tensor, 'batch time players 2'],       # court xy per player, fused by PPF
         *,  # video_len stays required; callers name it (and pos) at the call site
         video_len: Int64[Tensor, 'batch'],                  # real frame count per sample (rest is zero-padding)
-    ) -> Float32[Tensor, 'batch n_class']:
-        """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
+    ) -> Float32[Tensor, 'batch classes']:
+        """Forward pass. Shape key: b=batch, t=timesteps, n_players=2, d=d_model(100).
         Pipeline: TCN -> Temporal Transformer -> Cross Transformer -> Interactional Transformer -> Head
 
         t must equal the seq_len the model was built with: shorter clips are
         padded upstream and masked via video_len. The positional embeddings are
         sized 1+seq_len at construction, so any other t crashes the broadcast.
         """
-        b, t, n_people, input_dim = JnB.shape
+        b, t, n_players, input_dim = JnB.shape
         # Conv1d wants (batch, channels, length); stack both players in the batch dim
         # so the TCN processes them in parallel.
-        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
-        # JnB: (b*n_people, input_dim, t)
+        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_players, input_dim, t)
+        # JnB: (b*n_players, input_dim, t)
 
         # ====================================================================
         # [PPF] Pose Position Fusion: modulate skeleton features by court position
         # ====================================================================
         pos = self.mlp_positions(pos)
-        # pos: (b, t, n, input_dim)
-        pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
-        # pos_impact: (b*n_people, input_dim, t)
+        # pos: (b, t, n_players, input_dim)
+        pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_players, input_dim, t)
+        # pos_impact: (b*n_players, input_dim, t)
         JnB = JnB * pos_impact + JnB
         # Multiplicative fusion with residual: JnB * (1 + pos_impact)
 
@@ -298,8 +298,8 @@ class BST(nn.Module):
         # TCN: extract temporal features from pose and shuttle
         # ====================================================================
         JnB = self.tcn_pose(JnB)
-        JnB = JnB.view(b, n_people, -1, t).transpose(-2, -1)
-        # JnB: (b, n_people, t, d_model)
+        JnB = JnB.view(b, n_players, -1, t).transpose(-2, -1)
+        # JnB: (b, n_players, t, d_model)
 
         # .contiguous() kept on purpose: Conv1d accepts strided input, but a
         # contiguous buffer here is a perf choice, not a .view() prerequisite.
@@ -310,7 +310,7 @@ class BST(nn.Module):
         # shuttle: (b, 1, t, d_model)
 
         x = torch.cat((JnB, shuttle), dim=1)
-        # x: (b, n_streams, t, d_model) where n_streams = n_people + 1 = 3 (p1, p2, shuttle)
+        # x: (b, n_streams, t, d_model) where n_streams = n_players + 1 = 3 (p1, p2, shuttle)
         _, n_streams, _, d = x.shape
 
         # ====================================================================
@@ -429,21 +429,21 @@ BST_CG_AP = BST
 
 if __name__ == '__main__':
     from pipeline.config import taxonomy_lookup
-    n_class = taxonomy_lookup('une_v1_14').n_classes
+    n_classes = taxonomy_lookup('une_v1_14').n_classes
 
-    b, t, n = 1, 100, 2
+    b, t, n_players = 1, 100, 2
     # in_dim per player = (joints + bones) * xy channels. n_bones = 19 bone pairs
     # * POSE_BONE_MULTIPLIER['JnB_bone'] (=1); Jn2B would double it.
     n_joints, n_bones, in_channels = 17, 19, 2
     n_features = (n_joints + n_bones) * in_channels
-    pose = torch.randn((b, t, n, n_features), dtype=torch.float)
+    pose = torch.randn((b, t, n_players, n_features), dtype=torch.float)
     shuttle = torch.randn((b, t, 2), dtype=torch.float)
-    pos = torch.randn((b, t, n, 2), dtype=torch.float)
+    pos = torch.randn((b, t, n_players, 2), dtype=torch.float)
     videos_len = torch.tensor([t], dtype=torch.long).repeat(b)
 
     # Build the one graph and check it produces a valid output shape
     variants = {
-        'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
+        'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_classes=n_classes, d_model=100),
     }
     for name, model in variants.items():
         output = model(pose, shuttle, pos=pos, video_len=videos_len)

@@ -60,7 +60,7 @@ def _build_fake_run(tmp_path: Path) -> tuple[Path, Path]:
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
-        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
+        n_classes=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
 
     # Collation under collated_data_root/ShuttleSet_data_<tax>/<basename>/.
@@ -171,7 +171,7 @@ def test_dump_topk_predictions_k_clamps_to_head(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
         'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
-        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
+        n_classes=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = tmp_path / 'coll'
     _write_split(coll / 'test', n_bones=n_bones, labels=[0, 1, 2, 3])

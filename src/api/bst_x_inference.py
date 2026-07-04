@@ -97,7 +97,7 @@ def _build_model() -> torch.nn.Module:
         "BST_X",
         n_joints=17,
         pose_style=POSE_STYLE,
-        n_class=N_CLASS,
+        n_classes=N_CLASS,
         seq_len=100,
         device=DEVICE,
     )
@@ -242,8 +242,8 @@ def predict(stem: str, split: str | None = None) -> dict:
     shuttle_t    = torch.from_numpy(shuttle).unsqueeze(0).to(DEVICE)      # (1, T, 2)
     video_len_t  = torch.tensor([video_len], device=DEVICE)               # (1,)
 
-    logits = _model(human_pose_t, shuttle_t, pos=pos_t, video_len=video_len_t)  # (1, n_class)
-    probs = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()  # (n_class,)
+    logits = _model(human_pose_t, shuttle_t, pos=pos_t, video_len=video_len_t)  # (1, n_classes)
+    probs = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()  # (n_classes,)
     top_idx = np.argsort(-probs)[:TOP_K]
     predicted_class = ACTIVE_CLASS_LIST[int(np.argmax(probs))]
 

@@ -122,7 +122,7 @@ class Task:
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            n_class=taxonomy.n_classes,
+            n_classes=taxonomy.n_classes,
             seq_len=seq_len,
             device=self.device,
         )
@@ -222,7 +222,7 @@ def dump_run_predictions(
         model_name,
         n_joints=n_joints,
         pose_style=config['pose_style'],
-        n_class=taxonomy.n_classes,
+        n_classes=taxonomy.n_classes,
         seq_len=config['seq_len'],
         device=device,
     )
