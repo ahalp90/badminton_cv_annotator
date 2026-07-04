@@ -223,58 +223,7 @@ def get_shuttle_result(npy_path: Path) -> np.ndarray:
     return np.load(str(npy_path))[:, :2]
 
 
-def _prepare_dataset_from_raw_video(
-    my_clips_folder: Path,
-    save_root_dir: Path,
-    detect_fn,
-    detect_kwargs: dict,
-):
-    """Per-clip MMPose iteration for 2D pose extraction.
-
-    For each clip in ``my_clips_folder``: skip if ``{stem}_failed.npy`` already
-    exists (resume marker), otherwise call ``detect_fn(**detect_kwargs, video_path=...)``
-    to get ``(failed_ls, players_positions, joints)``, save the three .npy
-    outputs, and free GPU memory.
-
-    The resume marker is `_failed.npy` because it is saved last; its presence
-    means all three outputs are complete for the clip. Shuttle data is read
-    from the canonical shuttle-npy dir at collation (Step 2); this expensive
-    GPU step stays focused solely on pose estimation.
-
-    :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
-    :param save_root_dir: Output directory for per-clip .npy files.
-    :param detect_fn: ``detect_players_2d``.
-    :param detect_kwargs: keyword arguments threaded through to ``detect_fn``
-        besides ``video_path``.
-    """
-    # Flat layout: per-clip files sit alongside each other under save_root_dir.
-    # Split + label come from clips_master.csv at collation time (Step 2).
-    save_root_dir.mkdir(parents=True, exist_ok=True)
-
-    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
-
-    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
-        save_branch = str(save_root_dir / video_path.stem)
-
-        if not Path(save_branch + "_failed.npy").exists():
-            failed_ls, players_positions, joints = detect_fn(
-                video_path=video_path,
-                **detect_kwargs,
-            )
-
-            np.save(save_branch + "_pos.npy", players_positions)
-            np.save(save_branch + "_joints.npy", joints)
-            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
-
-            # Free GPU memory after inference to prevent fragmentation over
-            # ~33k clips. Skips don't allocate on GPU, so no cleanup needed
-            # in that branch -- keeps resume-path iterations cheap (~1ms vs
-            # ~100ms when these ran unconditionally).
-            gc.collect()
-            torch.cuda.empty_cache()
-
-
-def prepare_2d_dataset_npy_from_raw_video(
+def prepare_dataset_npy_from_raw_video(
     my_clips_folder: Path,
     save_root_dir: Path,
     resolution_df: pd.DataFrame,
@@ -287,7 +236,11 @@ def prepare_2d_dataset_npy_from_raw_video(
     For each clip, detects player keypoints (COCO 17-joint), extracts court
     positions via homography, and normalizes joints. Saves _joints.npy
     ((F, P, J, xy)), _pos.npy ((F, P, xy)), _failed.npy ((F,)) per clip.
-    Shuttle data is handled separately at collation time.
+
+    The resume marker is `_failed.npy` because it is saved last; its presence
+    means all three outputs are complete for the clip. Shuttle data is read
+    from the canonical shuttle-npy dir at collation (Step 2); this expensive
+    GPU step stays focused solely on pose estimation.
 
     :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
     :param save_root_dir: Output directory for per-clip .npy files.
@@ -300,18 +253,35 @@ def prepare_2d_dataset_npy_from_raw_video(
     from mmpose.apis import MMPoseInferencer  # lazy: keeps the module mmpose-free at import (see top)
     pose_inferencer = MMPoseInferencer("human")
 
-    _prepare_dataset_from_raw_video(
-        my_clips_folder=my_clips_folder,
-        save_root_dir=save_root_dir,
-        detect_fn=detect_players_2d,
-        detect_kwargs={
-            "inferencer": pose_inferencer,
-            "all_court_info": all_court_info,
-            "res_df": resolution_df,
-            "normalized_by_v_height": joints_normalized_by_v_height,
-            "center_align": joints_center_align,
-        },
-    )
+    # Flat layout: per-clip files sit alongside each other under save_root_dir.
+    # Split + label come from clips_master.csv at collation time (Step 2).
+    save_root_dir.mkdir(parents=True, exist_ok=True)
+
+    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
+
+    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
+        save_branch = str(save_root_dir / video_path.stem)
+
+        if not Path(save_branch + "_failed.npy").exists():
+            failed_ls, players_positions, joints = detect_players_2d(
+                video_path=video_path,
+                inferencer=pose_inferencer,
+                all_court_info=all_court_info,
+                res_df=resolution_df,
+                normalized_by_v_height=joints_normalized_by_v_height,
+                center_align=joints_center_align,
+            )
+
+            np.save(save_branch + "_pos.npy", players_positions)
+            np.save(save_branch + "_joints.npy", joints)
+            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
+
+            # Free GPU memory after inference to prevent fragmentation over
+            # ~33k clips. Skips don't allocate on GPU, so no cleanup needed
+            # in that branch -- keeps resume-path iterations cheap (~1ms vs
+            # ~100ms when these ran unconditionally).
+            gc.collect()
+            torch.cuda.empty_cache()
 
 
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")
@@ -940,7 +910,7 @@ def main():
     # ---- Step 1: Pose estimation ----
     if not args.skip_pose:
         print("\n--- Step 1: Pose estimation ---")
-        prepare_2d_dataset_npy_from_raw_video(
+        prepare_dataset_npy_from_raw_video(
             my_clips_folder=args.clips_dir,
             save_root_dir=flat_clip_npy_dir,
             resolution_df=resolution_df,

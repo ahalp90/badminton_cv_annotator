@@ -7,7 +7,8 @@
 > invariants below are kept as the historical record of the shared-body extract
 > (the `_order_two_on_court` lift that landed at `41719e4`); read the 3D content as
 > "what the 3D twin did", not as live code. The removed stream's design and revival
-> checklist live in `docs/architecture_notes/pose_3d_stream_design.md`.
+> checklist live in the sibling
+> `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md`.
 
 > _Last verified: 2026-06-29 against pre-pass `main`. Line refs are pre-pass; the
 > simplification-pass commits between then and `18e5c2c` shifted line numbers. The

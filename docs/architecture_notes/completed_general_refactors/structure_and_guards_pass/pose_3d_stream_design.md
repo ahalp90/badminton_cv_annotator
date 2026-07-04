@@ -84,13 +84,38 @@ per-call rebuild.
 ### `prepare_3d_dataset_npy_from_raw_video`
 
 `prepare_3d_dataset_npy_from_raw_video` (~L390) was the 3D wrapper. It
-built the 2D inferencer and handed `detect_players_3d` to the shared
-`_prepare_dataset_from_raw_video`, which does the per-clip loop: skip if
-the `_failed.npy` resume marker already exists, otherwise call the detect
-function, save the three `.npy` outputs (`_pos`, `_joints`, `_failed`),
-and free GPU memory. That shared loop and the 2D wrapper
-(`prepare_2d_dataset_npy_from_raw_video`) both stay; only the 3D wrapper
-and `detect_players_3d` leave.
+built the 2D inferencer and handed `detect_players_3d` to a shared
+`_prepare_dataset_from_raw_video` helper that owned the per-clip loop: skip
+if the `_failed.npy` resume marker already exists, otherwise call the
+passed-in detect function, save the three `.npy` outputs (`_pos`,
+`_joints`, `_failed`), and free GPU memory. The 2D wrapper handed
+`detect_players_2d` to the same helper, so the `detect_fn` parameter is
+what let one loop serve both streams:
+
+```
+def _prepare_dataset_from_raw_video(
+    my_clips_folder, save_root_dir, detect_fn, detect_kwargs,
+):
+    save_root_dir.mkdir(parents=True, exist_ok=True)
+    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
+    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
+        save_branch = str(save_root_dir / video_path.stem)
+        if not Path(save_branch + "_failed.npy").exists():
+            failed_ls, players_positions, joints = detect_fn(
+                video_path=video_path, **detect_kwargs,
+            )
+            np.save(save_branch + "_pos.npy", players_positions)
+            np.save(save_branch + "_joints.npy", joints)
+            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
+            gc.collect()
+            torch.cuda.empty_cache()
+```
+
+The structure-and-guards pass inlined this shared helper into the single
+public `prepare_dataset_npy_from_raw_video` (the old 2D wrapper, renamed)
+once the 3D stream's second caller was gone, so the `detect_fn` seam no
+longer exists. A revival has to re-open it; see the §4 checklist. Only the
+3D wrapper and `detect_players_3d` leave here.
 
 ---
 
@@ -231,9 +256,12 @@ to re-open each of these seams:
   (`bst_x_train`, `_resolve_collated_dir`)
 - Re-add the `_3d` weight-name tag in `bst_x_train.py`
 - Re-add `detect_players_3d` and `prepare_3d_dataset_npy_from_raw_video`
-  in `prepare_train`, reusing the still-present `_prepare_dataset_from_raw_video`
-  and `_order_two_on_court` seams; carry the per-call inferencer-reload
-  workaround (§1) unless MMPose has since fixed the bug
+  in `prepare_train`. The shared `_prepare_dataset_from_raw_video` seam is
+  gone (inlined into `prepare_dataset_npy_from_raw_video` by the
+  structure-and-guards pass), so first re-extract the per-clip loop back
+  into a `detect_fn`-parameterised helper (§1) or fork the merged function;
+  the `_order_two_on_court` seam is still present. Carry the per-call
+  inferencer-reload workaround (§1) unless MMPose has since fixed the bug
 - Re-add the `--use-3d-pose` CLI arg, its Step 1 dispatch branch, the
   `str_3d` default-dir tag, and the dry-run echo
 

@@ -24,7 +24,9 @@ and the ``sticky_anchor`` variant, both out of scope for this module).
 A 3D extraction path (via ``MMPoseInferencer(pose3d="human3d")``) is
 deliberately out of scope for this module's current phase. The 3D stream was
 removed from the tree; its design and the per-clip MMPose reload workaround
-are recorded in ``docs/architecture_notes/pose_3d_stream_design.md`` for revival.
+are recorded in
+``docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md``
+for revival.
 
 Run from the repo root with both package roots on PYTHONPATH::
 
