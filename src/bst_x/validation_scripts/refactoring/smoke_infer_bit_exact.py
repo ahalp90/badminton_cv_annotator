@@ -13,8 +13,7 @@ Optional env vars (defaults match the active Hyp on the une_v1_14 baseline):
   TAXONOMY      -- taxonomy name (default: une_v1_14)
   POSE_STYLE    -- pose style (default: JnB_bone)
   SEQ_LEN       -- sequence length (default: 100)
-  IN_CHANNELS   -- 2 for 2D keypoints, 3 for 3D (default: 2)
-  MODEL_NAME    -- BST variant (default: BST_CG_AP)
+  MODEL_NAME    -- MODELS registry name (default: BST_CG_AP)
   OUT_PATH      -- where to write predictions npy (default: /tmp/smoke_infer_preds.npy)
 
 Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
