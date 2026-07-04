@@ -5,14 +5,14 @@ WHAT THIS TESTS
 ---------------
 The downstream half of the pipeline:
 
-    npy files --> Dataset_npy_collated --> DataLoader --> BST_0 forward pass
+    npy files --> Dataset_npy_collated --> DataLoader --> BST_CG_AP forward pass
 
 Specifically it verifies that:
   1. Real preprocessed npy files can be loaded by Dataset_npy_collated
   2. The DataLoader correctly batches them
   3. The human_pose tensor can be flattened into the feature dim the model expects
      (same operation as bst_x_train.py:101)
-  4. BST_0 runs a forward pass without error
+  4. BST_CG_AP runs a forward pass without error
   5. The output shape is (batch_size, n_classes) — i.e. one prediction per sample
 
 WHAT THIS DOES NOT TEST
@@ -52,7 +52,7 @@ from torch.utils.data import DataLoader
 from src.bst_x.preparing_data.shuttleset_dataset import (
     Dataset_npy_collated,
 )
-from src.bst_x.model.bst import BST_0
+from src.bst_x.model.bst import BST_CG_AP
 from src.bst_x.pipeline.config import TAXONOMIES, taxonomy_lookup  # noqa: F401
 
 BST_X_DATA_DIR = os.environ.get("BST_X_DATA_DIR")
@@ -129,8 +129,8 @@ def test_pipeline_dataloader_to_model_forward_pass():
         f"Flattened in_dim is {in_dim} — something is wrong with the pose tensor shape."
     )
 
-    # Step 7: Instantiate BST_0 and run forward pass
-    model = BST_0(in_dim=in_dim, seq_len=seq_len, n_class=n_classes, d_model=100)
+    # Step 7: Instantiate BST_CG_AP and run forward pass
+    model = BST_CG_AP(in_dim=in_dim, seq_len=seq_len, n_class=n_classes, d_model=100)
     model.eval()
 
     with torch.no_grad():
