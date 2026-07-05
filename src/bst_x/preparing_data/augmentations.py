@@ -75,6 +75,7 @@ def recompute_bones_torch(joints: Tensor, pairs: list[tuple[int, int]]) -> Tenso
     from its start joint to its end joint. If either endpoint's x or y
     is zero (meaning the joint detection failed there), the corresponding
     bone component is set to zero too.
+    Keep in lockstep with create_bones so the flip aug's bones match the collated on-disk bones.
 
     :param joints: tensor of shape ``(..., J, 2)``.
     :param pairs: list of ``(start_idx, end_idx)`` tuples, one per bone,
@@ -89,6 +90,8 @@ def recompute_bones_torch(joints: Tensor, pairs: list[tuple[int, int]]) -> Tenso
     )
     starts = joints.index_select(dim=-2, index=start_indices)
     ends = joints.index_select(dim=-2, index=end_indices)
+    # Per-coordinate zero-check: a joint at exactly 0.0 in one axis would half-zero the
+    # bone; unreachable since normalised MMPose coords never hit exact zero.
     both_present = (starts != 0.0) & (ends != 0.0)
     return torch.where(both_present, ends - starts, torch.zeros_like(ends))
 
@@ -114,10 +117,6 @@ class CoupledFlip:
                     slice; ``human_pose[..., -n_bones:, :]`` is the
                     bone slice. The caller asserts ``pose_style ==
                     'JnB_bone'`` so this is always positive.
-    :param bone_pairs: list of ``(start_joint, end_joint)`` tuples,
-                       one per bone, matching the table used at
-                       collation time. Defaults to
-                       ``get_bone_pairs('coco')``.
     """
 
     def __init__(
@@ -125,13 +124,12 @@ class CoupledFlip:
         p: float = 0.5,
         n_joints: int = COCO_N_JOINTS,
         n_bones: int = 19,
-        bone_pairs: list[tuple[int, int]] | None = None,
     ) -> None:
         self.p = p
         self.n_joints = n_joints
         self.n_bones = n_bones
         self.swap_idx = _coco_swap_index(n_joints)
-        self.bone_pairs = bone_pairs if bone_pairs is not None else get_bone_pairs('coco')
+        self.bone_pairs = get_bone_pairs('coco')
         if len(self.bone_pairs) != n_bones:
             raise ValueError(
                 f'bone_pairs length ({len(self.bone_pairs)}) does not match '
@@ -142,23 +140,22 @@ class CoupledFlip:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'n t m jb 2'],
-        pos: Float32[Tensor, 'n t m 2'],
-        shuttle: Float32[Tensor, 'n t 2'],
+        human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+        pos: Float32[Tensor, 'batch time players 2'],
+        shuttle: Float32[Tensor, 'batch time 2'],
     ) -> tuple[
-        Float32[Tensor, 'n t m jb 2'],
-        Float32[Tensor, 'n t m 2'],
-        Float32[Tensor, 'n t 2'],
+        Float32[Tensor, 'batch time players joints_bones 2'],
+        Float32[Tensor, 'batch time players 2'],
+        Float32[Tensor, 'batch time 2'],
     ]:
         """Flip selected clips across all three streams together. (0, 0)
         pos/shuttle sentinel frames pass through unflipped, matching the
         jitter's sentinel handling.
 
-        :param human_pose: ``(n, t, m, J+B, 2)``. The first ``J`` slots
-                           are joints; the last ``B`` slots are bones.
-        :param pos: ``(n, t, m, 2)`` player position in court coordinates.
-        :param shuttle: ``(n, t, 2)`` shuttle position in camera
-                        coordinates.
+        :param human_pose: the first ``J`` slots are joints; the last ``B``
+                           slots are bones.
+        :param pos: player position in court coordinates.
+        :param shuttle: shuttle position in camera coordinates.
         :return: the three input tensors with flipped clips updated.
                  The originals are not modified.
         """
@@ -288,9 +285,9 @@ class ConstrainedJitter:
     @jaxtyped(typechecker=beartype)
     def __call__(
         self,
-        human_pose: Float32[Tensor, 'n t m jb 2'],
-        pos: Float32[Tensor, 'n t m 2'],
-        shuttle: Float32[Tensor, 'n t 2'],
+        human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+        pos: Float32[Tensor, 'batch time players 2'],
+        shuttle: Float32[Tensor, 'batch time 2'],
     ) -> JitterResult:
         """Apply the per-clip shift to pos and shuttle.
 

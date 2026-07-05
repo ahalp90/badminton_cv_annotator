@@ -22,10 +22,11 @@ on the laptop; 473 / 2 / 2 on HPC).
 - `comment_density_review.md` -- the parallel review for `bst.py` and the rest
   of the comment-density work. Same shape: findings + declined items
 
-Sibling dir at `../../function_invariants/` carries the three split-time invariant
-maps (`collate_npy.md`, `detect_players.md`, `train_network.md`) that gated B4,
-B5, and B7. The invariants are durable reference for anyone re-entering those
-functions.
+Sibling dir at `../../function_invariants/` carries the split-time invariant
+maps (`collate_npy.md`, `train_network.md`) that gated B4, B5, and B7. The third,
+`detect_players.md`, now lives at `../structure_and_guards_pass/historical_detect_players.md`;
+its 3D invariant case was retired in pass 2. The invariants are durable reference
+for anyone re-entering those functions.
 
 ## What's not in this dir (stays archived)
 

@@ -77,7 +77,7 @@ EXPERIMENTS_DIR = (
 def _cell_dir(root: Path, taxonomy: str, split_column: str) -> Path:
     """Resolve a cell's collation dir the same way bst_x_train does."""
     basename = derive_npy_collated_dir_basename(
-        use_3d_pose=False, seq_len=100,
+        seq_len=100,
         split_column=split_column, collation_id=COLLATION_ID,
     )
     return root / f'ShuttleSet_data_{taxonomy_lookup(taxonomy).name}' / basename

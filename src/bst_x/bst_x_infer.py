@@ -28,7 +28,7 @@ from pathlib import Path
 
 import torch
 import yaml
-from torch import Tensor, nn
+from torch import nn
 from torch.utils.data import DataLoader
 
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
@@ -44,6 +44,7 @@ from bst_x_common import (
     build_bst_x_network,
     dump_topk_predictions,
     flatten_pose_features,
+    to_device,
 )
 
 
@@ -57,10 +58,9 @@ def infer(
     pred_ls = []
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
+        human_pose, shuttle, pos, video_len = to_device(
+            device, human_pose, shuttle, pos, video_len,
+        )
 
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
@@ -106,7 +106,6 @@ class Task:
         taxonomy: Taxonomy,
         model_name: str = 'BST_X',
         seq_len: int = 100,
-        in_channels: int = 2,
     ):
         """Build the inference model at the taxonomy head dim.
 
@@ -117,15 +116,13 @@ class Task:
         recorded (``taxonomy_lookup(manifest['config']['taxonomy'])``).
 
         :param taxonomy: the taxonomy the weights were trained under.
-        :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
         """
         self.taxonomy = taxonomy
         self.net, _n_bones = build_bst_x_network(
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            in_channels=in_channels,
-            n_class=taxonomy.n_classes,
+            n_classes=taxonomy.n_classes,
             seq_len=seq_len,
             device=self.device,
         )
@@ -157,7 +154,7 @@ def _resolve_collated_dir(
     provenance = extra.get('data_provenance') or {}
     recorded_dir = provenance.get('npy_collated_dir')
     collation_id = collation_id_from_manifest(manifest)
-    if recorded_dir is None and collation_id is None:
+    if not recorded_dir and not collation_id:
         # Neither a recorded dir nor a collation tag: deriving would format the
         # None into an ``npy_..._None`` path that dies later naming that path,
         # not the real cause. Fail here on the actual problem.
@@ -166,7 +163,6 @@ def _resolve_collated_dir(
             f'collation id; cannot resolve the collated dir.'
         )
     basename = recorded_dir or derive_npy_collated_dir_basename(
-        use_3d_pose=config['use_3d_pose'],
         seq_len=config['seq_len'],
         split_column=config['split_column'],
         collation_id=collation_id,
@@ -211,7 +207,7 @@ def dump_run_predictions(
     )
     # Raise inside the library so an importer (api/notebook) gets an exception,
     # not a process exit; __main__ maps these back to sys.exit for the CLI.
-    if target is None:
+    if not target:
         raise ValueError(f'serial {serial} not found in {run_dir}/manifest.yaml')
     weights_path = run_dir / 'weights' / Path(target['weights_path']).name
     if not weights_path.is_file():
@@ -226,8 +222,7 @@ def dump_run_predictions(
         model_name,
         n_joints=n_joints,
         pose_style=config['pose_style'],
-        in_channels=(3 if config['use_3d_pose'] else 2),
-        n_class=taxonomy.n_classes,
+        n_classes=taxonomy.n_classes,
         seq_len=config['seq_len'],
         device=device,
     )
@@ -244,7 +239,7 @@ def dump_run_predictions(
     # fe_output_dir/<run_id> when overridden. Never the run's training-time
     # predictions/ dir, so a re-dump can't clobber it.
     now = datetime.now()
-    base = (fe_output_dir / run_dir.name) if fe_output_dir is not None else run_dir
+    base = (fe_output_dir / run_dir.name) if fe_output_dir else run_dir
     out_dir = base / 'inference_runs' / f'{now:%Y%m%d_%H%M%S}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -315,14 +310,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # --fe-output-dir is an optional override that only makes sense in --fe mode.
-    if args.fe_output_dir is not None and not args.fe:
+    if args.fe_output_dir and not args.fe:
         parser.error('--fe-output-dir requires --fe (no implicit dump mode)')
     if not args.fe:
         parser.error(
             'bst_x_infer CLI currently only implements --fe (batch dump) mode. '
             'For live single-clip inference, import infer() / Task instead.'
         )
-    if args.run_dir is None:
+    if not args.run_dir:
         parser.error('--fe requires --run-dir <experiments/bst_x/shuttleset/run_...>')
 
     # dump_run_predictions raises inside the library; the CLI turns those into

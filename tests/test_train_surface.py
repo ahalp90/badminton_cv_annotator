@@ -28,6 +28,8 @@ import numpy as np
 import pytest
 import torch
 from torch.utils.data import DataLoader
+from torcheval.metrics.functional import multiclass_f1_score
+from frozendict import frozendict
 
 import bst_x_train as bt
 from pipeline.config import Taxonomy
@@ -151,7 +153,7 @@ def test_assert_label_coverage_fails_when_train_misses_a_class():
 
 
 def test_assert_label_coverage_fails_on_rogue_eval_label():
-    """An out-of-range eval label is flagged without IndexError on naming."""
+    """An oob label in the TEST split is caught at startup, named safely."""
     tax2 = Taxonomy(
         name='surface2', classes=('a', 'b'), merge_map=None,
         has_sides=False, excluded_base_stroke_types=frozenset(),
@@ -161,8 +163,22 @@ def test_assert_label_coverage_fails_on_rogue_eval_label():
     with pytest.raises(ValueError) as exc:
         task._assert_label_coverage()
     msg = str(exc.value)
-    assert 'absent from train' in msg
     assert '<oob:5>' in msg  # OOB-safe naming, not an IndexError
+    assert 'test' in msg  # the offending split is named
+
+
+def test_assert_label_coverage_fails_on_oob_train_label():
+    """An out-of-range TRAIN label raises, naming the oob index safely.
+
+    A corrupt or stale-vintage labels.npy can carry an index past the head;
+    catch it at startup, not as a CUDA IndexError inside the loss.
+    """
+    # Train covers every in-range class (0, 1, 2) but also a corrupt index 6.
+    task = _task_with_labels(TAX3, train=[0, 1, 2, 6], val=[0, 1], test=[2, 0])
+    with pytest.raises(ValueError) as exc:
+        task._assert_label_coverage()
+    msg = str(exc.value)
+    assert '<oob:6>' in msg  # OOB-safe naming, not an IndexError
 
 
 # ---------------------------------------------------------------------------
@@ -178,8 +194,8 @@ NPZ_FIELDS = {
 def test_dump_predictions_writes_all_splits_with_schema(tmp_path):
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
@@ -216,8 +232,8 @@ def test_dump_predictions_test_rows_align_with_labels(tmp_path):
     with clip_stems), so a downstream row->stem join is valid."""
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     test_labels = [2, 0, 1, 2, 0]
@@ -245,8 +261,8 @@ def test_dump_predictions_clip_stems_survive_zero_length_drop(tmp_path):
     """
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     # test split: clip index 1 is zero-length -> dropped at load.
@@ -284,8 +300,8 @@ def test_dump_predictions_clip_stems_track_train_partial_reorder(tmp_path):
     """
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     net.set_schedule_factors(cg_factor=1.0, ap_factor=1.0)
     coll = _make_collation(
@@ -326,12 +342,12 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
         n_epochs=2, early_stop_n_epochs=10, warm_up_step=1,
         adaptive_focal=None, class_weights=None, label_smoothing=0.0,
         use_aux_schedule=False, pose_style='JnB_bone',
-        augmentation={'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15},
+        augmentation=frozendict({'p_flip': 0.0, 'p_jitter': 0.0, 'cap_y': 0.05, 'cap_x': 0.10, 'eps': 0.15}),
     )
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=TAX3.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = _make_collation(
         tmp_path, n_bones=n_bones,
@@ -361,3 +377,47 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
         for cls, f1 in val_at_best['per_class_f1'].items():
             assert cls in TAX3.classes
             assert isinstance(f1, float)
+
+
+# ---------------------------------------------------------------------------
+# 4. Task.test present-guarded reduction (list-index vs boolean-mask parity)
+# ---------------------------------------------------------------------------
+
+def test_task_test_macro_min_excludes_absent_class():
+    """Task.test reduces macro/min over present classes only, and the list-index
+    gather (``f1[present_idx]``) and boolean-mask gather (``f1[present]``) must
+    agree on the same per-class F1.
+
+    GREEN-first oracle for the C9 swap of Task.test's reduction to
+    ``macro_min_over_present`` (which gathers by boolean mask): the dump carries
+    an absent class with no ground truth, so a correct present-guard keeps its
+    F1=0 out of macro/min. b7 doesn't exercise Task.test, so this pins it.
+    """
+    # 3-class taxonomy; class 2 ('c') never appears in the ground truth.
+    y_true = np.array([0, 0, 1, 1], dtype=np.int64)
+    y_pred = np.array([0, 1, 1, 1], dtype=np.int64)
+    dump = {'y_pred_top1': y_pred, 'y_true': y_true}
+
+    task = bt.Task.__new__(bt.Task)
+    task.taxonomy = TAX3
+    task.display_name = 'surface3_test'
+    metrics = task.test(dump)
+
+    # Reference: the two gather forms over the same per-class F1 are identical.
+    f1_each = multiclass_f1_score(
+        torch.from_numpy(y_pred), torch.from_numpy(y_true),
+        num_classes=TAX3.n_classes, average=None,
+    )
+    present = torch.bincount(
+        torch.from_numpy(y_true), minlength=TAX3.n_classes,
+    ) > 0
+    present_idx = present.nonzero(as_tuple=True)[0].tolist()
+    assert present_idx == [0, 1]  # class 2 absent from the dump
+    assert f1_each[present_idx].mean().item() == f1_each[present].mean().item()
+    assert f1_each[present_idx].min().item() == f1_each[present].min().item()
+
+    assert metrics['macro_f1'] == pytest.approx(f1_each[present].mean().item())
+    assert metrics['min_f1'] == pytest.approx(f1_each[present].min().item())
+    # Absent class 'c' contributes no per-class entry, so its F1=0 never enters
+    # the macro/min reduction.
+    assert set(metrics['per_class_f1']) == {'a', 'b'}

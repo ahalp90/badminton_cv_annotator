@@ -18,7 +18,14 @@ Optional Aim UI on top if you want it; works fine without.
 ```python
 from run_tracker import track_run, track_serial
 
-run_dir, run_id = track_run(config=hyp, run_id=f'run_{timestamp}')
+# Hyp's mapping fields are frozendict; yaml.safe_dump rejects dict
+# subclasses, so the payload casts to plain dict at this boundary.
+config_payload = dict(hyp._asdict())
+config_payload['augmentation'] = dict(hyp.augmentation)
+if hyp.adaptive_focal is not None:
+    config_payload['adaptive_focal'] = dict(hyp.adaptive_focal)
+config_payload['classes'] = list(taxonomy.classes)
+run_dir, run_id = track_run(config=config_payload, run_id=f'run_{timestamp}')
 weight_dir = run_dir / 'weights'
 
 for serial_no in range(1, 6):
@@ -35,7 +42,7 @@ for serial_no in range(1, 6):
 
 What each call configures:
 
-- **`config=hyp`**: the hparam payload on `track_run`. Accepts any dataclass, namedtuple, dict, or object with `vars()`; lands verbatim under `config:` in `manifest.yaml`.
+- **`config=...`**: the hparam payload on `track_run`. Accepts any dataclass, namedtuple, dict, or object with `vars()`; lands under `config:` in `manifest.yaml` via `yaml.safe_dump`, whose representers are exact-type: any dict-subclass value (frozendict included) raises `RepresenterError`. That is why `bst_x_train` casts its payload to plain dict first (`resolve_run_paths`); it also injects the resolved `config.classes` list alongside the Hyp fields.
 - **`run_id`**: names the `experiments/<run_id>/` subfolder. `run_{timestamp}` is the convention for regular runs; pass any string for a named/legacy run (e.g. `foundation_chang_baseline`), or pass `None` to let `track_run` auto-generate a `run_YYYYMMDD_HHMMSS` id.
 - **`weights_path` / `tb_dir` / `metrics`**: the per-serial payload on `track_serial`; lands in the manifest's `serials:` list. No layout is enforced, but by convention weights live at `run_dir/weights/` and TB events at `run_dir/tb/serial_N/`. `track_serial` is keyed by `serial_no`, so re-running a test updates the entry in place.
 - **`log_path=<path>`** (optional, on `track_run`): stored on the manifest so `aim_backfill.py` can slice per-serial blocks out of the test log later. Not needed during the live run; only matters if you want the backfill to enrich Aim descriptions.

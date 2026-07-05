@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import Tensor, nn
+from beartype import beartype
+from jaxtyping import Float32, jaxtyped
 
 from pipeline.config import Taxonomy
 from preparing_data.shuttleset_dataset import (
@@ -19,10 +21,10 @@ from preparing_data.shuttleset_dataset import (
     POSE_BONE_MULTIPLIER,
     get_bone_pairs,
 )
-from model.bst import BST_0, BST_PPF, BST_CG, BST_AP, BST_CG_AP
+from model.bst import BST_CG_AP
 
 
-# BST variant name -> pre-configured constructor (partials defined in bst.py).
+# BST variant name -> constructor (defined in bst.py).
 # Both bst_x_train and bst_x_infer dispatch through this single mapping.
 #
 # 'BST_X' is the project name for the adapted BST_CG_AP network.
@@ -30,10 +32,6 @@ from model.bst import BST_0, BST_PPF, BST_CG, BST_AP, BST_CG_AP
 # things like scheduling, augmentation, loss, player tracking and
 # input frame validation.
 MODELS = {
-    'BST_0':     BST_0,
-    'BST':       BST_PPF,
-    'BST_CG':    BST_CG,
-    'BST_AP':    BST_AP,
     'BST_CG_AP': BST_CG_AP,
     'BST_X':     BST_CG_AP,
     # 'BST_X_RGB': BST_X_RGB,  # placeholder for the X3D-S fusion variant
@@ -60,8 +58,7 @@ def build_bst_x_network(
     *,
     n_joints: int,
     pose_style: str,
-    in_channels: int,
-    n_class: int,
+    n_classes: int,
     seq_len: int = 100,
     depth_tem: int = 2,
     depth_inter: int = 1,
@@ -73,14 +70,12 @@ def build_bst_x_network(
     after the joints along human_pose's pose axis; CoupledFlip uses it to
     split joints from bones (flip the joints, recompute the bones).
     Inference can ignore it.
-
-    :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
     """
     n_bones = len(get_bone_pairs()) * POSE_BONE_MULTIPLIER[pose_style]
-    in_dim = (n_joints + n_bones) * in_channels
+    in_dim = (n_joints + n_bones) * 2
     net = MODELS[model_name](
         in_dim=in_dim,
-        n_class=n_class,
+        n_classes=n_classes,
         seq_len=seq_len,
         depth_tem=depth_tem,
         depth_inter=depth_inter,
@@ -88,14 +83,26 @@ def build_bst_x_network(
     return net, n_bones
 
 
-def flatten_pose_features(human_pose: Tensor) -> Tensor:
+@jaxtyped(typechecker=beartype)
+def flatten_pose_features(
+    human_pose: Float32[Tensor, 'batch time players joints_bones 2'],
+) -> Float32[Tensor, 'batch time players 2*joints_bones']:
     """Flatten the trailing (joints/bones, channels) axes into one feature axis.
 
-    ``(n, t, m, J+B, 2) -> (n, t, m, (J+B)*2)``. Every BST forward pass needs
-    this massage; keeping it in one place stops the four call sites (train,
-    validate, infer, dump) from drifting.
+    Every BST forward pass needs this massage; keeping it in one place stops
+    the four call sites (train, validate, infer, dump) from drifting.
     """
     return human_pose.view(*human_pose.shape[:-2], -1)
+
+
+def to_device(device, *tensors: Tensor) -> tuple[Tensor, ...]:
+    """Move each tensor onto ``device``, returning them in the same order.
+
+    The per-batch move every forward pass repeats (train, validate, infer,
+    dump). Variadic so each call site lists exactly the tensors it uses: the two
+    dump paths omit ``labels``, which stays on CPU for its later ``.numpy()``.
+    """
+    return tuple(t.to(device) for t in tensors)
 
 
 @torch.no_grad()
@@ -127,10 +134,9 @@ def dump_topk_predictions(
     model.eval()
     logits_ls, y_true_ls, top1_ls, topk_idx_ls = [], [], [], []
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose = human_pose.to(device)
-        shuttle = shuttle.to(device)
-        pos = pos.to(device)
-        video_len = video_len.to(device)
+        human_pose, shuttle, pos, video_len = to_device(
+            device, human_pose, shuttle, pos, video_len,
+        )
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         k_eff = min(k, logits.shape[-1])

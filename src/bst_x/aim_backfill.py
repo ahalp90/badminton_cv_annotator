@@ -189,7 +189,7 @@ def backfill_run(
 
     log_path = _resolve_log_path(manifest, experiments_dir)
     blocks: dict[int, str] = {}
-    if log_path is not None:
+    if log_path:
         blocks = _split_log_by_serial(log_path.read_text())
 
     run_id = manifest['run_id']
@@ -237,7 +237,7 @@ def main():
         sys.exit(1)
 
     repo = None
-    if args.repo is not None:
+    if args.repo:
         import shutil
         from aim import Repo
         aim_dir = Path(args.repo) / '.aim'

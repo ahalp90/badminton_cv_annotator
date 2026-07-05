@@ -11,7 +11,7 @@ The default detector is the ONNX export of the same RTMDet-M person checkpoint
 (235e8209) that ``MMPoseInferencer("human")`` resolves at mmpose 1.3.2, run at
 its native 640x640. The pose model is ``rtmpose-l body7`` COCO-17, a deliberate
 step up from the alias's RTMPose-M body7 (see
-docs/architecture_notes/rtmlib_migration/07_detector_restoration.md).
+docs/architecture_notes/rtmlib_migration/README.md).
 
 Two rtmlib quirks are corrected here:
 
@@ -52,7 +52,7 @@ DET_INPUT_SIZE = (640, 640)   # fixed by the person ONNX export
 POSE_INPUT_SIZE = (192, 256)  # (W, H), i.e. 256x192
 # Detector keep-filter, matching mmpose's cut: MMPoseInferencer applied a strict
 # score > 0.3 to this detector's output (the committed raw's min bbox_score is
-# 0.30008). See docs/architecture_notes/rtmlib_migration/07_detector_restoration.md.
+# 0.30008). See docs/architecture_notes/rtmlib_migration/README.md.
 DET_SCORE_THR = 0.3
 
 

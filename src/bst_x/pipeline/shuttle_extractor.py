@@ -102,7 +102,7 @@ def extract_all_shuttles(
         print(f'  Running TrackNet only (no inpainting of occluded frames)')
         resolved_inpaint = None
 
-    if output_csv_dir is None:
+    if not output_csv_dir:
         output_csv_dir = _default_csv_dir(clips_dir)
     output_csv_dir.mkdir(parents=True, exist_ok=True)
 
@@ -201,7 +201,7 @@ def shuttle_csvs_to_npy(
     :param npy_output_dir: Output directory for normalised .npy files (flat).
     :param resolution_csv_path: Path to video resolution CSV (for normalisation).
     """
-    if csv_dir is None:
+    if not csv_dir:
         csv_dir = _default_csv_dir(clips_dir)
 
     npy_output_dir.mkdir(parents=True, exist_ok=True)

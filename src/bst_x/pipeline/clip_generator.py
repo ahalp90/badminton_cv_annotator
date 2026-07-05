@@ -227,9 +227,6 @@ def generate_all_clips(
     raw_video_dir: Path = RAW_VIDEO_DIR,
     set_info_dir: Path = SET_INFO_DIR,
     output_dir: Path = CLIPS_OUTPUT_DIR,
-    splits: dict[str, list[int]] | None = None,
-    stroke_types_zh: list[str] | None = None,
-    removed_shots: set[tuple[int, int, int, int]] | None = None,
     clip_window: str = CLIP_WINDOW,
 ) -> None:
     """Generate labeled clip .mp4s for all splits, both players, all videos.
@@ -237,18 +234,8 @@ def generate_all_clips(
     :param raw_video_dir: Directory containing downloaded match videos.
     :param set_info_dir: Directory containing match.csv and per-match set CSVs.
     :param output_dir: Root output directory for clips (split subdirs created inside).
-    :param splits: {split_name: [video_ids]}. Defaults to config.SPLITS.
-    :param stroke_types_zh: Chinese stroke type names for CSV matching. Defaults to config.
-    :param removed_shots: Set of (match, set, rally, ball_round) to exclude. Defaults to config.
     :param clip_window: Temporal clipping window name.
     """
-    if splits is None:
-        splits = SPLITS
-    if stroke_types_zh is None:
-        stroke_types_zh = STROKE_TYPES_19_ZH
-    if removed_shots is None:
-        removed_shots = REMOVED_SHOTS
-
     # Load match metadata.
     # Each row is a pd.Series with fields: 'video' (str), 'downcourt' (bool).
     # The index (accessed via .name) is the integer video ID.
@@ -257,7 +244,7 @@ def generate_all_clips(
     match_df = match_df.set_index('id')
 
     total_clips = 0
-    for split_name, vid_ids in splits.items():
+    for split_name, vid_ids in SPLITS.items():
         print(f'\n=== Split: {split_name} ({len(vid_ids)} videos) ===')
         out_folder = output_dir / split_name
         out_folder.mkdir(parents=True, exist_ok=True)
@@ -268,13 +255,13 @@ def generate_all_clips(
             v_info = match_df.loc[vid]
 
             # Collect all shots (both players, English types)
-            shots_df = collect_shots(set_info_dir, v_info, stroke_types_zh)
+            shots_df = collect_shots(set_info_dir, v_info, STROKE_TYPES_19_ZH)
             if shots_df.empty:
                 continue
 
             # Filter out individually removed shots
             before = len(shots_df)
-            shots_df = _filter_removed_shots(shots_df, vid, removed_shots)
+            shots_df = _filter_removed_shots(shots_df, vid, REMOVED_SHOTS)
             removed_count = before - len(shots_df)
 
             # Add temporal boundaries (start_f, end_f)
@@ -311,7 +298,7 @@ def apply_class_merge(
     :param output_dir: Root clips directory containing split subdirs.
     :param taxonomy: Taxonomy whose merge_map defines which subtypes to merge.
     """
-    if taxonomy.merge_map is None:
+    if not taxonomy.merge_map:
         print('Taxonomy has no merge_map — nothing to merge.')
         return
 

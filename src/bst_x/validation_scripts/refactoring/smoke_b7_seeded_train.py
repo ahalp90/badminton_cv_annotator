@@ -50,7 +50,7 @@ SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 
 import bst_x_train as t  # noqa: E402
-from model.bst import BST_PPF  # noqa: E402
+from model.bst import BST_CG_AP  # noqa: E402
 from pipeline.config import taxonomy_lookup  # noqa: E402
 from preparing_data.shuttleset_dataset import get_bone_pairs  # noqa: E402
 
@@ -142,8 +142,8 @@ def run_seeded_train(tmp_dir: Path, device: torch.device) -> tuple[str, dict | N
     torch.manual_seed(SEED)
     if device.type == "cuda":
         torch.cuda.manual_seed_all(SEED)
-    model = BST_PPF(
-        in_dim=J_PLUS_B * 2, seq_len=SEQ_LEN, n_class=n_classes, d_model=100,
+    model = BST_CG_AP(
+        in_dim=J_PLUS_B * 2, seq_len=SEQ_LEN, n_classes=n_classes, d_model=100,
     ).to(device)
 
     save_path = tmp_dir / "best.pt"

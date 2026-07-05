@@ -149,7 +149,7 @@ def _build_stem_list(
 
     csv_stems = set(df["clip_stem"].astype(str).tolist())
 
-    if clip_stems_file is not None:
+    if clip_stems_file:
         subset = set(_load_stems_file(clip_stems_file))
         csv_stems &= subset
 
@@ -183,7 +183,7 @@ def run(
         raise FileNotFoundError(f"raw-dir not found: {raw_dir}")
     if not clips_csv.exists():
         raise FileNotFoundError(f"clips-csv not found: {clips_csv}")
-    if clip_stems_file is not None and not clip_stems_file.exists():
+    if clip_stems_file and not clip_stems_file.exists():
         raise FileNotFoundError(f"clip-stems-file not found: {clip_stems_file}")
 
     _validate_output_dir(output_dir, raw_dir)
@@ -221,7 +221,7 @@ def run(
             continue
 
         vid = _vid_from_stem(stem)
-        if vid is None or vid not in all_court_info:
+        if vid not in all_court_info:
             stats.skipped_missing_mp4_metadata += 1
             continue
 

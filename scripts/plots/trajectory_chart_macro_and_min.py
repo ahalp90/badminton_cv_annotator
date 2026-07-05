@@ -1,7 +1,6 @@
 """Run trajectory chart with macro F1 and min wrist_smash F1 per panel.
 
-Sibling to ``trajectory_chart.py`` for the 2026-05-11 supervisor presentation.
-Two panels sharing x-axis:
+For the 2026-05-11 supervisor presentation. Two panels sharing x-axis:
   - top: 5-serial mean macro F1 and min wrist_smash F1, with BST (Chang) mean refs.
   - bottom: top-serial macro + min wrist_smash, with BST (Chang) best-serial refs.
 
@@ -11,8 +10,7 @@ Linear y-axis covers ~0.30 to 0.86: macro band clusters near the top, min ws
 band sits below, no overlap.
 
 Data is hand-transcribed from `docs/architecture_notes/bst_x_overview.md`
-headline-results table (lines 25-46). If a run gets renamed, mirror it in
-``trajectory_chart.py`` so the two figures stay in sync.
+headline-results table (lines 25-46).
 """
 from pathlib import Path
 

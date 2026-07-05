@@ -65,7 +65,7 @@ DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
 # Detector keep-threshold override for calibration sweeps. This is a
 # post-inference filter on the detector's output scores, NOT a model change.
 # Defaults to the shipped adapter's DET_SCORE_THR (0.3, mmpose's cut; see
-# docs/architecture_notes/rtmlib_migration/07_detector_restoration.md).
+# docs/architecture_notes/rtmlib_migration/README.md).
 DET_THR = float(os.environ.get("RTMLIB_GATE_DET_THR", DET_SCORE_THR))
 STEMFILE = Path(os.environ.get(
     "RTMLIB_GATE_STEMFILE",

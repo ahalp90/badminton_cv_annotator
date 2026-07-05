@@ -63,7 +63,7 @@ def _validate_inputs(
     """
     # Shuttle extraction requires --tracknet-dir
     if not skip_shuttle:
-        if tracknet_dir is None:
+        if not tracknet_dir:
             raise ValueError(
                 '--tracknet-dir is required unless --skip-shuttle is provided.'
             )
@@ -107,7 +107,7 @@ def dry_run(
     print('=== DRY RUN (no files will be created or moved) ===\n')
     print(f'  taxonomy: {taxonomy.name} ({taxonomy.n_classes} classes)')
 
-    skip_merge = skip_clips or no_merge or taxonomy.merge_map is None
+    skip_merge = skip_clips or no_merge or not taxonomy.merge_map
     vid_count = sum(len(ids) for ids in SPLITS.values())
     split_summary = ', '.join(f'{k}={len(v)}' for k, v in SPLITS.items())
 
@@ -209,7 +209,7 @@ def run_pipeline(
     else:
         print('Step 3: Skipped (--skip-clips)')
 
-    skip_merge = skip_clips or no_merge or taxonomy.merge_map is None
+    skip_merge = skip_clips or no_merge or not taxonomy.merge_map
     if not skip_merge:
         n_merges = len(taxonomy.merge_map)
         _step(4, f'Applying class merge ({n_merges} subtypes -> parents)')

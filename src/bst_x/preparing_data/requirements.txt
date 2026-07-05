@@ -6,7 +6,7 @@
 # detect_players_2d) migrated off OpenMMLab onto rtmlib: onnxruntime-backed,
 # numpy-2 clean, no source build, no separate-venv numpy<2 pin. Models:
 # RTMDet-M person @640 + RTMPose-L body7 COCO-17 (model rationale:
-# docs/architecture_notes/rtmlib_migration/07_detector_restoration.md).
+# docs/architecture_notes/rtmlib_migration/README.md).
 # Versions below are the set the migration gate ladder was validated against.
 #
 # --- Manual install steps (can't go in requirements.txt) ---
@@ -23,19 +23,20 @@
 #    Runtime note: LD_LIBRARY_PATH must include the venv's
 #    site-packages/nvidia/cudnn/lib so onnxruntime-gpu finds cuDNN.)
 #
-# torch is NOT required by the production raw_extract path (Batch 2 dropped it;
-# onnxruntime manages its own memory). It is needed ONLY if you run the secondary
-# prepare_train_on_shuttleset module path (it imports torch at module load for the
-# shared 2D/3D runner); install any modern CPU/CUDA build separately, e.g.:
+# torch is NOT required by the production raw_extract path (onnxruntime manages
+# its own memory). It is needed ONLY if you run the secondary
+# prepare_train_on_shuttleset module path (its dataset helpers import torch at
+# module load); install any modern CPU/CUDA build separately, e.g.:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 # That same module path also imports beartype + jaxtyping at load (its
 # signatures are shape-checked), so they ship as requirements below:
 # pure-Python, needed by the G3/G5/G6 gates and the collate step, which all
 # import prepare_train.
 #
-# The dormant 3D pose path (detect_players_3d / --use-3d-pose) still needs the
-# OpenMMLab stack; see requirements-legacy-3d.txt (install in a separate venv;
-# its numpy<2 pin cannot coexist with the numpy>=2 here).
+# requirements-legacy-3d.txt keeps the OpenMMLab env for the parked 3D pose
+# stream design (the 3D code path was removed; see
+# docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md).
+# Install it in a separate venv; its numpy<2 pin cannot coexist with the numpy>=2 here.
 
 # rtmlib pose extraction (RTMDet + RTMPose over onnxruntime)
 rtmlib==0.0.15                   # low-level RTMDet/RTMPose classes; pin (repo main drifts from PyPI)

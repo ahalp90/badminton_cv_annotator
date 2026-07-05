@@ -60,7 +60,7 @@ L384_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_2
 # The nano rows run at both thresholds: 0.15 is the nano-era shipped crutch
 # (recovers under-scored players, admits crowd the pose stage then pays for);
 # 0.3 is the fast-but-lossy nano (the dropped-player behaviour that forced
-# 0.15 in the first place; see 07_detector_restoration.md).
+# 0.15 in the first place; see docs/architecture_notes/rtmlib_migration/README.md).
 CONFIGS = {
     "nano_L256@0.15": (NANO_URL, (320, 320), 0.15, L256_URL, (192, 256)),
     "nano_L256@0.30": (NANO_URL, (320, 320), 0.30, L256_URL, (192, 256)),

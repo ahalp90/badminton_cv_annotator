@@ -332,7 +332,7 @@ def get_clip_records(
             f'{list(df.columns)}'
         )
     df = df[df[split_column].isin(SPLITS)].copy()
-    if split is not None:
+    if split:
         df = df[df[split_column] == split].copy()
 
     if df.empty:
@@ -356,7 +356,7 @@ def get_clip_records(
 
     # mmpose files carry _joints/_pos suffixes; strip back to the clip stem.
     mmpose_dir = paths.mmpose_npy_dir
-    if mmpose_dir is not None and mmpose_dir.is_dir():
+    if mmpose_dir and mmpose_dir.is_dir():
         joints_stems = {p.name.removesuffix('_joints.npy') for p in mmpose_dir.glob('*_joints.npy')}
         pos_stems = {p.name.removesuffix('_pos.npy') for p in mmpose_dir.glob('*_pos.npy')}
     else:
@@ -370,9 +370,9 @@ def get_clip_records(
         )
         # excluded_base_stroke_types drops rows (e.g. unknown rows under
         # bst_24); the old drop_unknown flag is folded in here.
-        if label is None:
+        if not label:
             continue
-        if taxonomy_class is not None and label != taxonomy_class:
+        if taxonomy_class and label != taxonomy_class:
             continue
 
         clip = path_by_stem.get(stem)
@@ -434,11 +434,11 @@ def summarise(
     for r in records:
         c = counts[r.split][r.taxonomy_class]
         c['clips'] += 1
-        if r.clip is not None:
+        if r.clip:
             c['clips_on_disk'] += 1
-        if r.shuttle_npy is not None:
+        if r.shuttle_npy:
             c['shuttle'] += 1
-        if r.mmpose_joints is not None:
+        if r.mmpose_joints:
             c['mmpose'] += 1
 
     for sp in SPLITS:
@@ -446,7 +446,7 @@ def summarise(
             continue
         print(f'\n{sp}:')
         for cls_name, c in sorted(counts[sp].items()):
-            mmpose_str = f"  mmpose={c['mmpose']}" if paths.mmpose_npy_dir is not None else ''
+            mmpose_str = f"  mmpose={c['mmpose']}" if paths.mmpose_npy_dir else ''
             print(
                 f"  {cls_name:<40}  clips={c['clips']}"
                 f"  on_disk={c['clips_on_disk']}"
@@ -454,14 +454,14 @@ def summarise(
             )
 
     total = len(records)
-    on_disk_total = sum(1 for r in records if r.clip is not None)
-    shuttle_total = sum(1 for r in records if r.shuttle_npy is not None)
+    on_disk_total = sum(1 for r in records if r.clip)
+    shuttle_total = sum(1 for r in records if r.shuttle_npy)
     print(
         f'\nTotal: {total} clip rows, {on_disk_total} clips on disk, '
         f'{shuttle_total} shuttle npys'
     )
-    if paths.mmpose_npy_dir is not None:
-        mmpose_total = sum(1 for r in records if r.mmpose_joints is not None)
+    if paths.mmpose_npy_dir:
+        mmpose_total = sum(1 for r in records if r.mmpose_joints)
         print(f'       {mmpose_total} mmpose npy sets')
 
 
@@ -604,13 +604,13 @@ def main(argv: list[str] | None = None) -> None:
     # Build DataPaths -- only pass CLI values that were explicitly set so that
     # DataPaths' default_factory can pick up env vars / .env for anything omitted.
     path_kwargs = {}
-    if args.clips_dir is not None:
+    if args.clips_dir:
         path_kwargs['clips_dir'] = args.clips_dir
-    if args.shuttle_npy_dir is not None:
+    if args.shuttle_npy_dir:
         path_kwargs['shuttle_npy_dir'] = args.shuttle_npy_dir
-    if args.mmpose_npy_dir is not None:
+    if args.mmpose_npy_dir:
         path_kwargs['mmpose_npy_dir'] = args.mmpose_npy_dir
-    if args.clips_csv is not None:
+    if args.clips_csv:
         path_kwargs['clips_csv'] = args.clips_csv
     paths = DataPaths(**path_kwargs)
 

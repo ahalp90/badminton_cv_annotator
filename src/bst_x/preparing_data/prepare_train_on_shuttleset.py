@@ -7,7 +7,7 @@
 
 Bridges the gap between the pipeline's clip output and BST's expected input format.
 Two steps, each independently skippable:
-  Step 1: player pose estimation (2D via rtmlib; 3D via MMPose, dormant) + court projection
+  Step 1: 2D player pose estimation via rtmlib + court projection
   Step 2: Collate per-clip .npy files into batch-ready arrays
 
 Run from the repo root with both package roots on PYTHONPATH::
@@ -16,12 +16,12 @@ Run from the repo root with both package roots on PYTHONPATH::
         python -m preparing_data.prepare_train_on_shuttleset --help
 """
 
-# Deferred annotations so the RtmlibPoseExtractor (2D) and MMPoseInferencer (3D)
-# type hints don't force their imports at module load. That keeps collate_npy and the
-# pose-style joint helpers -- none of which touch either extractor -- importable without
-# the extraction deps (e.g. venv-bst-x collation, the CPU goldens). The 2D rtmlib adapter
-# is imported lazily in detect_players_2d; mmpose lazily in the 3D functions; both under
-# TYPE_CHECKING for the static hints. Keep this: reverting re-couples the module.
+# Deferred annotations so the RtmlibPoseExtractor type hints don't force the rtmlib
+# import at module load. That keeps collate_npy and the pose-style joint helpers
+# -- none of which touch the extractor -- importable without the extraction deps
+# (e.g. venv-bst-x collation, the CPU goldens). The rtmlib adapter is imported
+# lazily in the function that instantiates it, and under TYPE_CHECKING for the
+# static hints. Keep this: reverting re-couples the module.
 from __future__ import annotations
 
 import argparse
@@ -30,7 +30,6 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-import torch
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from typing import TYPE_CHECKING
@@ -61,22 +60,20 @@ from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
 
-if TYPE_CHECKING:  # type-only: keeps mmpose/rtmlib out of the runtime import (see module-top note)
-    from mmpose.apis import MMPoseInferencer  # 3D path only (quarantined)
-
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor  # 2D path
+if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
+    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
 
 
 @jaxtyped(typechecker=beartype)
 def normalize_joints(
-    arr: Float[np.ndarray, 'm j 2'],
-    bbox: Float[np.ndarray, 'm 4'],
+    arr: Float[np.ndarray, 'players joints 2'],
+    bbox: Float[np.ndarray, 'players 4'],
     v_height=None,
     center_align=False,
-) -> Float[np.ndarray, 'm j 2']:
-    """Normalise per-player joints; shapes carried by the annotations (m=2 in
-    detect/current, m=1 per-slot in sticky_anchor). ``Float`` not ``Float32``:
-    callers feed float32 MMPose keypoints with float64 bboxes interchangeably.
+) -> Float[np.ndarray, 'players joints 2']:
+    """Normalise per-player joints; shapes carried by the annotations (players=2 in
+    detect/current, players=1 for sticky_anchor's per-slot calls). ``Float`` not ``Float32``:
+    callers feed float32 pose keypoints with float64 bboxes interchangeably.
 
     Signature defaults are BST-upstream; ``main()`` overrides
     ``center_align=True`` (what the committed extracts used).
@@ -91,7 +88,7 @@ def normalize_joints(
     arr_x = arr[:, :, 0]
     arr_y = arr[:, :, 1]
     # No missing-joint guard on purpose: failed frames/slots are zeroed upstream
-    # and never reach this function, and MMPose regression coords are continuous
+    # and never reach this function, and RTMPose regression coords are continuous
     # floats (exact 0.0 doesn't occur). If a future pose backend can emit zero or
     # sentinel coords for missing joints, reintroduce a zero-preserving mask here
     # (and exempt sentinels from center_align) so "missing" can't be read as a
@@ -117,19 +114,13 @@ def _order_two_on_court(
 ) -> tuple[np.ndarray, np.ndarray] | None:
     """Decide whether a frame has exactly two on-court players, ordered Top-before-Bottom.
 
-    The shared per-frame decision called by detect_players_2d AND detect_players_3d.
-    Shape-agnostic: takes only the 2D keypoints + court info, never the joint payload
-    or any 3D array. The per-variant tails (failed-frame zero shapes, normalize_joints
-    + bbox in 2D, raw keypoints_3d in 3D) stay in the callers.
-
     The ``< 2`` short-circuit precedes ``check_pos_in_court`` because the latter slices
     ``keypoints[:, -2:, :]``, which raises on an empty detection. The flip is strict
     ``>``: on a y-tie the original ascending-index order is kept. The flip relies on
     the ``!= 2`` guard upstream so ``np.flip`` on a 2-element array is a swap.
 
-    :param keypoints_2d: (m, J, 2). The 2D keypoints, in both variants (the 3D caller
-        passes its `keypoints_2d`, not `keypoints_3d`; the court projection needs 2D
-        pixel coords).
+    :param keypoints_2d: (m, J, 2). The 2D keypoints; the court projection needs 2D
+        pixel coords.
     :param vid: clip's source video id, used to look up homography + resolution.
     :param all_court_info: dict from get_court_info.
     :param res_df: resolution DataFrame indexed by video id.
@@ -186,7 +177,7 @@ def detect_players_2d(
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 2).
         ordered = _order_two_on_court(keypoints, vid, all_court_info, res_df)
-        if ordered is None:
+        if not ordered:
             failed_ls.append(True)
             players_positions.append(np.zeros((2, 2), dtype=float))
             players_joints.append(np.zeros((2, J, 2), dtype=float))
@@ -214,73 +205,6 @@ def detect_players_2d(
     return failed_ls, players_positions, players_joints
 
 
-def detect_players_3d(
-    inferencer_2d: MMPoseInferencer,
-    # inferencer_3d: MMPoseInferencer,
-    video_path: Path,
-    all_court_info: dict,
-    res_df: pd.DataFrame,
-    J=COCO_N_JOINTS,
-):
-    """Detect the two on-court players' 3D pose and court positions per frame.
-
-    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
-        is a per-frame bool list (True where no valid two-player pair was found;
-        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
-        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xyz)`` (3D keypoints).
-    """
-    vid = int(video_path.name.split("_", 1)[0])
-
-    failed_ls = []
-    players_positions = []
-    players_joints = []
-
-    gen_2d = inferencer_2d(str(video_path), show=False)
-    # WARNING: intentionally instantiated per-call, NOT per-loop-iteration in the caller.
-    # The original author found that passing inferencer_3d as a parameter (the way
-    # inferencer_2d is passed) triggers an MMPose bug.
-    # This DOES reload model weights from disk for every clip, which is slow.
-    # If MMPose fixes the bug upstream, hoist this into prepare_3d_dataset_npy_from_raw_video
-    # and pass it in like inferencer_2d to avoid the repeated load.
-    from mmpose.apis import MMPoseInferencer  # lazy: keeps the module mmpose-free at import (see top)
-    inferencer_3d = MMPoseInferencer(pose3d="human3d")
-    gen_3d = inferencer_3d(str(video_path), show=False)
-
-    for frame_num, (result_2d, result_3d) in enumerate(zip(gen_2d, gen_3d)):
-        keypoints_2d = np.array(
-            [
-                person["keypoints"] for person in result_2d["predictions"][0]
-            ]  # batch_size=1 (default)
-        )
-        # keypoints_2d: (m, J, 2)
-
-        keypoints_3d = np.array(
-            [
-                person["keypoints"] for person in result_3d["predictions"][0]
-            ]  # batch_size=1 (default)
-        )
-        # keypoints_3d: (m, J, 3)
-
-        ordered = _order_two_on_court(keypoints_2d, vid, all_court_info, res_df)
-        if ordered is None:
-            failed_ls.append(True)
-            players_positions.append(np.zeros((2, 2), dtype=float))
-            players_joints.append(np.zeros((2, J, 3), dtype=float))
-            continue
-        in_court_pid, pos_normalized = ordered
-
-        failed_ls.append(False)
-        players_positions.append(pos_normalized[in_court_pid])
-        players_joints.append(keypoints_3d[in_court_pid])
-
-    players_positions = np.stack(players_positions)
-    # players_positions: (t, m, xy)
-    players_joints = np.stack(players_joints)
-    # players_joints: (t, m, J, xyz)
-
-    return failed_ls, players_positions, players_joints
-
-
 def get_shuttle_result(npy_path: Path) -> np.ndarray:
     """Load a clip's normalised shuttle trajectory, xy only.
 
@@ -296,61 +220,7 @@ def get_shuttle_result(npy_path: Path) -> np.ndarray:
     return np.load(str(npy_path))[:, :2]
 
 
-def _prepare_dataset_from_raw_video(
-    my_clips_folder: Path,
-    save_root_dir: Path,
-    detect_fn,
-    detect_kwargs: dict,
-):
-    """Shared per-clip pose-extraction iteration for the 2D (rtmlib) and 3D (MMPose) paths.
-
-    For each clip in ``my_clips_folder``: skip if ``{stem}_failed.npy`` already
-    exists (resume marker), otherwise call ``detect_fn(**detect_kwargs, video_path=...)``
-    to get ``(failed_ls, players_positions, joints)``, save the three .npy
-    outputs, and free GPU memory.
-
-    The resume marker is `_failed.npy` because it is saved last; its presence
-    means all three outputs are complete for the clip. Shuttle data is read
-    from the canonical shuttle-npy dir at collation (Step 2); this expensive
-    GPU step stays focused solely on pose estimation.
-
-    :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
-    :param save_root_dir: Output directory for per-clip .npy files.
-    :param detect_fn: ``detect_players_2d`` or ``detect_players_3d``.
-    :param detect_kwargs: keyword arguments threaded through to ``detect_fn``
-        besides ``video_path``.
-    """
-    # Flat layout: per-clip files sit alongside each other under save_root_dir.
-    # Split + label come from clips_master.csv at collation time (Step 2).
-    save_root_dir.mkdir(parents=True, exist_ok=True)
-
-    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
-
-    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
-        save_branch = str(save_root_dir / video_path.stem)
-
-        if not Path(save_branch + "_failed.npy").exists():
-            failed_ls, players_positions, joints = detect_fn(
-                video_path=video_path,
-                **detect_kwargs,
-            )
-
-            np.save(save_branch + "_pos.npy", players_positions)
-            np.save(save_branch + "_joints.npy", joints)
-            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
-
-            # Free memory after inference to limit fragmentation over ~33k clips.
-            # torch.cuda.empty_cache() serves the 3D (mmpose/torch) path; the 2D
-            # rtmlib path allocates no torch CUDA tensors, so it is a harmless
-            # no-op there (onnxruntime manages its own memory). This runner is
-            # shared by both, so the call stays. Skips don't allocate, so no
-            # cleanup is needed in that branch -- keeps resume-path iterations
-            # cheap (~1ms vs ~100ms when these ran unconditionally).
-            gc.collect()
-            torch.cuda.empty_cache()
-
-
-def prepare_2d_dataset_npy_from_raw_video(
+def prepare_dataset_npy_from_raw_video(
     my_clips_folder: Path,
     save_root_dir: Path,
     resolution_df: pd.DataFrame,
@@ -364,7 +234,11 @@ def prepare_2d_dataset_npy_from_raw_video(
     For each clip, detects player keypoints (COCO 17-joint), extracts court
     positions via homography, and normalizes joints. Saves _joints.npy
     ((F, P, J, xy)), _pos.npy ((F, P, xy)), _failed.npy ((F,)) per clip.
-    Shuttle data is handled separately at collation time.
+
+    The resume marker is `_failed.npy` because it is saved last; its presence
+    means all three outputs are complete for the clip. Shuttle data is read
+    from the canonical shuttle-npy dir at collation (Step 2); this expensive
+    GPU step stays focused solely on pose estimation.
 
     :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
     :param save_root_dir: Output directory for per-clip .npy files.
@@ -378,52 +252,34 @@ def prepare_2d_dataset_npy_from_raw_video(
     from preparing_data.rtmlib_pose import RtmlibPoseExtractor  # lazy: keeps the module rtmlib-free at import (see top)
     pose_extractor = RtmlibPoseExtractor(device=device)
 
-    _prepare_dataset_from_raw_video(
-        my_clips_folder=my_clips_folder,
-        save_root_dir=save_root_dir,
-        detect_fn=detect_players_2d,
-        detect_kwargs={
-            "extractor": pose_extractor,
-            "all_court_info": all_court_info,
-            "res_df": resolution_df,
-            "normalized_by_v_height": joints_normalized_by_v_height,
-            "center_align": joints_center_align,
-        },
-    )
+    # Flat layout: per-clip files sit alongside each other under save_root_dir.
+    # Split + label come from clips_master.csv at collation time (Step 2).
+    save_root_dir.mkdir(parents=True, exist_ok=True)
 
+    all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
 
-def prepare_3d_dataset_npy_from_raw_video(
-    my_clips_folder: Path,
-    save_root_dir: Path,
-    resolution_df: pd.DataFrame,
-    all_court_info: dict,
-):
-    """Run MMPose 3D pose estimation on clips and save per-clip .npy files.
+    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
+        save_branch = str(save_root_dir / video_path.stem)
 
-    Same as prepare_2d_dataset_npy_from_raw_video but uses 3D keypoints (xyz).
-    Saves _joints.npy ((F, P, J, xyz)), _pos.npy ((F, P, xy)), _failed.npy
-    ((F,)). Shuttle data is handled separately at collation time.
+        if not Path(save_branch + "_failed.npy").exists():
+            failed_ls, players_positions, joints = detect_players_2d(
+                extractor=pose_extractor,
+                video_path=video_path,
+                all_court_info=all_court_info,
+                res_df=resolution_df,
+                normalized_by_v_height=joints_normalized_by_v_height,
+                center_align=joints_center_align,
+            )
 
-    :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
-    :param save_root_dir: Output directory for per-clip .npy files.
-    :param resolution_df: DataFrame with video resolutions, indexed by video ID.
-    :param all_court_info: Dict mapping video ID to court info (homography, borders).
-    """
-    from mmpose.apis import MMPoseInferencer  # lazy: keeps the module mmpose-free at import (see top)
-    pose_inferencer_2d = MMPoseInferencer("human")
-    # pose_inferencer_3d = MMPoseInferencer(pose3d='human3d')
+            np.save(save_branch + "_pos.npy", players_positions)
+            np.save(save_branch + "_joints.npy", joints)
+            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
 
-    _prepare_dataset_from_raw_video(
-        my_clips_folder=my_clips_folder,
-        save_root_dir=save_root_dir,
-        detect_fn=detect_players_3d,
-        detect_kwargs={
-            "inferencer_2d": pose_inferencer_2d,
-            # "inferencer_3d": pose_inferencer_3d,
-            "all_court_info": all_court_info,
-            "res_df": resolution_df,
-        },
-    )
+            # Free Python-side buffers between clips over ~33k iterations;
+            # onnxruntime manages its own device memory. Skips don't allocate,
+            # so no cleanup is needed in that branch -- keeps resume-path
+            # iterations cheap.
+            gc.collect()
 
 
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")
@@ -432,9 +288,9 @@ VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B"
 @jaxtyped(typechecker=beartype)
 def pad_and_derive_pose_styles(
     seq_len: int,
-    joints: Float[np.ndarray, 't m j d'],
-    pos: Float[np.ndarray, 't m xy'],
-    shuttle: Float[np.ndarray, 't xy'],
+    joints: Float[np.ndarray, 'time players joints 2'],
+    pos: Float[np.ndarray, 'time players 2'],
+    shuttle: Float[np.ndarray, 'time 2'],
     bone_pairs: list[tuple[int, int]],
     pose_styles: frozenset[str] = frozenset({"JnB_bone"}),
 ):
@@ -444,7 +300,7 @@ def pad_and_derive_pose_styles(
     derived arrays (``create_bones``, ``interpolate_joints``) are skipped if
     nothing downstream needs them.
 
-    The three arrays share a 't' (frame count): make_seq_len_same resamples them
+    The three arrays share a 'time' axis (frame count): make_seq_len_same resamples them
     with one index. ``Float`` not ``Float32`` because they arrive as whatever the
     per-clip npys hold and get cast to float32 in the body below.
 
@@ -455,8 +311,9 @@ def pad_and_derive_pose_styles(
         ``VALID_POSE_STYLES``. Defaults to ``{'JnB_bone'}`` (the only style
         BST training has ever used in this tracker).
     :return: Tuple of (pose_dict, pos, shuttle, video_len) where pose_dict maps
-        each requested style name to its (t, 2, K, d) array and video_len is
-        the number of real (non-padded) frames.
+        each requested style name to its (time, players, K, 2) array (K = the
+        style's keypoint count) and video_len is the number of real
+        (non-padded) frames.
     """
     joints = joints.astype(np.float32)
     pos = pos.astype(np.float32)
@@ -541,7 +398,7 @@ def _resolve_clips_and_labels(
             continue  # filtered out via excluded_base_stroke_types
         chosen_root = (
             unknown_root_dir
-            if (raw_type == "unknown" and unknown_root_dir is not None)
+            if (raw_type == "unknown" and unknown_root_dir)
             else root_dir
         )
         branch = str(chosen_root / stem)
@@ -558,7 +415,7 @@ def _resolve_clips_and_labels(
     if missing:
         unknown_hint = (
             f" (or {unknown_root_dir} for unknown rows)"
-            if unknown_root_dir is not None else ""
+            if unknown_root_dir else ""
         )
         print(
             f"  [{set_name}] WARNING: {missing} clips in master CSV had no "
@@ -783,13 +640,13 @@ def collate_npy(
     if set_name not in ("train", "val", "test"):
         raise ValueError(f"Invalid set_name {set_name!r}; expected 'train', 'val', or 'test'.")
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
-    if unknown_root_dir is not None and 'unknown' in excluded:
+    if unknown_root_dir and 'unknown' in excluded:
         raise ValueError(
             f"unknown_root_dir set but taxonomy {taxonomy.name!r} excludes "
             f"unknown rows (excluded_base_stroke_types contains 'unknown'). "
             f"Either drop unknown_root_dir or pick a taxonomy that retains unknown."
         )
-    if taxonomy.has_unknown and unknown_root_dir is None:
+    if taxonomy.has_unknown and not unknown_root_dir:
         raise ValueError(
             f"taxonomy {taxonomy.name!r} retains unknown in its class list, "
             f"but unknown_root_dir is None. The 1,278 ShuttleSet unknown-class clips "
@@ -845,7 +702,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Prepare ShuttleSet training data in 2 steps:\n"
-            "  Step 1: pose estimation (2D rtmlib / 3D MMPose)\n"
+            "  Step 1: 2D pose estimation (rtmlib)\n"
             "  Step 2: Collate per-clip .npy files into batch arrays\n"
             "\n"
             "Each step can be skipped independently."
@@ -880,15 +737,10 @@ def main():
              "excluded_base_stroke_types.",
     )
     parser.add_argument(
-        "--use-3d-pose",
-        action="store_true",
-        help="Use 3D pose estimation instead of 2D",
-    )
-    parser.add_argument(
         "--device",
         default="cuda",
-        help="onnxruntime device for the rtmlib 2D adapter: 'cuda' (default, "
-             "needs onnxruntime-gpu) or 'cpu'. Ignored for --use-3d-pose (mmpose).",
+        help="onnxruntime device for the rtmlib adapter: 'cuda' (default, "
+             "needs onnxruntime-gpu) or 'cpu'.",
     )
 
     # Path overrides (only the ones that genuinely vary)
@@ -935,7 +787,7 @@ def main():
         "--collation-id",
         required=True,
         help="Required collation generation tag. Suffixes the collated output "
-             "dir (npy_[3d_][seq{N}_]{split}_{collation_id}) so re-collations of "
+             "dir (npy_[seq{N}_]{split}_{collation_id}) so re-collations of "
              "the same taxonomy + split coexist. Common values: "
              "'taxon_pinned_w_preds', 'wipe_drop'. A training-time ablation tag "
              "is separate and lives in the run manifest, not the collation path.",
@@ -946,7 +798,7 @@ def main():
         default=env_path_or_none('BST_X_MMPOSE_NPY_DIR'),
         help="FLAT per-clip dir (Step 1 writer + Step 2 reader). Default reads "
              "BST_X_MMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
-             f"preparing_root + 'dataset[_3d]_npy_{CLIP_WINDOW}_flat'.",
+             f"preparing_root + 'dataset_npy_{CLIP_WINDOW}_flat'.",
     )
     parser.add_argument(
         "--unknown-clip-npy-dir",
@@ -977,13 +829,13 @@ def main():
     # ---- Resolve taxonomy and derive intermediate paths ----
     taxonomy = taxonomy_lookup(args.taxonomy)
     excluded = taxonomy.excluded_base_stroke_types or frozenset()
-    if args.unknown_clip_npy_dir is not None and 'unknown' in excluded:
+    if args.unknown_clip_npy_dir and 'unknown' in excluded:
         parser.error(
             f"--unknown-clip-npy-dir is set but taxonomy {taxonomy.name!r} "
             f"excludes unknown rows (excluded_base_stroke_types={sorted(excluded)}). "
             f"Either drop the flag or pick a taxonomy that retains unknown."
         )
-    if taxonomy.has_unknown and args.unknown_clip_npy_dir is None:
+    if taxonomy.has_unknown and not args.unknown_clip_npy_dir:
         parser.error(
             f"--taxonomy {taxonomy.name!r} retains unknown in its class list, "
             f"but --unknown-clip-npy-dir is not set. The 1,278 ShuttleSet "
@@ -993,13 +845,12 @@ def main():
             f"--unknown-clip-npy-dir <that sibling dir>, OR pick a taxonomy "
             f"whose excluded_base_stroke_types includes 'unknown'."
         )
-    str_3d = "_3d" if args.use_3d_pose else ""
     # ShuttleSet_data_<tax>/ root reads BST_X_COLLATED_DATA_ROOT when set
     # (matches the FE serving contract in frontend_integration_guide.md);
     # otherwise falls back to the in-repo preparing_data/ convention for
     # local dev where /scratch isn't available.
     collated_data_root = env_path_or_none('BST_X_COLLATED_DATA_ROOT')
-    if collated_data_root is not None:
+    if collated_data_root:
         preparing_root = collated_data_root / f"ShuttleSet_data_{taxonomy.name}"
     else:
         preparing_root = (
@@ -1019,16 +870,15 @@ def main():
     # Collated dir naming via shared helper (mirrored on the bst_x_train.py
     # reader side); see ``pipeline.config.derive_npy_collated_dir_basename``.
     npy_collated_dir = preparing_root / derive_npy_collated_dir_basename(
-        use_3d_pose=args.use_3d_pose,
         seq_len=args.seq_len,
         split_column=args.split_column,
         collation_id=args.collation_id,
     )
     if args.seq_len == 30:
-        default_flat_dir = preparing_root / f"dataset{str_3d}_npy_flat"
+        default_flat_dir = preparing_root / "dataset_npy_flat"
     else:  # 100
         default_flat_dir = (
-            preparing_root / f"dataset{str_3d}_npy_{CLIP_WINDOW}_flat"
+            preparing_root / f"dataset_npy_{CLIP_WINDOW}_flat"
         )
 
     # FLAT per-clip dir. Step 1 writes per-clip files here ({clip_stem}_*.npy),
@@ -1041,7 +891,6 @@ def main():
         print("=== DRY RUN (no files will be created) ===\n")
         print(f"  seq_len:          {args.seq_len}")
         print(f"  taxonomy:         {taxonomy.name} ({taxonomy.n_classes} classes)")
-        print(f"  use_3d_pose:      {args.use_3d_pose}")
         print(f"  clips_dir:        {args.clips_dir}")
         print(f"  shuttle_npy_dir:  {args.shuttle_npy_dir}")
         print(f"  flat_clip_npy:    {flat_clip_npy_dir}  (Step 1 writer + Step 2 reader)")
@@ -1066,23 +915,15 @@ def main():
     # ---- Step 1: Pose estimation ----
     if not args.skip_pose:
         print("\n--- Step 1: Pose estimation ---")
-        if args.use_3d_pose:
-            prepare_3d_dataset_npy_from_raw_video(
-                my_clips_folder=args.clips_dir,
-                save_root_dir=flat_clip_npy_dir,
-                resolution_df=resolution_df,
-                all_court_info=all_court_info,
-            )
-        else:
-            prepare_2d_dataset_npy_from_raw_video(
-                my_clips_folder=args.clips_dir,
-                save_root_dir=flat_clip_npy_dir,
-                resolution_df=resolution_df,
-                all_court_info=all_court_info,
-                joints_normalized_by_v_height=False,
-                joints_center_align=True,
-                device=args.device,
-            )
+        prepare_dataset_npy_from_raw_video(
+            my_clips_folder=args.clips_dir,
+            save_root_dir=flat_clip_npy_dir,
+            resolution_df=resolution_df,
+            all_court_info=all_court_info,
+            joints_normalized_by_v_height=False,
+            joints_center_align=True,
+            device=args.device,
+        )
     else:
         print("Step 1: Skipped (--skip-pose)")
 

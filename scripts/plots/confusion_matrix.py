@@ -11,7 +11,7 @@ The 'Blues' colourmap is a single-hue sequential, universally readable
 
 Usage::
 
-    python local_scratch/presentation_prep/confusion_matrix.py \\
+    python scripts/plots/confusion_matrix.py \\
         --predictions experiments/bst_x/shuttleset/run_<id>/predictions/test_serial_5.npz
 """
 from __future__ import annotations

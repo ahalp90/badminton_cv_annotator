@@ -292,7 +292,7 @@ def _run_clip(
 
     for f in range(num_frames):
         result = _pick_one_frame(raw, f, ema, halfcourt_centre, ctx, params)
-        if result is None:
+        if not result:
             failed[f] = True
             ema[:] = halfcourt_centre
             ema_history[f] = ema

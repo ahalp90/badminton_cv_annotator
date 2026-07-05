@@ -17,8 +17,8 @@ requires-python = ">=3.11"
 #     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
 #     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
 #     isolation, but still lives in a separate build venv managed outside this
-#     pyproject. Only the dormant 3D path keeps the numpy<2 OpenMMLab stack
-#     (src/bst_x/preparing_data/requirements-legacy-3d.txt).
+#     pyproject. The numpy<2 OpenMMLab stack remains only as the env for the
+#     parked 3D pose stream design (src/bst_x/preparing_data/requirements-legacy-3d.txt).
 #   - Therefore numpy>=2 is fine for everything in this pyproject. Modern
 #     TrackNetV3 (per the vendored requirements.txt header) supports it.
 #
@@ -53,6 +53,7 @@ dependencies = [
     # Runtime type + shape enforcement for tensor-shape/dtype contracts.
     "jaxtyping",
     "beartype",
+    "frozendict>=2.4,<3",
 ]
 
 [project.optional-dependencies]
@@ -92,9 +93,9 @@ bric = [
 # tooling (tensorboard, matplotlib, etc.) can move to a future
 # `bst-x-train` extras group.
 #
-# Pose extraction (rtmlib for 2D, or the dormant OpenMMLab 3D path) deliberately
-# omitted; it runs in its own dataset-build venv
-# (src/bst_x/preparing_data/requirements*.txt), not this API-server install.
+# Pose extraction (rtmlib) deliberately omitted; it runs in its own
+# dataset-build venv (src/bst_x/preparing_data/requirements.txt), not this
+# API-server install.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)
     "torchinfo",              # Model summary utility (imported by tempose.py)
