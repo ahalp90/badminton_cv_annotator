@@ -29,7 +29,7 @@ decision can diverge for that frame; this is documented in
 
 The imports from ``prepare_train_on_shuttleset`` are deferred to ``apply``'s
 first call because importing that module at load pulls in its heavy deps
-(torch/pandas; its 2D rtmlib and 3D mmpose imports are themselves lazy); we
+(torch/pandas; its 2D rtmlib imports are themselves lazy); we
 want module-level ``import current`` to stay light for local smoke tests.
 """
 from __future__ import annotations
