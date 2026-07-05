@@ -14,7 +14,7 @@ requires-python = ">=3.11"
 #   - BRIC and BST-X inference handlers can share one venv. Both use PyTorch,
 #     TrackNetV3, opencv, fastapi.
 #   - **Pose extraction runs in its own dataset-build venv.** The 2D extraction
-#     path migrated to rtmlib (onnxruntime, numpy-2 clean) — see
+#     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
 #     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
 #     isolation, but still lives in a separate build venv managed outside this
 #     pyproject. Only the dormant 3D path keeps the numpy<2 OpenMMLab stack
@@ -93,7 +93,7 @@ bric = [
 # `bst-x-train` extras group.
 #
 # Pose extraction (rtmlib for 2D, or the dormant OpenMMLab 3D path) deliberately
-# omitted — it runs in its own dataset-build venv
+# omitted; it runs in its own dataset-build venv
 # (src/bst_x/preparing_data/requirements*.txt), not this API-server install.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)

@@ -1,4 +1,4 @@
-# Prepare training data — rtmlib pose extraction + collation into batch arrays.
+# Prepare training data: rtmlib pose extraction + collation into batch arrays.
 # Python 3.11+ (validated on 3.13). Run once per dataset build, then switch to
 # the BST training venv.
 #
@@ -26,7 +26,7 @@
 # torch is NOT required by the production raw_extract path (Batch 2 dropped it;
 # onnxruntime manages its own memory). It is needed ONLY if you run the secondary
 # prepare_train_on_shuttleset module path (it imports torch at module load for the
-# shared 2D/3D runner) — install any modern CPU/CUDA build separately, e.g.:
+# shared 2D/3D runner); install any modern CPU/CUDA build separately, e.g.:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 # That same module path also imports beartype + jaxtyping at load (its
 # signatures are shape-checked), so they ship as requirements below:
@@ -34,7 +34,7 @@
 # import prepare_train.
 #
 # The dormant 3D pose path (detect_players_3d / --use-3d-pose) still needs the
-# OpenMMLab stack — see requirements-legacy-3d.txt (install in a separate venv;
+# OpenMMLab stack; see requirements-legacy-3d.txt (install in a separate venv;
 # its numpy<2 pin cannot coexist with the numpy>=2 here).
 
 # rtmlib pose extraction (RTMDet + RTMPose over onnxruntime)
@@ -44,7 +44,7 @@ onnxruntime==1.27.0              # CPU inference (deterministic); CUDA box: onnx
 # Standard libraries
 numpy==2.4.6                     # numpy-2 clean now that OpenMMLab is off the 2D path
 opencv-python==4.13.0.92         # cv2: video decode + the RGB-fix cvtColor in the adapter
-pandas==3.0.3                    # collation; G5 verified byte-identical downstream on 3.0.3
+pandas==3.0.3                    # collation; G5 verified identical downstream output on 3.0.3 (exact _failed, floats at atol 1e-5)
 scipy==1.17.1                    # court projection / geometry helpers
 tqdm==4.68.3                     # progress bars
 parse==1.22.1                    # pure Python, no deps

@@ -21,7 +21,7 @@ keypoint delta here can be read against it, then feed this gate's JSON into G9
 
 Thresholds are imported from G1 / G6 (single source). CUDA adds EP noise on top
 of the model difference, so a keypoint p90 slightly above the CPU gate is
-expected; G7 reports it and G9 makes the call against G8's measured noise floor.
+expected; G7 measures the noise floor and G9 makes the call against it.
 
 Env:
   RTMLIB_GATE_DEVICE   "cuda" (default) or "cpu"

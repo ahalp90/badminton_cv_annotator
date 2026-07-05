@@ -172,8 +172,9 @@ def _rgb_fix_counterfactual(
     """Byte-exact proof the adapter feeds RTMPose an RGB crop, not BGR.
 
     The px thresholds above cannot catch a reverted RGB fix: RTMPose-L body7 is
-    channel-robust, so a BGR feed sits ~0.1px (median) from RGB, well inside
-    MEDIAN_MAX. So this checks the fix *structurally*, not by accuracy margin. For
+    channel-robust, so a BGR feed sits ~1px from RGB (per-joint L2 median
+    1.16px on 11_1_10_2, the same statistic as the module docstring), well
+    inside MEDIAN_MAX. So this checks the fix *structurally*, not by accuracy margin. For
     each sampled frame with detections, recompute the pose independently under an
     RGB feed and a BGR feed on the detector's own boxes, then require:
 

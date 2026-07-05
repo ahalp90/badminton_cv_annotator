@@ -1,11 +1,11 @@
-# LEGACY OpenMMLab stack — needed ONLY for the dormant 3D pose path
+# LEGACY OpenMMLab stack: needed ONLY for the dormant 3D pose path
 # (detect_players_3d / `--use-3d-pose`). The 2D extraction path migrated to
 # rtmlib (see requirements.txt in this dir); this file is kept solely so the 3D
 # path can still be run in its own isolated venv if ever revived.
 #
-# Python 3.11.X — mmcv 2.1.0 cannot build on 3.12 (no wheels, distutils removed).
+# Python 3.11.X; mmcv 2.1.0 cannot build on 3.12 (no wheels, distutils removed).
 # Install into a SEPARATE venv from the rtmlib extraction venv (numpy<2 here vs
-# numpy>=2 there — they cannot coexist).
+# numpy>=2 there; they cannot coexist).
 #
 # --- Manual install steps (can't go in requirements.txt) ---
 # pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
@@ -48,9 +48,9 @@ numpy>=1.26.0,<2.0.0             # OpenMMLab packages crash on NumPy 2.x
 scipy==1.17.1                    # Used by MMPose internally
 parse==1.21.1                    # Pure Python, no deps
 
-# OpenMMLab ecosystem (strictly pinned — enforce mutual version bounds at import)
+# OpenMMLab ecosystem (strictly pinned; enforce mutual version bounds at import)
 openmim==0.3.9
 mmengine==0.10.4
 mmdet==3.2.0
 mmpose==1.3.2
-# mmcv==2.1.0 — install via: mim install mmcv==2.1.0
+# mmcv==2.1.0: install via mim install mmcv==2.1.0

@@ -25,7 +25,7 @@ mmpose behind lazy imports (`requirements-legacy-3d.txt`).
    0.3 to 0.15 to pass Phase-A.
 3. **Root cause (2026-07-04).** Primary sources (mmpose 1.3.2
    `default_det_models`) showed the pre-migration detector was RTMDet-M@640,
-   not nano@320 — the identity claim was wrong, and the 0.15 crutch was
+   not nano@320. The identity claim was wrong, and the 0.15 crutch was
    compensation for an unnoticed model downgrade.
 4. **Restoration.** Detector swapped to the RTMDet-M ONNX (same mmdeploy
    export batch as the nano, drop-in), threshold returned to mmpose's 0.3,

@@ -26,6 +26,8 @@ Env:
   RTMLIB_GATE_STEMS                    comma-separated stems
                                        (default 11_1_10_2,13_1_10_1,14_1_10_1)
   RTMLIB_GATE_MAXFR                    frames per clip (default 50)
+  RTMLIB_BENCH_ONLY                    comma-separated config names to run
+                                       (default: all)
 
 Run from the repo root:
   PYTHONPATH=src/bst_x:src <venv>/bin/python \\
@@ -129,8 +131,8 @@ def bench_config(name: str, spec, clips) -> dict:
     det = np.asarray(timed.det_ms[WARMUP:])
     pose = np.asarray(timed.pose_ms[WARMUP:])
     tot = det + pose
-    l2_all = np.concatenate(l2_all)
-    l2_conf = np.concatenate(l2_conf)
+    l2_all = np.concatenate(l2_all) if l2_all else np.array([np.nan])
+    l2_conf = np.concatenate(l2_conf) if l2_conf else np.array([np.nan])
     return dict(
         name=name, det=float(np.median(det)), pose=float(np.median(pose)),
         total=float(np.median(tot)), fps=1e3 / float(np.median(tot)),

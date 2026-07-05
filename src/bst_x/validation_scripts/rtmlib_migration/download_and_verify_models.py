@@ -4,7 +4,7 @@ Fetches the two model archives the adapter uses, via rtmlib's own downloader,
 so the cached ``.onnx`` names match what the adapter loads at runtime; asserts
 each *extracted* ``.onnx`` SHA256 against a pinned constant, and vendors the
 verified ``.onnx`` to a durable pool dir so extraction no longer depends on the
-openmmlab URL staying up (H3).
+openmmlab URL staying up.
 
 Fails non-zero on any SHA mismatch: an upstream re-release would silently change
 the model, and must be re-pinned deliberately, not auto-accepted.
