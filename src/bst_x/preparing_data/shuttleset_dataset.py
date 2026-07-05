@@ -92,11 +92,14 @@ def create_bones(joints: np.ndarray, pairs) -> np.ndarray:
     """Bone vectors (end - start) per pair; zero where either endpoint is missing.
 
     Same semantics as create_bones_robust in TemPose.
+    Keep in lockstep with augmentations.recompute_bones_torch (its torch mirror); change one, change both.
     joints (t, m, J, 2) -> bones (t, m, B, 2).
     """
     starts, ends = zip(*pairs)
     start_j = joints[:, :, list(starts), :]  # (t, m, B, 2)
     end_j = joints[:, :, list(ends), :]
+    # Per-coordinate zero-check: a joint at exactly 0.0 in one axis would half-zero the
+    # bone; unreachable since normalised MMPose coords never hit exact zero.
     return np.where((start_j != 0.0) & (end_j != 0.0), end_j - start_j, 0.0)
 
 

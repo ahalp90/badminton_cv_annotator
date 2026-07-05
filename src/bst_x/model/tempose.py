@@ -83,6 +83,7 @@ class MultiHeadAttention(nn.Module):
         q, k, v = map(lambda ts: ts.transpose(1, 2), qkv)
         # q, k, v: (bn, h, t, d_head)
 
+        # bst.py's sibling MultiHeadCrossAttention runs this same matmul without .contiguous(); kept here as TemPose-lineage habit, same maths either way.
         dots: Tensor = (q.contiguous() @ k.transpose(-1, -2).contiguous()) * self.scale
         # dots: (bn, h, t, t)
         if mask is not None:

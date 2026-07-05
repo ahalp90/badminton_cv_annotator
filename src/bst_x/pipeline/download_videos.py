@@ -23,7 +23,7 @@ _VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi'}
 
 def _check_ytdlp() -> None:
     """Verify yt-dlp is installed before spawning worker threads."""
-    if shutil.which('yt-dlp') is None:
+    if not shutil.which('yt-dlp'):
         raise RuntimeError(
             'yt-dlp not found in PATH. Install with: pip install yt-dlp'
         )
@@ -88,7 +88,7 @@ def download_video(
 def download_all_videos(
     match_csv_path: Path = SET_INFO_DIR / 'match.csv',
     output_dir: Path = RAW_VIDEO_DIR,
-    excluded: set[int] | None = None,
+    excluded: frozenset[int] = EXCLUDED_VIDEOS,
     max_workers: int = 4,
 ) -> list[str]:
     """Download all ShuttleSet match videos from YouTube in parallel.
@@ -101,8 +101,6 @@ def download_all_videos(
     """
     _check_ytdlp()
 
-    if excluded is None:
-        excluded = EXCLUDED_VIDEOS
     output_dir.mkdir(parents=True, exist_ok=True)
 
     match_df = pd.read_csv(match_csv_path)

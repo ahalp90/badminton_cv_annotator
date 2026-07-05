@@ -7,7 +7,7 @@ the per-batch ``cum_tp += batch_tp`` line is where a mismatch (cum_* on CPU,
 batch_* on GPU) would crash. This script reproduces that line's conditions
 with a synthetic two-batch loader and fails loud if it crashes.
 
-No real data needed. Self-contained: a BST_PPF model + two synthetic batches.
+No real data needed. Self-contained: a BST_CG_AP model + two synthetic batches.
 
 Run on bourbaki / engelbart under venv-bst-x:
     cd ~/badminton_stroke_classification
@@ -33,7 +33,7 @@ SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 
 from bst_x_train import validate  # noqa: E402
-from model.bst import BST_PPF  # noqa: E402
+from model.bst import BST_CG_AP  # noqa: E402
 from pipeline.config import taxonomy_lookup  # noqa: E402
 
 N_CLASSES = taxonomy_lookup("une_v1_14").n_classes
@@ -65,12 +65,12 @@ def main() -> int:
         return 2
     device = torch.device("cuda")
     torch.manual_seed(2)
-    model = BST_PPF(
-        in_dim=IN_DIM, seq_len=T, n_class=N_CLASSES, d_model=100,
+    model = BST_CG_AP(
+        in_dim=IN_DIM, seq_len=T, n_classes=N_CLASSES, d_model=100,
     ).to(device)
     loss_fn = nn.CrossEntropyLoss()
     try:
-        val_loss, f1_avg, f1_min, f1_per_class, present, acc, top2 = validate(
+        val_stats = validate(
             model=model,
             loss_fn=loss_fn,
             loader=fake_loader(device),
@@ -80,12 +80,13 @@ def main() -> int:
     except RuntimeError as e:
         print(f"FAIL: validate() crashed on cuda: {e}")
         return 1
-    if not (f1_per_class.is_floating_point() and present.dtype == torch.bool):
-        print(f"FAIL: unexpected dtypes; f1={f1_per_class.dtype}, present={present.dtype}")
+    if not (val_stats.f1_per_class.is_floating_point() and val_stats.present.dtype == torch.bool):
+        print(f"FAIL: unexpected dtypes; f1={val_stats.f1_per_class.dtype}, "
+              f"present={val_stats.present.dtype}")
         return 1
     print(f"OK: validate() ran on cuda with no device mismatch "
-          f"(val_loss={val_loss:.4f}, acc={acc:.4f}, top2={top2:.4f}, "
-          f"macro_f1={float(f1_avg):.4f})")
+          f"(val_loss={val_stats.val_loss:.4f}, acc={val_stats.accuracy:.4f}, "
+          f"top2={val_stats.top2_accuracy:.4f}, macro_f1={float(val_stats.f1_macro):.4f})")
     return 0
 
 

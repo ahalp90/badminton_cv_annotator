@@ -59,8 +59,8 @@ def _build_fake_run(tmp_path: Path) -> tuple[Path, Path]:
     taxonomy = taxonomy_lookup(TAX_NAME)
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
 
     # Collation under collated_data_root/ShuttleSet_data_<tax>/<basename>/.
@@ -86,7 +86,6 @@ def _build_fake_run(tmp_path: Path) -> tuple[Path, Path]:
             'collation_id': 'taxon_pinned_w_preds',
             'pose_style': 'JnB_bone',
             'seq_len': 100,
-            'use_3d_pose': False,
             'classes': list(taxonomy.classes),
         },
         'extra': {'data_provenance': {'npy_collated_dir': basename}},
@@ -171,8 +170,8 @@ def test_dump_topk_predictions_k_clamps_to_head(tmp_path):
     taxonomy = taxonomy_lookup(TAX_NAME)
     torch.manual_seed(0)
     net, n_bones = build_bst_x_network(
-        'BST_CG_AP', n_joints=17, pose_style='JnB_bone', in_channels=2,
-        n_class=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
+        'BST_CG_AP', n_joints=17, pose_style='JnB_bone',
+        n_classes=taxonomy.n_classes, seq_len=100, device=torch.device('cpu'),
     )
     coll = tmp_path / 'coll'
     _write_split(coll / 'test', n_bones=n_bones, labels=[0, 1, 2, 3])
@@ -196,6 +195,6 @@ def test_get_network_architecture_before_prepare_loader_builds(monkeypatch):
 
     task = bst_x_infer.Task(n_joints=17)
     # Deliberately out of order: build the net first, no loader prepared.
-    task.get_network_architecture(taxonomy=taxonomy, seq_len=100, in_channels=2)
+    task.get_network_architecture(taxonomy=taxonomy, seq_len=100)
 
     assert isinstance(task.net, torch.nn.Module)

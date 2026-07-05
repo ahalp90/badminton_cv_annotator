@@ -15,11 +15,15 @@ from torch import Tensor, nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter  # TensorBoard logging
 from torcheval.metrics.functional import multiclass_f1_score
+from beartype import beartype
+from jaxtyping import Bool, Float32, Int64, jaxtyped
 
 from transformers import get_cosine_schedule_with_warmup  # from HuggingFace, not a custom module
+from frozendict import frozendict
 
 from pathlib import Path
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import NamedTuple
 from contextlib import redirect_stdout
 import argparse
@@ -48,11 +52,18 @@ from bst_x_common import (
     compute_data_provenance,
     dump_topk_predictions,
     flatten_pose_features,
+    to_device,
 )
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
     accumulate_class_counts,
     per_class_f1_from_counts,
+)
+from bst_x_reporting import (
+    _log_epoch_tb,
+    _write_hparams_summary,
+    _print_taxonomy_block,
+    print_head_tail,
 )
 
 
@@ -83,7 +94,6 @@ class Hyp(NamedTuple):
     seq_len: int = 100
     early_stop_n_epochs: int = 40
     pose_style: str = 'JnB_bone'
-    use_3d_pose: bool = False
     train_partial: float = 1.0
     use_aux_schedule: bool = True
     aux_fade_end_epoch: int = 15
@@ -103,8 +113,8 @@ class Hyp(NamedTuple):
     #       'warm_up_epochs': 5, 'f1_floor': 0.0,
     #   }
     # Full design + paper-verified equations: docs/architecture_notes/class_f1_focal_design.md.
-    # NamedTuple defaults are class-level: these dicts are shared across instances; treat as read-only.
-    adaptive_focal: dict | None = {
+    # NamedTuple defaults are class-level and shared across every instance; frozendict enforces the read-only contract.
+    adaptive_focal: frozendict | None = frozendict({
         # tau=1, gamma=1 is the swept sweet spot (floor-lift on wrist_smash);
         # see class_f1_focal_design.md.
         'tau': 1.0,
@@ -112,19 +122,19 @@ class Hyp(NamedTuple):
         'momentum': 0.9,
         'warm_up_epochs': 5,
         'f1_floor': 0.0,
-    }
+    })
     # Train-time augmentations. Replaces the inherited (broken) joints-only
     # RandomTranslation_batch. Flip is the literature-norm dataset-doubler;
     # constrained jitter is the corrected, pos+shuttle-only,
     # layered-conditional-bound formulation. Full design + verified code
     # traces in docs/architecture_notes/augmentation_framework.md.
-    augmentation: dict = {
+    augmentation: frozendict = frozendict({
         'p_flip':   0.5,
         'p_jitter': 0.3,
         'cap_y':    0.05,
         'cap_x':    0.10,
         'eps':      0.15,
-    }
+    })
 
 
 hyp = Hyp()
@@ -157,29 +167,61 @@ def aux_schedule_factor(epoch: int, fade_end_epoch: int) -> float:
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
-class EpochStats(NamedTuple):
-    """One training epoch's aggregates. ``tp``/``fp``/``fn`` are length-n_classes
-    int64 count tensors on device; the jitter counters are plain ints over the
-    epoch's clips."""
+@jaxtyped(typechecker=beartype)
+@dataclass(frozen=True)
+class EpochStats:
+    """One training epoch's aggregates. ``tp``/``fp``/``fn`` stay on the train
+    device; the jitter counters are plain ints over the epoch's clips."""
     train_loss: float
-    tp: Tensor
-    fp: Tensor
-    fn: Tensor
+    tp: Int64[Tensor, 'classes']
+    fp: Int64[Tensor, 'classes']
+    fn: Int64[Tensor, 'classes']
     jitter_n_effective: int
     jitter_n_oob: int
     jitter_n_total: int
 
 
-class ValStats(NamedTuple):
-    """One validation pass. ``f1_macro``/``f1_min`` are 0-dim tensors (caller
-    ``.item()``s them); ``f1_per_class`` and ``present`` are length-n_classes."""
+@jaxtyped(typechecker=beartype)
+@dataclass(frozen=True)
+class ValStats:
+    """One validation pass. The caller ``.item()``s ``f1_macro`` / ``f1_min``."""
     val_loss: float
-    f1_macro: Tensor
-    f1_min: Tensor
-    f1_per_class: Tensor
-    present: Tensor
+    f1_macro: Float32[Tensor, '']
+    f1_min: Float32[Tensor, '']
+    f1_per_class: Float32[Tensor, 'classes']
+    present: Bool[Tensor, 'classes']
     accuracy: float
     top2_accuracy: float
+
+
+def accumulate_tp_fp_fn(
+    logits: Tensor, labels: Tensor, n_classes: int,
+    tp: Tensor, fp: Tensor, fn: Tensor,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Add this batch's per-class TP / FP / FN onto the running totals.
+
+    Shared by the train and validate loops. Context-agnostic: the caller owns
+    the grad context (train wraps the call in ``torch.no_grad()``; validate runs
+    under the ``@torch.no_grad()`` decorator). The returned tensors stay on the
+    inputs' device, so the accumulators never round-trip to CPU per batch.
+    """
+    preds = logits.argmax(dim=1)
+    batch_tp, batch_fp, batch_fn = accumulate_class_counts(preds, labels, n_classes)
+    return tp + batch_tp, fp + batch_fp, fn + batch_fn
+
+
+def macro_min_over_present(f1: Tensor, present: Tensor) -> tuple[Tensor, Tensor]:
+    """Macro (mean) and min F1 over the present classes only.
+
+    Shared zero-support guard for ``validate`` and ``Task.test``: any class with
+    no ground truth this pass would otherwise score F1=0 by construction,
+    dragging macro down by 1/n and pinning min at 0. ``present`` is a boolean
+    mask over classes; an all-absent pass returns ``(0.0, 0.0)``.
+    """
+    if present.any():
+        masked = f1[present]
+        return masked.mean(), masked.min()
+    return torch.tensor(0.0), torch.tensor(0.0)
 
 
 def train_one_epoch(
@@ -211,7 +253,7 @@ def train_one_epoch(
       previously-real shuttle frame off-screen, triggering the
       ``(0, 0)`` sentinel; for ``Aug/shuttle_oob_rate``.
 
-    :return: an ``EpochStats`` (field types/shapes on the NamedTuple).
+    :return: an ``EpochStats`` (field types/shapes on the dataclass).
     """
     model.train()  # enable dropout (not global TF-style layer trainability flag)
     total_loss = 0.0
@@ -223,13 +265,9 @@ def train_one_epoch(
     jitter_n_total = 0
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        # .to(device) = move tensors to GPU/CPU; PyTorch needs explicit
-        # placement for every tensor.
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
-        labels: Tensor = labels.to(device)
+        human_pose, shuttle, pos, video_len, labels = to_device(
+            device, human_pose, shuttle, pos, video_len, labels,
+        )
 
         # Augmentations: flip first (clean spatial transform), then jitter.
         # Each rolls independently per-clip; coupled_flip mirrors all three
@@ -259,13 +297,7 @@ def train_one_epoch(
         # Per-class confusion counts on argmax preds. no_grad() because preds
         # are detached labels; nothing here needs an autograd graph.
         with torch.no_grad():
-            preds = logits.argmax(dim=1)
-            batch_tp, batch_fp, batch_fn = accumulate_class_counts(
-                preds, labels, n_classes,
-            )
-            tp += batch_tp
-            fp += batch_fp
-            fn += batch_fn
+            tp, fp, fn = accumulate_tp_fp_fn(logits, labels, n_classes, tp, fp, fn)
 
     train_loss = total_loss / len(loader)
     return EpochStats(
@@ -296,24 +328,18 @@ def validate(
     cum_n = 0     # total samples seen
 
     for (human_pose, pos, shuttle), video_len, labels in loader:
-        human_pose: Tensor = human_pose.to(device)
-        shuttle: Tensor = shuttle.to(device)
-        pos: Tensor = pos.to(device)
-        video_len: Tensor = video_len.to(device)
-        labels: Tensor = labels.to(device)
+        human_pose, shuttle, pos, video_len, labels = to_device(
+            device, human_pose, shuttle, pos, video_len, labels,
+        )
 
         human_pose = flatten_pose_features(human_pose)
         logits = model(human_pose, shuttle, pos=pos, video_len=video_len)
         loss: Tensor = loss_fn(logits, labels)
         total_loss += loss.item()
 
-        preds = logits.argmax(dim=1)
-        batch_tp, batch_fp, batch_fn = accumulate_class_counts(
-            preds, labels, n_classes,
+        cum_tp, cum_fp, cum_fn = accumulate_tp_fp_fn(
+            logits, labels, n_classes, cum_tp, cum_fp, cum_fn,
         )
-        cum_tp += batch_tp
-        cum_fp += batch_fp
-        cum_fn += batch_fn
 
         # Top-2 accuracy needs the two highest logits, so it's the one metric
         # not already in the confusion counts; accumulate it here.
@@ -332,17 +358,9 @@ def validate(
     # gave 0 anyway), and at float32 it vanishes against any nonzero count.
     f1_score = per_class_f1_from_counts(cum_tp, cum_fp, cum_fn)
 
-    # Only classes present in the val set count toward macro/min. Generic
-    # zero-support guard: any class with no ground-truth this epoch would
-    # otherwise score F1=0 by construction, dragging macro down by 1/n
-    # and pinning min at 0.
+    # Only classes present in the val set count toward macro/min.
     present = (cum_tp + cum_fn) > 0
-    if present.any():
-        f1_score_avg = f1_score[present].mean()
-        f1_score_min = f1_score[present].min()
-    else:
-        f1_score_avg = torch.tensor(0.0)
-        f1_score_min = torch.tensor(0.0)
+    f1_score_avg, f1_score_min = macro_min_over_present(f1_score, present)
 
     # Accuracy is exactly correct/total: every sample is a TP for its class (if
     # right) or an FN for it (if wrong), so the correct count is sum(cum_tp).
@@ -464,7 +482,10 @@ def _split_param_groups(model: nn.Module):
             continue
         norm_or_bias = param.ndim <= 1
         token_or_posemb = any(hint in name for hint in no_decay_name_hints)
-        (no_decay if norm_or_bias or token_or_posemb else decay).append(param)
+        if norm_or_bias or token_or_posemb:
+            no_decay.append(param)
+        else:
+            decay.append(param)
     return decay, no_decay
 
 
@@ -518,6 +539,10 @@ def _build_optimiser(model, n_batches, hyp: Hyp):
     ``(optimizer, scheduler)``.
     """
     decay, no_decay = _split_param_groups(model)
+    assert (len(decay), len(no_decay)) == (27, 55), (
+        f'decay split drifted to {(len(decay), len(no_decay))}, expected (27, 55); '
+        'see the _split_param_groups docstring inventory pin'
+    )
     print(f'[optim] AdamW lr={hyp.lr} weight_decay={hyp.weight_decay} '
           f'(decay={len(decay)} tensors, no_decay={len(no_decay)})')
     optimizer = optim.AdamW(
@@ -537,106 +562,6 @@ def _build_optimiser(model, n_batches, hyp: Hyp):
     return optimizer, scheduler
 
 
-def _log_epoch_tb(
-    writer,
-    epoch,
-    epoch_stats: EpochStats,
-    val_stats: ValStats,
-    train_per_class_f1,
-    aux_factor,
-    scheduler,
-    loss_fn,
-    class_ls,
-):
-    """Per-epoch TensorBoard scalars: train/val loss, macro/min F1 (train + val),
-    the aux schedule factor + LR, the two jitter-rate diagnostics, and the
-    per-class train/val F1 (and per-class alpha under adaptive focal).
-    """
-    writer.add_scalar('Loss/Train', epoch_stats.train_loss, epoch)
-    writer.add_scalar('Loss/Val', val_stats.val_loss, epoch)
-    writer.add_scalar('F1/Val_macro', val_stats.f1_macro, epoch)
-    writer.add_scalar('F1/Val_min', val_stats.f1_min, epoch)
-    # Train F1 macro/min summaries mirror the val pair above, so the
-    # train-vs-val gap reads off two scalars per epoch instead of needing
-    # to re-aggregate the per-class arrays. .mean()/.min() over the
-    # length-n_classes tensor of active-class F1s, .item() unwraps to float.
-    writer.add_scalar('F1_train/macro', train_per_class_f1.mean().item(), epoch)
-    writer.add_scalar('F1_train/min', train_per_class_f1.min().item(), epoch)
-    writer.add_scalar('Schedule/aux_factor', aux_factor, epoch)
-    # Cosine LR per epoch. Deterministic from the schedule, but logging it
-    # saves the reconstruction and overlays cleanly with the per-class F1 /
-    # alpha arcs. get_last_lr()[0] = LR after this epoch's final step.
-    writer.add_scalar('Schedule/learning_rate', scheduler.get_last_lr()[0], epoch)
-    # Jitter effective rate: fraction of clips that rolled yes AND had at
-    # least one non-degenerate axis. Watching this scalar shows whether the
-    # case-1 (fully-degenerate envelope) skip rate is eating into the
-    # nominal p_jitter target. See augmentation_framework.md.
-    jitter_effective_rate = (
-        epoch_stats.jitter_n_effective / epoch_stats.jitter_n_total
-        if epoch_stats.jitter_n_total > 0 else 0.0
-    )
-    writer.add_scalar('Aug/jitter_effective_rate', jitter_effective_rate, epoch)
-    # Shuttle OOB rate: fraction of clips where the effective shift
-    # pushed a previously-real shuttle frame off-screen, triggering the
-    # (0, 0) sentinel. Diagnostic for the cap_x trade-off the doc flags
-    # around edge-of-frame shuttle classes (cross_court_net_shot, rush
-    # trajectories). High rate = cap_x is replacing a meaningful fraction
-    # of real shuttle observations with the off-screen sentinel.
-    shuttle_oob_rate = (
-        epoch_stats.jitter_n_oob / epoch_stats.jitter_n_total
-        if epoch_stats.jitter_n_total > 0 else 0.0
-    )
-    writer.add_scalar('Aug/shuttle_oob_rate', shuttle_oob_rate, epoch)
-    for i, c in enumerate(class_ls):
-        writer.add_scalar(f'F1_train/{c}', train_per_class_f1[i].item(), epoch)
-        # Val per-class F1 only for classes present in val this epoch; an
-        # absent class scores F1=0 by construction and would read as a real
-        # regression on the TB curve.
-        if val_stats.present[i]:
-            writer.add_scalar(f'F1_val/{c}', val_stats.f1_per_class[i].item(), epoch)
-        if isinstance(loss_fn, AdaptiveFocalLoss):
-            writer.add_scalar(f'Alpha/{c}', loss_fn.alpha[i].item(), epoch)
-
-
-def _write_hparams_summary(
-    writer,
-    best_macro, best_macro_epoch, second_macro, second_macro_epoch,
-    best_min, best_min_epoch, second_min, second_min_epoch,
-    best_val_loss, best_val_loss_epoch, stopped_epoch,
-    hyp: Hyp,
-):
-    """HParams summary: one row per run, sortable in TB's HParams tab.
-    stopped_epoch - best_macro_epoch == early_stop_n_epochs confirms clean early-stop.
-    Coerce non-scalar values (dicts, None, etc.) to strings; TB's add_hparams
-    only accepts int / float / str / bool / Tensor. Closes the writer when done.
-    """
-    hparam_dict = {}
-    for key, value in hyp._asdict().items():
-        is_tb_scalar = isinstance(value, (int, float, str, bool)) or torch.is_tensor(value)
-        hparam_dict[key] = value if is_tb_scalar else str(value)
-
-    writer.add_hparams(
-        hparam_dict=hparam_dict,
-        metric_dict={
-            'best/macro_f1':        best_macro,
-            'best/macro_f1_epoch':  best_macro_epoch,
-            'best/macro_f1_2nd':    second_macro,
-            'best/macro_f1_2nd_ep': second_macro_epoch,
-            'best/min_f1':          best_min,
-            'best/min_f1_epoch':    best_min_epoch,
-            'best/min_f1_2nd':      second_min,
-            'best/min_f1_2nd_ep':   second_min_epoch,
-            'best/val_loss':        best_val_loss,
-            'best/val_loss_epoch':  best_val_loss_epoch,
-            'stopped_epoch':        stopped_epoch,
-        },
-        # run_name='.' stops TB nesting a timestamped subdir per add_hparams call.
-        run_name='.',
-        global_step=stopped_epoch,
-    )
-    writer.close()
-
-
 def train_network(
     model: nn.Module,
     train_loader,
@@ -653,7 +578,7 @@ def train_network(
     # tb_dir lands the event files under experiments/<run_id>/tb/serial_N/ so
     # TB folders pair with the run they came from. Default SummaryWriter() writes
     # to ./runs/<host_time>/, which is what older runs used.
-    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir is not None else SummaryWriter()
+    writer = SummaryWriter(log_dir=str(tb_dir)) if tb_dir else SummaryWriter()
 
     coupled_flip, constrained_jitter = _build_augmentations(n_bones, hyp)
     loss_fn = _build_loss_fn(n_classes, class_ls, taxonomy, device, hyp)
@@ -722,12 +647,8 @@ def train_network(
             # the loss is reweighting toward the struggling classes each epoch.
             alpha_np = loss_fn.alpha.detach().cpu().numpy()
             order = alpha_np.argsort()
-            print('  alpha bot3: ' + ' '.join(
-                f'{class_ls[i]}={alpha_np[i]:.2f}' for i in order[:3]
-            ))
-            print('  alpha top3: ' + ' '.join(
-                f'{class_ls[i]}={alpha_np[i]:.2f}' for i in order[-3:][::-1]
-            ))
+            ranked_alpha = [(class_ls[i], alpha_np[i]) for i in order]
+            print_head_tail('alpha', ranked_alpha, 3, bot_first=True)
 
         _log_epoch_tb(
             writer=writer,
@@ -767,12 +688,7 @@ def train_network(
                 [(class_ls[i], val_stats.f1_per_class[i].item()) for i in present_idx],
                 key=lambda t: t[1],
             )
-            print('  val top5: ' + ' '.join(
-                f'{n}={v:.2f}' for n, v in reversed(scored[-5:])
-            ))
-            print('  val bot5: ' + ' '.join(
-                f'{n}={v:.2f}' for n, v in scored[:5]
-            ))
+            print_head_tail('val', scored, 5, bot_first=False)
             early_stop_count = 0
         elif curr_macro > second_macro:
             second_macro, second_macro_epoch = curr_macro, epoch
@@ -818,6 +734,10 @@ def train_network(
             if best_val_present[i]
         }
         f1s = list(per_class.values())
+        # Python-float sum/len here on purpose, not macro_min_over_present:
+        # these are float64 values headed for the YAML manifest, and routing
+        # them through a float32 tensor .mean() would drift the recorded
+        # numbers. present-filtered above, same zero-support rule as the helper.
         val_at_best = {
             'epoch': best_macro_epoch_snap,
             'macro_f1': sum(f1s) / len(f1s),
@@ -875,22 +795,41 @@ class Task:
     def _assert_label_coverage(self) -> None:
         """Contract guard replacing the old runtime active-class adapter.
 
-        Labels.npy lands in ``[0, taxonomy.n_classes)`` at collation time, so
-        the head is the full taxonomy. Two invariants, both fail loud:
+        Labels.npy is meant to land in ``[0, taxonomy.n_classes)`` at collation
+        time, so the head is the full taxonomy. Two invariants, both fail loud:
 
+        - no split may carry a label index outside the head (a corrupt or
+          stale-vintage collated set).
         - train must cover every class in the taxonomy. A class the head can
           emit but train never teaches would carry a label-smoothed ghost
           gradient every step; better to refuse the run.
-        - val/test must not carry any class absent from train (a class train
-          never saw can't be evaluated meaningfully).
 
-        Reads labels post-``train_partial`` slicing, so a too-aggressive
-        partial that starves a class is caught here too.
+        Together these imply val/test can't hold a class absent from train,
+        so there is no separate check for that. Reads labels
+        post-``train_partial`` slicing, so a too-aggressive partial that
+        starves a class is caught here too.
         """
         expected = set(range(self.taxonomy.n_classes))
         train_present = {int(x) for x in np.unique(self.train_loader.dataset.labels)}
         val_present = {int(x) for x in np.unique(self.val_loader.dataset.labels)}
         test_present = {int(x) for x in np.unique(self.test_loader.dataset.labels)}
+
+        splits = (('train', train_present), ('val', val_present), ('test', test_present))
+        oob_descriptions = []
+        for split_name, present in splits:
+            oob = sorted(present - expected)
+            if oob:
+                # taxonomy.classes can't name these; they sit past the head.
+                named = [f'<oob:{i}>' for i in oob]
+                oob_descriptions.append(f'{split_name}: {oob} ({named})')
+        if oob_descriptions:
+            raise ValueError(
+                f'label indices outside the taxonomy {self.taxonomy.name!r} '
+                f'head [0, {self.taxonomy.n_classes}): '
+                f'{"; ".join(oob_descriptions)}. The collated labels.npy is '
+                f'likely corrupt or a stale vintage; failing at startup rather '
+                f'than as a CUDA IndexError inside the loss.'
+            )
 
         missing_in_train = expected - train_present
         if missing_in_train:
@@ -903,28 +842,8 @@ class Task:
                 f'taxonomy whose head matches what train can teach.'
             )
 
-        n = self.taxonomy.n_classes
-        for split_name, present in (('val', val_present), ('test', test_present)):
-            rogue = present - train_present
-            if rogue:
-                # After the coverage check, train_present holds every in-range
-                # class, so a rogue index is an out-of-range (corrupt) label;
-                # name it safely rather than IndexError on classes[i].
-                named = [
-                    self.taxonomy.classes[i] if 0 <= i < n else f'<oob:{i}>'
-                    for i in sorted(rogue)
-                ]
-                raise ValueError(
-                    f'{split_name} has classes absent from train: '
-                    f'{sorted(rogue)} ({named}). Fix the split assignment in '
-                    f'clips_master.csv or pick a taxonomy whose classes match '
-                    f'the data shape.'
-                )
-
-    def get_network_architecture(self, model_name='BST_X', in_channels=2):
+    def get_network_architecture(self, model_name='BST_X'):
         """Create the model at the taxonomy head dim and ground its inputs.
-
-        :param in_channels: 2 for 2D (xy) keypoints, 3 for 3D (xyz).
 
         Output dim is ``taxonomy.n_classes`` directly; labels on disk are
         already in that index space (no runtime remap), and
@@ -934,22 +853,21 @@ class Task:
             model_name,
             n_joints=self.n_joints,
             pose_style=self.pose_style,
-            in_channels=in_channels,
-            n_class=self.taxonomy.n_classes,
+            n_classes=self.taxonomy.n_classes,
             seq_len=self.hyp.seq_len,
             device=self.device,
         )
         self.model_name = model_name
 
     def seek_network_weights(self, model_info='', serial_no=1, tb_dir: Path | None = None):
-        """Load existing weights if found, otherwise train from scratch.
-        Weight filenames encode the full experiment config, e.g.:
-        'bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_2.pt'
+        """Load existing weights if found, otherwise train from scratch. Weight filenames encode the
+        full experiment config, e.g.: 'bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_2.pt'
 
-        :return: ``(weight_existed, val_at_best)``. ``weight_existed`` is True
-            when a checkpoint was loaded (no training ran), False when freshly
-            trained. ``val_at_best`` is the per-class val F1 snapshot from
-            ``train_network`` (None on the load path or a degenerate run).
+        :return: ``(weight_existed, val_at_best)``.
+        ``weight_existed`` is True when a checkpoint was loaded (no training ran),
+        False when freshly trained.
+        ``val_at_best`` is the per-class val F1 snapshot from ``train_network``
+        (None on the load path or a degenerate run).
         """
         parts = [self.pose_style]
         if model_info:
@@ -1004,9 +922,8 @@ class Task:
             pred, gt, num_classes=self.taxonomy.n_classes, average=None
         )
 
-        # Mirror validate(): generic zero-support guard. Any class with no
-        # ground truth in the test set would otherwise score F1=0 by
-        # construction, dragging macro down by 1/n and pinning min at 0.
+        # Present = classes with test ground truth. torcheval's bincount here
+        # stays independent of the count helper (see the note above).
         present = torch.bincount(gt, minlength=self.taxonomy.n_classes) > 0
         present_idx = present.nonzero(as_tuple=True)[0].tolist()
         class_ls = list(self.taxonomy.classes)
@@ -1033,20 +950,16 @@ class Task:
                 save=False
             )
 
-        if present_idx:
-            macro_f1 = float(f1_score_each[present_idx].mean().item())
-            min_f1 = float(f1_score_each[present_idx].min().item())
-            per_class_f1 = {
-                class_ls[i]: float(f1_score_each[i].item()) for i in present_idx
-            }
-        else:
-            macro_f1 = 0.0
-            min_f1 = 0.0
-            per_class_f1 = {}
+        macro_f1, min_f1 = macro_min_over_present(f1_score_each, present)
+        # per-class stays list-indexed by present_idx: empty present_idx yields
+        # {} (matching the all-absent macro/min of 0.0 from the helper).
+        per_class_f1 = {
+            class_ls[i]: float(f1_score_each[i].item()) for i in present_idx
+        }
 
         return {
-            'macro_f1':     macro_f1,
-            'min_f1':       min_f1,
+            'macro_f1':     float(macro_f1.item()),
+            'min_f1':       float(min_f1.item()),
             'accuracy':     float(acc),
             'num_strokes':  int(len(pred)),
             'per_class_f1': per_class_f1,
@@ -1064,8 +977,9 @@ class Task:
         logits = torch.from_numpy(dump['logits'])
         gt = torch.from_numpy(dump['y_true'])
         pred = torch.topk(logits, k=k, dim=1).indices
-        gt = gt.unsqueeze(1).repeat(1, k)
-        acc = torch.any(pred == gt, dim=1).sum().item() / len(gt)
+        gt_in_topk = torch.any(pred == gt.unsqueeze(1), dim=1)  # one bool per sample: ground truth among the top-k
+        # sum/len keeps exact float64; .float().mean() would round through float32 and drift the recorded accuracy
+        acc = gt_in_topk.sum().item() / len(gt)
         print(f'Top{k} Accuracy: {acc:.3f}')
         return {f'top{k}_accuracy': float(acc)}
 
@@ -1120,35 +1034,15 @@ class Task:
 
 
 # ==========================================================================
-# Per-run taxonomy printout
-# ==========================================================================
-
-def _print_taxonomy_block(taxonomy: Taxonomy, tee) -> None:
-    """Loud one-time taxonomy summary at run start, captured by the tee'd log.
-
-    Resolved class list lives in the manifest's ``config.classes``; train/val/test
-    coverage invariants are enforced by ``Task._assert_label_coverage``.
-    """
-    with redirect_stdout(tee):
-        print(f'[taxonomy] {taxonomy.name}: {taxonomy.n_classes} classes, '
-              f'has_sides={taxonomy.has_sides}, has_unknown={taxonomy.has_unknown}')
-        print(f'[taxonomy] classes: {list(taxonomy.classes)}')
-
-
-# ==========================================================================
 # Main: train and test on ShuttleSet
 # ==========================================================================
 
-if __name__ == '__main__':
-    # Load .env so BST_X_COLLATED_DATA_ROOT (and any BST_* paths) resolve the
-    # same way the collator does; shell exports still win. No-op without .env.
-    load_repo_dotenv()
 
-    # CLI is wrapper-friendly: hparam_sweep.py drives per-serial invocations
-    # by setting --serial-no with a fixed --run-id and --log-path so all five
-    # serials share a run dir and a single test log. Manual invocations leave
-    # everything unset to fall back to the module-level Hyp defaults plus a
-    # fresh timestamped run dir / log file.
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser; parse_args stays in main so the parser is testable
+    in isolation. The per-serial sharing contract the flags serve is enforced
+    (and documented) in resolve_hyp.
+    """
     parser = argparse.ArgumentParser(
         description='BST training entry point. CLI flags exist mainly for the '
                     'hparam_sweep wrapper; running with no flags trains a full '
@@ -1194,83 +1088,103 @@ if __name__ == '__main__':
     # that don't want the full 80-epoch default). Not piped through
     # hparam_sweep; for production sweeps, edit Hyp.n_epochs directly.
     parser.add_argument('--n-epochs', type=int, default=None)
-    args = parser.parse_args()
+    return parser
 
-    # Per-serial invocation contract: pass all three sharing-flags together so
-    # every serial lands in one run dir with one continuous log file. The
-    # runner drives serial count per cell (5 default, 10 for headline cells),
-    # so there's no fixed upper bound here beyond "1-indexed".
+
+def resolve_hyp(args: argparse.Namespace) -> Hyp:
+    """Validate the CLI args and layer any overrides onto the module-level Hyp.
+
+    Returns a fresh Hyp built from the module-global defaults. Raises on a bad serial-no
+    contract or a partial augmentation override, both before any filesystem write.
+    """
+    # Per-serial invocation contract: pass all three sharing-flags together so every
+    # serial lands in one run dir with one continuous log file. The runner drives serial
+    # count per cell (5 default, 10 for headline cells), so there's no fixed upper bound
+    # here beyond "1-indexed".
     if args.serial_no is not None:
         if args.serial_no < 1:
             raise ValueError(
                 f'--serial-no must be >= 1, got {args.serial_no!r}.'
             )
-        if args.serial_no > 1 and (args.log_path is None or args.run_id is None):
+        if args.serial_no > 1 and (not args.log_path or not args.run_id):
             raise ValueError(
                 '--serial-no > 1 requires both --log-path and --run-id so '
                 'subsequent serials append to the same log and share the run dir.'
             )
 
-    # Augmentation CLI overrides are all-or-nothing. Wrapper passes the full
-    # cell-config dict (base + overrides resolved); manual invocations leave
-    # them all None and use the module-level Hyp defaults.
+    # Augmentation CLI overrides are all-or-nothing. Wrapper passes the full cell-config
+    # dict (base + overrides resolved); manual invocations leave them all None and use
+    # the module-level Hyp defaults.
     aug_overrides = [args.p_flip, args.p_jitter, args.cap_y, args.cap_x, args.eps]
-    if any(x is not None for x in aug_overrides):
-        if not all(x is not None for x in aug_overrides):
-            raise ValueError(
-                'Augmentation CLI overrides must be all-or-nothing. Pass either '
-                'all five (--p-flip --p-jitter --cap-y --cap-x --eps) or none.'
-            )
-        hyp = hyp._replace(augmentation={
+    provided = [x is not None for x in aug_overrides]
+    if any(provided) and not all(provided):
+        raise ValueError(
+            'Augmentation CLI overrides must be all-or-nothing. Pass either '
+            'all five (--p-flip --p-jitter --cap-y --cap-x --eps) or none.'
+        )
+    resolved = hyp  # module-level production defaults; the global is never rebound
+    if all(provided):
+        resolved = resolved._replace(augmentation=frozendict({
             'p_flip':   args.p_flip,
             'p_jitter': args.p_jitter,
             'cap_y':    args.cap_y,
             'cap_x':    args.cap_x,
             'eps':      args.eps,
-        })
+        }))
 
     # Cell selectors: override the Hyp defaults when the runner (or a manual
     # invocation) passes them. Each is independent and nullable.
     cell_overrides = {}
-    if args.taxonomy is not None:
+    if args.taxonomy:
         cell_overrides['taxonomy'] = args.taxonomy
-    if args.split_column is not None:
+    if args.split_column:
         cell_overrides['split_column'] = args.split_column
-    if args.collation_id is not None:
+    if args.collation_id:
         cell_overrides['collation_id'] = args.collation_id
-    if args.ablation_id is not None:
+    if args.ablation_id:
         cell_overrides['ablation_id'] = args.ablation_id
     if args.weight_decay is not None:
         cell_overrides['weight_decay'] = args.weight_decay
     if args.n_epochs is not None:
         cell_overrides['n_epochs'] = args.n_epochs
     if cell_overrides:
-        hyp = hyp._replace(**cell_overrides)
+        resolved = resolved._replace(**cell_overrides)
+    return resolved
 
-    # Resolve the taxonomy; its canonical name drives the on-disk dir +
-    # weight-file naming, matching what the collator wrote.
-    taxonomy = taxonomy_lookup(hyp.taxonomy)
 
-    # Collated dir naming via shared helper (mirrored on the prepare_train
-    # writer side); see ``pipeline.config.derive_npy_collated_dir_basename``.
+class RunPaths(NamedTuple):
+    run_dir: Path
+    run_id: str
+    log_path: Path
+    weight_dir: Path
+    collated_root: Path
+    model_info: str
+
+
+def resolve_run_paths(
+    args: argparse.Namespace, hyp: Hyp, taxonomy: Taxonomy,
+) -> RunPaths:
+    """Resolve the run paths and register the run.
+
+    Side effect: creates the test_logs dir and writes the run manifest via track_run, so
+    the manifest exists before any serial appends to it.
+    """
+    # Collated dir naming via shared helper (mirrored on the prepare_train writer side);
+    # see ``pipeline.config.derive_npy_collated_dir_basename``.
     if hyp.seq_len not in (30, 100):
         raise NotImplementedError(f'Unsupported hyp.seq_len={hyp.seq_len!r}; expected 30 or 100.')
     npy_collated_dir = derive_npy_collated_dir_basename(
-        use_3d_pose=hyp.use_3d_pose,
         seq_len=hyp.seq_len,
         split_column=hyp.split_column,
         collation_id=hyp.collation_id,
     )
 
-    # Weights filename suffix. Independent of the collated-dir name; encodes
-    # config knobs that change per run (seq_len-derived window tag, 3d flag,
-    # train_partial). Empty string is a valid value (seq_len=30, 2D, full data).
-    str_3d = '_3d' if hyp.use_3d_pose else ''
+    # Weights filename suffix. Independent of the collated-dir name; encodes config
+    # knobs that change per run (seq_len-derived window tag, train_partial). Empty
+    # string is a valid value (seq_len=30, full data).
     model_info_parts: list[str] = []
     if hyp.seq_len == 100:
-        model_info_parts.append(f'{CLIP_WINDOW}_seq_100{str_3d}')
-    elif hyp.use_3d_pose:
-        model_info_parts.append('3d')
+        model_info_parts.append(f'{CLIP_WINDOW}_seq_100')
     if not 0 < hyp.train_partial <= 1:
         raise ValueError(f'hyp.train_partial must be in (0, 1], got {hyp.train_partial}')
     if hyp.train_partial != 1:
@@ -1284,19 +1198,19 @@ if __name__ == '__main__':
     #   weights/<save_name>.pt (best checkpoint per serial)
     #   tb/serial_N/           (TB event files per serial)
     #   predictions/<split>_serial_N.npz (per-stroke logits + top-k dump)
-    # The runner passes a fixed --run-id across a cell's serials so they share
-    # one run dir + log: serial 1 creates the manifest, later serials append via
-    # track_serial. Weights are per-serial, so re-running a serial with --run-id
-    # finds its .pt and skips training.
+    # The runner passes a fixed --run-id across a cell's serials so they share one run
+    # dir + log: serial 1 creates the manifest, later serials append via track_serial.
+    # Weights are per-serial, so re-running a serial with --run-id finds its .pt and
+    # skips training.
     # ----------------------------------------------------------------------
     timestamp = f'{datetime.now():%Y%m%d_%H%M%S}'
     run_id = args.run_id or f'run_{timestamp}'
 
-    # Test output is auto-teed to a timestamped log file so metrics are never
-    # lost to a dropped terminal. Training stdout stays on terminal only; TB
-    # captures it. One log file per script invocation, all serials inside.
-    # Uses the fresh invocation timestamp (not run_id) so resumed re-tests
-    # don't overwrite the original run's log file.
+    # Test output is auto-teed to a timestamped log file so metrics are never lost to a
+    # dropped terminal. Training stdout stays on terminal only; TB captures it. One log
+    # file per script invocation, all serials inside. Uses the fresh invocation
+    # timestamp (not run_id) so resumed re-tests don't overwrite the original run's log
+    # file.
     #
     # Anchor experiments/ and test_logs/ to the repo-root experiments/bst_x/shuttleset/
     # so write paths don't depend on cwd. Lets `python -m bst_x_train` land outputs in
@@ -1312,11 +1226,16 @@ if __name__ == '__main__':
         collation_id=hyp.collation_id,
         npy_collated_dir=npy_collated_dir,
     )
-    # config.classes lands the resolved class list next to the Hyp dump,
-    # mirroring BRIC's manifest schema; the FE registry reads it without
-    # importing any taxonomy module. track_run treats the dict as a Mapping and
-    # stores it verbatim (config.collation_id / config.ablation_id ride along).
+    # config.classes lands the resolved class list next to the Hyp dump, mirroring
+    # BRIC's manifest schema; the FE registry reads it without importing any taxonomy
+    # module. track_run treats the dict as a Mapping and stores it verbatim
+    # (config.collation_id / config.ablation_id ride along).
     config_payload = dict(hyp._asdict())
+    # The two frozendict fields must land as plain dict: yaml.safe_dump's
+    # representers are exact-type and reject dict subclasses (frozendict included).
+    config_payload['augmentation'] = dict(hyp.augmentation)
+    if hyp.adaptive_focal is not None:
+        config_payload['adaptive_focal'] = dict(hyp.adaptive_focal)
     config_payload['classes'] = list(taxonomy.classes)
     run_dir, run_id = track_run(
         config=config_payload, run_id=run_id, log_path=log_path, extra=extra,
@@ -1330,69 +1249,101 @@ if __name__ == '__main__':
     # canonical name, matching the writer's parent dir. Without the env var the
     # reader looks in-repo while the writer wrote to /scratch, so keep them in sync.
     collated_root = (
-        resolve_collated_data_root()
-        / f'ShuttleSet_data_{taxonomy.name}'
-        / npy_collated_dir
+        resolve_collated_data_root() / f'ShuttleSet_data_{taxonomy.name}' / npy_collated_dir
     )
+    return RunPaths(run_dir, run_id, log_path, weight_dir, collated_root, model_info)
+
+
+def run_serial(
+    serial_no: int, taxonomy: Taxonomy, hyp: Hyp, weight_dir: Path,
+    collated_root: Path, run_dir: Path, model_info: str, tee: Tee,
+) -> None:
+    """Run one serial end to end: build the model, load-or-train its weights,
+    dump per-stroke predictions, test through the tee, and register the serial's
+    metrics in the manifest."""
+    print(f'Running serial {serial_no} ...')
+    task = Task(
+        n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
+        weight_dir=weight_dir,
+    )
+    task.prepare_dataloaders(root_dir=collated_root)
+
+    task.get_network_architecture(model_name='BST_X')
+
+    tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
+    _weight_exists, val_at_best = task.seek_network_weights(
+        model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
+    )
+
+    # Per-stroke logits dump (all splits) for the FE / calibration. Runs
+    # every serial; non-best are pruned manually after the runner finishes.
+    # Returns the per-split dumps so test_metrics/topk_metrics can derive
+    # off the same forward pass.
+    dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
+
+    with redirect_stdout(tee):
+        print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
+        test_metrics = task.test(
+            dump=dumps['test'],
+            show_details=True, show_confusion_matrix=False,
+        )
+        topk_metrics = task.test_topk_acc(dump=dumps['test'], k=2)
+
+    # Writes the manifest entry, and if aim is installed (it isn't on
+    # the HPC train venv, so usually a no-op) mirrors this serial into
+    # Aim as a fresh run each call (aim 3.29 can't reopen a stable
+    # hash). Re-running a serial adds another Aim run rather than
+    # overwriting; the clean, idempotent rebuild is aim_backfill.py --wipe.
+    track_serial(
+        run_dir=run_dir,
+        serial_no=serial_no,
+        weights_path=task.weight_path,
+        tb_dir=tb_dir,
+        metrics={**test_metrics, **topk_metrics},
+        extra=({'val_at_best_macro_epoch': val_at_best}
+               if val_at_best else None),
+    )
+
+    print('Serial', serial_no, 'done.')
+
+
+def main() -> None:
+    # Load .env so BST_X_COLLATED_DATA_ROOT (and any BST_* paths) resolve the
+    # same way the collator does; shell exports still win. No-op without .env.
+    load_repo_dotenv()
+
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    hyp = resolve_hyp(args)  # main-local shadow of the module global
+
+    # Resolve the taxonomy; its canonical name drives the on-disk dir +
+    # weight-file naming, matching what the collator wrote.
+    taxonomy = taxonomy_lookup(hyp.taxonomy)
+
+    run_paths = resolve_run_paths(args, hyp, taxonomy)
 
     # Per-serial invocation: run only the requested serial. Otherwise loop the
     # manual default of 5. Log open mode flips to append for serial-no > 1 so
     # later per-serial invocations don't clobber the earlier blocks.
-    if args.serial_no is not None:
+    if args.serial_no:
         serial_range = range(args.serial_no, args.serial_no + 1)
         log_open_mode = 'a' if args.serial_no > 1 else 'w'
     else:
         serial_range = range(1, 6)
         log_open_mode = 'w'
 
-    with open(log_path, log_open_mode) as log_f:
+    with open(run_paths.log_path, log_open_mode) as log_f:
         tee = Tee(sys.stdout, log_f)
         _print_taxonomy_block(taxonomy, tee)
         for serial_no in serial_range:
-            print(f'Running serial {serial_no} ...')
-            task = Task(
-                n_joints=COCO_N_JOINTS, taxonomy=taxonomy, hyp=hyp,
-                weight_dir=weight_dir,
-            )
-            task.prepare_dataloaders(root_dir=collated_root)
-
-            task.get_network_architecture(model_name='BST_X', in_channels=(3 if hyp.use_3d_pose else 2))
-
-            tb_dir = run_dir / 'tb' / f'serial_{serial_no}'
-            _weight_exists, val_at_best = task.seek_network_weights(
-                model_info=model_info, serial_no=serial_no, tb_dir=tb_dir,
+            run_serial(
+                serial_no, taxonomy, hyp, run_paths.weight_dir, run_paths.collated_root,
+                run_paths.run_dir, run_paths.model_info, tee,
             )
 
-            # Per-stroke logits dump (all splits) for the FE / calibration. Runs
-            # every serial; non-best are pruned manually after the runner finishes.
-            # Returns the per-split dumps so test_metrics/topk_metrics can derive
-            # off the same forward pass.
-            dumps = task.dump_predictions(run_dir=run_dir, serial_no=serial_no, k=5)
+    print(f'\nTest log saved to: {run_paths.log_path}')
+    print(f'Run manifest:    {run_paths.run_dir / "manifest.yaml"}')
 
-            with redirect_stdout(tee):
-                print(f'\n=== Serial {serial_no} ({task.display_name}) ===')
-                test_metrics = task.test(
-                    dump=dumps['test'],
-                    show_details=True, show_confusion_matrix=False,
-                )
-                topk_metrics = task.test_topk_acc(dump=dumps['test'], k=2)
 
-            # Writes the manifest entry, and if aim is installed (it isn't on
-            # the HPC train venv, so usually a no-op) mirrors this serial into
-            # Aim as a fresh run each call (aim 3.29 can't reopen a stable
-            # hash). Re-running a serial adds another Aim run rather than
-            # overwriting; the clean, idempotent rebuild is aim_backfill.py --wipe.
-            track_serial(
-                run_dir=run_dir,
-                serial_no=serial_no,
-                weights_path=task.weight_path,
-                tb_dir=tb_dir,
-                metrics={**test_metrics, **topk_metrics},
-                extra=({'val_at_best_macro_epoch': val_at_best}
-                       if val_at_best else None),
-            )
-
-            print('Serial', serial_no, 'done.')
-
-    print(f'\nTest log saved to: {log_path}')
-    print(f'Run manifest:    {run_dir / "manifest.yaml"}')
+if __name__ == '__main__':
+    main()

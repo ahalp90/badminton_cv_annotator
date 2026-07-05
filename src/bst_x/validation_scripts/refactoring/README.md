@@ -10,7 +10,7 @@ equivalence gates land here too.
 | Script | Surface | Cost | Venv | Why it's needed |
 |---|---|---|---|---|
 | `smoke_infer_bit_exact.py` | `bst_x_infer.py` (build_bst_x_network adoption) | ~10 min on HPC | venv-bst-x | Inference path; bit-compares predictions between two branches |
-| `smoke_prepare_2d_bit_exact.py` | `prepare_train_on_shuttleset._prepare_dataset_from_raw_video` lift | ~30-60 min on HPC | venv-mmpose | Pose-extraction path; bit-compares per-stem clean output between two branches |
+| `smoke_prepare_2d_bit_exact.py` | `preparing_data.prepare_train_on_shuttleset.prepare_dataset_npy_from_raw_video` lift | ~30-60 min on HPC | venv-mmpose | Pose-extraction path; bit-compares per-stem clean output between two branches |
 
 ## Simplification pass
 

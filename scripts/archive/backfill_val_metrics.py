@@ -20,7 +20,7 @@ Idempotent: re-running overwrites the four keys. Once a serial's npz is pruned i
 keeps any accuracy/top2 already written, so a second pass over a trimmed run dir
 is safe.
 
-usage: python src/bst_x/backfill_val_metrics.py <run_dir>
+usage: python scripts/archive/backfill_val_metrics.py <run_dir>
 """
 import sys
 from pathlib import Path

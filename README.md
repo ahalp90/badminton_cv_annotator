@@ -67,7 +67,7 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 - `src/api/` — FastAPI service: model registry endpoints (browse precomputed predictions), upload + inference orchestration (live BRIC uploads + live BST-X library clips; BST-X arbitrary-upload path stubbed)
 - `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs; not wired into the frontend yet
 - `frontend/` — React + Vite app; the deployed demo
-- `scripts/` — cross-cutting setup and shared data-prep (e.g. `build_shots_master.py`, `validate_videos.py`, `setup_data.sh`, `dev-setup.sh`). Per-architecture scripts live with their architecture
+- `scripts/` — cross-cutting setup and shared data-prep (e.g. `build_shots_master.py`, `validate_videos.py`, `dev-setup.sh`). Per-architecture scripts live with their architecture
 - `training/` — per-model training data, caches, and run artefacts (gitignored)
 - `runtime/` — runtime state for the API + inference jobs (gitignored)
 - `docs/architecture_notes/` — design docs, experiment writeups, taxonomy and loss exploration

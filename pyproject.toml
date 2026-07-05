@@ -52,6 +52,7 @@ dependencies = [
     # Runtime type + shape enforcement for tensor-shape/dtype contracts.
     "jaxtyping",
     "beartype",
+    "frozendict>=2.4,<3",
 ]
 
 [project.optional-dependencies]

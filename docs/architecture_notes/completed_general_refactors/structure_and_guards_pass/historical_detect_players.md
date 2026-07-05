@@ -1,5 +1,15 @@
 # `detect_players_2d` / `detect_players_3d`: function invariants
 
+> **Status (3D stream removed).** `detect_players_3d` and
+> `prepare_3d_dataset_npy_from_raw_video` were deleted from the tree; only the 2D
+> path survives. The `--use-3d-pose` flag, the `_3d` / `3d_` naming tags, and the
+> `in_channels` fork went with them. The 2D-vs-3D comparison and the 3D-specific
+> invariants below are kept as the historical record of the shared-body extract
+> (the `_order_two_on_court` lift that landed at `41719e4`); read the 3D content as
+> "what the 3D twin did", not as live code. The removed stream's design and revival
+> checklist live in the sibling
+> `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md`.
+
 > _Last verified: 2026-06-29 against pre-pass `main`. Line refs are pre-pass; the
 > simplification-pass commits between then and `18e5c2c` shifted line numbers. The
 > invariants below are the durable content; re-verify line refs before relying on

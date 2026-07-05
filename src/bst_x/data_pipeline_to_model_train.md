@@ -153,7 +153,7 @@ The pipeline produces **video clips** and **shuttle .npy files**. BST-X does not
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
+| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
 
 #### Setup
 
@@ -195,7 +195,7 @@ python -m preparing_data.prepare_train_on_shuttleset --skip-pose \
 python -m preparing_data.prepare_train_on_shuttleset
 ```
 
-Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--use-3d-pose`, `--skip-pose`, `--skip-collate`, `--clips-dir`, `--shuttle-npy-dir` (default: `data/shuttleset/shuttle_npy/`), `--dry-run`.
+Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--skip-pose`, `--skip-collate`, `--clips-dir`, `--shuttle-npy-dir` (default: `data/shuttleset/shuttle_npy/`), `--dry-run`.
 
 #### Data transformations in detail
 
@@ -217,7 +217,7 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 #### Collated output structure
 
 ```
-preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[3d_][seq{N}_]{split}_{collation_id}/
+preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[seq{N}_]{split}_{collation_id}/
   train/
     JnB_bone.npy                                    # default single pose file
     pos.npy, shuttle.npy, videos_len.npy, labels.npy
@@ -351,7 +351,7 @@ For ad-hoc queries or when a Dataset wants a higher-level "give me clip + shuttl
 | Module | Role |
 |--------|------|
 | `tempose.py` | Building blocks reused by BST-X: `TCN` (dilated 1D temporal convolutions), `MLP`, `MLP_Head` (LayerNorm + MLP), `FeedForward` (MLP + Dropout), `MultiHeadAttention`, `TransformerLayer`, `TransformerEncoder`. The four standalone TemPose variants (`TemPose_V`/`PF`/`SF`/`TF`) were excised pre-phase-2 and live verbatim in `docs/architecture_notes/historical_bst.md` section 1. |
-| `bst.py` | The BST-X model. Imports `TCN`, `FeedForward`, `MLP`, `MLP_Head`, `TransformerEncoder` from `tempose.py`. Adds `MultiHeadCrossAttention` and `CrossTransformerLayer` for player-shuttle interaction. Also defines pre-configured variant partials (`BST_0`, `BST_PPF`, `BST_CG`, `BST_AP`, `BST_CG_AP`) — these are the single source of truth for variant flag combinations, imported by the train/infer scripts. |
+| `bst.py` | The BST-X model. Imports `TCN`, `FeedForward`, `MLP`, `MLP_Head`, `TransformerEncoder` from `tempose.py`. Adds `MultiHeadCrossAttention` and `CrossTransformerLayer` for player-shuttle interaction. Exposes `BST_CG_AP` as a plain alias of the one `BST` graph (PPF, CG and AP always on), imported unchanged by the train/infer scripts. |
 
 #### BST-X architecture (forward pass)
 
@@ -375,13 +375,13 @@ The training loop calls `model.set_schedule_factors(cg_factor, ap_factor)` once 
 
 #### BST variants
 
+One graph now: PPF, CG and AP always run. `BST_CG_AP` stays as a plain alias of `BST` so the registry and train/infer scripts import an unchanged name.
+
 ```python
-BST_0     = BST(use_ppf=False, use_cg=False, use_ap=False)  # Bare transformer
-BST_PPF   = BST(use_ppf=True,  use_cg=False, use_ap=False)  # + Pose Position Fusion
-BST_CG    = BST(use_ppf=True,  use_cg=True,  use_ap=False)  # + Clean Gate
-BST_AP    = BST(use_ppf=True,  use_cg=False, use_ap=True)   # + Aim Player
-BST_CG_AP = BST(use_ppf=True,  use_cg=True,  use_ap=True)   # Full model
+BST_CG_AP = BST  # PPF/CG/AP always on; the one graph the project trains
 ```
+
+The old `use_ppf` / `use_cg` / `use_ap` flags and the `BST_0` / `BST_PPF` / `BST_CG` / `BST_AP` partials came out when CG and AP went always-on; their wiring lives in `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md`.
 
 #### Key hyperparameters (defaults from `bst_x_train.py`)
 
@@ -408,7 +408,7 @@ Stage 5 spans two files:
 
 | Name | Lives in | Role |
 |------|----------|------|
-| `Hyp` (namedtuple) | `bst_x_train.py` | Active training config, in the `Hyp`/`hyp` block near the top of `bst_x_train.py`.<br>• Schedule: `n_epochs=80`, `early_stop_n_epochs=40`, `warm_up_step=100`, `use_aux_schedule=True`, `aux_fade_end_epoch=15` (compressed warm-start-then-finetune, paired with the CG/AP cosine fade).<br>• Data: `taxonomy='une_v1_14'`, `split_column='split_v2'`, `collation_id='taxon_pinned_w_preds'`, `seq_len=100`, `pose_style='JnB_bone'`, `use_3d_pose=False`, `train_partial=1.0`.<br>• Optim: `batch_size=128`, `lr=5e-4`.<br>• `ablation_id` is a nullable training-time tag, separate from the `collation_id` path tag. `drop_unknown`/`expected_active_classes` were removed in the taxon_pinned_w_preds refactor: `excluded_base_stroke_types` carries the unknown-drop rule and labels.npy lands in active class space.<br>• BST-paper originals (`n_epochs=1600`, `warm_up_step=400`, `early_stop_n_epochs=300`, `taxonomy='merged_25'`, `aux_fade_end_epoch=60`) live verbatim in `historical_bst.md`; current LR + schedule rationale in `bst_x_overview.md`. |
+| `Hyp` (namedtuple) | `bst_x_train.py` | Active training config, in the `Hyp`/`hyp` block near the top of `bst_x_train.py`.<br>• Schedule: `n_epochs=80`, `early_stop_n_epochs=40`, `warm_up_step=100`, `use_aux_schedule=True`, `aux_fade_end_epoch=15` (compressed warm-start-then-finetune, paired with the CG/AP cosine fade).<br>• Data: `taxonomy='une_v1_14'`, `split_column='split_v2'`, `collation_id='taxon_pinned_w_preds'`, `seq_len=100`, `pose_style='JnB_bone'`, `train_partial=1.0`.<br>• Optim: `batch_size=128`, `lr=5e-4`.<br>• `ablation_id` is a nullable training-time tag, separate from the `collation_id` path tag. `drop_unknown`/`expected_active_classes` were removed in the taxon_pinned_w_preds refactor: `excluded_base_stroke_types` carries the unknown-drop rule and labels.npy lands in active class space.<br>• BST-paper originals (`n_epochs=1600`, `warm_up_step=400`, `early_stop_n_epochs=300`, `taxonomy='merged_25'`, `aux_fade_end_epoch=60`) live verbatim in `historical_bst.md`; current LR + schedule rationale in `bst_x_overview.md`. |
 | `train_one_epoch()` | `bst_x_train.py` | Standard PyTorch training loop: forward pass, cross-entropy loss (with label smoothing 0.1), backward, optimizer step, scheduler step. Applies the live augmentations (`CoupledFlip` then `ConstrainedJitter`) per batch and accumulates per-class TP/FP/FN counts via `accumulate_class_counts` for downstream `AdaptiveFocalLoss.update_alpha`. |
 | `validate()` | `bst_x_train.py` | Evaluates on val set. Accumulates per-class TP/FP/FN across batches, computes macro F1 and min-class F1. |
 | `Task.test()` | `bst_x_train.py` | Derives top-1 macro/min F1 + accuracy from a precomputed test-split dump (no second forward pass); returns a metrics dict. |
@@ -416,7 +416,7 @@ Stage 5 spans two files:
 | `Task.dump_predictions()` | `bst_x_train.py` | Runs each split through one shuffle=False forward pass, writes the per-split prediction npz (logits + y_true + top-k + clip_stems), and returns the per-split dumps so `Task.test()` / `Task.test_topk_acc()` can reuse the test dump. |
 | `train_network()` | `bst_x_train.py` | Full training loop with AdamW optimizer, cosine LR schedule with warmup, early stopping on macro F1, and best-checkpoint saving. Applies the CG/AP warm-start schedule at the top of each epoch via `model.set_schedule_factors(cg_factor, ap_factor)`. Logs per-epoch scalars (`Loss/Train`, `Loss/Val`, `F1/Val_macro`, `F1/Val_min`, `Schedule/aux_factor`) plus an end-of-run **HParams** entry: best + 2nd-best macro F1 and min F1 (with their epochs), best val loss (with epoch), and `stopped_epoch`. `stopped_epoch - best/macro_f1_epoch == early_stop_n_epochs` confirms a clean early-stop vs a crash. |
 | `Task` (class) | `bst_x_train.py` | Orchestrates the full workflow: `prepare_dataloaders()` -> `get_network_architecture()` -> `seek_network_weights()` (loads existing or trains) -> `test()`. |
-| `MODELS` (dict) | `bst_x_common.py` | Maps variant names (`'BST_0'`, `'BST'`, etc.) to pre-configured partials imported from `model/bst.py`. Single dispatch point shared by `bst_x_train.py` and `bst_x_infer.py`. |
+| `MODELS` (dict) | `bst_x_common.py` | Maps model names (`'BST_CG_AP'`, `'BST_X'`) to the one `BST` graph imported from `model/bst.py`, with a commented `'BST_X_RGB'` placeholder parked for the X3D-S fusion variant. Single dispatch point shared by `bst_x_train.py` and `bst_x_infer.py`. |
 | `build_bst_x_network()` | `bst_x_common.py` | Builds the network from `MODELS[name]` and returns `(net, n_bones)`. `n_bones` is the trailing-bone-channel count derived from `pose_style` x `get_bone_pairs()` and is the single source of truth used downstream. |
 | `Tee` (class) | `bst_x_common.py` | Duplicates writes across multiple streams (terminal + file). Used by `bst_x_train.py`'s `__main__` to auto-tee test output to `test_logs/test_<timestamp>.log` so test metrics survive a dropped terminal. Training output stays terminal-only (TB has it). |
 | `compute_data_provenance()` | `bst_x_common.py` | Hashes `clips_master.csv` + collated-dir naming into the `extra:` block of the manifest so each run is rebindable to its exact data input. |
@@ -426,7 +426,7 @@ Stage 5 spans two files:
 ```
 Task(taxonomy, hyp)
   .prepare_dataloaders(root_dir)
-  .get_network_architecture(model_name='BST_CG_AP', in_channels=2)
+  .get_network_architecture(model_name='BST_CG_AP')
   .seek_network_weights(model_info, serial_no)   # trains if no checkpoint found
   dumps = .dump_predictions(run_dir, serial_no, k=5)   # one forward pass per split
   .test(dump=dumps['test'], show_details, show_confusion_matrix)
@@ -501,10 +501,10 @@ pipeline/build_dataset.py             # Orchestrates Steps 1-6 (--taxonomy flag)
     v  (produces data/shuttleset/clips/ and data/shuttleset/shuttle_npy/)
     |
 preparing_data/prepare_train_on_shuttleset.py  (--taxonomy, --split-column, --collation-id, --clip-npy-dir)
-  -> MMPose (2D/3D pose estimation)   # Writes {clip_stem}_*.npy flat
+  -> MMPose (2D pose estimation)   # Writes {clip_stem}_*.npy flat
   -> collate_npy(clips_csv, split_column, taxonomy, ...)  # CSV-driven; stacks per collation
     |
-    v  (produces preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[3d_][seq{N}_]{split}_{collation_id}/)
+    v  (produces preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[seq{N}_]{split}_{collation_id}/)
     |
 validation_scripts/validate_zeroed_frames.py  # Data quality check (optional, pre-training)
   -> validation_scripts/hit_frame_lookup.py   # Hit-frame index derivation from set CSVs

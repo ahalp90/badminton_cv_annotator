@@ -18,7 +18,6 @@ from torch import nn, Tensor
 from beartype import beartype
 from jaxtyping import Bool, Float32, Int64, jaxtyped
 from positional_encodings.torch_encodings import PositionalEncoding1D
-from functools import partial
 
 # Building blocks defined in tempose.py:
 #   TCN                temporal convolution network (dilated 1D convs over time)
@@ -59,6 +58,7 @@ class MultiHeadCrossAttention(nn.Module):
         # (nn.Identity) if the dimensions already match.
         self.tail = nn.Sequential(
             nn.Linear(d_cat, d_model),
+            # inplace ok here: nothing reads this output in backward, unlike the attention dropout above
             nn.Dropout(drop_p, inplace=True)
         ) if n_head != 1 or d_cat != d_model else nn.Identity()
 
@@ -89,6 +89,10 @@ class MultiHeadCrossAttention(nn.Module):
         # mask: (b, t): True for real frames, False for padding
         mask = mask.view(b, 1, 1, t)
         # Padded positions -> -inf so softmax gives them zero weight
+        # A fully-masked row would make softmax(all -inf) = NaN, but that can't
+        # happen: shuttleset_dataset drops zero-length clips, so every clip
+        # keeps at least one real frame. (The mask here is frame-only; the
+        # caller strips the CLS slot before handing it over.)
         dots = dots.masked_fill(~mask, -torch.inf)
 
         coef = self.attend(dots)  # softmax -> dropout
@@ -134,37 +138,30 @@ class CrossTransformerLayer(nn.Module):
 
 
 class BST(nn.Module):
-    '''Unified BST (Badminton Stroke-type Transformer) with optional modules.
+    '''BST (Badminton Stroke-type Transformer): the one graph this project trains.
 
-    Three boolean flags control which optional modules are active:
-      use_ppf : Pose Position Fusion, fuses court xy into skeleton features before TCN
-      use_cg  : Clean Gate, subtracts shared player noise from shuttle representation
-      use_ap  : Aim Player, weights player contributions by cosine similarity to shuttle
+    Pose Position Fusion (PPF), Clean Gate (CG) and Aim Player (AP) always run;
+    each module's mechanics are commented at its definition below. This is the
+    combination the BST paper calls BST_CG_AP, and every checkpoint on disk is
+    this graph.
 
-    Original variant mapping:
-      BST_0     = BST(use_ppf=False, use_cg=False, use_ap=False)
-      BST (PPF) = BST(use_ppf=True,  use_cg=False, use_ap=False)
-      BST_CG    = BST(use_ppf=True,  use_cg=True,  use_ap=False)
-      BST_AP    = BST(use_ppf=True,  use_cg=False, use_ap=True)
-      BST_CG_AP = BST(use_ppf=True,  use_cg=True,  use_ap=True)
+    The old variant flags (use_ppf / use_cg / use_ap) and the four unused partials
+    they fed came out once CG and AP went always-on. Their wiring, and what
+    re-adding a variant would touch, lives in
+    docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md.
     '''
     def __init__(
-        self, in_dim, seq_len, n_class, n_people=2,
+        self, in_dim, seq_len, n_classes, n_players=2,
         d_model=100, d_head=128, n_head=6, depth_tem=2, depth_inter=1,
         drop_p=0.3, mlp_d_scale=4, tcn_kernel_size=5,
-        use_ppf=True, use_cg=False, use_ap=False
     ):
         super().__init__()
-        if n_people > 2:
+        if n_players > 2:
             raise NotImplementedError
 
-        self.use_ppf = use_ppf
-        self.use_cg = use_cg
-        self.use_ap = use_ap
-
-        # --- Optional: Pose Position Fusion (PPF) ---
+        # --- Pose Position Fusion (PPF) ---
         # Projects 2D court positions to in_dim and fuses with skeleton via multiplication
-        self.mlp_positions = MLP(2, out_dim=in_dim, hd_dim=256, drop_p=drop_p) if use_ppf else None
+        self.mlp_positions = MLP(2, out_dim=in_dim, hd_dim=256, drop_p=drop_p)
 
         # --- TCN feature extractors (dilated 1D convs over time) ---
         # in_dim -> [d_model, d_model] means two conv layers, both outputting d_model channels.
@@ -192,18 +189,18 @@ class BST(nn.Module):
         self.embedding_inter = nn.Parameter(torch.empty(1, 1+seq_len, d_model))
         self.encoder_inter = TransformerEncoder(d_model, d_head, n_head, depth_inter, d_model * mlp_d_scale, drop_p)
 
-        # --- Optional: Aim Player (AP) ---
+        # --- Aim Player (AP) ---
         # Cosine similarity between player and shuttle representations determines alpha weighting
-        self.cos_sim = nn.CosineSimilarity() if use_ap else None
+        self.cos_sim = nn.CosineSimilarity()
 
-        # --- Optional: Clean Gate (CG) ---
+        # --- Clean Gate (CG) ---
         # MLP learns what shared player noise to subtract from shuttle representation
-        self.mlp_clean = MLP(d_model, d_model, d_model, drop_p) if use_cg else None
+        self.mlp_clean = MLP(d_model, d_model, d_model, drop_p)
 
         # --- MLP Head ---
-        # AP without CG drops shuttle from head input (2*d_model vs 3*d_model)
-        head_dim = d_model * 2 if (use_ap and not use_cg) else d_model * 3
-        self.mlp_head = MLP_Head(head_dim, n_class, d_model * mlp_d_scale, drop_p)
+        # Head reads three CLS streams stacked: p1_conclusion, p2_conclusion, shuttle_cls
+        head_dim = d_model * 3
+        self.mlp_head = MLP_Head(head_dim, n_classes, d_model * mlp_d_scale, drop_p)
 
         self.d_model = d_model
 
@@ -255,56 +252,54 @@ class BST(nn.Module):
         # .apply() runs the given function on every sub-module recursively.
         self.apply(self.init_weights_recursive)
 
-    def init_weights_recursive(self, m):
+    def init_weights_recursive(self, module):
         """Per-submodule init called by .apply(). Xavier keeps signal variance
         stable through deep networks."""
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.Conv1d):
-            nn.init.xavier_normal_(m.weight)
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.constant_(module.bias, 0)
+        elif isinstance(module, nn.Conv1d):
+            nn.init.xavier_normal_(module.weight)
 
     @jaxtyped(typechecker=beartype)
     def forward(
         self,
         JnB: Float32[Tensor, 'batch time players in_dim'],  # skeleton joint/bone features per player
         shuttle: Float32[Tensor, 'batch time 2'],           # shuttle xy per frame
-        # court xy per player; read only when use_ppf, so None is honest otherwise.
-        pos: Float32[Tensor, 'batch time players 2'] | None = None,
+        pos: Float32[Tensor, 'batch time players 2'],       # court xy per player, fused by PPF
         *,  # video_len stays required; callers name it (and pos) at the call site
         video_len: Int64[Tensor, 'batch'],                  # real frame count per sample (rest is zero-padding)
-    ) -> Float32[Tensor, 'batch n_class']:
-        """Forward pass. Shape key: b=batch, t=timesteps, n=players(2), d=d_model(100).
+    ) -> Float32[Tensor, 'batch classes']:
+        """Forward pass. Shape key: b=batch, t=timesteps, n_players=2, d=d_model(100).
         Pipeline: TCN -> Temporal Transformer -> Cross Transformer -> Interactional Transformer -> Head
 
         t must equal the seq_len the model was built with: shorter clips are
         padded upstream and masked via video_len. The positional embeddings are
         sized 1+seq_len at construction, so any other t crashes the broadcast.
         """
-        b, t, n_people, input_dim = JnB.shape
+        b, t, n_players, input_dim = JnB.shape
         # Conv1d wants (batch, channels, length); stack both players in the batch dim
         # so the TCN processes them in parallel.
-        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
-        # JnB: (b*n_people, input_dim, t)
+        JnB = JnB.permute(0, 2, 3, 1).reshape(b*n_players, input_dim, t)
+        # JnB: (b*n_players, input_dim, t)
 
         # ====================================================================
         # [PPF] Pose Position Fusion: modulate skeleton features by court position
         # ====================================================================
-        if self.use_ppf:
-            pos = self.mlp_positions(pos)
-            # pos: (b, t, n, input_dim)
-            pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_people, input_dim, t)
-            # pos_impact: (b*n_people, input_dim, t)
-            JnB = JnB * pos_impact + JnB
-            # Multiplicative fusion with residual: JnB * (1 + pos_impact)
+        pos = self.mlp_positions(pos)
+        # pos: (b, t, n_players, input_dim)
+        pos_impact = pos.permute(0, 2, 3, 1).reshape(b*n_players, input_dim, t)
+        # pos_impact: (b*n_players, input_dim, t)
+        JnB = JnB * pos_impact + JnB
+        # Multiplicative fusion with residual: JnB * (1 + pos_impact)
 
         # ====================================================================
         # TCN: extract temporal features from pose and shuttle
         # ====================================================================
         JnB = self.tcn_pose(JnB)
-        JnB = JnB.view(b, n_people, -1, t).transpose(-2, -1)
-        # JnB: (b, n_people, t, d_model)
+        JnB = JnB.view(b, n_players, -1, t).transpose(-2, -1)
+        # JnB: (b, n_players, t, d_model)
 
         # .contiguous() kept on purpose: Conv1d accepts strided input, but a
         # contiguous buffer here is a perf choice, not a .view() prerequisite.
@@ -315,7 +310,7 @@ class BST(nn.Module):
         # shuttle: (b, 1, t, d_model)
 
         x = torch.cat((JnB, shuttle), dim=1)
-        # x: (b, n_streams, t, d_model) where n_streams = n_people + 1 = 3 (p1, p2, shuttle)
+        # x: (b, n_streams, t, d_model) where n_streams = n_players + 1 = 3 (p1, p2, shuttle)
         _, n_streams, _, d = x.shape
 
         # ====================================================================
@@ -347,7 +342,7 @@ class BST(nn.Module):
         # ====================================================================
         # Split the 3 streams back apart and extract their CLS tokens
         # ====================================================================
-        p1, p2, shuttle = map(lambda ts: ts.squeeze(1), x.chunk(3, dim=1))
+        p1, p2, shuttle = x[:, 0], x[:, 1], x[:, 2]
         # p1, p2, shuttle: each (b, 1+t, d_model)
 
         # CLS tokens (position 0): learned summaries of each stream
@@ -393,78 +388,62 @@ class BST(nn.Module):
         # ====================================================================
         # [AP] Aim Player: weight player contributions by shuttle similarity
         # ====================================================================
-        if self.use_ap:
-            p1_shuttle_sim = self.cos_sim(p1_shuttle_cls, shuttle_cls)
-            p2_shuttle_sim = self.cos_sim(p2_shuttle_cls, shuttle_cls)
-            alpha: Tensor = (p1_shuttle_sim - p2_shuttle_sim + 2) / 4
-            # alpha: (b,) in [0, 1]: higher means p1 is more relevant
-            alpha = alpha.unsqueeze(1)
-            # alpha: (b, 1)
-            # Warm-start schedule: blend each multiplier toward 1.0 as ap_factor -> 0.
-            # ap_factor=1 recovers original AP; ap_factor=0 makes both multipliers exactly 1
-            # (pass-through: p1_conclusion and p2_conclusion are unchanged).
-            eff_alpha_p1 = self.ap_factor * alpha + (1 - self.ap_factor)
-            eff_alpha_p2 = self.ap_factor * (1 - alpha) + (1 - self.ap_factor)
-            p1_conclusion = eff_alpha_p1 * p1_conclusion
-            p2_conclusion = eff_alpha_p2 * p2_conclusion
+        p1_shuttle_sim = self.cos_sim(p1_shuttle_cls, shuttle_cls)
+        p2_shuttle_sim = self.cos_sim(p2_shuttle_cls, shuttle_cls)
+        alpha: Tensor = (p1_shuttle_sim - p2_shuttle_sim + 2) / 4
+        # alpha: (b,) in [0, 1]: higher means p1 is more relevant
+        alpha = alpha.unsqueeze(1)
+        # alpha: (b, 1)
+        # Warm-start schedule: blend each multiplier toward 1.0 as ap_factor -> 0.
+        # ap_factor=1 recovers original AP; ap_factor=0 makes both multipliers exactly 1
+        # (pass-through: p1_conclusion and p2_conclusion are unchanged).
+        eff_alpha_p1 = self.ap_factor * alpha + (1 - self.ap_factor)
+        eff_alpha_p2 = self.ap_factor * (1 - alpha) + (1 - self.ap_factor)
+        p1_conclusion = eff_alpha_p1 * p1_conclusion
+        p2_conclusion = eff_alpha_p2 * p2_conclusion
 
         # ====================================================================
         # [CG] Clean Gate: remove shared player noise from shuttle
         # ====================================================================
-        if self.use_cg:
-            info_need_clean = torch.minimum(p1_shuttle_cls, p2_shuttle_cls)
-            dirt = self.mlp_clean(info_need_clean)
-            # Warm-start schedule: cg_factor=1 applies full CG; cg_factor=0 bypasses it.
-            shuttle_cls = shuttle_cls - self.cg_factor * dirt
+        info_need_clean = torch.minimum(p1_shuttle_cls, p2_shuttle_cls)
+        dirt = self.mlp_clean(info_need_clean)
+        # Warm-start schedule: cg_factor=1 applies full CG; cg_factor=0 bypasses it.
+        shuttle_cls = shuttle_cls - self.cg_factor * dirt
 
         # ====================================================================
         # MLP Head: final classification
         # ====================================================================
-        # AP without CG drops shuttle (shuttle info is encoded in alpha weighting)
-        if self.use_ap and not self.use_cg:
-            x = torch.cat((p1_conclusion, p2_conclusion), dim=1)
-            # x: (b, 2*d_model)
-        else:
-            x = torch.cat((p1_conclusion, p2_conclusion, shuttle_cls), dim=1)
-            # x: (b, 3*d_model)
+        # CG keeps shuttle_cls in the head (it edits that vector), so all three
+        # streams stack: p1_conclusion, p2_conclusion, shuttle_cls.
+        x = torch.cat((p1_conclusion, p2_conclusion, shuttle_cls), dim=1)
+        # x: (b, 3*d_model)
 
         x = self.mlp_head(x)
         return x
 
 
-# ==========================================================================
-# Pre-configured BST variants: the single source of truth for flag combos.
-# partial(BST, use_ppf=True, ...) pre-fills the flags, so BST_CG_AP(in_dim=72, ...)
-# behaves like a class with those options already set.
-# ==========================================================================
-BST_0 = partial(BST, use_ppf=False, use_cg=False, use_ap=False)
-BST_PPF = partial(BST, use_ppf=True, use_cg=False, use_ap=False)
-BST_CG = partial(BST, use_ppf=True, use_cg=True, use_ap=False)
-BST_AP = partial(BST, use_ppf=True, use_cg=False, use_ap=True)
-BST_CG_AP = partial(BST, use_ppf=True, use_cg=True, use_ap=True)
+# BST_CG_AP is the one graph now; the name stays as a plain alias so the
+# registry and the train/infer scripts keep importing it unchanged.
+BST_CG_AP = BST
 
 
 if __name__ == '__main__':
     from pipeline.config import taxonomy_lookup
-    n_class = taxonomy_lookup('une_v1_14').n_classes
+    n_classes = taxonomy_lookup('une_v1_14').n_classes
 
-    b, t, n = 1, 100, 2
+    b, t, n_players = 1, 100, 2
     # in_dim per player = (joints + bones) * xy channels. n_bones = 19 bone pairs
     # * POSE_BONE_MULTIPLIER['JnB_bone'] (=1); Jn2B would double it.
     n_joints, n_bones, in_channels = 17, 19, 2
     n_features = (n_joints + n_bones) * in_channels
-    pose = torch.randn((b, t, n, n_features), dtype=torch.float)
+    pose = torch.randn((b, t, n_players, n_features), dtype=torch.float)
     shuttle = torch.randn((b, t, 2), dtype=torch.float)
-    pos = torch.randn((b, t, n, 2), dtype=torch.float)
+    pos = torch.randn((b, t, n_players, 2), dtype=torch.float)
     videos_len = torch.tensor([t], dtype=torch.long).repeat(b)
 
-    # Test all variants produce valid output shapes
+    # Build the one graph and check it produces a valid output shape
     variants = {
-        'BST_0':     BST_0(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
-        'BST_PPF':   BST_PPF(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
-        'BST_CG':    BST_CG(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
-        'BST_AP':    BST_AP(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
-        'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_class=n_class, d_model=100),
+        'BST_CG_AP': BST_CG_AP(in_dim=n_features, seq_len=t, n_classes=n_classes, d_model=100),
     }
     for name, model in variants.items():
         output = model(pose, shuttle, pos=pos, video_len=videos_len)

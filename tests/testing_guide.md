@@ -38,12 +38,12 @@ This runs all tests except the HPC integration test, which auto-skips when `BST_
 - **Prerequisites:** Project dependencies
 
 ### `test_integration.py`
-**End-to-end downstream pipeline test.** Validates the full path from real preprocessed npy files through to a BST_0 forward pass:
+**End-to-end downstream pipeline test.** Validates the full path from real preprocessed npy files through to a BST_CG_AP forward pass:
 
 1. Load real npy files via `Dataset_npy_collated`
 2. Batch via `DataLoader`
 3. Flatten pose tensor (mirrors `bst_x_train.py:101`)
-4. Run `BST_0` forward pass
+4. Run `BST_CG_AP` forward pass
 5. Verify output shape is `(batch_size, n_classes)`
 
 - **Prerequisites:** Preprocessed npy dataset (output of `prepare_train_on_shuttleset.py`)
@@ -59,7 +59,7 @@ Historical note: pre-2026-04-21 collated dirs used a longer prefix (`dataset_npy
 
 Without `BST_X_DATA_DIR` set, this test auto-skips.
 
-**Note:** This test validates against `BST_0`, the baseline and parent class for BST-origin architectures. It covers the shared data pipeline (pose, shuttle, position npy files) but will need to evolve as Arch 1 and Arch 2 mature — Arch 1 will additionally ingest 3D CNN latent representations, and Arch 2 will have its own 3D CNN latents, TrackNet npy data, and potentially other input streams.
+**Note:** This test validates against `BST_CG_AP`, the one BST graph the project trains (`BST_X` is its project alias). It covers the shared data pipeline (pose, shuttle, position npy files) but will need to evolve as Arch 1 and Arch 2 mature — Arch 1 will additionally ingest 3D CNN latent representations, and Arch 2 will have its own 3D CNN latents, TrackNet npy data, and potentially other input streams.
 
 ## CI
 
