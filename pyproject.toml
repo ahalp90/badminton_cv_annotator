@@ -17,8 +17,7 @@ requires-python = ">=3.11"
 #     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
 #     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
 #     isolation, but still lives in a separate build venv managed outside this
-#     pyproject. The numpy<2 OpenMMLab stack remains only as the env for the
-#     parked 3D pose stream design (src/bst_x/preparing_data/requirements-legacy-3d.txt).
+#     pyproject. The numpy<2 OpenMMLab stack remains for reference (src/bst_x/preparing_data/requirements-legacy-3d.txt).
 #   - Therefore numpy>=2 is fine for everything in this pyproject. Modern
 #     TrackNetV3 (per the vendored requirements.txt header) supports it.
 #
