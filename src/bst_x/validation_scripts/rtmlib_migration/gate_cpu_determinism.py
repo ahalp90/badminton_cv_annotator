@@ -9,8 +9,7 @@ would make the raw arrays (and every downstream stage) unreproducible.
 This asserts *run-to-run on one machine*. Cross-machine determinism additionally
 needs the same onnxruntime build and a pinned thread count (set
 ``OMP_NUM_THREADS=1`` / a single intra-op thread); the CUDA EP is not
-deterministic at all (see the retired 02_adapter_design.md, in git history).
-Those are properties of the GPU handoff, not of this gate.
+deterministic at all. Those are properties of the GPU handoff, not of this gate.
 
 Env:
   RTMLIB_GATE_STEM    clip stem (default 11_1_10_2)

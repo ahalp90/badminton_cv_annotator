@@ -1,7 +1,7 @@
 """G8: GPU extraction parity at scale (HALT-AND-HANDOFF, Bourbaki).
 
-(Gate numbering follows the retired 03_verification.md, in git history: G7 =
-CUDA self-variance floor, G8 = this extraction parity, G9 = the Phase-A decision.)
+(Gate numbering: G7 = CUDA self-variance floor, G8 = this extraction parity,
+G9 = the Phase-A decision.)
 
 The Tier-3 gate: run the shipped adapter on the actual deployment box (CUDA, or
 CPU as a fallback) over the smoke50 sample and compare each clip to the committed
@@ -62,12 +62,10 @@ from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
-# Detector keep-threshold override for the calibration sweep. This is a
+# Detector keep-threshold override for calibration sweeps. This is a
 # post-inference filter on the detector's output scores, NOT a model change.
-# Defaults to the shipped adapter's DET_SCORE_THR (0.3, mmpose's cut, restored
-# with the RTMDet-M detector; the nano-era 0.3->0.15 sweep is in the retired
-# 06_phase_a_decision.md (git history), the restoration in
-# 07_detector_restoration.md).
+# Defaults to the shipped adapter's DET_SCORE_THR (0.3, mmpose's cut; see
+# docs/architecture_notes/rtmlib_migration/07_detector_restoration.md).
 DET_THR = float(os.environ.get("RTMLIB_GATE_DET_THR", DET_SCORE_THR))
 STEMFILE = Path(os.environ.get(
     "RTMLIB_GATE_STEMFILE",

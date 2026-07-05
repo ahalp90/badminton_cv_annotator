@@ -6,8 +6,8 @@ computation stays float32, shifting ``normalize_joints`` / court projection at t
 atol boundary. Batch 3's fix casts the adapter's keypoints/bbox to float64. This
 gate asserts the fix is in effect.
 
-Decisiveness: output dtype alone is NOT enough: rtmlib's smaller detection set
-makes ``_order_two_on_court`` fail some frames, and ``np.stack`` of float32
+Decisiveness: output dtype alone is NOT enough: ``_order_two_on_court`` fails
+some frames (no valid two-player pair), and ``np.stack`` of float32
 success rows + float64 failed-zeros promotes the whole array to float64, masking a
 missing cast. So the gate checks the success-frame joints carry float64
 *precision*: a float64 computation yields values not exactly representable in

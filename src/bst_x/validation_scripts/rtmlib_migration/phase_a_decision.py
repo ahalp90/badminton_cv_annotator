@@ -1,7 +1,7 @@
 """G9: Phase-A decision gate (HALT-AND-HANDOFF, Bourbaki).
 
-(Gate numbering follows the retired 03_verification.md, in git history: G7 =
-CUDA self-variance, G8 = extraction parity, G9 = this decision.)
+(Gate numbering: G7 = CUDA self-variance, G8 = extraction parity, G9 = this
+decision.)
 
 Consumes the G8 parity JSON (per-clip extraction + deployed metrics) and, if
 present, the G7 self-variance floors, and applies the concrete Phase-A
@@ -134,8 +134,8 @@ def main() -> int:
     line("no dropped players (rt<2<=mm<2)", dropped_ok, dropped or "none")
     line("floors below thresholds", floor_valid,
          f"eps_kp={eps_kp:.2f}px eps_fail={eps_fail_pp:.2f}pp")
-    # directional failed-frame loss (the one-directional-bias finding): the
-    # nano-era residual disagreement was ~all rtmlib-fails-where-mmpose-keeps.
+    # Directional failed-frame loss: a one-directional excess means one
+    # extractor is losing frames the other keeps, which the aggregate can hide.
     rt_only = sum(r.get("rt_only_fail", 0) for r in rows)
     mm_only = sum(r.get("mm_only_fail", 0) for r in rows)
     signed_fail_pp = (float(np.mean([r["rt_failrate"] for r in rows]))
@@ -144,9 +144,8 @@ def main() -> int:
     jnt_med_agg = float(np.median(jnt_meds)) if jnt_meds else float("nan")
     print(f"  joints delta (report only): median-of-clip-medians {jnt_med_agg:.4f}")
     print(f"  directional loss: rtmlib-only-fail={rt_only} mmpose-only-fail={mm_only} "
-          f"(signed failed-rate delta {signed_fail_pp:+.2f}pp; the nano-era run showed "
-          f"a one-directional rtmlib excess from 320-input under-scoring; with the "
-          f"restored RTMDet-M at 640 and the 0.3 cut, expect near-symmetric noise)")
+          f"(signed failed-rate delta {signed_fail_pp:+.2f}pp; expect near-symmetric "
+          f"noise, a one-directional excess means systematic frame loss)")
     print(f"  video-id coverage: {covered}/{total} "
           f"{'(full)' if full_coverage else '(PARTIAL: add shards for authoritative)'}")
 

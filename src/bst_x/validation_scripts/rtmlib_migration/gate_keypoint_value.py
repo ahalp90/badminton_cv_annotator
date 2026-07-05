@@ -12,7 +12,8 @@ Per clip, run the shipped adapter, IoU-match to the committed mmpose detections
   ordering and pixel units;
 * both-confident joints (kp_score > 0.5 in both models) p90 <= ``CONF_P90_MAX``
   and a **mirror-labeling-robust** p95 <= ``CONF_P95_MAX``: the signal-bearing
-  joints agree tightly. body7 and the old RTMPose-L legitimately assign left/right
+  joints agree tightly. The shipped RTMPose-L and the mmpose-era RTMPose-M (both
+  body7) legitimately assign left/right
   oppositely on some ambiguous rotational poses (a shoulder/hip-width L2 that is
   not a coordinate error), so the p95 is taken over the per-person minimum of the
   direct and L/R-swapped distance (``_confident_tail_lr``). A *systematic* adapter
@@ -27,8 +28,8 @@ An x/y swap, flip, reorder or unit error shows tens-hundreds of px on every
 joint, including the confident ones, so it fails the px thresholds loudly.
 
 A **reverted RGB fix does not**: RTMPose-L body7 is channel-robust, so a BGR
-feed lands ~0.1px (median) from RGB, inside MEDIAN_MAX (measured BGR 2.60px vs
-RGB 2.54px on 11_1_10_2, both under 5px). The px thresholds cannot separate them,
+feed lands ~1px from RGB, inside MEDIAN_MAX (measured on 11_1_10_2: RGB-vs-BGR
+per-joint gap median 1.16px). The px thresholds cannot separate them,
 so G1 also runs ``_rgb_fix_counterfactual``: a byte-exact structural check that
 the shipped adapter feeds RTMPose an RGB crop (not BGR), independent of accuracy.
 
@@ -127,7 +128,8 @@ def _confident_tail_lr(mm, frames: list) -> tuple[float, float]:
     """Confident-joint L2 p95 with per-person L/R relabeling removed, plus the
     fraction of matched people an L/R swap explains.
 
-    body7 and the old RTMPose-L legitimately disagree on left/right assignment in
+    The shipped RTMPose-L and the mmpose-era RTMPose-M (both body7) legitimately
+    disagree on left/right assignment in
     ambiguous rotational poses (measured on 16_1_10_1: 6 frames, correct IoU
     0.74-0.90, an L/R swap collapses ~29px -> ~1.4px). That mirror-labeling
     inflates the *raw* confident p95 without being an adapter defect, so the tail

@@ -1,6 +1,7 @@
-"""Classify the G-4 (authoritative) per-clip G8 failures into benign (jntMed-only,
-report-only model drift) vs real (frame count / dropped player / fmatch / keypoint /
-position), and surface the frame-loss-bias tail. Reads g8_parity_full.json."""
+"""Classify per-clip G8 failures into benign (jntMed-only, report-only model
+drift) vs real (frame count / dropped player / fmatch / keypoint / position),
+and surface the frame-loss tail. Reads a gate_gpu_parity JSON (pass the path,
+e.g. g8_parity_m_full.json; default g8_parity_full.json)."""
 import json
 import sys
 from collections import defaultdict

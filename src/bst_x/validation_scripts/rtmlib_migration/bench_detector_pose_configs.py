@@ -10,7 +10,9 @@ tree with no code or git changes.
 
 Default configs:
   nano_L256@0.15   rtmdet-nano@320 + RTMPose-L body7 256x192 (nano-era shipped)
+  nano_L256@0.30   rtmdet-nano@320 + RTMPose-L body7 256x192
   nano_L384@0.15   rtmdet-nano@320 + RTMPose-L body7 384x288
+  nano_L384@0.30   rtmdet-nano@320 + RTMPose-L body7 384x288
   m_L256@0.30      RTMDet-M@640    + RTMPose-L body7 256x192 (shipped)
   m_L384@0.30      RTMDet-M@640    + RTMPose-L body7 384x288
 
@@ -56,7 +58,7 @@ L384_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_2
 # The nano rows run at both thresholds: 0.15 is the nano-era shipped crutch
 # (recovers under-scored players, admits crowd the pose stage then pays for);
 # 0.3 is the fast-but-lossy nano (the dropped-player behaviour that forced
-# 0.15 in the first place, see 06/07).
+# 0.15 in the first place; see 07_detector_restoration.md).
 CONFIGS = {
     "nano_L256@0.15": (NANO_URL, (320, 320), 0.15, L256_URL, (192, 256)),
     "nano_L256@0.30": (NANO_URL, (320, 320), 0.30, L256_URL, (192, 256)),

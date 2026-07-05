@@ -1,5 +1,9 @@
 # MMPose pose extraction: changes and pipeline context
 
+This documents the OpenMMLab-based extraction path. Today that stack serves
+only the dormant 3D path (`requirements-legacy-3d.txt`); the live 2D path runs
+rtmlib (`docs/architecture_notes/rtmlib_migration/`).
+
 This directory bridges the pipeline's clip output and BST-X's expected input format. The pose extraction code in `prepare_train_on_shuttleset.py` runs MMPose on ~33k short clips to produce per-clip skeleton keypoints, court positions, and shuttle trajectories.
 
 ---
@@ -96,25 +100,15 @@ Every helper function in the pose processing chain is byte-identical:
 | Aspect | Value |
 |--------|-------|
 | Inferencer | `MMPoseInferencer('human')` |
-| Resolved models | RTMDet-M person detector @640 (235e8209, ~94 MB) + RTMPose-M body7 pose estimator (e48f03d0, ~52 MB) — corrected 2026-07-04, see below |
-| MMPose version | 1.3.2 (pinned in `requirements.txt`) |
+| Resolved models | RTMDet-M person detector @640 (235e8209, ~94 MB) + RTMPose-M body7 pose estimator (e48f03d0, ~52 MB) |
+| MMPose version | 1.3.2 (pinned in `requirements-legacy-3d.txt`) |
 | Keypoint format | COCO 17-joint |
 | Input | Raw `.mp4` file path (no preprocessing) |
 | Frame processing | Per-frame via generator (always, see note below) |
 | 2D inferencer lifecycle | Loaded once, reused across all clips |
 | 3D inferencer lifecycle | Reloaded per clip (MMPose bug workaround -- see lines 320-326) |
 
-> **Correction (2026-07-04):** this table originally recorded the resolved
-> models as "RTMDet-nano person detector (~30 MB) + RTMPose-L pose estimator
-> (~250 MB)". Primary sources — mmpose v1.3.2 `default_det_models.py` and the
-> `human` alias metafile — show `MMPoseInferencer("human")` resolves RTMDet-M
-> person (`rtmdet_m_8xb32-100e_coco-obj365-person-235e8209`, 640x640 input)
-> and RTMPose-M body7 (`rtmpose-m_simcc-body7_...-e48f03d0`, 256x192); neither
-> original size figure matches any candidate checkpoint. The "RTMDet-nano is
-> fast" speed note below inherited the same mis-identification. Receipts:
-> `docs/architecture_notes/rtmlib_migration/07_detector_restoration.md`.
-
-**Frame-level batching is not possible**: MMPoseInferencer accepts a `batch_size` parameter, but MMPose 1.3.2's top-down pipeline **ignores it**. `BaseMMPoseInferencer.preprocess()` overrides MMEngine's `BaseInferencer.preprocess()` (which does implement batching via `_get_chunk_data`) with a method that processes one frame at a time regardless of the `batch_size` value. The source explicitly comments `# only supports inference with batch size 1`. The only batching that occurs is automatic: multiple detected people's crops within a single frame are collated into one RTMPose forward pass. Bypassing the inferencer API for manual frame batching would require ~100+ lines of new code for unclear benefit — RTMDet-nano is fast (~5-10ms/frame) and RTMPose crops are already batched per-frame.
+**Frame-level batching is not possible**: MMPoseInferencer accepts a `batch_size` parameter, but MMPose 1.3.2's top-down pipeline **ignores it**. `BaseMMPoseInferencer.preprocess()` overrides MMEngine's `BaseInferencer.preprocess()` (which does implement batching via `_get_chunk_data`) with a method that processes one frame at a time regardless of the `batch_size` value. The source explicitly comments `# only supports inference with batch size 1`. The only batching that occurs is automatic: multiple detected people's crops within a single frame are collated into one RTMPose forward pass. Bypassing the inferencer API for manual frame batching would require ~100+ lines of new code for unclear benefit — the detector is a small share of per-frame cost and RTMPose crops are already batched per-frame.
 
 ---
 

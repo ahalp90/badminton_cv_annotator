@@ -74,9 +74,8 @@ nano@0.15 setup that would otherwise have shipped.
 
 ## History
 
-The nano-era planning and decision docs (findings/scope, runbook, adapter
-design, verification plan, adversarial review, GPU handoff, and the superseded
-Phase-A decision) were retired from this directory once the restoration
-landed; they remain in git history at this file's parent commits, recorded
-with correction banners. `07_detector_restoration.md` is the surviving
-decision record and carries the primary-source receipts.
+The working docs behind steps 1-3 (scope, runbook, adapter design,
+verification plan, adversarial review, GPU handoff, nano-era Phase-A decision)
+live in git history at this file's parent commits.
+`07_detector_restoration.md` carries the decision record and primary-source
+receipts.

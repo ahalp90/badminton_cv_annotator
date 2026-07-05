@@ -23,12 +23,12 @@ New here? [`data_pipeline_and_model_train_overview.md`](data_pipeline_and_model_
 
 ## Quick Start: End-to-End Execution
 
-The project uses three separate Python environments because the OpenMMLab stack (MMPose) requires numpy < 2.0 while the training stack uses numpy 2.x. All three target **Python 3.11**.
+The project uses three separate Python environments so the pipeline, pose-extraction and training stacks stay independently pinned. All three target **Python 3.11+** (the extraction set is validated on 3.13). The dormant 3D pose path alone still needs the legacy OpenMMLab stack and its numpy < 2.0 pin (`preparing_data/requirements-legacy-3d.txt`, separate venv).
 
 | Environment | Requirements file | Purpose |
 |---|---|---|
 | **Pipeline** | `pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
+| **Pose extraction (rtmlib)** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
 | **BST training** | `requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
 
 ### Environment setup
@@ -39,12 +39,13 @@ python3.11 -m venv venv-pipeline
 source venv-pipeline/bin/activate
 pip install -r pipeline/requirements.txt
 
-# 2. MMPose venv (requires C++ compiler + CUDA toolkit for mmcv source build)
-python3.11 -m venv venv-mmpose
-source venv-mmpose/bin/activate
-pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-mim install mmcv==2.1.0
+# 2. Pose-extraction venv (rtmlib over onnxruntime; no source builds)
+python3.11 -m venv venv-rtmlib
+source venv-rtmlib/bin/activate
 pip install -r preparing_data/requirements.txt
+# GPU extract box: swap onnxruntime -> onnxruntime-gpu per the notes in that file.
+# torch (any modern CPU build is fine) is needed only for the prepare_train module path:
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # 3. BST training venv
 python3.11 -m venv venv-bst-x
@@ -71,8 +72,8 @@ python -m pipeline.build_dataset \
     --tracknet-dir TrackNetV3 \
     --tracknet-python /path/to/venv-bst-x/bin/python
 
-# ── Stage 2: Pose estimation (MMPose venv) ──────────────────────────
-source venv-mmpose/bin/activate
+# ── Stage 2: Pose estimation (rtmlib venv) ──────────────────────────
+source venv-rtmlib/bin/activate
 
 # On engelbart, symlink the taxonomy output dir to scratch first (see Stage 2 Setup below).
 # Run from the repo root with both package roots on PYTHONPATH (matches conftest.py for tests).
@@ -153,7 +154,7 @@ The pipeline produces **video clips** and **shuttle .npy files**. BST-X does not
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D (or 3D) player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_2d_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
+| `prepare_train_on_shuttleset.py` | Runs the rtmlib pose stack on each clip to extract 2D player keypoints (3D stays on the legacy mmpose path), combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_2d_dataset_npy_from_raw_video()` -- run pose estimation (rtmlib RTMDet-M + RTMPose-L), extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. RTMPose crops are resized internally (256x192), so video resolution does not affect pose estimation quality beyond ~720p. |
 
 #### Setup
 

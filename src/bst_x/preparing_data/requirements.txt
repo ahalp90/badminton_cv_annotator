@@ -5,10 +5,9 @@
 # The 2D extraction path (raw_extract.py, prepare_train_on_shuttleset's
 # detect_players_2d) migrated off OpenMMLab onto rtmlib: onnxruntime-backed,
 # numpy-2 clean, no source build, no separate-venv numpy<2 pin. Models:
-# RTMDet-M person @640 (the detector mmpose's inferencer actually ran; restored
-# 2026-07-04, docs/architecture_notes/rtmlib_migration/07_detector_restoration.md)
-# + RTMPose-L body7 COCO-17. Versions below are the set the migration gate
-# ladder was validated against.
+# RTMDet-M person @640 + RTMPose-L body7 COCO-17 (model rationale:
+# docs/architecture_notes/rtmlib_migration/07_detector_restoration.md).
+# Versions below are the set the migration gate ladder was validated against.
 #
 # --- Manual install steps (can't go in requirements.txt) ---
 # CPU:  pip install -r requirements.txt
@@ -29,10 +28,10 @@
 # prepare_train_on_shuttleset module path (it imports torch at module load for the
 # shared 2D/3D runner) — install any modern CPU/CUDA build separately, e.g.:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-# That same module path also imports beartype + jaxtyping at load (shape-checked
-# signatures from the 2026-07 readability pass), so they ship as requirements
-# below: pure-Python, needed by the G3/G5/G6 gates and the collate step, which
-# all import prepare_train.
+# That same module path also imports beartype + jaxtyping at load (its
+# signatures are shape-checked), so they ship as requirements below:
+# pure-Python, needed by the G3/G5/G6 gates and the collate step, which all
+# import prepare_train.
 #
 # The dormant 3D pose path (detect_players_3d / --use-3d-pose) still needs the
 # OpenMMLab stack — see requirements-legacy-3d.txt (install in a separate venv;

@@ -8,8 +8,8 @@
 > and the Bourbaki ladder (G7/G8/G9 over the same 200 nano-era stems) is
 > adjudicated GO — see the decision section below. This verdict supersedes
 > 06's nano-era GO and authorises Phase B at RTMDet-M@640, `DET_SCORE_THR
-> = 0.3`. Outstanding: the GPU config benchmark (driver aborted before it;
-> rerun one-liner below).
+> = 0.3`. The GPU config benchmark also completed on the A100; its table
+> lives in this directory's README.
 
 ## What happened
 
@@ -201,9 +201,9 @@ This section supersedes 06's verdict. Phase B is authorised at RTMDet-M@640,
 `DET_SCORE_THR = 0.3`.
 
 Operational note: `phase_a_decision.py` exits non-zero on a mechanical NO-GO,
-which aborted the `run_b4.sh` driver before the GPU config benchmark; rerun
-just the benchmark with:
-`cd ~/rtmlib_m_restoration/repo && source ../remote_env.sh && RTMLIB_GATE_DEVICE=cuda PYTHONPATH=src/bst_x:src PYTHONUNBUFFERED=1 ~/venv-rtmlib-gpu/bin/python src/bst_x/validation_scripts/rtmlib_migration/bench_detector_pose_configs.py 2>&1 | tee ../logs/bench_m_gpu.out`
+which aborted the first `run_b4.sh` driver before the GPU config benchmark;
+the benchmark was rerun separately and its A100 results are in this
+directory's README.
 
 Phase-B consequences: collation tag moves off `rtmlib_015` (0.15 is no longer
 the shipped threshold); the external `phase_b_run.sh` must drop
@@ -212,11 +212,12 @@ the shipped threshold); the external `phase_b_run.sh` must drop
 
 ## Corrected records
 
-`rtmlib_pose.py` prose, `mmpose_changes.md` (resolved-models row + speed
-note), `requirements.txt` header, gate narrative strings
-(`gate_deployed_parity`, `phase_a_decision`, `gate_gpu_parity`),
-`diag_g4_fails.py` (marked historical), `frontend/src/utils/adapters.js`
-(detector name + ~64M perception-stack params), `raw_ndet_stats_outputs/baseline_2026-04-29.md`
-and `mmpose_heuristic/phase1_vs_phase2_2026-04-29.md` (dated corrections),
-banners on 00/02/03/05/06/README. Docs 00-06 stay whole as the audit trail of
-how the error happened and what it cost.
+All living prose now states the M-era configuration plainly: `rtmlib_pose.py`,
+`mmpose_changes.md` (resolved-models row + speed note), `requirements.txt`,
+the gate docstrings and narrative strings, `frontend/src/utils/adapters.js`
+(detector name + ~64M perception-stack params),
+`raw_ndet_stats_outputs/baseline_2026-04-29.md` and
+`mmpose_heuristic/phase1_vs_phase2_2026-04-29.md`. The nano-era planning docs
+(00-06) and the nano-run G-4 diagnostic script (`diag_g4_fails.py`) were
+removed from the tree; git history preserves them, correction banners and all,
+as the audit trail of how the error happened and what it cost.
