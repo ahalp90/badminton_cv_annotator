@@ -23,12 +23,12 @@ New here? [`data_pipeline_and_model_train_overview.md`](data_pipeline_and_model_
 
 ## Quick Start: End-to-End Execution
 
-The project uses three separate Python environments because the OpenMMLab stack (MMPose) requires numpy < 2.0 while the training stack uses numpy 2.x. All three target **Python 3.11**.
+The project uses three separate Python environments so the pipeline, pose-extraction and training stacks stay independently pinned. All three target **Python 3.11+** (the extraction set is validated on 3.13). The legacy OpenMMLab stack and its numpy < 2.0 pin (`preparing_data/requirements-legacy-3d.txt`, separate venv) remain only as the env for the parked 3D pose stream design.
 
 | Environment | Requirements file | Purpose |
 |---|---|---|
 | **Pipeline** | `pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **MMPose** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
+| **Pose extraction (rtmlib)** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
 | **BST training** | `requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
 
 ### Environment setup
@@ -39,12 +39,13 @@ python3.11 -m venv venv-pipeline
 source venv-pipeline/bin/activate
 pip install -r pipeline/requirements.txt
 
-# 2. MMPose venv (requires C++ compiler + CUDA toolkit for mmcv source build)
-python3.11 -m venv venv-mmpose
-source venv-mmpose/bin/activate
-pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-mim install mmcv==2.1.0
+# 2. Pose-extraction venv (rtmlib over onnxruntime; no source builds)
+python3.11 -m venv venv-rtmlib
+source venv-rtmlib/bin/activate
 pip install -r preparing_data/requirements.txt
+# GPU extract box: swap onnxruntime -> onnxruntime-gpu per the notes in that file.
+# torch (any modern CPU build is fine) is needed only for the prepare_train module path:
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # 3. BST training venv
 python3.11 -m venv venv-bst-x
@@ -71,8 +72,8 @@ python -m pipeline.build_dataset \
     --tracknet-dir TrackNetV3 \
     --tracknet-python /path/to/venv-bst-x/bin/python
 
-# ── Stage 2: Pose estimation (MMPose venv) ──────────────────────────
-source venv-mmpose/bin/activate
+# ── Stage 2: Pose estimation (rtmlib venv) ──────────────────────────
+source venv-rtmlib/bin/activate
 
 # On engelbart, symlink the taxonomy output dir to scratch first (see Stage 2 Setup below).
 # Run from the repo root with both package roots on PYTHONPATH (matches conftest.py for tests).
@@ -141,7 +142,7 @@ Split and label assignment for `shuttle_npy/` (and downstream pose npys) come fr
 - **Flaw records**: `flaw_shot_records.csv` is the single source of truth for data exclusions. Whole-video exclusions and individual shot removals are parsed at import time.
 - **Clip windows**: Control how much temporal context surrounds each stroke. `between_2_hits_with_max_limits` (default) uses the interval between adjacent shots, clamped to 1.5s per side.
 - **Homography resolution**: The pre-computed homography matrices in `data/shuttleset/set/homography.csv` were calculated at 1280x720. `court_utils.scale_pos_by_resolution()` rescales coordinates from the video's native resolution to 1280x720 before applying the homography. This quantization is negligible for court-position features (~1cm precision on a 13m court), but worth keeping in mind if homography-derived coordinates are ever combined with features extracted at native resolution (e.g., shuttle trajectory positions relative to a video crop). In practice any mismatch would be sub-pixel at typical crop sizes and likely acts as minor augmentation noise.
-- **Video resolution**: The pipeline downloads the best available mp4 (video-only, no audio). Downstream models resize frames internally — TrackNetV3 to 512x288 (`TrackNetV3/utils/general.py`), MMPose to ~256x192 depending on model config — so resolutions above 720p provide no practical benefit while increasing file size and processing time.
+- **Video resolution**: The pipeline downloads the best available mp4 (video-only, no audio). Downstream models resize frames internally (TrackNetV3 to 512x288 per `TrackNetV3/utils/general.py`; the pose stack to 640x640 for detection and 256x192 per pose crop), so resolutions above 720p provide no practical benefit while increasing file size and processing time.
 
 ---
 
@@ -153,7 +154,7 @@ The pipeline produces **video clips** and **shuttle .npy files**. BST-X does not
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `prepare_train_on_shuttleset.py` | Runs MMPose on each clip to extract 2D player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_dataset_npy_from_raw_video()` -- run MMPose pose estimation, extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. MMPose resizes input frames internally (typically 256x192 for RTMPose COCO-17), so video resolution does not affect pose estimation quality beyond ~720p. |
+| `prepare_train_on_shuttleset.py` | Runs the rtmlib pose stack on each clip to extract 2D player keypoints, combines them with shuttle trajectories at collation time, normalizes everything, and collates per-sample arrays into batch-ready `.npy` files. | Shuttle extraction and the CSV->npy conversion are owned upstream by `build_dataset` (step 6, `pipeline/shuttle_extractor.py`); this stage assumes the shuttle npys already exist under `data/shuttleset/shuttle_npy/`. **Step 1**: `prepare_dataset_npy_from_raw_video()` -- run pose estimation (rtmlib RTMDet-M + RTMPose-L), extract court positions via homography, normalize joints by bounding box, save per-clip `_joints.npy`, `_pos.npy`, `_failed.npy`. Shuttle data is intentionally not read here -- keeping this step independent of shuttle-npy availability prevents a missing npy from silently blocking the expensive GPU job. **Step 2**: `collate_npy(taxonomy=..., shuttle_npy_dir=...)` -- reads shuttle npys from the canonical `data/shuttleset/shuttle_npy/` dir (dedup + resolution-normalisation already done once at the converter), applies temporal alignment and failed-frame masking, pads all samples to uniform `seq_len`, computes bone vectors and interpolated joints, stacks into single arrays per split. The `taxonomy` parameter (a `Taxonomy` instance from `pipeline.config`) determines the class list for label assignment. RTMPose crops are resized internally (256x192), so video resolution does not affect pose estimation quality beyond ~720p. |
 
 #### Setup
 
@@ -199,11 +200,11 @@ Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, 
 
 #### Data transformations in detail
 
-1. **Pose detection** (`detect_players_2d`): MMPose extracts 17 COCO keypoints per frame. Players are identified by court projection of their feet -- only the two players whose feet project inside the court boundaries are kept, ordered Top-first by y-coordinate. See [`keypoints_schema.md`](preparing_data/keypoints_schema.md) for the full joint index map, bone pairs, and JnB representation details.
+1. **Pose detection** (`detect_players_2d`): the rtmlib pose stack extracts 17 COCO keypoints per frame. Players are identified by court projection of their feet -- only the two players whose feet project inside the court boundaries are kept, ordered Top-first by y-coordinate. See [`keypoints_schema.md`](preparing_data/keypoints_schema.md) for the full joint index map, bone pairs, and JnB representation details.
 
 2. **Joint normalization** (`normalize_joints`): Keypoints are normalized relative to the player's bounding box diagonal. Optionally center-aligned.
 
-3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done once at the converter (`pipeline/shuttle_extractor.py`), upstream of collation; collation (Step 2) just loads the saved npy. Pose-fail frames keep their shuttle values: TrackNet still sees the shuttle on frames where MMPose loses a player, so only TrackNet's own misses carry the (0,0) sentinel. The per-clip `_failed.npy` files (Step 1) still record the pose-fail mask for debugging or future use; collation never modifies the source npys or CSVs.
+3. **Shuttle normalization** (`normalize_shuttlecock`): Shuttle xy divided by video resolution to get [0,1] range. Done once at the converter (`pipeline/shuttle_extractor.py`), upstream of collation; collation (Step 2) just loads the saved npy. Pose-fail frames keep their shuttle values: TrackNet still sees the shuttle on frames where pose loses a player, so only TrackNet's own misses carry the (0,0) sentinel. The per-clip `_failed.npy` files (Step 1) still record the pose-fail mask for debugging or future use; collation never modifies the source npys or CSVs.
 
 4. **Padding and augmentation** (`pad_and_derive_pose_styles`): Each sample is padded (or linspace-sampled) to a fixed `seq_len` (30 or 100 frames). Four pose representations are supported; only those passed in `--pose-styles` (default `JnB_bone`) are computed and saved:
    - `J_only`: raw joints `(t, 2, 17, 2)`
@@ -237,16 +238,16 @@ For example, `ShuttleSet_data_une_v1_14/`, `ShuttleSet_data_bst_25/`, or `Shuttl
 
 Before training, run the validation scripts to assess detection quality. Two independent failure modes are invisible at training time and worth quantifying:
 
-1. **MMPose failures** (`_failed.npy`): frames where MMPose couldn't detect exactly 2 players. Joints, court positions, and shuttle coordinates are all zeroed on these frames at collation. The BST-X transformer does **not** mask them -- they participate in attention as zero vectors.
+1. **Pose failures** (`_failed.npy`): frames where the pose step couldn't detect exactly 2 players. Joints, court positions, and shuttle coordinates are all zeroed on these frames at collation. The BST-X transformer does **not** mask them -- they participate in attention as zero vectors.
 
 2. **Shuttle detection failures** (shuttle NPY visibility column): frames where TrackNetV3 reported visibility=0. The visibility column is dropped during collation, so these failures become silent (0, 0) shuttle coordinates with no way for the model to distinguish them from a shuttle at the origin.
 
 #### Usage
 
-Run from `src/bst_x/` (MMPose or BST venv -- only needs numpy, matplotlib, pandas):
+Run from `src/bst_x/` (rtmlib or BST venv -- only needs numpy, matplotlib, pandas):
 
 ```bash
-# Minimal (MMPose failure stats only):
+# Minimal (pose failure stats only):
 python validation_scripts/validate_zeroed_frames.py \
     --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
     --taxonomy une_v1_14
@@ -265,8 +266,8 @@ Optional flags: `--threshold` (flagged-clip cutoff, default 0.5), `--hit-window`
 
 All saved to `validation_scripts/zeroed_frames_analysis_outputs/`:
 
-- **Text report** (`analysis_{taxonomy}_{date}_{time}.txt`): overall/per-split/per-stroke failure rates, tiered clip counts, flaw cross-reference, shuttle detection stats with MMPose x shuttle 2x2 overlap, hit-frame proximity breakdown for both MMPose and shuttle.
-- **Figures**: fail rate histogram (log y-axis), temporal pattern by clip position, hit-frame profile (MMPose vs shuttle overlay).
+- **Text report** (`analysis_{taxonomy}_{date}_{time}.txt`): overall/per-split/per-stroke failure rates, tiered clip counts, flaw cross-reference, shuttle detection stats with pose x shuttle 2x2 overlap, hit-frame proximity breakdown for both pose and shuttle.
+- **Figures**: fail rate histogram (log y-axis), temporal pattern by clip position, hit-frame profile (pose vs shuttle overlay).
 
 See `validation_scripts/README.md` for full argument and report section documentation.
 
@@ -292,7 +293,7 @@ Bridges collated `.npy` files to PyTorch `DataLoader`s. Imports `Taxonomy` from 
 
 `Dataset_npy_collated` drops clips with `videos_len == 0` at load time.
 
-**Background:** Our automated pipeline processes all clips from ShuttleSet, including degenerate ones where MMPose fails to detect 2 players on every single frame. These clips end up with `videos_len=0` after collation — the entire sample is zero-padded with no real frames. When the transformer builds its padding mask, all positions are masked out, causing `softmax(all -inf) = NaN`, which poisons the loss and the entire training run.
+**Background:** Our automated pipeline processes all clips from ShuttleSet, including degenerate ones where pose detection fails to find 2 players on every single frame. These clips end up with `videos_len=0` after collation — the entire sample is zero-padded with no real frames. When the transformer builds its padding mask, all positions are masked out, causing `softmax(all -inf) = NaN`, which poisons the loss and the entire training run.
 
 #### Tensor shapes at model input
 
@@ -340,7 +341,7 @@ class ClipVideoDataset(Dataset):
 
 `derive_class_index(taxonomy, row.raw_type_en, row.player_side)` produces the int label (or `None` to skip the row), applying the taxonomy's merge map + side rule + exclusions in one place; see `collate_npy` in `prepare_train_on_shuttleset.py` for the canonical reference implementation. The video decoder (`load_video`) is caller's choice — cv2, decord, or torchvision.io. With this pattern the nested `clips/` layout stays transparent: any `split_column` in `clips_master.csv` (e.g. `split_bst_baseline`, `split_v2`) works without reorganizing the clips tree.
 
-For ad-hoc queries or when a Dataset wants a higher-level "give me clip + shuttle + mmpose triples for this split and class" API, `pipeline.data_access.get_clip_records` wraps the CSV read, taxonomy label derivation, and flat-path resolution into one call (and exposes the same thing via CLI / TUI at `python -m pipeline.data_access`). `clip_index.build_clip_path_index` remains the zero-dep pathlib helper it calls internally for clip-stem lookup.
+For ad-hoc queries or when a Dataset wants a higher-level "give me clip + shuttle + pose triples for this split and class" API, `pipeline.data_access.get_clip_records` wraps the CSV read, taxonomy label derivation, and flat-path resolution into one call (and exposes the same thing via CLI / TUI at `python -m pipeline.data_access`). `clip_index.build_clip_path_index` remains the zero-dep pathlib helper it calls internally for clip-stem lookup.
 
 ---
 
@@ -501,7 +502,7 @@ pipeline/build_dataset.py             # Orchestrates Steps 1-6 (--taxonomy flag)
     v  (produces data/shuttleset/clips/ and data/shuttleset/shuttle_npy/)
     |
 preparing_data/prepare_train_on_shuttleset.py  (--taxonomy, --split-column, --collation-id, --clip-npy-dir)
-  -> MMPose (2D pose estimation)   # Writes {clip_stem}_*.npy flat
+  -> rtmlib (2D pose estimation)   # Writes {clip_stem}_*.npy flat
   -> collate_npy(clips_csv, split_column, taxonomy, ...)  # CSV-driven; stacks per collation
     |
     v  (produces preparing_data/ShuttleSet_data_{taxonomy.name}/npy_[seq{N}_]{split}_{collation_id}/)

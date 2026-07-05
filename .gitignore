@@ -148,3 +148,10 @@ CLAUDE.md
 # truth for training curves + re-derivable analysis)
 **/weights/*.pt
 runtime/deployed/**/*.pt
+
+# rtmlib-migration gate run artifacts: written to CWD, regenerated per run, never
+# a source of truth (gates re-derive from committed raw; the sample list from
+# make_phase_a_sample.py is deterministic).
+*_parity.json
+*_selfvariance.json
+phase_a_stems.txt

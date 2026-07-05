@@ -1,11 +1,11 @@
-"""Raw MMPose extraction for a specified subset of clips.
+"""Raw rtmlib pose extraction for a specified subset of clips.
 
 Sibling to ``prepare_train_on_shuttleset.py``'s 2D pose step, but:
 
 1. Operates only on the clip stems in a supplied list (e.g. the Phase 1
    "busted" set from ``validation_scripts/mmpose_heuristic_investigation/find_busted_clips.py``).
 2. Applies no filtering -- no court projection, no "2 players on court"
-   requirement, no normalization. Saves everything MMPose returns.
+   requirement, no normalization. Saves every detection the adapter returns.
 3. Emits five raw numpy arrays per clip:
 
    - ``{stem}_raw_kps.npy``        ``(F, N_max, J, 2)``  float32, NaN-padded
@@ -34,24 +34,27 @@ Run from the repo root with both package roots on PYTHONPATH::
         python -m preparing_data.raw_extract --help
 """
 
-from mmpose.apis import MMPoseInferencer
+from __future__ import annotations
 
 import argparse
 import gc
 import sys
 from pathlib import Path
 from pprint import pprint
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
 from tqdm import tqdm
 
 from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
 from preparing_data.heuristics.base import RAW_SUFFIXES
 
+if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads without rtmlib
+    from preparing_data.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
+
 
 def extract_raw_frame(
-    result: dict,
+    det: FrameDetections,
     n_max: int,
     clip_stem: str,
     frame_num: int,
@@ -59,13 +62,23 @@ def extract_raw_frame(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
     """Return per-frame raw arrays, NaN-padded to ``n_max`` along the detect dim.
 
-    If MMPose returns more than ``n_max`` detections in a frame, keep the
-    top-``n_max`` by ``bbox_score``. Log a once-per-clip warning.
+    If the adapter returns more than ``n_max`` detections in a frame, keep the
+    top-``n_max`` by ``bbox_score`` (descending; stable, so ties hold detector
+    order). Otherwise the ``m`` detections keep detector order. Log a
+    once-per-clip warning on truncation.
+
+    :param det: one frame's adapter detections (``m`` real people, detector order).
+    :param n_max: per-frame detection cap.
+    :param clip_stem: clip id, for the once-per-clip over-detection warning.
+    :param frame_num: frame index, for the warning message.
+    :param over_det_warned: set of already-warned clip stems (mutated in place).
+    :return: ``(kps, bboxes, scores, kp_scores, n)`` -- four NaN-padded
+        ``(n_max, ...)`` float32 arrays and the real detection count ``n``.
     """
-    preds = list(result["predictions"][0])
-    n = len(preds)
+    n = len(det.keypoints)
+    order = np.arange(n)  # (m,) detector order
     if n > n_max:
-        preds = sorted(preds, key=lambda p: -float(p["bbox_score"]))[:n_max]
+        order = np.argsort(-det.bbox_scores, kind="stable")[:n_max]  # top-n_max by bbox_score
         n = n_max
         if clip_stem not in over_det_warned:
             print(
@@ -79,33 +92,31 @@ def extract_raw_frame(
     scores = np.full((n_max,), np.nan, dtype=np.float32)
     kp_scores = np.full((n_max, COCO_N_JOINTS), np.nan, dtype=np.float32)
 
-    for i, person in enumerate(preds):
-        kps[i] = np.asarray(person["keypoints"], dtype=np.float32)
-        bboxes[i] = np.asarray(person["bbox"][0], dtype=np.float32)
-        # bbox_score may arrive as a scalar or list-wrapped; squeeze to scalar.
-        scores[i] = np.float32(np.asarray(person["bbox_score"]).squeeze())
-        kp_scores[i] = np.asarray(person["keypoint_scores"], dtype=np.float32)
+    kps[:n] = det.keypoints[order]
+    bboxes[:n] = det.bboxes[order]
+    scores[:n] = det.bbox_scores[order]
+    kp_scores[:n] = det.kp_scores[order]
 
     return kps, bboxes, scores, kp_scores, n
 
 
 def extract_one_clip(
-    inferencer: MMPoseInferencer,
+    extractor: RtmlibPoseExtractor,
     video_path: Path,
     save_branch: str,
     n_max: int,
     over_det_warned: set[str],
 ) -> None:
-    """Run MMPose on one clip and save the five raw arrays."""
+    """Run the rtmlib adapter on one clip and save the five raw arrays."""
     kps_ls: list[np.ndarray] = []
     bboxes_ls: list[np.ndarray] = []
     scores_ls: list[np.ndarray] = []
     kp_scores_ls: list[np.ndarray] = []
     ndet_ls: list[int] = []
 
-    for frame_num, result in enumerate(inferencer(str(video_path), show=False)):
+    for frame_num, det in enumerate(extractor.iter_video(video_path)):
         kps, bboxes, scores, kp_scores, n = extract_raw_frame(
-            result, n_max, video_path.stem, frame_num, over_det_warned,
+            det, n_max, video_path.stem, frame_num, over_det_warned,
         )
         kps_ls.append(kps)
         bboxes_ls.append(bboxes)
@@ -122,31 +133,31 @@ def extract_one_clip(
     np.save(save_branch + "_raw_ndet.npy", np.asarray(ndet_ls, dtype=np.int8))
 
 
-def inspect_one_clip(inferencer: MMPoseInferencer, video_path: Path) -> None:
-    """Print the structure of the first frame's MMPose result, then return."""
+def inspect_one_clip(extractor: RtmlibPoseExtractor, video_path: Path) -> None:
+    """Print the first frame's adapter detections (shapes/dtypes), then return."""
     print(f"Inspect: {video_path}")
-    gen = inferencer(str(video_path), show=False)
-    result = next(iter(gen))
-    preds = result["predictions"][0]
-    print(f"Number of detections in frame 0: {len(preds)}")
-    if not preds:
+    det = next(extractor.iter_video(video_path), None)
+    if det is None:
+        print("No frames decoded; try a different clip.")
+        return
+    m = len(det.keypoints)
+    print(f"Number of detections in frame 0: {m}")
+    if m == 0:
         print("No detections in frame 0; try a different clip.")
         return
-    p0 = preds[0]
-    print(f"Keys on detection[0]: {sorted(p0.keys())}")
-    for key, value in p0.items():
-        try:
-            arr = np.asarray(value)
-            shape = arr.shape if arr.dtype != object else f"object(len={len(value)})"
-            dtype = arr.dtype
-        except (ValueError, TypeError):
-            shape = "<unknown>"
-            dtype = type(value).__name__
-        print(f"  {key!r}: dtype={dtype} shape={shape}")
-    print("\nSummary of detection[0]:")
+    for name, arr in (
+        ("keypoints", det.keypoints),
+        ("bboxes", det.bboxes),
+        ("bbox_scores", det.bbox_scores),
+        ("kp_scores", det.kp_scores),
+    ):
+        print(f"  {name!r}: dtype={arr.dtype} shape={arr.shape}")
+    print("\nDetection[0]:")
     pprint({
-        k: (v if not isinstance(v, list) or len(v) < 4 else f"list(len={len(v)})")
-        for k, v in p0.items()
+        "bbox": det.bboxes[0],
+        "bbox_score": float(det.bbox_scores[0]),
+        "keypoints[:3]": det.keypoints[0, :3],
+        "kp_scores[:3]": det.kp_scores[0, :3],
     })
 
 
@@ -196,17 +207,23 @@ def main() -> int:
              "the primary filtered flat dir.",
     )
     parser.add_argument(
-        "--n-max", type=int, default=8,
-        help="Max detections per frame. Excess is truncated by bbox_score.",
+        "--n-max", type=int, default=16,
+        help="Max detections per frame. Excess is truncated by bbox_score. "
+             "Default 16 matches the committed baseline schema (N_max=16).",
+    )
+    parser.add_argument(
+        "--device", default="cuda",
+        help="onnxruntime device for the rtmlib adapter: 'cuda' (default, needs "
+             "onnxruntime-gpu) or 'cpu'.",
     )
     parser.add_argument(
         "--inspect-result", action="store_true",
-        help="Print the first frame's MMPose result structure on one clip, "
-             "then exit. Run this once before any batch.",
+        help="Print the first frame's adapter detections on one clip, then exit. "
+             "Run this once before any batch.",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
-        help="Resolve stems to mp4 paths and exit without running MMPose.",
+        help="Resolve stems to mp4 paths and exit without loading the adapter.",
     )
     parser.add_argument(
         "--force-reextract", action="store_true",
@@ -246,17 +263,21 @@ def main() -> int:
             print(f"  {stem}  ->  {path}")
         return 0
 
+    # Lazy import: keeps extract_raw_frame and the file's helpers importable
+    # without onnxruntime (e.g. the CPU raw-schema gate), mirroring the 2D path.
+    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+
     if args.inspect_result:
         if not resolved:
             print("No resolved clips to inspect; aborting.")
             return 1
-        inferencer = MMPoseInferencer("human")
-        inspect_one_clip(inferencer, resolved[0][1])
+        extractor = RtmlibPoseExtractor(device=args.device)
+        inspect_one_clip(extractor, resolved[0][1])
         return 0
 
     args.save_dir.mkdir(parents=True, exist_ok=True)
 
-    inferencer = MMPoseInferencer("human")
+    extractor = RtmlibPoseExtractor(device=args.device)
     over_det_warned: set[str] = set()
     skipped = 0
     reextracted_mismatch = 0
@@ -286,18 +307,17 @@ def main() -> int:
                 return 1
 
         extract_one_clip(
-            inferencer=inferencer,
+            extractor=extractor,
             video_path=video_path,
             save_branch=save_branch,
             n_max=args.n_max,
             over_det_warned=over_det_warned,
         )
 
-        # Match the 2D pose step's per-clip GPU cleanup to prevent fragmentation
-        # across the batch. Skips above don't allocate on GPU so they fall
-        # through without touching the cache.
+        # Per-clip cleanup to limit peak memory across the batch. onnxruntime
+        # manages its own device memory, so (unlike the old mmpose/torch path)
+        # there is no CUDA cache to clear -- gc.collect() suffices.
         gc.collect()
-        torch.cuda.empty_cache()
 
     print(
         f"\nDone. Processed {len(resolved) - skipped}, skipped {skipped} "

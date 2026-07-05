@@ -29,8 +29,8 @@ decision can diverge for that frame; this is documented in
 
 The imports from ``prepare_train_on_shuttleset`` are deferred to ``apply``'s
 first call because importing that module at load pulls in its heavy deps
-(torch/pandas); we want module-level ``import current`` to stay light for
-local smoke tests.
+(torch/pandas; its 2D rtmlib imports are themselves lazy); we
+want module-level ``import current`` to stay light for local smoke tests.
 """
 from __future__ import annotations
 
@@ -46,7 +46,8 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     ``_hyperparams`` is accepted and ignored so the CLI can pass the
     sticky_anchor hyperparam block uniformly to every registered variant.
     """
-    # Lazy import: importing prepare_train_on_shuttleset pulls in torch/pandas at module load.
+    # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
+    # load (its rtmlib/mmpose imports are themselves lazy).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         check_pos_in_court,
         normalize_joints,

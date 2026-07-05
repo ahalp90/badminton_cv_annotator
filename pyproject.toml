@@ -13,11 +13,11 @@ requires-python = ">=3.11"
 # Compatible coexistence notes:
 #   - BRIC and BST-X inference handlers can share one venv. Both use PyTorch,
 #     TrackNetV3, opencv, fastapi.
-#   - **MMPose is the exception.** Its numpy<2 ceiling forces isolation; the
-#     BST-X pipeline's existing pattern is to call MMPose-using code via
-#     subprocess (see src/bst_x/pipeline/shuttle_extractor.py and
-#     preparing_data/). That subprocess venv is
-#     managed separately from this pyproject.
+#   - **Pose extraction runs in its own dataset-build venv.** The 2D extraction
+#     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
+#     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
+#     isolation, but still lives in a separate build venv managed outside this
+#     pyproject. The numpy<2 OpenMMLab stack remains for reference (src/bst_x/preparing_data/requirements-legacy-3d.txt).
 #   - Therefore numpy>=2 is fine for everything in this pyproject. Modern
 #     TrackNetV3 (per the vendored requirements.txt header) supports it.
 #
@@ -92,8 +92,9 @@ bric = [
 # tooling (tensorboard, matplotlib, etc.) can move to a future
 # `bst-x-train` extras group.
 #
-# MMPose deliberately omitted — runs via subprocess into its own venv,
-# per the BST-X pipeline's existing isolation pattern.
+# Pose extraction (rtmlib) deliberately omitted; it runs in its own
+# dataset-build venv (src/bst_x/preparing_data/requirements.txt), not this
+# API-server install.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)
     "torchinfo",              # Model summary utility (imported by tempose.py)

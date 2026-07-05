@@ -1,6 +1,6 @@
 # COCO 17-Keypoint Schema (RTMPose)
 
-Reference for the keypoint format extracted by MMPose RTMPose-L in the pose estimation step (`prepare_train_on_shuttleset.py` Step 1).
+Reference for the keypoint format extracted by the rtmlib pose stack (RTMDet-M + RTMPose-L) in the pose estimation step (`prepare_train_on_shuttleset.py` Step 1).
 
 ---
 
@@ -74,8 +74,8 @@ See `shuttleset_dataset.py:create_bones()` and `interpolate_joints()` for the co
 
 ## Design Notes
 
-**Per-keypoint confidence scores are not stored.** MMPose returns `keypoint_scores` (shape `(J,)`) alongside coordinates, but the pipeline extracts only xy. This follows the original BST implementation. Given the strength of RTMPose-L and the high quality of ShuttleSet broadcast footage, confidence values are near-constant across samples -- feeding them to the model would grow parameters for no useful signal.
+**Per-keypoint confidence scores are not collated.** The extractor returns `keypoint_scores` (shape `(J,)`) alongside coordinates; the raw layer stores them (`_raw_kp_scores.npy`), but the collated `_joints` path keeps only xy. This follows the original BST implementation. Given the strength of RTMPose-L and the high quality of ShuttleSet broadcast footage, confidence values are near-constant across samples -- feeding them to the model would grow parameters for no useful signal.
 
 **Coordinates are not clamped to image bounds.** RTMPose's SimCC regression head can predict keypoints outside the image frame (negative values or exceeding width/height). Neither RTMPose nor `normalize_joints()` clips these -- out-of-bounds raw values become out-of-bounds normalized values in the collated arrays. This is rare on broadcast footage but can occur for joints near frame edges (e.g., a wrist extending off-screen during a swing).
 
-**Failed frames are retained, not dropped.** RTMPose runs independently per frame with no temporal interpolation or smoothing. When a frame fails detection (< 2 people detected, or != 2 players on court), joints and positions are zeroed for that frame, and the frame stays in the sequence. At collation, shuttle coordinates are also zeroed on failed frames. No clip is ever excluded from training based on failed frames -- the model sees zeros for those frames. A missing shuttle CSV, by contrast, is a hard crash (`FileNotFoundError`), not a silent skip. Frame-count mismatches between MMPose and TrackNetV3 (1-2 frames from different video backends) are resolved by truncating both to the shorter length.
+**Failed frames are retained, not dropped.** RTMPose runs independently per frame with no temporal interpolation or smoothing. When a frame fails detection (< 2 people detected, or != 2 players on court), joints and positions are zeroed for that frame, and the frame stays in the sequence. At collation, shuttle coordinates are also zeroed on failed frames. No clip is ever excluded from training based on failed frames -- the model sees zeros for those frames. A missing shuttle CSV, by contrast, is a hard crash (`FileNotFoundError`), not a silent skip. Frame-count mismatches between the pose extractor and TrackNetV3 (1-2 frames from different video backends) are resolved by truncating both to the shorter length.

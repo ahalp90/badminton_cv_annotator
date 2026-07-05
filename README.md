@@ -8,7 +8,7 @@ Stage one built a stroke-type classifier across two deep learning architectures,
 
 ## What's in this stage
 
-- **Data pipeline**, automated end-to-end. YouTube match downloads, per-stroke clips, shuttle tracking (TrackNetV3 with Inpaint), player pose extraction (MMPose RTMPose-L, cleaned by a custom `sticky_anchor` heuristic), collated numpy arrays per taxonomy and split.
+- **Data pipeline**, automated end-to-end. YouTube match downloads, per-stroke clips, shuttle tracking (TrackNetV3 with Inpaint), player pose extraction (rtmlib RTMDet-M + RTMPose-L, cleaned by a custom `sticky_anchor` heuristic), collated numpy arrays per taxonomy and split.
 - **BST-X**, a spatio-temporal CNN/transformer hybrid built on the BST architecture (Chang 2025, [arXiv:2502.21085](https://arxiv.org/abs/2502.21085)). Three streams per clip (pose joints and bones, court position, shuttle xy) fused through BST's cross-attention block. Custom CDB-F1 adaptive focal loss handles class imbalance.
 - **BRIC**, an R(2+1)D-18 backbone (Kinetics-400 pretrained) on 32-frame RGB clips, with optional shuttle and court-position side-streams concatenated at the classifier head.
 - **Web app**: React + FastAPI. Browses precomputed predictions across six BST-X taxonomy/split variants and one BRIC variant over the full 4,202-clip test set, with per-class F1, confusion patterns, match filtering, and inline clip playback. Upload-to-results wizard wired end to end. Live BRIC inference runs on user uploads when a GPU is available; live BST-X inference runs on single-stroke library-clip requests. BST-X live inference on arbitrary user uploads still falls back to a smart stub (Phase 2 carry).
@@ -78,7 +78,7 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 
 ## Data pipeline and classifier training
 
-The classifier has its own pinned environments, separate from the root `requirements.txt`. Three venvs: data pipeline, MMPose pose extraction, BST-X training. They can't share dependencies; the MMPose skeleton keypoint extractor pins NumPy < 2.0, which conflicts with the rest of the project. Full setup and execution order: [`src/bst_x/data_pipeline_to_model_train.md`](src/bst_x/data_pipeline_to_model_train.md).
+The classifier has its own pinned environments, separate from the root `requirements.txt`. Three venvs: data pipeline, rtmlib pose extraction, BST-X training, each independently pinned. The legacy OpenMMLab stack (NumPy < 2.0, `src/bst_x/preparing_data/requirements-legacy-3d.txt`) remains as a reference for troubleshooting. Full setup and execution order: [`src/bst_x/data_pipeline_to_model_train.md`](src/bst_x/data_pipeline_to_model_train.md).
 
 ### Local config (`.env`)
 
@@ -135,7 +135,7 @@ ln -s /scratch/comp320a/ShuttleSet/shuttle_csv shuttle_csv
 ln -s /scratch/comp320a/ShuttleSet/shuttle_npy shuttle_npy
 ```
 
-Per-taxonomy MMPose output dir, same pattern:
+Per-taxonomy pose output dir, same pattern:
 
 ```bash
 mkdir -p /scratch/comp320a/ShuttleSet_data_une_v1_14

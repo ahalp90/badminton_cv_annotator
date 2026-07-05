@@ -331,7 +331,8 @@ def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:
     Keeps the registry-contract ``apply(raw, ctx, **kw)`` signature; the
     ``StickyAnchorParams`` instance is constructed at this boundary.
     """
-    # Lazy import: importing prepare_train_on_shuttleset pulls in torch/pandas at module load.
+    # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
+    # load (its rtmlib/mmpose imports are themselves lazy).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         normalize_joints,
     )
