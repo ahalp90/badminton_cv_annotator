@@ -191,14 +191,22 @@ def test_extract_span_ffmpeg_argv(tmp_path, monkeypatch):
     assert captured['kwargs'].get('check') is True
 
 
-def test_refine_timestamps_noop_without_whisperx(monkeypatch):
-    """With no whisperx installed, chunks are returned unchanged and ffmpeg is never called."""
+def test_fine_pass_noop_without_whisperx(tmp_path, monkeypatch):
+    """With no whisperx installed, the fine pass skips cleanly: no models, no
+    ffmpeg, sidecars untouched."""
     def boom(*_args, **_kwargs):
         raise AssertionError('subprocess.run must not run when whisperx is absent')
 
     monkeypatch.setattr(stage10.subprocess, 'run', boom)
-    chunks = [{'chunk_id': 'c0', 'start': 1.0, 'end': 2.0, 'text': 't'}]
+    assert stage10.load_fine_models() is None  # this venv has no whisperx
 
-    out = stage10.refine_timestamps('/no/such/video.mp4', chunks)
-    assert out is chunks  # same object, returned untouched
-    assert (out[0]['start'], out[0]['end']) == (1.0, 2.0)
+    chunks_dir = tmp_path / 'chunks'
+    chunks_dir.mkdir()
+    sidecar = chunks_dir / 'vid.json'
+    original = '[{"chunk_id": "c0", "start": 1.0, "end": 2.0, "text": "t"}]'
+    sidecar.write_text(original, encoding='utf-8')
+    monkeypatch.setattr(stage10, 'CHUNKS_DIR', chunks_dir)
+
+    rows = [{'video_id': 'vid', 'keep': 'True'}]
+    stage10.run_fine(tmp_path, rows)
+    assert sidecar.read_text(encoding='utf-8') == original  # never rewritten

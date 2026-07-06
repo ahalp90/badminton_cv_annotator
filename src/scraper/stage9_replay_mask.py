@@ -66,7 +66,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int) -> np.
         return mask
     if len(court_present) != n_frames:
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
-    absent = ~court_present.astype(bool)                 # (frames,)
+    absent = ~court_present.astype(bool)  # (frames,)
     for start, end in true_runs(absent):
         if end - start >= COURT_ABSENT_WINDOW:
             mask[start:end] = True
@@ -117,27 +117,27 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
         log.info('homography rows missing; perspective-shift signal all-False')
         return mask
 
-    starts = np.array([int(row['start_frame']) for row in homography_rows])   # (n_seg,)
-    ends = np.array([int(row['end_frame']) for row in homography_rows])       # (n_seg,)
-    durations = (ends - starts).astype(float)                                 # (n_seg,) weight
+    starts = np.array([int(row['start_frame']) for row in homography_rows])  # (n_seg,)
+    ends = np.array([int(row['end_frame']) for row in homography_rows])  # (n_seg,)
+    durations = (ends - starts).astype(float)  # (n_seg,) weight
     corners = np.array(
         [[float(row[col]) for col in HOMOGRAPHY_CORNER_COLS] for row in homography_rows]
-    )                                                                         # (n_seg, 8)
+    )  # (n_seg, 8)
 
     reference = np.array(
         [_weighted_median(corners[:, col], durations) for col in range(corners.shape[1])]
-    )                                                                         # (8,) dominant view
-    seg_xy = corners.reshape(len(homography_rows), 4, 2)                      # (n_seg, 4, 2) [corner, xy]
-    ref_xy = reference.reshape(4, 2)                                          # (4, 2)
+    )  # (8,) dominant view
+    seg_xy = corners.reshape(len(homography_rows), 4, 2)  # (n_seg, 4, 2) [corner, xy]
+    ref_xy = reference.reshape(4, 2)  # (4, 2)
 
     mean_displacement = np.linalg.norm(seg_xy - ref_xy, axis=2).mean(axis=1)  # (n_seg,)
-    ref_span = ref_xy.max(axis=0) - ref_xy.min(axis=0)                        # (2,) bbox width, height
+    ref_span = ref_xy.max(axis=0) - ref_xy.min(axis=0)  # (2,) bbox width, height
     diagonal = float(np.hypot(*ref_span))
     if diagonal <= 0:
         log.info('degenerate reference court (zero diagonal); perspective-shift signal all-False')
         return mask
 
-    shifted = (mean_displacement / diagonal) > PERSPECTIVE_SHIFT_THRESH       # (n_seg,)
+    shifted = (mean_displacement / diagonal) > PERSPECTIVE_SHIFT_THRESH  # (n_seg,)
     for seg in np.flatnonzero(shifted):
         mask[starts[seg]:ends[seg]] = True
     return mask
@@ -172,8 +172,8 @@ def velocity_drop_signal(
     if len(track) != n_frames:
         raise ValueError(f'shuttle track length {len(track)} != n_frames {n_frames}')
 
-    speed = compute_speed(track)                         # (t,) per-frame, NaN on non-visible steps
-    in_rally = np.zeros(len(track), dtype=bool)          # (t,) frames inside any rally span
+    speed = compute_speed(track)  # (t,) per-frame, NaN on non-visible steps
+    in_rally = np.zeros(len(track), dtype=bool)  # (t,) frames inside any rally span
     for start, end in rally_spans:
         in_rally[start:end] = True
 
@@ -186,10 +186,10 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
-    rolling_median = rolling_nanmedian(speed, REST_WINDOW)   # (t,)
-    visible = track[:, 2] == 1                                # (t,)
+    rolling_median = rolling_nanmedian(speed, REST_WINDOW)  # (t,)
+    visible = track[:, 2] == 1  # (t,)
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)  # NaN windows read not-slow
-    moving = rolling_median >= REST_SPEED                     # rest is not slow-mo (see docstring)
+    moving = rolling_median >= REST_SPEED  # rest is not slow-mo (see docstring)
     mask[below_norm & moving & visible] = True
     return mask
 

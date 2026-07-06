@@ -46,8 +46,8 @@ _VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 
 # WhisperX fine-pass settings signed off in whisperx_settings_proposal.md s2.
 # Not in config: whisperx is remote-GPU only and nothing else reads these.
-FINE_PAD_S = 2.0          # pad each span so VAD does not clip the first/last word
-FINE_BATCH_SIZE = 16      # batched inference batch size (settings doc s2)
+FINE_PAD_S = 2.0  # pad each span so VAD does not clip the first/last word
+FINE_BATCH_SIZE = 16  # batched inference batch size (settings doc s2)
 FINE_COMPUTE_TYPE = 'float16'
 
 # Merged system prompt: the clean and paraphrase instructions from spec s9 in one
@@ -121,6 +121,8 @@ def call_clean_llm(text: str) -> dict:
             return _clean_once(text)
         except Exception as error:  # noqa: BLE001 - real code catches SDK errors
             last_error = error
+            if attempt == LLM_MAX_RETRIES - 1:
+                break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
             print(f'  LLM retry {attempt + 1}/{LLM_MAX_RETRIES} after {backoff:.1f}s: {error}')
             time.sleep(backoff)
@@ -144,7 +146,7 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
     kept = [row for row in rows if row.get('keep') == 'True']
 
     attempted = 0  # LLM calls started this run
-    failed = 0     # LLM calls that died after retries
+    failed = 0  # LLM calls that died after retries
     cleaned_by_id: dict[str, int] = {}
 
     for row in kept:
@@ -218,9 +220,9 @@ def _extract_span(video_path: Path, span_start: float, span_end: float, wav_path
         [
             'ffmpeg', '-nostdin', '-y',
             '-ss', f'{span_start:.3f}',  # input seek to the padded span start
-            '-to', f'{span_end:.3f}',    # stop reading the input at the padded end
+            '-to', f'{span_end:.3f}',  # stop reading the input at the padded end
             '-i', str(video_path),
-            '-vn',                        # audio only
+            '-vn',  # audio only
             '-ac', '1', '-ar', '16000',  # 16 kHz mono, what whisperx.load_audio wants
             str(wav_path),
         ],
@@ -229,33 +231,26 @@ def _extract_span(video_path: Path, span_start: float, span_end: float, wav_path
     )
 
 
-def refine_timestamps(video_path: str, chunks: list[dict]) -> list[dict]:
-    """Snap each chunk's coarse start/end to WhisperX word boundaries (spec s9).
-
-    Chunk-local by default: only the padded audio span of each kept chunk is
-    re-aligned, so compute scales with kept-chunk minutes not full runtime. The
-    documented fallback if span extraction proves fiddly is a single whole-video
-    WhisperX pass (spec s9, whisperx_settings_proposal.md s2); not built here.
+def load_fine_models() -> tuple | None:
+    """Load the WhisperX fine-pass models once for a whole run, or None off-GPU.
 
     WhisperX and torch are imported here, not at module scope, so the test venv
-    (which has neither) can still import this module. When WhisperX or CUDA is
-    missing the chunks are returned unchanged with a log line: the pass is GPU
-    only (D23). Diarisation stays off per the settings doc.
+    (which has neither) can still import this module. The pass is GPU only
+    (D23); diarisation stays off per the settings doc. One load serves every
+    video in the run: loading per video leaks VRAM until CUDA OOM (agy F1).
 
-    :param video_path: source video file for the kept chunks.
-    :param chunks: chunk dicts carrying coarse 'start'/'end'; mutated in place.
-    :return: the same chunks, with 'start'/'end' snapped where alignment landed.
+    :return: (model, align_model, align_meta), or None when whisperx or CUDA is
+        absent (the caller leaves coarse timestamps in place).
     """
     try:
         import torch
         import whisperx
     except ImportError:
-        print(f'  WhisperX/torch unavailable; leaving {len(chunks)} chunks at coarse timestamps')
-        return chunks
+        print('  WhisperX/torch unavailable; fine pass leaves coarse timestamps')
+        return None
     if not torch.cuda.is_available():
-        print(f'  No CUDA device; WhisperX fine pass is GPU only (D23), '
-              f'leaving {len(chunks)} chunks coarse')
-        return chunks
+        print('  No CUDA device; WhisperX fine pass is GPU only (D23)')
+        return None
 
     device = 'cuda'
     model = whisperx.load_model(
@@ -264,6 +259,26 @@ def refine_timestamps(video_path: str, chunks: list[dict]) -> list[dict]:
         asr_options={'suppress_numerals': True, 'hallucination_silence_threshold': 2.0},
     )
     align_model, align_meta = whisperx.load_align_model(language_code='en', device=device)
+    return model, align_model, align_meta
+
+
+def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> list[dict]:
+    """Snap each chunk's coarse start/end to WhisperX word boundaries (spec s9).
+
+    Chunk-local by default: only the padded audio span of each kept chunk is
+    re-aligned, so compute scales with kept-chunk minutes not full runtime. The
+    documented fallback if span extraction proves fiddly is a single whole-video
+    WhisperX pass (spec s9, whisperx_settings_proposal.md s2); not built here.
+
+    :param video_path: source video file for the kept chunks.
+    :param chunks: chunk dicts carrying coarse 'start'/'end'; mutated in place.
+    :param models: (model, align_model, align_meta) from load_fine_models.
+    :return: the same chunks, with 'start'/'end' snapped where alignment landed.
+    """
+    import whisperx  # importable by construction: models came from load_fine_models
+
+    model, align_model, align_meta = models
+    device = 'cuda'
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         for chunk in chunks:
@@ -309,20 +324,35 @@ def run_fine(video_dir: Path, rows: list[dict] | None = None) -> None:
         rows = read_candidates()
     kept = [row for row in rows if row.get('keep') == 'True']
 
-    for row in kept:
-        video_id = row['video_id']
-        sidecar = CHUNKS_DIR / f'{video_id}.json'
-        if not sidecar.exists():
-            print(f'  {video_id}: no chunk sidecar, skipping')
-            continue
-        video_path = _find_video(video_dir, video_id)
-        if video_path is None:
-            print(f'  {video_id}: no video file in {video_dir}, skipping fine pass')
-            continue
-        chunks = json.loads(sidecar.read_text(encoding='utf-8'))
-        refine_timestamps(str(video_path), chunks)
-        sidecar.write_text(json.dumps(chunks, indent=2), encoding='utf-8')
-        print(f'  {video_id}: refined {len(chunks)} chunk timestamps')
+    models = load_fine_models()
+    if models is None:
+        print(f'  Fine pass skipped for all {len(kept)} kept videos; coarse timestamps stand')
+        return
+
+    try:
+        for row in kept:
+            video_id = row['video_id']
+            sidecar = CHUNKS_DIR / f'{video_id}.json'
+            if not sidecar.exists():
+                print(f'  {video_id}: no chunk sidecar, skipping')
+                continue
+            video_path = _find_video(video_dir, video_id)
+            if video_path is None:
+                print(f'  {video_id}: no video file in {video_dir}, skipping fine pass')
+                continue
+            chunks = json.loads(sidecar.read_text(encoding='utf-8'))
+            refine_timestamps(str(video_path), chunks, models)
+            sidecar.write_text(json.dumps(chunks, indent=2), encoding='utf-8')
+            print(f'  {video_id}: refined {len(chunks)} chunk timestamps')
+    finally:
+        # One model load serves the whole run; free the VRAM on the way out
+        # (mirrors the stage 2 fallback's cleanup, whisperx_settings_proposal s6).
+        import gc
+
+        import torch
+        del models
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 def main() -> None:

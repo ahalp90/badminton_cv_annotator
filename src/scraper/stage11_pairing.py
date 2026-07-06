@@ -31,10 +31,9 @@ log = logging.getLogger(__name__)
 VIDEO_FPS_CSV = SCRAPE_DIR / 'video_fps.csv'
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 
-# Output columns. rally_start/rally_end are FRAMES; commentary_* are SECONDS.
 PAIRS_COLUMNS = [
     'video_id', 'rally_id',
-    'rally_start', 'rally_end',        # FRAMES (from rally_spans.csv)
+    'rally_start', 'rally_end',  # FRAMES (from rally_spans.csv)
     'chunk_id',
     'commentary_start', 'commentary_end',  # SECONDS (native chunk units)
 ]
@@ -117,7 +116,7 @@ def pair_video(
     :return: one row dict per rally, keyed by PAIRS_COLUMNS.
     """
     sorted_chunks = sorted(chunks, key=lambda chunk: float(chunk['start']))
-    claimed: set = set()                                 # chunk_ids already paired
+    claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
 
     for rally_id, start_frame, end_frame in sorted(rally_spans):
@@ -128,21 +127,22 @@ def pair_video(
         }
         rally_masked = replay_mask is not None and _span_overlaps_mask(start_frame, end_frame, replay_mask)
         if rally_masked:
-            rows.append(row)                             # kept, held out of pairing
+            rows.append(row)  # kept, held out of pairing
             continue
 
         rally_end_t = end_frame / fps
         window_hi = rally_end_t + PAIR_WINDOW_S
-        for chunk in sorted_chunks:                      # ascending start: first in window wins
+        for chunk in sorted_chunks:  # ascending start: first in window wins
             chunk_id = chunk['chunk_id']
             if chunk_id in claimed:
                 continue
             start_s = float(chunk['start'])
-            in_window = rally_end_t < start_s <= window_hi
-            if not in_window:
+            if start_s <= rally_end_t:
                 continue
+            if start_s > window_hi:
+                break  # sorted ascending: nothing later can land in window
             if replay_mask is not None and _chunk_start_on_mask(start_s, fps, replay_mask):
-                continue                                 # chunk start on a replay frame is unpairable
+                continue  # chunk start on a replay frame is unpairable
             claimed.add(chunk_id)
             row['chunk_id'] = chunk_id
             row['commentary_start'] = chunk['start']

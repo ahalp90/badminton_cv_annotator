@@ -27,13 +27,13 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
 
-CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'            # spec s2 (stages 1, 3)
-TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'              # spec s3 (stage 2)
-CHUNKS_DIR = SCRAPE_DIR / 'chunks'                        # spec s4 (stages 3, 10)
-MASKS_DIR = SCRAPE_DIR / 'masks'                          # schema s2 (stage 9)
-RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'          # spec s6 (stage 8)
-CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'    # spec s6 (stage 8)
-PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'     # spec s9 (stage 11)
+CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'  # spec s2 (stages 1, 3)
+TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'  # spec s3 (stage 2)
+CHUNKS_DIR = SCRAPE_DIR / 'chunks'  # spec s4 (stages 3, 10)
+MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (stage 9)
+RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (stage 8)
+CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (stage 8)
+PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'  # spec s9 (stage 11)
 
 # ---------------------------------------------------------------------------
 # candidates.csv contract (spec s2)
@@ -45,19 +45,19 @@ PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'     # spec s9 (stage 11)
 # before stage 3 fills it). Consumers must parse (== 'True'), never truth-test
 # a raw cell: any non-empty string is truthy, 'False' included.
 CANDIDATES_COLUMNS = [
-    'video_id',             # yt-dlp id
-    'url',                  # webpage_url
+    'video_id',  # yt-dlp id
+    'url',  # webpage_url
     'title',
     'channel',
     'duration_s',
     'upload_date',
-    'search_term',          # provenance; comma-joined when several terms surface a video
-    'substream',            # 'match' or 'instructional', set by the search family (D24)
-    'doubles_suspect',      # bool, title/metadata keyword screen (spec s8)
-    'duration_suspect',     # bool, duration outside the match-length band (spec s2, D8)
+    'search_term',  # provenance; comma-joined when several terms surface a video
+    'substream',  # 'match' or 'instructional', set by the search family (D24)
+    'doubles_suspect',  # bool, title/metadata keyword screen (spec s8)
+    'duration_suspect',  # bool, duration outside the match-length band (spec s2, D8)
     'upload_date_suspect',  # bool, always False while the floor is off (spec s2, D8)
-    'keep',                 # bool, appended by stage 3; blank at index time
-    'triage_verdict',       # keep/drop/uncertain, human packet; blank at index time
+    'keep',  # bool, appended by stage 3; blank at index time
+    'triage_verdict',  # keep/drop/uncertain, human packet; blank at index time
 ]
 
 SUBSTREAM_MATCH = 'match'
@@ -105,8 +105,8 @@ SEARCH_TERMS = {
 # Cheap metadata screens (spec s2, D8). Flag never drop: a dropped row loses
 # its provenance. Instructional-substream rows skip the short-duration flag
 # (D24; coach-review clips run short by design).
-DURATION_MIN_S = 10 * 60     # flag under 10 min
-DURATION_MAX_S = 240 * 60    # flag over 240 min
+DURATION_MIN_S = 10 * 60  # flag under 10 min
+DURATION_MAX_S = 240 * 60  # flag over 240 min
 # Upload-date floor off per D8. A YYYYMMDD string when ever set; None disables.
 UPLOAD_DATE_FLOOR = None
 
@@ -121,8 +121,8 @@ DOUBLES_KEYWORD_TOKENS = ['xd', 'md', 'wd']
 # ---------------------------------------------------------------------------
 # Stage 2: transcript acquisition (spec s3)
 # ---------------------------------------------------------------------------
-SUB_LANGS = 'en.*'               # spec s3 --sub-langs
-SUB_FORMAT = 'json3/vtt/best'    # spec s3: prefer timestamped json3
+SUB_LANGS = 'en.*'  # spec s3 --sub-langs
+SUB_FORMAT = 'json3/vtt/best'  # spec s3: prefer timestamped json3
 # WhisperX fallback for videos with no English track (D23, signed off
 # 2026-07-06): large-v3-turbo for this coarse pass; remote GPU venv only.
 WHISPERX_COARSE_MODEL = 'large-v3-turbo'
@@ -137,10 +137,10 @@ CHUNK_OVERLAP_S = 60
 
 # Three-legged keep rule (D9, spec s4): keep when ANY leg passes. Starting
 # values, tuned at B5.
-CHUNKS_ABS_SAFE = 15          # enough absolute material regardless of length
-SHORT_VIDEO_MIN_S = 20 * 60   # the short/long boundary
-CHUNKS_MIN_SHORT = 3          # shorts judged on count
-DENSITY_MIN_PER_MIN = 0.15    # longs judged on chunks per minute
+CHUNKS_ABS_SAFE = 15  # enough absolute material regardless of length
+SHORT_VIDEO_MIN_S = 20 * 60  # the short/long boundary
+CHUNKS_MIN_SHORT = 3  # shorts judged on count
+DENSITY_MIN_PER_MIN = 0.15  # longs judged on chunks per minute
 
 # OPEN (spec s4, s12): exact flash ID pinned at B5; tier decided (low-cost
 # fast, Gemini flash via GEMINI_API_KEY, 2026-07-05). gemini-2.5-flash is the
@@ -155,7 +155,7 @@ API_KEY_ENV = 'GEMINI_API_KEY'  # referenced by name only; never a value
 # The clean and paraphrase share one call budget (schema s5); the clean lane
 # earns the stronger tier while the triage filter stays on flash (spec s4).
 CLEAN_MODEL = 'gemini-2.5-flash'  # OPEN: tier for the clean pass; flash until B5 data argues otherwise
-ALT_PHRASINGS_K = 3               # schema s5: 2 to 4, default 3
+ALT_PHRASINGS_K = 3  # schema s5: 2 to 4, default 3
 WHISPERX_FINE_MODEL = 'large-v2'  # D23: fine-timestamp pass, remote GPU only
 
 # Stage 11 pairing (spec s9): a rally pairs with the first commentary chunk
@@ -167,25 +167,25 @@ PAIR_WINDOW_S = 8
 # ---------------------------------------------------------------------------
 # Speed means per-frame L2 displacement of (x_norm, y_norm) on visibility-1
 # frames. All starting values; tuned on ShuttleSet ground-truth contacts.
-REST_SPEED = 0.01          # norm-units/frame; a span is at rest below this
-REST_WINDOW = 15           # frames (~0.5 s at 30 fps)
-START_SPEED = 0.03         # rally start: speed above this...
-START_MIN_FRAMES = 3       # ...for this many consecutive frames out of rest
-SMOOTH_WINDOW = 5          # moving-average window over (x, y) to survive TrackNetV3 jitter
-MIN_DIR_CHANGE_DEG = 90    # contact: smoothed-velocity direction change beyond this
-MIN_CONTACT_SPEED = 0.02   # with pre- and post-reversal speed above this
-END_REST_FRAMES = 30       # rally end: extended rest of at least this (~1 s)
-PROXIMITY_MAX = 0.15       # norm court units; player-proximity cross-check (guardrail column)
+REST_SPEED = 0.01  # norm-units/frame; a span is at rest below this
+REST_WINDOW = 15  # frames (~0.5 s at 30 fps)
+START_SPEED = 0.03  # rally start: speed above this...
+START_MIN_FRAMES = 3  # ...for this many consecutive frames out of rest
+SMOOTH_WINDOW = 5  # moving-average window over (x, y) to survive TrackNetV3 jitter
+MIN_DIR_CHANGE_DEG = 90  # contact: smoothed-velocity direction change beyond this
+MIN_CONTACT_SPEED = 0.02  # with pre- and post-reversal speed above this
+END_REST_FRAMES = 30  # rally end: extended rest of at least this (~1 s)
+PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
 
 # ---------------------------------------------------------------------------
 # Stage 9: replay and off-rally rules (spec s7)
 # ---------------------------------------------------------------------------
-COURT_ABSENT_WINDOW = 15     # frames of court-present False to fire the signal
+COURT_ABSENT_WINDOW = 15  # frames of court-present False to fire the signal
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
 # the build's starting value, tuned at B5.
 PERSPECTIVE_SHIFT_THRESH = 0.05
-SLOWMO_SPEED_FRAC = 0.3      # median speed under this fraction of rally median = slow-mo
+SLOWMO_SPEED_FRAC = 0.3  # median speed under this fraction of rally median = slow-mo
 
 # ---------------------------------------------------------------------------
 # Doubles guard windowing (spec s8)
@@ -202,14 +202,14 @@ DOUBLES_MIN_CONSECUTIVE = 15
 # ---------------------------------------------------------------------------
 # The stack: current pip-installed yt-dlp, Deno >= 2.3.0 user-space, the bgutil
 # PO-token provider plugin, cookieless by default. Values are starting points.
-SLEEP_INTERVAL_S = 5         # spec s5 --sleep-interval (randomised pre-download pause)
-MAX_SLEEP_INTERVAL_S = 15    # spec s5 --max-sleep-interval
-SLEEP_REQUESTS_S = 10        # spec s5 --sleep-requests (between extraction requests)
-LIMIT_RATE = '2M'            # spec s5 --limit-rate (byte-transfer cap)
-CONCURRENT_FRAGMENTS = 1     # spec s5 --concurrent-fragments (stage 4 downloads)
-DOWNLOAD_WORKERS = 2         # spec s5: worker count down from 4
-SLEEP_SUBTITLES_S = 2        # spec s3 --sleep-subtitles (between subtitle pulls)
-YTDLP_RETRIES = 3            # existing downloader convention
+SLEEP_INTERVAL_S = 5  # spec s5 --sleep-interval (randomised pre-download pause)
+MAX_SLEEP_INTERVAL_S = 15  # spec s5 --max-sleep-interval
+SLEEP_REQUESTS_S = 10  # spec s5 --sleep-requests (between extraction requests)
+LIMIT_RATE = '2M'  # spec s5 --limit-rate (byte-transfer cap)
+CONCURRENT_FRAGMENTS = 1  # spec s5 --concurrent-fragments (stage 4 downloads)
+DOWNLOAD_WORKERS = 2  # spec s5: worker count down from 4
+SLEEP_SUBTITLES_S = 2  # spec s3 --sleep-subtitles (between subtitle pulls)
+YTDLP_RETRIES = 3  # existing downloader convention
 
 # Subprocess timeouts. Metadata and caption calls are light; minutes are plenty.
 YTDLP_METADATA_TIMEOUT_S = 120

@@ -162,6 +162,8 @@ def call_triage_llm(window: dict) -> list[dict]:
             return _call_once(system_prompt, user_prompt)
         except Exception as error:  # noqa: BLE001 - retry SDK + JSON-parse errors alike
             last_error = error
+            if attempt == LLM_MAX_RETRIES - 1:
+                break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
             print(f'  LLM retry {attempt + 1}/{LLM_MAX_RETRIES} after {backoff:.1f}s: {error}')
             time.sleep(backoff)
@@ -171,13 +173,8 @@ def call_triage_llm(window: dict) -> list[dict]:
 def _keep_decision(n_chunks: int, duration_s: str) -> bool:
     """Three-legged keep rule (D9, spec s4): keep when ANY leg passes.
 
-    Legs: (1) chunks >= CHUNKS_ABS_SAFE, enough absolute material regardless of
-    length; (2) a short video (duration <= SHORT_VIDEO_MIN_S) with chunks >=
-    CHUNKS_MIN_SHORT, shorts judged on count; (3) a long video (duration >
-    SHORT_VIDEO_MIN_S) with chunks/minute >= DENSITY_MIN_PER_MIN, longs judged on
-    density. Enrichment fills duration for nearly all rows, so a duration-less row
-    is rare; it can be judged neither short nor long, so only the
-    length-independent absolute leg applies.
+    A duration-less row (rare; enrichment fills nearly all) can be judged
+    neither short nor long, so only the length-independent absolute leg applies.
 
     :param n_chunks: qualitative chunk count for the video.
     :param duration_s: duration in seconds as a string; blank when unknown.

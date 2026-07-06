@@ -61,13 +61,13 @@ def compute_speed(track: np.ndarray) -> np.ndarray:
     :return: `(t,)` speed in norm-units/frame; NaN on frame 0 and on any step
         touching a non-visible frame.
     """
-    xy = track[:, :2]                                  # (t, 2) normalised position
-    visibility = track[:, 2]                           # (t,)
-    step = np.diff(xy, axis=0)                          # (t-1, 2) frame i-1 -> i
-    step_speed = np.linalg.norm(step, axis=1)          # (t-1,)
+    xy = track[:, :2]  # (t, 2) normalised position
+    visibility = track[:, 2]  # (t,)
+    step = np.diff(xy, axis=0)  # (t-1, 2) frame i-1 -> i
+    step_speed = np.linalg.norm(step, axis=1)  # (t-1,)
     both_visible = (visibility[:-1] == 1) & (visibility[1:] == 1)  # (t-1,) both ends of the step
 
-    speed = np.full(len(track), np.nan)                # (t,) frame-indexed; frame 0 stays NaN
+    speed = np.full(len(track), np.nan)  # (t,) frame-indexed; frame 0 stays NaN
     speed[1:] = np.where(both_visible, step_speed, np.nan)
     return speed
 
@@ -103,7 +103,7 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
     left = window // 2
     right = window - 1 - left
     padded = np.concatenate([np.full(left, np.nan), values, np.full(right, np.nan)])
-    windows = sliding_window_view(padded, window)      # (t, window)
+    windows = sliding_window_view(padded, window)  # (t, window)
     with warnings.catch_warnings():
         # An all-NaN window (e.g. a fully untracked span) is expected and yields
         # NaN by design; silence the RuntimeWarning rather than let it spam logs.
@@ -136,11 +136,11 @@ def _rest_mask(speed: np.ndarray, track: np.ndarray) -> np.ndarray:
     :param track: `(t, 3)` track, for the visibility column.
     :return: `(t,)` bool, True where the frame reads as rest.
     """
-    speed_median = rolling_nanmedian(speed, REST_WINDOW)     # (t,)
-    slow = speed_median < REST_SPEED                         # NaN windows read not-slow here...
-    visible = (track[:, 2] == 1).astype(float)               # (t,) 1.0 where tracked
-    frac_visible = _rolling_mean(visible, REST_WINDOW)       # (t,) fraction tracked in window
-    mostly_untracked = frac_visible < VISIBILITY_REST_FRAC   # ...and the OR below catches them
+    speed_median = rolling_nanmedian(speed, REST_WINDOW)  # (t,)
+    slow = speed_median < REST_SPEED  # NaN windows read not-slow here...
+    visible = (track[:, 2] == 1).astype(float)  # (t,) 1.0 where tracked
+    frac_visible = _rolling_mean(visible, REST_WINDOW)  # (t,) fraction tracked in window
+    mostly_untracked = frac_visible < VISIBILITY_REST_FRAC  # ...and the OR below catches them
     return slow | mostly_untracked
 
 
@@ -158,9 +158,9 @@ def _find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int,
     :param at_rest: `(t,)` per-frame rest flag.
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    fast = np.nan_to_num(speed, nan=0.0) > START_SPEED       # (t,) NaN steps are not fast
+    fast = np.nan_to_num(speed, nan=0.0) > START_SPEED  # (t,) NaN steps are not fast
 
-    long_rest = np.zeros(len(speed), dtype=bool)             # (t,) frames inside an extended rest
+    long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
     for start, end in true_runs(at_rest):
         if end - start >= END_REST_FRAMES:
             long_rest[start:end] = True
@@ -202,26 +202,26 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     :param end: rally span end frame (exclusive).
     :return: contact frames in whole-video frame indices, ascending.
     """
-    span = track[start:end]                              # (n, 3) rally-local view
+    span = track[start:end]  # (n, 3) rally-local view
     if len(span) < SMOOTH_WINDOW + 2:
-        return []                                        # too short to smooth and difference twice
+        return []  # too short to smooth and difference twice
 
     smooth_x = _rolling_mean(span[:, 0], SMOOTH_WINDOW)  # (n,)
     smooth_y = _rolling_mean(span[:, 1], SMOOTH_WINDOW)  # (n,)
-    smoothed = np.column_stack([smooth_x, smooth_y])     # (n, 2)
-    visibility = span[:, 2]                              # (n,)
+    smoothed = np.column_stack([smooth_x, smooth_y])  # (n, 2)
+    visibility = span[:, 2]  # (n,)
 
-    velocity = np.diff(smoothed, axis=0)                 # (n-1, 2) segment j spans local frames j -> j+1
-    v_in = velocity[:-1]                                 # (n-2, 2) segment into junction k+1
-    v_out = velocity[1:]                                 # (n-2, 2) segment out of junction k+1
-    speed_in = np.linalg.norm(v_in, axis=1)              # (n-2,)
-    speed_out = np.linalg.norm(v_out, axis=1)            # (n-2,)
+    velocity = np.diff(smoothed, axis=0)  # (n-1, 2) segment j spans local frames j -> j+1
+    v_in = velocity[:-1]  # (n-2, 2) segment into junction k+1
+    v_out = velocity[1:]  # (n-2, 2) segment out of junction k+1
+    speed_in = np.linalg.norm(v_in, axis=1)  # (n-2,)
+    speed_out = np.linalg.norm(v_out, axis=1)  # (n-2,)
 
     # Angle between incoming and outgoing velocity at each interior junction.
     # Guard the zero-speed denominator so a stalled segment reads as no turn.
     denom = speed_in * speed_out
     safe = denom > 0
-    cos_angle = np.ones(len(denom))                      # (n-2,) default 1.0 -> 0 deg where unsafe
+    cos_angle = np.ones(len(denom))  # (n-2,) default 1.0 -> 0 deg where unsafe
     cos_angle[safe] = np.sum(v_in[safe] * v_out[safe], axis=1) / denom[safe]
     angle_deg = np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0)))  # (n-2,)
 
@@ -232,11 +232,11 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     fast_enough = (speed_in > MIN_CONTACT_SPEED) & (speed_out > MIN_CONTACT_SPEED)
     is_contact = sharp_turn & fast_enough & around_visible
 
-    candidate_local = np.flatnonzero(is_contact) + 1     # local frame of each candidate
+    candidate_local = np.flatnonzero(is_contact) + 1  # local frame of each candidate
     candidate_angle = angle_deg[is_contact]
 
     kept: list[int] = []
-    for idx in np.argsort(-candidate_angle):             # sharpest angle first
+    for idx in np.argsort(-candidate_angle):  # sharpest angle first
         frame = int(candidate_local[idx])
         if all(abs(frame - other) >= SMOOTH_WINDOW for other in kept):
             kept.append(frame)
@@ -260,8 +260,8 @@ def contact_proximity_ok(
     """
     if positions is None:
         return None
-    shuttle_xy = track[contact_frame, :2]                    # (2,)
-    player_xy = positions[contact_frame]                     # (2, 2) [slot, xy]
+    shuttle_xy = track[contact_frame, :2]  # (2,)
+    player_xy = positions[contact_frame]  # (2, 2) [slot, xy]
     distances = np.linalg.norm(player_xy - shuttle_xy, axis=1)  # (2,) per slot
     if np.all(np.isnan(distances)):
         # Positions exist but both slots failed this frame: measured, unconfirmed.

@@ -66,10 +66,10 @@ def pull_subtitles(video_id: str, url: str, work_dir: str) -> Path | None:
     output_template = str(Path(work_dir) / f'{video_id}.%(ext)s')
     cmd = [
         YTDLP_BIN, url,
-        '--write-auto-subs',                 # spec s3: YouTube ASR track
-        '--write-subs',                      # spec s3: human track where one exists
+        '--write-auto-subs',  # spec s3: YouTube ASR track
+        '--write-subs',  # spec s3: human track where one exists
         '--sub-langs', SUB_LANGS,
-        '--sub-format', SUB_FORMAT,          # spec s3: prefer timestamped json3
+        '--sub-format', SUB_FORMAT,  # spec s3: prefer timestamped json3
         '--skip-download',
         '--output', output_template,
         *ytdlp_throttle_args(include_subtitles=True),
@@ -158,8 +158,9 @@ def _download_audio(video_id: str, url: str, work_dir: str) -> Path | None:
 
     Used only by the WhisperX fallback. Unlike the caption pull this needs the
     real audio, so -x extracts the track to a file (no --skip-download). Paces
-    itself with a randomised pre-pull sleep, keeping the throttle Python-side and
-    consistent with the caption path.
+    itself with a randomised pre-pull sleep even though run_stage2 already slept
+    before the caption pull: the audio pull is a second, separate YouTube
+    request, and the D22 pre-download pause applies per request, not per video.
 
     :param video_id: yt-dlp id, used for the output filename and log lines.
     :param url: webpage_url passed to yt-dlp.
