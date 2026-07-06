@@ -110,23 +110,26 @@ def _gate_clip(ext, stem, setup) -> dict | None:
     )
 
 
-def _verdict(r: dict) -> bool:
+def _verdict(row: dict) -> bool:
     """Structural (all) + keypoint value + deployed value. Diagnostic clips still
     hard-gate on structure; value thresholds mirror G1/G6. A clip with no
-    IoU-matched detection (``kp_med`` NaN) or no both-success frames
-    (``pos_med``/``jnt_med`` NaN) fails rather than passing vacuously."""
-    kp_measured = not np.isnan(r["kp_med"])  # >=1 IoU-matched detection to gate on
-    # Deployed metrics must be *measured* to pass: zero both-success frames
-    # leaves pos_med/jnt_med NaN and NaN > MAX is False, so the negated checks
-    # passed vacuously. Mirrors G6's value_measured guard.
-    value_measured = (r["both"] > 0 and not np.isnan(r["pos_med"])
-                      and not np.isnan(r["jnt_med"]))
+    IoU-matched detection (``kp_med`` NaN), no both-confident joint
+    (``kp_cp90`` NaN) or no both-success frames (``pos_med``/``jnt_med`` NaN)
+    fails rather than passing vacuously."""
+    # Every value metric must be *measured* to pass: an unmeasured metric is
+    # NaN, every NaN comparison is False, and the old negated checks
+    # (not (x > MAX)) passed vacuously. Mirrors G6's value_measured guard and
+    # G1's fail-closed percentiles; positive comparisons keep NaN failing.
+    kp_measured = not np.isnan(row["kp_med"]) and not np.isnan(row["kp_cp90"])
+    value_measured = (row["both"] > 0 and not np.isnan(row["pos_med"])
+                      and not np.isnan(row["jnt_med"]))
     return (
-        r["dF"] == 0 and r["rt_lt2"] <= r["mm_lt2"] and r["fmatch"] >= FMATCH_MIN
-        and kp_measured and not (r["kp_med"] > MEDIAN_MAX)
-        and not (r["kp_cp90"] > CONF_P90_MAX)
+        row["dF"] == 0 and row["rt_lt2"] <= row["mm_lt2"]
+        and row["fmatch"] >= FMATCH_MIN
+        and kp_measured
+        and row["kp_med"] <= MEDIAN_MAX and row["kp_cp90"] <= CONF_P90_MAX
         and value_measured
-        and r["pos_med"] <= POS_MED_MAX and r["jnt_med"] <= JNT_MED_MAX
+        and row["pos_med"] <= POS_MED_MAX and row["jnt_med"] <= JNT_MED_MAX
     )
 
 
