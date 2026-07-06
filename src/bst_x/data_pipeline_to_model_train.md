@@ -198,6 +198,18 @@ python -m preparing_data.prepare_train_on_shuttleset
 
 Key flags: `--seq-len` (30 or 100), `--taxonomy` (`bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, or `shuttleset_18`), `--collation-id` (required generation tag, e.g. `taxon_pinned_w_preds`), `--split-column` (`split_v2` / `split_bst_baseline`), `--skip-pose`, `--skip-collate`, `--clips-dir`, `--shuttle-npy-dir` (default: `data/shuttleset/shuttle_npy/`), `--dry-run`.
 
+#### Running at scale
+
+A single extraction process leaves the GPU mostly idle (37-39% measured): per-frame cost is dominated by Python and video decode, not the model. For a full re-extract, run several workers per GPU on disjoint clip shards. Measured saturation points (2026-07-06):
+
+```
+bourbaki (A100): 8 workers, OMP_NUM_THREADS=2 each  -> 38.0 ms/frame, GPU ~97%
+carmack  (L40):  8 workers, OMP_NUM_THREADS=4 each  -> 27.2 ms/frame, GPU ~96%
+both nodes together clear the full 33k-clip set in ~7.5 h
+```
+
+engelbart sits out: CUDA 13 dropped Volta, so the current onnxruntime-gpu build cannot open a session on its V100. Sharding mechanics (symlink dirs for this module's pose step; `raw_extract` takes a stems list natively), tmux command blocks, and the measurements behind the worker counts: [`extraction_saturation_runbook.md`](../../docs/architecture_notes/rtmlib_migration/extraction_saturation_runbook.md).
+
 #### Data transformations in detail
 
 1. **Pose detection** (`detect_players_2d`): the rtmlib pose stack extracts 17 COCO keypoints per frame. Players are identified by court projection of their feet -- only the two players whose feet project inside the court boundaries are kept, ordered Top-first by y-coordinate. See [`keypoints_schema.md`](preparing_data/keypoints_schema.md) for the full joint index map, bone pairs, and JnB representation details.

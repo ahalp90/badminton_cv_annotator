@@ -320,7 +320,7 @@ python -m pipeline.verify --clips-dir data/shuttleset/clips
 
 Both architectures read from the same `clips/` and `shuttle_npy/` directories. The pipeline doesn't care what you do with the output.
 
-**Next step for BST-X:** Run `preparing_data/prepare_train_on_shuttleset.py` to extract poses (rtmlib) and collate into batch-ready arrays. See `data_pipeline_to_model_train.md` at the project root for the full pipeline-to-training walkthrough. For the COCO 17-keypoint joint index map, bone pairs, and JnB representations, see [`keypoints_schema.md`](../preparing_data/keypoints_schema.md).
+**Next step for BST-X:** Run `preparing_data/prepare_train_on_shuttleset.py` to extract poses (rtmlib) and collate into batch-ready arrays. See `data_pipeline_to_model_train.md` at the project root for the full pipeline-to-training walkthrough. For the COCO 17-keypoint joint index map, bone pairs, and JnB representations, see [`keypoints_schema.md`](../preparing_data/keypoints_schema.md). To run the pose extract across several GPU workers at once (per-node worker counts, sharding, command blocks), see [`extraction_saturation_runbook.md`](../../../docs/architecture_notes/rtmlib_migration/extraction_saturation_runbook.md).
 
 ### Split + label source
 

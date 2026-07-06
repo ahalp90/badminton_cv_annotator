@@ -109,31 +109,31 @@ def _gate_clip(ext, stem, category, setup) -> dict | None:
         return None
     t0 = time.time()
     frames = list(ext.iter_video(mp4))
-    p = deployed_parity(frames, stem, setup)
+    parity = deployed_parity(frames, stem, setup)
     mm_ndet = np.load(RAW / f"{stem}_raw_ndet.npy")
-    Frt, Fmm = len(p.out_failed), len(p.ref_failed)
+    Frt, Fmm = len(parity.out_failed), len(parity.ref_failed)
 
     return dict(
         stem=stem, category=category, Frt=Frt, Fmm=Fmm, dF=Frt - Fmm,
-        fmatch=p.fmatch, both=p.nb, pos_med=p.pos_med, jnt_med=p.jnt_med,
-        rt_only_fail=p.rt_only_fail, mm_only_fail=p.mm_only_fail,
-        rt_lt2=int((p.raw_arr.ndet < 2).sum()), mm_lt2=int((mm_ndet < 2).sum()),
+        fmatch=parity.fmatch, both=parity.nb, pos_med=parity.pos_med, jnt_med=parity.jnt_med,
+        rt_only_fail=parity.rt_only_fail, mm_only_fail=parity.mm_only_fail,
+        rt_lt2=int((parity.raw_arr.ndet < 2).sum()), mm_lt2=int((mm_ndet < 2).sum()),
         secs=time.time() - t0,
     )
 
 
-def _verdict(r: dict) -> bool:
+def _verdict(result: dict) -> bool:
     """Structural checks on all clips; value checks on diverse clips only."""
-    structural = (r["dF"] == 0 and r["fmatch"] >= FMATCH_MIN
-                  and r["rt_lt2"] <= r["mm_lt2"])
-    if r["category"] == "busted":
+    structural = (result["dF"] == 0 and result["fmatch"] >= FMATCH_MIN
+                  and result["rt_lt2"] <= result["mm_lt2"])
+    if result["category"] == "busted":
         return structural
     # Diverse clips must be *evaluated* on the value axis, not pass vacuously when
     # zero both-success frames leave pos_med/jnt_med NaN (NaN > MAX is False).
-    value_measured = (r["both"] > 0 and not np.isnan(r["pos_med"])
-                      and not np.isnan(r["jnt_med"]))
+    value_measured = (result["both"] > 0 and not np.isnan(result["pos_med"])
+                      and not np.isnan(result["jnt_med"]))
     return (structural and value_measured
-            and r["pos_med"] <= POS_MED_MAX and r["jnt_med"] <= JNT_MED_MAX)
+            and result["pos_med"] <= POS_MED_MAX and result["jnt_med"] <= JNT_MED_MAX)
 
 
 def main() -> int:
@@ -149,21 +149,21 @@ def main() -> int:
 
     results, missing = [], []
     for stem, _tag, category in stems:
-        r = _gate_clip(ext, stem, category, setup)
-        if r is None:
+        result = _gate_clip(ext, stem, category, setup)
+        if result is None:
             missing.append(stem)
             print(f"  {stem:13s}  no mp4 (skipped, logged)")
             continue
-        r["ok"] = _verdict(r)
-        results.append(r)
+        result["ok"] = _verdict(result)
+        results.append(result)
         flags = ""
-        if r["rt_lt2"] > r["mm_lt2"]:
+        if result["rt_lt2"] > result["mm_lt2"]:
             flags += "  *DROPPED PLAYER?*"
-        if category == "busted" and (r["pos_med"] > POS_MED_MAX or r["jnt_med"] > JNT_MED_MAX):
+        if category == "busted" and (result["pos_med"] > POS_MED_MAX or result["jnt_med"] > JNT_MED_MAX):
             flags += "  [busted: value diag over diverse-threshold]"
-        print(f"  {r['stem']:13s} {category:7s} {r['dF']:3d} {r['fmatch']:6.3f} {r['both']:4d} "
-              f"{r['pos_med']:7.4f} {r['jnt_med']:7.4f} {r['rt_only_fail']:6d} {r['mm_only_fail']:6d} "
-              f"{r['rt_lt2']:4d} {r['mm_lt2']:4d}  {'PASS' if r['ok'] else 'FAIL'}{flags}")
+        print(f"  {result['stem']:13s} {category:7s} {result['dF']:3d} {result['fmatch']:6.3f} {result['both']:4d} "
+              f"{result['pos_med']:7.4f} {result['jnt_med']:7.4f} {result['rt_only_fail']:6d} {result['mm_only_fail']:6d} "
+              f"{result['rt_lt2']:4d} {result['mm_lt2']:4d}  {'PASS' if result['ok'] else 'FAIL'}{flags}")
 
     if (out_path := os.environ.get("RTMLIB_GATE_JSON")):
         Path(out_path).write_text(json.dumps(results, indent=2))
@@ -171,17 +171,17 @@ def main() -> int:
     if not results:
         print("\nFAIL: no clips evaluated (all missing?)")
         return 1
-    mean_fmatch = float(np.mean([r["fmatch"] for r in results]))
-    per_clip_ok = all(r["ok"] for r in results)
+    mean_fmatch = float(np.mean([result["fmatch"] for result in results]))
+    per_clip_ok = all(result["ok"] for result in results)
     # The population mean gates only the built-in representative set.
     default_set = not os.environ.get("RTMLIB_GATE_STEMS")
     mean_ok = mean_fmatch >= MEAN_FMATCH_MIN or not default_set
     agg_ok = per_clip_ok and mean_ok
-    tot_rt_only = sum(r["rt_only_fail"] for r in results)
-    tot_mm_only = sum(r["mm_only_fail"] for r in results)
+    tot_rt_only = sum(result["rt_only_fail"] for result in results)
+    tot_mm_only = sum(result["mm_only_fail"] for result in results)
     print(f"\n  clips={len(results)}  missing={len(missing)}  mean fmatch={mean_fmatch:.3f}"
-          f"  pos_med(max)={np.nanmax([r['pos_med'] for r in results]):.4f}"
-          f"  jnt_med(max)={np.nanmax([r['jnt_med'] for r in results]):.4f}")
+          f"  pos_med(max)={np.nanmax([result['pos_med'] for result in results]):.4f}"
+          f"  jnt_med(max)={np.nanmax([result['jnt_med'] for result in results]):.4f}")
     print(f"  directional frame loss (all clips): rtmlib-only-fail={tot_rt_only}  "
           f"mmpose-only-fail={tot_mm_only}  (expect near-symmetric noise; a "
           f"one-directional excess means one extractor systematically loses frames "
@@ -189,7 +189,7 @@ def main() -> int:
     if missing:
         print(f"  missing stems (not evaluated): {', '.join(missing)}")
     if not per_clip_ok:
-        print(f"  per-clip failures: {[r['stem'] for r in results if not r['ok']]}")
+        print(f"  per-clip failures: {[result['stem'] for result in results if not result['ok']]}")
     if default_set and mean_fmatch < MEAN_FMATCH_MIN:
         print(f"  population mean fmatch {mean_fmatch:.3f} < {MEAN_FMATCH_MIN} on the default set")
     print(f"\n{'PASS' if agg_ok else 'FAIL'}: G6 deployed-output parity")
