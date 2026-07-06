@@ -78,8 +78,8 @@ def assemble_raw_clip(frames: list, n_max: int = N_MAX) -> RawArrays:
     2) rather than a replica, so the deployed-parity gates cannot drift from what
     ``raw_extract`` actually writes: real detections in detector order in slots
     ``0..n-1``; top-``n_max`` by descending ``bbox_score`` on overflow; NaN pad;
-    int8 ndet. ``gate_raw_schema.py`` covers the truncation/empty/partial edges of
-    ``extract_raw_frame`` directly.
+    int8 ndet. ``tests/test_raw_schema.py`` covers the truncation/empty/partial edges
+    of ``extract_raw_frame`` directly.
 
     :param frames: rtmlib ``FrameDetections`` per frame, decode order.
     :param n_max: per-frame detection cap (16 in production).

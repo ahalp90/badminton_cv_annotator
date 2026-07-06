@@ -67,11 +67,12 @@ nano at 0.3 is the fast option, at the price of the dropped players above.
 - `validation_scripts/rtmlib_migration/download_and_verify_models.py`
   downloads both ONNX files, checks their SHA-256 against committed pins, and
   vendors them to the pool.
+- Raw-schema assembly (synthetic, inference-free): `tests/test_raw_schema.py`,
+  run under CI with the rest of the pytest suite (no rtmlib needed).
 - CPU checks (repo root, `PYTHONPATH=src/bst_x:src`, venv per
-  `preparing_data/requirements.txt`): `gate_raw_schema`,
-  `adapter_contract_test`, `gate_cpu_determinism` (`OMP_NUM_THREADS=1`),
-  `gate_dtype_parity`, `gate_keypoint_value`, `gate_cpu_downstream_byteeq`,
-  `gate_deployed_parity`.
+  `preparing_data/requirements.txt`): `adapter_contract_test`,
+  `gate_cpu_determinism` (`OMP_NUM_THREADS=1`), `gate_dtype_parity`,
+  `gate_keypoint_value`, `gate_cpu_downstream_byteeq`, `gate_deployed_parity`.
 - GPU checks (CUDA box; env recipe in `preparing_data/requirements.txt`):
   `gate_cuda_selfvariance`, then `gate_gpu_parity`, then `phase_a_decision`
   over their JSON outputs. Paths and knobs are `RTMLIB_GATE_*` env vars,
