@@ -47,18 +47,13 @@ from pathlib import Path
 import numpy as np
 from _common import (
     CONF_THR,
-    assemble_raw_clip,
+    court_setup,
+    deployed_parity,
     find_clip,
     load_mmpose_raw,
     matched_kp_l2,
 )
-from gate_deployed_parity import (
-    CLEAN,
-    FMATCH_MIN,
-    JNT_MED_MAX,
-    POS_MED_MAX,
-    _setup,
-)
+from gate_deployed_parity import FMATCH_MIN, JNT_MED_MAX, POS_MED_MAX
 from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 
 from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
@@ -87,7 +82,6 @@ def _stems() -> list[str]:
 
 
 def _gate_clip(ext, stem, setup) -> dict | None:
-    res_df, court, params, RawClip, ClipContext, sticky_apply = setup
     mp4 = find_clip(stem)
     if mp4 is None:
         return None
@@ -103,35 +97,15 @@ def _gate_clip(ext, stem, setup) -> dict | None:
     rt_ndet = float(np.mean([len(f.keypoints) for f in frames]))
 
     # --- deployed axis (G6) ---
-    raw_arr = assemble_raw_clip(frames)
-    raw = RawClip(kps=raw_arr.kps, bboxes=raw_arr.bboxes, scores=raw_arr.bbox_scores,
-                  kp_scores=raw_arr.kp_scores, ndet=raw_arr.ndet)
-    ctx = ClipContext(vid=int(stem.split("_", 1)[0]), all_court_info=court, res_df=res_df)
-    out = sticky_apply(raw, ctx, **params)
-    ref_pos = np.load(CLEAN / f"{stem}_pos.npy")
-    ref_joints = np.load(CLEAN / f"{stem}_joints.npy")
-    ref_failed = np.load(CLEAN / f"{stem}_failed.npy")
-
-    F = min(Frt, Fmm)
-    rt_f, mm_f = out.failed[:F], ref_failed[:F]
-    fmatch = float((rt_f == mm_f).mean())
-    rt_only_fail = int((rt_f & ~mm_f).sum())  # rtmlib zeroes a frame mmpose kept
-    mm_only_fail = int((~rt_f & mm_f).sum())  # the reverse
-    both = (~rt_f) & (~mm_f)
-    nb = int(both.sum())
-    if nb:
-        pos_med = float(np.median(np.abs(out.pos[:F][both] - ref_pos[:F][both])))
-        jnt_med = float(np.median(np.abs(out.joints[:F][both] - ref_joints[:F][both])))
-    else:
-        pos_med = jnt_med = float("nan")
+    p = deployed_parity(frames, stem, setup)
 
     return dict(
         stem=stem, dF=Frt - Fmm, kp_med=kp_med, kp_cp90=kp_cp90,
         rt_ndet=rt_ndet, mm_ndet=float(mm.ndet.mean()),
-        fmatch=fmatch, both=nb, pos_med=pos_med, jnt_med=jnt_med,
-        rt_only_fail=rt_only_fail, mm_only_fail=mm_only_fail,
-        rt_failrate=float(out.failed.mean()), mm_failrate=float(ref_failed.mean()),
-        rt_lt2=int((raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
+        fmatch=p.fmatch, both=p.nb, pos_med=p.pos_med, jnt_med=p.jnt_med,
+        rt_only_fail=p.rt_only_fail, mm_only_fail=p.mm_only_fail,
+        rt_failrate=float(p.out_failed.mean()), mm_failrate=float(p.ref_failed.mean()),
+        rt_lt2=int((p.raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
         secs=time.time() - t0,
     )
 
@@ -150,7 +124,7 @@ def _verdict(r: dict) -> bool:
 
 
 def main() -> int:
-    setup = _setup()
+    setup = court_setup()
     ext = RtmlibPoseExtractor(device=DEVICE, det_score_thr=DET_THR)
     stems = _stems()
     print(f"G8 GPU extraction parity | device={DEVICE} | det_thr={DET_THR} | "

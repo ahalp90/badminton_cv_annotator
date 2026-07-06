@@ -48,18 +48,12 @@ import json
 import os
 import sys
 import time
-from dataclasses import fields
 from pathlib import Path
 
 import numpy as np
-from _common import RAW, assemble_raw_clip, find_clip
+from _common import RAW, court_setup, deployed_parity, find_clip
 
 from preparing_data.rtmlib_pose import RtmlibPoseExtractor
-
-CLEAN = Path(os.environ.get(
-    "RTMLIB_GATE_CLEAN",
-    "/srv/mergerfs/main_pool/320_cosc594_data-bourbaki/ShuttleSet_keypoints_clean_sticky_anchor",
-))
 
 FMATCH_MIN = 0.85       # per-clip failed-frame agreement floor (all categories)
 MEAN_FMATCH_MIN = 0.95  # aggregate over the default representative set
@@ -109,62 +103,21 @@ def _stems() -> list[tuple[str, str, str]]:
     return DEFAULT_STEMS
 
 
-def _setup():
-    """One-time court/resolution context + sticky_anchor default hyperparams."""
-    import pandas as pd
-    from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-    from pipeline.court_utils import get_court_info
-
-    from preparing_data.heuristics.base import ClipContext, RawClip
-    from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
-    from preparing_data.heuristics.sticky_anchor import apply as sticky_apply
-
-    res_df = pd.read_csv(RESOLUTION_CSV_PATH).set_index("id")
-    homo_df = pd.read_csv(str(SET_INFO_DIR / "homography.csv")).set_index("id")
-    court = {vid: get_court_info(homo_df, vid) for vid in res_df.index}
-    params = {f.name: f.default for f in fields(StickyAnchorParams)}
-    return res_df, court, params, RawClip, ClipContext, sticky_apply
-
-
 def _gate_clip(ext, stem, category, setup) -> dict | None:
-    res_df, court, params, RawClip, ClipContext, sticky_apply = setup
     mp4 = find_clip(stem)
     if mp4 is None:
         return None
     t0 = time.time()
     frames = list(ext.iter_video(mp4))
-    raw_arr = assemble_raw_clip(frames)
-    raw = RawClip(kps=raw_arr.kps, bboxes=raw_arr.bboxes, scores=raw_arr.bbox_scores,
-                  kp_scores=raw_arr.kp_scores, ndet=raw_arr.ndet)
-    ctx = ClipContext(vid=int(stem.split("_", 1)[0]), all_court_info=court, res_df=res_df)
-    out = sticky_apply(raw, ctx, **params)
-
-    ref_pos = np.load(CLEAN / f"{stem}_pos.npy")
-    ref_joints = np.load(CLEAN / f"{stem}_joints.npy")
-    ref_failed = np.load(CLEAN / f"{stem}_failed.npy")
+    p = deployed_parity(frames, stem, setup)
     mm_ndet = np.load(RAW / f"{stem}_raw_ndet.npy")
-
-    Frt, Fmm = len(out.failed), len(ref_failed)
-    F = min(Frt, Fmm)
-    rt_f, mm_f = out.failed[:F], ref_failed[:F]
-    fmatch = float((rt_f == mm_f).mean())
-    # Directional failed-frame split: surface both directions separately, since
-    # a one-directional excess is data loss the mean agreement hides.
-    rt_only_fail = int((rt_f & ~mm_f).sum())  # rtmlib zeroes a frame mmpose kept
-    mm_only_fail = int((~rt_f & mm_f).sum())  # the reverse (near-zero in practice)
-    both = (~rt_f) & (~mm_f)
-    nb = int(both.sum())
-    if nb:
-        pos_med = float(np.median(np.abs(out.pos[:F][both] - ref_pos[:F][both])))
-        jnt_med = float(np.median(np.abs(out.joints[:F][both] - ref_joints[:F][both])))
-    else:
-        pos_med = jnt_med = float("nan")
+    Frt, Fmm = len(p.out_failed), len(p.ref_failed)
 
     return dict(
         stem=stem, category=category, Frt=Frt, Fmm=Fmm, dF=Frt - Fmm,
-        fmatch=fmatch, both=nb, pos_med=pos_med, jnt_med=jnt_med,
-        rt_only_fail=rt_only_fail, mm_only_fail=mm_only_fail,
-        rt_lt2=int((raw_arr.ndet < 2).sum()), mm_lt2=int((mm_ndet < 2).sum()),
+        fmatch=p.fmatch, both=p.nb, pos_med=p.pos_med, jnt_med=p.jnt_med,
+        rt_only_fail=p.rt_only_fail, mm_only_fail=p.mm_only_fail,
+        rt_lt2=int((p.raw_arr.ndet < 2).sum()), mm_lt2=int((mm_ndet < 2).sum()),
         secs=time.time() - t0,
     )
 
@@ -184,7 +137,7 @@ def _verdict(r: dict) -> bool:
 
 
 def main() -> int:
-    setup = _setup()
+    setup = court_setup()
     ext = RtmlibPoseExtractor(device="cpu")
     stems = _stems()
 

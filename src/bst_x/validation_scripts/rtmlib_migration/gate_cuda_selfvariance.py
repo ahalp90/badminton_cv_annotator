@@ -41,8 +41,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from _common import assemble_raw_clip, find_clip, match_dets
-from gate_deployed_parity import _setup
+from _common import assemble_raw_clip, court_setup, find_clip, match_dets
 
 from preparing_data.rtmlib_pose import RtmlibPoseExtractor
 
@@ -88,7 +87,7 @@ def _fail_selfvar(a: list, b: list, stem: str, setup) -> float:
 
 
 def main() -> int:
-    setup = _setup()
+    setup = court_setup()
     ext = RtmlibPoseExtractor(device=DEVICE)
     stems = _stems()
     print(f"G7 CUDA self-variance floor | device={DEVICE} | {len(stems)} clip(s)\n")
