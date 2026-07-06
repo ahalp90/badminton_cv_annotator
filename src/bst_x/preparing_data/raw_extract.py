@@ -273,6 +273,11 @@ def main() -> int:
         parser.error(f"clips-dir not found: {args.clips_dir}")
     if not args.clip_stems_file.exists():
         parser.error(f"clip-stems-file not found: {args.clip_stems_file}")
+    if args.n_max > 127:
+        parser.error(
+            f"--n-max {args.n_max} exceeds 127: per-frame detection counts are "
+            f"saved as int8 (_raw_ndet.npy), so a larger cap would silently wrap"
+        )
 
     stems = load_stems(args.clip_stems_file)
     print(f"Loaded {len(stems)} stems from {args.clip_stems_file}")

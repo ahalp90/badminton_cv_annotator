@@ -237,6 +237,20 @@ def test_raw_extract_resume_skips_excluded_from_denominator(tmp_path, monkeypatc
     assert _read_log_stems(save_dir) == fails
 
 
+def test_raw_extract_rejects_n_max_over_int8(tmp_path, monkeypatch, capsys):
+    """--n-max above 127 is rejected up front: ndet saves as int8, so a larger
+    cap would silently wrap per-frame counts."""
+    clips_dir, save_dir = tmp_path / "clips", tmp_path / "save"
+    stems_file = tmp_path / "stems.txt"
+    _write_clips_and_stems(clips_dir, stems_file, ["11_1_1_1"])
+
+    stub = _make_stub_rtmlib_module({})
+    with pytest.raises(SystemExit) as excinfo:
+        _run_raw_extract(monkeypatch, stub, clips_dir, stems_file, save_dir, n_max=128)
+    assert excinfo.value.code == 2  # argparse parser.error
+    assert "int8" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # prepare_dataset_npy_from_raw_video
 # ---------------------------------------------------------------------------
