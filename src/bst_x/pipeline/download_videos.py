@@ -31,7 +31,7 @@ def _check_ytdlp() -> None:
 
 def download_video(
     url: str,
-    video_id: int,
+    video_id: int | str,
     video_name: str,
     output_dir: Path,
 ) -> str | None:
@@ -41,7 +41,7 @@ def download_video(
     pattern already exists.
 
     :param url: YouTube video URL.
-    :param video_id: Numeric ID from match.csv.
+    :param video_id: ID from the source CSV (ShuttleSet int, or a YouTube string id).
     :param video_name: Match name from match.csv (used in filename).
     :param output_dir: Directory to save the downloaded video.
     :return: Filename on success, None on failure.
@@ -61,6 +61,14 @@ def download_video(
                 '--output', output_template,
                 '--no-playlist',
                 '--retries', '3',
+                # D22 ban-avoidance throttle (D22 stack, scraper_spec.md s5). bst_x
+                # cannot import from src/scraper, so these values are deliberately
+                # duplicated from src/scraper/config.py rather than shared.
+                '--sleep-interval', '5',
+                '--max-sleep-interval', '15',
+                '--sleep-requests', '10',
+                '--limit-rate', '2M',
+                '--concurrent-fragments', '1',
                 url,
             ],
             capture_output=True,
@@ -89,14 +97,26 @@ def download_all_videos(
     match_csv_path: Path = SET_INFO_DIR / 'match.csv',
     output_dir: Path = RAW_VIDEO_DIR,
     excluded: frozenset[int] = EXCLUDED_VIDEOS,
-    max_workers: int = 4,
+    max_workers: int = 2,  # D22: fewer parallel workers is part of the ban-avoidance stack
+    id_col: str = 'id',
+    url_col: str = 'url',
+    name_col: str = 'video',
+    keep_col: str | None = None,
 ) -> list[str]:
     """Download all ShuttleSet match videos from YouTube in parallel.
 
-    :param match_csv_path: Path to match.csv with video URLs.
+    Column-name params default to match.csv's names, so the ShuttleSet path is
+    unchanged. Point them at a stage-3 keep-list CSV (video_id, url, title, keep)
+    and pass keep_col to feed only the kept rows straight in.
+
+    :param match_csv_path: Path to the source CSV with video URLs.
     :param output_dir: Directory to save downloaded videos.
     :param excluded: Video IDs to skip. Defaults to config.EXCLUDED_VIDEOS.
     :param max_workers: Number of parallel download threads.
+    :param id_col: Column holding the video id (filename stem).
+    :param url_col: Column holding the video URL.
+    :param name_col: Column holding the video/match name (filename).
+    :param keep_col: Optional keep-flag column; keeps only rows parsing 'True'.
     :return: List of successfully downloaded filenames.
     """
     _check_ytdlp()
@@ -105,10 +125,19 @@ def download_all_videos(
 
     match_df = pd.read_csv(match_csv_path)
     # Filter out excluded videos
-    match_df = match_df[~match_df['id'].isin(excluded)]
+    match_df = match_df[~match_df[id_col].isin(excluded)]
+
+    if keep_col is not None:
+        # astype(str) WHY: pandas parses an all-bool CSV column to bool dtype,
+        # while a mixed or blank-bearing column stays string; casting makes both
+        # compare identically against 'True'. Truth-testing a raw cell is banned:
+        # any non-empty string is truthy, 'False' included.
+        match_df = match_df[match_df[keep_col].astype(str) == 'True']
 
     tasks = [
-        (row['url'], int(row['id']), row['video'], output_dir)
+        # YouTube ids are strings; ShuttleSet's int64 ids format identically in
+        # the filename f-string, so pass row[id_col] as-is (no int() cast).
+        (row[url_col], row[id_col], row[name_col], output_dir)
         for _, row in match_df.iterrows()
     ]
 
@@ -209,7 +238,7 @@ def main():
     )
     parser.add_argument('--output-dir', type=Path, default=RAW_VIDEO_DIR,
                         help='Directory to save downloaded videos')
-    parser.add_argument('--workers', type=int, default=4,
+    parser.add_argument('--workers', type=int, default=2,
                         help='Number of parallel download workers')
     parser.add_argument('--resolution-csv', type=Path, default=RESOLUTION_CSV_PATH,
                         help='Output path for resolution CSV')
