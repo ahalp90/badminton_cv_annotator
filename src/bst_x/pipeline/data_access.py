@@ -1,4 +1,4 @@
-"""Access ShuttleSet clips, shuttle npy, and mmpose npy filtered by split and taxonomy class.
+"""Access ShuttleSet clips, shuttle npy, and rtmpose npy filtered by split and taxonomy class.
 
 On-disk layout (post-Phase-2)
 -----------------------------
@@ -10,7 +10,7 @@ clips_dir/                       # Still nested (Phase 3 flattening deferred).
 shuttle_npy_dir/                 # Flat after Phase 2.2.
   {clip_stem}.npy
 
-mmpose_npy_dir/                  # Flat after Phase 2.1; only present once pose
+rtmpose_npy_dir/                 # Flat after Phase 2.1; only present once pose
   {clip_stem}_joints.npy         # extraction has run.
   {clip_stem}_pos.npy
 
@@ -36,7 +36,7 @@ Python API
     from pipeline.data_access import get_clip_records, DataPaths
 
     # Defaults: clips, shuttle_npy, clips_master from pipeline.config paths.
-    # mmpose_npy_dir is left None until BST_X_MMPOSE_NPY_DIR is set or passed in.
+    # rtmpose_npy_dir is left None until BST_X_RTMPOSE_NPY_DIR is set or passed in.
     paths = DataPaths()
 
     # Filter by split and/or class. Both are optional.
@@ -51,11 +51,11 @@ Python API
     for r in records:
         print(r.clip)           # Path to .mp4, or None if not on disk.
         print(r.shuttle_npy)    # Path to shuttle .npy, or None if missing.
-        print(r.mmpose_joints)  # Path to _joints.npy, or None if not generated.
+        print(r.rtmpose_joints) # Path to _joints.npy, or None if not generated.
 
-    # When mmpose data exists, pass its flat root directory.
+    # When rtmpose data exists, pass its flat root directory.
     paths = DataPaths(
-        mmpose_npy_dir=Path(
+        rtmpose_npy_dir=Path(
             'preparing_data/ShuttleSet_data_bst_25/'
             'dataset_npy_between_2_hits_with_max_limits_flat'
         )
@@ -80,7 +80,7 @@ helper that builds a ``{clip_stem -> Path}`` lookup. ``data_access`` calls it
 internally to resolve clip paths against the still-nested clips tree. Use
 ``clip_index`` directly when you only need the stem-to-path map; use
 ``data_access`` when you also want split + taxonomy filtering and paired
-shuttle / mmpose resolution.
+shuttle / rtmpose resolution.
 """
 from __future__ import annotations
 
@@ -186,7 +186,7 @@ class DataPaths:
     Environment variables:
       BST_X_CLIPS_DIR        -- root clips directory (nested by split/class).
       BST_X_SHUTTLE_NPY_DIR  -- flat shuttle npy directory.
-      BST_X_MMPOSE_NPY_DIR   -- flat mmpose per-clip npy directory (omit if not
+      BST_X_RTMPOSE_NPY_DIR  -- flat rtmpose per-clip npy directory (omit if not
                               generated yet).
       BST_X_CLIPS_CSV        -- path to clips_master.csv.
 
@@ -196,7 +196,7 @@ class DataPaths:
         ``{split_bst_baseline}/{folder_name}/{stem}.mp4`` (Phase 3 flattening
         deferred).
     :param shuttle_npy_dir: Flat shuttle npy dir: ``{stem}.npy`` per clip.
-    :param mmpose_npy_dir: Flat mmpose per-clip npy dir holding
+    :param rtmpose_npy_dir: Flat rtmpose per-clip npy dir holding
         ``{stem}_joints.npy`` and ``{stem}_pos.npy``, or None if pose
         extraction has not been run.
     :param clips_csv: Path to ``notebooks/clips_master.csv``, the source of
@@ -209,8 +209,8 @@ class DataPaths:
     shuttle_npy_dir: Path = field(
         default_factory=lambda: env_path('BST_X_SHUTTLE_NPY_DIR', SHUTTLE_OUTPUT_DIR)
     )
-    mmpose_npy_dir: Path | None = field(
-        default_factory=lambda: env_path_or_none('BST_X_MMPOSE_NPY_DIR')
+    rtmpose_npy_dir: Path | None = field(
+        default_factory=lambda: env_path_or_none('BST_X_RTMPOSE_NPY_DIR')
     )
     clips_csv: Path = field(
         default_factory=lambda: env_path('BST_X_CLIPS_CSV', _DEFAULT_CLIPS_CSV)
@@ -230,10 +230,10 @@ class ClipRecord:
     :param clip: Path to the .mp4 clip file, or None if the stem is not found
         on disk.
     :param shuttle_npy: Path to the flat shuttle .npy, or None if missing.
-    :param mmpose_joints: Path to the flat ``_joints.npy``, or None if missing
-        or mmpose_npy_dir is not set.
-    :param mmpose_pos: Path to the flat ``_pos.npy``, or None if missing or
-        mmpose_npy_dir is not set.
+    :param rtmpose_joints: Path to the flat ``_joints.npy``, or None if missing
+        or rtmpose_npy_dir is not set.
+    :param rtmpose_pos: Path to the flat ``_pos.npy``, or None if missing or
+        rtmpose_npy_dir is not set.
     """
 
     split: str
@@ -241,8 +241,8 @@ class ClipRecord:
     clip_stem: str
     clip: Path | None
     shuttle_npy: Path | None
-    mmpose_joints: Path | None
-    mmpose_pos: Path | None
+    rtmpose_joints: Path | None
+    rtmpose_pos: Path | None
 
 
 def _derive_class_label(
@@ -283,7 +283,7 @@ def get_clip_records(
     Reads the master CSV, filters by ``split`` / ``taxonomy_class``, derives
     the folder-style class label via the active taxonomy, and resolves each
     row's paired files on disk: clip from the still-nested clips tree (via
-    ``clip_index.build_clip_path_index``), shuttle and mmpose files from the
+    ``clip_index.build_clip_path_index``), shuttle and rtmpose files from the
     flat post-Phase-2 dirs.
 
     Rows whose ``raw_type_en`` is in
@@ -354,11 +354,11 @@ def get_clip_records(
     else:
         shuttle_stems = set()
 
-    # mmpose files carry _joints/_pos suffixes; strip back to the clip stem.
-    mmpose_dir = paths.mmpose_npy_dir
-    if mmpose_dir and mmpose_dir.is_dir():
-        joints_stems = {p.name.removesuffix('_joints.npy') for p in mmpose_dir.glob('*_joints.npy')}
-        pos_stems = {p.name.removesuffix('_pos.npy') for p in mmpose_dir.glob('*_pos.npy')}
+    # rtmpose files carry _joints/_pos suffixes; strip back to the clip stem.
+    rtmpose_dir = paths.rtmpose_npy_dir
+    if rtmpose_dir and rtmpose_dir.is_dir():
+        joints_stems = {p.name.removesuffix('_joints.npy') for p in rtmpose_dir.glob('*_joints.npy')}
+        pos_stems = {p.name.removesuffix('_pos.npy') for p in rtmpose_dir.glob('*_pos.npy')}
     else:
         joints_stems, pos_stems = set(), set()
 
@@ -377,16 +377,16 @@ def get_clip_records(
 
         clip = path_by_stem.get(stem)
 
-        # A stem only lands in joints_stems/pos_stems when mmpose_npy_dir is a
+        # A stem only lands in joints_stems/pos_stems when rtmpose_npy_dir is a
         # real dir, so the path build here is never reached with a None dir.
         shuttle = (
             paths.shuttle_npy_dir / f'{stem}.npy' if stem in shuttle_stems else None
         )
         joints = (
-            paths.mmpose_npy_dir / f'{stem}_joints.npy' if stem in joints_stems else None
+            paths.rtmpose_npy_dir / f'{stem}_joints.npy' if stem in joints_stems else None
         )
         pos = (
-            paths.mmpose_npy_dir / f'{stem}_pos.npy' if stem in pos_stems else None
+            paths.rtmpose_npy_dir / f'{stem}_pos.npy' if stem in pos_stems else None
         )
 
         records.append(ClipRecord(
@@ -395,8 +395,8 @@ def get_clip_records(
             clip_stem=stem,
             clip=clip,
             shuttle_npy=shuttle,
-            mmpose_joints=joints,
-            mmpose_pos=pos,
+            rtmpose_joints=joints,
+            rtmpose_pos=pos,
         ))
 
     return records
@@ -428,7 +428,7 @@ def summarise(
 
     counts: dict[str, dict[str, dict[str, int]]] = defaultdict(
         lambda: defaultdict(
-            lambda: {'clips': 0, 'clips_on_disk': 0, 'shuttle': 0, 'mmpose': 0}
+            lambda: {'clips': 0, 'clips_on_disk': 0, 'shuttle': 0, 'rtmpose': 0}
         )
     )
     for r in records:
@@ -438,19 +438,19 @@ def summarise(
             c['clips_on_disk'] += 1
         if r.shuttle_npy:
             c['shuttle'] += 1
-        if r.mmpose_joints:
-            c['mmpose'] += 1
+        if r.rtmpose_joints:
+            c['rtmpose'] += 1
 
     for sp in SPLITS:
         if sp not in counts:
             continue
         print(f'\n{sp}:')
         for cls_name, c in sorted(counts[sp].items()):
-            mmpose_str = f"  mmpose={c['mmpose']}" if paths.mmpose_npy_dir else ''
+            rtmpose_str = f"  rtmpose={c['rtmpose']}" if paths.rtmpose_npy_dir else ''
             print(
                 f"  {cls_name:<40}  clips={c['clips']}"
                 f"  on_disk={c['clips_on_disk']}"
-                f"  shuttle={c['shuttle']}{mmpose_str}"
+                f"  shuttle={c['shuttle']}{rtmpose_str}"
             )
 
     total = len(records)
@@ -460,9 +460,9 @@ def summarise(
         f'\nTotal: {total} clip rows, {on_disk_total} clips on disk, '
         f'{shuttle_total} shuttle npys'
     )
-    if paths.mmpose_npy_dir:
-        mmpose_total = sum(1 for r in records if r.mmpose_joints)
-        print(f'       {mmpose_total} mmpose npy sets')
+    if paths.rtmpose_npy_dir:
+        rtmpose_total = sum(1 for r in records if r.rtmpose_joints)
+        print(f'       {rtmpose_total} rtmpose npy sets')
 
 
 def _menu(prompt: str, options: list[str]) -> str:
@@ -478,14 +478,14 @@ def _menu(prompt: str, options: list[str]) -> str:
 
 
 def _print_paths_tsv(records: list[ClipRecord]) -> None:
-    """Print clip records as tab-separated rows: split, class, stem, clip, shuttle, mmpose."""
+    """Print clip records as tab-separated rows: split, class, stem, clip, shuttle, rtmpose."""
     for r in records:
         clip_str = str(r.clip) if r.clip else 'MISSING_CLIP'
         shuttle_str = str(r.shuttle_npy) if r.shuttle_npy else 'MISSING_SHUTTLE'
-        mmpose_str = str(r.mmpose_joints) if r.mmpose_joints else 'MISSING_MMPOSE'
+        rtmpose_str = str(r.rtmpose_joints) if r.rtmpose_joints else 'MISSING_RTMPOSE'
         print(
             f'{r.split}\t{r.taxonomy_class}\t{r.clip_stem}\t'
-            f'{clip_str}\t{shuttle_str}\t{mmpose_str}'
+            f'{clip_str}\t{shuttle_str}\t{rtmpose_str}'
         )
 
 
@@ -578,8 +578,8 @@ def _build_cli() -> argparse.ArgumentParser:
              '+ config default).',
     )
     parser.add_argument(
-        '--mmpose-npy-dir', type=Path, default=None,
-        help='Flat mmpose per-clip npy directory (overrides BST_X_MMPOSE_NPY_DIR).',
+        '--rtmpose-npy-dir', type=Path, default=None,
+        help='Flat rtmpose per-clip npy directory (overrides BST_X_RTMPOSE_NPY_DIR).',
     )
     parser.add_argument(
         '--clips-csv', type=Path, default=None,
@@ -608,8 +608,8 @@ def main(argv: list[str] | None = None) -> None:
         path_kwargs['clips_dir'] = args.clips_dir
     if args.shuttle_npy_dir:
         path_kwargs['shuttle_npy_dir'] = args.shuttle_npy_dir
-    if args.mmpose_npy_dir:
-        path_kwargs['mmpose_npy_dir'] = args.mmpose_npy_dir
+    if args.rtmpose_npy_dir:
+        path_kwargs['rtmpose_npy_dir'] = args.rtmpose_npy_dir
     if args.clips_csv:
         path_kwargs['clips_csv'] = args.clips_csv
     paths = DataPaths(**path_kwargs)

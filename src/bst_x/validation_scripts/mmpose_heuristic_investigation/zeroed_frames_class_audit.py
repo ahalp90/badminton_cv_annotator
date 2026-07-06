@@ -8,7 +8,7 @@ For each class in the active taxonomy, computes:
 - Optional finer-grained 10%-bin histogram for the F1-bottom-N classes
 
 Reads ``_failed.npy`` per clip from a flat dir. Default points at the
-sticky_anchor Phase 1 mixed merge (sibling of ``BST_X_MMPOSE_NPY_DIR``
+sticky_anchor Phase 1 mixed merge (sibling of ``BST_X_RTMPOSE_NPY_DIR``
 named ``..._h_sticky_anchor_phase1_merged``), so the audit reflects the
 current best extracts: original committed for ~30k unbusted stems plus
 sticky_anchor outputs for the 1,716 busted stems.
@@ -56,7 +56,7 @@ def main() -> None:
     parser.add_argument(
         '--flat-dir', type=Path, default=None,
         help='Flat per-clip dir holding `_failed.npy`. Default: '
-             '<BST_X_MMPOSE_NPY_DIR>/../<base>_h_sticky_anchor_phase1_merged.',
+             '<BST_X_RTMPOSE_NPY_DIR>/../<base>_h_sticky_anchor_phase1_merged.',
     )
     parser.add_argument('--clips-csv', type=Path, default=DEFAULT_CLIPS_CSV)
     parser.add_argument('--split-column', default='split_v2')
@@ -273,10 +273,10 @@ class _Tee:
 def _resolve_flat_dir(arg: Path | None) -> Path:
     if arg is not None:
         return arg
-    env = os.environ.get('BST_X_MMPOSE_NPY_DIR', '').strip()
+    env = os.environ.get('BST_X_RTMPOSE_NPY_DIR', '').strip()
     if not env:
         raise SystemExit(
-            'neither --flat-dir nor BST_X_MMPOSE_NPY_DIR is set. '
+            'neither --flat-dir nor BST_X_RTMPOSE_NPY_DIR is set. '
             'Pass --flat-dir explicitly.'
         )
     committed = Path(env)

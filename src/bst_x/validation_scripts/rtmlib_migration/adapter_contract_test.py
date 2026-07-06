@@ -12,7 +12,7 @@ adapter returns only the real detections (``m`` may be 0); the cap + padding are
 
 Checks (on one real clip + a synthetic black frame):
 
-* COCO-17 constant: ``J == 17``.
+* COCO-17 constant: ``COCO_N_JOINTS == 17``.
 * schema/dtype: ``keypoints (m,17,2) f32``, ``bboxes (m,4) f32``,
   ``bbox_scores (m,) f32``, ``kp_scores (m,17) f32``, ``m`` consistent.
 * box validity: xyxy ordered (x2>x1, y2>y1) and finite.
@@ -36,9 +36,9 @@ import sys
 import numpy as np
 from _common import ANKLES, HEAD, KNEES, find_clip
 
+from pipeline.config import COCO_N_JOINTS
 from preparing_data.rtmlib_pose import (
     DET_SCORE_THR,
-    J,
     FrameDetections,
     RtmlibPoseExtractor,
 )
@@ -65,7 +65,7 @@ def main() -> int:
     ext = RtmlibPoseExtractor(device="cpu")
     checks: list[tuple[str, bool, str]] = []
 
-    checks.append(("COCO-17 constant", J == 17, f"J={J}"))
+    checks.append(("COCO-17 constant", COCO_N_JOINTS == 17, f"COCO_N_JOINTS={COCO_N_JOINTS}"))
 
     det = _first_detected(ext, mp4)
     if det is None:
@@ -74,10 +74,10 @@ def main() -> int:
     m = len(det.keypoints)
 
     schema_ok = (
-        det.keypoints.shape == (m, J, 2) and det.keypoints.dtype == np.float32
+        det.keypoints.shape == (m, COCO_N_JOINTS, 2) and det.keypoints.dtype == np.float32
         and det.bboxes.shape == (m, 4) and det.bboxes.dtype == np.float32
         and det.bbox_scores.shape == (m,) and det.bbox_scores.dtype == np.float32
-        and det.kp_scores.shape == (m, J) and det.kp_scores.dtype == np.float32
+        and det.kp_scores.shape == (m, COCO_N_JOINTS) and det.kp_scores.dtype == np.float32
     )
     checks.append(("schema/dtype", schema_ok,
                    f"m={m} kps{det.keypoints.shape}/{det.keypoints.dtype}"))
@@ -98,9 +98,9 @@ def main() -> int:
     black = np.zeros((720, 1280, 3), dtype=np.uint8)
     empty = ext.detect_frame(black)
     empty_ok = (
-        len(empty.keypoints) == 0 and empty.keypoints.shape == (0, J, 2)
+        len(empty.keypoints) == 0 and empty.keypoints.shape == (0, COCO_N_JOINTS, 2)
         and empty.bboxes.shape == (0, 4) and empty.bbox_scores.shape == (0,)
-        and empty.kp_scores.shape == (0, J) and empty.keypoints.dtype == np.float32
+        and empty.kp_scores.shape == (0, COCO_N_JOINTS) and empty.keypoints.dtype == np.float32
     )
     checks.append(("empty-frame guard", empty_ok, f"m={len(empty.keypoints)}"))
 

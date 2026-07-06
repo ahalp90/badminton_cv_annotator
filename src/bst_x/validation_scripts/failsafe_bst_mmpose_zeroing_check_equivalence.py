@@ -17,7 +17,7 @@ Sampling is deterministic with no seeding: the 1,716 stems are sorted
 lexicographically and every ``len // sample_size``-th stem is kept. This
 spreads the sample across video IDs without introducing run-to-run noise.
 
-``--committed-dir`` is required. ``$BST_X_MMPOSE_NPY_DIR`` points at the
+``--committed-dir`` is required. ``$BST_X_RTMPOSE_NPY_DIR`` points at the
 ``sticky_anchor`` clean extract, which is a different heuristic from
 ``current`` and so would always fail this gate; the script refuses to default
 to it. For a refactor branch gate where no pre-existing ``current``-extract
@@ -129,7 +129,7 @@ def main() -> int:
     parser.add_argument(
         "--committed-dir", type=Path, required=True,
         help="Current-extract committed dir to compare against. Required: "
-             "$BST_X_MMPOSE_NPY_DIR points at the sticky_anchor extract, which "
+             "$BST_X_RTMPOSE_NPY_DIR points at the sticky_anchor extract, which "
              "would always fail this gate; the script does not fall back to it.",
     )
     parser.add_argument(

@@ -47,7 +47,7 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     sticky_anchor hyperparam block uniformly to every registered variant.
     """
     # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
-    # load (its rtmlib/mmpose imports are themselves lazy).
+    # load (its rtmlib import is itself lazy).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         check_pos_in_court,
         normalize_joints,

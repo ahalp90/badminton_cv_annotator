@@ -103,7 +103,7 @@ Three spellings coexist by design after the BST -> BST-X rebrand. Each lives in 
 - Package dir `src/bst_x/`.
 - Module files `bst_x_common.py`, `bst_x_train.py`, `bst_x_infer.py`, `src/api/bst_x_inference.py`.
 - Builder `build_bst_x_network`, constants `BST_X_REFACTOR` / `BST_X_CLASSIFICATION`, exception `BstXInferenceUnavailable`.
-- Env vars `BST_X_CLIPS_DIR`, `BST_X_INPUTS_DIR`, `BST_X_MMPOSE_NPY_DIR`, etc.
+- Env vars `BST_X_CLIPS_DIR`, `BST_X_INPUTS_DIR`, `BST_X_RTMPOSE_NPY_DIR`, etc.
 - Model-name dispatch key `'BST_X'` (the project alias of `BST_CG_AP`).
 - Weight prefix `bst_x_*.pt` in `experiments/run_*/weights/`.
 - Registry model ids `bst_x_une_v1_14_v2`, `bst_x_bst_24_bst_baseline`, etc.

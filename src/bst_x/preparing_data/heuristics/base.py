@@ -19,7 +19,7 @@ import pandas as pd
 
 
 class RawClip(NamedTuple):
-    """Per-clip raw MMPose output, as written by ``preparing_data.raw_extract``.
+    """Per-clip raw pose-extract output, as written by ``preparing_data.raw_extract``.
 
     Real detections in frame ``f`` occupy indices ``0 .. ndet[f] - 1`` along
     the detect axis; entries at and beyond ``ndet[f]`` are NaN-padded. Shapes:

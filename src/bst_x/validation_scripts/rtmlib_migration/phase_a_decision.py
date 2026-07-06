@@ -24,10 +24,18 @@ distinct video-id in ``res_df`` (court homography is per-video). smoke50 alone i
 mostly one match, so a smoke50-only run reports **GO (provisional)**; add
 shard_00/01 + a per-video top-up for the authoritative call.
 
+Exit codes:
+  0  GO (authoritative: hard checks pass, sample covers every video-id)
+  1  NO-GO (a hard check failed)
+  3  GO (provisional: hard checks pass but coverage is partial; re-run with
+     full video-id coverage before treating this as the authoritative call)
+
 Env / args:
-  argv[1] or RTMLIB_GATE_G8_JSON   G8 parity JSON (default: g8_parity.json)
-  RTMLIB_GATE_G7_JSON              G7 floors JSON (default: g7_selfvariance.json;
-                                   absent -> floors assumed 0 with a warning)
+  argv[1] or RTMLIB_GATE_G8_JSON   G8 parity JSON (default: g8_parity.json next
+                                   to the gate scripts, where G8 writes it)
+  RTMLIB_GATE_G7_JSON              G7 floors JSON (default: g7_selfvariance.json
+                                   next to the gate scripts; absent -> floors
+                                   assumed 0 with a warning)
 
 Run (on Bourbaki, after G7 + G8):
   PYTHONPATH=src/bst_x:src <env>/bin/python \\
@@ -48,6 +56,10 @@ FMATCH_AGG_MIN = 0.95     # aggregate per-frame failed-agreement floor
 KP_MED_MAX = 5.0          # aggregate keypoint median L2 (px)
 KP_P90_MAX = 12.0         # aggregate confident keypoint p90 (px)
 
+# G7/G8 write their JSONs next to the gate scripts by default; read from the
+# same anchored spot so the default hand-off works from any CWD.
+_HERE = Path(__file__).resolve().parent
+
 
 def _load(path: str) -> list | None:
     p = Path(path)
@@ -66,13 +78,14 @@ def _coverage(stems: list[str]) -> tuple[int, int]:
 
 def main() -> int:
     g8_path = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
-        "RTMLIB_GATE_G8_JSON", "g8_parity.json")
+        "RTMLIB_GATE_G8_JSON", str(_HERE / "g8_parity.json"))
     rows = _load(g8_path)
     if not rows:
         print(f"FAIL: G8 parity JSON not found or empty: {g8_path}")
         return 1
 
-    floors = _load(os.environ.get("RTMLIB_GATE_G7_JSON", "g7_selfvariance.json"))
+    floors = _load(os.environ.get(
+        "RTMLIB_GATE_G7_JSON", str(_HERE / "g7_selfvariance.json")))
     if floors:
         eps_kp = float(np.max([f["eps_kp_med"] for f in floors]))
         eps_fail_pp = float(np.max([f["eps_fail"] for f in floors])) * 100
@@ -153,13 +166,13 @@ def main() -> int:
                and kp_med_ok and kp_p90_ok and kp_clip_ok and g8_ok
                and dropped_ok and floor_valid)
     if not hard_ok:
-        decision = "NO-GO"
+        decision, exit_code = "NO-GO", 1
     elif not full_coverage:
-        decision = "GO (provisional: sample does not cover all video-ids)"
+        decision, exit_code = "GO (provisional: sample does not cover all video-ids)", 3
     else:
-        decision = "GO"
+        decision, exit_code = "GO", 0
     print(f"\nPhase-A: {decision}")
-    return 0 if hard_ok else 1
+    return exit_code
 
 
 if __name__ == "__main__":

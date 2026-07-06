@@ -27,7 +27,9 @@ Env:
   RTMLIB_GATE_DEVICE   "cuda" (default) or "cpu"
   RTMLIB_GATE_STEMFILE newline-separated stems (default: provenance _smoke50.txt)
   RTMLIB_GATE_STEMS    comma-separated stems (overrides the stemfile)
-  RTMLIB_GATE_G8_JSON  per-clip results dump (default: ./g8_parity.json), read by G9
+  RTMLIB_GATE_G8_JSON  per-clip results dump (default: g8_parity.json next to
+                       this script, so the artifact lands in a predictable place
+                       regardless of CWD), read by G9
 
 Run (on Bourbaki):
   PYTHONUNBUFFERED=1 PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda \\
@@ -45,18 +47,13 @@ from pathlib import Path
 import numpy as np
 from _common import (
     CONF_THR,
-    assemble_raw_clip,
+    court_setup,
+    deployed_parity,
     find_clip,
     load_mmpose_raw,
     matched_kp_l2,
 )
-from gate_deployed_parity import (
-    CLEAN,
-    FMATCH_MIN,
-    JNT_MED_MAX,
-    POS_MED_MAX,
-    _setup,
-)
+from gate_deployed_parity import FMATCH_MIN, JNT_MED_MAX, POS_MED_MAX
 from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 
 from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
@@ -72,6 +69,9 @@ STEMFILE = Path(os.environ.get(
     "/srv/mergerfs/main_pool/320_cosc594_data-bourbaki/"
     "ShuttleSet_keypoints_raw_provenance/_smoke50.txt",
 ))
+# Anchored to the script's own directory (not CWD) so the artifact lands in a
+# predictable place no matter where the gate is invoked from.
+G8_JSON_DEFAULT = Path(__file__).resolve().parent / "g8_parity.json"
 
 
 def _stems() -> list[str]:
@@ -82,7 +82,6 @@ def _stems() -> list[str]:
 
 
 def _gate_clip(ext, stem, setup) -> dict | None:
-    res_df, court, params, RawClip, ClipContext, sticky_apply = setup
     mp4 = find_clip(stem)
     if mp4 is None:
         return None
@@ -98,54 +97,44 @@ def _gate_clip(ext, stem, setup) -> dict | None:
     rt_ndet = float(np.mean([len(f.keypoints) for f in frames]))
 
     # --- deployed axis (G6) ---
-    raw_arr = assemble_raw_clip(frames)
-    raw = RawClip(kps=raw_arr.kps, bboxes=raw_arr.bboxes, scores=raw_arr.bbox_scores,
-                  kp_scores=raw_arr.kp_scores, ndet=raw_arr.ndet)
-    ctx = ClipContext(vid=int(stem.split("_", 1)[0]), all_court_info=court, res_df=res_df)
-    out = sticky_apply(raw, ctx, **params)
-    ref_pos = np.load(CLEAN / f"{stem}_pos.npy")
-    ref_joints = np.load(CLEAN / f"{stem}_joints.npy")
-    ref_failed = np.load(CLEAN / f"{stem}_failed.npy")
-
-    F = min(Frt, Fmm)
-    rt_f, mm_f = out.failed[:F], ref_failed[:F]
-    fmatch = float((rt_f == mm_f).mean())
-    rt_only_fail = int((rt_f & ~mm_f).sum())  # rtmlib zeroes a frame mmpose kept
-    mm_only_fail = int((~rt_f & mm_f).sum())  # the reverse
-    both = (~rt_f) & (~mm_f)
-    nb = int(both.sum())
-    if nb:
-        pos_med = float(np.median(np.abs(out.pos[:F][both] - ref_pos[:F][both])))
-        jnt_med = float(np.median(np.abs(out.joints[:F][both] - ref_joints[:F][both])))
-    else:
-        pos_med = jnt_med = float("nan")
+    p = deployed_parity(frames, stem, setup)
 
     return dict(
         stem=stem, dF=Frt - Fmm, kp_med=kp_med, kp_cp90=kp_cp90,
         rt_ndet=rt_ndet, mm_ndet=float(mm.ndet.mean()),
-        fmatch=fmatch, both=nb, pos_med=pos_med, jnt_med=jnt_med,
-        rt_only_fail=rt_only_fail, mm_only_fail=mm_only_fail,
-        rt_failrate=float(out.failed.mean()), mm_failrate=float(ref_failed.mean()),
-        rt_lt2=int((raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
+        fmatch=p.fmatch, both=p.nb, pos_med=p.pos_med, jnt_med=p.jnt_med,
+        rt_only_fail=p.rt_only_fail, mm_only_fail=p.mm_only_fail,
+        rt_failrate=float(p.out_failed.mean()), mm_failrate=float(p.ref_failed.mean()),
+        rt_lt2=int((p.raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
         secs=time.time() - t0,
     )
 
 
-def _verdict(r: dict) -> bool:
+def _verdict(row: dict) -> bool:
     """Structural (all) + keypoint value + deployed value. Diagnostic clips still
     hard-gate on structure; value thresholds mirror G1/G6. A clip with no
-    IoU-matched detection (``kp_med`` NaN) fails rather than passing vacuously."""
-    kp_measured = not np.isnan(r["kp_med"])  # >=1 IoU-matched detection to gate on
+    IoU-matched detection (``kp_med`` NaN), no both-confident joint
+    (``kp_cp90`` NaN) or no both-success frames (``pos_med``/``jnt_med`` NaN)
+    fails rather than passing vacuously."""
+    # Every value metric must be *measured* to pass: an unmeasured metric is
+    # NaN, every NaN comparison is False, and the old negated checks
+    # (not (x > MAX)) passed vacuously. Mirrors G6's value_measured guard and
+    # G1's fail-closed percentiles; positive comparisons keep NaN failing.
+    kp_measured = not np.isnan(row["kp_med"]) and not np.isnan(row["kp_cp90"])
+    value_measured = (row["both"] > 0 and not np.isnan(row["pos_med"])
+                      and not np.isnan(row["jnt_med"]))
     return (
-        r["dF"] == 0 and r["rt_lt2"] <= r["mm_lt2"] and r["fmatch"] >= FMATCH_MIN
-        and kp_measured and not (r["kp_med"] > MEDIAN_MAX)
-        and not (r["kp_cp90"] > CONF_P90_MAX)
-        and not (r["pos_med"] > POS_MED_MAX) and not (r["jnt_med"] > JNT_MED_MAX)
+        row["dF"] == 0 and row["rt_lt2"] <= row["mm_lt2"]
+        and row["fmatch"] >= FMATCH_MIN
+        and kp_measured
+        and row["kp_med"] <= MEDIAN_MAX and row["kp_cp90"] <= CONF_P90_MAX
+        and value_measured
+        and row["pos_med"] <= POS_MED_MAX and row["jnt_med"] <= JNT_MED_MAX
     )
 
 
 def main() -> int:
-    setup = _setup()
+    setup = court_setup()
     ext = RtmlibPoseExtractor(device=DEVICE, det_score_thr=DET_THR)
     stems = _stems()
     print(f"G8 GPU extraction parity | device={DEVICE} | det_thr={DET_THR} | "
@@ -169,7 +158,7 @@ def main() -> int:
               f"{r['pos_med']:7.4f} {r['jnt_med']:7.4f} {r['rt_lt2']:4d} {r['mm_lt2']:4d}  "
               f"{'PASS' if r['ok'] else 'FAIL'}{flag}")
 
-    out_path = os.environ.get("RTMLIB_GATE_G8_JSON", "g8_parity.json")
+    out_path = os.environ.get("RTMLIB_GATE_G8_JSON", str(G8_JSON_DEFAULT))
     Path(out_path).write_text(json.dumps(results, indent=2))
 
     if not results:

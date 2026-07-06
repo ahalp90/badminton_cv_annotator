@@ -32,7 +32,7 @@ from .registry import router as registry_router
 
 # ─── Markup schema (matches docs/api_contract.md on feat/bric-pipeline) ───
 # Subset honoured for v1: the inference stub doesn't *use* these values yet
-# (real homography/segmentation lands with the BST/MMPose/TrackNet pipeline),
+# (real homography/segmentation lands with the BST/pose/TrackNet pipeline),
 # but the upload + library_predict endpoints accept, validate, log, and echo
 # them so the FE can confirm they reached the server.
 

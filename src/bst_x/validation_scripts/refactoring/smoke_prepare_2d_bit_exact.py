@@ -47,7 +47,7 @@ Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
   rm -rf /tmp/prepare_2d_smoke_main /tmp/prepare_2d_smoke_branch
   mkdir -p /tmp/prepare_2d_smoke_main /tmp/prepare_2d_smoke_branch
   CLIPS_DIR=/tmp/prepare_2d_smoke_clips \\
-  REFERENCE_DIR="$BST_X_MMPOSE_NPY_DIR" \\
+  REFERENCE_DIR="$BST_X_RTMPOSE_NPY_DIR" \\
   SCRATCH_DIR=/tmp/prepare_2d_smoke_main \\
   PYTHONPATH=src/bst_x \\
       python src/bst_x/validation_scripts/refactoring/smoke_prepare_2d_bit_exact.py

@@ -51,7 +51,7 @@ I'm immensely appreciative to Jing-Yuan for the preparation steps he mapped out 
 - **Resumable one-command build.** The clip-and-shuttle stage runs from a single command and picks up where it left off if it crashes, so a long extraction needs no babysitting or restart from scratch.
 - **Batched shuttle tracking (TrackNetV3 with inpaint).** The shuttle tracker loads once and runs over clips in bulk.
 - **Automatic player identification.** Pose extraction keeps the two players inside the court boundary and flags the frames where it can't find them, so per-clip skeletons stay clean with no manual player tagging.
-- **Extraction and heuristics are decoupled.** The pipeline builds raw csv data for the shuttle, and npy files for the mmpose extracts. These are then refined and collated at separate stages, so that the original (very long) extract is protected even if business rules change.
+- **Extraction and heuristics are decoupled.** The pipeline builds raw csv data for the shuttle, and npy files for the pose extracts. These are then refined and collated at separate stages, so that the original (very long) extract is protected even if business rules change.
 - **CSV-driven splits.** Each clip's split and label are applied from a CSV at collation time. Trying out new train/val/test split means just changing a column and a couple of minutes of recollation.
 - **Loud failure on bad data.** Empty or malformed clips are dropped or raise errors; this will not break an extraction, but it gives warning.
 - **Cluster-ready and verified.** Run across 3 HPC configs and verified to produce identical input.

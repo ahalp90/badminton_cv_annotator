@@ -45,7 +45,7 @@ Usage (per-class sampling):
         --out-dir /scratch/comp320a/anchor_and_dets_overlays
 
 The raw + heuristic dirs are the canonical taxonomy-agnostic pose extracts
-(``BST_X_MMPOSE_NPY_DIR`` points at the heuristic one). They live at
+(``BST_X_RTMPOSE_NPY_DIR`` points at the heuristic one). They live at
 ``/scratch/comp320a/`` directly, not nested under any ``ShuttleSet_data_*``
 collation tree -- the same pose extract feeds every collation.
 """

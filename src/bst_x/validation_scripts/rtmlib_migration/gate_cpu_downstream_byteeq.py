@@ -32,16 +32,10 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import fields
-from pathlib import Path
 
 import numpy as np
-from _common import RAW, load_mmpose_raw
+from _common import CLEAN, RAW, court_setup, load_mmpose_raw
 
-CLEAN = Path(os.environ.get(
-    "RTMLIB_GATE_CLEAN",
-    "/srv/mergerfs/main_pool/320_cosc594_data-bourbaki/ShuttleSet_keypoints_clean_sticky_anchor",
-))
 ATOL = 1e-5
 MAX_CLIPS = int(os.environ.get("RTMLIB_GATE_MAXCLIPS", "50"))
 
@@ -53,23 +47,6 @@ def _resolve_stems() -> list[str]:
     raw_stems = {p.name[: -len("_raw_kps.npy")] for p in RAW.glob("*_raw_kps.npy")}
     clean_stems = {p.name[: -len("_failed.npy")] for p in CLEAN.glob("*_failed.npy")}
     return sorted(raw_stems & clean_stems)[:MAX_CLIPS]
-
-
-def _setup():
-    import pandas as pd
-    from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-    from pipeline.court_utils import get_court_info
-
-    from preparing_data.heuristics.base import ClipContext, RawClip
-    from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
-    from preparing_data.heuristics.sticky_anchor import apply as sticky_apply
-
-    print(f"numpy {np.__version__} | pandas {pd.__version__}")
-    res_df = pd.read_csv(RESOLUTION_CSV_PATH).set_index("id")
-    homo_df = pd.read_csv(str(SET_INFO_DIR / "homography.csv")).set_index("id")
-    court = {vid: get_court_info(homo_df, vid) for vid in res_df.index}
-    params = {f.name: f.default for f in fields(StickyAnchorParams)}
-    return res_df, court, params, RawClip, ClipContext, sticky_apply
 
 
 def _equal_nan(a: np.ndarray, b: np.ndarray) -> bool:
@@ -109,7 +86,7 @@ def _gate_clip(stem, setup) -> tuple[bool, str]:
 
 
 def main() -> int:
-    setup = _setup()
+    setup = court_setup(print_versions=True)
     stems = _resolve_stems()
     if not stems:
         print(f"FAIL: no stems present in both {RAW} and {CLEAN}")

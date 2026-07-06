@@ -1,10 +1,10 @@
-"""Tests for pipeline.data_access -- CSV-driven filtering of clips/shuttle/mmpose.
+"""Tests for pipeline.data_access -- CSV-driven filtering of clips/shuttle/rtmpose.
 
 Fake filesystem layout (matches post-Phase-2 reality):
   clips_dir/{split}/{folder_name}/{clip_stem}.mp4   -- still nested.
   shuttle_npy_dir/{clip_stem}.npy                    -- flat (Phase 2.2).
-  mmpose_npy_dir/{clip_stem}_joints.npy              -- flat (Phase 2.1).
-  mmpose_npy_dir/{clip_stem}_pos.npy                 -- flat (Phase 2.1).
+  rtmpose_npy_dir/{clip_stem}_joints.npy             -- flat (Phase 2.1).
+  rtmpose_npy_dir/{clip_stem}_pos.npy                -- flat (Phase 2.1).
 
 Split + taxonomy-class assignment comes from a synthetic clips_master.csv
 fixture rather than the folder structure. Each test builds its own fake CSV
@@ -62,13 +62,13 @@ def _make_fake_dataset(
     rows: list[dict],
     taxonomy_name: str = 'bst_25',
     with_shuttle: bool = True,
-    with_mmpose: bool = False,
+    with_rtmpose: bool = False,
     with_clips: bool = True,
 ) -> DataPaths:
     """Build a fake on-disk dataset + synthetic clips_master.csv.
 
     The clips tree mirrors the real nested layout so
-    ``build_clip_path_index`` can walk it; shuttle and mmpose dirs are flat.
+    ``build_clip_path_index`` can walk it; shuttle and rtmpose dirs are flat.
 
     :param tmp: Base temp directory.
     :param rows: Per-clip dicts with CSV_COLUMNS fields. The folder name in
@@ -77,14 +77,14 @@ def _make_fake_dataset(
     :param taxonomy_name: Used to derive the folder_name for nested clip
         placement.
     :param with_shuttle: Create matching flat shuttle .npy files.
-    :param with_mmpose: Create matching flat mmpose _joints.npy + _pos.npy.
+    :param with_rtmpose: Create matching flat rtmpose _joints.npy + _pos.npy.
     :param with_clips: Create the .mp4 stub files; disable to test the
         missing-clip codepath.
     :return: DataPaths wired to the fake tree.
     """
     clips_dir = tmp / 'clips'
     shuttle_dir = tmp / 'shuttle_npy_flat'
-    mmpose_dir = tmp / 'mmpose_npy_flat' if with_mmpose else None
+    rtmpose_dir = tmp / 'rtmpose_npy_flat' if with_rtmpose else None
     csv_path = tmp / 'clips_master.csv'
 
     taxonomy = taxonomy_lookup(taxonomy_name)
@@ -92,8 +92,8 @@ def _make_fake_dataset(
         clips_dir.mkdir(parents=True, exist_ok=True)
     if with_shuttle:
         shuttle_dir.mkdir(parents=True, exist_ok=True)
-    if with_mmpose:
-        mmpose_dir.mkdir(parents=True, exist_ok=True)
+    if with_rtmpose:
+        rtmpose_dir.mkdir(parents=True, exist_ok=True)
 
     for row in rows:
         stem = row['clip_stem']
@@ -106,16 +106,16 @@ def _make_fake_dataset(
             (nested / f'{stem}.mp4').touch()
         if with_shuttle:
             (shuttle_dir / f'{stem}.npy').touch()
-        if with_mmpose:
-            (mmpose_dir / f'{stem}_joints.npy').touch()
-            (mmpose_dir / f'{stem}_pos.npy').touch()
+        if with_rtmpose:
+            (rtmpose_dir / f'{stem}_joints.npy').touch()
+            (rtmpose_dir / f'{stem}_pos.npy').touch()
 
     _write_clips_csv(csv_path, rows)
 
     return DataPaths(
         clips_dir=clips_dir,
         shuttle_npy_dir=shuttle_dir,
-        mmpose_npy_dir=mmpose_dir,
+        rtmpose_npy_dir=rtmpose_dir,
         clips_csv=csv_path,
     )
 
@@ -299,26 +299,26 @@ def test_shuttle_npy_is_none_when_missing():
     assert all(r.shuttle_npy is None for r in records)
 
 
-def test_mmpose_none_when_dir_not_set():
+def test_rtmpose_none_when_dir_not_set():
     with tempfile.TemporaryDirectory() as tmp:
-        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_mmpose=False)
-        assert paths.mmpose_npy_dir is None
+        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_rtmpose=False)
+        assert paths.rtmpose_npy_dir is None
         records = get_clip_records(paths)
-    assert all(r.mmpose_joints is None for r in records)
-    assert all(r.mmpose_pos is None for r in records)
+    assert all(r.rtmpose_joints is None for r in records)
+    assert all(r.rtmpose_pos is None for r in records)
 
 
-def test_mmpose_resolved_flat_when_present():
+def test_rtmpose_resolved_flat_when_present():
     with tempfile.TemporaryDirectory() as tmp:
-        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_mmpose=True)
+        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_rtmpose=True)
         records = get_clip_records(
             paths, split='train', taxonomy_class='Top_smash',
         )
-        assert all(r.mmpose_joints is not None for r in records)
-        assert all(r.mmpose_pos is not None for r in records)
-        assert all(r.mmpose_joints.exists() for r in records)
+        assert all(r.rtmpose_joints is not None for r in records)
+        assert all(r.rtmpose_pos is not None for r in records)
+        assert all(r.rtmpose_joints.exists() for r in records)
         assert all(
-            r.mmpose_joints.parent == paths.mmpose_npy_dir for r in records
+            r.rtmpose_joints.parent == paths.rtmpose_npy_dir for r in records
         )
 
 
@@ -391,20 +391,20 @@ def test_summarise_split_filter(capsys):
     assert 'train' not in captured.out
 
 
-def test_summarise_shows_mmpose_column_when_dir_set(capsys):
+def test_summarise_shows_rtmpose_column_when_dir_set(capsys):
     with tempfile.TemporaryDirectory() as tmp:
-        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_mmpose=True)
+        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_rtmpose=True)
         summarise(paths)
     captured = capsys.readouterr()
-    assert 'mmpose=' in captured.out
+    assert 'rtmpose=' in captured.out
 
 
-def test_summarise_hides_mmpose_column_when_dir_not_set(capsys):
+def test_summarise_hides_rtmpose_column_when_dir_not_set(capsys):
     with tempfile.TemporaryDirectory() as tmp:
-        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_mmpose=False)
+        paths = _make_fake_dataset(Path(tmp), SIMPLE_ROWS, with_rtmpose=False)
         summarise(paths)
     captured = capsys.readouterr()
-    assert 'mmpose=' not in captured.out
+    assert 'rtmpose=' not in captured.out
 
 
 # ---------------------------------------------------------------------------

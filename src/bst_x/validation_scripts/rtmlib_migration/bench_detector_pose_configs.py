@@ -8,13 +8,15 @@ raw (IoU-matched px L2, all joints and confident-only). Configs are built via
 ``RtmlibPoseExtractor`` kwargs, so every combination runs from the current
 tree with no code or git changes.
 
-Default configs:
-  nano_L256@0.15   rtmdet-nano@320 + RTMPose-L body7 256x192 (nano-era shipped)
-  nano_L256@0.30   rtmdet-nano@320 + RTMPose-L body7 256x192
-  nano_L384@0.15   rtmdet-nano@320 + RTMPose-L body7 384x288
-  nano_L384@0.30   rtmdet-nano@320 + RTMPose-L body7 384x288
-  m_L256@0.30      RTMDet-M@640    + RTMPose-L body7 256x192 (shipped)
-  m_L384@0.30      RTMDet-M@640    + RTMPose-L body7 384x288
+Default configs (pose sizes below are width x height (W x H); the pose models are
+OpenMMLab checkpoints named height x width upstream, e.g. the 192x256 model is
+filed as 256x192 (named HxW upstream); detector sizes are square):
+  nano_L256@0.15   rtmdet-nano@320 + RTMPose-L body7 192x256 (nano-era shipped)
+  nano_L256@0.30   rtmdet-nano@320 + RTMPose-L body7 192x256
+  nano_L384@0.15   rtmdet-nano@320 + RTMPose-L body7 288x384
+  nano_L384@0.30   rtmdet-nano@320 + RTMPose-L body7 288x384
+  m_L256@0.30      RTMDet-M@640    + RTMPose-L body7 192x256 (shipped)
+  m_L384@0.30      RTMDet-M@640    + RTMPose-L body7 288x384
 
 Timings are wall-clock on whatever device is selected; absolute numbers are
 only comparable within one run on one host. The keypoint column is agreement
@@ -56,7 +58,9 @@ M_URL = _MODEL_BASE + "rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.zip"
 L256_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504.zip"
 L384_URL = _MODEL_BASE + "rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504.zip"
 
-# name -> (det_url, det_input, det_thr, pose_url, pose_input (W, H))
+# name -> (det_url, det_input (H, W), det_thr, pose_url, pose_input (W, H))
+# rtmlib's detector reads its size as (H, W) and its pose as (W, H); all the
+# detector sizes here are square, so the values below read the same either way.
 # The nano rows run at both thresholds: 0.15 is the nano-era shipped crutch
 # (recovers under-scored players, admits crowd the pose stage then pays for);
 # 0.3 is the fast-but-lossy nano (the dropped-player behaviour that forced

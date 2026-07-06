@@ -21,7 +21,7 @@ Pairs used: shoulders 5/6, elbows 7/8, wrists 9/10, hips 11/12, knees
 13/14, ankles 15/16. Eyes 1/2 and ears 3/4 excluded as face-noise-dominated.
 
 Inputs (read from environment):
-  - ``BST_X_MMPOSE_NPY_DIR``: flat dir holding ``{stem}_joints.npy`` per stem.
+  - ``BST_X_RTMPOSE_NPY_DIR``: flat dir holding ``{stem}_joints.npy`` per stem.
     The companion ``{stem}_failed.npy`` is deliberately NOT consumed: it
     is shape ``(F,)`` and OR-flags both slots together (see
     sticky_anchor.py:283, :320), so it cannot resolve "Top picked, Bottom
@@ -43,7 +43,7 @@ CSV produced here if the per-(player x slot) breakdown is wanted.
 
 Single-process by design; per-clip work is light and concurrent writes
 to the same CSV would corrupt rows. Run from a node that can read the
-``BST_X_MMPOSE_NPY_DIR`` path (engelbart for the canonical clean dir).
+``BST_X_RTMPOSE_NPY_DIR`` path (engelbart for the canonical clean dir).
 
 Spec: ``docs/architecture_notes/x3d_integration_macro_plan/stage_2_wrist_loss_assessment.md``
 section "Inter-frame L/R consistency check".
@@ -351,7 +351,7 @@ def main() -> None:
         "--npy-dir",
         type=Path,
         default=None,
-        help="Path to the flat MMPose npy dir. Defaults to BST_X_MMPOSE_NPY_DIR env.",
+        help="Path to the flat MMPose npy dir. Defaults to BST_X_RTMPOSE_NPY_DIR env.",
     )
     parser.add_argument(
         "--clips-csv",
@@ -395,10 +395,10 @@ def main() -> None:
     # Resolve npy_dir + clips_csv from env if not given.
     npy_dir = args.npy_dir
     if npy_dir is None:
-        env_npy = os.environ.get("BST_X_MMPOSE_NPY_DIR")
+        env_npy = os.environ.get("BST_X_RTMPOSE_NPY_DIR")
         if not env_npy:
             raise SystemExit(
-                "BST_X_MMPOSE_NPY_DIR env var not set and --npy-dir not provided."
+                "BST_X_RTMPOSE_NPY_DIR env var not set and --npy-dir not provided."
             )
         npy_dir = Path(env_npy)
     if not npy_dir.is_dir():
