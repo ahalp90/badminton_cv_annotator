@@ -113,13 +113,20 @@ def _gate_clip(ext, stem, setup) -> dict | None:
 def _verdict(r: dict) -> bool:
     """Structural (all) + keypoint value + deployed value. Diagnostic clips still
     hard-gate on structure; value thresholds mirror G1/G6. A clip with no
-    IoU-matched detection (``kp_med`` NaN) fails rather than passing vacuously."""
+    IoU-matched detection (``kp_med`` NaN) or no both-success frames
+    (``pos_med``/``jnt_med`` NaN) fails rather than passing vacuously."""
     kp_measured = not np.isnan(r["kp_med"])  # >=1 IoU-matched detection to gate on
+    # Deployed metrics must be *measured* to pass: zero both-success frames
+    # leaves pos_med/jnt_med NaN and NaN > MAX is False, so the negated checks
+    # passed vacuously. Mirrors G6's value_measured guard.
+    value_measured = (r["both"] > 0 and not np.isnan(r["pos_med"])
+                      and not np.isnan(r["jnt_med"]))
     return (
         r["dF"] == 0 and r["rt_lt2"] <= r["mm_lt2"] and r["fmatch"] >= FMATCH_MIN
         and kp_measured and not (r["kp_med"] > MEDIAN_MAX)
         and not (r["kp_cp90"] > CONF_P90_MAX)
-        and not (r["pos_med"] > POS_MED_MAX) and not (r["jnt_med"] > JNT_MED_MAX)
+        and value_measured
+        and r["pos_med"] <= POS_MED_MAX and r["jnt_med"] <= JNT_MED_MAX
     )
 
 
