@@ -46,7 +46,7 @@ import gc
 import sys
 from pathlib import Path
 from pprint import pprint
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 from tqdm import tqdm
@@ -63,13 +63,25 @@ if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads witho
     from preparing_data.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
 
 
+class PaddedRawFrame(NamedTuple):
+    """One frame's raw arrays, NaN-padded to ``n_max`` along the detection dim,
+    as saved by ``extract_one_clip``.
+    """
+
+    kps: np.ndarray  # (n_max, J, 2) float32, NaN-padded
+    bboxes: np.ndarray  # (n_max, 4) float32, NaN-padded
+    scores: np.ndarray  # (n_max,) float32, NaN-padded
+    kp_scores: np.ndarray  # (n_max, J) float32, NaN-padded
+    n_dets: int  # real per-frame detection count; rows [0, n_dets) are real, the rest NaN padding
+
+
 def extract_raw_frame(
     det: FrameDetections,
     n_max: int,
     clip_stem: str,
     frame_num: int,
     over_det_warned: set[str],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+) -> PaddedRawFrame:
     """Return per-frame raw arrays, NaN-padded to ``n_max`` along the detect dim.
 
     If the adapter returns more than ``n_max`` detections in a frame, keep the
@@ -82,8 +94,9 @@ def extract_raw_frame(
     :param clip_stem: clip id, for the once-per-clip over-detection warning.
     :param frame_num: frame index, for the warning message.
     :param over_det_warned: set of already-warned clip stems (mutated in place).
-    :return: ``(kps, bboxes, scores, kp_scores, n)`` -- four NaN-padded
-        ``(n_max, ...)`` float32 arrays and the real detection count ``n``.
+    :return: a :class:`PaddedRawFrame` -- ``kps``, ``bboxes``, ``scores``,
+        ``kp_scores`` (four NaN-padded ``(n_max, ...)`` float32 arrays) and
+        ``n_dets`` (the real detection count).
     """
     n = len(det.keypoints)
     order = np.arange(n)  # (n,) detector order
@@ -107,7 +120,7 @@ def extract_raw_frame(
     scores[:n] = det.bbox_scores[order]
     kp_scores[:n] = det.kp_scores[order]
 
-    return kps, bboxes, scores, kp_scores, n
+    return PaddedRawFrame(kps, bboxes, scores, kp_scores, n)
 
 
 def extract_one_clip(

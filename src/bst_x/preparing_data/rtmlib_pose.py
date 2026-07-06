@@ -39,7 +39,7 @@ import numpy as np
 from rtmlib.tools.object_detection.rtmdet import RTMDet
 from rtmlib.tools.pose_estimation.rtmpose import RTMPose
 
-J = 17  # COCO keypoints (RTMPose-L body7), matching the mmpose extract.
+from pipeline.config import COCO_N_JOINTS
 
 # rtmlib-loadable mmdeploy ONNX-SDK archives. The detector is the ONNX export of
 # the RTMDet-M person checkpoint (235e8209) that MMPoseInferencer("human")
@@ -67,6 +67,9 @@ class FrameDetections(NamedTuple):
     ``n_people`` is the count of people the detector actually found, one row per
     detected person (may be 0). NaN-padding and the N_max cap are a
     ``raw_extract`` concern; this carries only those real detections.
+
+    ``J`` in the shape comments below is the COCO joint count (``COCO_N_JOINTS``,
+    17), matching the RTMPose-L body7 model and the mmpose extract it replaces.
     """
     keypoints: np.ndarray    # (n_people, J, 2) float32; image-pixel coords, COCO-17 order
     bboxes: np.ndarray       # (n_people, 4) float32; xyxy image pixels
@@ -160,10 +163,10 @@ class RtmlibPoseExtractor:
         boxes, bbox_scores = self.det(frame_bgr)  # (n_people, 4), (n_people,)
         if len(boxes) == 0:
             return FrameDetections(
-                keypoints=np.empty((0, J, 2), dtype=np.float32),
+                keypoints=np.empty((0, COCO_N_JOINTS, 2), dtype=np.float32),
                 bboxes=np.empty((0, 4), dtype=np.float32),
                 bbox_scores=np.empty((0,), dtype=np.float32),
-                kp_scores=np.empty((0, J), dtype=np.float32),
+                kp_scores=np.empty((0, COCO_N_JOINTS), dtype=np.float32),
             )
         # RGB fix: RTMPose's mean is RGB-order but it never converts, so hand it RGB.
         # warpAffine is colour-agnostic, so convert-then-warp == mmpose's warp-then-convert.

@@ -18,7 +18,8 @@ from typing import NamedTuple
 
 import numpy as np
 
-J = 17            # COCO keypoints
+from pipeline.config import COCO_N_JOINTS
+
 N_MAX = 16        # raw_extract per-frame detection cap
 CONF_THR = 0.5    # a joint is "confident" when both models score it above this
 IOU_MATCH_MIN = 0.5  # min IoU to pair an rtmlib box with an mmpose box
@@ -44,6 +45,8 @@ class RawArrays(NamedTuple):
     Same shape/dtype whether loaded from the committed mmpose raw
     (``load_mmpose_raw``) or assembled from the rtmlib adapter
     (``assemble_raw_clip``), so a gate can compare like with like.
+
+    ``J`` in the shape comments below is the COCO joint count (``COCO_N_JOINTS``, 17).
     """
     kps: np.ndarray          # (F, N, J, 2) float32; NaN-padded past ndet
     bboxes: np.ndarray       # (F, N, 4) float32; xyxy
@@ -87,10 +90,10 @@ def assemble_raw_clip(frames: list, n_max: int = N_MAX) -> RawArrays:
     from preparing_data.raw_extract import extract_raw_frame
 
     F = len(frames)
-    kps = np.empty((F, n_max, J, 2), dtype=np.float32)
+    kps = np.empty((F, n_max, COCO_N_JOINTS, 2), dtype=np.float32)
     bboxes = np.empty((F, n_max, 4), dtype=np.float32)
     scores = np.empty((F, n_max), dtype=np.float32)
-    kp_scores = np.empty((F, n_max, J), dtype=np.float32)
+    kp_scores = np.empty((F, n_max, COCO_N_JOINTS), dtype=np.float32)
     ndet = np.empty(F, dtype=np.int8)
     warned: set[str] = set()
     for f, fr in enumerate(frames):
@@ -164,5 +167,5 @@ def matched_kp_l2(
             l2_rows.append(np.linalg.norm(mm.kps[f, i] - rt.keypoints[j], axis=-1))  # (J,)
             conf_rows.append((mm.kp_scores[f, i] > CONF_THR) & (rt.kp_scores[j] > CONF_THR))
     if not l2_rows:
-        return np.empty((0, J), np.float32), np.empty((0, J), bool)
+        return np.empty((0, COCO_N_JOINTS), np.float32), np.empty((0, COCO_N_JOINTS), bool)
     return np.stack(l2_rows), np.stack(conf_rows)
