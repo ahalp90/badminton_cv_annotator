@@ -36,6 +36,11 @@ from typing import TYPE_CHECKING
 
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 
+from preparing_data.extract_failures import (
+    FAILURE_ABORT_FRACTION,
+    failed_clips_log_path,
+    log_failed_clip,
+)
 from preparing_data.shuttleset_dataset import (
     get_bone_pairs,
     make_seq_len_same,
@@ -154,13 +159,16 @@ def detect_players_2d(
     J=COCO_N_JOINTS,
     normalized_by_v_height=False,
     center_align=False,
-):
+) -> tuple[list[bool], np.ndarray, np.ndarray] | None:
     """Detect the two on-court players' 2D pose and court positions per frame.
 
-    :return: ``(failed_ls, players_positions, players_joints)``. ``failed_ls``
-        is a per-frame bool list (True where no valid two-player pair was found;
-        that frame is zero-filled). ``players_positions`` is ``(t, m, xy)`` with
-        ``m=xy=2``; ``players_joints`` is ``(t, m, J, xy)``.
+    :return: ``(failed_ls, players_positions, players_joints)`` on success, or
+        ``None`` if the clip decoded zero frames (unreadable, truncated, or
+        empty mp4) -- the house "helper returns None on failure" signal, which
+        the caller logs + skips. ``failed_ls`` is a per-frame bool list (True
+        where no valid two-player pair was found; that frame is zero-filled).
+        ``players_positions`` is ``(t, m, xy)`` with ``m=xy=2``;
+        ``players_joints`` is ``(t, m, J, xy)``.
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -197,6 +205,12 @@ def detect_players_2d(
                 center_align=center_align,
             )
         )
+
+    if not failed_ls:
+        # Zero frames decoded: np.stack([]) would crash. Signal the caller with
+        # None (house pattern) so it can log + skip. No npys written keeps
+        # resume able to retry. Court info was never touched on this path.
+        return None
 
     players_positions = np.stack(players_positions)
     # players_positions: (t, m, xy)
@@ -241,6 +255,12 @@ def prepare_dataset_npy_from_raw_video(
     from the canonical shuttle-npy dir at collation (Step 2); this expensive
     GPU step stays focused solely on pose estimation.
 
+    A clip that decodes zero frames (unreadable, truncated, or empty mp4) writes
+    no npys, is logged to `{save_root_dir}/failed_clips.log` (append mode), and
+    is skipped. Once failures exceed 0.3 of the clips slated for extraction this
+    run (the not-yet-done clips; resume-skips are excluded), the batch raises a
+    RuntimeError naming the log.
+
     :param my_clips_folder: Directory containing clip .mp4 files (searched recursively).
     :param save_root_dir: Output directory for per-clip .npy files.
     :param resolution_df: DataFrame with video resolutions, indexed by video ID.
@@ -259,28 +279,51 @@ def prepare_dataset_npy_from_raw_video(
 
     all_mp4_paths = sorted(my_clips_folder.glob("**/*.mp4"))
 
-    for video_path in tqdm(all_mp4_paths, desc="Yield .npy files", unit="video"):
+    # Pre-filter to the not-yet-done clips (resume marker _failed.npy absent) so
+    # the abort denominator is fixed up front and resume-skips can't dilute the
+    # 0.3 failure fraction. Iterating this filtered list (rather than skipping
+    # inside the loop) also makes the tqdm total the real work count.
+    to_extract = [
+        video_path
+        for video_path in all_mp4_paths
+        if not Path(str(save_root_dir / video_path.stem) + "_failed.npy").exists()
+    ]
+    n_slated = len(to_extract)
+    abort_threshold = FAILURE_ABORT_FRACTION * n_slated
+    failures = 0
+
+    for video_path in tqdm(to_extract, desc="Yield .npy files", unit="video"):
         save_branch = str(save_root_dir / video_path.stem)
 
-        if not Path(save_branch + "_failed.npy").exists():
-            failed_ls, players_positions, joints = detect_players_2d(
-                extractor=pose_extractor,
-                video_path=video_path,
-                all_court_info=all_court_info,
-                res_df=resolution_df,
-                normalized_by_v_height=joints_normalized_by_v_height,
-                center_align=joints_center_align,
-            )
+        result = detect_players_2d(
+            extractor=pose_extractor,
+            video_path=video_path,
+            all_court_info=all_court_info,
+            res_df=resolution_df,
+            normalized_by_v_height=joints_normalized_by_v_height,
+            center_align=joints_center_align,
+        )
+        if result is None:
+            failures += 1
+            log_failed_clip(save_root_dir, video_path.stem, "decoded 0 frames")
+            if failures > abort_threshold:
+                raise RuntimeError(
+                    f"{failures} clip(s) failed to decode, exceeding "
+                    f"{FAILURE_ABORT_FRACTION:.0%} of the {n_slated} slated for "
+                    f"extraction. See {failed_clips_log_path(save_root_dir)} "
+                    f"for the failed stems."
+                )
+            continue
+        failed_ls, players_positions, joints = result
 
-            np.save(save_branch + "_pos.npy", players_positions)
-            np.save(save_branch + "_joints.npy", joints)
-            np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
+        np.save(save_branch + "_pos.npy", players_positions)
+        np.save(save_branch + "_joints.npy", joints)
+        np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
 
-            # Free Python-side buffers between clips over ~33k iterations;
-            # onnxruntime manages its own device memory. Skips don't allocate,
-            # so no cleanup is needed in that branch -- keeps resume-path
-            # iterations cheap.
-            gc.collect()
+        # Free Python-side buffers between clips over ~33k iterations;
+        # onnxruntime manages its own device memory. The zero-frame failure
+        # branch allocates nothing, so it skips this.
+        gc.collect()
 
 
 VALID_POSE_STYLES: tuple[str, ...] = ("J_only", "JnB_interp", "JnB_bone", "Jn2B")

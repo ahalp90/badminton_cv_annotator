@@ -18,6 +18,11 @@ Sibling to ``prepare_train_on_shuttleset.py``'s 2D pose step, but:
 five outputs landed cleanly for this clip. NaN padding is used (not zero)
 so real detected coordinates at origin are not ambiguous with padding.
 
+A clip that decodes zero frames (unreadable, truncated, or empty mp4) writes
+no npys, is logged to ``{save_dir}/failed_clips.log`` (append mode), and is
+skipped. The batch aborts loudly once failures exceed 0.3 of the clips slated
+for extraction this run (resume-skipped clips are excluded from that count).
+
 The raw outputs feed downstream heuristic iteration (``apply_heuristic.py``
 and the ``sticky_anchor`` variant, both out of scope for this module).
 
@@ -47,6 +52,11 @@ import numpy as np
 from tqdm import tqdm
 
 from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
+from preparing_data.extract_failures import (
+    FAILURE_ABORT_FRACTION,
+    failed_clips_log_path,
+    log_failed_clip,
+)
 from preparing_data.heuristics.base import RAW_SUFFIXES
 
 if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads without rtmlib
@@ -106,8 +116,14 @@ def extract_one_clip(
     save_branch: str,
     n_max: int,
     over_det_warned: set[str],
-) -> None:
-    """Run the rtmlib adapter on one clip and save the five raw arrays."""
+) -> bool:
+    """Run the rtmlib adapter on one clip and save the five raw arrays.
+
+    :return: ``True`` if the clip decoded at least one frame and all five arrays
+        were saved; ``False`` if it decoded zero frames (unreadable, truncated,
+        or empty mp4). On ``False`` nothing is written, so the caller can log +
+        skip the clip and the resume logic retries it next run.
+    """
     kps_ls: list[np.ndarray] = []
     bboxes_ls: list[np.ndarray] = []
     scores_ls: list[np.ndarray] = []
@@ -124,6 +140,11 @@ def extract_one_clip(
         kp_scores_ls.append(kp_scores)
         ndet_ls.append(n)
 
+    if not ndet_ls:
+        # Zero frames decoded: np.stack([]) would crash. Signal the caller to
+        # log + skip instead. Writing no npys keeps resume able to retry.
+        return False
+
     np.save(save_branch + "_raw_kps.npy", np.stack(kps_ls))
     np.save(save_branch + "_raw_bboxes.npy", np.stack(bboxes_ls))
     np.save(save_branch + "_raw_scores.npy", np.stack(scores_ls))
@@ -131,6 +152,7 @@ def extract_one_clip(
     # _raw_ndet.npy is saved last so its presence is a reliable resume marker
     # for all five outputs.
     np.save(save_branch + "_raw_ndet.npy", np.asarray(ndet_ls, dtype=np.int8))
+    return True
 
 
 def inspect_one_clip(extractor: RtmlibPoseExtractor, video_path: Path) -> None:
@@ -279,40 +301,71 @@ def main() -> int:
 
     extractor = RtmlibPoseExtractor(device=args.device)
     over_det_warned: set[str] = set()
+
+    # Classification pre-pass: decide skip / extract / extract-after-clear per
+    # resolved clip WITHOUT deleting anything yet. Doing the N_max-mismatch hard
+    # error here means it fires before any extraction starts (previously it
+    # fired mid-loop, after some clips were already written). The just-in-time
+    # clear then happens in the extraction loop below.
+    #
+    # `to_extract` fixes the abort denominator up front: resume-skipped clips
+    # are never appended, so they can't dilute the 0.3 failure fraction.
     skipped = 0
     reextracted_mismatch = 0
+    to_extract: list[tuple[str, Path, bool]] = []  # (stem, video_path, needs_clear)
 
-    for stem, video_path in tqdm(resolved, desc="raw_extract", unit="clip"):
+    for stem, video_path in resolved:
         save_branch = str(args.save_dir / stem)
         ndet_path = Path(save_branch + "_raw_ndet.npy")
-        if ndet_path.exists():
-            stored = _stored_n_max(save_branch)
-            if stored is None:
-                # _raw_ndet.npy present but bboxes missing or unreadable.
-                # Treat as a corrupted leftover and re-extract from scratch.
-                _clear_raw_files(save_branch)
-            elif stored == args.n_max:
-                skipped += 1
-                continue
-            elif args.force_reextract:
-                _clear_raw_files(save_branch)
-                reextracted_mismatch += 1
-            else:
-                print(
-                    f"\nERROR: existing output for {stem} has N_max={stored} "
-                    f"but --n-max={args.n_max}. Rerun with --force-reextract "
-                    f"to delete and re-extract mismatched clips, or clear the "
-                    f"save-dir manually."
-                )
-                return 1
+        if not ndet_path.exists():
+            to_extract.append((stem, video_path, False))
+            continue
+        stored = _stored_n_max(save_branch)
+        if stored is None:
+            # _raw_ndet.npy present but bboxes missing or unreadable. Treat as a
+            # corrupted leftover: re-extract from scratch (cleared just-in-time).
+            to_extract.append((stem, video_path, True))
+        elif stored == args.n_max:
+            skipped += 1
+        elif args.force_reextract:
+            reextracted_mismatch += 1
+            to_extract.append((stem, video_path, True))
+        else:
+            print(
+                f"\nERROR: existing output for {stem} has N_max={stored} "
+                f"but --n-max={args.n_max}. Rerun with --force-reextract "
+                f"to delete and re-extract mismatched clips, or clear the "
+                f"save-dir manually."
+            )
+            return 1
 
-        extract_one_clip(
+    n_slated = len(to_extract)
+    abort_threshold = FAILURE_ABORT_FRACTION * n_slated
+    failures = 0
+
+    for stem, video_path, needs_clear in tqdm(to_extract, desc="raw_extract", unit="clip"):
+        save_branch = str(args.save_dir / stem)
+        if needs_clear:
+            _clear_raw_files(save_branch)
+
+        if not extract_one_clip(
             extractor=extractor,
             video_path=video_path,
             save_branch=save_branch,
             n_max=args.n_max,
             over_det_warned=over_det_warned,
-        )
+        ):
+            failures += 1
+            log_failed_clip(args.save_dir, stem, "decoded 0 frames")
+            if failures > abort_threshold:
+                print(
+                    f"\nERROR: {failures} clip(s) failed to decode, exceeding "
+                    f"{FAILURE_ABORT_FRACTION:.0%} of the {n_slated} slated for "
+                    f"extraction. Aborting; see "
+                    f"{failed_clips_log_path(args.save_dir)} for the failed stems."
+                )
+                return 1
+            continue
 
         # Per-clip cleanup to limit peak memory across the batch. onnxruntime
         # manages its own device memory, so (unlike the old mmpose/torch path)
@@ -320,9 +373,14 @@ def main() -> int:
         gc.collect()
 
     print(
-        f"\nDone. Processed {len(resolved) - skipped}, skipped {skipped} "
+        f"\nDone. Extracted {n_slated - failures}, skipped {skipped} "
         f"(had _raw_ndet.npy). Missing mp4 for {len(missing)} stems."
     )
+    if failures:
+        print(
+            f"  {failures} clip(s) decoded zero frames and were skipped; "
+            f"see {failed_clips_log_path(args.save_dir)}."
+        )
     if reextracted_mismatch:
         print(
             f"  Re-extracted {reextracted_mismatch} clip(s) whose stored "
