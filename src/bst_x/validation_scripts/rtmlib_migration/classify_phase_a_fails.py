@@ -1,16 +1,20 @@
 """Classify per-clip G8 failures into benign (jntMed-only, report-only model
 drift) vs real (frame count / dropped player / fmatch / keypoint / position),
 and surface the frame-loss tail. Reads a gate_gpu_parity JSON (pass the path,
-e.g. g8_parity_m_full.json; default g8_parity_full.json)."""
+e.g. g8_parity_m_full.json; default g8_parity.json)."""
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-# gate thresholds (mirror gate_gpu_parity._verdict / G9)
-FMATCH_MIN, MEDIAN_MAX, CONF_P90_MAX, POS_MED_MAX, JNT_MED_MAX = 0.85, 5.0, 12.0, 0.02, 0.03
+# JNT_MED_MAX not imported: jnt_med is deliberately excluded from reasons() below,
+# so the threshold has no use here.
+from gate_deployed_parity import FMATCH_MIN, POS_MED_MAX
+from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 
-src = sys.argv[1] if len(sys.argv) > 1 else "g8_parity_full.json"
+# G8 writes g8_parity.json next to the gate scripts by default; read from the
+# same anchored spot so the default hand-off works from any CWD.
+src = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parent / "g8_parity.json")
 rows = json.loads(Path(src).read_text())
 print(f"source: {src}   clips: {len(rows)}")
 
@@ -75,3 +79,6 @@ print(f"  vids present: {sorted(vids)}")
 low = {v: n for v, n in vids.items() if n < 5}
 if low:
     print(f"  under-5-clip vids (thin sampling): {dict(sorted(low.items()))}")
+
+# Nonzero exit on any real (non-benign) fail, so a CI/CD run halts on them.
+sys.exit(1 if real else 0)

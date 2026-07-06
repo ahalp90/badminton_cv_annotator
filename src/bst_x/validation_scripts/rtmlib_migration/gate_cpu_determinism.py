@@ -40,6 +40,14 @@ def _run(ext: RtmlibPoseExtractor, mp4, n: int) -> list:
 
 
 def main() -> int:
+    omp = os.environ.get("OMP_NUM_THREADS")
+    if omp != "1":
+        print(
+            f"FAIL: OMP_NUM_THREADS={omp!r}; the determinism check is only "
+            f"meaningful single-threaded. Rerun with OMP_NUM_THREADS=1."
+        )
+        return 1
+
     mp4 = find_clip(STEM)
     if mp4 is None:
         print(f"FAIL: no mp4 for stem {STEM}")

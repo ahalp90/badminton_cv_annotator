@@ -27,7 +27,9 @@ Env:
   RTMLIB_GATE_DEVICE   "cuda" (default) or "cpu"
   RTMLIB_GATE_STEMFILE newline-separated stems (default: provenance _smoke50.txt)
   RTMLIB_GATE_STEMS    comma-separated stems (overrides the stemfile)
-  RTMLIB_GATE_G8_JSON  per-clip results dump (default: ./g8_parity.json), read by G9
+  RTMLIB_GATE_G8_JSON  per-clip results dump (default: g8_parity.json next to
+                       this script, so the artifact lands in a predictable place
+                       regardless of CWD), read by G9
 
 Run (on Bourbaki):
   PYTHONUNBUFFERED=1 PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda \\
@@ -72,6 +74,9 @@ STEMFILE = Path(os.environ.get(
     "/srv/mergerfs/main_pool/320_cosc594_data-bourbaki/"
     "ShuttleSet_keypoints_raw_provenance/_smoke50.txt",
 ))
+# Anchored to the script's own directory (not CWD) so the artifact lands in a
+# predictable place no matter where the gate is invoked from.
+G8_JSON_DEFAULT = Path(__file__).resolve().parent / "g8_parity.json"
 
 
 def _stems() -> list[str]:
@@ -169,7 +174,7 @@ def main() -> int:
               f"{r['pos_med']:7.4f} {r['jnt_med']:7.4f} {r['rt_lt2']:4d} {r['mm_lt2']:4d}  "
               f"{'PASS' if r['ok'] else 'FAIL'}{flag}")
 
-    out_path = os.environ.get("RTMLIB_GATE_G8_JSON", "g8_parity.json")
+    out_path = os.environ.get("RTMLIB_GATE_G8_JSON", str(G8_JSON_DEFAULT))
     Path(out_path).write_text(json.dumps(results, indent=2))
 
     if not results:

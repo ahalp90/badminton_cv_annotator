@@ -30,17 +30,36 @@ joint, including the confident ones, so it fails the px thresholds loudly.
 A **reverted RGB fix does not**: RTMPose-L body7 is channel-robust, so a BGR
 feed lands ~1px from RGB, inside MEDIAN_MAX (measured on 11_1_10_2: RGB-vs-BGR
 per-joint gap median 1.16px). The px thresholds cannot separate them,
-so G1 also runs ``_rgb_fix_counterfactual``: a byte-exact structural check that
-the shipped adapter feeds RTMPose an RGB crop (not BGR), independent of accuracy.
+so G1 also runs ``_rgb_fix_counterfactual`` on every resolved stem: a byte-exact
+structural check that the shipped adapter feeds RTMPose an RGB crop (not BGR),
+independent of accuracy.
 
 Stems: ``RTMLIB_GATE_STEMS`` (comma-separated) or one present clip from each of
 the first ``N_DEFAULT_VIDS`` distinct video-ids: breadth across courts/lighting,
 not three clips of one match (where channel/exposure effects vanish).
 Parity-at-scale against the mmpose baseline is the GPU gate (G8).
 
-Run:
+Run (CPU default, 5 clips):
   PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/gate_keypoint_value.py
+
+Run over the 200-clip Phase-A sample: a GPU-box job with RTMLIB_GATE_DEVICE=cuda,
+~20-30 min at the A100's ~81 ms/frame benchmark (on the default CPU device it
+would be hours; the RGB counterfactual runs on every stem in the list, 12 frames
+each, so a 200-stem list carries that cost too; the CPU default above stays at
+5 clips). ``make_phase_a_sample.py`` writes one stem per line, so flatten its
+output into the comma-separated env var:
+  PYTHONPATH=src/bst_x:src <venv>/bin/python \\
+      src/bst_x/validation_scripts/rtmlib_migration/make_phase_a_sample.py \\
+      --per-video 5 --out phase_a_stems.txt
+  RTMLIB_GATE_STEMS=$(paste -sd, phase_a_stems.txt) RTMLIB_GATE_DEVICE=cuda \\
+      PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
+      src/bst_x/validation_scripts/rtmlib_migration/gate_keypoint_value.py
+
+Env:
+  RTMLIB_GATE_STEMS    comma-separated stems (overrides the default sample)
+  RTMLIB_GATE_DEVICE   "cpu" (default: deterministic, matches the CPU gate
+                       ladder) or "cuda" for the 200-clip run above
 """
 from __future__ import annotations
 
@@ -69,6 +88,9 @@ CONF_P90_MAX = 12.0  # both-confident joints agree tightly
 CONF_P95_MAX = 18.0  # confident-joint tail, after removing L/R mirror-labeling
 SWAP_FRAC_MAX = 0.20  # >20% of matches improved by L/R swap => systematic L/R bug
 N_DEFAULT_VIDS = 5   # distinct video-ids in the default sample (courts/lighting)
+# cpu default: this is a CPU-ladder gate and the CPU EP is deterministic; cuda
+# exists for the 200-clip Phase-A invocation (see the docstring's Run block).
+DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cpu")
 # COCO L/R joint pairs, for the mirror-labeling-robust tail (see _confident_tail_lr).
 LR_PAIRS = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
 
@@ -256,7 +278,7 @@ def main() -> int:
     if not stems:
         print(f"FAIL: no stems present in both {RAW} and {CLIPS}")
         return 1
-    ext = RtmlibPoseExtractor(device="cpu")
+    ext = RtmlibPoseExtractor(device=DEVICE)
     print(f"G1 keypoint-value gate over {len(stems)} clip(s): {', '.join(stems)}\n")
     all_ok = True
     for stem in stems:
@@ -265,10 +287,14 @@ def main() -> int:
         all_ok &= ok
 
     # RGB fix is a byte-exact structural check; the px thresholds above are
-    # channel-robust and cannot catch a reverted fix on their own.
-    rgb_ok, rgb_msg = _rgb_fix_counterfactual(ext, find_clip(stems[0]))
-    print(f"\n  [{'PASS' if rgb_ok else 'FAIL'}] RGB-fix byte-exact ({stems[0]}): {rgb_msg}")
-    all_ok &= rgb_ok
+    # channel-robust and cannot catch a reverted fix on their own. A BGR/RGB swap
+    # is per-model-input, and cheap coverage over every resolved stem (a couple of
+    # CPU-minutes on the default sample) beats a single-stem spot check.
+    print()
+    for stem in stems:
+        rgb_ok, rgb_msg = _rgb_fix_counterfactual(ext, find_clip(stem))
+        print(f"  [{'PASS' if rgb_ok else 'FAIL'}] RGB-fix byte-exact ({stem}): {rgb_msg}")
+        all_ok &= rgb_ok
 
     print(f"\n{'PASS' if all_ok else 'FAIL'}: G1 keypoint-value gate")
     return 0 if all_ok else 1

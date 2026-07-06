@@ -24,7 +24,9 @@ Env:
   RTMLIB_GATE_DEVICE   "cuda" (default) or "cpu"
   RTMLIB_GATE_STEMFILE newline-separated stems (default: provenance _smoke50.txt)
   RTMLIB_GATE_STEMS    comma-separated stems (overrides the stemfile)
-  RTMLIB_GATE_G7_JSON  per-clip floor dump (default: ./g7_selfvariance.json), read by G9
+  RTMLIB_GATE_G7_JSON  per-clip floor dump (default: g7_selfvariance.json next to
+                       this script, so the artifact lands in a predictable place
+                       regardless of CWD), read by G9
 
 Run (on Bourbaki, before G8):
   PYTHONUNBUFFERED=1 PYTHONPATH=src/bst_x:src RTMLIB_GATE_DEVICE=cuda \\
@@ -52,6 +54,9 @@ STEMFILE = Path(os.environ.get(
 ))
 KP_FLOOR_MAX = 3.0    # implausible-noise ceiling for eps_kp median (px)
 FAIL_FLOOR_MAX = 0.02  # implausible-noise ceiling for eps_fail (fraction)
+# Anchored to the script's own directory (not CWD) so the artifact lands in a
+# predictable place no matter where the gate is invoked from.
+G7_JSON_DEFAULT = Path(__file__).resolve().parent / "g7_selfvariance.json"
 
 
 def _stems() -> list[str]:
@@ -105,7 +110,7 @@ def main() -> int:
     if not rows:
         print("FAIL: no clips evaluated")
         return 1
-    out_path = os.environ.get("RTMLIB_GATE_G7_JSON", "g7_selfvariance.json")
+    out_path = os.environ.get("RTMLIB_GATE_G7_JSON", str(G7_JSON_DEFAULT))
     Path(out_path).write_text(json.dumps(rows, indent=2))
 
     eps_kp_med = float(np.median([r["eps_kp_med"] for r in rows]))

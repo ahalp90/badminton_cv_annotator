@@ -100,6 +100,11 @@ DEFAULT_STEMS: list[tuple[str, str, str]] = (
 def _stems() -> list[tuple[str, str, str]]:
     env = os.environ.get("RTMLIB_GATE_STEMS")
     if env:
+        # A hand-picked subset breaks the population-health assumption behind
+        # MEAN_FMATCH_MIN, so main() skips that aggregate entirely for this run.
+        print(f"WARNING: RTMLIB_GATE_STEMS override active; the aggregate mean "
+              f"fmatch>={MEAN_FMATCH_MIN} check does not apply to this custom "
+              f"stem subset (per-clip verdicts still gate).")
         return [(s.strip(), "env", "diverse") for s in env.split(",") if s.strip()]
     return DEFAULT_STEMS
 
