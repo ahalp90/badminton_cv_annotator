@@ -97,15 +97,15 @@ def _gate_clip(ext, stem, setup) -> dict | None:
     rt_ndet = float(np.mean([len(f.keypoints) for f in frames]))
 
     # --- deployed axis (G6) ---
-    p = deployed_parity(frames, stem, setup)
+    parity = deployed_parity(frames, stem, setup)
 
     return dict(
         stem=stem, dF=Frt - Fmm, kp_med=kp_med, kp_cp90=kp_cp90,
         rt_ndet=rt_ndet, mm_ndet=float(mm.ndet.mean()),
-        fmatch=p.fmatch, both=p.nb, pos_med=p.pos_med, jnt_med=p.jnt_med,
-        rt_only_fail=p.rt_only_fail, mm_only_fail=p.mm_only_fail,
-        rt_failrate=float(p.out_failed.mean()), mm_failrate=float(p.ref_failed.mean()),
-        rt_lt2=int((p.raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
+        fmatch=parity.fmatch, both=parity.nb, pos_med=parity.pos_med, jnt_med=parity.jnt_med,
+        rt_only_fail=parity.rt_only_fail, mm_only_fail=parity.mm_only_fail,
+        rt_failrate=float(parity.out_failed.mean()), mm_failrate=float(parity.ref_failed.mean()),
+        rt_lt2=int((parity.raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
         secs=time.time() - t0,
     )
 
@@ -145,18 +145,18 @@ def main() -> int:
 
     results, missing = [], []
     for stem in stems:
-        r = _gate_clip(ext, stem, setup)
-        if r is None:
+        result = _gate_clip(ext, stem, setup)
+        if result is None:
             missing.append(stem)
             print(f"  {stem:13s}  no mp4 (skipped, logged)")
             continue
-        r["ok"] = _verdict(r)
-        results.append(r)
-        flag = "  *DROPPED PLAYER?*" if r["rt_lt2"] > r["mm_lt2"] else ""
-        print(f"  {r['stem']:13s} {r['dF']:3d} {r['kp_med']:6.2f} {r['kp_cp90']:6.2f} "
-              f"{r['rt_ndet']:5.2f} {r['mm_ndet']:5.2f} {r['fmatch']:6.3f} "
-              f"{r['pos_med']:7.4f} {r['jnt_med']:7.4f} {r['rt_lt2']:4d} {r['mm_lt2']:4d}  "
-              f"{'PASS' if r['ok'] else 'FAIL'}{flag}")
+        result["ok"] = _verdict(result)
+        results.append(result)
+        flag = "  *DROPPED PLAYER?*" if result["rt_lt2"] > result["mm_lt2"] else ""
+        print(f"  {result['stem']:13s} {result['dF']:3d} {result['kp_med']:6.2f} {result['kp_cp90']:6.2f} "
+              f"{result['rt_ndet']:5.2f} {result['mm_ndet']:5.2f} {result['fmatch']:6.3f} "
+              f"{result['pos_med']:7.4f} {result['jnt_med']:7.4f} {result['rt_lt2']:4d} {result['mm_lt2']:4d}  "
+              f"{'PASS' if result['ok'] else 'FAIL'}{flag}")
 
     out_path = os.environ.get("RTMLIB_GATE_G8_JSON", str(G8_JSON_DEFAULT))
     Path(out_path).write_text(json.dumps(results, indent=2))
@@ -164,13 +164,13 @@ def main() -> int:
     if not results:
         print("\nFAIL: no clips evaluated")
         return 1
-    ok = all(r["ok"] for r in results)
+    ok = all(result["ok"] for result in results)
     print(f"\n  clips={len(results)}  missing={len(missing)}  "
-          f"mean fmatch={np.mean([r['fmatch'] for r in results]):.3f}  "
-          f"kp_med(max)={np.nanmax([r['kp_med'] for r in results]):.2f}  "
-          f"kp_p90(max)={np.nanmax([r['kp_cp90'] for r in results]):.2f}")
+          f"mean fmatch={np.mean([result['fmatch'] for result in results]):.3f}  "
+          f"kp_med(max)={np.nanmax([result['kp_med'] for result in results]):.2f}  "
+          f"kp_p90(max)={np.nanmax([result['kp_cp90'] for result in results]):.2f}")
     if not ok:
-        print(f"  per-clip failures: {[r['stem'] for r in results if not r['ok']]}")
+        print(f"  per-clip failures: {[result['stem'] for result in results if not result['ok']]}")
     print(f"  results -> {out_path}  (feed to phase_a_decision.py)")
     print(f"\n{'PASS' if ok else 'FAIL'}: G8 GPU extraction parity")
     return 0 if ok else 1
