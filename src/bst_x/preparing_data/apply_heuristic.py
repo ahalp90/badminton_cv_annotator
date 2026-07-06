@@ -7,7 +7,7 @@ Writes the existing per-clip pipeline schema (``{stem}_pos.npy``,
 downstream collation (``prepare_train_on_shuttleset`` step 2) is unchanged.
 
 Refuses to run if ``--output-dir`` collides with ``--raw-dir`` or with the
-``BST_X_MMPOSE_NPY_DIR`` environment variable -- the committed filtered
+``BST_X_RTMPOSE_NPY_DIR`` environment variable -- the committed filtered
 extract is never overwritten by this tool.
 
 Run from the repo root with both package roots on PYTHONPATH::
@@ -38,7 +38,7 @@ from pipeline.data_access import load_repo_dotenv
 from preparing_data.heuristics import RAW_SUFFIXES, REGISTRY, ClipContext, RawClip
 from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 
-# Pull BST_X_MMPOSE_NPY_DIR from the repo-root .env so the output-dir
+# Pull BST_X_RTMPOSE_NPY_DIR from the repo-root .env so the output-dir
 # collision guard works without a prior shell export. Fires at module import,
 # so importing run() also loads .env.
 load_repo_dotenv()
@@ -72,13 +72,13 @@ def _validate_output_dir(output_dir: Path, raw_dir: Path) -> None:
             "refusing to overwrite raw extract."
         )
 
-    mmpose_env = os.environ.get("BST_X_MMPOSE_NPY_DIR", "").strip()
-    if mmpose_env:
-        mmpose_resolved = Path(mmpose_env).resolve()
-        if out_resolved == mmpose_resolved:
+    rtmpose_env = os.environ.get("BST_X_RTMPOSE_NPY_DIR", "").strip()
+    if rtmpose_env:
+        rtmpose_resolved = Path(rtmpose_env).resolve()
+        if out_resolved == rtmpose_resolved:
             raise ValueError(
-                f"--output-dir {output_dir} resolves to BST_X_MMPOSE_NPY_DIR "
-                f"({mmpose_env}); refusing to overwrite committed filtered extract."
+                f"--output-dir {output_dir} resolves to BST_X_RTMPOSE_NPY_DIR "
+                f"({rtmpose_env}); refusing to overwrite committed filtered extract."
             )
 
 

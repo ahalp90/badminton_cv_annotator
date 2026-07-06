@@ -2,7 +2,7 @@
 
 Loads the repo .env via ``pipeline.data_access.load_repo_dotenv``, prints
 each ``BST_*`` env var, and confirms the resolved paths exist + hold the
-expected per-clip files (specifically, that ``BST_X_MMPOSE_NPY_DIR`` contains
+expected per-clip files (specifically, that ``BST_X_RTMPOSE_NPY_DIR`` contains
 32,203 ``_failed.npy`` and ``_pos.npy`` files after the Phase-2 flip).
 
 Run from the repo root::
@@ -39,14 +39,14 @@ def main() -> int:
 
     clips_dir       = os.environ.get('BST_X_CLIPS_DIR')
     shuttle_dir     = os.environ.get('BST_X_SHUTTLE_NPY_DIR')
-    mmpose_dir      = os.environ.get('BST_X_MMPOSE_NPY_DIR')
+    rtmpose_dir     = os.environ.get('BST_X_RTMPOSE_NPY_DIR')
     clips_csv       = os.environ.get('BST_X_CLIPS_CSV')
     shuttle_csv_dir = os.environ.get('BST_X_SHUTTLE_CSV_DIR')
 
     print('Env vars (post .env load):')
     ok_clips       = _check_dir('BST_X_CLIPS_DIR         ', clips_dir)
     ok_shuttle     = _check_dir('BST_X_SHUTTLE_NPY_DIR ', shuttle_dir)
-    ok_mmpose      = _check_dir('BST_X_MMPOSE_NPY_DIR  ', mmpose_dir)
+    ok_rtmpose     = _check_dir('BST_X_RTMPOSE_NPY_DIR ', rtmpose_dir)
     ok_shuttle_csv = _check_dir('BST_X_SHUTTLE_CSV_DIR ', shuttle_csv_dir)
 
     csv_path = Path(clips_csv) if clips_csv else None
@@ -54,15 +54,15 @@ def main() -> int:
     print(f'  BST_X_CLIPS_CSV         : {clips_csv}  exists={csv_ok}')
 
     print()
-    overall_ok = ok_clips and ok_shuttle and ok_mmpose and csv_ok and ok_shuttle_csv
+    overall_ok = ok_clips and ok_shuttle and ok_rtmpose and csv_ok and ok_shuttle_csv
 
-    # Spot-check the mmpose dir specifically: should have exactly 32,203
+    # Spot-check the rtmpose dir specifically: should have exactly 32,203
     # _failed.npy and _pos.npy files after the Phase-2 flip.
-    if ok_mmpose:
-        mmpose_path = Path(mmpose_dir)
-        n_failed = len(list(mmpose_path.glob('*_failed.npy')))
-        n_pos    = len(list(mmpose_path.glob('*_pos.npy')))
-        print(f'BST_X_MMPOSE_NPY_DIR clip-file counts:')
+    if ok_rtmpose:
+        rtmpose_path = Path(rtmpose_dir)
+        n_failed = len(list(rtmpose_path.glob('*_failed.npy')))
+        n_pos    = len(list(rtmpose_path.glob('*_pos.npy')))
+        print(f'BST_X_RTMPOSE_NPY_DIR clip-file counts:')
         print(f'  *_failed.npy: {n_failed}  expected={EXPECTED_CLIP_COUNT}'
               f'  {"OK" if n_failed == EXPECTED_CLIP_COUNT else "MISMATCH"}')
         print(f'  *_pos.npy:    {n_pos}  expected={EXPECTED_CLIP_COUNT}'

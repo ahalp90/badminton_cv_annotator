@@ -51,7 +51,7 @@ Active dirs on `/scratch/comp320a/` (bourbaki + engelbart, byte-identical across
 | Dir | Role | Stems |
 | --- | --- | --- |
 | `ShuttleSet_keypoints_raw/` | Phase-2 unified raw extract | 32,203 |
-| `ShuttleSet_keypoints_clean_sticky_anchor/` | sticky_anchor output; `$BST_X_MMPOSE_NPY_DIR` points here | 32,203 |
+| `ShuttleSet_keypoints_clean_sticky_anchor/` | sticky_anchor output; `$BST_X_RTMPOSE_NPY_DIR` points here | 32,203 |
 | `ShuttleSet_keypoints_raw_unknown/` | raw for the 1,278 `unknown`-class clips | 1,278 |
 | `ShuttleSet_keypoints_clean_sticky_anchor_unknown/` | sticky_anchor output for unknown | 1,278 |
 | `ShuttleSet_keypoints_raw_provenance/` | per-stem provenance siblings | n/a |
@@ -82,7 +82,7 @@ Per-clip apply-heuristic schema (3 files per stem):
 | `_failed.npy` | `(F,)` bool | True where either slot was zeroed this frame |
 
 `apply_heuristic.py` refuses to write unless `--output-dir` is distinct from both `--raw-dir`
-and `$BST_X_MMPOSE_NPY_DIR`. Typo guard against destroying the canonical extract.
+and `$BST_X_RTMPOSE_NPY_DIR`. Typo guard against destroying the canonical extract.
 
 ## Apply heuristic — canonical run
 
@@ -121,7 +121,7 @@ suspects: keypoint-index ordering, bbox row order when multiple on-court people 
 `normalize_joints` vs `normalize_position` step order, resolution-scale application.
 
 `--committed-dir` is required. It must point at a `current`-equivalent extract (one produced
-by `apply_heuristic --heuristic current` or the legacy `detect_players_2d`). `$BST_X_MMPOSE_NPY_DIR`
+by `apply_heuristic --heuristic current` or the legacy `detect_players_2d`). `$BST_X_RTMPOSE_NPY_DIR`
 points at sticky_anchor, which is a different heuristic and would always fail this gate; the
 script refuses to default to it.
 

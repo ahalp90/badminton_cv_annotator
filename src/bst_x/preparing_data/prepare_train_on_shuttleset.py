@@ -839,9 +839,9 @@ def main():
     parser.add_argument(
         "--clip-npy-dir",
         type=Path,
-        default=env_path_or_none('BST_X_MMPOSE_NPY_DIR'),
+        default=env_path_or_none('BST_X_RTMPOSE_NPY_DIR'),
         help="FLAT per-clip dir (Step 1 writer + Step 2 reader). Default reads "
-             "BST_X_MMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
+             "BST_X_RTMPOSE_NPY_DIR; if unset, falls back to the per-taxonomy "
              f"preparing_root + 'dataset_npy_{CLIP_WINDOW}_flat'.",
     )
     parser.add_argument(

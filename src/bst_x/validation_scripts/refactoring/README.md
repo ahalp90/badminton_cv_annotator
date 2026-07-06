@@ -45,7 +45,7 @@ adapting one of them for a fresh refactor.
 
 Main writes the reference into a scratch dir; the branch reads that dir as the
 committed-side reference. Reason: the production extracts under
-`$BST_X_MMPOSE_NPY_DIR` track `sticky_anchor`, so a fresh-extract test needs
+`$BST_X_RTMPOSE_NPY_DIR` track `sticky_anchor`, so a fresh-extract test needs
 the same heuristic on both sides. The smoke on each side writes into its own
 `SCRATCH_DIR`; the branch run also sets `REFERENCE_DIR` to the main-side
 scratch dir, and the comparison step happens inside the script.
