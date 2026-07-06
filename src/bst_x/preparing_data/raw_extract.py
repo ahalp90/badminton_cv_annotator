@@ -64,10 +64,10 @@ def extract_raw_frame(
 
     If the adapter returns more than ``n_max`` detections in a frame, keep the
     top-``n_max`` by ``bbox_score`` (descending; stable, so ties hold detector
-    order). Otherwise the ``m`` detections keep detector order. Log a
-    once-per-clip warning on truncation.
+    order). Otherwise all ``n`` detections (the per-frame detection count)
+    keep detector order. Log a once-per-clip warning on truncation.
 
-    :param det: one frame's adapter detections (``m`` real people, detector order).
+    :param det: one frame's adapter detections (``n`` real people, detector order).
     :param n_max: per-frame detection cap.
     :param clip_stem: clip id, for the once-per-clip over-detection warning.
     :param frame_num: frame index, for the warning message.
@@ -76,7 +76,7 @@ def extract_raw_frame(
         ``(n_max, ...)`` float32 arrays and the real detection count ``n``.
     """
     n = len(det.keypoints)
-    order = np.arange(n)  # (m,) detector order
+    order = np.arange(n)  # (n,) detector order
     if n > n_max:
         order = np.argsort(-det.bbox_scores, kind="stable")[:n_max]  # top-n_max by bbox_score
         n = n_max
@@ -140,9 +140,9 @@ def inspect_one_clip(extractor: RtmlibPoseExtractor, video_path: Path) -> None:
     if det is None:
         print("No frames decoded; try a different clip.")
         return
-    m = len(det.keypoints)
-    print(f"Number of detections in frame 0: {m}")
-    if m == 0:
+    n_dets = len(det.keypoints)
+    print(f"Number of detections in frame 0: {n_dets}")
+    if n_dets == 0:
         print("No detections in frame 0; try a different clip.")
         return
     for name, arr in (

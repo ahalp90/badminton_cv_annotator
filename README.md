@@ -78,7 +78,7 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 
 ## Data pipeline and classifier training
 
-The classifier has its own pinned environments, separate from the root `requirements.txt`. Three venvs: data pipeline, rtmlib pose extraction, BST-X training, each independently pinned. The legacy OpenMMLab stack (NumPy < 2.0, `src/bst_x/preparing_data/requirements-legacy-3d.txt`) remains as a reference for troubleshooting. Full setup and execution order: [`src/bst_x/data_pipeline_to_model_train.md`](src/bst_x/data_pipeline_to_model_train.md).
+The classifier has its own pinned environments, separate from the root `requirements.txt`. Three venvs: data pipeline, rtmlib pose extraction, BST-X training, each independently pinned. The legacy OpenMMLab stack (NumPy < 2.0, `src/bst_x/preparing_data/requirements-legacy-3d.txt`) remains only as the environment for the parked 3D pose stream design. Full setup and execution order: [`src/bst_x/data_pipeline_to_model_train.md`](src/bst_x/data_pipeline_to_model_train.md).
 
 ### Local config (`.env`)
 

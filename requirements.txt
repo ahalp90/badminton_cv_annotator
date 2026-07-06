@@ -42,4 +42,4 @@ httpx==0.28.1                # Required by FastAPI TestClient
 
 jaxtyping
 beartype
-frozendict>=2.4,<3           # Hyp's immutable dict defaults (bst_x_common); matches the pyproject pin
+frozendict>=2.4,<3           # Hyp's immutable dict defaults (bst_x_train); matches the pyproject pin

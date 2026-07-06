@@ -332,7 +332,7 @@ def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:
     ``StickyAnchorParams`` instance is constructed at this boundary.
     """
     # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
-    # load (its rtmlib/mmpose imports are themselves lazy).
+    # load (its rtmlib import is itself lazy).
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         normalize_joints,
     )

@@ -170,9 +170,10 @@ def detect_players_2d(
 
     for det in extractor.iter_video(video_path):
         # float64 to match the old mmpose np.array(list-of-lists) dtype: rtmlib
-        # returns float32, and _order_two_on_court / normalize_joints / court
-        # projection are gated against the committed float64 output at atol (G3).
-        keypoints = det.keypoints.astype(np.float64)  # (m, J, 2)
+        # returns float32. gate_dtype_parity asserts the cast is in effect, and
+        # the parity gates (gate_cpu_downstream_byteeq, gate_deployed_parity)
+        # check downstream output against the committed float64 baseline at atol.
+        keypoints = det.keypoints.astype(np.float64)  # (n_people, J, 2)
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 2).
@@ -184,7 +185,7 @@ def detect_players_2d(
             continue
         in_court_pid, pos_normalized = ordered
 
-        bboxes = det.bboxes.astype(np.float64)  # (m, 4)
+        bboxes = det.bboxes.astype(np.float64)  # (n_people, 4)
 
         failed_ls.append(False)
         players_positions.append(pos_normalized[in_court_pid])
