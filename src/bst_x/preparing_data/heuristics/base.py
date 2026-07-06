@@ -68,7 +68,9 @@ class HeuristicOutput(NamedTuple):
     - ``pos``    ``(F, 2, 2)``   normalised court positions, slot order (Top, Bottom).
     - ``joints`` ``(F, 2, J, 2)`` bbox-diagonal-normalised keypoints.
     - ``failed`` ``(F,)`` bool   True where the frame was zeroed.
+    - ``overcount`` ``(F,)`` bool   True where >2 candidates projected in-court (doubles evidence).
     """
     pos: np.ndarray
     joints: np.ndarray
     failed: np.ndarray
+    overcount: np.ndarray

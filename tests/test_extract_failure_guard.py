@@ -290,7 +290,8 @@ def test_prepare_zero_frame_logged_and_skipped_below_threshold(tmp_path, monkeyp
     )
 
     assert _read_log_stems(save_dir) == [bad]
-    prepare_suffixes = ("_pos.npy", "_joints.npy", "_failed.npy")
+    # Quartet since the doubles guard: _overcount.npy is written alongside the trio.
+    prepare_suffixes = ("_pos.npy", "_joints.npy", "_overcount.npy", "_failed.npy")
     for suffix in prepare_suffixes:
         assert not (save_dir / (bad + suffix)).exists()
     for stem in stems:
@@ -323,5 +324,5 @@ def test_prepare_aborts_past_threshold_raises(tmp_path, monkeypatch):
     # Two failures logged before the abort; no npys written for any clip.
     assert _read_log_stems(save_dir) == stems[:2]
     for stem in stems:
-        for suffix in ("_pos.npy", "_joints.npy", "_failed.npy"):
+        for suffix in ("_pos.npy", "_joints.npy", "_overcount.npy", "_failed.npy"):
             assert not (save_dir / (stem + suffix)).exists()

@@ -58,6 +58,10 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     failed = np.zeros(num_frames, dtype=bool)
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
     joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
+    # (F,) doubles evidence, additive to the byte-identity schema: True where >2
+    # people projected in-court. Left False on the < 2 short-circuit (too few to
+    # ever be doubles).
+    overcount = np.zeros(num_frames, dtype=bool)
 
     for f in range(num_frames):
         n = int(raw.ndet[f])
@@ -74,6 +78,10 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
             keypoints, ctx.vid, ctx.all_court_info, ctx.res_df,
         )
         in_court_pid = np.nonzero(in_court)[0]
+
+        # Recorded before the exactly-two gate: a doubles frame (>2 in court) fails
+        # that gate, and this is exactly where the over-count evidence lives.
+        overcount[f] = len(in_court_pid) > 2
 
         if len(in_court_pid) != 2:
             failed[f] = True
@@ -99,4 +107,4 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
             center_align=True,
         )
 
-    return HeuristicOutput(pos=pos, joints=joints, failed=failed)
+    return HeuristicOutput(pos=pos, joints=joints, failed=failed, overcount=overcount)

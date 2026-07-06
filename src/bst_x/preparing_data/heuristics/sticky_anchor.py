@@ -153,7 +153,7 @@ def _pick_one_frame(
     halfcourt_centre: np.ndarray,
     ctx: ClipContext,
     params: StickyAnchorParams,
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray] | None:
+) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, int] | None:
     """Pick (Bottom, Top) detections for a single frame.
 
     Returns ``None`` for a full-frame failure: no detections, score
@@ -161,11 +161,13 @@ def _pick_one_frame(
     picks, or no slot ended up with a winner. The caller treats ``None``
     as ``failed[f] = True`` plus a full EMA reset.
 
-    Otherwise returns ``(picks, court_base_pos, kps_f, bboxes_f)``,
-    where ``picks`` is a length-2 list (``-1`` in any unpicked slot)
-    and the three arrays are per-candidate after the score + NaN
-    filters. The caller writes outputs and updates the per-slot EMA
-    based on the picks.
+    Otherwise returns ``(picks, court_base_pos, kps_f, bboxes_f, n_in_court)``,
+    where ``picks`` is a length-2 list (``-1`` in any unpicked slot),
+    the three arrays are per-candidate after the score + NaN filters, and
+    ``n_in_court`` counts the candidates projecting inside the generous court
+    (the doubles-guard signal: > 2 candidates in-court is doubles evidence,
+    even though only two are ever picked). The caller writes outputs and
+    updates the per-slot EMA based on the picks.
     """
     n = int(raw.ndet[f])
     if n == 0:
@@ -193,6 +195,16 @@ def _pick_one_frame(
     # Per-candidate invariant from here: bboxes_f, kps_f, court_base_pos,
     # is_sitting, bbox_areas all share the same [0, k) index space, and
     # the eligible/tied boolean masks below operate on it.
+
+    # Doubles-guard count: candidates inside [-margin, 1 + margin] on both axes,
+    # the vectorised form of _in_generous_court over the k survivors. Counted here
+    # over the full candidate set (not the two picks) because doubles evidence is
+    # the crowd of in-court feet, not who wins the two slots.
+    in_generous_court = (
+        (court_base_pos >= -params.generous_margin)
+        & (court_base_pos <= 1 + params.generous_margin)
+    ).all(axis=1)
+    n_in_court = int(in_generous_court.sum())
 
     # Step B: effective anchors + full distance matrix.
     effective_anchor = (
@@ -265,7 +277,7 @@ def _pick_one_frame(
     if picks == [-1, -1]:
         return None
 
-    return picks, court_base_pos, kps_f, bboxes_f
+    return picks, court_base_pos, kps_f, bboxes_f, n_in_court
 
 
 def _run_clip(
@@ -286,6 +298,10 @@ def _run_clip(
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
     joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
     ema_history = np.zeros((num_frames, 2, 2), dtype=np.float64)
+    # (F,) doubles evidence: True where > 2 candidates projected in-court on a
+    # success frame. Left False on failure frames (init default): a fully-failed
+    # frame contributes no doubles evidence.
+    overcount = np.zeros(num_frames, dtype=bool)
 
     # Per-slot EMA, initialised to halfcourt_centre.
     ema = halfcourt_centre.copy()
@@ -298,7 +314,8 @@ def _run_clip(
             ema_history[f] = ema
             continue
 
-        picks, court_base_pos, kps_f, bboxes_f = result
+        picks, court_base_pos, kps_f, bboxes_f, n_in_court = result
+        overcount[f] = n_in_court > 2
 
         # Step E: write outputs + update EMAs. Mixed result (one slot
         # picked, one not) still resets the unpicked slot's EMA below.
@@ -322,7 +339,10 @@ def _run_clip(
         failed[f] = frame_has_zero
         ema_history[f] = ema
 
-    return HeuristicOutput(pos=pos, joints=joints, failed=failed), ema_history
+    return (
+        HeuristicOutput(pos=pos, joints=joints, failed=failed, overcount=overcount),
+        ema_history,
+    )
 
 
 def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:

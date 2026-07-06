@@ -143,7 +143,7 @@ def test_voronoi_partition_picks_correct_side():
     raw = _build_raw_clip([[(top_bbox, top_kps, 0.9), (bot_bbox, bot_kps, 0.9)]])
     res = _pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
     assert res is not None
-    picks, court_base_pos, _, _ = res
+    picks, court_base_pos, _, _, _ = res  # 5th element: in-court candidate count
     assert picks[SLOT_TOP] == 0  # candidate 0 is the upper one
     assert picks[SLOT_BOTTOM] == 1  # candidate 1 is the lower one
 
