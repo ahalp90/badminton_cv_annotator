@@ -57,7 +57,11 @@ def download_video(
         result = subprocess.run(
             [
                 'yt-dlp',
-                '--format', 'bestvideo[ext=mp4]/best[ext=mp4]/best',
+                # avc1 is the H.264 fourcc (not AV1, despite the name). YouTube
+                # now serves AV1-in-mp4 by default and the HPC nodes' cv2 cannot
+                # decode it (2026-07-08 pilot finding). No unpinned fallback; an
+                # AV1 file is unusable downstream, so fail loudly over a dud.
+                '--format', 'bestvideo[vcodec^=avc1][ext=mp4]/best[vcodec^=avc1][ext=mp4]',
                 '--output', output_template,
                 '--no-playlist',
                 '--retries', '3',
