@@ -37,7 +37,14 @@ from __future__ import annotations
 import numpy as np
 
 from pipeline.config import COCO_N_JOINTS
-from .base import ClipContext, HeuristicOutput, RawClip
+from .base import (
+    DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
+    ClipContext,
+    HeuristicOutput,
+    RawClip,
+    count_standing_in_court,
+)
 
 
 def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
@@ -59,8 +66,8 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
     joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
     # (F,) doubles evidence, additive to the byte-identity schema: True where >2
-    # people projected in-court. Left False on the < 2 short-circuit (too few to
-    # ever be doubles).
+    # standing candidates projected within the doubles count margin. Left False on
+    # the < 2 short-circuit (too few to ever be doubles).
     overcount = np.zeros(num_frames, dtype=bool)
 
     for f in range(num_frames):
@@ -79,9 +86,12 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
         )
         in_court_pid = np.nonzero(in_court)[0]
 
-        # Recorded before the exactly-two gate: a doubles frame (>2 in court) fails
-        # that gate, and this is exactly where the over-count evidence lives.
-        overcount[f] = len(in_court_pid) > 2
+        # Additive to the byte-identity contract (that binds _failed/_pos/_joints):
+        # overcount is the D26 doubles head count at margin 0.05, sitting-exempt,
+        # recorded before the exactly-two gate where the over-count evidence lives.
+        overcount[f] = count_standing_in_court(
+            pos_normalized, keypoints, DOUBLES_COUNT_MARGIN, SITTING_THRESHOLD
+        ) > 2
 
         if len(in_court_pid) != 2:
             failed[f] = True

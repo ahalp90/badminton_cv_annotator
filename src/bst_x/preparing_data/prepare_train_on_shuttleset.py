@@ -64,6 +64,13 @@ from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
+# Shared doubles-guard head count. No import cycle: base.py pulls in no pipeline
+# code, and the heuristics modules import this module only lazily inside functions.
+from preparing_data.heuristics.base import (
+    DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
+    count_standing_in_court,
+)
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
     from preparing_data.rtmlib_pose import RtmlibPoseExtractor
@@ -129,36 +136,41 @@ def _order_two_on_court(
     :param vid: clip's source video id, used to look up homography + resolution.
     :param all_court_info: dict from get_court_info.
     :param res_df: resolution DataFrame indexed by video id.
-    :return: ``(result, n_in_court)``. ``result`` is ``(in_court_pid, pos_normalized)``
+    :return: ``(result, n_counted)``. ``result`` is ``(in_court_pid, pos_normalized)``
         on success (exactly 2 on court, ordered Top-before-Bottom), or ``None`` on
-        either failure path. ``n_in_court`` is how many detections projected inside the
-        court: the doubles-guard signal, where ``> 2`` is doubles evidence. ``pos_normalized``
-        is the full ``(m, 2)`` array, not the 2-row slice -- the caller does its own
-        ``pos_normalized[in_court_pid]`` (helper returns the full array so the
-        caller's existing index expression stays correct).
+        either failure path. ``n_counted`` is the doubles-guard head count: standing
+        detections within ``DOUBLES_COUNT_MARGIN`` of the court, where ``> 2`` is
+        doubles evidence. That is a separate signal from the pick gate, which still
+        keys on ``check_pos_in_court``'s eps-0.01 in-court count being exactly two.
+        ``pos_normalized`` is the full ``(m, 2)`` array, not the 2-row slice -- the
+        caller does its own ``pos_normalized[in_court_pid]`` (helper returns the full
+        array so the caller's existing index expression stays correct).
     """
     if len(keypoints_2d) < 2:
         # Court check never ran (check_pos_in_court would slice an empty detection),
-        # so report the detection count as the in-court count: it upper-bounds the
-        # real in-court count, and < 2 can never be a doubles over-count, so the
-        # guard stays sound without projecting.
+        # so report the detection count as the head count: it upper-bounds the real
+        # count, and < 2 can never be a doubles over-count, so the guard stays sound
+        # without projecting.
         return None, len(keypoints_2d)
     in_court, pos_normalized = check_pos_in_court(
         keypoints_2d, vid, all_court_info, res_df
     )
     # in_court: (m), pos_normalized: (m, xy), xy=2
     in_court_pid = np.nonzero(in_court)[0]
-    n_in_court = len(in_court_pid)
-    # Deviation from the spec's letter (split != 2 into < 2 vs > 2 branches): the
-    # single test still carries both signals because n_in_court rides out on the
-    # return, so the caller reads doubles evidence (> 2) off the count directly.
-    if n_in_court != 2:
-        return None, n_in_court
+    # Head count and pick gate are deliberately separate signals: the gate keys on
+    # the eps-0.01 in-court count being exactly two (pick logic untouched), while
+    # n_counted is the wider DOUBLES_COUNT_MARGIN, sitting-exempt count the caller
+    # reads doubles evidence (> 2) off (D26).
+    n_counted = count_standing_in_court(
+        pos_normalized, keypoints_2d, DOUBLES_COUNT_MARGIN, SITTING_THRESHOLD
+    )
+    if len(in_court_pid) != 2:
+        return None, n_counted
     # Make sure Top player before Bottom player (comparing y-dim).
     # Strict > so a y-tie keeps the np.nonzero ascending order.
     if pos_normalized[in_court_pid[0], 1] > pos_normalized[in_court_pid[1], 1]:
         in_court_pid = np.flip(in_court_pid)
-    return (in_court_pid, pos_normalized), n_in_court
+    return (in_court_pid, pos_normalized), n_counted
 
 
 def detect_players_2d(
@@ -179,10 +191,10 @@ def detect_players_2d(
         where no valid two-player pair was found; that frame is zero-filled).
         ``players_positions`` is ``(t, m, xy)`` with ``m=xy=2``;
         ``players_joints`` is ``(t, m, J, xy)``. ``overcount_ls`` is a per-frame bool
-        list: True where more than two people projected inside the court on that frame
-        (doubles evidence). A doubles rally puts four feet in court and so fails the
-        exactly-two test; overcount rides beside failed_ls to tell that apart from an
-        ordinary miss.
+        list: True where more than two standing people projected within the doubles
+        count margin on that frame (doubles evidence). A doubles rally puts four feet
+        in court and so fails the exactly-two test; overcount rides beside failed_ls
+        to tell that apart from an ordinary miss.
     """
     vid = int(video_path.name.split("_", 1)[0])
 
@@ -200,10 +212,10 @@ def detect_players_2d(
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 2).
-        ordered, n_in_court = _order_two_on_court(keypoints, vid, all_court_info, res_df)
+        ordered, n_counted = _order_two_on_court(keypoints, vid, all_court_info, res_df)
         # Recorded on every frame, including the failed ones: a doubles frame fails
         # the exactly-two test but is exactly where the over-count evidence lives.
-        overcount_ls.append(n_in_court > 2)
+        overcount_ls.append(n_counted > 2)
         if not ordered:
             failed_ls.append(True)
             players_positions.append(np.zeros((2, 2), dtype=float))
