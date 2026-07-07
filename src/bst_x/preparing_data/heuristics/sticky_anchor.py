@@ -50,6 +50,7 @@ from pipeline.court_utils import normalize_position, to_court_coordinate
 
 from .base import (
     DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
     ClipContext,
     HeuristicOutput,
     RawClip,
@@ -72,7 +73,7 @@ class StickyAnchorParams:
     generous_margin: float = 0.15
     score_filter: float = 0.2
     tiebreaker_tol: float = 0.05
-    sitting_threshold: float = -0.3
+    sitting_threshold: float = SITTING_THRESHOLD
     update_gate_eps: float = 0.01
     count_margin: float = DOUBLES_COUNT_MARGIN
 
@@ -173,7 +174,6 @@ def _pick_one_frame(
     bboxes_f = bboxes_f[valid]
     kps_f = kps_f[valid]
     court_base_pos = court_base_pos[valid]
-    k = court_base_pos.shape[0]
     # Per-candidate invariant from here: bboxes_f, kps_f, court_base_pos,
     # sitting, bbox_areas all share the same [0, k) index space, and
     # the eligible/tied boolean masks below operate on it.
@@ -193,10 +193,7 @@ def _pick_one_frame(
     # Eager rather than lazy: k is small (~2-6 after filtering) and the
     # vectorised per-candidate cost is trivial. Eager removes one more
     # place to get an off-by-one wrong when slicing into the tiebreaker.
-    sitting = np.array(
-        [is_sitting(kps_f[i], params.sitting_threshold) for i in range(k)],
-        dtype=bool,
-    )
+    sitting = is_sitting(kps_f, params.sitting_threshold)  # (k,) bool
     x1, y1, x2, y2 = bboxes_f.T
     bbox_areas = (x2 - x1) * (y2 - y1)
 
@@ -205,9 +202,7 @@ def _pick_one_frame(
     # who wins the two slots. Margin narrower than generous_margin and
     # sitting-exempt so persistent seated officials behind the lines never count
     # (D26).
-    n_counted = count_standing_in_court(
-        court_base_pos, kps_f, params.count_margin, params.sitting_threshold
-    )
+    n_counted = count_standing_in_court(court_base_pos, sitting, params.count_margin)
 
     # Step C: process slots Bottom first, then Top.
     picks: list[int] = [-1, -1]

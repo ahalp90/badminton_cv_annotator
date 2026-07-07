@@ -89,32 +89,32 @@ DOUBLES_COUNT_MARGIN = 0.05
 SITTING_THRESHOLD = -0.3
 
 
-def is_sitting(kp: np.ndarray, sitting_threshold: float) -> bool:
-    """Body-frame sitting test.
+def is_sitting(kps: np.ndarray, sitting_threshold: float) -> np.ndarray:
+    """Body-frame sitting test over a batch of poses.
 
     Projects the knee-offset-from-hip onto the hip-to-shoulder axis. A
     standing / airborne player has knees in the body-down direction
     (ratio around -0.7 to -0.9); a sitting person has knees roughly
-    perpendicular to the body axis (ratio near 0). Returns True when the
-    ratio exceeds ``sitting_threshold`` (default -0.3).
+    perpendicular to the body axis (ratio near 0). Returns True where the
+    ratio exceeds ``sitting_threshold``.
+
+    ``kps`` is (m, J, 2) pixel coords; returns a (m,) bool mask.
     """
-    sh = (kp[SHOULDER_L] + kp[SHOULDER_R]) / 2
-    hp = (kp[HIP_L] + kp[HIP_R]) / 2
-    kn = (kp[KNEE_L] + kp[KNEE_R]) / 2
+    sh = (kps[:, SHOULDER_L] + kps[:, SHOULDER_R]) / 2  # (m, 2)
+    hp = (kps[:, HIP_L] + kps[:, HIP_R]) / 2
+    kn = (kps[:, KNEE_L] + kps[:, KNEE_R]) / 2
     body_up = sh - hp
-    torso_len_sq = float(body_up @ body_up)
-    if torso_len_sq < 1e-6:
-        return False  # Degenerate pose; defer to anchor distance.
     knee_vec = kn - hp
-    ratio = float((knee_vec @ body_up) / torso_len_sq)
-    return ratio > sitting_threshold
+    torso_len_sq = (body_up * body_up).sum(axis=1)  # (m,)
+    degenerate = torso_len_sq < 1e-6  # degenerate pose; defer to anchor distance
+    ratio = (knee_vec * body_up).sum(axis=1) / np.where(degenerate, 1.0, torso_len_sq)
+    return (ratio > sitting_threshold) & ~degenerate
 
 
 def count_standing_in_court(
     pos: np.ndarray,
-    keypoints: np.ndarray,
+    sitting: np.ndarray,
     margin: float,
-    sitting_threshold: float,
 ) -> int:
     """The doubles-guard head count: detections whose normalised court position
     lands within ``margin`` of the court on both axes AND that are not sitting.
@@ -124,11 +124,8 @@ def count_standing_in_court(
     the count down, away from a false doubles flag, and real doubles keeps
     tripping the guard because four players can't sit out more than half a rally.
 
-    ``pos`` is (m, 2) normalised court coords; ``keypoints`` is (m, J, 2) pixel
-    coords, index-aligned with ``pos``.
+    ``pos`` is (m, 2) normalised court coords; ``sitting`` is the (m,) bool mask
+    from ``is_sitting``, index-aligned with ``pos``.
     """
     in_margin = ((pos >= -margin) & (pos <= 1 + margin)).all(axis=1)
-    standing = np.array(
-        [not is_sitting(kp, sitting_threshold) for kp in keypoints], dtype=bool
-    )
-    return int((in_margin & standing).sum())
+    return int((in_margin & ~sitting).sum())

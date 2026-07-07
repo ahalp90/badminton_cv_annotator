@@ -29,6 +29,7 @@ from preparing_data.heuristics.base import (
     ClipContext,
     RawClip,
     count_standing_in_court,
+    is_sitting,
 )
 from preparing_data.heuristics.sticky_anchor import (
     StickyAnchorParams,
@@ -353,5 +354,6 @@ def test_count_standing_in_court_mixes_margin_and_sitting():
         _standing_kps_for_bbox(_bbox_for(0.5, 1.04)),
     ]).astype(np.float64)
 
-    n = count_standing_in_court(pos, keypoints, DOUBLES_COUNT_MARGIN, SITTING_THRESHOLD)
+    sitting = is_sitting(keypoints, SITTING_THRESHOLD)
+    n = count_standing_in_court(pos, sitting, DOUBLES_COUNT_MARGIN)
     assert n == 2

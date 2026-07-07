@@ -44,6 +44,7 @@ from .base import (
     HeuristicOutput,
     RawClip,
     count_standing_in_court,
+    is_sitting,
 )
 
 
@@ -89,9 +90,8 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
         # Additive to the byte-identity contract (that binds _failed/_pos/_joints):
         # overcount is the D26 doubles head count at margin 0.05, sitting-exempt,
         # recorded before the exactly-two gate where the over-count evidence lives.
-        overcount[f] = count_standing_in_court(
-            pos_normalized, keypoints, DOUBLES_COUNT_MARGIN, SITTING_THRESHOLD
-        ) > 2
+        sitting = is_sitting(keypoints, SITTING_THRESHOLD)
+        overcount[f] = count_standing_in_court(pos_normalized, sitting, DOUBLES_COUNT_MARGIN) > 2
 
         if len(in_court_pid) != 2:
             failed[f] = True

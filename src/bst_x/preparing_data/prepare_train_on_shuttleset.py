@@ -70,6 +70,7 @@ from preparing_data.heuristics.base import (
     DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
     count_standing_in_court,
+    is_sitting,
 )
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
@@ -161,9 +162,8 @@ def _order_two_on_court(
     # the eps-0.01 in-court count being exactly two (pick logic untouched), while
     # n_counted is the wider DOUBLES_COUNT_MARGIN, sitting-exempt count the caller
     # reads doubles evidence (> 2) off (D26).
-    n_counted = count_standing_in_court(
-        pos_normalized, keypoints_2d, DOUBLES_COUNT_MARGIN, SITTING_THRESHOLD
-    )
+    sitting = is_sitting(keypoints_2d, SITTING_THRESHOLD)
+    n_counted = count_standing_in_court(pos_normalized, sitting, DOUBLES_COUNT_MARGIN)
     if len(in_court_pid) != 2:
         return None, n_counted
     # Make sure Top player before Bottom player (comparing y-dim).
