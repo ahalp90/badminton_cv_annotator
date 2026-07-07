@@ -191,11 +191,11 @@ SLOWMO_SPEED_FRAC = 0.3  # median speed under this fraction of rally median = sl
 # Doubles guard windowing (spec s8)
 # ---------------------------------------------------------------------------
 # A clip- or segment-level doubles flag fires only when the per-frame
-# over-count (>2 in-court candidates) persists: more than half the frames of a
-# rally span, or a consecutive run (~0.5 s at 30 fps). Transient walk-throughs
-# (a coach or ball-kid crossing) stay unflagged. Starting values.
+# over-count (>2 in-court candidates) holds across more than half the frames
+# of a rally span. Fraction only (ruled 2026-07-07): a consecutive-run leg
+# would fire on any passerby crossing the court. Transient walk-throughs
+# (a coach or ball-kid crossing) stay unflagged. Starting value.
 DOUBLES_SPAN_FRACTION = 0.5
-DOUBLES_MIN_CONSECUTIVE = 15
 
 # ---------------------------------------------------------------------------
 # Rate limiting / IP-ban mitigation (D22, spec s5)

@@ -5,10 +5,11 @@ people project inside the court) beside each clip's pose output. A single noisy
 frame is not doubles: a coach or ball-kid can cross the court for a moment. This
 module turns the per-frame signal into a clip- or segment-level verdict.
 
-Rule (spec s8): over a span, raise the flag when the over-count holds on more
-than ``DOUBLES_SPAN_FRACTION`` of frames, OR on at least ``DOUBLES_MIN_CONSECUTIVE``
-consecutive frames. Either leg firing is enough. Starting values live in
-``scraper.config``; tune them on the first labelled doubles sample.
+Rule (spec s8, fraction-only since the 2026-07-07 ruling): over a span, raise
+the flag when the over-count holds on more than ``DOUBLES_SPAN_FRACTION`` of
+frames. A consecutive-run leg was considered and dropped: any passerby crossing
+the court for half a second would trip it. Starting value lives in
+``scraper.config``; tune it on the first labelled doubles sample.
 
 Runnable as a small CLI to sweep a directory of ``<video_id>_overcount.npy``
 arrays into ``doubles_flags.csv``::
@@ -25,33 +26,12 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import DOUBLES_MIN_CONSECUTIVE, DOUBLES_SPAN_FRACTION, SCRAPE_DIR
+from .config import DOUBLES_SPAN_FRACTION, SCRAPE_DIR
 
 # Per-video over-count file naming and the CLI's output contract.
 OVERCOUNT_SUFFIX = '_overcount.npy'
 DOUBLES_FLAGS_CSV = SCRAPE_DIR / 'doubles_flags.csv'
 DOUBLES_FLAGS_COLUMNS = ['video_id', 'rally_id', 'doubles_flag']
-
-
-def _longest_true_run(mask: np.ndarray) -> int:
-    """Length of the longest run of consecutive True values in a 1-D bool mask.
-
-    Pads the int view with a leading and trailing 0 so every run has a rising
-    (0 -> 1) and a falling (1 -> 0) edge inside ``np.diff``; each run's length is
-    the gap between its rising and falling edge index.
-
-    :param mask: 1-D bool (or 0/1) array.
-    :return: longest consecutive-True run length; 0 when the mask is all False or empty.
-    """
-    if mask.size == 0:
-        return 0
-    padded = np.concatenate(([0], mask.astype(np.int8), [0]))
-    edges = np.diff(padded)
-    run_starts = np.nonzero(edges == 1)[0]
-    run_ends = np.nonzero(edges == -1)[0]
-    if run_starts.size == 0:
-        return 0
-    return int((run_ends - run_starts).max())
 
 
 def doubles_flag(overcount: np.ndarray, span: tuple[int, int] | None = None) -> bool:
@@ -61,16 +41,14 @@ def doubles_flag(overcount: np.ndarray, span: tuple[int, int] | None = None) -> 
         in-court on that frame.
     :param span: ``(start, end)`` half-open slice bounds; ``None`` uses the whole
         array. Half-open (``overcount[start:end]``) keeps one slicing convention; a
-        one-frame boundary is immaterial to both legs of the rule.
+        one-frame boundary is immaterial to the fraction rule.
     :return: True when the over-count holds on more than ``DOUBLES_SPAN_FRACTION`` of
-        the span's frames, or on at least ``DOUBLES_MIN_CONSECUTIVE`` consecutive frames.
+        the span's frames.
     """
     window = overcount if span is None else overcount[span[0]:span[1]]
     if window.size == 0:
         return False
-    fraction_fires = bool(window.mean() > DOUBLES_SPAN_FRACTION)
-    run_fires = _longest_true_run(window) >= DOUBLES_MIN_CONSECUTIVE
-    return fraction_fires or run_fires
+    return bool(window.mean() > DOUBLES_SPAN_FRACTION)
 
 
 def _load_overcount(path: Path) -> np.ndarray:
