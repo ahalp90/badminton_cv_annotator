@@ -120,10 +120,10 @@ def extract_all_shuttles(
 
     # Split pending clips across workers (round-robin so each worker
     # processes a mix of short and long clips from different videos).
-    chunks = [pending[i::max_workers] for i in range(max_workers)]
+    chunks = [pending[i::max_workers] for i in range(max_workers)] #TODO fix inline nesting
     chunks = [c for c in chunks if c]  # drop empty if fewer clips than workers
 
-    python_exe = str(tracknet_python) if tracknet_python else sys.executable
+    python_exe = str(tracknet_python) if tracknet_python else sys.executable #TODO is this check necessary?
     batch_script = tracknet_dir / 'batch_predict.py'
 
     # Write each chunk to its own list file and launch a batch worker
@@ -141,7 +141,7 @@ def extract_all_shuttles(
             '--save_dir', str(output_csv_dir),
             '--batch_size', str(batch_size),
         ]
-        if resolved_inpaint:
+        if resolved_inpaint: #TODO aren't we *only* running inpaint, making this redundant?
             process_args.extend(['--inpaintnet_file', str(resolved_inpaint)])
         if dry_run:
             process_args.append('--dry_run')

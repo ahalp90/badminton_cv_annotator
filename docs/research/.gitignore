@@ -1,0 +1,4 @@
+# Converted markdown, distillation notes, composited figures and session logs are a
+# local working layer. They live in local_only/ folders beside their source PDF, at
+# whatever depth. This one line ignores every such folder under docs/research.
+local_only/

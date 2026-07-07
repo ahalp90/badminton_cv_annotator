@@ -2,7 +2,7 @@
 
 *Extracted from `hparams_sweep_speculations.md` on 2026-05-04 once the
 augmentation analysis grew large enough to live on its own. Companion
-doc to Isiah's writeup at `docs/research/Augmentation.pdf`. The
+doc to Isiah's writeup at `docs/research/tri1_misc/Augmentation.pdf`. The
 locked decisions are anchored against that PDF; the
 project-side filtering, code traces, and implementation outlines are
 this doc.*
