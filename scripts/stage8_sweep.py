@@ -1,0 +1,565 @@
+"""Sweep the stage-8 thresholds over one cached whole-video shuttle track.
+
+Stage B of the stage-8 sweep plan
+(``local_scratch/autograder_architecture/stage8_sweep_plan.md`` section 5). Two
+sequential phases over a single cached track, scored against ShuttleSet GT with
+the committed scorer core in ``scripts.stage8_score``:
+
+  1. boundary phase: a 324-config grid over the five rally-boundary thresholds
+     (REST_SPEED, REST_WINDOW, END_REST_FRAMES, START_SPEED, START_MIN_FRAMES),
+     contact thresholds pinned at shipped defaults; the winner is frozen.
+  2. contact phase: a 45-config grid over the three contact thresholds
+     (SMOOTH_WINDOW, MIN_DIR_CHANGE_DEG, MIN_CONTACT_SPEED) at the frozen
+     boundary winner.
+
+Both phases also run one extra labelled ``shipped_defaults`` config (all eight
+thresholds at their config.py values) so the summary can always contrast against
+what stage 8 ships with, even where the grid does not contain that exact config.
+
+How the thresholds are set: ``scraper.stage8_rally_segmentation`` binds its eight
+thresholds as module globals via ``from .config import ...``, and the functions
+read those bare globals. So a config is applied by setting attributes on the
+imported module (``stage8_module.REST_SPEED = ...``) before calling
+``segment_video``. EVERY config sets ALL eight explicitly, so there is no
+save/restore dance and each task leaves the module in a fully-known state.
+Patching (rather than threading params through the stage-8 signatures) keeps
+stage 8's committed code untouched; a params refactor is Ariel's call later.
+
+Parallelism: a multiprocessing Pool fans the configs out. Module state is
+per-process and one task runs at a time per process, so patching all eight
+globals at the top of each task cannot leak across tasks. The track and GT load
+once per worker via the pool initializer (same pattern as
+``scripts.wrist_contact_separation.WorkerCtx``). Only the flat per-config row
+crosses the process boundary; the full nested metrics dicts stay in the worker.
+
+Contact-winner selection is NOT pinned by the plan (it fixes only the boundary
+rule), so the rule here is a build choice flagged for Ariel: maximise the +/-2
+F1 (the canonical credit), then the +/-5 F1, then the unmerged count-gate pass
+rate, then closeness to the shipped defaults.
+
+Usage:
+    python -m scripts.stage8_sweep \\
+        --track-npy /scratch/.../1.npy --vid 1 \\
+        --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N]
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import sys
+from itertools import product
+from multiprocessing import Pool
+from pathlib import Path
+from typing import Callable, NamedTuple
+
+import numpy as np
+import pandas as pd
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / 'src'))
+
+import scraper.stage8_rally_segmentation as stage8_module  # noqa: E402  — needs the src path above
+
+from scripts.stage8_score import (  # noqa: E402  — sibling script, imported after the src path insert
+    DEFAULT_SHOTS_MASTER,
+    load_gt_rallies,
+    score_stage8,
+)
+
+# Tolerances scored per config: +/-2 is the canonical credit, +/-5 the noisy-GT
+# read (plan section 4). The flat row pulls recall/precision/f1 at both.
+SWEEP_TOLERANCES = (2, 5)
+
+
+# ---------------------------------------------------------------------------
+# Params and the module-global names they patch
+# ---------------------------------------------------------------------------
+class Stage8Params(NamedTuple):
+    """One full stage-8 threshold config: all eight values, always set together."""
+
+    rest_speed: float
+    rest_window: int
+    end_rest_frames: int
+    start_speed: float
+    start_min_frames: int
+    smooth_window: int
+    min_dir_change_deg: float
+    min_contact_speed: float
+
+
+# Field -> the UPPER_CASE global the stage-8 module reads. Single source for both
+# the patch loop and the CSV param columns, so the two never drift.
+PARAM_TO_MODULE_ATTR = {
+    'rest_speed': 'REST_SPEED',
+    'rest_window': 'REST_WINDOW',
+    'end_rest_frames': 'END_REST_FRAMES',
+    'start_speed': 'START_SPEED',
+    'start_min_frames': 'START_MIN_FRAMES',
+    'smooth_window': 'SMOOTH_WINDOW',
+    'min_dir_change_deg': 'MIN_DIR_CHANGE_DEG',
+    'min_contact_speed': 'MIN_CONTACT_SPEED',
+}
+PARAM_COLUMNS = list(PARAM_TO_MODULE_ATTR)
+
+# The shipped defaults, read from config so this file never re-states the values.
+SHIPPED_DEFAULTS = Stage8Params(
+    rest_speed=stage8_module.REST_SPEED,
+    rest_window=stage8_module.REST_WINDOW,
+    end_rest_frames=stage8_module.END_REST_FRAMES,
+    start_speed=stage8_module.START_SPEED,
+    start_min_frames=stage8_module.START_MIN_FRAMES,
+    smooth_window=stage8_module.SMOOTH_WINDOW,
+    min_dir_change_deg=stage8_module.MIN_DIR_CHANGE_DEG,
+    min_contact_speed=stage8_module.MIN_CONTACT_SPEED,
+)
+
+LABEL_GRID = 'grid'
+LABEL_SHIPPED = 'shipped_defaults'
+
+
+def _patch_stage8(params: Stage8Params) -> None:
+    """Set all eight stage-8 module globals from ``params``.
+
+    Every field is overwritten each call and one task runs at a time per process,
+    so this cannot leak state across tasks. See the module docstring for why this
+    patches rather than refactors the stage-8 signatures.
+    """
+    for field, attr in PARAM_TO_MODULE_ATTR.items():
+        setattr(stage8_module, attr, getattr(params, field))
+
+
+# ---------------------------------------------------------------------------
+# Grids (plan section 5; contact grid extended down per the A0 measurement)
+# ---------------------------------------------------------------------------
+BOUNDARY_REST_SPEED = (0.005, 0.01, 0.02)
+BOUNDARY_REST_WINDOW = (9, 15, 21)
+BOUNDARY_END_REST_FRAMES = (20, 30, 45, 60)
+BOUNDARY_START_SPEED = (0.02, 0.03, 0.05)
+BOUNDARY_START_MIN_FRAMES = (2, 3, 5)
+
+CONTACT_SMOOTH_WINDOW = (3, 5, 7)
+CONTACT_MIN_DIR_CHANGE_DEG = (30, 45, 60, 75, 90)
+CONTACT_MIN_CONTACT_SPEED = (0.005, 0.01, 0.02)
+
+
+def build_boundary_grid() -> list[Stage8Params]:
+    """The 324 boundary configs; contact thresholds pinned at shipped defaults."""
+    grid: list[Stage8Params] = []
+    for rest_speed, rest_window, end_rest_frames, start_speed, start_min_frames in product(
+        BOUNDARY_REST_SPEED, BOUNDARY_REST_WINDOW, BOUNDARY_END_REST_FRAMES,
+        BOUNDARY_START_SPEED, BOUNDARY_START_MIN_FRAMES,
+    ):
+        grid.append(Stage8Params(
+            rest_speed=rest_speed,
+            rest_window=rest_window,
+            end_rest_frames=end_rest_frames,
+            start_speed=start_speed,
+            start_min_frames=start_min_frames,
+            smooth_window=SHIPPED_DEFAULTS.smooth_window,
+            min_dir_change_deg=SHIPPED_DEFAULTS.min_dir_change_deg,
+            min_contact_speed=SHIPPED_DEFAULTS.min_contact_speed,
+        ))
+    return grid
+
+
+def build_contact_grid(boundary: Stage8Params) -> list[Stage8Params]:
+    """The 45 contact configs; the five boundary thresholds frozen at ``boundary``."""
+    grid: list[Stage8Params] = []
+    for smooth_window, min_dir_change_deg, min_contact_speed in product(
+        CONTACT_SMOOTH_WINDOW, CONTACT_MIN_DIR_CHANGE_DEG, CONTACT_MIN_CONTACT_SPEED,
+    ):
+        grid.append(boundary._replace(
+            smooth_window=smooth_window,
+            min_dir_change_deg=min_dir_change_deg,
+            min_contact_speed=min_contact_speed,
+        ))
+    return grid
+
+
+class SweepTask(NamedTuple):
+    """One config to score, plus its provenance label ('grid' or shipped ref)."""
+
+    label: str
+    params: Stage8Params
+
+
+def build_boundary_tasks() -> list[SweepTask]:
+    """324 grid tasks plus the labelled shipped-defaults reference (325 total)."""
+    tasks = [SweepTask(LABEL_GRID, params) for params in build_boundary_grid()]
+    tasks.append(SweepTask(LABEL_SHIPPED, SHIPPED_DEFAULTS))
+    return tasks
+
+
+def build_contact_tasks(boundary_winner: Stage8Params) -> list[SweepTask]:
+    """45 grid tasks plus the labelled shipped-defaults reference (46 total)."""
+    tasks = [SweepTask(LABEL_GRID, params) for params in build_contact_grid(boundary_winner)]
+    tasks.append(SweepTask(LABEL_SHIPPED, SHIPPED_DEFAULTS))
+    return tasks
+
+
+# ---------------------------------------------------------------------------
+# Row flattening (the only place the nested metrics dict is projected to columns)
+# ---------------------------------------------------------------------------
+METRIC_COLUMNS = [
+    'n_spans',
+    'covered', 'covered_fraction', 'split', 'missed', 'merged_spans', 'spurious_spans',
+    'start_alignment_mean', 'start_alignment_median',
+    'count_gate_covered_fraction', 'count_gate_unmerged_fraction',
+    'recall_2', 'precision_2', 'f1_2',
+    'recall_5', 'precision_5', 'f1_5',
+    'total_candidates',
+]
+ROW_COLUMNS = ['label'] + PARAM_COLUMNS + METRIC_COLUMNS
+
+
+def flatten_row(label: str, params: Stage8Params, n_spans: int, metrics: dict) -> dict:
+    """Project one scored config to a flat row: eight params plus scalar metrics.
+
+    The full nested ``score_stage8`` dict is dropped here so only rows (not
+    per-config metrics dicts) accumulate. None survives for any undefined metric
+    (no covered rally leaves start_alignment None; a zero-count denominator
+    leaves a fraction/precision/f1 None); ``_serialise_value`` blanks it on write.
+
+    :param label: 'grid' or the shipped-defaults reference label.
+    :param params: the config that produced ``metrics``.
+    :param n_spans: number of detected rally spans (``len(spans)``).
+    :param metrics: a ``score_stage8`` result scored at ``SWEEP_TOLERANCES``.
+    :return: one dict keyed by ROW_COLUMNS.
+    """
+    boundaries = metrics['boundaries']
+    contacts = metrics['contacts']
+    start_alignment = boundaries['start_alignment']  # dict or None (no covered rally)
+    count_gate = contacts['count_gate']
+    tol2 = contacts['tolerances']['2']
+    tol5 = contacts['tolerances']['5']
+
+    row: dict = {'label': label}
+    for field in PARAM_COLUMNS:
+        row[field] = getattr(params, field)
+    row['n_spans'] = n_spans
+    row['covered'] = boundaries['covered']
+    row['covered_fraction'] = boundaries['covered_fraction']
+    row['split'] = boundaries['split']
+    row['missed'] = boundaries['missed']
+    row['merged_spans'] = boundaries['merged_spans']
+    row['spurious_spans'] = boundaries['spurious_spans']
+    row['start_alignment_mean'] = start_alignment['mean'] if start_alignment else None
+    row['start_alignment_median'] = start_alignment['median'] if start_alignment else None
+    row['count_gate_covered_fraction'] = count_gate['covered']['fraction']
+    row['count_gate_unmerged_fraction'] = count_gate['unmerged']['fraction']
+    row['recall_2'] = tol2['recall']
+    row['precision_2'] = tol2['precision']
+    row['f1_2'] = tol2['f1']
+    row['recall_5'] = tol5['recall']
+    row['precision_5'] = tol5['precision']
+    row['f1_5'] = tol5['f1']
+    # Precision denominator (candidates pooled per rally over overlapping spans);
+    # equal across tolerances, so either curve carries it.
+    row['total_candidates'] = tol2['candidates']
+    return row
+
+
+def _serialise_value(value: object) -> object:
+    """CSV cell: None -> blank, float -> 6 dp, everything else unchanged."""
+    if value is None:
+        return ''
+    if isinstance(value, float):
+        return round(value, 6)
+    return value
+
+
+def _serialise_row(row: dict) -> dict:
+    """Row ready for csv.DictWriter, in ROW_COLUMNS order."""
+    return {column: _serialise_value(row[column]) for column in ROW_COLUMNS}
+
+
+# ---------------------------------------------------------------------------
+# Winner selection (deterministic)
+# ---------------------------------------------------------------------------
+def _changed_from_defaults(row: dict) -> int:
+    """How many of the eight params differ from the shipped defaults."""
+    changed = 0
+    for field in PARAM_COLUMNS:
+        if row[field] != getattr(SHIPPED_DEFAULTS, field):
+            changed += 1
+    return changed
+
+
+def _param_tuple(row: dict) -> tuple:
+    """The eight params as a tuple; the final, order-independent tie-break."""
+    return tuple(row[field] for field in PARAM_COLUMNS)
+
+
+def boundary_sort_key(row: dict) -> tuple:
+    """Boundary sort key; ascending puts the best config first (plan section 5).
+
+    Maximise covered_fraction, then fewer split, spurious_spans, merged_spans,
+    then the config closest to the shipped defaults. The trailing param tuple
+    keeps the order total, so the winner is unique whatever the input order.
+    """
+    covered_fraction = row['covered_fraction']
+    covered_fraction = covered_fraction if covered_fraction is not None else -1.0
+    return (
+        -covered_fraction,
+        row['split'],
+        row['spurious_spans'],
+        row['merged_spans'],
+        _changed_from_defaults(row),
+        _param_tuple(row),
+    )
+
+
+def contact_sort_key(row: dict) -> tuple:
+    """Contact sort key; ascending puts the best config first.
+
+    Build choice (the plan pins only the boundary rule), mirroring the contact
+    gates: maximise +/-2 F1, then +/-5 F1, then the unmerged count-gate pass
+    rate, then closeness to shipped defaults, then the param tuple for a total
+    order. Flagged for Ariel's ruling.
+    """
+    f1_2 = row['f1_2'] if row['f1_2'] is not None else -1.0
+    f1_5 = row['f1_5'] if row['f1_5'] is not None else -1.0
+    gate = row['count_gate_unmerged_fraction']
+    gate = gate if gate is not None else -1.0
+    return (
+        -f1_2,
+        -f1_5,
+        -gate,
+        _changed_from_defaults(row),
+        _param_tuple(row),
+    )
+
+
+def select_winner(rows: list[dict], sort_key: Callable[[dict], tuple]) -> dict:
+    """Best grid config by ``sort_key`` (the shipped-defaults reference excluded).
+
+    Only 'grid' rows compete: the shipped-defaults row is a labelled reference,
+    and in the contact phase it carries the shipped boundary params rather than
+    the frozen winner's, so letting it win would break the freeze.
+    """
+    grid_rows = [row for row in rows if row['label'] == LABEL_GRID]
+    if not grid_rows:
+        raise ValueError('no grid rows to select a winner from')
+    return min(grid_rows, key=sort_key)
+
+
+# ---------------------------------------------------------------------------
+# Worker: patch, segment, score, flatten
+# ---------------------------------------------------------------------------
+class SweepCtx(NamedTuple):
+    """Read-only inputs every task shares, shipped once per worker via the pool
+    initializer (same pattern as wrist_contact_separation.WorkerCtx)."""
+
+    track: np.ndarray  # (t, 3) [x_norm, y_norm, visibility] whole-video track
+    gt_rallies: list  # list[GtRally] for the scored video
+
+
+_CTX: SweepCtx | None = None
+
+
+def _init_worker(ctx: SweepCtx) -> None:
+    """Pool initializer: stash the shared context in this worker's global."""
+    global _CTX
+    _CTX = ctx
+
+
+def _score_config(task: SweepTask) -> dict:
+    """Patch the thresholds, segment the cached track, score, and flatten a row."""
+    ctx = _CTX
+    assert ctx is not None, 'worker context not initialised'
+    _patch_stage8(task.params)
+    spans, contacts = stage8_module.segment_video(ctx.track)  # positions None
+    metrics = score_stage8(spans, contacts, ctx.gt_rallies, tolerances=SWEEP_TOLERANCES)
+    return flatten_row(task.label, task.params, len(spans), metrics)
+
+
+def run_phase(tasks: list[SweepTask], ctx: SweepCtx, workers: int) -> list[dict]:
+    """Score every task, serial when workers<=1 else across a pool.
+
+    Rows return in arbitrary order under the pool, which is fine: CSV writing
+    sorts by the phase key and winner selection is a keyed min, both
+    order-independent.
+    """
+    rows: list[dict] = []
+    if workers <= 1:
+        _init_worker(ctx)
+        for task in tasks:
+            rows.append(_score_config(task))
+        return rows
+    with Pool(processes=workers, initializer=_init_worker, initargs=(ctx,)) as pool:
+        for row in pool.imap_unordered(_score_config, tasks, chunksize=8):
+            rows.append(row)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+def write_sweep_csv(path: Path, rows: list[dict], sort_key: Callable[[dict], tuple]) -> None:
+    """Write the phase rows to ``path``, sorted best-first by ``sort_key``."""
+    ordered = sorted(rows, key=sort_key)
+    with path.open('w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(handle, fieldnames=ROW_COLUMNS)
+        writer.writeheader()
+        for row in ordered:
+            writer.writerow(_serialise_row(row))
+
+
+def _params_of(row: dict) -> dict:
+    """The eight param columns of a row (winner.json params half)."""
+    return {field: row[field] for field in PARAM_COLUMNS}
+
+
+def _metrics_of(row: dict) -> dict:
+    """The metric columns of a row (winner.json metrics half)."""
+    return {column: row[column] for column in METRIC_COLUMNS}
+
+
+def load_boundary_winner_json(path: Path) -> tuple[Stage8Params, dict]:
+    """Reconstruct a boundary winner from a prior winner.json (to skip phase 1).
+
+    :return: ``(params, loaded_json)`` so phase 2 can freeze the boundary params
+        and the final winner.json can echo the loaded boundary half.
+    """
+    loaded = json.loads(path.read_text(encoding='utf-8'))
+    params_dict = loaded['boundary']
+    params = Stage8Params(**{field: params_dict[field] for field in PARAM_COLUMNS})
+    return params, loaded
+
+
+def _find_defaults_row(rows: list[dict]) -> dict | None:
+    """The labelled shipped-defaults reference row, if present."""
+    for row in rows:
+        if row['label'] == LABEL_SHIPPED:
+            return row
+    return None
+
+
+def _summarise_row(row: dict) -> str:
+    """One compact metric line: coverage, count-gate, and +/-2 / +/-5 credit."""
+    def fmt(value: object) -> str:
+        return 'n/a' if value is None else f'{value:.3f}'
+
+    return (
+        f"covered {fmt(row['covered_fraction'])}  "
+        f"count-gate(unmerged) {fmt(row['count_gate_unmerged_fraction'])}  "
+        f"@2 P/R/F1 {fmt(row['precision_2'])}/{fmt(row['recall_2'])}/{fmt(row['f1_2'])}  "
+        f"@5 P/R/F1 {fmt(row['precision_5'])}/{fmt(row['recall_5'])}/{fmt(row['f1_5'])}"
+    )
+
+
+def print_summary(
+    boundary_winner: dict | None, boundary_defaults: dict | None,
+    contact_winner: dict | None, contact_defaults: dict | None,
+) -> None:
+    """Terse end-of-run digest: each phase winner, with the shipped row alongside."""
+    print('\n' + '=' * 70)
+    print('SWEEP SUMMARY')
+    print('=' * 70)
+    for phase_name, winner, defaults in (
+        ('Boundary', boundary_winner, boundary_defaults),
+        ('Contact', contact_winner, contact_defaults),
+    ):
+        if winner is None:
+            continue
+        print(f'\n{phase_name} winner:')
+        print(f'  params:  {_params_of(winner)}')
+        print(f'  metrics: {_summarise_row(winner)}')
+        if defaults is not None:
+            print(f'  shipped: {_summarise_row(defaults)}')
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description='Sweep stage-8 thresholds over one cached shuttle track against ShuttleSet GT.',
+    )
+    parser.add_argument('--track-npy', type=Path, required=True,
+                        help='(t, 3) whole-video shuttle track npy; its index is the source frame')
+    parser.add_argument('--vid', type=int, required=True,
+                        help='ShuttleSet video id to score against (filters shots_master)')
+    parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
+                        help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
+    parser.add_argument('--out-dir', type=Path, required=True,
+                        help='writes boundary_sweep.csv, contact_sweep.csv, winner.json')
+    parser.add_argument('--workers', type=int, default=os.cpu_count() or 1,
+                        help='multiprocessing pool size (default: all cores)')
+    parser.add_argument('--phase', choices=('both', 'boundary', 'contact'), default='both',
+                        help='which phase(s) to run (default both)')
+    parser.add_argument('--boundary-winner-json', type=Path, default=None,
+                        help='a prior winner.json; supply to skip phase 1 and freeze its boundary params')
+    return parser
+
+
+def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    if args.boundary_winner_json is not None and args.phase == 'boundary':
+        parser.error('--boundary-winner-json skips phase 1, but --phase boundary runs only phase 1; nothing to do')
+
+    run_boundary = args.phase in ('both', 'boundary') and args.boundary_winner_json is None
+    run_contact = args.phase in ('both', 'contact')
+    if run_contact and not run_boundary and args.boundary_winner_json is None:
+        parser.error('--phase contact needs a boundary winner; pass --boundary-winner-json')
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    track = np.load(args.track_npy)
+    if track.ndim != 2 or track.shape[1] != 3:
+        raise ValueError(f'track must be (t, 3) [x_norm, y_norm, visibility]; got shape {track.shape}')
+    shots_master = pd.read_csv(args.shots_master)
+    gt_rallies = load_gt_rallies(shots_master, args.vid)
+    ctx = SweepCtx(track=track, gt_rallies=gt_rallies)
+
+    print(f'Track {args.track_npy} ({len(track)} frames), vid {args.vid}, {len(gt_rallies)} GT rallies')
+    print(f'Workers: {args.workers}')
+
+    winner_json: dict = {}
+    boundary_winner_row: dict | None = None
+    boundary_defaults_row: dict | None = None
+    boundary_winner_params: Stage8Params | None = None
+
+    if run_boundary:
+        tasks = build_boundary_tasks()
+        print(f'\nBoundary phase: {len(tasks)} configs')
+        boundary_rows = run_phase(tasks, ctx, args.workers)
+        write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key)
+        boundary_winner_row = select_winner(boundary_rows, boundary_sort_key)
+        boundary_defaults_row = _find_defaults_row(boundary_rows)
+        boundary_winner_params = Stage8Params(**_params_of(boundary_winner_row))
+        winner_json['boundary'] = _params_of(boundary_winner_row)
+        winner_json['boundary_metrics'] = _metrics_of(boundary_winner_row)
+    elif args.boundary_winner_json is not None:
+        boundary_winner_params, loaded = load_boundary_winner_json(args.boundary_winner_json)
+        winner_json['boundary'] = loaded['boundary']
+        if 'boundary_metrics' in loaded:
+            winner_json['boundary_metrics'] = loaded['boundary_metrics']
+        print(f'\nLoaded boundary winner from {args.boundary_winner_json}: {winner_json["boundary"]}')
+
+    contact_winner_row: dict | None = None
+    contact_defaults_row: dict | None = None
+    if run_contact:
+        assert boundary_winner_params is not None  # guaranteed by the phase guards above
+        tasks = build_contact_tasks(boundary_winner_params)
+        print(f'\nContact phase: {len(tasks)} configs at the frozen boundary winner')
+        contact_rows = run_phase(tasks, ctx, args.workers)
+        write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
+        contact_winner_row = select_winner(contact_rows, contact_sort_key)
+        contact_defaults_row = _find_defaults_row(contact_rows)
+        winner_json['contact'] = _params_of(contact_winner_row)
+        winner_json['contact_metrics'] = _metrics_of(contact_winner_row)
+
+    winner_path = args.out_dir / 'winner.json'
+    winner_path.write_text(json.dumps(winner_json, indent=2), encoding='utf-8')
+    print(f'\nWrote winner.json to {winner_path}')
+
+    print_summary(boundary_winner_row, boundary_defaults_row, contact_winner_row, contact_defaults_row)
+
+
+if __name__ == '__main__':
+    main()
