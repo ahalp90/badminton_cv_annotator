@@ -18,6 +18,7 @@ from scripts.stage8_sweep import (
     PARAM_COLUMNS,
     ROW_COLUMNS,
     SHIPPED_DEFAULTS,
+    SWEEP_TOLERANCES,
     Stage8Params,
     SweepCtx,
     SweepTask,
@@ -50,10 +51,12 @@ def _mk_row(label: str = LABEL_GRID, params: Stage8Params = SHIPPED_DEFAULTS, **
         'missed': 0, 'merged_spans': 0, 'spurious_spans': 0,
         'start_alignment_mean': None, 'start_alignment_median': None,
         'count_gate_covered_fraction': None, 'count_gate_unmerged_fraction': None,
-        'recall_2': None, 'precision_2': None, 'f1_2': None,
-        'recall_5': None, 'precision_5': None, 'f1_5': None,
         'total_candidates': 0,
     })
+    for tolerance in SWEEP_TOLERANCES:
+        row[f'recall_{tolerance}'] = None
+        row[f'precision_{tolerance}'] = None
+        row[f'f1_{tolerance}'] = None
     row.update(metrics)
     return row
 
@@ -220,7 +223,7 @@ def test_flatten_row_handles_none_metrics():
     # A rally with no detected spans: nothing covered, no candidates. The scorer
     # returns None for start_alignment, the count-gate fraction, precision and f1.
     gt_rallies = [GtRally(set_id='set1', rally=1, stroke_frames=(100, 102))]
-    metrics = score_stage8(spans=[], contacts=[], gt_rallies=gt_rallies, tolerances=(2, 5))
+    metrics = score_stage8(spans=[], contacts=[], gt_rallies=gt_rallies, tolerances=SWEEP_TOLERANCES)
 
     row = flatten_row(LABEL_GRID, SHIPPED_DEFAULTS, n_spans=0, metrics=metrics)
     assert row['covered'] == 0
@@ -229,15 +232,18 @@ def test_flatten_row_handles_none_metrics():
     assert row['start_alignment_mean'] is None
     assert row['start_alignment_median'] is None
     assert row['count_gate_covered_fraction'] is None
-    assert row['precision_2'] is None
-    assert row['f1_2'] is None
+    # Every scored band is None here (no candidates), the outer +/-1 / +/-10 included.
+    for tolerance in SWEEP_TOLERANCES:
+        assert row[f'precision_{tolerance}'] is None
+        assert row[f'f1_{tolerance}'] is None
     assert row['total_candidates'] == 0
 
     # Every None serialises to a blank cell, and the row keys the full column set.
     serial = _serialise_row(row)
     assert set(serial) == set(ROW_COLUMNS)
     assert serial['start_alignment_mean'] == ''
-    assert serial['f1_2'] == ''
+    assert serial['f1_1'] == ''
+    assert serial['f1_10'] == ''
     assert serial['count_gate_covered_fraction'] == ''
 
 

@@ -69,8 +69,10 @@ from scripts.stage8_score import (  # noqa: E402  — sibling script, imported a
 )
 
 # Tolerances scored per config: +/-2 is the canonical credit, +/-5 the noisy-GT
-# read (plan section 4). The flat row pulls recall/precision/f1 at both.
-SWEEP_TOLERANCES = (2, 5)
+# read (plan section 4). All four GT-offset bands are recorded so configs can be
+# re-ranked per band straight from the CSV without a re-run; winner selection is
+# unchanged (contact_sort_key).
+SWEEP_TOLERANCES = (1, 2, 5, 10)
 
 
 # ---------------------------------------------------------------------------
@@ -202,13 +204,21 @@ def build_contact_tasks(boundary_winner: Stage8Params) -> list[SweepTask]:
 # ---------------------------------------------------------------------------
 # Row flattening (the only place the nested metrics dict is projected to columns)
 # ---------------------------------------------------------------------------
+# One triple per scored band, in SWEEP_TOLERANCES order (ascending). Header and
+# row builder both generate from these two tuples, so neither can drift.
+SCORED_METRICS = ('recall', 'precision', 'f1')
+TOLERANCE_COLUMNS = [
+    f'{metric}_{tolerance}'
+    for tolerance in SWEEP_TOLERANCES
+    for metric in SCORED_METRICS
+]
+
 METRIC_COLUMNS = [
     'n_spans',
     'covered', 'covered_fraction', 'split', 'missed', 'merged_spans', 'spurious_spans',
     'start_alignment_mean', 'start_alignment_median',
     'count_gate_covered_fraction', 'count_gate_unmerged_fraction',
-    'recall_2', 'precision_2', 'f1_2',
-    'recall_5', 'precision_5', 'f1_5',
+    *TOLERANCE_COLUMNS,
     'total_candidates',
 ]
 ROW_COLUMNS = ['label'] + PARAM_COLUMNS + METRIC_COLUMNS
@@ -232,8 +242,7 @@ def flatten_row(label: str, params: Stage8Params, n_spans: int, metrics: dict) -
     contacts = metrics['contacts']
     start_alignment = boundaries['start_alignment']  # dict or None (no covered rally)
     count_gate = contacts['count_gate']
-    tol2 = contacts['tolerances']['2']
-    tol5 = contacts['tolerances']['5']
+    tolerance_curves = contacts['tolerances']  # {str(tol): {recall, precision, f1, candidates, ...}}
 
     row: dict = {'label': label}
     for field in PARAM_COLUMNS:
@@ -249,15 +258,13 @@ def flatten_row(label: str, params: Stage8Params, n_spans: int, metrics: dict) -
     row['start_alignment_median'] = start_alignment['median'] if start_alignment else None
     row['count_gate_covered_fraction'] = count_gate['covered']['fraction']
     row['count_gate_unmerged_fraction'] = count_gate['unmerged']['fraction']
-    row['recall_2'] = tol2['recall']
-    row['precision_2'] = tol2['precision']
-    row['f1_2'] = tol2['f1']
-    row['recall_5'] = tol5['recall']
-    row['precision_5'] = tol5['precision']
-    row['f1_5'] = tol5['f1']
+    for tolerance in SWEEP_TOLERANCES:
+        curve = tolerance_curves[str(tolerance)]
+        for metric in SCORED_METRICS:
+            row[f'{metric}_{tolerance}'] = curve[metric]
     # Precision denominator (candidates pooled per rally over overlapping spans);
-    # equal across tolerances, so either curve carries it.
-    row['total_candidates'] = tol2['candidates']
+    # equal across tolerances, so any band's curve carries it.
+    row['total_candidates'] = tolerance_curves[str(SWEEP_TOLERANCES[0])]['candidates']
     return row
 
 
