@@ -61,6 +61,8 @@ def download_video(
                 # now serves AV1-in-mp4 by default and the HPC nodes' cv2 cannot
                 # decode it (2026-07-08 pilot finding). No unpinned fallback; an
                 # AV1 file is unusable downstream, so fail loudly over a dud.
+                # Reads as: best H.264 video-only stream (carries 1080p), or
+                # else best H.264 pre-muxed stream (usually caps at 720p).
                 '--format', 'bestvideo[vcodec^=avc1][ext=mp4]/best[vcodec^=avc1][ext=mp4]',
                 '--output', output_template,
                 '--no-playlist',
