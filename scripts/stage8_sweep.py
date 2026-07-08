@@ -49,7 +49,8 @@ Usage:
         --track-npy /scratch/.../1.npy --vid 1 \\
         --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N] \\
         [--mask-npy /scratch/.../1_replay.npy] [--nan-smoothing] \\
-        [--gap-state DEMOTION_BOUND] [--quiet-start W]
+        [--gap-state DEMOTION_BOUND] [--quiet-start W] \\
+        [--reentry-guard {two-sided,reentry-only} --reentry-buffer Y]
 """
 from __future__ import annotations
 
@@ -58,6 +59,7 @@ import csv
 import json
 import os
 import sys
+from enum import StrEnum
 from itertools import product
 from multiprocessing import Pool
 from pathlib import Path
@@ -545,6 +547,8 @@ def _init_worker(
     nan_smoothing: bool,
     gap_state_demotion_bound: int | None = None,
     quiet_start_window: int | None = None,
+    reentry_guard_variant: ReentryGuardVariant | None = None,
+    reentry_guard_buffer: float | None = None,
 ) -> None:
     """Pool initializer: stash the shared context and install any requested arms in
     THIS process.
@@ -563,15 +567,28 @@ def _init_worker(
         demotion_bound when not None.
     :param quiet_start_window: install the quiet-start _find_rally_spans at this
         window W when not None.
+    :param reentry_guard_variant: gap-state re-entry guard variant, or None for the
+        committed entry-only classification. Needs gap_state_demotion_bound set too.
+    :param reentry_guard_buffer: the guard's near-top y buffer (paired with the variant).
     """
     global _CTX
     _CTX = ctx
+    # Off arms restore the stock bindings explicitly, so this initialiser means
+    # "exactly this arm state". The serial path runs in the caller's process, where
+    # an earlier install would otherwise linger into a stock run.
     if nan_smoothing:
         install_nan_smoothing()
+    else:
+        stage8_module._rolling_mean = _STOCK_ROLLING_MEAN
+        stage8_module.detect_contacts = _STOCK_DETECT_CONTACTS
     if gap_state_demotion_bound is not None:
-        install_gap_state(gap_state_demotion_bound)
+        install_gap_state(gap_state_demotion_bound, reentry_guard_variant, reentry_guard_buffer)
+    else:
+        stage8_module._rest_mask = _STOCK_REST_MASK
     if quiet_start_window is not None:
         install_quiet_start(quiet_start_window)
+    else:
+        stage8_module._find_rally_spans = _STOCK_FIND_RALLY_SPANS
 
 
 def _score_config(task: SweepTask) -> dict:
@@ -591,6 +608,8 @@ def run_phase(
     nan_smoothing: bool,
     gap_state_demotion_bound: int | None = None,
     quiet_start_window: int | None = None,
+    reentry_guard_variant: ReentryGuardVariant | None = None,
+    reentry_guard_buffer: float | None = None,
 ) -> list[dict]:
     """Score every task, serial when workers<=1 else across a pool.
 
@@ -601,7 +620,8 @@ def run_phase(
     sweep runs at one fixed arm setting; sweeping the arm parameter itself is the
     measurement runner's job, which installs per config instead.
     """
-    initargs = (ctx, nan_smoothing, gap_state_demotion_bound, quiet_start_window)
+    initargs = (ctx, nan_smoothing, gap_state_demotion_bound, quiet_start_window,
+                reentry_guard_variant, reentry_guard_buffer)
     rows: list[dict] = []
     if workers <= 1:
         _init_worker(*initargs)
@@ -768,9 +788,11 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 # NaN, where the NaN-ignoring variant reproduces the stock mean exactly, so patching
 # the global is a no-op for rally boundaries and only changes contact smoothing.
 
-# The stock detect_contacts, captured at import before any install so the wrapper
-# below can defer to it (and a double install can't stack the wrapper on itself).
+# The stock detect_contacts and _rolling_mean, captured at import before any install
+# so the wrapper below can defer to the former (a double install can't stack the
+# wrapper on itself) and _init_worker can restore both when the arm is off.
 _STOCK_DETECT_CONTACTS = stage8_module.detect_contacts
+_STOCK_ROLLING_MEAN = stage8_module._rolling_mean
 
 
 def nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
@@ -860,6 +882,33 @@ HIGH_SHOT_OOB_LOOKBACK_FRAMES = 5  # visible frames before a gap that fix the en
 HIGH_SHOT_OOB_MIN_VISIBLE_FRAMES = 2  # fewer than this before a gap gives no velocity -> not high_shot_oob
 HIGH_SHOT_OOB_EXTRAP_FRAMES = 10  # frames to extrapolate the entry velocity past the last sighting
 
+# Re-entry guard (--reentry-guard): a retrospective second condition on a high_shot_oob
+# gap, read off where the shuttle REAPPEARS rather than where it left. The entry
+# extrapolation already selects top exits, but 204 between-rally false fires also
+# arc off the top; the audit found they reappear scattered down the frame while
+# real in-rally high shots reappear near the top and descend. So the guard demands
+# the reappearance be near the top AND descending, which keeps ~75% of real high
+# shots and drops ~85% of the false fires (scoped 2026-07-08). Retrospective: the
+# whole gap must end before it can classify, which is fine for offline stage 8.
+REENTRY_LOOKAHEAD_FRAMES = 5  # visible frames after reappearance that fix the descent
+REENTRY_MIN_VISIBLE_FRAMES = 2  # fewer than this after a gap gives no velocity -> guard fails
+
+
+class ReentryGuardVariant(StrEnum):
+    """Which sides of a high_shot_oob gap the buffer test applies to.
+
+    REENTRY_ONLY tests the reappearance side alone (position near the top plus a
+    descent). TWO_SIDED adds the entry side (last-visible y before the gap also
+    within the buffer). The audit found the entry-side half adds little at a loose
+    buffer (the extrapolation already selects top exits) but bites at a tight one;
+    Ariel ruled the cutoff applies to both sides, so the sweep runs both and the
+    rally-level metrics decide.
+    """
+
+    TWO_SIDED = 'two-sided'
+    REENTRY_ONLY = 'reentry-only'
+
+
 # The stock _rest_mask / _find_rally_spans, captured at import before any install so
 # the "flag off leaves stock" tests can assert identity and a restore has a target.
 _STOCK_REST_MASK = stage8_module._rest_mask
@@ -871,6 +920,14 @@ _STOCK_FIND_RALLY_SPANS = stage8_module._find_rally_spans
 # thresholds; one task runs at a time per process, so this cannot leak across tasks.
 _GAP_STATE_DEMOTION_BOUND: int | None = None
 _QUIET_START_WINDOW: int | None = None
+
+# Re-entry guard state, set by install_gap_state (None on both = guard off, and the
+# gap classification then runs the exact committed high_shot_oob-entry branch). Kept
+# beside the demotion bound because the guard is part of the gap-state mechanism:
+# one install call fully specifies the whole arm's per-process state, so a worker
+# reprocessing an unguarded cell after a guarded one can't inherit a stale guard.
+_REENTRY_GUARD_VARIANT: ReentryGuardVariant | None = None
+_REENTRY_GUARD_BUFFER: float | None = None
 
 
 def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int) -> bool:
@@ -902,16 +959,99 @@ def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int) -> bool:
     return bool(extrapolated_y < 0.0)
 
 
+def _reentry_velocity_y(track: np.ndarray, gap_end: int) -> float:
+    """Mean per-frame y-velocity over the first visible frames after reappearance.
+
+    Reads the contiguous run of visible frames from ``gap_end`` (the first frame
+    after the gap), capped at REENTRY_LOOKAHEAD_FRAMES, and returns the telescoped
+    mean step (last minus first over the step count), mirroring the entry-side
+    velocity. y grows downward, so a positive value means the shuttle is
+    descending on re-entry.
+
+    Returns NaN when the gap never reappears (``gap_end`` past the track end) or
+    fewer than REENTRY_MIN_VISIBLE_FRAMES follow before the next gap: no velocity
+    to fit.
+
+    :param track: ``(t, 3)`` whole-video track.
+    :param gap_end: first frame after the invisibility run (``true_runs`` exclusive end).
+    :return: mean re-entry y-velocity, or NaN when undefined.
+    """
+    n_frames = len(track)
+    if gap_end >= n_frames:
+        return float('nan')  # open-ended gap, never reappears
+    stop = gap_end
+    limit = min(gap_end + REENTRY_LOOKAHEAD_FRAMES, n_frames)
+    while stop < limit and track[stop, 2] == 1:
+        stop += 1
+    n_visible = stop - gap_end
+    if n_visible < REENTRY_MIN_VISIBLE_FRAMES:
+        return float('nan')
+    return float((track[stop - 1, 1] - track[gap_end, 1]) / (n_visible - 1))
+
+
+def _gap_passes_reentry_guard(track: np.ndarray, gap_start: int, gap_end: int) -> bool:
+    """Does a high_shot_oob-entry gap also clear the re-entry guard?
+
+    Only called once the entry test (``_gap_is_high_shot_oob``) has fired, so the
+    pre-gap visible run exists and ``gap_start - 1`` is a valid last sighting. The
+    guard demands the shuttle reappear near the top (reappearance y <= buffer) and
+    descend (re-entry y-velocity > 0). TWO_SIDED additionally requires the entry y
+    (last visible before the gap) within the same buffer. A gap whose re-entry
+    velocity is undefined (too few visible frames after reappearance) fails: the NaN
+    compares False. An open-ended gap gives no re-entry evidence at all, so the
+    guard abstains (both variants) and the demotion bound owns it, as in the
+    unguarded arm.
+
+    :param track: ``(t, 3)`` whole-video track.
+    :param gap_start: first frame of the invisibility run.
+    :param gap_end: first frame after the run (``true_runs`` exclusive end).
+    :return: True when the gap may classify HIGH_SHOT_OOB.
+    """
+    variant = _REENTRY_GUARD_VARIANT
+    buffer = _REENTRY_GUARD_BUFFER
+    assert variant is not None and buffer is not None, 'reentry guard checked without install'
+    if gap_end >= len(track):
+        return True  # never reappears: nothing to judge, defer to the demotion bound
+    reappearance_y = track[gap_end, 1]
+    near_top = reappearance_y <= buffer
+    descending = _reentry_velocity_y(track, gap_end) > 0.0
+    if variant is ReentryGuardVariant.TWO_SIDED:
+        entry_y = track[gap_start - 1, 1]  # last sighting before the gap
+        return bool(entry_y <= buffer and near_top and descending)
+    return bool(near_top and descending)
+
+
+def _gap_holds_open(track: np.ndarray, gap_start: int, gap_end: int) -> bool:
+    """Does this gap classify HIGH_SHOT_OOB (hold the rally open) rather than rest?
+
+    The committed top-arc entry test is necessary. With the guard off (the default,
+    and every call absent --reentry-guard) it is also sufficient, so this returns
+    the entry test verbatim and the classification arithmetic is bit-for-bit the
+    committed gap-state arm. With the guard installed the gap must also clear the
+    re-entry guard.
+    """
+    if not _gap_is_high_shot_oob(track, gap_start):
+        return False
+    if _REENTRY_GUARD_VARIANT is None:
+        return True  # guard off: exact committed behaviour
+    return _gap_passes_reentry_guard(track, gap_start, gap_end)
+
+
 def _classify_gap_states(track: np.ndarray, demotion_bound: int) -> tuple[np.ndarray, np.ndarray]:
     """Split every invisibility gap into HIGH_SHOT_OOB / DEAD frame masks (BLIP is neither).
 
     Per maximal invisible run:
-      - HIGH_SHOT_OOB gap (entry arcs off the top, ``_gap_is_high_shot_oob``): HIGH_SHOT_OOB from the gap start;
-        frames from ``gap_start + demotion_bound`` onward demote to DEAD, since a gap
-        that long is no longer a shuttle mid-flight.
+      - HIGH_SHOT_OOB gap (``_gap_holds_open``: top-arc entry, and the re-entry guard too
+        when installed): HIGH_SHOT_OOB from the gap start; frames from
+        ``gap_start + demotion_bound`` onward demote to DEAD, since a gap that long is
+        no longer a shuttle mid-flight.
       - BLIP gap (not HIGH_SHOT_OOB, length <= BLIP_MAX_FRAMES): neither HIGH_SHOT_OOB nor DEAD, so its
         frames fall through to the plain slow test in the caller.
       - DEAD gap (everything else invisible): DEAD across its whole length.
+
+    A gap the re-entry guard rejects takes the same BLIP-or-DEAD path it would have
+    had the entry test never fired, so the guard only ever removes a hold, never
+    adds one.
 
     :param track: ``(t, 3)`` whole-video track.
     :param demotion_bound: frames of high_shot_oob before an ongoing gap demotes to DEAD.
@@ -922,7 +1062,7 @@ def _classify_gap_states(track: np.ndarray, demotion_bound: int) -> tuple[np.nda
     dead = np.zeros(n_frames, dtype=bool)
     invisible = track[:, 2] != 1
     for gap_start, gap_end in stage8_module.true_runs(invisible):
-        if _gap_is_high_shot_oob(track, gap_start):
+        if _gap_holds_open(track, gap_start, gap_end):
             demotion_frame = min(gap_start + demotion_bound, gap_end)
             high_shot_oob[gap_start:demotion_frame] = True
             dead[demotion_frame:gap_end] = True  # empty slice when the gap never reaches the bound
@@ -958,17 +1098,32 @@ def gap_state_rest_mask(speed: np.ndarray, track: np.ndarray) -> np.ndarray:
     return dead | (slow & ~high_shot_oob)
 
 
-def install_gap_state(demotion_bound: int) -> None:
+def install_gap_state(
+    demotion_bound: int,
+    reentry_guard_variant: ReentryGuardVariant | None = None,
+    reentry_guard_buffer: float | None = None,
+) -> None:
     """Swap stage-8's ``_rest_mask`` for the gap-state variant, in this process.
 
-    Sets the per-process demotion_bound the variant reads, then rebinds
-    ``stage8_module._rest_mask``. ``segment_video`` resolves ``_rest_mask`` through the
-    module dict at call time, so the swap takes hold without touching committed code.
-    Re-callable: a later call just updates the bound and re-points the name (the CLI
-    installs once per worker, the measurement runner once per config).
+    Sets the per-process demotion_bound and re-entry guard state the variant reads,
+    then rebinds ``stage8_module._rest_mask``. ``segment_video`` resolves ``_rest_mask``
+    through the module dict at call time, so the swap takes hold without touching
+    committed code. Re-callable, and it always writes ALL of the arm's per-process
+    state (guard included, even to None), so a worker reusing this seam across cells
+    can't inherit a stale guard from an earlier one: the CLI installs once per
+    worker, the measurement runner once per config.
+
+    :param demotion_bound: frames of high_shot_oob before an ongoing gap demotes to DEAD.
+    :param reentry_guard_variant: which guard sides to test, or None to leave the arm
+        at its committed entry-only behaviour.
+    :param reentry_guard_buffer: the near-top y buffer; required when a variant is set.
     """
-    global _GAP_STATE_DEMOTION_BOUND
+    global _GAP_STATE_DEMOTION_BOUND, _REENTRY_GUARD_VARIANT, _REENTRY_GUARD_BUFFER
+    if (reentry_guard_variant is None) != (reentry_guard_buffer is None):
+        raise ValueError('reentry guard needs both a variant and a buffer, or neither')
     _GAP_STATE_DEMOTION_BOUND = demotion_bound
+    _REENTRY_GUARD_VARIANT = reentry_guard_variant
+    _REENTRY_GUARD_BUFFER = reentry_guard_buffer
     stage8_module._rest_mask = gap_state_rest_mask
 
 
@@ -1095,6 +1250,14 @@ def _build_parser() -> argparse.ArgumentParser:
                              'else it falls back to the stock first-burst pick, so coverage never '
                              'drops. The arg is W, the pre-burst window in frames. Installed per '
                              'worker; composes with --gap-state')
+    parser.add_argument('--reentry-guard', choices=tuple(ReentryGuardVariant), default=None,
+                        metavar='VARIANT',
+                        help='add the re-entry guard to --gap-state (needs it, and --reentry-buffer): a '
+                             'high_shot_oob gap only holds a rally open if the shuttle also reappears near the '
+                             'top and descends. VARIANT is "reentry-only" (reappearance side only) or '
+                             '"two-sided" (also the entry side within the buffer)')
+    parser.add_argument('--reentry-buffer', type=float, default=None, metavar='Y',
+                        help='the re-entry guard\'s near-top y buffer (paired with --reentry-guard)')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -1121,6 +1284,12 @@ def main() -> None:
     if run_contact and not run_boundary and args.boundary_winner_json is None:
         parser.error('--phase contact needs a boundary winner; pass --boundary-winner-json')
 
+    if (args.reentry_guard is None) != (args.reentry_buffer is None):
+        parser.error('--reentry-guard and --reentry-buffer must be given together')
+    if args.reentry_guard is not None and args.gap_state is None:
+        parser.error('--reentry-guard modifies the gap-state arm; pass --gap-state too')
+    reentry_variant = ReentryGuardVariant(args.reentry_guard) if args.reentry_guard is not None else None
+
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     track = np.load(args.track_npy)
@@ -1139,6 +1308,8 @@ def main() -> None:
         print(f'Gap-state on: gap-state _rest_mask at demotion_bound {args.gap_state} (installed per worker)')
     if args.quiet_start is not None:
         print(f'Quiet-start on: quiet-start _find_rally_spans at W {args.quiet_start} (installed per worker)')
+    if reentry_variant is not None:
+        print(f'Re-entry guard on: {reentry_variant.value} variant at buffer {args.reentry_buffer}')
     shots_master = pd.read_csv(args.shots_master)
     gt_rallies = load_gt_rallies(shots_master, args.vid)
     ctx = SweepCtx(track=track, gt_rallies=gt_rallies)
@@ -1155,7 +1326,8 @@ def main() -> None:
         tasks = build_boundary_tasks()
         print(f'\nBoundary phase: {len(tasks)} configs')
         boundary_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing,
-                                  args.gap_state, args.quiet_start)
+                                  args.gap_state, args.quiet_start,
+                                  reentry_variant, args.reentry_buffer)
         write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key_as_built)
         write_crowns_csv(args.out_dir / 'boundary_crowns.csv', boundary_rows)
         boundary_winner_row = select_boundary_winner(boundary_rows)
@@ -1177,7 +1349,8 @@ def main() -> None:
         tasks = build_contact_tasks(boundary_winner_params)
         print(f'\nContact phase: {len(tasks)} configs at the frozen boundary winner')
         contact_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing,
-                                 args.gap_state, args.quiet_start)
+                                 args.gap_state, args.quiet_start,
+                                 reentry_variant, args.reentry_buffer)
         write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
         write_contact_frontier_csv(args.out_dir / 'contact_frontier.csv', contact_rows)
         contact_winner_row = select_winner(contact_rows, contact_sort_key)

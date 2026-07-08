@@ -14,6 +14,7 @@ import csv
 import numpy as np
 import pytest
 
+import scripts.stage8_sweep as stage8_sweep
 from scripts.stage8_score import GtRally, score_stage8
 from scripts.stage8_sweep import (
     BOUNDARY_END_REST_FRAMES,
@@ -29,15 +30,19 @@ from scripts.stage8_sweep import (
     ROW_COLUMNS,
     SHIPPED_DEFAULTS,
     SWEEP_TOLERANCES,
+    ReentryGuardVariant,
     Stage8Params,
     SweepCtx,
     SweepTask,
     _STOCK_FIND_RALLY_SPANS,
     _STOCK_REST_MASK,
+    _gap_holds_open,
     _gap_is_high_shot_oob,
+    _gap_passes_reentry_guard,
     _init_worker,
     _is_quiet_before,
     _patch_stage8,
+    _reentry_velocity_y,
     _score_config,
     _serialise_row,
     apply_replay_mask,
@@ -581,11 +586,19 @@ def _restore_stage8_smoothing():
     saved_detect = stage8_module.detect_contacts
     saved_rest_mask = stage8_module._rest_mask
     saved_find_spans = stage8_module._find_rally_spans
+    # The gap-state / guard per-process state lives on the sweep module, not
+    # stage8_module, so snapshot it too or a guard test leaks its buffer/variant.
+    saved_demotion = stage8_sweep._GAP_STATE_DEMOTION_BOUND
+    saved_guard_variant = stage8_sweep._REENTRY_GUARD_VARIANT
+    saved_guard_buffer = stage8_sweep._REENTRY_GUARD_BUFFER
     yield
     stage8_module._rolling_mean = saved_rolling
     stage8_module.detect_contacts = saved_detect
     stage8_module._rest_mask = saved_rest_mask
     stage8_module._find_rally_spans = saved_find_spans
+    stage8_sweep._GAP_STATE_DEMOTION_BOUND = saved_demotion
+    stage8_sweep._REENTRY_GUARD_VARIANT = saved_guard_variant
+    stage8_sweep._REENTRY_GUARD_BUFFER = saved_guard_buffer
 
 
 def _gap_track() -> tuple[np.ndarray, np.ndarray]:
@@ -788,6 +801,145 @@ def test_gap_state_demotes_long_high_shot_oob_gap_to_rest():
     mask = gap_state_rest_mask(speed, track)
     assert not mask[10]  # still inside the high_shot_oob window [6, 16): not rest
     assert mask[30]      # past the demotion bound: DEAD, so rest
+
+
+# ---------------------------------------------------------------------------
+# 9b. Re-entry guard on the gap-state arm (Change 4: --reentry-guard)
+# ---------------------------------------------------------------------------
+def _reentry_track(
+    reappearance_ys: list[float], entry_end: float = 0.05, gap: int = 12,
+    trailing_invisible: int = 0,
+) -> np.ndarray:
+    """Top-arc entry, a ``gap``-frame invisible run, then given reappearance frames.
+
+    Six pre-gap frames climb from y 0.5 to ``entry_end`` so the entry extrapolates off
+    the top (high_shot_oob). ``reappearance_ys`` are the y of the visible frames right after
+    the gap; y grows downward, so an increasing sequence descends. ``trailing_invisible``
+    appends invisible frames after the reappearance run, to cap how many consecutive
+    visible frames the guard sees (for the undefined-velocity case). The gap spans
+    ``[6, 6 + gap)``, so gap_start=6 and gap_end=18 at the default gap.
+    """
+    pre_y = np.linspace(0.5, entry_end, 6)
+    reappear = np.asarray(reappearance_ys, dtype=float)
+    n_re = len(reappear)
+    ys = np.concatenate([pre_y, np.zeros(gap), reappear, np.zeros(trailing_invisible)])
+    xs = np.concatenate([np.full(6, 0.5), np.zeros(gap), np.full(n_re, 0.5), np.zeros(trailing_invisible)])
+    vis = np.concatenate([np.ones(6), np.zeros(gap), np.ones(n_re), np.zeros(trailing_invisible)])
+    return np.column_stack([xs, ys, vis])
+
+
+def test_install_gap_state_without_guard_leaves_guard_off():
+    # The exact-stock pin: install_gap_state with no guard args must leave the guard
+    # state None, so _gap_holds_open returns the committed entry test verbatim.
+    install_gap_state(75)
+    assert stage8_sweep._REENTRY_GUARD_VARIANT is None
+    assert stage8_sweep._REENTRY_GUARD_BUFFER is None
+    # A top-arc gap still holds open with the guard off (committed behaviour).
+    assert _gap_holds_open(_reentry_track([0.02, 0.04, 0.06]), gap_start=6, gap_end=18)
+
+
+def test_install_gap_state_rejects_half_specified_guard():
+    with pytest.raises(ValueError):
+        install_gap_state(75, ReentryGuardVariant.TWO_SIDED, None)
+    with pytest.raises(ValueError):
+        install_gap_state(75, None, 0.05)
+
+
+def test_reentry_guard_installs_through_init_worker():
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False,
+                 gap_state_demotion_bound=75,
+                 reentry_guard_variant=ReentryGuardVariant.TWO_SIDED, reentry_guard_buffer=0.05)
+    assert stage8_module._rest_mask is gap_state_rest_mask
+    assert stage8_sweep._REENTRY_GUARD_VARIANT is ReentryGuardVariant.TWO_SIDED
+    assert stage8_sweep._REENTRY_GUARD_BUFFER == 0.05
+
+
+def test_reentry_guard_pass_near_top_descending():
+    # Reappears at y 0.02 (<= buffer) and descends (0.02 -> 0.10): passes both variants,
+    # since the entry y (0.05) is also within the buffer.
+    track = _reentry_track([0.02, 0.04, 0.06, 0.08, 0.10])
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)
+    assert _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+    install_gap_state(75, ReentryGuardVariant.TWO_SIDED, 0.10)
+    assert _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_reentry_guard_fails_when_reappears_low():
+    # Descends, but reappears at y 0.50, well below the buffer: the position half fails.
+    track = _reentry_track([0.50, 0.52, 0.54, 0.56, 0.58])
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)
+    assert not _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_reentry_guard_fails_when_ascending():
+    # Reappears near the top (y 0.10) but climbs (0.10 -> 0.02), so vel_y < 0: the
+    # descent half fails even though the position half passes.
+    track = _reentry_track([0.10, 0.08, 0.06, 0.04, 0.02])
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.15)
+    assert not _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_reentry_guard_fails_on_undefined_velocity():
+    # One visible frame after the gap, then invisible: fewer than two, so the re-entry
+    # velocity is NaN and the guard fails closed (NaN > 0 is False).
+    track = _reentry_track([0.02], trailing_invisible=3)
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)
+    assert np.isnan(_reentry_velocity_y(track, gap_end=18))
+    assert not _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_reentry_guard_abstains_on_open_ended_gap():
+    # The gap runs to the end of the track (never reappears): no re-entry evidence to
+    # judge, so the guard abstains for both variants and the demotion bound owns the
+    # gap, exactly as in the unguarded arm.
+    track = _reentry_track([])  # length 18, gap [6, 18), gap_end == len(track)
+    assert len(track) == 18
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)
+    assert _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+    install_gap_state(75, ReentryGuardVariant.TWO_SIDED, 0.10)
+    assert _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_init_worker_with_arms_off_restores_stock_bindings():
+    # An initialiser that only half-initialises is a trap for a process reused across
+    # settings: install everything, then re-init with every arm off and expect the
+    # stock bindings back.
+    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
+    _init_worker(ctx, nan_smoothing=True, gap_state_demotion_bound=75,
+                 quiet_start_window=25,
+                 reentry_guard_variant=ReentryGuardVariant.TWO_SIDED, reentry_guard_buffer=0.05)
+    assert stage8_module._rest_mask is not _STOCK_REST_MASK
+    _init_worker(ctx, nan_smoothing=False)
+    assert stage8_module._rest_mask is _STOCK_REST_MASK
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+    assert stage8_module.detect_contacts is stage8_sweep._STOCK_DETECT_CONTACTS
+    assert stage8_module._rolling_mean is stage8_sweep._STOCK_ROLLING_MEAN
+
+
+def test_reentry_guard_two_sided_vs_reentry_only_differ_on_entry():
+    # Reappears near the top and descends, but the entry y (0.15) sits above the buffer:
+    # reentry-only passes (it never looks at entry), two-sided fails on the entry half.
+    track = _reentry_track([0.02, 0.04, 0.06, 0.08, 0.10], entry_end=0.15)
+    assert _gap_is_high_shot_oob(track, gap_start=6)  # entry still extrapolates off the top
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)
+    assert _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+    install_gap_state(75, ReentryGuardVariant.TWO_SIDED, 0.10)
+    assert not _gap_passes_reentry_guard(track, gap_start=6, gap_end=18)
+
+
+def test_reentry_guard_removes_a_hold_at_the_mask_level():
+    # End to end through gap_state_rest_mask: a top-arc gap that reappears low holds open
+    # with the guard off (mid-gap not rest) but falls to DEAD with the guard on (rest),
+    # exactly as if the entry test had never fired.
+    _patch_stage8(SHIPPED_DEFAULTS)
+    track = _reentry_track([0.50, 0.52, 0.54, 0.56, 0.58])  # top-arc entry, reappears low
+    speed = stage8_module.compute_speed(track)
+    mid_gap = 12  # window [10, 15) is all invisible, so only DEAD can make it rest
+    install_gap_state(75)  # guard off: the top-arc holds the gap open
+    assert not gap_state_rest_mask(speed, track)[mid_gap]
+    install_gap_state(75, ReentryGuardVariant.REENTRY_ONLY, 0.10)  # guard on: low re-entry fails
+    assert gap_state_rest_mask(speed, track)[mid_gap]
+    _patch_stage8(SHIPPED_DEFAULTS)
 
 
 # ---------------------------------------------------------------------------
