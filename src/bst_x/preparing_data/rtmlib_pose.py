@@ -152,11 +152,8 @@ class RtmlibPoseExtractor:
         self.pose = RTMPose(pose_url, model_input_size=pose_input_size, device=device)
 
         if device == "cuda":
-            # onnxruntime treats a failed execution provider as a warning and
-            # keeps going on CPU; for a whole-video pass that is a silent ~10x
-            # slowdown, so fail loudly when the CUDA provider did not engage.
             # Each tool inherits rtmlib's BaseTool, which holds its onnxruntime
-            # InferenceSession at self.session.
+            # InferenceSession at self.session; the raise below carries the why.
             fell_back = {}
             for tool_name, tool in (("detector", self.det), ("pose", self.pose)):
                 providers = tool.session.get_providers()

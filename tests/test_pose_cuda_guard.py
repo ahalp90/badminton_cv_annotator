@@ -31,24 +31,21 @@ class _FakeSession:
         return self._providers
 
 
-def _fake_tool_class(providers: list[str]):
+class _FakeTool:
     """A drop-in for RTMDetScored / RTMPose whose session reports ``providers``.
 
     Swallows the real (url, model_input_size, device) constructor args and skips
     the onnxruntime session build; score_thr stays settable for the detector.
     """
 
-    class _FakeTool:
-        def __init__(self, *args, **kwargs) -> None:
-            self.session = _FakeSession(providers)
-            self.score_thr = 0.0
-
-    return _FakeTool
+    def __init__(self, providers: list[str], *args, **kwargs) -> None:
+        self.session = _FakeSession(providers)
+        self.score_thr = 0.0
 
 
 def _patch_tools(monkeypatch, providers: list[str]) -> None:
-    monkeypatch.setattr(rtmlib_pose, "RTMDetScored", _fake_tool_class(providers))
-    monkeypatch.setattr(rtmlib_pose, "RTMPose", _fake_tool_class(providers))
+    monkeypatch.setattr(rtmlib_pose, "RTMDetScored", lambda *a, **kw: _FakeTool(providers, *a, **kw))
+    monkeypatch.setattr(rtmlib_pose, "RTMPose", lambda *a, **kw: _FakeTool(providers, *a, **kw))
 
 
 def test_cuda_requested_but_cpu_only_raises(monkeypatch):

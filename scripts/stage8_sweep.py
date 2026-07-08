@@ -310,18 +310,13 @@ def _param_tuple(row: dict) -> tuple:
 
 
 def boundary_sort_key_as_built(row: dict) -> tuple:
-    """The original boundary sort key; now orders ``boundary_sweep.csv`` only.
+    """The original boundary sort key (coverage-first); orders ``boundary_sweep.csv`` only.
 
-    Report-only since Ariel's 2026-07-08 ruling: winner selection moved to
-    ``select_boundary_winner`` (merge-penalised). This key still lays out the
-    sweep CSV best-first, and ``build_boundary_crowns`` uses it for the
-    ``as_built`` crown so a reader can see what coverage-first would have picked.
-
-    Ascending puts the best config first: maximise covered_fraction, then fewer split,
-    spurious_spans, merged_spans, then closest to the shipped defaults. Merges
-    ranking fourth is exactly the problem the ruling fixes: this key buys coverage
-    by gluing rallies together, and a glued span can never pass the count gate.
-    The trailing param tuple keeps the order total.
+    Report-only since the 2026-07-08 ruling (selection moved to
+    ``select_boundary_winner``): maximise covered_fraction, then fewer split,
+    spurious_spans, merged_spans, then closest to shipped defaults, param tuple
+    keeping the order total. Kept so ``build_boundary_crowns`` can show what
+    coverage-first would have picked.
     """
     covered_fraction = row['covered_fraction']
     covered_fraction = covered_fraction if covered_fraction is not None else -1.0
@@ -490,24 +485,27 @@ def contact_frontier(rows: list[dict]) -> list[dict]:
     """Grid configs on the (recall_5, precision_5) Pareto frontier, best recall first.
 
     The data package for Ariel's pending contact-key ruling (``contact_sort_key``
-    is provisional): a config is dominated when some other grid config beats it on
-    BOTH recall_5 and precision_5 strictly; the non-dominated configs are the
-    frontier. Rows with no +/-5 candidates (recall_5 or precision_5 None) can't
-    sit on the frontier, so they drop out before the test. Shipped-defaults
-    reference excluded, same as winner selection.
+    is provisional): a config is dominated when some other grid config is at least
+    as good on both recall_5 and precision_5 AND strictly better on at least one;
+    the non-dominated configs are the frontier. Exact duplicates on both axes
+    don't dominate each other, so both stay. Rows with no +/-5 candidates
+    (recall_5 or precision_5 None) can't sit on the frontier, so they drop out
+    before the test. Shipped-defaults reference excluded, same as winner selection.
     """
     scored = [
         row for row in rows
         if row['label'] == LABEL_GRID
         and row['recall_5'] is not None and row['precision_5'] is not None
     ]
-    frontier = [
-        row for row in scored
-        if not any(
-            other['recall_5'] > row['recall_5'] and other['precision_5'] > row['precision_5']
+    frontier = []
+    for row in scored:
+        dominated = any(
+            other['recall_5'] >= row['recall_5'] and other['precision_5'] >= row['precision_5']
+            and (other['recall_5'] > row['recall_5'] or other['precision_5'] > row['precision_5'])
             for other in scored
         )
-    ]
+        if not dominated:
+            frontier.append(row)
     frontier.sort(key=lambda row: (-row['recall_5'], -row['precision_5'], _param_tuple(row)))
     return frontier
 

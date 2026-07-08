@@ -276,6 +276,23 @@ def test_contact_frontier_pareto_extraction():
     assert all(row['label'] == LABEL_GRID for row in frontier)
 
 
+def test_contact_frontier_equal_axis_domination():
+    """Pins the adversarial-review fix: dominance is >= on both axes and > on at
+    least one, so equal-on-one-axis-worse-on-the-other is still dominated, while
+    exact duplicates don't dominate each other and both stay."""
+    best = _mk_row(recall_5=0.9, precision_5=0.9, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+    # Equal recall, strictly worse precision: dominated (the strict-both bug kept it).
+    equal_recall_worse_precision = _mk_row(recall_5=0.9, precision_5=0.5,
+                                           params=SHIPPED_DEFAULTS._replace(smooth_window=5))
+    # Exact duplicate of best on both axes: neither dominates, both stay.
+    duplicate = _mk_row(recall_5=0.9, precision_5=0.9,
+                        params=SHIPPED_DEFAULTS._replace(smooth_window=7))
+
+    frontier = contact_frontier([best, equal_recall_worse_precision, duplicate])
+    assert [row['precision_5'] for row in frontier] == [0.9, 0.9]
+    assert {row['smooth_window'] for row in frontier} == {3, 7}
+
+
 # ---------------------------------------------------------------------------
 # 1b. Widened boundary grid: per-param sizes and the 3,000 product
 # ---------------------------------------------------------------------------
