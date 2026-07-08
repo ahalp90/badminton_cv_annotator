@@ -124,7 +124,8 @@ class RtmlibPoseExtractor:
     (the CPU determinism gate does). CUDA is nondeterministic regardless.
 
     :param device: onnxruntime device, ``"cpu"`` or ``"cuda"`` (needs
-        ``onnxruntime-gpu`` for the latter).
+        ``onnxruntime-gpu`` for the latter). ``"cuda"`` raises loudly if the
+        CUDAExecutionProvider fails to load rather than silently running on CPU.
     :param det_url: person-detector ONNX (defaults to the RTMDet-M person export
         of the checkpoint mmpose's inferencer used).
     :param pose_url: pose ONNX (defaults to RTMPose-L body7 COCO-17, 192x256 (W x H)).
@@ -149,6 +150,32 @@ class RtmlibPoseExtractor:
         self.det = RTMDetScored(det_url, model_input_size=det_input_size, device=device)
         self.det.score_thr = det_score_thr
         self.pose = RTMPose(pose_url, model_input_size=pose_input_size, device=device)
+
+        if device == "cuda":
+            # onnxruntime treats a failed execution provider as a warning and
+            # keeps going on CPU; for a whole-video pass that is a silent ~10x
+            # slowdown, so fail loudly when the CUDA provider did not engage.
+            # Each tool inherits rtmlib's BaseTool, which holds its onnxruntime
+            # InferenceSession at self.session.
+            fell_back = {}
+            for tool_name, tool in (("detector", self.det), ("pose", self.pose)):
+                providers = tool.session.get_providers()
+                if "CUDAExecutionProvider" not in providers:
+                    fell_back[tool_name] = providers
+            if fell_back:
+                rundown = "; ".join(
+                    f"{tool_name} engaged {providers}"
+                    for tool_name, providers in fell_back.items()
+                )
+                raise RuntimeError(
+                    "device='cuda' requested but CUDAExecutionProvider did not load; "
+                    f"onnxruntime fell back to CPU ({rundown}). This runs ~10x slower "
+                    "with no error of its own. Export LD_LIBRARY_PATH with the venv's "
+                    "site-packages/nvidia/cudnn/lib and site-packages/nvidia/cu13/lib "
+                    "BEFORE python starts (the loader reads it once at process start, so "
+                    "the repo .env cannot deliver it); see the GPU note in "
+                    "preparing_data/requirements.txt."
+                )
 
     def detect_frame(self, frame_bgr: np.ndarray) -> FrameDetections:
         """Run detector + pose on one BGR frame; return the ``n_people`` real detections.

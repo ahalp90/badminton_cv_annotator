@@ -44,6 +44,14 @@ python3.11 -m venv venv-rtmlib
 source venv-rtmlib/bin/activate
 pip install -r preparing_data/requirements.txt
 # GPU extract box: swap onnxruntime -> onnxruntime-gpu per the notes in that file.
+# GPU runtime: onnxruntime-gpu SILENTLY falls back to CPU (~10x slower, two red
+# log lines, then it keeps going) unless the dynamic loader can find cuDNN 9 and
+# the CUDA 13 runtime libs. The venv bundles both; export BEFORE python starts
+# (the loader reads LD_LIBRARY_PATH once, at process start, so the repo .env
+# cannot deliver this):
+#   SP=$VIRTUAL_ENV/lib/python3.11/site-packages/nvidia
+#   export LD_LIBRARY_PATH="$SP/cudnn/lib:$SP/cu13/lib:$LD_LIBRARY_PATH"
+# Confirmed on bourbaki 2026-07-08 (the pilot pose pass first ran CPU-silent).
 # torch (any modern CPU build is fine) is needed only for the prepare_train module path:
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 
