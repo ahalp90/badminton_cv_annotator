@@ -48,7 +48,8 @@ Usage:
     python -m scripts.stage8_sweep \\
         --track-npy /scratch/.../1.npy --vid 1 \\
         --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N] \\
-        [--mask-npy /scratch/.../1_replay.npy] [--nan-smoothing]
+        [--mask-npy /scratch/.../1_replay.npy] [--nan-smoothing] \\
+        [--gap-state DEMOTION_BOUND] [--quiet-start W]
 """
 from __future__ import annotations
 
@@ -224,6 +225,13 @@ TOLERANCE_COLUMNS = [
     for metric in SCORED_METRICS
 ]
 
+# Per-tolerance precision over the PHYSICAL candidate set (score_contacts'
+# 'precision_raw' curve), one column per band. Merge-structure-independent, unlike
+# the pooled precision_* above; recall is already raw so it needs no twin. Appended
+# after the stock columns so every pre-existing column keeps its value byte-for-byte
+# (the reproduction gate compares the shared columns against the committed sweep).
+RAW_PRECISION_COLUMNS = [f'precision_raw_{tolerance}' for tolerance in SWEEP_TOLERANCES]
+
 METRIC_COLUMNS = [
     'n_spans',
     'covered', 'covered_fraction', 'split', 'missed', 'merged_spans', 'spurious_spans',
@@ -231,6 +239,7 @@ METRIC_COLUMNS = [
     'count_gate_covered_fraction', 'count_gate_unmerged_fraction',
     *TOLERANCE_COLUMNS,
     'total_candidates',
+    *RAW_PRECISION_COLUMNS,
 ]
 ROW_COLUMNS = ['label'] + PARAM_COLUMNS + METRIC_COLUMNS
 
@@ -254,6 +263,7 @@ def flatten_row(label: str, params: Stage8Params, n_spans: int, metrics: dict) -
     start_alignment = boundaries['start_alignment']  # dict or None (no covered rally)
     count_gate = contacts['count_gate']
     tolerance_curves = contacts['tolerances']  # {str(tol): {recall, precision, f1, candidates, ...}}
+    raw_precision_curves = contacts['precision_raw']  # {str(tol): {precision_raw, matched, candidates}}
 
     row: dict = {'label': label}
     for field in PARAM_COLUMNS:
@@ -276,6 +286,11 @@ def flatten_row(label: str, params: Stage8Params, n_spans: int, metrics: dict) -
     # Precision denominator (candidates pooled per rally over overlapping spans);
     # equal across tolerances, so any band's curve carries it.
     row['total_candidates'] = tolerance_curves[str(SWEEP_TOLERANCES[0])]['candidates']
+    # Raw per-candidate precision, one column per band (denominator is the physical
+    # candidate set, so it does not swell with merge structure the way total_candidates
+    # does; only the matched numerator moves with tolerance).
+    for tolerance in SWEEP_TOLERANCES:
+        row[f'precision_raw_{tolerance}'] = raw_precision_curves[str(tolerance)]['precision_raw']
     return row
 
 
@@ -525,21 +540,38 @@ class SweepCtx(NamedTuple):
 _CTX: SweepCtx | None = None
 
 
-def _init_worker(ctx: SweepCtx, nan_smoothing: bool) -> None:
-    """Pool initializer: stash the shared context and, when asked, install the
-    NaN-ignoring contact smoothing in THIS process.
+def _init_worker(
+    ctx: SweepCtx,
+    nan_smoothing: bool,
+    gap_state_demotion_bound: int | None = None,
+    quiet_start_window: int | None = None,
+) -> None:
+    """Pool initializer: stash the shared context and install any requested arms in
+    THIS process.
 
     Runs once per pool worker (via ``initializer``) and once directly on the serial
     path, so it is the single seam that reaches every process that will call
-    ``segment_video``. Installing the smoothing patch here rather than in the parent
-    means it doesn't lean on the fork start method copying a parent-side patch: it
-    works the same if the pool ever ran under spawn (as ``bric.preprocessing`` forces),
-    and it also covers the serial path, which never forks.
+    ``segment_video``. Installing the patches here rather than in the parent means they
+    don't lean on the fork start method copying a parent-side patch: it works the same
+    if the pool ever ran under spawn (as ``bric.preprocessing`` forces), and it also
+    covers the serial path, which never forks. Each arm is off when its argument is the
+    off value (False / None), leaving the stock function bound.
+
+    :param ctx: shared read-only track + GT for every task.
+    :param nan_smoothing: install the NaN-ignoring contact smoothing when True.
+    :param gap_state_demotion_bound: install the gap-state _rest_mask at this
+        demotion_bound when not None.
+    :param quiet_start_window: install the quiet-start _find_rally_spans at this
+        window W when not None.
     """
     global _CTX
     _CTX = ctx
     if nan_smoothing:
         install_nan_smoothing()
+    if gap_state_demotion_bound is not None:
+        install_gap_state(gap_state_demotion_bound)
+    if quiet_start_window is not None:
+        install_quiet_start(quiet_start_window)
 
 
 def _score_config(task: SweepTask) -> dict:
@@ -552,22 +584,31 @@ def _score_config(task: SweepTask) -> dict:
     return flatten_row(task.label, task.params, len(spans), metrics)
 
 
-def run_phase(tasks: list[SweepTask], ctx: SweepCtx, workers: int, nan_smoothing: bool) -> list[dict]:
+def run_phase(
+    tasks: list[SweepTask],
+    ctx: SweepCtx,
+    workers: int,
+    nan_smoothing: bool,
+    gap_state_demotion_bound: int | None = None,
+    quiet_start_window: int | None = None,
+) -> list[dict]:
     """Score every task, serial when workers<=1 else across a pool.
 
-    Rows return in arbitrary order under the pool, which is fine: CSV writing
-    sorts by the phase key and winner selection is a keyed min, both
-    order-independent. ``nan_smoothing`` is threaded to every worker (and the serial
-    path) through the initializer so the smoothing patch is installed in whichever
-    process actually segments the track.
+    Rows return in arbitrary order under the pool, which is fine: CSV writing sorts by
+    the phase key and winner selection is a keyed min, both order-independent. The arm
+    settings are threaded to every worker (and the serial path) through the initializer
+    so the patches install in whichever process actually segments the track. A whole
+    sweep runs at one fixed arm setting; sweeping the arm parameter itself is the
+    measurement runner's job, which installs per config instead.
     """
+    initargs = (ctx, nan_smoothing, gap_state_demotion_bound, quiet_start_window)
     rows: list[dict] = []
     if workers <= 1:
-        _init_worker(ctx, nan_smoothing)
+        _init_worker(*initargs)
         for task in tasks:
             rows.append(_score_config(task))
         return rows
-    with Pool(processes=workers, initializer=_init_worker, initargs=(ctx, nan_smoothing)) as pool:
+    with Pool(processes=workers, initializer=_init_worker, initargs=initargs) as pool:
         for row in pool.imap_unordered(_score_config, tasks, chunksize=8):
             rows.append(row)
     return rows
@@ -802,6 +843,224 @@ def install_nan_smoothing() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Optional gap-state _rest_mask (installed once per worker; --gap-state)
+# ---------------------------------------------------------------------------
+# Stock rest reads an invisibility gap as rest via ``mostly_untracked``, which cuts
+# a rally whenever the shuttle drops off the tracker mid-point (a lob/clear leaving
+# the top of frame, a between-rally dead patch). This arm classifies each gap by how
+# the shuttle entered it and only lets DEAD gaps read as rest: a high_shot_oob gap (last seen
+# climbing off the top) stays not-rest so the rally holds through the flight, and a
+# short BLIP gap gets no say at all and rides the plain slow test. Same philosophy as
+# the smoothing patch above: committed stage-8 code stays untouched; the swap lives
+# here and only runs in a process that installs it (gated by --gap-state).
+#
+# The classification numbers are the arm's fixed reading of the spec, not swept:
+BLIP_MAX_FRAMES = 10  # a non-high_shot_oob gap this short is a tracker blip, not a real rest
+HIGH_SHOT_OOB_LOOKBACK_FRAMES = 5  # visible frames before a gap that fix the entry velocity
+HIGH_SHOT_OOB_MIN_VISIBLE_FRAMES = 2  # fewer than this before a gap gives no velocity -> not high_shot_oob
+HIGH_SHOT_OOB_EXTRAP_FRAMES = 10  # frames to extrapolate the entry velocity past the last sighting
+
+# The stock _rest_mask / _find_rally_spans, captured at import before any install so
+# the "flag off leaves stock" tests can assert identity and a restore has a target.
+_STOCK_REST_MASK = stage8_module._rest_mask
+_STOCK_FIND_RALLY_SPANS = stage8_module._find_rally_spans
+
+# demotion_bound (--gap-state) and W (--quiet-start) are swept, so they can't be baked
+# into the installed function. They live as per-process state the install sets and the
+# patched function reads at call time, the same seam _patch_stage8 uses for the eight
+# thresholds; one task runs at a time per process, so this cannot leak across tasks.
+_GAP_STATE_DEMOTION_BOUND: int | None = None
+_QUIET_START_WINDOW: int | None = None
+
+
+def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int) -> bool:
+    """Does the shuttle's entry into an invisibility gap arc off the TOP edge?
+
+    Reads the contiguous run of visible frames immediately before ``gap_start``, capped
+    at the last HIGH_SHOT_OOB_LOOKBACK_FRAMES. Given at least HIGH_SHOT_OOB_MIN_VISIBLE_FRAMES of them it
+    takes the mean per-frame velocity (last minus first over the step count, which is
+    the mean of the consecutive steps), extrapolates HIGH_SHOT_OOB_EXTRAP_FRAMES on from the last
+    visible position, and calls it high_shot_oob when that lands above the top of the frame
+    (y < 0, the spec's parenthetical reading of "leaves the unit square through the
+    top"; the x-bound is not tested). Fewer than two visible frames give no velocity,
+    so the gap is not high_shot_oob.
+
+    :param track: ``(t, 3)`` whole-video track.
+    :param gap_start: first frame of the invisibility run.
+    :return: True when the pre-gap motion extrapolates off the top edge.
+    """
+    run_start = gap_start
+    while run_start > 0 and track[run_start - 1, 2] == 1 and gap_start - run_start < HIGH_SHOT_OOB_LOOKBACK_FRAMES:
+        run_start -= 1
+    n_visible = gap_start - run_start
+    if n_visible < HIGH_SHOT_OOB_MIN_VISIBLE_FRAMES:
+        return False
+    first_xy = track[run_start, :2]  # (2,) oldest visible in the run
+    last_xy = track[gap_start - 1, :2]  # (2,) last sighting before the gap
+    mean_velocity = (last_xy - first_xy) / (n_visible - 1)  # per-frame, telescoped over the run
+    extrapolated_y = last_xy[1] + HIGH_SHOT_OOB_EXTRAP_FRAMES * mean_velocity[1]
+    return bool(extrapolated_y < 0.0)
+
+
+def _classify_gap_states(track: np.ndarray, demotion_bound: int) -> tuple[np.ndarray, np.ndarray]:
+    """Split every invisibility gap into HIGH_SHOT_OOB / DEAD frame masks (BLIP is neither).
+
+    Per maximal invisible run:
+      - HIGH_SHOT_OOB gap (entry arcs off the top, ``_gap_is_high_shot_oob``): HIGH_SHOT_OOB from the gap start;
+        frames from ``gap_start + demotion_bound`` onward demote to DEAD, since a gap
+        that long is no longer a shuttle mid-flight.
+      - BLIP gap (not HIGH_SHOT_OOB, length <= BLIP_MAX_FRAMES): neither HIGH_SHOT_OOB nor DEAD, so its
+        frames fall through to the plain slow test in the caller.
+      - DEAD gap (everything else invisible): DEAD across its whole length.
+
+    :param track: ``(t, 3)`` whole-video track.
+    :param demotion_bound: frames of high_shot_oob before an ongoing gap demotes to DEAD.
+    :return: ``(high_shot_oob, dead)``, each ``(t,)`` bool and disjoint by construction.
+    """
+    n_frames = len(track)
+    high_shot_oob = np.zeros(n_frames, dtype=bool)
+    dead = np.zeros(n_frames, dtype=bool)
+    invisible = track[:, 2] != 1
+    for gap_start, gap_end in stage8_module.true_runs(invisible):
+        if _gap_is_high_shot_oob(track, gap_start):
+            demotion_frame = min(gap_start + demotion_bound, gap_end)
+            high_shot_oob[gap_start:demotion_frame] = True
+            dead[demotion_frame:gap_end] = True  # empty slice when the gap never reaches the bound
+        elif gap_end - gap_start > BLIP_MAX_FRAMES:
+            dead[gap_start:gap_end] = True
+        # else: a short non-high_shot_oob gap is a BLIP, left False in both masks
+    return high_shot_oob, dead
+
+
+def gap_state_rest_mask(speed: np.ndarray, track: np.ndarray) -> np.ndarray:
+    """Gap-state rest flag: ``DEAD OR (slow AND NOT HIGH_SHOT_OOB)``; the --gap-state _rest_mask.
+
+    Replaces stock's ``slow | mostly_untracked``. The slow test is unchanged (rolling
+    nanmedian speed below REST_SPEED). What changes is how invisibility reads: a high_shot_oob
+    gap is never rest so it can't cut a rally mid-clear, a DEAD gap is always rest, and
+    a BLIP gap gets no special treatment and rides the slow test like any frame.
+    demotion_bound comes from the per-process ``_GAP_STATE_DEMOTION_BOUND`` set at install.
+
+    On an all-visible (gap-free) track there are no gaps, so HIGH_SHOT_OOB and DEAD are empty and
+    this returns ``slow`` exactly, which is what stock returns there too (its
+    mostly_untracked is all False when every window is fully tracked): the bit-identical
+    pin the tests assert.
+
+    :param speed: ``(t,)`` per-frame speed (NaN on non-visible steps).
+    :param track: ``(t, 3)`` whole-video track.
+    :return: ``(t,)`` bool rest flag.
+    """
+    demotion_bound = _GAP_STATE_DEMOTION_BOUND
+    assert demotion_bound is not None, 'gap-state arm ran without a demotion_bound; install_gap_state first'
+    speed_median = stage8_module.rolling_nanmedian(speed, stage8_module.REST_WINDOW)  # (t,)
+    slow = speed_median < stage8_module.REST_SPEED  # NaN windows read not-slow, as in stock
+    high_shot_oob, dead = _classify_gap_states(track, demotion_bound)
+    return dead | (slow & ~high_shot_oob)
+
+
+def install_gap_state(demotion_bound: int) -> None:
+    """Swap stage-8's ``_rest_mask`` for the gap-state variant, in this process.
+
+    Sets the per-process demotion_bound the variant reads, then rebinds
+    ``stage8_module._rest_mask``. ``segment_video`` resolves ``_rest_mask`` through the
+    module dict at call time, so the swap takes hold without touching committed code.
+    Re-callable: a later call just updates the bound and re-points the name (the CLI
+    installs once per worker, the measurement runner once per config).
+    """
+    global _GAP_STATE_DEMOTION_BOUND
+    _GAP_STATE_DEMOTION_BOUND = demotion_bound
+    stage8_module._rest_mask = gap_state_rest_mask
+
+
+# ---------------------------------------------------------------------------
+# Optional quiet-start _find_rally_spans (installed once per worker; --quiet-start)
+# ---------------------------------------------------------------------------
+# Stock opens a rally at the FIRST sustained fast burst in each active region. On this
+# footage that first burst is often a warm-up swing or replay motion well before the
+# real serve, so spans open early and merge across rallies. This arm demands a quiet
+# run-up: a burst only starts a rally when the W frames before it are mostly at rest.
+# A region with no quiet-preceded burst falls back to its first burst (the stock pick),
+# so a span forms wherever stock formed one. That preserves span COUNT, not coverage:
+# a later start shrinks the span, and a rally whose first strokes fall in the cut
+# prefix drops out of coverage (measured on the pilot: W25 uncovers 11 rallies).
+QUIET_START_REST_FRACTION = 0.8  # min at_rest fraction over the pre-burst window to qualify
+
+
+def _is_quiet_before(at_rest: np.ndarray, burst_start: int, window: int) -> bool:
+    """Is the ``window``-frame run immediately before a burst mostly at rest?
+
+    True when the at_rest fraction over ``[burst_start - window, burst_start)`` is at
+    least QUIET_START_REST_FRACTION. Near the video start the window truncates to the
+    frames that exist; an empty window (a burst at frame 0) can't be confirmed quiet,
+    so it reads False and the burst falls back to the stock choice downstream.
+
+    :param at_rest: ``(t,)`` per-frame rest flag the caller already computed.
+    :param burst_start: first frame of the candidate burst.
+    :param window: frames to look back (the swept W).
+    :return: True when the pre-burst window is quiet enough to open a rally.
+    """
+    before = at_rest[max(0, burst_start - window):burst_start]
+    if len(before) == 0:
+        return False
+    return bool(before.mean() >= QUIET_START_REST_FRACTION)
+
+
+def quiet_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int, int]]:
+    """Span-start rule that demands a quiet run-up; the --quiet-start _find_rally_spans.
+
+    Same region and long-rest structure as stock (extended rest separates rallies). The
+    one change: a rally opens at the first fast burst in its active region whose
+    preceding W frames are quiet (``_is_quiet_before``) rather than the first burst
+    outright. A region with no quiet-preceded burst falls back to its first burst, the
+    stock choice, so a span forms wherever stock formed one. That preserves span COUNT,
+    not coverage: moving a start later shrinks the span, and a rally whose first
+    strokes fall in the cut prefix drops out of coverage (the pilot measured 11 such
+    rallies at W25). W comes from the per-process ``_QUIET_START_WINDOW`` set at
+    install.
+
+    :param speed: ``(t,)`` per-frame speed (NaN on non-visible steps).
+    :param at_rest: ``(t,)`` per-frame rest flag.
+    :return: list of ``(start_frame, end_frame)`` half-open rally spans.
+    """
+    window = _QUIET_START_WINDOW
+    assert window is not None, 'quiet-start arm ran without a window; install_quiet_start first'
+    fast = np.nan_to_num(speed, nan=0.0) > stage8_module.START_SPEED  # (t,) NaN steps are not fast
+
+    long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
+    for start, end in stage8_module.true_runs(at_rest):
+        if end - start >= stage8_module.END_REST_FRAMES:
+            long_rest[start:end] = True
+
+    fast_runs = [
+        (start, end) for start, end in stage8_module.true_runs(fast)
+        if end - start >= stage8_module.START_MIN_FRAMES
+    ]
+
+    spans: list[tuple[int, int]] = []
+    for region_start, region_end in stage8_module.true_runs(~long_rest):
+        bursts = [start for start, _ in fast_runs if region_start <= start < region_end]
+        if not bursts:
+            continue
+        quiet_burst = next((start for start in bursts if _is_quiet_before(at_rest, start, window)), None)
+        burst_start = quiet_burst if quiet_burst is not None else bursts[0]  # fallback keeps coverage
+        spans.append((int(burst_start), int(region_end)))
+    return spans
+
+
+def install_quiet_start(window: int) -> None:
+    """Swap stage-8's ``_find_rally_spans`` for the quiet-start variant, in this process.
+
+    Sets the per-process window the variant reads, then rebinds
+    ``stage8_module._find_rally_spans``. ``segment_video`` resolves it through the module
+    dict at call time, so the swap takes hold without touching committed code.
+    Re-callable, same as ``install_gap_state``.
+    """
+    global _QUIET_START_WINDOW
+    _QUIET_START_WINDOW = window
+    stage8_module._find_rally_spans = quiet_start_find_rally_spans
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
@@ -823,6 +1082,19 @@ def _build_parser() -> argparse.ArgumentParser:
                              'averaging the zero-filled (0, 0) in, which otherwise drags the smoothed '
                              'track toward the image corner near a visibility gap. Composes with '
                              '--mask-npy; installed per worker, committed stage-8 code untouched')
+    parser.add_argument('--gap-state', type=int, default=None, metavar='DEMOTION_BOUND',
+                        help='swap _rest_mask for the gap-state variant: an invisibility gap only '
+                             'reads as rest when it is DEAD (a long non-high_shot_oob gap), a high_shot_oob gap (shuttle '
+                             'last seen climbing off the top) stays not-rest so it cannot cut a rally '
+                             'mid-clear, and a short BLIP gap rides the plain slow test. The arg is '
+                             'demotion_bound: frames of high_shot_oob before an ongoing gap demotes to DEAD. '
+                             'Installed per worker; the whole sweep runs at this one value')
+    parser.add_argument('--quiet-start', type=int, default=None, metavar='W',
+                        help='swap _find_rally_spans for the quiet-start variant: a rally opens at '
+                             'the first fast burst whose preceding W frames are at least 80%% at rest, '
+                             'else it falls back to the stock first-burst pick, so coverage never '
+                             'drops. The arg is W, the pre-burst window in frames. Installed per '
+                             'worker; composes with --gap-state')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -863,6 +1135,10 @@ def main() -> None:
         print(f'Applied replay mask {args.mask_npy}: {int(mask.sum())} of {len(mask)} frames frozen to rest')
     if args.nan_smoothing:
         print('NaN-smoothing on: invisible frames excluded from the contact smoothing (installed per worker)')
+    if args.gap_state is not None:
+        print(f'Gap-state on: gap-state _rest_mask at demotion_bound {args.gap_state} (installed per worker)')
+    if args.quiet_start is not None:
+        print(f'Quiet-start on: quiet-start _find_rally_spans at W {args.quiet_start} (installed per worker)')
     shots_master = pd.read_csv(args.shots_master)
     gt_rallies = load_gt_rallies(shots_master, args.vid)
     ctx = SweepCtx(track=track, gt_rallies=gt_rallies)
@@ -878,7 +1154,8 @@ def main() -> None:
     if run_boundary:
         tasks = build_boundary_tasks()
         print(f'\nBoundary phase: {len(tasks)} configs')
-        boundary_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing)
+        boundary_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing,
+                                  args.gap_state, args.quiet_start)
         write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key_as_built)
         write_crowns_csv(args.out_dir / 'boundary_crowns.csv', boundary_rows)
         boundary_winner_row = select_boundary_winner(boundary_rows)
@@ -899,7 +1176,8 @@ def main() -> None:
         assert boundary_winner_params is not None  # guaranteed by the phase guards above
         tasks = build_contact_tasks(boundary_winner_params)
         print(f'\nContact phase: {len(tasks)} configs at the frozen boundary winner')
-        contact_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing)
+        contact_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing,
+                                 args.gap_state, args.quiet_start)
         write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
         write_contact_frontier_csv(args.out_dir / 'contact_frontier.csv', contact_rows)
         contact_winner_row = select_winner(contact_rows, contact_sort_key)

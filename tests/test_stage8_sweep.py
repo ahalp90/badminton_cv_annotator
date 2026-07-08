@@ -25,13 +25,18 @@ from scripts.stage8_sweep import (
     LABEL_GRID,
     LABEL_SHIPPED,
     PARAM_COLUMNS,
+    RAW_PRECISION_COLUMNS,
     ROW_COLUMNS,
     SHIPPED_DEFAULTS,
     SWEEP_TOLERANCES,
     Stage8Params,
     SweepCtx,
     SweepTask,
+    _STOCK_FIND_RALLY_SPANS,
+    _STOCK_REST_MASK,
+    _gap_is_high_shot_oob,
     _init_worker,
+    _is_quiet_before,
     _patch_stage8,
     _score_config,
     _serialise_row,
@@ -45,9 +50,13 @@ from scripts.stage8_sweep import (
     contact_frontier,
     contact_sort_key,
     flatten_row,
+    gap_state_rest_mask,
+    install_gap_state,
     install_nan_smoothing,
+    install_quiet_start,
     nan_rolling_mean,
     nan_smoothing_detect_contacts,
+    quiet_start_find_rally_spans,
     select_boundary_winner,
     select_start_alignment_winner,
     select_winner,
@@ -75,6 +84,7 @@ def _mk_row(label: str = LABEL_GRID, params: Stage8Params = SHIPPED_DEFAULTS, **
         row[f'recall_{tolerance}'] = None
         row[f'precision_{tolerance}'] = None
         row[f'f1_{tolerance}'] = None
+        row[f'precision_raw_{tolerance}'] = None
     row.update(metrics)
     return row
 
@@ -559,18 +569,23 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
 def _restore_stage8_smoothing():
-    """Snapshot and restore the two stage-8 smoothing globals around every test.
+    """Snapshot and restore the four patchable stage-8 globals around every test.
 
-    ``install_nan_smoothing`` mutates ``stage8_module`` in place (the same
-    module-global patching the sweep uses), so without this a test that installs
-    the patch would leak it into later tests and other files. Restores on pass and
-    on failure (the teardown runs after the yield regardless).
+    Every arm (``install_nan_smoothing``, ``install_gap_state``,
+    ``install_quiet_start``) mutates ``stage8_module`` in place, the same
+    module-global patching the sweep uses, so without this a test that installs a
+    patch would leak it into later tests and other files. Restores on pass and on
+    failure (the teardown runs after the yield regardless).
     """
     saved_rolling = stage8_module._rolling_mean
     saved_detect = stage8_module.detect_contacts
+    saved_rest_mask = stage8_module._rest_mask
+    saved_find_spans = stage8_module._find_rally_spans
     yield
     stage8_module._rolling_mean = saved_rolling
     stage8_module.detect_contacts = saved_detect
+    stage8_module._rest_mask = saved_rest_mask
+    stage8_module._find_rally_spans = saved_find_spans
 
 
 def _gap_track() -> tuple[np.ndarray, np.ndarray]:
@@ -655,3 +670,197 @@ def test_install_nan_smoothing_is_idempotent():
         np.ones(n),
     ])
     assert nan_smoothing_detect_contacts(straight, 0, n) == []
+
+
+# ---------------------------------------------------------------------------
+# 8. Raw per-candidate precision columns (Change 1: additive scorer + CSV columns)
+# ---------------------------------------------------------------------------
+def test_flatten_row_carries_raw_precision_columns():
+    # A candidate pooled into two rallies must count ONCE in the raw precision. One
+    # merged span holds two GT rallies and a lone candidate at frame 11 within +/-2 of
+    # a stroke in each; a spurious span adds a never-matched candidate at 105. So the
+    # raw denominator is the two physical candidates {11, 105} and the numerator the
+    # one matched frame {11}: precision_raw = 0.5, not the pooled 1.0.
+    rallies = [GtRally(set_id='set1', rally=1, stroke_frames=(10,)),
+               GtRally(set_id='set1', rally=2, stroke_frames=(12,))]
+    spans = [(5, 20), (100, 110)]
+    contacts = [(0, 11, None), (1, 105, None)]
+    metrics = score_stage8(spans, contacts, rallies, tolerances=SWEEP_TOLERANCES)
+
+    row = flatten_row(LABEL_GRID, SHIPPED_DEFAULTS, n_spans=2, metrics=metrics)
+    assert set(RAW_PRECISION_COLUMNS) <= set(ROW_COLUMNS)  # columns are declared
+    assert set(RAW_PRECISION_COLUMNS) <= set(row)          # and populated on the row
+    assert row['precision_raw_2'] == pytest.approx(0.5)
+    # Pooled precision over the same input double-counts the shared candidate: the two
+    # metrics genuinely differ, which is the point of the raw column.
+    assert row['precision_2'] == pytest.approx(1.0)
+    # The row still keys exactly the full column set after the additive columns.
+    assert set(_serialise_row(row)) == set(ROW_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# 9. Gap-state arm (Change 2: --gap-state _rest_mask patch)
+# ---------------------------------------------------------------------------
+def _high_shot_oob_gap_track() -> np.ndarray:
+    """Six visible frames climbing off the top, a 12-frame invisible high_shot_oob gap, six visible.
+
+    The pre-gap climb (y 0.5 -> 0.05) extrapolates well above the top edge, so the gap
+    is high_shot_oob. Twelve invisible frames are long enough that stock's REST_WINDOW=15
+    reads the gap centre as mostly-untracked rest; the arm must not.
+    """
+    pre_y = np.linspace(0.5, 0.05, 6)
+    gap = 12
+    ys = np.concatenate([pre_y, np.zeros(gap), np.full(6, 0.05)])
+    xs = np.concatenate([np.full(6, 0.5), np.zeros(gap), np.full(6, 0.5)])
+    vis = np.concatenate([np.ones(6), np.zeros(gap), np.ones(6)])
+    return np.column_stack([xs, ys, vis])
+
+
+def test_gap_is_high_shot_oob_reads_entry_kinematics():
+    invisible = np.array([[0.0, 0.0, 0.0]])
+    # Five visible frames climbing toward the top (y 0.5 -> 0.1); the 10-frame
+    # extrapolation clears y < 0, so the following gap is high_shot_oob.
+    climbing = np.column_stack([np.full(5, 0.5), np.linspace(0.5, 0.1, 5), np.ones(5)])
+    assert _gap_is_high_shot_oob(np.vstack([climbing, invisible]), gap_start=5)
+    # Same frames descending (y 0.1 -> 0.5): the extrapolation heads down, not high_shot_oob.
+    descending = np.column_stack([np.full(5, 0.5), np.linspace(0.1, 0.5, 5), np.ones(5)])
+    assert not _gap_is_high_shot_oob(np.vstack([descending, invisible]), gap_start=5)
+    # Only one visible frame before the gap: no velocity to fit, so not high_shot_oob.
+    one_visible = np.vstack([np.zeros((4, 3)), np.array([[0.5, 0.1, 1.0]]), invisible])
+    assert not _gap_is_high_shot_oob(one_visible, gap_start=5)
+
+
+def test_gap_state_flag_off_leaves_stock_rest_mask():
+    # --gap-state off: the initializer must not touch _rest_mask.
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False)
+    assert stage8_module._rest_mask is _STOCK_REST_MASK
+
+
+def test_gap_state_flag_on_installs_patch():
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]),
+                 nan_smoothing=False, gap_state_demotion_bound=75)
+    assert stage8_module._rest_mask is gap_state_rest_mask
+
+
+def test_gap_state_matches_stock_on_gap_free_track():
+    # No gaps -> HIGH_SHOT_OOB and DEAD are empty and mostly_untracked is all False, so the
+    # gap-state mask must equal stock bit-for-bit (the gap-free half of the pin).
+    _patch_stage8(SHIPPED_DEFAULTS)
+    track, _gt = _rally_track_and_gt()  # all frames visible, forms one span under shipped
+    speed = stage8_module.compute_speed(track)
+    stock_mask = _STOCK_REST_MASK(speed, track)
+    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, stock_mask)
+    assert stock_spans  # the track really does form a span, so the equality below bites
+    install_gap_state(75)
+    assert np.array_equal(gap_state_rest_mask(speed, track), stock_mask)
+    # segment_video agrees too, since _rest_mask is the only thing the arm changed.
+    assert stage8_module.segment_video(track)[0] == stock_spans
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_gap_state_differs_on_gapped_track():
+    # The high_shot_oob gap frames read as rest under stock (mostly_untracked) but never under
+    # gap-state (high_shot_oob holds), so the two masks disagree across the gap: the deliberate
+    # difference the arm exists to make.
+    _patch_stage8(SHIPPED_DEFAULTS)
+    track = _high_shot_oob_gap_track()
+    speed = stage8_module.compute_speed(track)
+    stock_mask = _STOCK_REST_MASK(speed, track)
+    install_gap_state(75)
+    gap_mask = gap_state_rest_mask(speed, track)
+    mid_gap = 12
+    assert stock_mask[mid_gap] and not gap_mask[mid_gap]
+    assert not np.array_equal(stock_mask, gap_mask)
+
+
+def test_gap_state_demotes_long_high_shot_oob_gap_to_rest():
+    # A demotion_bound shorter than the high_shot_oob gap flips the tail of the gap to DEAD
+    # (rest), even though its entry arced off the top.
+    _patch_stage8(SHIPPED_DEFAULTS)
+    pre_y = np.linspace(0.5, 0.05, 6)
+    gap = 40
+    ys = np.concatenate([pre_y, np.zeros(gap), np.full(6, 0.05)])
+    xs = np.concatenate([np.full(6, 0.5), np.zeros(gap), np.full(6, 0.5)])
+    vis = np.concatenate([np.ones(6), np.zeros(gap), np.ones(6)])
+    track = np.column_stack([xs, ys, vis])
+    speed = stage8_module.compute_speed(track)
+    install_gap_state(10)  # gap starts at 6; frames from 16 onward demote to DEAD
+    mask = gap_state_rest_mask(speed, track)
+    assert not mask[10]  # still inside the high_shot_oob window [6, 16): not rest
+    assert mask[30]      # past the demotion bound: DEAD, so rest
+
+
+# ---------------------------------------------------------------------------
+# 10. Quiet-start arm (Change 3: --quiet-start _find_rally_spans patch)
+# ---------------------------------------------------------------------------
+def _quiet_start_speed_and_rest(rest_slice: slice) -> tuple[np.ndarray, np.ndarray]:
+    """Length-120 speed with two 5-frame fast bursts at 10 and 60, plus a rest mask.
+
+    ``rest_slice`` marks the frames to flag at_rest; the caller shapes it so the first
+    or second burst is (or isn't) quiet-preceded. END_REST_FRAMES is patched to 40 by
+    the tests, and no rest run reaches that, so the whole track is one active region.
+    """
+    speed = np.zeros(120)
+    speed[10:15] = 0.05  # > shipped START_SPEED 0.03, >= START_MIN_FRAMES 3
+    speed[60:65] = 0.05
+    at_rest = np.zeros(120, dtype=bool)
+    at_rest[rest_slice] = True
+    return speed, at_rest
+
+
+def test_quiet_start_flag_off_leaves_stock_find_spans():
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False)
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+
+
+def test_quiet_start_flag_on_installs_patch():
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]),
+                 nan_smoothing=False, quiet_start_window=50)
+    assert stage8_module._find_rally_spans is quiet_start_find_rally_spans
+
+
+def test_quiet_start_moves_start_to_first_quiet_burst():
+    # Burst 10 is preceded by active frames (not quiet); burst 60 by a 30-frame rest
+    # (quiet). Stock opens at 10; quiet-start skips to 60. Same region end, so the
+    # rally still forms (coverage holds), it just opens later.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest = _quiet_start_speed_and_rest(slice(30, 60))
+    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, at_rest)
+    install_quiet_start(25)
+    quiet_spans = quiet_start_find_rally_spans(speed, at_rest)
+    assert stock_spans == [(10, 120)]
+    assert quiet_spans == [(60, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_quiet_start_matches_stock_when_first_burst_quiet():
+    # Burst 10 already sits behind a rest, so quiet-start picks the same first burst
+    # and the spans are identical: the bit-identical case.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest = _quiet_start_speed_and_rest(slice(0, 10))
+    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, at_rest)
+    install_quiet_start(25)
+    assert quiet_start_find_rally_spans(speed, at_rest) == stock_spans
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_quiet_start_falls_back_when_no_burst_is_quiet():
+    # No burst has a quiet run-up, so quiet-start falls back to the first burst: the
+    # coverage-preserving guarantee, identical to stock.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest = _quiet_start_speed_and_rest(slice(0, 0))  # no rest anywhere
+    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, at_rest)
+    install_quiet_start(25)
+    assert quiet_start_find_rally_spans(speed, at_rest) == stock_spans
+    assert stock_spans == [(10, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_is_quiet_before_fraction_and_truncation():
+    at_rest = np.array([True] * 8 + [False] * 2 + [True] * 10)
+    # Window [max(0,10-5), 10) = frames 5..9: three rest, two active -> 0.6 < 0.8.
+    assert not _is_quiet_before(at_rest, burst_start=10, window=5)
+    # Widen to 10: frames 0..9 -> eight rest of ten = 0.8 >= 0.8.
+    assert _is_quiet_before(at_rest, burst_start=10, window=10)
+    # A burst at frame 0 has an empty window: cannot be confirmed quiet.
+    assert not _is_quiet_before(at_rest, burst_start=0, window=5)

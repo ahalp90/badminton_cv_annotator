@@ -225,6 +225,27 @@ def test_candidates_pool_from_all_overlapping_spans():
     assert metric['matched'] == 2
 
 
+def test_raw_precision_dedupes_double_matched_and_counts_all_candidates():
+    # Two adjacent GT rallies under ONE merged span; a lone candidate at frame 11
+    # sits within +/-2 of a stroke in BOTH, so the pooled curve pools it into each
+    # rally and matches it twice. Raw precision must count that physical candidate
+    # once. A second candidate in a spurious span (no GT) proves the raw
+    # denominator counts every detected candidate, not just the pooled ones.
+    rallies = [_rally('set1', 1, (10,)), _rally('set1', 2, (12,))]
+    spans = [(5, 20), (100, 110)]          # span 0 merges both rallies; span 1 spurious
+    contacts = [(0, 11, None), (1, 105, None)]
+    result = score_contacts(spans, contacts, rallies, tolerances=(2,))
+
+    pooled = result['tolerances']['2']
+    assert pooled['matched'] == 2          # frame 11 credited in each rally's matching
+    assert pooled['candidates'] == 2       # frame 11 pooled once per overlapping rally
+
+    raw = result['precision_raw']['2']
+    assert raw['matched'] == 1             # ... but it is one physical candidate
+    assert raw['candidates'] == 2          # frames {11, 105}: the spurious one counts too
+    assert raw['precision_raw'] == pytest.approx(0.5)
+
+
 def test_per_set_breakdown_splits_by_set_id():
     rallies = [_rally('set1', 1, (10, 12)), _rally('set2', 1, (110, 112))]
     spans = [(8, 20), (108, 120)]
@@ -252,7 +273,7 @@ def test_score_stage8_shape():
     assert result['n_gt_rallies'] == 1
     assert result['tolerances'] == [1, 2]
     assert set(result['boundaries']) >= {'covered', 'merged_spans', 'spurious_spans'}
-    assert set(result['contacts']) == {'count_gate', 'tolerances', 'per_set'}
+    assert set(result['contacts']) == {'count_gate', 'tolerances', 'precision_raw', 'per_set'}
 
 
 def test_load_gt_rallies_groups_and_filters_vid():

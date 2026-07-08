@@ -329,6 +329,57 @@ def _tolerance_curve(
     return curve
 
 
+def _raw_precision_curve(
+    contacts: Sequence[tuple[int, int, bool | None]],
+    rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]],
+    tolerances: Sequence[int],
+) -> dict[str, dict]:
+    """Per-tolerance precision over PHYSICAL candidates, not merge-pooled ones.
+
+    The ``tolerances`` curve above counts a candidate once per GT rally its span
+    overlaps, so its precision denominator swells with merge structure (50,164 vs
+    9,002 raw at the crown) and precision reads differently for two configs that
+    detect the same contacts but merge rallies differently. This curve fixes both
+    ends to the physical candidate set:
+
+      - denominator: unique detected contact frames across the whole video, ALL of
+        them, including contacts in spurious spans that no rally pools. Spans are
+        disjoint in frame range, so distinct contacts carry distinct frames and the
+        set size equals ``len(contacts)`` on real input.
+      - numerator: unique candidate frames matched in ANY rally's greedy matching
+        at that tolerance. A frame pooled into two rallies (its span overlaps both
+        extents) and matched in either counts once, so a cross-rally double match
+        can't inflate the numerator past the denominator.
+
+    The greedy matching is re-run here rather than threaded out of
+    ``_tolerance_curve``: keeping that function's return byte-identical matters
+    (the sweep CSV's committed columns depend on it) more than the one extra pass,
+    which is over the overall rally pairs only and cheap next to segmentation.
+
+    :param contacts: detected contacts ``(rally_id, contact_frame, proximity_ok)``;
+        the full list, so spurious-span candidates land in the denominator.
+    :param rally_pairs: one ``(gt_frames, candidate_frames)`` per rally, the same
+        pooled pairs ``_tolerance_curve`` scores.
+    :param tolerances: frame tolerances to score at.
+    :return: ``{str(tolerance): {precision_raw, matched, candidates}}``; precision_raw
+        None only when no candidate was detected at all.
+    """
+    n_unique_candidates = len({contact_frame for _rally_id, contact_frame, _prox in contacts})
+    curve: dict[str, dict] = {}
+    for tolerance in tolerances:
+        matched_frames: set[int] = set()
+        for gt_frames, candidate_frames in rally_pairs:
+            for _gt_index, candidate_index in greedy_match(gt_frames, candidate_frames, tolerance):
+                matched_frames.add(candidate_frames[candidate_index])
+        n_matched = len(matched_frames)
+        curve[str(tolerance)] = {
+            'precision_raw': n_matched / n_unique_candidates if n_unique_candidates else None,
+            'matched': n_matched,
+            'candidates': n_unique_candidates,
+        }
+    return curve
+
+
 def _count_gate(passes: int, total: int) -> dict:
     """Pass/total/fraction for the per-rally count gate (candidates == strokes)."""
     return {
@@ -415,6 +466,7 @@ def score_contacts(
     return {
         'count_gate': count_gate,
         'tolerances': _tolerance_curve(all_pairs, tolerances),
+        'precision_raw': _raw_precision_curve(contacts, all_pairs, tolerances),
         'per_set': per_set,
     }
 
