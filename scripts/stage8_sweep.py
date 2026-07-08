@@ -47,7 +47,8 @@ filter, then the featurised verifier), so a miss costs more than a false hit.
 Usage:
     python -m scripts.stage8_sweep \\
         --track-npy /scratch/.../1.npy --vid 1 \\
-        --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N]
+        --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N] \\
+        [--mask-npy /scratch/.../1_replay.npy]
 """
 from __future__ import annotations
 
@@ -655,6 +656,49 @@ def print_summary(
 
 
 # ---------------------------------------------------------------------------
+# Optional replay-mask track transform (applied once at load, before the sweep)
+# ---------------------------------------------------------------------------
+def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Freeze replay/off-rally frames to the last live position so they read as rest.
+
+    Returns a new ``(t, 3)`` array; ``track`` is not mutated. For each contiguous
+    True run in ``mask``, the run's xy (columns 0-1) is set to the xy of the last
+    frame BEFORE the run, and its visibility (column 2) forced to 1. A run that
+    starts at frame 0 has no earlier frame, so it takes the xy of the first frame
+    AFTER it instead.
+
+    Why: stage 8 reads invisible or NaN-speed frames as not-rest, so replay
+    closeups hold rally regions open. Freezing the position makes masked footage
+    read as sustained sub-REST_SPEED rest, per the mask-before-segmentation design
+    (masked frames count as rest). Forcing visibility avoids the NaN-speed path
+    reopening the region.
+
+    Fail loud on a length mismatch, and on an all-True mask (nothing live to anchor
+    a frozen position to, and a fully-masked video is senseless). An all-False mask
+    has no True runs, so the untouched copy returns bit-identical by construction.
+
+    :param track: ``(t, 3)`` ``[x_norm, y_norm, visibility]`` whole-video track.
+    :param mask: ``(t,)`` bool, True on replay/off-rally frames (stage-9
+        ``1_replay.npy`` convention).
+    :return: a new ``(t, 3)`` track with masked frames frozen to rest.
+    """
+    if len(mask) != len(track):
+        raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
+    if mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+
+    frozen = track.copy()
+    for start, end in stage8_module.true_runs(mask):
+        # start-1 is the last live frame before the run; a run at frame 0 has none,
+        # so anchor to end (the first live frame after it). The not-all-True guard
+        # above guarantees that frame exists.
+        anchor = start - 1 if start > 0 else end
+        frozen[start:end, :2] = track[anchor, :2]
+        frozen[start:end, 2] = 1
+    return frozen
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
@@ -665,6 +709,11 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='(t, 3) whole-video shuttle track npy; its index is the source frame')
     parser.add_argument('--vid', type=int, required=True,
                         help='ShuttleSet video id to score against (filters shots_master)')
+    parser.add_argument('--mask-npy', type=Path, default=None,
+                        help='optional (frames,) bool npy, True on replay/off-rally frames '
+                             '(stage-9 1_replay.npy convention); freezes those frames to the last '
+                             'live position with visibility 1 so they read as rest. Applied once at '
+                             'track load, so it affects BOTH sweep phases')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -696,6 +745,13 @@ def main() -> None:
     track = np.load(args.track_npy)
     if track.ndim != 2 or track.shape[1] != 3:
         raise ValueError(f'track must be (t, 3) [x_norm, y_norm, visibility]; got shape {track.shape}')
+    # Optional: freeze replay/off-rally frames to rest once here, before the worker
+    # context is built, so both sweep phases score the same masked track. Absent the
+    # flag the track flows through untouched (no transform call at all).
+    if args.mask_npy is not None:
+        mask = np.load(args.mask_npy)
+        track = apply_replay_mask(track, mask)
+        print(f'Applied replay mask {args.mask_npy}: {int(mask.sum())} of {len(mask)} frames frozen to rest')
     shots_master = pd.read_csv(args.shots_master)
     gt_rallies = load_gt_rallies(shots_master, args.vid)
     ctx = SweepCtx(track=track, gt_rallies=gt_rallies)

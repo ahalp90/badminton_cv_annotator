@@ -12,6 +12,7 @@ plus a micro end-to-end that drives the real ``segment_video`` and scorer:
 import csv
 
 import numpy as np
+import pytest
 
 from scripts.stage8_score import GtRally, score_stage8
 from scripts.stage8_sweep import (
@@ -34,6 +35,7 @@ from scripts.stage8_sweep import (
     _patch_stage8,
     _score_config,
     _serialise_row,
+    apply_replay_mask,
     boundary_sort_key_as_built,
     build_boundary_crowns,
     build_boundary_grid,
@@ -465,3 +467,85 @@ def test_plumbing_two_configs_end_to_end():
     assert set(_serialise_row(strict_row)) == set(ROW_COLUMNS)
 
     _patch_stage8(SHIPPED_DEFAULTS)  # leave the shared module at defaults
+
+
+# ---------------------------------------------------------------------------
+# 6. Optional replay-mask track transform (freeze masked frames to rest)
+# ---------------------------------------------------------------------------
+def _distinct_track(n_frames: int) -> np.ndarray:
+    """A (n, 3) track with a unique xy per frame and vis 0 everywhere.
+
+    Distinct xy lets a test read exactly which frame a masked run froze to; vis 0
+    everywhere means a forced vis 1 is unambiguous evidence of masking.
+    """
+    xs = np.arange(n_frames, dtype=float) * 0.1
+    ys = np.arange(n_frames, dtype=float) * 0.01 + 0.5
+    vis = np.zeros(n_frames, dtype=float)
+    return np.column_stack([xs, ys, vis])
+
+
+def test_apply_replay_mask_mid_run_freezes_to_preceding_frame():
+    track = _distinct_track(6)
+    original = track.copy()
+    mask = np.array([False, False, True, True, False, False])
+
+    frozen = apply_replay_mask(track, mask)
+    # Frames 2, 3 take frame 1's xy (the last live frame before the run); vis -> 1.
+    assert np.array_equal(frozen[2, :2], track[1, :2])
+    assert np.array_equal(frozen[3, :2], track[1, :2])
+    assert frozen[2, 2] == 1.0 and frozen[3, 2] == 1.0
+    # Pure: the source track is untouched.
+    assert np.array_equal(track, original)
+
+
+def test_apply_replay_mask_run_at_frame_zero_freezes_to_first_post_run_frame():
+    track = _distinct_track(6)
+    mask = np.array([True, True, False, False, False, False])
+
+    frozen = apply_replay_mask(track, mask)
+    # No frame before the run, so frames 0, 1 take frame 2's xy (first live after).
+    assert np.array_equal(frozen[0, :2], track[2, :2])
+    assert np.array_equal(frozen[1, :2], track[2, :2])
+    assert frozen[0, 2] == 1.0 and frozen[1, 2] == 1.0
+
+
+def test_apply_replay_mask_two_runs_each_freeze_to_own_predecessor():
+    track = _distinct_track(8)
+    mask = np.array([False, True, False, False, True, True, False, False])
+
+    frozen = apply_replay_mask(track, mask)
+    # First run (frame 1) anchors to frame 0.
+    assert np.array_equal(frozen[1, :2], track[0, :2])
+    # Second run (frames 4, 5) anchors to frame 3, its own predecessor.
+    assert np.array_equal(frozen[4, :2], track[3, :2])
+    assert np.array_equal(frozen[5, :2], track[3, :2])
+    assert frozen[1, 2] == 1.0 and frozen[4, 2] == 1.0 and frozen[5, 2] == 1.0
+
+
+def test_apply_replay_mask_all_false_returns_bit_identical():
+    track = _distinct_track(5)
+    mask = np.zeros(5, dtype=bool)
+    assert np.array_equal(apply_replay_mask(track, mask), track)
+
+
+def test_apply_replay_mask_length_mismatch_raises():
+    track = _distinct_track(5)
+    with pytest.raises(ValueError):
+        apply_replay_mask(track, np.zeros(4, dtype=bool))
+
+
+def test_apply_replay_mask_all_true_raises():
+    track = _distinct_track(5)
+    with pytest.raises(ValueError):
+        apply_replay_mask(track, np.ones(5, dtype=bool))
+
+
+def test_apply_replay_mask_leaves_unmasked_frames_untouched():
+    track = _distinct_track(6)
+    mask = np.array([False, False, True, True, False, False])
+
+    frozen = apply_replay_mask(track, mask)
+    # Unmasked frames keep their original xy and their original vis (0).
+    for frame in (0, 1, 4, 5):
+        assert np.array_equal(frozen[frame], track[frame])
+        assert frozen[frame, 2] == 0.0
