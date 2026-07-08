@@ -206,6 +206,13 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     if len(span) < SMOOTH_WINDOW + 2:
         return []  # too short to smooth and difference twice
 
+    # Invisible frames carry zero-filled (0, 0) xy, so windows straddling a
+    # visibility gap average the corner in and can seed reversal candidates at
+    # gap edges. Measured on the pilot (sweep --nan-smoothing arm, 2026-07-08):
+    # NaN-masking removes ~73% of near-gap candidates and +4% relative precision
+    # at +/-5, but costs 1.1 recall points there (gaps often start AT a fast
+    # contact, so some gap-edge candidates are the only match for it). Left
+    # as-is under the recall-first ruling; revisit if the precision stage moves.
     smooth_x = _rolling_mean(span[:, 0], SMOOTH_WINDOW)  # (n,)
     smooth_y = _rolling_mean(span[:, 1], SMOOTH_WINDOW)  # (n,)
     smoothed = np.column_stack([smooth_x, smooth_y])  # (n, 2)

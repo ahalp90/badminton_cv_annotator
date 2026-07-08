@@ -45,6 +45,9 @@ from scripts.stage8_sweep import (
     contact_frontier,
     contact_sort_key,
     flatten_row,
+    install_nan_smoothing,
+    nan_rolling_mean,
+    nan_smoothing_detect_contacts,
     select_boundary_winner,
     select_start_alignment_winner,
     select_winner,
@@ -447,7 +450,7 @@ def _rally_track_and_gt() -> tuple[np.ndarray, list[GtRally]]:
 
 def test_plumbing_two_configs_end_to_end():
     track, gt_rallies = _rally_track_and_gt()
-    _init_worker(SweepCtx(track=track, gt_rallies=gt_rallies))
+    _init_worker(SweepCtx(track=track, gt_rallies=gt_rallies), nan_smoothing=False)
 
     shipped_row = _score_config(SweepTask(LABEL_SHIPPED, SHIPPED_DEFAULTS))
     assert shipped_row['n_spans'] >= 1
@@ -549,3 +552,106 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
     for frame in (0, 1, 4, 5):
         assert np.array_equal(frozen[frame], track[frame])
         assert frozen[frame, 2] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# 7. Optional NaN-smoothing patch (exclude invisible frames from contact smooth)
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _restore_stage8_smoothing():
+    """Snapshot and restore the two stage-8 smoothing globals around every test.
+
+    ``install_nan_smoothing`` mutates ``stage8_module`` in place (the same
+    module-global patching the sweep uses), so without this a test that installs
+    the patch would leak it into later tests and other files. Restores on pass and
+    on failure (the teardown runs after the yield regardless).
+    """
+    saved_rolling = stage8_module._rolling_mean
+    saved_detect = stage8_module.detect_contacts
+    yield
+    stage8_module._rolling_mean = saved_rolling
+    stage8_module.detect_contacts = saved_detect
+
+
+def _gap_track() -> tuple[np.ndarray, np.ndarray]:
+    """A straight-line shuttle track with a mid-rally invisibility gap.
+
+    The shuttle really flies a monotone diagonal well away from (0, 0); frames
+    18-22 are invisible and zero-filled (0, 0), as stage 8 stores an untracked
+    frame. Returns the track and the true (ungapped) x so a test can measure how
+    far each smoothing pulls the gap-adjacent frames off the real trajectory.
+    """
+    n = 40
+    true_x = 0.2 + np.arange(n) * 0.015  # 0.2 .. ~0.785, all positive
+    true_y = 0.3 + np.arange(n) * 0.01
+    vis = np.ones(n)
+    gap = slice(18, 23)  # five invisible frames mid-track
+    xs, ys = true_x.copy(), true_y.copy()
+    xs[gap] = 0.0
+    ys[gap] = 0.0
+    vis[gap] = 0.0
+    return np.column_stack([xs, ys, vis]), true_x
+
+
+def test_nan_rolling_mean_matches_stock_on_visible_track():
+    # No invisible frames -> no NaN in the smoothing input, so the NaN-ignoring
+    # mean must fall back to the stock convolution bit-for-bit (same arithmetic).
+    rng = np.random.default_rng(0)
+    values = rng.random(200)  # a fully-visible track's positions, no NaN
+    for window in (3, 5, 7):
+        stock = stage8_module._rolling_mean(values, window)
+        patched = nan_rolling_mean(values, window)
+        assert np.array_equal(stock, patched)
+
+
+def test_nan_smoothing_survives_midrally_gap():
+    # Stock smoothing averages the gap's zero-fill in and drags the smoothed x
+    # toward the corner near the gap; NaN smoothing drops the gap and stays on the
+    # real trajectory. window=5 (shipped SMOOTH_WINDOW); frames 17 and 23 straddle
+    # the gap so their windows overlap the zero-fill.
+    track, true_x = _gap_track()
+    x_raw = track[:, 0]  # zero-filled at the gap, as stage 8 sees it
+    stock_smooth = stage8_module._rolling_mean(x_raw, 5)
+
+    x_nan = x_raw.copy()
+    x_nan[track[:, 2] != 1] = np.nan  # what the patch does before smoothing
+    nan_smooth = nan_rolling_mean(x_nan, 5)
+
+    for frame in (17, 23):
+        assert stock_smooth[frame] < true_x[frame] - 0.1  # dragged toward the corner
+        assert abs(nan_smooth[frame] - true_x[frame]) < 0.03  # stays on the trajectory
+
+
+def test_nan_smoothing_flag_off_leaves_stock_smoothing():
+    # --nan-smoothing off: the initializer must not touch the module globals, so
+    # the stock function objects stay bound.
+    stock_rolling = stage8_module._rolling_mean
+    stock_detect = stage8_module.detect_contacts
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False)
+    assert stage8_module._rolling_mean is stock_rolling
+    assert stage8_module.detect_contacts is stock_detect
+
+
+def test_nan_smoothing_flag_on_installs_patch():
+    # --nan-smoothing on: the initializer installs both drop-ins in this process.
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=True)
+    assert stage8_module._rolling_mean is nan_rolling_mean
+    assert stage8_module.detect_contacts is nan_smoothing_detect_contacts
+
+
+def test_install_nan_smoothing_is_idempotent():
+    # Re-installing keeps the wrapper deferring to the import-time stock, never to
+    # itself: two installs leave detect_contacts as the wrapper, not stacked.
+    install_nan_smoothing()
+    install_nan_smoothing()
+    assert stage8_module.detect_contacts is nan_smoothing_detect_contacts
+    # A clean straight all-visible track has no reversals, so the wrapper returns
+    # no contacts and, crucially, the call completes: proof it didn't wrap itself
+    # into a recursive double-smooth.
+    n = 30
+    straight = np.column_stack([
+        0.2 + np.arange(n) * 0.015,
+        0.3 + np.arange(n) * 0.01,
+        np.ones(n),
+    ])
+    assert nan_smoothing_detect_contacts(straight, 0, n) == []

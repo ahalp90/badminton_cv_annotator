@@ -48,7 +48,7 @@ Usage:
     python -m scripts.stage8_sweep \\
         --track-npy /scratch/.../1.npy --vid 1 \\
         --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N] \\
-        [--mask-npy /scratch/.../1_replay.npy]
+        [--mask-npy /scratch/.../1_replay.npy] [--nan-smoothing]
 """
 from __future__ import annotations
 
@@ -525,10 +525,21 @@ class SweepCtx(NamedTuple):
 _CTX: SweepCtx | None = None
 
 
-def _init_worker(ctx: SweepCtx) -> None:
-    """Pool initializer: stash the shared context in this worker's global."""
+def _init_worker(ctx: SweepCtx, nan_smoothing: bool) -> None:
+    """Pool initializer: stash the shared context and, when asked, install the
+    NaN-ignoring contact smoothing in THIS process.
+
+    Runs once per pool worker (via ``initializer``) and once directly on the serial
+    path, so it is the single seam that reaches every process that will call
+    ``segment_video``. Installing the smoothing patch here rather than in the parent
+    means it doesn't lean on the fork start method copying a parent-side patch: it
+    works the same if the pool ever ran under spawn (as ``bric.preprocessing`` forces),
+    and it also covers the serial path, which never forks.
+    """
     global _CTX
     _CTX = ctx
+    if nan_smoothing:
+        install_nan_smoothing()
 
 
 def _score_config(task: SweepTask) -> dict:
@@ -541,20 +552,22 @@ def _score_config(task: SweepTask) -> dict:
     return flatten_row(task.label, task.params, len(spans), metrics)
 
 
-def run_phase(tasks: list[SweepTask], ctx: SweepCtx, workers: int) -> list[dict]:
+def run_phase(tasks: list[SweepTask], ctx: SweepCtx, workers: int, nan_smoothing: bool) -> list[dict]:
     """Score every task, serial when workers<=1 else across a pool.
 
     Rows return in arbitrary order under the pool, which is fine: CSV writing
     sorts by the phase key and winner selection is a keyed min, both
-    order-independent.
+    order-independent. ``nan_smoothing`` is threaded to every worker (and the serial
+    path) through the initializer so the smoothing patch is installed in whichever
+    process actually segments the track.
     """
     rows: list[dict] = []
     if workers <= 1:
-        _init_worker(ctx)
+        _init_worker(ctx, nan_smoothing)
         for task in tasks:
             rows.append(_score_config(task))
         return rows
-    with Pool(processes=workers, initializer=_init_worker, initargs=(ctx,)) as pool:
+    with Pool(processes=workers, initializer=_init_worker, initargs=(ctx, nan_smoothing)) as pool:
         for row in pool.imap_unordered(_score_config, tasks, chunksize=8):
             rows.append(row)
     return rows
@@ -699,6 +712,96 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Optional NaN-smoothing patch for contact detection (installed once per worker)
+# ---------------------------------------------------------------------------
+# Stage 8 smooths (x, y) with a centred rolling mean before reading contacts off
+# velocity reversals. Invisible frames carry zero-filled (0, 0) xy, so a visibility
+# gap inside a rally drags the smoothed track toward the image corner on both edges
+# of the gap and can seed a false direction-change contact there. This arm swaps the
+# smoothing for a NaN-ignoring variant: invisible frames become NaN and drop out of
+# each window rather than averaging in as (0, 0). Same philosophy as the threshold
+# global-patching above: committed stage-8 code stays untouched; the swap lives here
+# and only runs in a process that installs it (gated by --nan-smoothing).
+#
+# _rest_mask also reads _rolling_mean, but on a clean 0/1 visibility array with no
+# NaN, where the NaN-ignoring variant reproduces the stock mean exactly, so patching
+# the global is a no-op for rally boundaries and only changes contact smoothing.
+
+# The stock detect_contacts, captured at import before any install so the wrapper
+# below can defer to it (and a double install can't stack the wrapper on itself).
+_STOCK_DETECT_CONTACTS = stage8_module.detect_contacts
+
+
+def nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred rolling mean that IGNORES NaN; drop-in for stage-8 ``_rolling_mean``.
+
+    Same centred, shrinking-at-the-edges arithmetic as the stock ``_rolling_mean``
+    (a mode='same' convolution, sums over counts), but NaN entries drop out of both
+    the running sum and the sample count rather than poisoning the whole window. A
+    window whose samples are all NaN stays NaN (0/0), matching the stock's all-NaN
+    edge behaviour and what the downstream visibility gate wants.
+
+    On a NaN-free input this reproduces stock ``_rolling_mean`` bit-for-bit: the
+    valid mask is all True, so ``filled`` equals ``values`` and the counts
+    convolution equals the stock ``np.ones_like`` one, leaving identical sums and
+    counts. That exact match is why an invisible-free track scores the same with the
+    patch installed.
+
+    :param values: ``(t,)`` values, may contain NaN.
+    :param window: window width in frames.
+    :return: ``(t,)`` centred mean; NaN only where a whole window is NaN.
+    """
+    kernel = np.ones(window)
+    valid = ~np.isnan(values)
+    filled = np.where(valid, values, 0.0)  # NaN -> 0 so it adds nothing to the sum
+    counts = np.convolve(valid.astype(float), kernel, mode='same')  # non-NaN samples per position
+    sums = np.convolve(filled, kernel, mode='same')
+    with np.errstate(invalid='ignore', divide='ignore'):
+        return sums / counts  # all-NaN window -> 0/0 -> NaN, by design
+
+
+def nan_smoothing_detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
+    """Drop-in for stage-8 ``detect_contacts`` that hides invisible frames from the smooth.
+
+    Copies the rally span, sets invisible frames' xy to NaN, and defers to the stock
+    contact logic with ``_rolling_mean`` patched to ``nan_rolling_mean`` (the two are
+    installed together, see ``install_nan_smoothing``), so the gap frames drop out of
+    every smoothing window instead of pulling it toward (0, 0). The visibility column
+    is left untouched, so the stock ``around_visible`` gate still drops any junction
+    that touches an invisible frame; masking only changes what the surviving visible
+    frames smooth to.
+
+    Only the span (not the whole track) is copied, so the hot sweep path stays
+    O(span) per call: the stock helper is handed a 0-based span and the whole-video
+    offset is re-added to its result here.
+
+    :param track: ``(t, 3)`` whole-video track (same contract as stock).
+    :param start: rally span start frame (inclusive).
+    :param end: rally span end frame (exclusive).
+    :return: contact frames in whole-video indices, ascending (stock's contract).
+    """
+    span = track[start:end].astype(float, copy=True)
+    invisible = span[:, 2] != 1
+    span[invisible, :2] = np.nan
+    local_contacts = _STOCK_DETECT_CONTACTS(span, 0, len(span))
+    return [start + local for local in local_contacts]
+
+
+def install_nan_smoothing() -> None:
+    """Swap stage-8's contact smoothing for the NaN-ignoring variant, in this process.
+
+    Patches two ``stage8_module`` globals: ``_rolling_mean`` (NaN-ignoring drop-in)
+    and ``detect_contacts`` (masks invisible xy to NaN, then defers to the stock
+    logic). ``segment_video`` and the stock ``detect_contacts`` both resolve those
+    names through the module dict at call time, so the swap takes hold without
+    touching committed code. Idempotent: the wrapper always defers to the import-time
+    stock reference, so re-installing can't stack it on itself.
+    """
+    stage8_module._rolling_mean = nan_rolling_mean
+    stage8_module.detect_contacts = nan_smoothing_detect_contacts
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
@@ -714,6 +817,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              '(stage-9 1_replay.npy convention); freezes those frames to the last '
                              'live position with visibility 1 so they read as rest. Applied once at '
                              'track load, so it affects BOTH sweep phases')
+    parser.add_argument('--nan-smoothing', action='store_true',
+                        help='exclude invisible frames from the contact-detection smoothing: set '
+                             'their xy to NaN and take a NaN-ignoring rolling mean rather than '
+                             'averaging the zero-filled (0, 0) in, which otherwise drags the smoothed '
+                             'track toward the image corner near a visibility gap. Composes with '
+                             '--mask-npy; installed per worker, committed stage-8 code untouched')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -752,6 +861,8 @@ def main() -> None:
         mask = np.load(args.mask_npy)
         track = apply_replay_mask(track, mask)
         print(f'Applied replay mask {args.mask_npy}: {int(mask.sum())} of {len(mask)} frames frozen to rest')
+    if args.nan_smoothing:
+        print('NaN-smoothing on: invisible frames excluded from the contact smoothing (installed per worker)')
     shots_master = pd.read_csv(args.shots_master)
     gt_rallies = load_gt_rallies(shots_master, args.vid)
     ctx = SweepCtx(track=track, gt_rallies=gt_rallies)
@@ -767,7 +878,7 @@ def main() -> None:
     if run_boundary:
         tasks = build_boundary_tasks()
         print(f'\nBoundary phase: {len(tasks)} configs')
-        boundary_rows = run_phase(tasks, ctx, args.workers)
+        boundary_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing)
         write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key_as_built)
         write_crowns_csv(args.out_dir / 'boundary_crowns.csv', boundary_rows)
         boundary_winner_row = select_boundary_winner(boundary_rows)
@@ -788,7 +899,7 @@ def main() -> None:
         assert boundary_winner_params is not None  # guaranteed by the phase guards above
         tasks = build_contact_tasks(boundary_winner_params)
         print(f'\nContact phase: {len(tasks)} configs at the frozen boundary winner')
-        contact_rows = run_phase(tasks, ctx, args.workers)
+        contact_rows = run_phase(tasks, ctx, args.workers, args.nan_smoothing)
         write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
         write_contact_frontier_csv(args.out_dir / 'contact_frontier.csv', contact_rows)
         contact_winner_row = select_winner(contact_rows, contact_sort_key)
