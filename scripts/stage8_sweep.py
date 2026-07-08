@@ -12,6 +12,10 @@ the committed scorer core in ``scripts.stage8_score``:
      (SMOOTH_WINDOW, MIN_DIR_CHANGE_DEG, MIN_CONTACT_SPEED) at the frozen
      boundary winner.
 
+The contact phase also emits a data-package CSV for a pending key ruling by
+Ariel: ``contact_frontier.csv`` (the recall_5 / precision_5 Pareto frontier). It
+feeds a ruling; it does not pick the winner.
+
 Both phases also run one extra labelled ``shipped_defaults`` config (all eight
 thresholds at their config.py values) so the summary can always contrast against
 what stage 8 ships with, even where the grid does not contain that exact config.
@@ -32,10 +36,11 @@ once per worker via the pool initializer (same pattern as
 ``scripts.wrist_contact_separation.WorkerCtx``). Only the flat per-config row
 crosses the process boundary; the full nested metrics dicts stay in the worker.
 
-Contact-winner selection is NOT pinned by the plan (it fixes only the boundary
-rule), so the rule here is a build choice flagged for Ariel: maximise the +/-2
-F1 (the canonical credit), then the +/-5 F1, then the unmerged count-gate pass
-rate, then closeness to the shipped defaults.
+Contact-winner selection (the plan pins only the boundary rule) is ruled
+recall-first at +/-5 (Ariel 2026-07-08): maximise +/-5 recall, then +/-5 F1,
+then the unmerged count-gate pass rate, then closeness to shipped defaults.
+Recall is unrecoverable downstream while precision is recovered there (wrist
+filter, then the featurised verifier), so a miss costs more than a false hit.
 
 Usage:
     python -m scripts.stage8_sweep \\
@@ -321,17 +326,24 @@ def boundary_sort_key(row: dict) -> tuple:
 def contact_sort_key(row: dict) -> tuple:
     """Contact sort key; ascending puts the best config first.
 
-    Build choice (the plan pins only the boundary rule), mirroring the contact
-    gates: maximise +/-2 F1, then +/-5 F1, then the unmerged count-gate pass
-    rate, then closeness to shipped defaults, then the param tuple for a total
-    order. Flagged for Ariel's ruling.
+    Ruled by Ariel 2026-07-08: recall-first at +/-5, because recall is
+    unrecoverable downstream while precision is recovered downstream per context
+    (wrist filter first, then the featurised verifier if needed). So maximise
+    +/-5 recall, then +/-5 F1, then the unmerged count-gate pass rate, then
+    closeness to shipped defaults, then the param tuple for a total order. These
+    thresholds should live in the config module/dataclass when the stage-8 params
+    land.
+
+    The crown this key picks is PROVISIONAL (Ariel 2026-07-08, second ruling):
+    pure recall-first always favours the loosest turn gate on the grid, so the
+    final contact key is ruled on data, off ``contact_frontier.csv``.
     """
-    f1_2 = row['f1_2'] if row['f1_2'] is not None else -1.0
+    recall_5 = row['recall_5'] if row['recall_5'] is not None else -1.0
     f1_5 = row['f1_5'] if row['f1_5'] is not None else -1.0
     gate = row['count_gate_unmerged_fraction']
     gate = gate if gate is not None else -1.0
     return (
-        -f1_2,
+        -recall_5,
         -f1_5,
         -gate,
         _changed_from_defaults(row),
@@ -350,6 +362,35 @@ def select_winner(rows: list[dict], sort_key: Callable[[dict], tuple]) -> dict:
     if not grid_rows:
         raise ValueError('no grid rows to select a winner from')
     return min(grid_rows, key=sort_key)
+
+
+# ---------------------------------------------------------------------------
+# Data package for a pending key ruling (the contact Pareto frontier; not a winner)
+# ---------------------------------------------------------------------------
+def contact_frontier(rows: list[dict]) -> list[dict]:
+    """Grid configs on the (recall_5, precision_5) Pareto frontier, best recall first.
+
+    The data package for Ariel's pending contact-key ruling (``contact_sort_key``
+    is provisional): a config is dominated when some other grid config beats it on
+    BOTH recall_5 and precision_5 strictly; the non-dominated configs are the
+    frontier. Rows with no +/-5 candidates (recall_5 or precision_5 None) can't
+    sit on the frontier, so they drop out before the test. Shipped-defaults
+    reference excluded, same as winner selection.
+    """
+    scored = [
+        row for row in rows
+        if row['label'] == LABEL_GRID
+        and row['recall_5'] is not None and row['precision_5'] is not None
+    ]
+    frontier = [
+        row for row in scored
+        if not any(
+            other['recall_5'] > row['recall_5'] and other['precision_5'] > row['precision_5']
+            for other in scored
+        )
+    ]
+    frontier.sort(key=lambda row: (-row['recall_5'], -row['precision_5'], _param_tuple(row)))
+    return frontier
 
 
 # ---------------------------------------------------------------------------
@@ -411,6 +452,15 @@ def write_sweep_csv(path: Path, rows: list[dict], sort_key: Callable[[dict], tup
         writer = csv.DictWriter(handle, fieldnames=ROW_COLUMNS)
         writer.writeheader()
         for row in ordered:
+            writer.writerow(_serialise_row(row))
+
+
+def write_contact_frontier_csv(path: Path, rows: list[dict]) -> None:
+    """Write ``contact_frontier.csv``: the recall_5/precision_5 Pareto frontier."""
+    with path.open('w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(handle, fieldnames=ROW_COLUMNS)
+        writer.writeheader()
+        for row in contact_frontier(rows):
             writer.writerow(_serialise_row(row))
 
 
@@ -492,7 +542,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
-                        help='writes boundary_sweep.csv, contact_sweep.csv, winner.json')
+                        help='writes boundary_sweep.csv, contact_sweep.csv, contact_frontier.csv, '
+                             'winner.json')
     parser.add_argument('--workers', type=int, default=os.cpu_count() or 1,
                         help='multiprocessing pool size (default: all cores)')
     parser.add_argument('--phase', choices=('both', 'boundary', 'contact'), default='both',
@@ -556,6 +607,7 @@ def main() -> None:
         print(f'\nContact phase: {len(tasks)} configs at the frozen boundary winner')
         contact_rows = run_phase(tasks, ctx, args.workers)
         write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
+        write_contact_frontier_csv(args.out_dir / 'contact_frontier.csv', contact_rows)
         contact_winner_row = select_winner(contact_rows, contact_sort_key)
         contact_defaults_row = _find_defaults_row(contact_rows)
         winner_json['contact'] = _params_of(contact_winner_row)

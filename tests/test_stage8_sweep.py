@@ -31,6 +31,7 @@ from scripts.stage8_sweep import (
     build_boundary_tasks,
     build_contact_grid,
     build_contact_tasks,
+    contact_frontier,
     contact_sort_key,
     flatten_row,
     select_winner,
@@ -156,22 +157,52 @@ def test_select_winner_excludes_shipped_defaults_reference():
     assert select_winner([reference, grid], boundary_sort_key) is grid
 
 
-def test_contact_winner_maximises_f1_then_falls_through_tiebreaks():
-    low = _mk_row(f1_2=0.40)
-    high = _mk_row(f1_2=0.70, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+def test_contact_winner_maximises_recall_then_falls_through_tiebreaks():
+    # Recall-first at +/-5 (Ariel 2026-07-08): higher +/-5 recall wins outright.
+    low = _mk_row(recall_5=0.40)
+    high = _mk_row(recall_5=0.70, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
     assert select_winner([low, high], contact_sort_key) is high
 
-    # +/-2 F1 ties; higher +/-5 F1 wins.
-    worse_5 = _mk_row(f1_2=0.70, f1_5=0.60, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
-    better_5 = _mk_row(f1_2=0.70, f1_5=0.85, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
+    # The flip: higher +/-5 recall beats higher +/-2 F1. Under the old F1-first
+    # rule the low-recall row would have won.
+    high_f1 = _mk_row(recall_5=0.40, f1_2=0.90, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+    high_recall = _mk_row(recall_5=0.70, f1_2=0.50, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
+    assert select_winner([high_f1, high_recall], contact_sort_key) is high_recall
+
+    # +/-5 recall ties; higher +/-5 F1 wins.
+    worse_5 = _mk_row(recall_5=0.70, f1_5=0.60, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+    better_5 = _mk_row(recall_5=0.70, f1_5=0.85, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
     assert select_winner([worse_5, better_5], contact_sort_key) is better_5
 
-    # Both F1s tie; higher unmerged count-gate pass rate wins.
-    worse_gate = _mk_row(f1_2=0.70, f1_5=0.85, count_gate_unmerged_fraction=0.3,
+    # +/-5 recall and F1 tie; higher unmerged count-gate pass rate wins.
+    worse_gate = _mk_row(recall_5=0.70, f1_5=0.85, count_gate_unmerged_fraction=0.3,
                          params=SHIPPED_DEFAULTS._replace(smooth_window=3))
-    better_gate = _mk_row(f1_2=0.70, f1_5=0.85, count_gate_unmerged_fraction=0.9,
+    better_gate = _mk_row(recall_5=0.70, f1_5=0.85, count_gate_unmerged_fraction=0.9,
                           params=SHIPPED_DEFAULTS._replace(smooth_window=7))
     assert select_winner([worse_gate, better_gate], contact_sort_key) is better_gate
+
+
+# ---------------------------------------------------------------------------
+# 2b. Contact Pareto frontier data package
+# ---------------------------------------------------------------------------
+def test_contact_frontier_pareto_extraction():
+    # High recall / low precision and low recall / high precision: neither
+    # dominates the other, so both sit on the frontier.
+    high_recall = _mk_row(recall_5=0.9, precision_5=0.3, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+    high_precision = _mk_row(recall_5=0.4, precision_5=0.9, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
+    # Beaten by high_recall on both axes (0.5<0.9 recall, 0.2<0.3 precision).
+    dominated = _mk_row(recall_5=0.5, precision_5=0.2,
+                        params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=30))
+    # No +/-5 candidates: recall_5 None, off the frontier by definition (skipped).
+    no_candidates = _mk_row(recall_5=None, precision_5=0.99,
+                            params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=90))
+    # Shipped-defaults reference must never appear, even at a perfect (1.0, 1.0).
+    reference = _mk_row(label=LABEL_SHIPPED, recall_5=1.0, precision_5=1.0)
+
+    frontier = contact_frontier([high_recall, high_precision, dominated, no_candidates, reference])
+    # Only the two non-dominated grid configs survive, recall_5 descending.
+    assert [row['recall_5'] for row in frontier] == [0.9, 0.4]
+    assert all(row['label'] == LABEL_GRID for row in frontier)
 
 
 # ---------------------------------------------------------------------------
