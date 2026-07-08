@@ -20,6 +20,15 @@ from pipeline.config import SET_INFO_DIR, RAW_VIDEO_DIR, EXCLUDED_VIDEOS, RESOLU
 
 _VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi'}
 
+# H.264 only: YouTube defaults to AV1-in-mp4, which the HPC nodes' cv2 cannot
+# decode (2026-07-08 pilot finding). avc1 is the H.264 fourcc, not AV1. There
+# is deliberately no unpinned fallback: a video with no H.264 variant fails
+# the download loudly instead of shipping an undecodable file downstream.
+_H264_VIDEO_ONLY = 'bestvideo[vcodec^=avc1][ext=mp4]'  # separate video stream; carries 1080p
+_H264_PREMUXED = 'best[vcodec^=avc1][ext=mp4]'  # video+audio in one file; usually caps at 720p
+# yt-dlp's '/' means "or else": prefer the 1080p-capable stream, else pre-muxed.
+_YTDLP_FORMAT = f'{_H264_VIDEO_ONLY}/{_H264_PREMUXED}'
+
 
 def _check_ytdlp() -> None:
     """Verify yt-dlp is installed before spawning worker threads."""
@@ -57,13 +66,7 @@ def download_video(
         result = subprocess.run(
             [
                 'yt-dlp',
-                # avc1 is the H.264 fourcc (not AV1, despite the name). YouTube
-                # now serves AV1-in-mp4 by default and the HPC nodes' cv2 cannot
-                # decode it (2026-07-08 pilot finding). No unpinned fallback; an
-                # AV1 file is unusable downstream, so fail loudly over a dud.
-                # Reads as: best H.264 video-only stream (carries 1080p), or
-                # else best H.264 pre-muxed stream (usually caps at 720p).
-                '--format', 'bestvideo[vcodec^=avc1][ext=mp4]/best[vcodec^=avc1][ext=mp4]',
+                '--format', _YTDLP_FORMAT,
                 '--output', output_template,
                 '--no-playlist',
                 '--retries', '3',
