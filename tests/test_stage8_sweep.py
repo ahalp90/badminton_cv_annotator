@@ -3,16 +3,24 @@
 Synthetic only, no real track or GT files. Covers the four load-bearing pieces
 plus a micro end-to-end that drives the real ``segment_video`` and scorer:
 
-  1. grid construction counts (324 / 45, and the extra shipped-defaults task)
+  1. grid construction counts (3,000 / 45, and the extra shipped-defaults task)
   2. deterministic winner selection at every tie-break level
   3. module patching actually changes ``segment_video`` behaviour
   4. row flattening survives None metrics (an empty covered set)
   5. plumbing: a tiny track + two configs through patch -> segment -> score -> row
 """
+import csv
+
 import numpy as np
 
 from scripts.stage8_score import GtRally, score_stage8
 from scripts.stage8_sweep import (
+    BOUNDARY_END_REST_FRAMES,
+    BOUNDARY_REST_SPEED,
+    BOUNDARY_REST_WINDOW,
+    BOUNDARY_START_MIN_FRAMES,
+    BOUNDARY_START_SPEED,
+    CROWN_KEY_COLUMN,
     LABEL_GRID,
     LABEL_SHIPPED,
     PARAM_COLUMNS,
@@ -26,7 +34,8 @@ from scripts.stage8_sweep import (
     _patch_stage8,
     _score_config,
     _serialise_row,
-    boundary_sort_key,
+    boundary_sort_key_as_built,
+    build_boundary_crowns,
     build_boundary_grid,
     build_boundary_tasks,
     build_contact_grid,
@@ -34,8 +43,11 @@ from scripts.stage8_sweep import (
     contact_frontier,
     contact_sort_key,
     flatten_row,
+    select_boundary_winner,
+    select_start_alignment_winner,
     select_winner,
     stage8_module,
+    write_crowns_csv,
 )
 
 
@@ -67,8 +79,9 @@ def _mk_row(label: str = LABEL_GRID, params: Stage8Params = SHIPPED_DEFAULTS, **
 # ---------------------------------------------------------------------------
 def test_boundary_grid_count_and_pinned_contacts():
     grid = build_boundary_grid()
-    assert len(grid) == 324
-    assert len(set(grid)) == 324  # every config distinct
+    # Widened grid (Ariel 2026-07-08): 5 x 5 x 6 x 5 x 4 per-param sizes.
+    assert len(grid) == 3000
+    assert len(set(grid)) == 3000  # every config distinct
     # The three contact thresholds are held at shipped defaults across the grid.
     for params in grid:
         assert params.smooth_window == SHIPPED_DEFAULTS.smooth_window
@@ -92,7 +105,7 @@ def test_contact_grid_count_and_frozen_boundary():
 
 def test_task_lists_add_one_shipped_defaults_row():
     boundary_tasks = build_boundary_tasks()
-    assert len(boundary_tasks) == 325  # 324 grid + 1 defaults
+    assert len(boundary_tasks) == 3001  # 3,000 grid + 1 defaults
     assert sum(1 for task in boundary_tasks if task.label == LABEL_SHIPPED) == 1
 
     contact_tasks = build_contact_tasks(SHIPPED_DEFAULTS)
@@ -109,13 +122,13 @@ def test_task_lists_add_one_shipped_defaults_row():
 def test_boundary_winner_maximises_covered_fraction():
     low = _mk_row(covered_fraction=0.5)
     high = _mk_row(covered_fraction=0.8, params=SHIPPED_DEFAULTS._replace(rest_window=9))
-    assert select_winner([low, high], boundary_sort_key) is high
+    assert select_winner([low, high], boundary_sort_key_as_built) is high
 
 
 def test_boundary_winner_tiebreak_split():
     more = _mk_row(covered_fraction=0.8, split=3, params=SHIPPED_DEFAULTS._replace(rest_window=9))
     less = _mk_row(covered_fraction=0.8, split=1, params=SHIPPED_DEFAULTS._replace(rest_window=21))
-    assert select_winner([more, less], boundary_sort_key) is less
+    assert select_winner([more, less], boundary_sort_key_as_built) is less
 
 
 def test_boundary_winner_tiebreak_spurious_then_merged():
@@ -124,21 +137,21 @@ def test_boundary_winner_tiebreak_spurious_then_merged():
                             params=SHIPPED_DEFAULTS._replace(rest_window=9))
     less_spurious = _mk_row(covered_fraction=0.8, spurious_spans=1,
                             params=SHIPPED_DEFAULTS._replace(rest_window=21))
-    assert select_winner([more_spurious, less_spurious], boundary_sort_key) is less_spurious
+    assert select_winner([more_spurious, less_spurious], boundary_sort_key_as_built) is less_spurious
 
     # Covered, split, spurious all tie; fewer merged spans wins.
     more_merged = _mk_row(covered_fraction=0.8, merged_spans=2,
                           params=SHIPPED_DEFAULTS._replace(rest_window=9))
     less_merged = _mk_row(covered_fraction=0.8, merged_spans=0,
                           params=SHIPPED_DEFAULTS._replace(rest_window=21))
-    assert select_winner([more_merged, less_merged], boundary_sort_key) is less_merged
+    assert select_winner([more_merged, less_merged], boundary_sort_key_as_built) is less_merged
 
 
 def test_boundary_winner_tiebreak_closest_to_defaults():
     # All metrics tie; the config that changed fewer params from shipped wins.
     far = _mk_row(covered_fraction=0.8, params=SHIPPED_DEFAULTS._replace(rest_window=9, start_speed=0.05))
     near = _mk_row(covered_fraction=0.8, params=SHIPPED_DEFAULTS._replace(rest_window=9))
-    assert select_winner([far, near], boundary_sort_key) is near
+    assert select_winner([far, near], boundary_sort_key_as_built) is near
 
 
 def test_boundary_winner_param_tuple_is_final_deterministic_tiebreak():
@@ -146,7 +159,7 @@ def test_boundary_winner_param_tuple_is_final_deterministic_tiebreak():
     # settles it, and the choice does not depend on input order.
     a = _mk_row(covered_fraction=0.8, params=SHIPPED_DEFAULTS._replace(rest_speed=0.005))
     b = _mk_row(covered_fraction=0.8, params=SHIPPED_DEFAULTS._replace(rest_window=9))
-    assert select_winner([a, b], boundary_sort_key) is select_winner([b, a], boundary_sort_key)
+    assert select_winner([a, b], boundary_sort_key_as_built) is select_winner([b, a], boundary_sort_key_as_built)
 
 
 def test_select_winner_excludes_shipped_defaults_reference():
@@ -154,7 +167,135 @@ def test_select_winner_excludes_shipped_defaults_reference():
     reference = _mk_row(label=LABEL_SHIPPED, covered_fraction=0.99)
     grid = _mk_row(label=LABEL_GRID, covered_fraction=0.70,
                    params=SHIPPED_DEFAULTS._replace(rest_window=9))
-    assert select_winner([reference, grid], boundary_sort_key) is grid
+    assert select_winner([reference, grid], boundary_sort_key_as_built) is grid
+
+
+# ---------------------------------------------------------------------------
+# 2b. Merge-penalised and start-alignment boundary selection (Ariel 2026-07-08)
+# ---------------------------------------------------------------------------
+def test_select_boundary_winner_prefers_fewer_merges_within_allowance():
+    # Coverage maximum, but bought with glue: 3 merged spans.
+    glued = _mk_row(covered=20, merged_spans=3, params=SHIPPED_DEFAULTS._replace(rest_window=9))
+    # Two covered rallies short of the max (inside the +/-2 allowance), no merges: wins.
+    clean = _mk_row(covered=18, merged_spans=0, params=SHIPPED_DEFAULTS._replace(rest_window=21))
+    # Three short (outside the allowance) and the shipped defaults themselves, so
+    # it would win every tie-break if eligible; the coverage gate is the only
+    # reason it loses.
+    too_low = _mk_row(covered=17, merged_spans=0)
+    assert select_boundary_winner([glued, clean, too_low]) is clean
+
+
+def test_select_start_alignment_winner_uses_abs_median_none_worst():
+    # abs() ranking: a -3 median beats a +5 (tighter magnitude) ...
+    neg3 = _mk_row(covered=20, start_alignment_median=-3.0, params=SHIPPED_DEFAULTS._replace(rest_window=9))
+    pos5 = _mk_row(covered=20, start_alignment_median=5.0, params=SHIPPED_DEFAULTS._replace(rest_window=21))
+    assert select_start_alignment_winner([neg3, pos5]) is neg3
+
+    # ... but loses to a +1 (smaller magnitude still).
+    pos1 = _mk_row(covered=20, start_alignment_median=1.0, params=SHIPPED_DEFAULTS._replace(rest_window=7))
+    assert select_start_alignment_winner([neg3, pos1]) is pos1
+
+    # None median (no covered rally to measure) sorts worst, even against a big
+    # magnitude carrying more merges.
+    none_median = _mk_row(covered=20, start_alignment_median=None, merged_spans=0,
+                          params=SHIPPED_DEFAULTS._replace(rest_window=9))
+    measured = _mk_row(covered=20, start_alignment_median=8.0, merged_spans=5,
+                       params=SHIPPED_DEFAULTS._replace(rest_window=21))
+    assert select_start_alignment_winner([none_median, measured]) is measured
+
+
+# ---------------------------------------------------------------------------
+# 2c. Boundary crowns data package (build + CSV) and contact Pareto frontier
+# ---------------------------------------------------------------------------
+def _crowns_rows() -> list[dict]:
+    """Five grid rows over covered levels 10/9/8/6, each a distinct rest_window.
+
+    Chosen so the three crowns diverge: as_built chases coverage (the cov-10 row
+    with fewest merges), merge_penalised takes the clean cov-9, start_alignment
+    the tight cov-8. rest_window is the per-row fingerprint the assertions read.
+    """
+    glued_max = _mk_row(covered=10, covered_fraction=1.0, merged_spans=3,
+                        start_alignment_median=6.0, params=SHIPPED_DEFAULTS._replace(rest_window=9))
+    clean_max = _mk_row(covered=10, covered_fraction=1.0, merged_spans=1,
+                        start_alignment_median=3.0, params=SHIPPED_DEFAULTS._replace(rest_window=7))
+    clean_high = _mk_row(covered=9, covered_fraction=0.9, merged_spans=0,
+                         start_alignment_median=2.0, params=SHIPPED_DEFAULTS._replace(rest_window=15))
+    aligned_mid = _mk_row(covered=8, covered_fraction=0.8, merged_spans=0, split=1,
+                          start_alignment_median=1.0, params=SHIPPED_DEFAULTS._replace(rest_window=21))
+    low_cov = _mk_row(covered=6, covered_fraction=0.6, merged_spans=0,
+                      start_alignment_median=4.0, params=SHIPPED_DEFAULTS._replace(rest_window=5))
+    return [glued_max, clean_max, clean_high, aligned_mid, low_cov]
+
+
+# (crown_key, winning row's rest_window fingerprint), in the order build emits.
+_EXPECTED_CROWNS = [
+    ('as_built', 7),
+    ('merge_penalised', 15),
+    ('start_alignment_penalised', 21),
+    ('frontier_cov_10', 7),
+    ('frontier_cov_9', 15),
+    ('frontier_cov_8', 21),
+    ('frontier_cov_6', 5),
+]
+
+
+def test_build_boundary_crowns_labels_and_winners():
+    crowns = build_boundary_crowns(_crowns_rows())
+    assert [(crown[CROWN_KEY_COLUMN], crown['rest_window']) for crown in crowns] == _EXPECTED_CROWNS
+
+
+def test_write_crowns_csv_lands_with_crown_key_column(tmp_path):
+    path = tmp_path / 'boundary_crowns.csv'
+    write_crowns_csv(path, _crowns_rows())
+    with path.open(newline='', encoding='utf-8') as handle:
+        reader = csv.DictReader(handle)
+        assert reader.fieldnames is not None and reader.fieldnames[0] == CROWN_KEY_COLUMN
+        assert set(reader.fieldnames) == {CROWN_KEY_COLUMN, *ROW_COLUMNS}
+        read_rows = list(reader)
+    landed = [(row[CROWN_KEY_COLUMN], int(row['rest_window'])) for row in read_rows]
+    assert landed == _EXPECTED_CROWNS
+
+
+def test_contact_frontier_pareto_extraction():
+    # High recall / low precision and low recall / high precision: neither
+    # dominates the other, so both sit on the frontier.
+    high_recall = _mk_row(recall_5=0.9, precision_5=0.3, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
+    high_precision = _mk_row(recall_5=0.4, precision_5=0.9, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
+    # Beaten by high_recall on both axes (0.5<0.9 recall, 0.2<0.3 precision).
+    dominated = _mk_row(recall_5=0.5, precision_5=0.2,
+                        params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=30))
+    # No +/-5 candidates: recall_5 None, off the frontier by definition (skipped).
+    no_candidates = _mk_row(recall_5=None, precision_5=0.99,
+                            params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=90))
+    # Shipped-defaults reference must never appear, even at a perfect (1.0, 1.0).
+    reference = _mk_row(label=LABEL_SHIPPED, recall_5=1.0, precision_5=1.0)
+
+    frontier = contact_frontier([high_recall, high_precision, dominated, no_candidates, reference])
+    # Only the two non-dominated grid configs survive, recall_5 descending.
+    assert [row['recall_5'] for row in frontier] == [0.9, 0.4]
+    assert all(row['label'] == LABEL_GRID for row in frontier)
+
+
+# ---------------------------------------------------------------------------
+# 1b. Widened boundary grid: per-param sizes and the 3,000 product
+# ---------------------------------------------------------------------------
+def test_boundary_grid_param_sizes_and_product():
+    sizes = (
+        len(BOUNDARY_REST_SPEED),
+        len(BOUNDARY_REST_WINDOW),
+        len(BOUNDARY_END_REST_FRAMES),
+        len(BOUNDARY_START_SPEED),
+        len(BOUNDARY_START_MIN_FRAMES),
+    )
+    assert sizes == (5, 5, 6, 5, 4)
+    product = 1
+    for size in sizes:
+        product *= size
+    assert product == 3000
+    # Every param stays ascending after the widening.
+    for values in (BOUNDARY_REST_SPEED, BOUNDARY_REST_WINDOW, BOUNDARY_END_REST_FRAMES,
+                   BOUNDARY_START_SPEED, BOUNDARY_START_MIN_FRAMES):
+        assert list(values) == sorted(values)
 
 
 def test_contact_winner_maximises_recall_then_falls_through_tiebreaks():
@@ -180,29 +321,6 @@ def test_contact_winner_maximises_recall_then_falls_through_tiebreaks():
     better_gate = _mk_row(recall_5=0.70, f1_5=0.85, count_gate_unmerged_fraction=0.9,
                           params=SHIPPED_DEFAULTS._replace(smooth_window=7))
     assert select_winner([worse_gate, better_gate], contact_sort_key) is better_gate
-
-
-# ---------------------------------------------------------------------------
-# 2b. Contact Pareto frontier data package
-# ---------------------------------------------------------------------------
-def test_contact_frontier_pareto_extraction():
-    # High recall / low precision and low recall / high precision: neither
-    # dominates the other, so both sit on the frontier.
-    high_recall = _mk_row(recall_5=0.9, precision_5=0.3, params=SHIPPED_DEFAULTS._replace(smooth_window=3))
-    high_precision = _mk_row(recall_5=0.4, precision_5=0.9, params=SHIPPED_DEFAULTS._replace(smooth_window=7))
-    # Beaten by high_recall on both axes (0.5<0.9 recall, 0.2<0.3 precision).
-    dominated = _mk_row(recall_5=0.5, precision_5=0.2,
-                        params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=30))
-    # No +/-5 candidates: recall_5 None, off the frontier by definition (skipped).
-    no_candidates = _mk_row(recall_5=None, precision_5=0.99,
-                            params=SHIPPED_DEFAULTS._replace(min_dir_change_deg=90))
-    # Shipped-defaults reference must never appear, even at a perfect (1.0, 1.0).
-    reference = _mk_row(label=LABEL_SHIPPED, recall_5=1.0, precision_5=1.0)
-
-    frontier = contact_frontier([high_recall, high_precision, dominated, no_candidates, reference])
-    # Only the two non-dominated grid configs survive, recall_5 descending.
-    assert [row['recall_5'] for row in frontier] == [0.9, 0.4]
-    assert all(row['label'] == LABEL_GRID for row in frontier)
 
 
 # ---------------------------------------------------------------------------

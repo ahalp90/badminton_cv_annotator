@@ -5,16 +5,18 @@ Stage B of the stage-8 sweep plan
 sequential phases over a single cached track, scored against ShuttleSet GT with
 the committed scorer core in ``scripts.stage8_score``:
 
-  1. boundary phase: a 324-config grid over the five rally-boundary thresholds
+  1. boundary phase: a 3,000-config grid over the five rally-boundary thresholds
      (REST_SPEED, REST_WINDOW, END_REST_FRAMES, START_SPEED, START_MIN_FRAMES),
-     contact thresholds pinned at shipped defaults; the winner is frozen.
+     contact thresholds pinned at shipped defaults; the frozen winner is the
+     merge-penalised pick (``select_boundary_winner``), not the as-built sort.
   2. contact phase: a 45-config grid over the three contact thresholds
      (SMOOTH_WINDOW, MIN_DIR_CHANGE_DEG, MIN_CONTACT_SPEED) at the frozen
      boundary winner.
 
-The contact phase also emits a data-package CSV for a pending key ruling by
-Ariel: ``contact_frontier.csv`` (the recall_5 / precision_5 Pareto frontier). It
-feeds a ruling; it does not pick the winner.
+Each phase also emits a data-package CSV for a pending key ruling by Ariel:
+``boundary_crowns.csv`` (the winner under each candidate boundary key plus the
+coverage-vs-merges frontier) and ``contact_frontier.csv`` (the recall_5 /
+precision_5 Pareto frontier). Both feed a ruling; neither picks the winner.
 
 Both phases also run one extra labelled ``shipped_defaults`` config (all eight
 thresholds at their config.py values) so the summary can always contrast against
@@ -140,11 +142,14 @@ def _patch_stage8(params: Stage8Params) -> None:
 # ---------------------------------------------------------------------------
 # Grids (plan section 5; contact grid extended down per the A0 measurement)
 # ---------------------------------------------------------------------------
-BOUNDARY_REST_SPEED = (0.005, 0.01, 0.02)
-BOUNDARY_REST_WINDOW = (9, 15, 21)
-BOUNDARY_END_REST_FRAMES = (20, 30, 45, 60)
-BOUNDARY_START_SPEED = (0.02, 0.03, 0.05)
-BOUNDARY_START_MIN_FRAMES = (2, 3, 5)
+# Boundary grid widened one notch past each fence-post edge (Ariel 2026-07-08):
+# the original 324-config grid clipped the plausible range, so each param gains
+# the value(s) just outside its old span. 5 x 5 x 6 x 5 x 4 = 3,000 configs.
+BOUNDARY_REST_SPEED = (0.002, 0.003, 0.005, 0.01, 0.02)
+BOUNDARY_REST_WINDOW = (5, 7, 9, 15, 21)
+BOUNDARY_END_REST_FRAMES = (20, 30, 45, 60, 75, 90)
+BOUNDARY_START_SPEED = (0.01, 0.015, 0.02, 0.03, 0.05)
+BOUNDARY_START_MIN_FRAMES = (1, 2, 3, 5)
 
 CONTACT_SMOOTH_WINDOW = (3, 5, 7)
 CONTACT_MIN_DIR_CHANGE_DEG = (30, 45, 60, 75, 90)
@@ -152,7 +157,7 @@ CONTACT_MIN_CONTACT_SPEED = (0.005, 0.01, 0.02)
 
 
 def build_boundary_grid() -> list[Stage8Params]:
-    """The 324 boundary configs; contact thresholds pinned at shipped defaults."""
+    """The 3,000 boundary configs; contact thresholds pinned at shipped defaults."""
     grid: list[Stage8Params] = []
     for rest_speed, rest_window, end_rest_frames, start_speed, start_min_frames in product(
         BOUNDARY_REST_SPEED, BOUNDARY_REST_WINDOW, BOUNDARY_END_REST_FRAMES,
@@ -193,7 +198,7 @@ class SweepTask(NamedTuple):
 
 
 def build_boundary_tasks() -> list[SweepTask]:
-    """324 grid tasks plus the labelled shipped-defaults reference (325 total)."""
+    """3,000 grid tasks plus the labelled shipped-defaults reference (3,001 total)."""
     tasks = [SweepTask(LABEL_GRID, params) for params in build_boundary_grid()]
     tasks.append(SweepTask(LABEL_SHIPPED, SHIPPED_DEFAULTS))
     return tasks
@@ -304,12 +309,19 @@ def _param_tuple(row: dict) -> tuple:
     return tuple(row[field] for field in PARAM_COLUMNS)
 
 
-def boundary_sort_key(row: dict) -> tuple:
-    """Boundary sort key; ascending puts the best config first (plan section 5).
+def boundary_sort_key_as_built(row: dict) -> tuple:
+    """The original boundary sort key; now orders ``boundary_sweep.csv`` only.
 
-    Maximise covered_fraction, then fewer split, spurious_spans, merged_spans,
-    then the config closest to the shipped defaults. The trailing param tuple
-    keeps the order total, so the winner is unique whatever the input order.
+    Report-only since Ariel's 2026-07-08 ruling: winner selection moved to
+    ``select_boundary_winner`` (merge-penalised). This key still lays out the
+    sweep CSV best-first, and ``build_boundary_crowns`` uses it for the
+    ``as_built`` crown so a reader can see what coverage-first would have picked.
+
+    Ascending puts the best config first: maximise covered_fraction, then fewer split,
+    spurious_spans, merged_spans, then closest to the shipped defaults. Merges
+    ranking fourth is exactly the problem the ruling fixes: this key buys coverage
+    by gluing rallies together, and a glued span can never pass the count gate.
+    The trailing param tuple keeps the order total.
     """
     covered_fraction = row['covered_fraction']
     covered_fraction = covered_fraction if covered_fraction is not None else -1.0
@@ -321,6 +333,80 @@ def boundary_sort_key(row: dict) -> tuple:
         _changed_from_defaults(row),
         _param_tuple(row),
     )
+
+
+def _merge_penalised_key(row: dict) -> tuple:
+    """Boundary key that penalises merges first (Ariel's 2026-07-08 ruling).
+
+    Don't buy coverage with glue: rank fewest merged_spans first, then split,
+    spurious_spans, closeness to the shipped defaults, then the param tuple for a
+    total order. Coverage is not in the key: it gates eligibility instead (see
+    ``select_boundary_winner``), so a small coverage loss can't be out-shouted by
+    a large one, but merges decide among the configs that clear the gate.
+    """
+    return (
+        row['merged_spans'],
+        row['split'],
+        row['spurious_spans'],
+        _changed_from_defaults(row),
+        _param_tuple(row),
+    )
+
+
+def _start_alignment_key(row: dict) -> tuple:
+    """Boundary key that penalises start-offset magnitude first, then merges.
+
+    Rank smallest abs(start_alignment_median) first (a span that opens tight to
+    the first stroke), then the merge-penalised tail. A None median means no
+    covered rally gave a measurable offset, so it can't be judged on alignment:
+    it sorts worst rather than crashing.
+    """
+    median = row['start_alignment_median']
+    abs_median = abs(median) if median is not None else float('inf')
+    return (
+        abs_median,
+        row['merged_spans'],
+        row['split'],
+        row['spurious_spans'],
+        _changed_from_defaults(row),
+        _param_tuple(row),
+    )
+
+
+def _coverage_eligible(rows: list[dict]) -> list[dict]:
+    """Grid rows whose covered-rally count is within 2 of the best (ref excluded).
+
+    Eligibility is an allowance, not a strict tie: a config a rally or two shy of
+    the coverage maximum still competes, so the merge/alignment keys can prefer it
+    over a higher-coverage config that only got there by gluing rallies. Exactly
+    equal coverage would let those keys decide between far fewer configs.
+    """
+    grid_rows = [row for row in rows if row['label'] == LABEL_GRID]
+    if not grid_rows:
+        raise ValueError('no grid rows to select a boundary winner from')
+    best_covered = max(row['covered'] for row in grid_rows)
+    return [row for row in grid_rows if best_covered - row['covered'] <= 2]
+
+
+def select_boundary_winner(rows: list[dict]) -> dict:
+    """The frozen boundary winner: merge-penalised within the coverage allowance.
+
+    Ariel's 2026-07-08 ruling. Eligible rows are within 2 covered rallies of the
+    best; the winner is the eligible config with fewest merges (``_merge_penalised_key``
+    tail settles the rest). Needs the whole row set for the eligibility window, so
+    it can't reuse the generic keyed ``select_winner`` (the contact phase still does).
+    """
+    return min(_coverage_eligible(rows), key=_merge_penalised_key)
+
+
+def select_start_alignment_winner(rows: list[dict]) -> dict:
+    """Start-alignment-penalised winner, same coverage allowance as the merge pick.
+
+    Candidate boundary key for the ``boundary_crowns.csv`` data package, not a
+    live winner: eligible rows are within 2 covered rallies of the best, then the
+    tightest abs(start_alignment_median) wins (``_start_alignment_key``).
+    """
+    return min(_coverage_eligible(rows), key=_start_alignment_key)
 
 
 def contact_sort_key(row: dict) -> tuple:
@@ -365,8 +451,41 @@ def select_winner(rows: list[dict], sort_key: Callable[[dict], tuple]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Data package for a pending key ruling (the contact Pareto frontier; not a winner)
+# Data packages for pending key rulings (crowns and frontiers; not winners)
 # ---------------------------------------------------------------------------
+CROWN_KEY_COLUMN = 'crown_key'
+CROWN_COLUMNS = [CROWN_KEY_COLUMN] + ROW_COLUMNS
+
+
+def build_boundary_crowns(rows: list[dict]) -> list[dict]:
+    """One row per candidate boundary key, plus the coverage-vs-merges frontier.
+
+    The data package for Ariel's pending boundary-key ruling: it lays the winner
+    under each key side by side so the choice reads off one file. Each returned
+    dict is a full sweep row with a leading ``crown_key`` label.
+
+    Crowns: ``as_built`` (coverage-first, the retired key), ``merge_penalised``
+    (the live pick), ``start_alignment_penalised``. Frontier: for each distinct
+    covered level (descending), the config with fewest merges at that level
+    (merge-penalised tail breaks ties), labelled ``frontier_cov_<covered>``, so a
+    reader sees the merge cost of holding out for each extra covered rally.
+    """
+    crowns: list[dict] = []
+    for crown_key, winner in (
+        ('as_built', select_winner(rows, boundary_sort_key_as_built)),
+        ('merge_penalised', select_boundary_winner(rows)),
+        ('start_alignment_penalised', select_start_alignment_winner(rows)),
+    ):
+        crowns.append({CROWN_KEY_COLUMN: crown_key, **winner})
+
+    grid_rows = [row for row in rows if row['label'] == LABEL_GRID]
+    for covered in sorted({row['covered'] for row in grid_rows}, reverse=True):
+        at_level = [row for row in grid_rows if row['covered'] == covered]
+        winner = min(at_level, key=_merge_penalised_key)
+        crowns.append({CROWN_KEY_COLUMN: f'frontier_cov_{covered}', **winner})
+    return crowns
+
+
 def contact_frontier(rows: list[dict]) -> list[dict]:
     """Grid configs on the (recall_5, precision_5) Pareto frontier, best recall first.
 
@@ -453,6 +572,15 @@ def write_sweep_csv(path: Path, rows: list[dict], sort_key: Callable[[dict], tup
         writer.writeheader()
         for row in ordered:
             writer.writerow(_serialise_row(row))
+
+
+def write_crowns_csv(path: Path, rows: list[dict]) -> None:
+    """Write ``boundary_crowns.csv``: the crown rows with a leading crown_key."""
+    with path.open('w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(handle, fieldnames=CROWN_COLUMNS)
+        writer.writeheader()
+        for crown in build_boundary_crowns(rows):
+            writer.writerow({CROWN_KEY_COLUMN: crown[CROWN_KEY_COLUMN], **_serialise_row(crown)})
 
 
 def write_contact_frontier_csv(path: Path, rows: list[dict]) -> None:
@@ -542,8 +670,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
-                        help='writes boundary_sweep.csv, contact_sweep.csv, contact_frontier.csv, '
-                             'winner.json')
+                        help='writes boundary_sweep.csv, boundary_crowns.csv, contact_sweep.csv, '
+                             'contact_frontier.csv, winner.json')
     parser.add_argument('--workers', type=int, default=os.cpu_count() or 1,
                         help='multiprocessing pool size (default: all cores)')
     parser.add_argument('--phase', choices=('both', 'boundary', 'contact'), default='both',
@@ -586,8 +714,9 @@ def main() -> None:
         tasks = build_boundary_tasks()
         print(f'\nBoundary phase: {len(tasks)} configs')
         boundary_rows = run_phase(tasks, ctx, args.workers)
-        write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key)
-        boundary_winner_row = select_winner(boundary_rows, boundary_sort_key)
+        write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key_as_built)
+        write_crowns_csv(args.out_dir / 'boundary_crowns.csv', boundary_rows)
+        boundary_winner_row = select_boundary_winner(boundary_rows)
         boundary_defaults_row = _find_defaults_row(boundary_rows)
         boundary_winner_params = Stage8Params(**_params_of(boundary_winner_row))
         winner_json['boundary'] = _params_of(boundary_winner_row)
