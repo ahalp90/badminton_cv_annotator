@@ -519,6 +519,21 @@ def main() -> None:
     print(f'Track {args.track_npy} ({len(track)} frames), vid {args.vid}, '
           f'{len(gt_rallies)} GT rallies, {sum(r.n_strokes for r in gt_rallies)} strokes')
 
+    # One loud coverage check before any measurement: a truncated track or a pose
+    # pass over a different cut would otherwise surface as an IndexError (or as
+    # silently shifted numbers) deep inside the measurement loops.
+    last_stroke = max(rally.stroke_frames[-1] for rally in gt_rallies)
+    if last_stroke >= len(track):
+        raise ValueError(
+            f'GT strokes run to frame {last_stroke} but the track holds only '
+            f'{len(track)} frames; the cached track does not cover the annotated video'
+        )
+    if not (len(kps) == len(bboxes) == len(ndet) == len(track)):
+        raise ValueError(
+            f'pose arrays and track disagree on frame count: kps {len(kps)}, '
+            f'bboxes {len(bboxes)}, ndet {len(ndet)}, track {len(track)}'
+        )
+
     # Step 1: reproduce the crowned config or stop.
     spans, contacts, metrics = segment_crowned(track, gt_rallies)
     actuals = reproduction_actuals(spans, contacts, metrics)

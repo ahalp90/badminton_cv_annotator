@@ -246,13 +246,20 @@ def plot_contact_tradeoff(sweep_dir: Path, out_path: Path) -> None:
         ax.annotate(f"{row['min_dir_change_deg']:g}deg", (row["precision_5"], row["recall_5"]),
                     textcoords="offset points", xytext=(6, 6), fontsize=8, color=NAVY)
 
+    # isclose, not ==: the speed column round-trips through CSV as a float. A
+    # missing crown fails loud; this chart is ruling input, so a silently absent
+    # marker is worse than a crash.
     crown = sweep[(sweep["min_dir_change_deg"] == 30) & (sweep["smooth_window"] == 3)
-                  & (sweep["min_contact_speed"] == 0.005)]
-    if not crown.empty:
-        crown_row = crown.iloc[0]
-        ax.scatter(crown_row["precision_5"], crown_row["recall_5"], s=260, color=LAVENDER,
-                   marker="*", edgecolors="black", linewidths=0.8, zorder=5,
-                   label="provisional crown (30deg / smooth 3 / speed 0.005)")
+                  & np.isclose(sweep["min_contact_speed"], 0.005)]
+    if crown.empty:
+        raise ValueError(
+            "provisional crown (30deg / smooth 3 / speed 0.005) not found in "
+            "contact_sweep.csv; update the crown constants here if the ruling has moved"
+        )
+    crown_row = crown.iloc[0]
+    ax.scatter(crown_row["precision_5"], crown_row["recall_5"], s=260, color=LAVENDER,
+               marker="*", edgecolors="black", linewidths=0.8, zorder=5,
+               label="provisional crown (30deg / smooth 3 / speed 0.005)")
 
     ax.set_title("Contact-time detection trade-off: precision vs recall", fontsize=12,
                  fontweight="bold")
