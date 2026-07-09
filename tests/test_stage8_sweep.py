@@ -32,6 +32,7 @@ from scripts.stage8_sweep import (
     SHIPPED_DEFAULTS,
     SWEEP_TOLERANCES,
     ReentryGuardVariant,
+    ServeStartClose,
     ServeStartMode,
     Stage8Params,
     SweepCtx,
@@ -44,6 +45,7 @@ from scripts.stage8_sweep import (
     _gap_passes_reentry_guard,
     _init_worker,
     _is_quiet_before,
+    _last_rest_close,
     _patch_stage8,
     _reentry_velocity_y,
     _score_config,
@@ -603,6 +605,7 @@ def _restore_stage8_smoothing():
     saved_serve_threshold = stage8_sweep._SERVE_START_THRESHOLD
     saved_serve_mode = stage8_sweep._SERVE_START_MODE
     saved_serve_wideshot = stage8_sweep._SERVE_START_WIDESHOT
+    saved_serve_close = stage8_sweep._SERVE_START_CLOSE
     yield
     stage8_module._rolling_mean = saved_rolling
     stage8_module.detect_contacts = saved_detect
@@ -615,6 +618,7 @@ def _restore_stage8_smoothing():
     stage8_sweep._SERVE_START_THRESHOLD = saved_serve_threshold
     stage8_sweep._SERVE_START_MODE = saved_serve_mode
     stage8_sweep._SERVE_START_WIDESHOT = saved_serve_wideshot
+    stage8_sweep._SERVE_START_CLOSE = saved_serve_close
 
 
 def _gap_track() -> tuple[np.ndarray, np.ndarray]:
@@ -1278,3 +1282,149 @@ def test_serve_start_wideshot_installs_and_uninstalls_through_init_worker():
     assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
     assert stage8_sweep._SERVE_START_DIST is None
     assert stage8_sweep._SERVE_START_WIDESHOT is None
+
+
+# ---------------------------------------------------------------------------
+# 13. Serve-start split (--serve-start-split: cut a region at every qualifying burst)
+# ---------------------------------------------------------------------------
+def _three_burst_speed_rest_dist(
+    qualifying_bursts: set[int], rest_runs: tuple[tuple[int, int], ...] = (),
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Length-200 speed with three 5-frame bursts at 10, 80, 150, plus optional rest runs.
+
+    ``qualifying_bursts`` (a subset of {10, 80, 150}) get a small (<= 0.10) distance over their
+    SERVE_START_LOOKBACK lookback so the serve-setup gate passes; every other frame stays NaN so
+    its lookback fails. ``rest_runs`` are ``(start, end)`` at_rest runs the caller keeps shorter
+    than the patched END_REST_FRAMES 40, so no long rest splits the track: it stays one active
+    region [0, 200). The three burst starts sit far enough apart (spacing 70) that their 25-frame
+    lookbacks never overlap a burst.
+    """
+    speed = np.zeros(200)
+    for burst in (10, 80, 150):
+        speed[burst:burst + 5] = 0.05  # > shipped START_SPEED 0.03, >= START_MIN_FRAMES 3
+    at_rest = np.zeros(200, dtype=bool)
+    for start, end in rest_runs:
+        at_rest[start:end] = True
+    dist = np.full(200, np.nan)
+    for burst in qualifying_bursts:
+        dist[max(0, burst - SERVE_START_LOOKBACK_FRAMES):burst] = 0.03  # median passes <= 0.10
+    return speed, at_rest, dist
+
+
+def test_last_rest_close_picks_last_qualifying_run_else_burst():
+    # The cut is the START of the last at_rest run ending at or before the next burst and opening
+    # after this span's open; fall back to the burst when none sits between the two opens.
+    rest_runs = [(5, 8), (30, 40), (55, 60), (90, 100)]
+    # open 10, next 80: (30,40) and (55,60) qualify; the later start (55) wins.
+    assert _last_rest_close(rest_runs, open_frame=10, next_burst=80) == 55
+    # open 45 excludes (30,40) (starts before the open); only (55,60) remains.
+    assert _last_rest_close(rest_runs, open_frame=45, next_burst=80) == 55
+    # open 10, next 25: no run both ends by 25 and opens after 10 -> fall back to the burst.
+    assert _last_rest_close(rest_runs, open_frame=10, next_burst=25) == 25
+    # open 60, next 95: (90,100) ends past the burst -> fall back to the burst.
+    assert _last_rest_close(rest_runs, open_frame=60, next_burst=95) == 95
+
+
+def test_serve_start_split_off_is_single_span_bit_for_bit():
+    # Three qualifying bursts, split off (close defaults to None): the arm opens ONE span at the
+    # first qualifying burst running to region end, exactly the pre-split behaviour. The
+    # diagnostics still see all three qualifying bursts, so split-off changes only the spans.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
+    for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
+        install_serve_start(dist, 0.10, mode)
+        assert stage8_sweep._SERVE_START_CLOSE is None
+        assert serve_start_find_rally_spans(speed, at_rest) == [(10, 200)]
+    assert stage8_sweep._SERVE_START_LAST_DIAGNOSTICS['qualifying_counts'] == [3]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_burst_cuts_at_every_qualifying_burst():
+    # close='burst': each qualifying burst opens a span closing at the next burst; the last runs
+    # to region end. Three qualifying bursts -> three contiguous spans.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 80), (80, 150), (150, 200)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_burst_unions_to_the_single_span():
+    # close='burst' is coverage-identical to the single-span arm by construction: the cut spans
+    # tile the region with no gap, so their union is exactly the split-off span.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT)  # split off
+    single = serve_start_find_rally_spans(speed, at_rest)
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
+    split = serve_start_find_rally_spans(speed, at_rest)
+    assert single == [(10, 200)]
+    assert split[0][0] == single[0][0] and split[-1][1] == single[0][1]
+    assert all(earlier[1] == later[0] for earlier, later in zip(split, split[1:]))  # contiguous
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
+    # Only one rest run, sitting between bursts 80 and 150. Span 0 (open 10) has no rest run to
+    # cut at and falls back to the next burst 80; span 1 (open 80) closes at the rest start 100.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150}, rest_runs=((100, 110),))
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.LAST_REST)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 80), (80, 100), (150, 200)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_last_rest_takes_the_last_of_several_runs():
+    # Two rest runs between bursts 10 and 80: the LATER run's start (55) is the cut, not 30.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80}, rest_runs=((30, 40), (55, 60)))
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.LAST_REST)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 55), (80, 200)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_no_qualify_region_honours_mode():
+    # No burst qualifies (all-NaN dist), split on. TRIM still falls back to the stock first burst;
+    # REJECT still drops the region. Split changes only qualifying regions.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist(set())  # nothing qualifies
+    for close in (ServeStartClose.BURST, ServeStartClose.LAST_REST):
+        install_serve_start(dist, 0.10, ServeStartMode.TRIM, close=close)
+        assert serve_start_find_rally_spans(speed, at_rest) == [(10, 200)]  # stock first burst
+        diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
+        assert diag['n_no_qualify'] == 1 and diag['qualifying_counts'] == [0]
+        install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=close)
+        assert serve_start_find_rally_spans(speed, at_rest) == []
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_diagnostics_carry_counts_and_spacings():
+    # Three qualifying bursts in one region: qualifying_counts [3] and the consecutive spacings
+    # 80-10=70 and 150-80=70 (the double-fire read; small spacings would flag a mid-rally cut).
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
+    serve_start_find_rally_spans(speed, at_rest)
+    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
+    assert diag['qualifying_counts'] == [3]
+    assert diag['qualifying_spacings'] == [70, 70]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_split_installs_and_uninstalls_through_init_worker():
+    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
+    dist = np.full(3, np.nan)
+    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
+                 serve_start_threshold=0.10, serve_start_dist=dist,
+                 serve_start_close=ServeStartClose.LAST_REST)
+    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
+    assert stage8_sweep._SERVE_START_CLOSE is ServeStartClose.LAST_REST
+    # Re-init with serve-start on but split off: the close state clears back to None.
+    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
+                 serve_start_threshold=0.10, serve_start_dist=dist)
+    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
+    assert stage8_sweep._SERVE_START_CLOSE is None
+    # Re-init with the arm off entirely: stock binding returns and the close state stays clear.
+    _init_worker(ctx, nan_smoothing=False)
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+    assert stage8_sweep._SERVE_START_CLOSE is None

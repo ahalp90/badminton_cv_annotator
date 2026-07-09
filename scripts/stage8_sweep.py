@@ -553,6 +553,7 @@ def _init_worker(
     serve_start_threshold: float | None = None,
     serve_start_dist: np.ndarray | None = None,
     serve_start_wideshot: WideshotInputs | None = None,
+    serve_start_close: ServeStartClose | None = None,
 ) -> None:
     """Pool initializer: stash the shared context and install any requested arms in
     THIS process.
@@ -582,6 +583,8 @@ def _init_worker(
         the gate reads (paired with the mode).
     :param serve_start_wideshot: the precomputed wide-shot gate inputs, or None to leave
         the wide-shot refinement off (the default; serve-start behaviour unchanged).
+    :param serve_start_close: the serve-start split placement, or None for the single-span
+        arm (the default; each qualifying region opens one span at its first qualifying burst).
     """
     global _CTX
     _CTX = ctx
@@ -608,7 +611,7 @@ def _init_worker(
         assert serve_start_dist is not None and serve_start_threshold is not None, \
             'serve-start mode needs both a threshold and a distance array'
         install_serve_start(serve_start_dist, serve_start_threshold, serve_start_mode,
-                            serve_start_wideshot)
+                            serve_start_wideshot, serve_start_close)
     else:
         _clear_serve_start_state()
         stage8_module._find_rally_spans = _STOCK_FIND_RALLY_SPANS
@@ -637,6 +640,7 @@ def run_phase(
     serve_start_threshold: float | None = None,
     serve_start_dist: np.ndarray | None = None,
     serve_start_wideshot: WideshotInputs | None = None,
+    serve_start_close: ServeStartClose | None = None,
 ) -> list[dict]:
     """Score every task, serial when workers<=1 else across a pool.
 
@@ -650,7 +654,7 @@ def run_phase(
     initargs = (ctx, nan_smoothing, gap_state_demotion_bound, quiet_start_window,
                 reentry_guard_variant, reentry_guard_buffer,
                 serve_start_mode, serve_start_threshold, serve_start_dist,
-                serve_start_wideshot)
+                serve_start_wideshot, serve_start_close)
     rows: list[dict] = []
     if workers <= 1:
         _init_worker(*initargs)
@@ -1305,6 +1309,20 @@ class ServeStartMode(StrEnum):
     REJECT = 'reject'
 
 
+class ServeStartClose(StrEnum):
+    """Where a split span closes; the --serve-start-split axis (None = single span, off).
+
+    In split mode every serve-setup-qualifying burst opens a span. BURST closes the previous
+    span exactly at the next qualifying burst, so the split spans union back to the single
+    span and coverage is unchanged. LAST_REST closes it at the start of the last rest run
+    before that burst, leaving the between-rally dead tail (where the junk contacts live)
+    outside the span, at the risk of uncovering a rally whose own serve failed the gate.
+    """
+
+    BURST = 'burst'
+    LAST_REST = 'last_rest'
+
+
 class WideshotInputs(NamedTuple):
     """Per-frame wide-shot gate inputs, precomputed once per process.
 
@@ -1325,6 +1343,7 @@ _SERVE_START_DIST: np.ndarray | None = None
 _SERVE_START_THRESHOLD: float | None = None
 _SERVE_START_MODE: ServeStartMode | None = None
 _SERVE_START_WIDESHOT: WideshotInputs | None = None  # None = refinement off (the default)
+_SERVE_START_CLOSE: ServeStartClose | None = None    # None = single span (split off, the default)
 
 # Diagnostics from the LAST serve_start_find_rally_spans call: how many regions had a burst
 # but no qualifying one (fell back under TRIM / dropped under REJECT) and their extents, so
@@ -1514,19 +1533,46 @@ def _wide_shot_before(inputs: WideshotInputs, burst_start: int) -> bool:
     return bool(max(finite_drifts) <= WIDESHOT_DRIFT_MAX)
 
 
+def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
+    """Where a split span closes under close='last_rest'.
+
+    The START of the last at_rest run (any length) that ends at or before the next qualifying
+    burst AND opens after this span's own open, so the dead tail between the previous rally's
+    last action and the next serve falls outside the span (that tail is where the between-rally
+    junk contacts sit). Falls back to next_burst when no rest run sits between the two opens
+    (the span then swallows the tail, same as close='burst').
+
+    :param rest_runs: every ``(start, end)`` at_rest run, ascending (stage8 true_runs order).
+    :param open_frame: this span's opening (qualifying) burst frame.
+    :param next_burst: the next qualifying burst frame (where close='burst' would cut).
+    :return: the close frame (half-open span end).
+    """
+    rest_starts = [rest_start for rest_start, rest_end in rest_runs
+                   if rest_end <= next_burst and rest_start > open_frame]
+    return rest_starts[-1] if rest_starts else next_burst  # ascending, so [-1] is the last run
+
+
 def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int, int]]:
     """Span-start rule that opens only at a serve-setup-preceded burst; the --serve-start _find_rally_spans.
 
-    Same region / long-rest / fast-run structure as stock. The change: a rally opens at the
-    FIRST fast burst in its active region whose lookback passes the serve-setup gate
+    Same region / long-rest / fast-run structure as stock. The change: a rally opens at a
+    fast burst in its active region whose lookback passes the serve-setup gate
     (_serve_setup_before) rather than the first burst outright. With the optional wide-shot
     refinement installed, the same burst's lookback must ALSO pass the wide-shot gate
     (_wide_shot_before). A region with no qualifying burst is handled by the mode: TRIM
     falls back to the first burst (span survives at the stock start), REJECT produces no
-    span (the region is dropped). threshold, mode, the distance array and the optional
-    wide-shot inputs come from the per-process state set at install.
+    span (the region is dropped).
 
-    Records per-call diagnostics (regions that fell back / were dropped and their extents) on
+    The close-placement state controls what a QUALIFYING region does. Off (None): open one
+    span at the FIRST qualifying burst, running to region end (the pre-split behaviour, kept
+    bit-for-bit). Split (BURST / LAST_REST): open a span at EVERY qualifying burst, each
+    closing where the next one opens (_last_rest_close places the cut), the last running to
+    region end, so a weld of two rallies gets cut at the second serve. threshold, mode, the
+    distance array, the optional wide-shot inputs and the close placement all come from the
+    per-process state set at install.
+
+    Records per-call diagnostics (regions that fell back / were dropped, plus the per-region
+    qualifying-burst counts and consecutive-burst spacings for the double-fire read) on
     _SERVE_START_LAST_DIAGNOSTICS for the measurement runner; see its note above.
 
     :param speed: (t,) per-frame speed (NaN on non-visible steps).
@@ -1537,6 +1583,7 @@ def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list
     threshold = _SERVE_START_THRESHOLD
     mode = _SERVE_START_MODE
     wideshot = _SERVE_START_WIDESHOT
+    close = _SERVE_START_CLOSE
     assert dist is not None and threshold is not None and mode is not None, \
         'serve-start arm ran without state; install_serve_start first'
 
@@ -1548,8 +1595,9 @@ def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list
 
     fast = np.nan_to_num(speed, nan=0.0) > stage8_module.START_SPEED  # (t,) NaN steps are not fast
 
+    rest_runs = stage8_module.true_runs(at_rest)  # every rest run, any length; close='last_rest' reads these
     long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
-    for start, end in stage8_module.true_runs(at_rest):
+    for start, end in rest_runs:
         if end - start >= stage8_module.END_REST_FRAMES:
             long_rest[start:end] = True
 
@@ -1561,19 +1609,45 @@ def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list
     spans: list[tuple[int, int]] = []
     no_qualify_regions: list[tuple[int, int]] = []
     n_regions_with_burst = 0
+    # Per-region qualifying-burst counts (spans per region under split) and the frames between
+    # consecutive qualifying bursts (the double-fire read: a small spacing means a second serve
+    # signature fired just after a span opened, cutting one rally in two). Diagnosed, not suppressed.
+    qualifying_counts: list[int] = []
+    qualifying_spacings: list[int] = []
     for region_start, region_end in stage8_module.true_runs(~long_rest):
         bursts = [start for start, _ in fast_runs if region_start <= start < region_end]
         if not bursts:
             continue  # no burst at all: stock forms no span here either, not a serve-start drop
         n_regions_with_burst += 1
-        qualifying = next((start for start in bursts if qualifies(start)), None)
-        if qualifying is not None:
-            spans.append((int(qualifying), int(region_end)))
-        elif mode is ServeStartMode.TRIM:
-            spans.append((int(bursts[0]), int(region_end)))  # fall back to the stock first burst
+        # Gate every burst, not just up to the first: the split modes open a span at each, and
+        # the double-fire diagnostics need the whole per-region qualifying picture regardless.
+        qualifying = [start for start in bursts if qualifies(start)]
+        qualifying_counts.append(len(qualifying))
+        qualifying_spacings.extend(int(later - earlier)
+                                   for earlier, later in zip(qualifying, qualifying[1:]))
+
+        if not qualifying:
+            # No qualifying burst: the mode owns the region, split-agnostic. TRIM keeps the span
+            # at the stock first burst; REJECT drops it. Both record the region as no-qualify.
+            if mode is ServeStartMode.TRIM:
+                spans.append((int(bursts[0]), int(region_end)))
             no_qualify_regions.append((int(region_start), int(region_end)))
-        else:  # REJECT: drop the region
-            no_qualify_regions.append((int(region_start), int(region_end)))
+        elif close is None:
+            # Split off: one span at the first qualifying burst, running to region end. This is
+            # bit-for-bit the pre-split behaviour (the reproduction pin rides on it).
+            spans.append((int(qualifying[0]), int(region_end)))
+        else:
+            # Split on: every qualifying burst opens a span, closing where the next one opens
+            # (close='burst') or at the last rest run before it (close='last_rest'); the last
+            # span runs to region end. Under close='burst' the spans union to the single span.
+            for idx, open_frame in enumerate(qualifying):
+                if idx + 1 < len(qualifying):
+                    next_burst = qualifying[idx + 1]
+                    close_frame = (next_burst if close is ServeStartClose.BURST
+                                   else _last_rest_close(rest_runs, open_frame, next_burst))
+                else:
+                    close_frame = region_end
+                spans.append((int(open_frame), int(close_frame)))
 
     global _SERVE_START_LAST_DIAGNOSTICS
     _SERVE_START_LAST_DIAGNOSTICS = {
@@ -1581,6 +1655,8 @@ def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list
         'n_qualified': n_regions_with_burst - len(no_qualify_regions),
         'n_no_qualify': len(no_qualify_regions),
         'no_qualify_regions': no_qualify_regions,
+        'qualifying_counts': qualifying_counts,
+        'qualifying_spacings': qualifying_spacings,
     }
     return spans
 
@@ -1588,23 +1664,28 @@ def serve_start_find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list
 def install_serve_start(
     dist: np.ndarray, threshold: float, mode: ServeStartMode,
     wideshot: WideshotInputs | None = None,
+    close: ServeStartClose | None = None,
 ) -> None:
     """Swap stage-8's _find_rally_spans for the serve-start variant, in this process.
 
     Sets the per-process distance array, threshold and mode the variant reads, then rebinds
     stage8_module._find_rally_spans. ``wideshot`` is the optional wide-shot refinement:
     None (the default) leaves the arm's behaviour untouched; a WideshotInputs makes every
-    qualifying burst also pass the wide-shot gate. segment_video resolves the binding through
-    the module dict at call time, so the swap takes hold without touching committed code.
+    qualifying burst also pass the wide-shot gate. ``close`` is the split placement: None
+    (the default) opens one span per region at the first qualifying burst; BURST / LAST_REST
+    cut the region at every qualifying burst. segment_video resolves the binding through the
+    module dict at call time, so the swap takes hold without touching committed code.
     Re-callable, same as install_quiet_start; serve-start and quiet-start both own
     _find_rally_spans, so only one may be installed at a time (the CLI and _init_worker
     enforce this).
     """
     global _SERVE_START_DIST, _SERVE_START_THRESHOLD, _SERVE_START_MODE, _SERVE_START_WIDESHOT
+    global _SERVE_START_CLOSE
     _SERVE_START_DIST = dist
     _SERVE_START_THRESHOLD = threshold
     _SERVE_START_MODE = mode
     _SERVE_START_WIDESHOT = wideshot
+    _SERVE_START_CLOSE = close
     stage8_module._find_rally_spans = serve_start_find_rally_spans
 
 
@@ -1616,10 +1697,12 @@ def _clear_serve_start_state() -> None:
     the binding.
     """
     global _SERVE_START_DIST, _SERVE_START_THRESHOLD, _SERVE_START_MODE, _SERVE_START_WIDESHOT
+    global _SERVE_START_CLOSE
     _SERVE_START_DIST = None
     _SERVE_START_THRESHOLD = None
     _SERVE_START_MODE = None
     _SERVE_START_WIDESHOT = None
+    _SERVE_START_CLOSE = None
 
 
 # ---------------------------------------------------------------------------
@@ -1686,6 +1769,13 @@ def _build_parser() -> argparse.ArgumentParser:
                              'if its lookback ALSO reads as the serve wide shot (median court-scale '
                              'detection count >= 2, both court halves occupied, per-half foot drift '
                              '<= 0.05). Needs --serve-start')
+    parser.add_argument('--serve-start-split', choices=tuple(ServeStartClose), default=None, metavar='CLOSE',
+                        help='optional serve-start refinement (off by default): cut each active region '
+                             'at EVERY serve-setup-qualifying burst instead of opening one span at the '
+                             'first. CLOSE is "burst" (the previous span closes at the next qualifying '
+                             'burst, so coverage matches the single-span arm) or "last_rest" (it closes '
+                             'at the start of the last rest run before that burst, dropping the '
+                             'between-rally dead tail). Needs --serve-start')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -1724,7 +1814,10 @@ def main() -> None:
         parser.error('--serve-start needs --serve-start-pose-dir to precompute the gate distance array')
     if args.serve_start_wideshot and args.serve_start is None:
         parser.error('--serve-start-wideshot refines the serve-start arm; pass --serve-start too')
+    if args.serve_start_split is not None and args.serve_start is None:
+        parser.error('--serve-start-split refines the serve-start arm; pass --serve-start too')
     serve_start_mode = ServeStartMode(args.serve_start) if args.serve_start is not None else None
+    serve_start_close = ServeStartClose(args.serve_start_split) if args.serve_start_split is not None else None
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1763,6 +1856,9 @@ def main() -> None:
             serve_start_wideshot = build_serve_start_wideshot_inputs(bboxes, scores)
             print('Wide-shot refinement on: qualifying bursts also need count_med >= '
                   f'{WIDESHOT_COUNT_MED_MIN}, both halves occupied, drift <= {WIDESHOT_DRIFT_MAX}')
+        if serve_start_close is not None:
+            print(f'Serve-start split on: close at {serve_start_close.value} '
+                  f'(each qualifying burst opens a span)')
 
     shots_master = pd.read_csv(args.shots_master)
     gt_rallies = load_gt_rallies(shots_master, args.vid)
@@ -1783,7 +1879,7 @@ def main() -> None:
                                   args.gap_state, args.quiet_start,
                                   reentry_variant, args.reentry_buffer,
                                   serve_start_mode, args.serve_start_threshold, serve_start_dist,
-                                  serve_start_wideshot)
+                                  serve_start_wideshot, serve_start_close)
         write_sweep_csv(args.out_dir / 'boundary_sweep.csv', boundary_rows, boundary_sort_key_as_built)
         write_crowns_csv(args.out_dir / 'boundary_crowns.csv', boundary_rows)
         boundary_winner_row = select_boundary_winner(boundary_rows)
@@ -1808,7 +1904,7 @@ def main() -> None:
                                  args.gap_state, args.quiet_start,
                                  reentry_variant, args.reentry_buffer,
                                  serve_start_mode, args.serve_start_threshold, serve_start_dist,
-                                 serve_start_wideshot)
+                                 serve_start_wideshot, serve_start_close)
         write_sweep_csv(args.out_dir / 'contact_sweep.csv', contact_rows, contact_sort_key)
         write_contact_frontier_csv(args.out_dir / 'contact_frontier.csv', contact_rows)
         contact_winner_row = select_winner(contact_rows, contact_sort_key)
