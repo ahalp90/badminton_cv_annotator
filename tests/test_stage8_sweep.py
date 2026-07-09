@@ -28,12 +28,15 @@ from scripts.stage8_sweep import (
     PARAM_COLUMNS,
     RAW_PRECISION_COLUMNS,
     ROW_COLUMNS,
+    SERVE_START_LOOKBACK_FRAMES,
     SHIPPED_DEFAULTS,
     SWEEP_TOLERANCES,
     ReentryGuardVariant,
+    ServeStartMode,
     Stage8Params,
     SweepCtx,
     SweepTask,
+    WideshotInputs,
     _STOCK_FIND_RALLY_SPANS,
     _STOCK_REST_MASK,
     _gap_holds_open,
@@ -45,6 +48,8 @@ from scripts.stage8_sweep import (
     _reentry_velocity_y,
     _score_config,
     _serialise_row,
+    _serve_setup_before,
+    _wide_shot_before,
     apply_replay_mask,
     boundary_sort_key_as_built,
     build_boundary_crowns,
@@ -52,6 +57,7 @@ from scripts.stage8_sweep import (
     build_boundary_tasks,
     build_contact_grid,
     build_contact_tasks,
+    build_serve_start_wideshot_inputs,
     contact_frontier,
     contact_sort_key,
     flatten_row,
@@ -59,12 +65,14 @@ from scripts.stage8_sweep import (
     install_gap_state,
     install_nan_smoothing,
     install_quiet_start,
+    install_serve_start,
     nan_rolling_mean,
     nan_smoothing_detect_contacts,
     quiet_start_find_rally_spans,
     select_boundary_winner,
     select_start_alignment_winner,
     select_winner,
+    serve_start_find_rally_spans,
     stage8_module,
     write_crowns_csv,
 )
@@ -586,11 +594,15 @@ def _restore_stage8_smoothing():
     saved_detect = stage8_module.detect_contacts
     saved_rest_mask = stage8_module._rest_mask
     saved_find_spans = stage8_module._find_rally_spans
-    # The gap-state / guard per-process state lives on the sweep module, not
-    # stage8_module, so snapshot it too or a guard test leaks its buffer/variant.
+    # The gap-state / guard and serve-start per-process state live on the sweep module,
+    # not stage8_module, so snapshot them too or a test leaks its buffer/variant/threshold.
     saved_demotion = stage8_sweep._GAP_STATE_DEMOTION_BOUND
     saved_guard_variant = stage8_sweep._REENTRY_GUARD_VARIANT
     saved_guard_buffer = stage8_sweep._REENTRY_GUARD_BUFFER
+    saved_serve_dist = stage8_sweep._SERVE_START_DIST
+    saved_serve_threshold = stage8_sweep._SERVE_START_THRESHOLD
+    saved_serve_mode = stage8_sweep._SERVE_START_MODE
+    saved_serve_wideshot = stage8_sweep._SERVE_START_WIDESHOT
     yield
     stage8_module._rolling_mean = saved_rolling
     stage8_module.detect_contacts = saved_detect
@@ -599,6 +611,10 @@ def _restore_stage8_smoothing():
     stage8_sweep._GAP_STATE_DEMOTION_BOUND = saved_demotion
     stage8_sweep._REENTRY_GUARD_VARIANT = saved_guard_variant
     stage8_sweep._REENTRY_GUARD_BUFFER = saved_guard_buffer
+    stage8_sweep._SERVE_START_DIST = saved_serve_dist
+    stage8_sweep._SERVE_START_THRESHOLD = saved_serve_threshold
+    stage8_sweep._SERVE_START_MODE = saved_serve_mode
+    stage8_sweep._SERVE_START_WIDESHOT = saved_serve_wideshot
 
 
 def _gap_track() -> tuple[np.ndarray, np.ndarray]:
@@ -1016,3 +1032,249 @@ def test_is_quiet_before_fraction_and_truncation():
     assert _is_quiet_before(at_rest, burst_start=10, window=10)
     # A burst at frame 0 has an empty window: cannot be confirmed quiet.
     assert not _is_quiet_before(at_rest, burst_start=0, window=5)
+
+
+# ---------------------------------------------------------------------------
+# 11. Serve-start arm (Change 5: --serve-start _find_rally_spans patch)
+# ---------------------------------------------------------------------------
+def _serve_start_speed_rest_dist(qualifying_bursts: set[int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Length-120 speed with two 5-frame bursts at 10 and 60, no rest, and a gate dist array.
+
+    ``qualifying_bursts`` is the subset of burst starts (of {10, 60}) whose SERVE_START_LOOKBACK
+    lookback is made to pass the serve-setup gate: those lookback frames get a small (<= 0.10)
+    distance; every other frame stays NaN so its lookback fails. END_REST_FRAMES is patched to 40
+    by the caller and no rest run reaches it, so the whole track is one active region [0, 120).
+    """
+    speed = np.zeros(120)
+    speed[10:15] = 0.05  # > shipped START_SPEED 0.03, >= START_MIN_FRAMES 3
+    speed[60:65] = 0.05
+    at_rest = np.zeros(120, dtype=bool)
+    dist = np.full(120, np.nan)
+    for burst in qualifying_bursts:
+        dist[max(0, burst - SERVE_START_LOOKBACK_FRAMES):burst] = 0.03  # small -> median passes <= 0.10
+    return speed, at_rest, dist
+
+
+def test_serve_setup_before_gate_pass_fail_nan():
+    dist = np.full(80, np.nan)
+    dist[35:60] = 0.03  # small distances over the 25-frame lookback before burst 60
+    # Median 0.03 <= 0.10: passes.
+    assert _serve_setup_before(dist, burst_start=60, threshold=0.10)
+    # Same lookback, tighter threshold 0.02: 0.03 > 0.02, fails.
+    assert not _serve_setup_before(dist, burst_start=60, threshold=0.02)
+    # A finite but far lookback (median above threshold) fails.
+    far = np.full(80, np.nan)
+    far[35:60] = 0.5
+    assert not _serve_setup_before(far, burst_start=60, threshold=0.10)
+    # An all-NaN lookback (no visible-shuttle court-scale frame in that second) fails.
+    assert not _serve_setup_before(dist, burst_start=20, threshold=0.10)
+
+
+def test_serve_start_opens_at_first_qualifying_burst():
+    # Burst 10's lookback is NaN (fails); burst 60's is small (passes). Both modes open the
+    # span at 60, same region end, so coverage of the late strokes holds.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _serve_start_speed_rest_dist({60})
+    assert _STOCK_FIND_RALLY_SPANS(speed, at_rest) == [(10, 120)]  # stock opens at the first burst
+    for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
+        install_serve_start(dist, 0.10, mode)
+        assert serve_start_find_rally_spans(speed, at_rest) == [(60, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_trim_falls_back_when_no_qualifying_burst():
+    # No burst's lookback qualifies. TRIM falls back to the first burst (the stock start), so
+    # the span survives; the region is recorded as fell-back.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _serve_start_speed_rest_dist(set())  # all-NaN dist: nothing qualifies
+    install_serve_start(dist, 0.10, ServeStartMode.TRIM)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]  # stock first burst
+    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
+    assert diag['n_no_qualify'] == 1 and diag['n_qualified'] == 0
+    assert diag['no_qualify_regions'] == [(0, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_reject_drops_region_when_no_qualifying_burst():
+    # Same no-qualify region under REJECT: no span at all (the region is dropped).
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _serve_start_speed_rest_dist(set())
+    install_serve_start(dist, 0.10, ServeStartMode.REJECT)
+    assert serve_start_find_rally_spans(speed, at_rest) == []
+    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
+    assert diag['n_no_qualify'] == 1 and diag['no_qualify_regions'] == [(0, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_flag_off_leaves_stock_find_spans():
+    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False)
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+
+
+def test_serve_start_installs_and_uninstalls_through_init_worker():
+    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
+    dist = np.full(3, np.nan)
+    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
+                 serve_start_threshold=0.10, serve_start_dist=dist)
+    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
+    assert stage8_sweep._SERVE_START_MODE is ServeStartMode.REJECT
+    assert stage8_sweep._SERVE_START_THRESHOLD == 0.10
+    assert stage8_sweep._SERVE_START_DIST is dist
+    # Re-init with the arm off: the stock binding must return.
+    _init_worker(ctx, nan_smoothing=False)
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+
+
+def test_serve_start_absent_is_exact_stock():
+    # Bit-for-bit pin: install the arm, then turn it off, and segment_video is the stock
+    # segmentation again. The arm changes _find_rally_spans and nothing else.
+    _patch_stage8(SHIPPED_DEFAULTS)
+    track, _gt = _rally_track_and_gt()  # all visible, forms one span under shipped
+    speed = stage8_module.compute_speed(track)
+    stock_mask = _STOCK_REST_MASK(speed, track)
+    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, stock_mask)
+    assert stock_spans  # the track really does form a span, so the equality below bites
+    install_serve_start(np.full(len(track), np.nan), 0.10, ServeStartMode.TRIM)
+    _init_worker(SweepCtx(track=track, gt_rallies=[]), nan_smoothing=False)  # arm off
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+    assert stage8_module.segment_video(track)[0] == stock_spans
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+# ---------------------------------------------------------------------------
+# 12. Serve-start wide-shot refinement (--serve-start-wideshot)
+# ---------------------------------------------------------------------------
+# Synthetic court-scale boxes under the PILOT_* constants (court x [635, 1316],
+# foot y [254, 1030], height [84, 336], mid-line 642): one player per half, static.
+TOP_BOX = (900.0, 500.0, 150.0)  # (foot_x, foot_y, height) px; foot y 500 < 642 -> top half
+BOT_BOX = (1000.0, 900.0, 250.0)  # foot y 900 >= 642 -> bottom half
+
+
+def _mk_wideshot_inputs(frame_boxes: list[list[tuple[float, float, float]]]) -> WideshotInputs:
+    """WideshotInputs from per-frame (foot_x, foot_y, height) pixel boxes.
+
+    Boxes become xyxy with a fixed 60 px width; scores descend with list order so the
+    first box of a half is its highest-score pick. Empty frames stay all-NaN, the raw
+    pose padding convention build_serve_start_wideshot_inputs expects.
+    """
+    n_frames = len(frame_boxes)
+    bboxes = np.full((n_frames, 16, 4), np.nan)
+    scores = np.full((n_frames, 16), np.nan)
+    for frame, boxes in enumerate(frame_boxes):
+        for slot, (foot_x, foot_y, height) in enumerate(boxes):
+            bboxes[frame, slot] = (foot_x - 30.0, foot_y - height, foot_x + 30.0, foot_y)
+            scores[frame, slot] = 0.9 - 0.1 * slot
+    return build_serve_start_wideshot_inputs(bboxes, scores)
+
+
+def test_wide_shot_gate_passes_on_static_two_player_lookback():
+    # 25 frames, one static court-scale player per half: count_med 2, both halves
+    # occupied, drift 0. The canonical serve wide shot.
+    inputs = _mk_wideshot_inputs([[TOP_BOX, BOT_BOX]] * 25)
+    assert _wide_shot_before(inputs, burst_start=25)
+
+
+def test_wide_shot_gate_count_fail():
+    # Each half occupied for 13 of 25 frames (>= the 12.5 present floor) but only frame 12
+    # has both at once: count median 1 < 2. Isolates the count condition; presence and
+    # drift both pass.
+    frames = [[TOP_BOX] for _ in range(25)]
+    for frame in range(12, 25):
+        frames[frame] = [BOT_BOX]
+    frames[12] = [TOP_BOX, BOT_BOX]
+    inputs = _mk_wideshot_inputs(frames)
+    assert not _wide_shot_before(inputs, burst_start=25)
+
+
+def test_wide_shot_gate_slot_fail():
+    # Two static court-scale players, both in the TOP half: count_med 2 passes but the
+    # bottom half is never occupied.
+    second_top = (800.0, 550.0, 160.0)
+    inputs = _mk_wideshot_inputs([[TOP_BOX, second_top]] * 25)
+    assert not _wide_shot_before(inputs, burst_start=25)
+
+
+def test_wide_shot_gate_drift_fail():
+    # Both halves occupied every frame, but the bottom player walks 10 px/frame: the
+    # head/tail foot means sit 150 px apart (0.078 image-fraction > 0.05). Count and
+    # presence pass; the drift condition binds.
+    frames = [
+        [TOP_BOX, (1000.0 + 10.0 * frame, 900.0, 250.0)] for frame in range(25)
+    ]
+    inputs = _mk_wideshot_inputs(frames)
+    assert not _wide_shot_before(inputs, burst_start=25)
+
+
+def test_wide_shot_gate_short_series_drift_abstains():
+    # Ten present feet fill exactly one drift window, so head and tail would fully
+    # overlap and read 0.0 even though the bottom player sprints 15 px/frame. The
+    # short series must abstain to NaN and the gate fail closed. Presence still passes
+    # (10 of 10 frames >= the 5-frame floor of this truncated lookback); drift decides.
+    frames = [
+        [TOP_BOX, (1000.0 + 15.0 * frame, 900.0, 250.0)] for frame in range(10)
+    ]
+    inputs = _mk_wideshot_inputs(frames)
+    assert not _wide_shot_before(inputs, burst_start=10)
+
+
+def test_wide_shot_gate_empty_or_truncated_lookback_fails():
+    # No detections at all in the lookback: count 0, no halves. And burst_start 0 has no
+    # lookback frames at all. Both read as not-wide-shot rather than crash.
+    inputs = _mk_wideshot_inputs([[] for _ in range(25)])
+    assert not _wide_shot_before(inputs, burst_start=25)
+    assert not _wide_shot_before(inputs, burst_start=0)
+
+
+def test_serve_start_wideshot_requires_both_gates():
+    # Bursts at 10 and 60 BOTH pass the distance gate; only burst 60's lookback holds the
+    # wide shot. With the refinement on, the span opens at 60; off, at 10 (the prior
+    # serve-start pick). The refinement is a strict AND on top of the distance gate.
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _serve_start_speed_rest_dist({10, 60})
+    frames: list[list[tuple[float, float, float]]] = [[] for _ in range(120)]
+    for frame in range(35, 60):  # burst 60's 25-frame lookback
+        frames[frame] = [TOP_BOX, BOT_BOX]
+    inputs = _mk_wideshot_inputs(frames)
+    install_serve_start(dist, 0.10, ServeStartMode.TRIM, wideshot=inputs)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(60, 120)]
+    install_serve_start(dist, 0.10, ServeStartMode.TRIM)  # refinement off
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_wideshot_off_is_prior_behaviour_bit_for_bit():
+    # With wideshot left at the default None the arm must reproduce the pre-refinement
+    # spans exactly, even straight after a wideshot install (install resets the state).
+    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
+    speed, at_rest, dist = _serve_start_speed_rest_dist({60})
+    failing_everywhere = _mk_wideshot_inputs([[] for _ in range(120)])
+    install_serve_start(dist, 0.10, ServeStartMode.TRIM, wideshot=failing_everywhere)
+    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]  # gate vetoes 60
+    for mode, expected in ((ServeStartMode.TRIM, [(60, 120)]),
+                           (ServeStartMode.REJECT, [(60, 120)])):
+        install_serve_start(dist, 0.10, mode)
+        assert stage8_sweep._SERVE_START_WIDESHOT is None
+        assert serve_start_find_rally_spans(speed, at_rest) == expected  # the pinned prior picks
+    _patch_stage8(SHIPPED_DEFAULTS)
+
+
+def test_serve_start_wideshot_installs_and_uninstalls_through_init_worker():
+    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
+    dist = np.full(3, np.nan)
+    inputs = _mk_wideshot_inputs([[] for _ in range(3)])
+    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
+                 serve_start_threshold=0.10, serve_start_dist=dist,
+                 serve_start_wideshot=inputs)
+    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
+    assert stage8_sweep._SERVE_START_WIDESHOT is inputs
+    # Re-init with serve-start on but the refinement off: the wideshot state must clear.
+    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
+                 serve_start_threshold=0.10, serve_start_dist=dist)
+    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
+    assert stage8_sweep._SERVE_START_WIDESHOT is None
+    # Re-init with the arm off entirely: stock binding returns AND the per-process
+    # arrays drop, so an off-arm worker holds no stale distance/wideshot copy.
+    _init_worker(ctx, nan_smoothing=False)
+    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
+    assert stage8_sweep._SERVE_START_DIST is None
+    assert stage8_sweep._SERVE_START_WIDESHOT is None
