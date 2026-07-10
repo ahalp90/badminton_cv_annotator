@@ -230,8 +230,26 @@ class ServeStartOptions(NamedTuple):
     committed measurement convention: the arrays are built before any replay mask
     is applied, and serve-start was only ever measured with masking off).
 
+    The serve-setup gate has two forms, chosen by whether `height` is supplied:
+      - `height=None` (the default): `threshold` is a raw image-fraction and the gate passes a
+        burst when the median lookback distance is `<= threshold`. Bit-for-bit today's gate.
+      - `height` supplied: `threshold` is a MULTIPLE of the nearest player's body height, and the
+        gate passes when the median lookback distance divided by the mean lookback bbox height is
+        `<= threshold`. Expressing the same rule in body-height units makes its DEFINITION robust
+        to camera framing, which a raw image-fraction is not: the same serve setup reads a median
+        0.031 image-fraction on the pilot but 0.117 on vid-15 (a different zoom), so a fixed
+        image-fraction does not travel between videos.
+
+    Off by default: leave `height` None and nothing changes. The body-height form still needs a
+    per-video number (the portable part is the definition, not one shared constant): reading the
+    pilot box-height sweep, a threshold of ~0.75 body heights keeps 105/113 pilot serves, the
+    closest swept row to the raw 0.10 gate's 103/113 keep (the 0.70 row's 101/113 ties it from
+    below). Vid-15 needs its own value: there its serve-setup and dead-time populations overlap
+    in body-height units, so no single constant separates them on both videos.
+
     :param dist: `(t,)` nearest court-scale player bbox-centre distance (build_serve_start_dist).
-    :param threshold: serve-setup gate distance, image-fraction.
+    :param threshold: serve-setup gate distance; a raw image-fraction when `height` is None, else a
+        multiple of body height (see the class docstring).
     :param mode: fallback for a region with no qualifying burst (TRIM / REJECT).
     :param wideshot: optional wide-shot refinement inputs; None leaves it off (the default).
     :param close: optional split placement; None opens one span per region (the default).
@@ -239,6 +257,9 @@ class ServeStartOptions(NamedTuple):
         place with the per-call region counts / spacings (single writer, valid to read straight
         after the call IN THE SAME PROCESS: the in-place fill does not cross a multiprocessing
         worker boundary, so the pooled sweep runner leaves it None). None (the default) collects nothing.
+    :param height: optional `(t,)` nearest-player bbox height, image-fraction
+        (build_serve_start_box_height), sharing dist's finite frames. None (the default) keeps the
+        raw-fraction gate; supplying it switches the gate to the body-height form above.
     """
 
     dist: np.ndarray
@@ -247,6 +268,7 @@ class ServeStartOptions(NamedTuple):
     wideshot: WideshotInputs | None = None
     close: ServeStartClose | None = None
     diagnostics: dict | None = None
+    height: np.ndarray | None = None
 
 
 # The last second before a burst (25 fps): the serve-setup lookback window.
@@ -429,6 +451,39 @@ def _court_scale_boxes(
             frame_scores[valid][court_scale])
 
 
+def _build_serve_start_metrics(
+    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
+    court_box: CourtBox, resolution: tuple[float, float],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-frame nearest court-scale detection: bbox-centre distance AND that box's height.
+
+    The single source of truth for "the nearest court-scale player" behind both serve-start
+    builders: one loop picks the nearest detection per visible-shuttle frame and reads off its
+    distance and its bbox height, so the two arrays share their finite frame set and their
+    nearest detection by construction (the body-height gate divides one by the other and
+    relies on exactly that pairing).
+
+    :return: `(dist, box_height)`, each `(t,)` image-fraction; NaN where the shuttle is
+        invisible or no court-scale detection is present.
+    """
+    n_frames = len(track)
+    width, height = resolution
+
+    dist = np.full(n_frames, np.nan)
+    box_height = np.full(n_frames, np.nan)
+    for frame in np.flatnonzero(track[:, 2] == 1):
+        x1, y1, x2, y2, _ = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        if len(x1) == 0:
+            continue
+        centre_x = (x1 + x2) / 2.0 / width
+        centre_y = (y1 + y2) / 2.0 / height
+        gaps = np.hypot(centre_x - track[frame, 0], centre_y - track[frame, 1])  # image-fraction
+        nearest = int(np.argmin(gaps))
+        dist[frame] = gaps[nearest]
+        box_height[frame] = (y2[nearest] - y1[nearest]) / height  # image-fraction
+    return dist, box_height
+
+
 def build_serve_start_dist(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
     court_box: CourtBox, resolution: tuple[float, float],
@@ -447,19 +502,31 @@ def build_serve_start_dist(
     :param resolution: (width, height) the shuttle xy and bbox centres normalise by.
     :return: (t,) float; NaN where the shuttle is invisible or no court-scale player is present.
     """
-    n_frames = len(track)
-    width, height = resolution
+    return _build_serve_start_metrics(track, bboxes, scores, court_box, resolution)[0]
 
-    dist = np.full(n_frames, np.nan)
-    for frame in np.flatnonzero(track[:, 2] == 1):
-        x1, y1, x2, y2, _ = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
-        if len(x1) == 0:
-            continue
-        centre_x = (x1 + x2) / 2.0 / width
-        centre_y = (y1 + y2) / 2.0 / height
-        gaps = np.hypot(centre_x - track[frame, 0], centre_y - track[frame, 1])  # image-fraction
-        dist[frame] = gaps.min()
-    return dist
+
+def build_serve_start_box_height(
+    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
+    court_box: CourtBox, resolution: tuple[float, float],
+) -> np.ndarray:
+    """Per-frame bbox height of the SAME nearest court-scale player build_serve_start_dist measures.
+
+    The body-height yardstick the body-height serve-setup gate divides by: the nearest court-scale
+    box's pixel height as an image-fraction, NaN where build_serve_start_dist is NaN (shuttle
+    invisible or no court-scale detection present). Both builders read
+    `_build_serve_start_metrics`'s single loop, so the two arrays share their finite frame set and
+    their nearest detection frame-for-frame, which the body-height gate relies on to median
+    distance and mean height over the same lookback.
+
+    :param track: (t, 3) [x_norm, y_norm, visibility] whole-video track (built UNMASKED).
+    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
+    :param scores: (t, 16) detection scores, NaN on padding slots.
+    :param court_box: the court geometry the foot-point filter uses.
+    :param resolution: (width, height) the bbox centres and heights normalise by.
+    :return: (t,) float; the nearest court-scale box height as an image-fraction, NaN where
+        build_serve_start_dist is NaN.
+    """
+    return _build_serve_start_metrics(track, bboxes, scores, court_box, resolution)[1]
 
 
 def _serve_setup_before(dist: np.ndarray, burst_start: int, threshold: float) -> bool:
@@ -481,6 +548,40 @@ def _serve_setup_before(dist: np.ndarray, burst_start: int, threshold: float) ->
     if len(finite) == 0:
         return False
     return bool(np.median(finite) <= threshold)
+
+
+def _serve_setup_before_boxheight(
+    dist: np.ndarray, height: np.ndarray, burst_start: int, threshold_bh: float,
+) -> bool:
+    """Body-height-normalised form of the serve-setup gate.
+
+    The portable version of `_serve_setup_before`: rather than comparing the raw lookback median
+    distance against a fixed image-fraction, it divides that median by the mean nearest-player bbox
+    height over the same lookback and tests the ratio against `threshold_bh`, a multiple of a body
+    height. The measured definition from the pilot box-height sweep (raw = median finite lookback
+    distances, denom = mean of the finite lookback nearest-box heights), so a burst passes when
+    `median(distances) / mean(heights) <= threshold_bh`.
+
+    `dist` and `height` come off `_build_serve_start_metrics`'s single loop, so the median and the
+    mean run over the same lookback frames: `finite` is dist's mask, and the heights it selects
+    are the matching ones. Fails closed like `_serve_setup_before`: an all-NaN lookback carries
+    no evidence of setup.
+
+    :param dist: (t,) per-frame nearest-court-scale-centre distance, NaN where undefined.
+    :param height: (t,) that same detection's bbox height, image-fraction, NaN on the same frames.
+    :param burst_start: first frame of the candidate burst.
+    :param threshold_bh: the gate distance as a multiple of body height.
+    :return: True when the pre-burst second reads as serve setup in body-height units.
+    """
+    lookback = slice(max(0, burst_start - SERVE_START_LOOKBACK_FRAMES), burst_start)
+    window_dist = dist[lookback]
+    window_height = height[lookback]
+    finite = np.isfinite(window_dist)
+    if not finite.any():
+        return False
+    raw = np.median(window_dist[finite])
+    denom = np.mean(window_height[finite])
+    return bool(raw / denom <= threshold_bh)
 
 
 def build_serve_start_wideshot_inputs(
@@ -607,10 +708,11 @@ def _serve_start_find_rally_spans(
     """Span finder that opens only at a serve-setup-preceded burst.
 
     Same region / long-rest / fast-run structure as the stock finder. The change: a rally
-    opens at a fast burst whose lookback passes the serve-setup gate (`_serve_setup_before`),
-    and, with the optional wide-shot refinement installed, the wide-shot gate too
-    (`_wide_shot_before`). A region with no qualifying burst is handled by the mode: TRIM falls
-    back to the first burst (span survives at the stock start), REJECT drops the region.
+    opens at a fast burst whose lookback passes the serve-setup gate (the raw-fraction
+    `_serve_setup_before`, or the body-height `_serve_setup_before_boxheight` when
+    `options.height` is supplied), and, with the optional wide-shot refinement installed, the
+    wide-shot gate too (`_wide_shot_before`). A region with no qualifying burst is handled by the
+    mode: TRIM falls back to the first burst (span survives at the stock start), REJECT drops it.
 
     `options.close` controls what a QUALIFYING region does when span_open is None (the default):
     None opens one span at the FIRST qualifying burst running to region end; BURST / LAST_REST
@@ -630,10 +732,16 @@ def _serve_start_find_rally_spans(
     mode = options.mode
     wideshot = options.wideshot
     close = options.close
+    height = options.height
 
     def qualifies(burst: int) -> bool:
-        """Serve-setup distance gate, AND the wide-shot gate when the refinement is on."""
-        if not _serve_setup_before(dist, burst, threshold):
+        """Serve-setup gate (raw-fraction, or body-height-normalised when options.height is set),
+        AND the wide-shot gate when the refinement is on."""
+        if height is None:
+            setup = _serve_setup_before(dist, burst, threshold)
+        else:
+            setup = _serve_setup_before_boxheight(dist, height, burst, threshold)
+        if not setup:
             return False
         return wideshot is None or _wide_shot_before(wideshot, burst)
 
@@ -857,7 +965,9 @@ def segment_video(
     :param positions: optional `(t, 2, 2)` court positions for the proximity guardrail.
     :param thresholds: a `Stage8Thresholds` preset used instead of the globals, or None.
     :param serve_start: `ServeStartOptions` gating rally openings on a serve-setup lookback, or
-        None. Its distance / wide-shot inputs are built from the UNMASKED track by the caller
+        None. The gate reads distance as a raw image-fraction unless `serve_start.height` is
+        supplied, which switches it to the framing-robust body-height form (see ServeStartOptions).
+        Its distance / height / wide-shot inputs are built from the UNMASKED track by the caller
         (the committed measurement convention); serve-start was only ever measured with masking
         off, so combining it with `replay_mask` is unmeasured territory.
     :param span_open: a `SpanOpen` rule (REGION_START / BACK_FILL) changing where a span opens,

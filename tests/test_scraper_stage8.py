@@ -28,9 +28,12 @@ from src.scraper.stage8_rally_segmentation import (
     _find_rally_spans_span_open,
     _last_rest_close,
     _serve_setup_before,
+    _serve_setup_before_boxheight,
     _serve_start_find_rally_spans,
     _wide_shot_before,
     apply_replay_mask,
+    build_serve_start_box_height,
+    build_serve_start_dist,
     build_serve_start_wideshot_inputs,
     compute_speed,
     contact_proximity_ok,
@@ -475,8 +478,14 @@ TOP_BOX = (900.0, 500.0, 150.0)   # (foot_x, foot_y, height) px; foot y 500 < 64
 BOT_BOX = (1000.0, 900.0, 250.0)  # foot y 900 >= 642 -> bottom half
 
 
-def _mk_wideshot_inputs(frame_boxes: list[list[tuple[float, float, float]]]):
-    """WideshotInputs from per-frame (foot_x, foot_y, height) pixel boxes, stand-in CourtBox."""
+def _mk_court_boxes(
+    frame_boxes: list[list[tuple[float, float, float]]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """(bboxes, scores) from per-frame (foot_x, foot_y, height) pixel boxes.
+
+    Each box is 60 px wide with its foot at bottom-centre; scores descend by slot so the per-half
+    best is deterministic. Shared by the wide-shot and distance/height builder tests.
+    """
     n_frames = len(frame_boxes)
     bboxes = np.full((n_frames, 16, 4), np.nan)
     scores = np.full((n_frames, 16), np.nan)
@@ -484,6 +493,12 @@ def _mk_wideshot_inputs(frame_boxes: list[list[tuple[float, float, float]]]):
         for slot, (foot_x, foot_y, height) in enumerate(boxes):
             bboxes[frame, slot] = (foot_x - 30.0, foot_y - height, foot_x + 30.0, foot_y)
             scores[frame, slot] = 0.9 - 0.1 * slot
+    return bboxes, scores
+
+
+def _mk_wideshot_inputs(frame_boxes: list[list[tuple[float, float, float]]]):
+    """WideshotInputs from per-frame (foot_x, foot_y, height) pixel boxes, stand-in CourtBox."""
+    bboxes, scores = _mk_court_boxes(frame_boxes)
     return build_serve_start_wideshot_inputs(bboxes, scores, STANDIN_COURT_BOX, PILOT_RESOLUTION)
 
 
@@ -674,3 +689,97 @@ def test_court_box_homography_mid_band_foot_claims_neither_half():
     assert inputs.count[0] == 2
     assert np.isfinite(inputs.top_foot[0]).all()
     assert np.isnan(inputs.bot_foot[0]).all()
+
+
+# ---------------------------------------------------------------------------
+# Body-height serve gate: build_serve_start_box_height + _serve_setup_before_boxheight
+# ---------------------------------------------------------------------------
+def test_build_serve_start_box_height_matches_nearest_and_shares_finite_set():
+    # Four frames under the stand-in CourtBox: frame 0 invisible, frame 1 one court-scale box,
+    # frame 2 visible but no box, frame 3 two boxes with the shuttle sitting on the SECOND.
+    frame_boxes = [
+        [],                                    # frame 0 (shuttle invisible below)
+        [(900.0, 500.0, 150.0)],               # frame 1: foot (900, 500), height 150
+        [],                                    # frame 2: no court-scale detection
+        [(700.0, 900.0, 200.0),                # frame 3, box A: nearer the top-left
+         (1200.0, 400.0, 100.0)],              # frame 3, box B: shuttle sits on its centre
+    ]
+    bboxes, scores = _mk_court_boxes(frame_boxes)
+    width, height_px = PILOT_RESOLUTION
+    # Shuttle: frame 1 on box 1's centre, frame 3 on box B's centre; frames 0/2 anywhere.
+    shuttle = np.array([
+        [0.5, 0.5, 0.0],                                      # invisible
+        [900.0 / width, 425.0 / height_px, 1.0],             # box-1 centre (foot y 500, half-height 75)
+        [0.5, 0.5, 1.0],                                      # visible, no box
+        [1200.0 / width, 350.0 / height_px, 1.0],            # box-B centre (foot y 400, half-height 50)
+    ])
+
+    dist = build_serve_start_dist(shuttle, bboxes, scores, STANDIN_COURT_BOX, PILOT_RESOLUTION)
+    box_h = build_serve_start_box_height(shuttle, bboxes, scores, STANDIN_COURT_BOX, PILOT_RESOLUTION)
+
+    # Finite exactly where a court-scale box AND a visible shuttle coincide: frames 1 and 3.
+    assert np.array_equal(np.isnan(dist), np.isnan(box_h))
+    assert list(np.flatnonzero(np.isfinite(box_h))) == [1, 3]
+    # Height is the image-fraction of the box the distance is measured to (the nearest one).
+    assert box_h[1] == pytest.approx(150.0 / height_px)
+    assert box_h[3] == pytest.approx(100.0 / height_px)  # box B (nearer), not the taller box A
+    assert dist[3] == pytest.approx(0.0, abs=1e-9)       # shuttle sits on box B's centre
+
+
+def test_serve_setup_before_boxheight_hand_computed_ratio():
+    # Lookback [5, 30): five finite frames, median distance 0.06 over mean box height 0.38, so the
+    # gate ratio is 0.06 / 0.38 = 0.15789 body heights. Both series are skewed so the pin also
+    # catches a mean-distance slip (0.10 / 0.38 = 0.263) or a median-height slip (0.06 / 0.30 = 0.20).
+    dist = np.full(40, np.nan)
+    box_h = np.full(40, np.nan)
+    dist[25:30] = [0.02, 0.04, 0.06, 0.08, 0.30]     # median 0.06, mean 0.10
+    box_h[25:30] = [0.10, 0.20, 0.30, 0.40, 0.90]    # mean 0.38, median 0.30
+    expected = float(np.median(dist[25:30]) / np.mean(box_h[25:30]))
+    assert expected == pytest.approx(0.06 / 0.38)
+
+    assert _serve_setup_before_boxheight(dist, box_h, 30, 0.16)          # 0.15789 <= 0.16 -> pass
+    assert not _serve_setup_before_boxheight(dist, box_h, 30, 0.15)      # 0.15789 > 0.15 -> fail
+    # Exact boundary: passes at the ratio, fails a hair below it.
+    assert _serve_setup_before_boxheight(dist, box_h, 30, expected)
+    assert not _serve_setup_before_boxheight(dist, box_h, 30, expected - 1e-9)
+
+
+def test_serve_setup_before_boxheight_fails_closed():
+    # An all-NaN lookback carries no evidence of setup, mirroring _serve_setup_before.
+    height = np.full(40, 0.30)
+    all_nan = np.full(40, np.nan)
+    assert not _serve_setup_before_boxheight(all_nan, height, 30, 1.0)
+
+
+def test_serve_start_boxheight_gate_dispatch_and_none_is_raw():
+    # Burst 60 passes the raw 0.10 gate (lookback distance 0.03). The height array below would sink
+    # it under the body-height gate (0.03 / 0.01 = 3.0 body heights).
+    speed, at_rest, dist = _serve_start_speed_rest_dist({60})
+    height = np.full(120, np.nan)
+    height[max(0, 60 - SERVE_START_LOOKBACK_FRAMES):60] = 0.01
+
+    # height=None ignores the height array entirely: the raw gate still opens at 60, bit-identical
+    # to the pre-existing behaviour (proof the default path is untouched).
+    raw = ServeStartOptions(dist=dist, threshold=0.10, mode=ServeStartMode.TRIM, height=None)
+    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, raw, None) == [(60, 120)]
+
+    # Same dist and height, body-height gate at 0.10 bh: burst 60's ratio 3.0 fails, no burst
+    # qualifies, so TRIM falls back to the stock first burst at 10.
+    bh_tight = ServeStartOptions(dist=dist, threshold=0.10, mode=ServeStartMode.TRIM, height=height)
+    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, bh_tight, None) == [(10, 120)]
+
+    # A loose body-height threshold (>= 3.0) re-admits burst 60, so the span opens there again.
+    bh_loose = ServeStartOptions(dist=dist, threshold=3.0, mode=ServeStartMode.TRIM, height=height)
+    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, bh_loose, None) == [(60, 120)]
+
+
+def test_segment_video_serve_start_boxheight_reject_all_nan_drops_all_spans():
+    # A track that forms one span by default; an all-NaN dist qualifies no burst under the
+    # body-height gate either, so REJECT drops every region through the public segment_video entry.
+    track, _rs, _re, _c = _build_rally_track()
+    assert len(segment_video(track)[0]) == 1
+    n_frames = len(track)
+    options = ServeStartOptions(dist=np.full(n_frames, np.nan), threshold=0.75,
+                                mode=ServeStartMode.REJECT, height=np.full(n_frames, 0.2))
+    spans, contacts = segment_video(track, serve_start=options)
+    assert spans == [] and contacts == []
