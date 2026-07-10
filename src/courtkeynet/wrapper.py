@@ -23,11 +23,15 @@ from ._vendor.models import CourtKeyNet
 DEFAULT_WEIGHTS = Path(__file__).parent / "weights" / "courtkeynet_finetuned.safetensors"
 CONFIG_PATH = Path(__file__).parent / "_vendor" / "configs" / "courtkeynet.yaml"
 
-# Provisional gate priors: chosen from the noise-vs-blob calibration anchors
-# (peak ~0.03 on random noise, ~0.4-0.6 on real courts). The Block-2 eval
-# measures the real peak/entropy distributions on court frames and may re-set
-# these; treat the numbers here as a starting fence, not a tuned threshold.
-DEFAULT_MIN_PEAK = 0.1
+# Gate thresholds measured on 10 ShuttleSet broadcast videos (400 court-view
+# frames vs the recorded homographies, plus a 63-frame hand-checked non-court
+# sample). Peak confidence varies per video while localisation stays accurate,
+# so the floor sits low: 0.02 keeps 88% of court frames (100% on 7 of 10 vids)
+# and still rejected the entire non-court sample in pad mode. One video's court
+# frames run below even this floor and fail closed, which is the designed
+# behaviour (ShuttleSet's recorded homography is the backstop). Amateur footage
+# is unmeasured; re-measure before trusting these there.
+DEFAULT_MIN_PEAK = 0.02
 DEFAULT_MAX_ENTROPY = 0.8
 DEFAULT_AREA_BOUNDS = (0.01, 0.95)
 
