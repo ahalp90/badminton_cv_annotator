@@ -18,6 +18,7 @@ import csv
 import os
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 # ---------------------------------------------------------------------------
 # Output layout (dataset_schema.md section 2 tree)
@@ -176,6 +177,57 @@ MIN_DIR_CHANGE_DEG = 90  # contact: smoothed-velocity direction change beyond th
 MIN_CONTACT_SPEED = 0.02  # with pre- and post-reversal speed above this
 END_REST_FRAMES = 30  # rally end: extended rest of at least this (~1 s)
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
+
+
+class Stage8Thresholds(NamedTuple):
+    """The eight stage-8 trajectory-rule thresholds bundled as one value.
+
+    One field per swept constant above, so a caller can hand ``segment_video`` a
+    whole threshold set instead of leaning on the module globals. ``thresholds=None``
+    reads the globals (the default path); a preset here reads its fields instead.
+    Two presets ship: SHIPPED_THRESHOLDS (the constants above) and
+    BEST_CONFIG_THRESHOLDS (the block-2 sweep pick). PROXIMITY_MAX is not swept, so
+    it stays a plain global and is not carried here.
+    """
+
+    rest_speed: float
+    rest_window: int
+    end_rest_frames: int
+    start_speed: float
+    start_min_frames: int
+    smooth_window: int
+    min_dir_change_deg: float
+    min_contact_speed: float
+
+
+# The shipped thresholds as one value, built from the constants above so the
+# numbers live in exactly one place. segment_video(thresholds=SHIPPED_THRESHOLDS)
+# is equivalent to the default globals path.
+SHIPPED_THRESHOLDS = Stage8Thresholds(
+    rest_speed=REST_SPEED,
+    rest_window=REST_WINDOW,
+    end_rest_frames=END_REST_FRAMES,
+    start_speed=START_SPEED,
+    start_min_frames=START_MIN_FRAMES,
+    smooth_window=SMOOTH_WINDOW,
+    min_dir_change_deg=MIN_DIR_CHANGE_DEG,
+    min_contact_speed=MIN_CONTACT_SPEED,
+)
+
+# The block-2 widened-sweep pick under the merge-penalised selection key (frozen
+# boundary winner plus its contact winner). Off by default; select with
+# segment_video(thresholds=BEST_CONFIG_THRESHOLDS). Values restated here because
+# this is their source of truth: the sweep froze them, no global carries them.
+BEST_CONFIG_THRESHOLDS = Stage8Thresholds(
+    rest_speed=0.002,
+    rest_window=5,
+    end_rest_frames=90,
+    start_speed=0.015,
+    start_min_frames=3,
+    smooth_window=3,
+    min_dir_change_deg=30,
+    min_contact_speed=0.005,
+)
 
 # ---------------------------------------------------------------------------
 # Stage 9: replay and off-rally rules (spec s7)

@@ -12,6 +12,19 @@ stage's per-frame speed, so re-deriving it there would be a second source of
 truth. All per-frame arrays here share one frame-index space `[0, t)`; that
 invariant is what lets rally spans, contacts and masks line up downstream.
 
+`segment_video` takes four off-by-default keyword options that each preserve
+today's behaviour exactly when left at their default:
+  - `thresholds`: a `Stage8Thresholds` preset used instead of the module globals;
+    None reads the globals through the same code path as today (so the sweep
+    runner's `_patch_stage8` global-patching keeps working unchanged).
+  - `serve_start`: `ServeStartOptions` gating rally openings on a serve-setup
+    lookback (the shuttle sitting near a court-scale player through the last
+    second before the burst).
+  - `span_open`: a `SpanOpen` rule that changes where a span opens (region start
+    vs the qualifying burst).
+  - `replay_mask`: a `(t,)` bool dead-time mask applied at entry (via
+    `apply_replay_mask`), freezing replay/off-rally frames to rest before speed.
+
 Run as `python -m scraper.stage8_rally_segmentation --shuttle-dir ...` with
 PYTHONPATH=src.
 """
@@ -19,12 +32,15 @@ import argparse
 import csv
 import logging
 import warnings
+from enum import StrEnum
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 from .config import (
+    BEST_CONFIG_THRESHOLDS,
     CONTACT_FRAMES_CSV,
     END_REST_FRAMES,
     MIN_CONTACT_SPEED,
@@ -33,9 +49,11 @@ from .config import (
     RALLY_SPANS_CSV,
     REST_SPEED,
     REST_WINDOW,
+    SHIPPED_THRESHOLDS,
     SMOOTH_WINDOW,
     START_MIN_FRAMES,
     START_SPEED,
+    Stage8Thresholds,
 )
 
 log = logging.getLogger(__name__)
@@ -127,24 +145,180 @@ def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Selectable-option types (off by default; see segment_video)
+# ---------------------------------------------------------------------------
+class SpanOpen(StrEnum):
+    """Where a rally span opens; segment_video(span_open=...), default None.
+
+    None keeps today's burst-open rule bit-for-bit: a span opens at the first
+    qualifying fast burst in its active region. The two named rules trade that:
+      REGION_START drops the qualifying-burst gate entirely and opens a span at
+      every active region's start (each maximal run of non-long-rest frames).
+      BACK_FILL keeps the qualifying-burst gate unchanged (a region with no
+      qualifying fast run yields no rally) but moves the emitted span's start
+      back from the burst to the region start.
+    """
+
+    REGION_START = 'region_start'
+    BACK_FILL = 'back_fill'
+
+
+class CourtBox(NamedTuple):
+    """The pilot court geometry the serve-start builders filter against.
+
+    Pilot-scoped: the caller constructs it (the stand-in occupancy box or the
+    homography quad bounding box) and passes it to the builders, so no pilot
+    geometry lives in this module. Feet inside `mid_band` claim NEITHER court
+    half (the net line carries 3D model error); the stand-in band is zero-width.
+
+    :param x_range: foot-point x bounds, pixels.
+    :param y_range: foot-point y bounds, pixels.
+    :param height_band: court-player bbox pixel-height band.
+    :param mid_band: top/bottom half-split band (low, high), pixels.
+    """
+
+    x_range: tuple[float, float]
+    y_range: tuple[float, float]
+    height_band: tuple[float, float]
+    mid_band: tuple[float, float]
+
+
+class WideshotInputs(NamedTuple):
+    """Per-frame wide-shot gate inputs, precomputed once by the caller.
+
+    Built by `build_serve_start_wideshot_inputs` from the same raw pose boxes the
+    serve-start distance array uses, so the gate never recomputes per burst.
+    """
+
+    count: np.ndarray  # (t,) court-scale detection count per frame
+    top_foot: np.ndarray  # (t, 2) best top-half court-scale foot, image-fraction; NaN when absent
+    bot_foot: np.ndarray  # (t, 2) same for the bottom half
+
+
+class ServeStartMode(StrEnum):
+    """What a region whose bursts are none of them serve-setup-preceded does.
+
+    TRIM keeps the span at the region's first burst (the stock pick), so coverage is only
+    ever traded by a later start on the QUALIFYING regions. REJECT drops the region outright,
+    the stronger anti-weld / anti-spurious lever, at the risk of dropping a GT rally that
+    happens to sit in a no-qualify region.
+    """
+
+    TRIM = 'trim'
+    REJECT = 'reject'
+
+
+class ServeStartClose(StrEnum):
+    """Where a split span closes; the serve-start split axis (None = single span, off).
+
+    In split mode every serve-setup-qualifying burst opens a span. BURST closes the previous
+    span exactly at the next qualifying burst, so the split spans union back to the single
+    span and coverage is unchanged. LAST_REST closes it at the start of the last rest run
+    before that burst, leaving the between-rally dead tail (where the junk contacts live)
+    outside the span, at the risk of uncovering a rally whose own serve failed the gate.
+    """
+
+    BURST = 'burst'
+    LAST_REST = 'last_rest'
+
+
+class ServeStartOptions(NamedTuple):
+    """Serve-start gating for segment_video(serve_start=...).
+
+    Carries everything the serve-start span rule reads. The distance and wide-shot
+    inputs are precomputed by the builders below from the UNMASKED track (the
+    committed measurement convention: the arrays are built before any replay mask
+    is applied, and serve-start was only ever measured with masking off).
+
+    :param dist: `(t,)` nearest court-scale player bbox-centre distance (build_serve_start_dist).
+    :param threshold: serve-setup gate distance, image-fraction.
+    :param mode: fallback for a region with no qualifying burst (TRIM / REJECT).
+    :param wideshot: optional wide-shot refinement inputs; None leaves it off (the default).
+    :param close: optional split placement; None opens one span per region (the default).
+    :param diagnostics: optional caller-supplied dict; when given, the span rule fills it in
+        place with the per-call region counts / spacings (single writer, valid to read straight
+        after the call IN THE SAME PROCESS: the in-place fill does not cross a multiprocessing
+        worker boundary, so the pooled sweep runner leaves it None). None (the default) collects nothing.
+    """
+
+    dist: np.ndarray
+    threshold: float
+    mode: ServeStartMode
+    wideshot: WideshotInputs | None = None
+    close: ServeStartClose | None = None
+    diagnostics: dict | None = None
+
+
+# The last second before a burst (25 fps): the serve-setup lookback window.
+SERVE_START_LOOKBACK_FRAMES = 25
+
+# Wide-shot refinement gate constants (off unless ServeStartOptions.wideshot is set). Over the
+# same lookback the burst must also look like the serve WIDE SHOT (both players standing in
+# position): median court-scale detection count >= 2, BOTH court halves occupied (a court-scale
+# box present in >= half the lookback frames per half), and per-half total foot drift <= 0.05
+# image-fraction.
+WIDESHOT_COUNT_MED_MIN = 2.0      # median court-scale detections over the lookback
+WIDESHOT_SLOT_PRESENT_FRAC = 0.5  # a half counts as occupied when present >= this fraction
+WIDESHOT_DRIFT_MAX = 0.05         # max per-half total foot drift, image-fraction
+WIDESHOT_DRIFT_END_FRAMES = 10    # drift = gap between head/tail means over up-to-10 present feet
+
+
+# ---------------------------------------------------------------------------
 # Rally spans
 # ---------------------------------------------------------------------------
-def _rest_mask(speed: np.ndarray, track: np.ndarray) -> np.ndarray:
+def _rest_mask(speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds | None = None) -> np.ndarray:
     """Per-frame rest flag: slow OR mostly untracked across the window (spec s6).
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param track: `(t, 3)` track, for the visibility column.
+    :param thresholds: a preset to read rest_window / rest_speed from; None reads the
+        module globals (the default path, so the sweep's global patching still binds).
     :return: `(t,)` bool, True where the frame reads as rest.
     """
-    speed_median = rolling_nanmedian(speed, REST_WINDOW)  # (t,)
-    slow = speed_median < REST_SPEED  # NaN windows read not-slow here...
+    rest_window = REST_WINDOW if thresholds is None else thresholds.rest_window
+    rest_speed = REST_SPEED if thresholds is None else thresholds.rest_speed
+    speed_median = rolling_nanmedian(speed, rest_window)  # (t,)
+    slow = speed_median < rest_speed  # NaN windows read not-slow here...
     visible = (track[:, 2] == 1).astype(float)  # (t,) 1.0 where tracked
-    frac_visible = _rolling_mean(visible, REST_WINDOW)  # (t,) fraction tracked in window
+    frac_visible = _rolling_mean(visible, rest_window)  # (t,) fraction tracked in window
     mostly_untracked = frac_visible < VISIBILITY_REST_FRAC  # ...and the OR below catches them
     return slow | mostly_untracked
 
 
-def _find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int, int]]:
+def _rally_regions(
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
+    """Shared region scaffold for the span-opening rules.
+
+    Reads start_speed / end_rest_frames / start_min_frames from `thresholds` (or the
+    module globals when None), exactly as `_find_rally_spans` does, so every opening
+    rule sees the same fast runs and active regions.
+
+    :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
+    :param at_rest: `(t,)` per-frame rest flag.
+    :param thresholds: a preset, or None to read the module globals.
+    :return: `(fast_runs, rest_runs, regions)`. fast_runs are the sustained-fast runs (>=
+        start_min_frames above start_speed); rest_runs are every at_rest run; regions are the
+        maximal non-long-rest runs (a long rest is a rest run >= end_rest_frames).
+    """
+    start_speed = START_SPEED if thresholds is None else thresholds.start_speed
+    end_rest_frames = END_REST_FRAMES if thresholds is None else thresholds.end_rest_frames
+    start_min_frames = START_MIN_FRAMES if thresholds is None else thresholds.start_min_frames
+
+    fast = np.nan_to_num(speed, nan=0.0) > start_speed  # (t,) NaN steps are not fast
+    rest_runs = true_runs(at_rest)
+    long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
+    for start, end in rest_runs:
+        if end - start >= end_rest_frames:
+            long_rest[start:end] = True
+    fast_runs = [(start, end) for start, end in true_runs(fast) if end - start >= start_min_frames]
+    regions = true_runs(~long_rest)
+    return fast_runs, rest_runs, regions
+
+
+def _find_rally_spans(
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None = None,
+) -> list[tuple[int, int]]:
     """Segment the video into rally spans between extended rest.
 
     A long rest (a rest run >= END_REST_FRAMES) separates rallies. Inside each
@@ -156,16 +330,23 @@ def _find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int,
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param at_rest: `(t,)` per-frame rest flag.
+    :param thresholds: a preset to read the boundary thresholds from; None reads the
+        module globals (the default path; the sweep monkey-patches this whole function
+        under quiet-start, so its two-arg call stays intact).
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    fast = np.nan_to_num(speed, nan=0.0) > START_SPEED  # (t,) NaN steps are not fast
+    start_speed = START_SPEED if thresholds is None else thresholds.start_speed
+    end_rest_frames = END_REST_FRAMES if thresholds is None else thresholds.end_rest_frames
+    start_min_frames = START_MIN_FRAMES if thresholds is None else thresholds.start_min_frames
+
+    fast = np.nan_to_num(speed, nan=0.0) > start_speed  # (t,) NaN steps are not fast
 
     long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
     for start, end in true_runs(at_rest):
-        if end - start >= END_REST_FRAMES:
+        if end - start >= end_rest_frames:
             long_rest[start:end] = True
 
-    fast_runs = [(start, end) for start, end in true_runs(fast) if end - start >= START_MIN_FRAMES]
+    fast_runs = [(start, end) for start, end in true_runs(fast) if end - start >= start_min_frames]
 
     spans: list[tuple[int, int]] = []
     for region_start, region_end in true_runs(~long_rest):
@@ -182,10 +363,385 @@ def _find_rally_spans(speed: np.ndarray, at_rest: np.ndarray) -> list[tuple[int,
     return spans
 
 
+def _find_rally_spans_span_open(
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None, span_open: SpanOpen,
+) -> list[tuple[int, int]]:
+    """Span finder under a SpanOpen rule (no serve gating).
+
+    REGION_START drops the qualifying-burst gate: every active region yields one span
+    `(region_start, region_end)`. BACK_FILL keeps the gate (a region needs a qualifying
+    fast burst) but opens the span at region_start instead of at the burst.
+
+    :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
+    :param at_rest: `(t,)` per-frame rest flag.
+    :param thresholds: a preset, or None to read the module globals.
+    :param span_open: REGION_START or BACK_FILL.
+    :return: list of `(start_frame, end_frame)` half-open rally spans.
+    """
+    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    spans: list[tuple[int, int]] = []
+    for region_start, region_end in regions:
+        if span_open is SpanOpen.REGION_START:
+            spans.append((int(region_start), int(region_end)))
+            continue
+        # BACK_FILL: the region still has to carry a qualifying burst to count as a rally.
+        has_burst = any(region_start <= start < region_end for start, _ in fast_runs)
+        if has_burst:
+            spans.append((int(region_start), int(region_end)))
+    return spans
+
+
+# ---------------------------------------------------------------------------
+# Serve-start gating (opens a span only at a serve-setup-preceded burst)
+# ---------------------------------------------------------------------------
+# The dead time between rallies is saturated with fast bursts (tracker jitter, carry, replays),
+# so the stock first-burst rule opens spans a long way before the real serve. Serve-start opens a
+# span only at a burst whose last second reads like SERVE SETUP: the shuttle sits close to a
+# court-scale player (held for the toss). The court geometry is a caller-supplied CourtBox, so no
+# pilot-scoped geometry lives here.
+def _court_scale_boxes(
+    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """One frame's court-scale person boxes; the serve-start builders' shared filter.
+
+    Keeps the detections whose foot point (bottom-centre) sits inside the court region AND
+    whose pixel height is court-player scale; both builders filter through here so the rule
+    lives once. Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
+    extraction already floored scores at 0.30, so `isfinite` equals the scoping's ndet.
+    Padding slots carry NaN scores and drop out.
+
+    :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
+    :param frame_scores: (16,) detection scores, NaN on padding slots.
+    :param court_box: the court geometry to filter against.
+    :return: (x1, y1, x2, y2, scores) filtered to the court-scale detections, each (k,).
+    """
+    valid = np.isfinite(frame_scores)
+    x1, y1, x2, y2 = frame_bboxes[valid].T  # each (m,) pixels
+    foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
+    box_height = y2 - y1
+    x_lo, x_hi = court_box.x_range
+    y_lo, y_hi = court_box.y_range
+    height_lo, height_hi = court_box.height_band
+    in_court = (x_lo <= foot_x) & (foot_x <= x_hi) & (y_lo <= y2) & (y2 <= y_hi)
+    in_scale = (height_lo <= box_height) & (box_height <= height_hi)
+    court_scale = in_court & in_scale
+    return (x1[court_scale], y1[court_scale], x2[court_scale], y2[court_scale],
+            frame_scores[valid][court_scale])
+
+
+def build_serve_start_dist(
+    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
+    court_box: CourtBox, resolution: tuple[float, float],
+) -> np.ndarray:
+    """Per-frame nearest court-scale player bbox-centre distance; the serve-start gate input.
+
+    For every frame where the shuttle is visible, take the frame's court-scale detections
+    (the rule lives in `_court_scale_boxes`) and return the smallest normalised
+    (image-fraction) distance from the shuttle to any of their bbox centres. NaN where the
+    shuttle is invisible or no court-scale detection is present.
+
+    :param track: (t, 3) [x_norm, y_norm, visibility] whole-video track (built UNMASKED).
+    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
+    :param scores: (t, 16) detection scores, NaN on padding slots.
+    :param court_box: the court geometry the foot-point filter uses.
+    :param resolution: (width, height) the shuttle xy and bbox centres normalise by.
+    :return: (t,) float; NaN where the shuttle is invisible or no court-scale player is present.
+    """
+    n_frames = len(track)
+    width, height = resolution
+
+    dist = np.full(n_frames, np.nan)
+    for frame in np.flatnonzero(track[:, 2] == 1):
+        x1, y1, x2, y2, _ = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        if len(x1) == 0:
+            continue
+        centre_x = (x1 + x2) / 2.0 / width
+        centre_y = (y1 + y2) / 2.0 / height
+        gaps = np.hypot(centre_x - track[frame, 0], centre_y - track[frame, 1])  # image-fraction
+        dist[frame] = gaps.min()
+    return dist
+
+
+def _serve_setup_before(dist: np.ndarray, burst_start: int, threshold: float) -> bool:
+    """Does the lookback before a burst look like serve setup?
+
+    True when the median of the finite nearest-court-scale-centre distances over the
+    SERVE_START_LOOKBACK_FRAMES frames immediately before burst_start is <= threshold. A
+    lookback with no finite frame (the shuttle never visible near a court-scale player in that
+    second) can't evidence setup, so it reads False (NaN fails). Near the video start the
+    lookback truncates to the frames that exist.
+
+    :param dist: (t,) per-frame nearest-court-scale-centre distance, NaN where undefined.
+    :param burst_start: first frame of the candidate burst.
+    :param threshold: the gate distance (image-fraction).
+    :return: True when the pre-burst second reads as serve setup.
+    """
+    lookback = dist[max(0, burst_start - SERVE_START_LOOKBACK_FRAMES):burst_start]
+    finite = lookback[np.isfinite(lookback)]
+    if len(finite) == 0:
+        return False
+    return bool(np.median(finite) <= threshold)
+
+
+def build_serve_start_wideshot_inputs(
+    bboxes: np.ndarray, scores: np.ndarray, court_box: CourtBox, resolution: tuple[float, float],
+) -> WideshotInputs:
+    """Per-frame court-scale count and per-half best feet; the wide-shot gate input.
+
+    For EVERY frame (shuttle visibility is irrelevant to the wide shot), count the frame's
+    court-scale detections (the rule lives in `_court_scale_boxes`, shared with
+    build_serve_start_dist) and keep the highest-score court-scale foot per court half
+    (top: foot y < the court mid-band low edge; bottom: foot y >= the high edge; feet inside
+    the band claim neither half), normalised to image-fraction.
+
+    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
+    :param scores: (t, 16) detection scores, NaN on padding slots.
+    :param court_box: the court geometry (foot-point filter plus the half-split mid band).
+    :param resolution: (width, height) the feet normalise by.
+    :return: WideshotInputs of (t,) counts and (t, 2) per-half feet (NaN when a half is empty).
+    """
+    n_frames = len(bboxes)
+    width, height = resolution
+
+    count = np.zeros(n_frames, dtype=int)
+    top_foot = np.full((n_frames, 2), np.nan)
+    bot_foot = np.full((n_frames, 2), np.nan)
+    for frame in range(n_frames):
+        x1, _, x2, y2, cs_scores = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        count[frame] = len(x1)
+        if len(x1) == 0:
+            continue
+        foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
+        # Feet inside the mid band claim NEITHER half (net-line 3D model error); a zero-width
+        # band makes y2 >= band_hi exactly the (y2 < mid) split.
+        band_lo, band_hi = court_box.mid_band
+        in_top_half = y2 < band_lo
+        in_bot_half = y2 >= band_hi
+        for half_idx, foot_out in ((np.flatnonzero(in_top_half), top_foot),
+                                   (np.flatnonzero(in_bot_half), bot_foot)):
+            if len(half_idx):
+                best = half_idx[np.argmax(cs_scores[half_idx])]
+                foot_out[frame] = (foot_x[best] / width, y2[best] / height)
+    return WideshotInputs(count=count, top_foot=top_foot, bot_foot=bot_foot)
+
+
+def _slot_total_drift(foot_series: np.ndarray) -> tuple[float, int]:
+    """Total foot drift and present-count for one court half over a lookback.
+
+    Drift is the gap between the means of the first and last WIDESHOT_DRIFT_END_FRAMES
+    present feet (net relocation, robust to end jitter), NaN when the series has no more
+    feet than one window. Between 11 and 19 present feet the two windows partially overlap
+    and damp the reading; that is the measured arithmetic and stays.
+
+    :param foot_series: (n, 2) image-fraction feet, NaN rows where the half is empty.
+    :return: (total_drift, present_count).
+    """
+    present = np.flatnonzero(np.isfinite(foot_series[:, 0]))
+    if len(present) <= WIDESHOT_DRIFT_END_FRAMES:
+        # One window's worth of feet or fewer: head and tail would fully overlap and read
+        # exactly 0.0, silently passing the drift bound even for a sprinting player. Abstain
+        # to NaN, which the gate fails closed. Only a truncated lookback near the video start
+        # can get here past the presence gate (a full 25-frame lookback guarantees >= 13
+        # present per half), so the audited keep rates, all full-lookback windows, cannot move.
+        return float('nan'), len(present)
+    head = foot_series[present[:WIDESHOT_DRIFT_END_FRAMES]].mean(axis=0)
+    tail = foot_series[present[-WIDESHOT_DRIFT_END_FRAMES:]].mean(axis=0)
+    return float(np.linalg.norm(tail - head)), len(present)
+
+
+def _wide_shot_before(inputs: WideshotInputs, burst_start: int) -> bool:
+    """Does the lookback before a burst look like the serve wide shot?
+
+    Three conditions over the SERVE_START_LOOKBACK_FRAMES frames immediately before
+    burst_start: median court-scale detection count >= WIDESHOT_COUNT_MED_MIN, both court
+    halves occupied (each half's best box present in >= WIDESHOT_SLOT_PRESENT_FRAC of the
+    lookback), and every occupied half's total foot drift <= WIDESHOT_DRIFT_MAX. A NaN drift
+    (under two present feet) fails. Near the video start the lookback truncates.
+
+    :param inputs: the precomputed per-frame gate inputs.
+    :param burst_start: first frame of the candidate burst.
+    :return: True when the pre-burst second reads as the serve wide shot.
+    """
+    lookback = slice(max(0, burst_start - SERVE_START_LOOKBACK_FRAMES), burst_start)
+    count = inputs.count[lookback]
+    if len(count) == 0 or np.median(count) < WIDESHOT_COUNT_MED_MIN:
+        return False
+
+    top_drift, top_present = _slot_total_drift(inputs.top_foot[lookback])
+    bot_drift, bot_present = _slot_total_drift(inputs.bot_foot[lookback])
+    present_min = WIDESHOT_SLOT_PRESENT_FRAC * len(count)
+    if top_present < present_min or bot_present < present_min:
+        return False
+
+    # Max over the two halves: both players must be still, so the noisier half binds. NaN
+    # halves drop out and no finite drift at all fails (only a truncated lookback near the
+    # video start can reach the no-finite branch).
+    finite_drifts = [drift for drift in (top_drift, bot_drift) if np.isfinite(drift)]
+    if not finite_drifts:
+        return False
+    return bool(max(finite_drifts) <= WIDESHOT_DRIFT_MAX)
+
+
+def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
+    """Where a split span closes under close='last_rest'.
+
+    The START of the last at_rest run (any length) that ends at or before the next qualifying
+    burst AND opens after this span's own open, so the dead tail between the previous rally's
+    last action and the next serve falls outside the span (that tail is where the between-rally
+    junk contacts sit). Falls back to next_burst when no rest run sits between the two opens.
+
+    :param rest_runs: every `(start, end)` at_rest run, ascending (true_runs order).
+    :param open_frame: this span's opening (qualifying) burst frame.
+    :param next_burst: the next qualifying burst frame (where close='burst' would cut).
+    :return: the close frame (half-open span end).
+    """
+    rest_starts = [rest_start for rest_start, rest_end in rest_runs
+                   if rest_end <= next_burst and rest_start > open_frame]
+    return rest_starts[-1] if rest_starts else next_burst  # ascending, so [-1] is the last run
+
+
+def _serve_start_find_rally_spans(
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None,
+    options: ServeStartOptions, span_open: SpanOpen | None,
+) -> list[tuple[int, int]]:
+    """Span finder that opens only at a serve-setup-preceded burst.
+
+    Same region / long-rest / fast-run structure as the stock finder. The change: a rally
+    opens at a fast burst whose lookback passes the serve-setup gate (`_serve_setup_before`),
+    and, with the optional wide-shot refinement installed, the wide-shot gate too
+    (`_wide_shot_before`). A region with no qualifying burst is handled by the mode: TRIM falls
+    back to the first burst (span survives at the stock start), REJECT drops the region.
+
+    `options.close` controls what a QUALIFYING region does when span_open is None (the default):
+    None opens one span at the FIRST qualifying burst running to region end; BURST / LAST_REST
+    open a span at EVERY qualifying burst. span_open=BACK_FILL back-fills a qualifying region to
+    a single span opening at region_start (serve-start with span_open=REGION_START is rejected
+    by segment_video before this is reached).
+
+    :param speed: (t,) per-frame speed (NaN on non-visible steps).
+    :param at_rest: (t,) per-frame rest flag.
+    :param thresholds: a preset, or None to read the module globals.
+    :param options: the serve-start gate inputs and mode.
+    :param span_open: None (burst-open) or BACK_FILL (open qualifying regions at region_start).
+    :return: list of `(start_frame, end_frame)` half-open rally spans.
+    """
+    dist = options.dist
+    threshold = options.threshold
+    mode = options.mode
+    wideshot = options.wideshot
+    close = options.close
+
+    def qualifies(burst: int) -> bool:
+        """Serve-setup distance gate, AND the wide-shot gate when the refinement is on."""
+        if not _serve_setup_before(dist, burst, threshold):
+            return False
+        return wideshot is None or _wide_shot_before(wideshot, burst)
+
+    fast_runs, rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+
+    spans: list[tuple[int, int]] = []
+    no_qualify_regions: list[tuple[int, int]] = []
+    n_regions_with_burst = 0
+    # Per-region qualifying-burst counts (spans per region under split) and the frames between
+    # consecutive qualifying bursts (the double-fire read: a small spacing means a second serve
+    # signature fired just after a span opened, cutting one rally in two). Diagnosed, not suppressed.
+    qualifying_counts: list[int] = []
+    qualifying_spacings: list[int] = []
+    for region_start, region_end in regions:
+        bursts = [start for start, _ in fast_runs if region_start <= start < region_end]
+        if not bursts:
+            continue  # no burst at all: stock forms no span here either, not a serve-start drop
+        n_regions_with_burst += 1
+        # Gate every burst, not just up to the first: the split modes open a span at each, and
+        # the double-fire diagnostics need the whole per-region qualifying picture regardless.
+        qualifying = [start for start in bursts if qualifies(start)]
+        qualifying_counts.append(len(qualifying))
+        qualifying_spacings.extend(int(later - earlier)
+                                   for earlier, later in zip(qualifying, qualifying[1:]))
+
+        if not qualifying:
+            # No qualifying burst: the mode owns the region. TRIM keeps the span at the stock
+            # first burst; REJECT drops it. Both record the region as no-qualify.
+            if mode is ServeStartMode.TRIM:
+                spans.append((int(bursts[0]), int(region_end)))
+            no_qualify_regions.append((int(region_start), int(region_end)))
+        elif span_open is SpanOpen.BACK_FILL:
+            # Serve gate decides qualification; the span back-fills to the region start.
+            spans.append((int(region_start), int(region_end)))
+        elif close is None:
+            # Split off: one span at the first qualifying burst, running to region end.
+            spans.append((int(qualifying[0]), int(region_end)))
+        else:
+            # Split on: every qualifying burst opens a span, closing where the next one opens
+            # (close='burst') or at the last rest run before it (close='last_rest'); the last
+            # span runs to region end. Under close='burst' the spans union to the single span.
+            for idx, open_frame in enumerate(qualifying):
+                if idx + 1 < len(qualifying):
+                    next_burst = qualifying[idx + 1]
+                    close_frame = (next_burst if close is ServeStartClose.BURST
+                                   else _last_rest_close(rest_runs, open_frame, next_burst))
+                else:
+                    close_frame = region_end
+                spans.append((int(open_frame), int(close_frame)))
+
+    if options.diagnostics is not None:
+        options.diagnostics.clear()
+        options.diagnostics.update({
+            'n_regions_with_burst': n_regions_with_burst,
+            'n_qualified': n_regions_with_burst - len(no_qualify_regions),
+            'n_no_qualify': len(no_qualify_regions),
+            'no_qualify_regions': no_qualify_regions,
+            'qualifying_counts': qualifying_counts,
+            'qualifying_spacings': qualifying_spacings,
+        })
+    return spans
+
+
+# ---------------------------------------------------------------------------
+# Replay / dead-time mask
+# ---------------------------------------------------------------------------
+def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Freeze replay/off-rally frames to the last live position so they read as rest.
+
+    Returns a new `(t, 3)` array; `track` is not mutated. For each contiguous True run in
+    `mask`, the run's xy (columns 0-1) is set to the xy of the last frame BEFORE the run, and
+    its visibility (column 2) forced to 1. A run that starts at frame 0 has no earlier frame,
+    so it takes the xy of the first frame AFTER it instead.
+
+    Why: stage 8 reads invisible or NaN-speed frames as not-rest, so replay closeups hold rally
+    regions open. Freezing the position makes masked footage read as sustained sub-REST_SPEED
+    rest (masked frames count as rest). Forcing visibility avoids the NaN-speed path reopening
+    the region.
+
+    Fail loud on a length mismatch, and on an all-True mask (nothing live to anchor a frozen
+    position to, and a fully-masked video is senseless). An all-False mask has no True runs, so
+    the untouched copy returns bit-identical by construction.
+
+    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track.
+    :param mask: `(t,)` bool, True on replay/off-rally frames (stage-9 `1_replay.npy` convention).
+    :return: a new `(t, 3)` track with masked frames frozen to rest.
+    """
+    if len(mask) != len(track):
+        raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
+    if mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+
+    frozen = track.copy()
+    for start, end in true_runs(mask):
+        # start-1 is the last live frame before the run; a run at frame 0 has none, so anchor to
+        # end (the first live frame after it). The not-all-True guard above guarantees it exists.
+        anchor = start - 1 if start > 0 else end
+        frozen[start:end, :2] = track[anchor, :2]
+        frozen[start:end, 2] = 1
+    return frozen
+
+
 # ---------------------------------------------------------------------------
 # Contacts
 # ---------------------------------------------------------------------------
-def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
+def detect_contacts(
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+) -> list[int]:
     """Contact frames inside one rally span, from smoothed-velocity reversals.
 
     Smooth `(x, y)` over SMOOTH_WINDOW to survive TrackNetV3 jitter, take the
@@ -200,10 +756,17 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     :param track: `(t, 3)` whole-video track.
     :param start: rally span start frame (inclusive).
     :param end: rally span end frame (exclusive).
+    :param thresholds: a preset to read smooth_window / min_dir_change_deg / min_contact_speed
+        from; None reads the module globals (the default path; the sweep monkey-patches this
+        whole function under nan-smoothing, so its three-arg call stays intact).
     :return: contact frames in whole-video frame indices, ascending.
     """
+    smooth_window = SMOOTH_WINDOW if thresholds is None else thresholds.smooth_window
+    min_dir_change_deg = MIN_DIR_CHANGE_DEG if thresholds is None else thresholds.min_dir_change_deg
+    min_contact_speed = MIN_CONTACT_SPEED if thresholds is None else thresholds.min_contact_speed
+
     span = track[start:end]  # (n, 3) rally-local view
-    if len(span) < SMOOTH_WINDOW + 2:
+    if len(span) < smooth_window + 2:
         return []  # too short to smooth and difference twice
 
     # Invisible frames carry zero-filled (0, 0) xy, so windows straddling a
@@ -213,8 +776,8 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     # at +/-5, but costs 1.1 recall points there (gaps often start AT a fast
     # contact, so some gap-edge candidates are the only match for it). Left
     # as-is under the recall-first ruling; revisit if the precision stage moves.
-    smooth_x = _rolling_mean(span[:, 0], SMOOTH_WINDOW)  # (n,)
-    smooth_y = _rolling_mean(span[:, 1], SMOOTH_WINDOW)  # (n,)
+    smooth_x = _rolling_mean(span[:, 0], smooth_window)  # (n,)
+    smooth_y = _rolling_mean(span[:, 1], smooth_window)  # (n,)
     smoothed = np.column_stack([smooth_x, smooth_y])  # (n, 2)
     visibility = span[:, 2]  # (n,)
 
@@ -235,8 +798,8 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     # All per-junction arrays share index k in [0, n-3]; junction k sits at
     # local frame k+1, touching local frames k, k+1, k+2.
     around_visible = (visibility[:-2] == 1) & (visibility[1:-1] == 1) & (visibility[2:] == 1)
-    sharp_turn = angle_deg > MIN_DIR_CHANGE_DEG
-    fast_enough = (speed_in > MIN_CONTACT_SPEED) & (speed_out > MIN_CONTACT_SPEED)
+    sharp_turn = angle_deg > min_dir_change_deg
+    fast_enough = (speed_in > min_contact_speed) & (speed_out > min_contact_speed)
     is_contact = sharp_turn & fast_enough & around_visible
 
     candidate_local = np.flatnonzero(is_contact) + 1  # local frame of each candidate
@@ -245,7 +808,7 @@ def detect_contacts(track: np.ndarray, start: int, end: int) -> list[int]:
     kept: list[int] = []
     for idx in np.argsort(-candidate_angle):  # sharpest angle first
         frame = int(candidate_local[idx])
-        if all(abs(frame - other) >= SMOOTH_WINDOW for other in kept):
+        if all(abs(frame - other) >= smooth_window for other in kept):
             kept.append(frame)
     kept.sort()
     return [start + frame for frame in kept]
@@ -277,23 +840,73 @@ def contact_proximity_ok(
 
 
 def segment_video(
-    track: np.ndarray, positions: np.ndarray | None = None
+    track: np.ndarray, positions: np.ndarray | None = None, *,
+    thresholds: Stage8Thresholds | None = None,
+    serve_start: ServeStartOptions | None = None,
+    span_open: SpanOpen | None = None,
+    replay_mask: np.ndarray | None = None,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None]]]:
     """Full stage-8 pass over one video's shuttle track.
 
+    Every keyword option is off by default and each default preserves today's behaviour
+    exactly. `thresholds=None` reads the module globals through the same code path as today,
+    so the sweep runner's `_patch_stage8` global-patching (and its gap-state / quiet-start /
+    nan-smoothing monkey-patches) keeps working unchanged.
+
     :param track: `(t, 3)` whole-video track.
     :param positions: optional `(t, 2, 2)` court positions for the proximity guardrail.
+    :param thresholds: a `Stage8Thresholds` preset used instead of the globals, or None.
+    :param serve_start: `ServeStartOptions` gating rally openings on a serve-setup lookback, or
+        None. Its distance / wide-shot inputs are built from the UNMASKED track by the caller
+        (the committed measurement convention); serve-start was only ever measured with masking
+        off, so combining it with `replay_mask` is unmeasured territory.
+    :param span_open: a `SpanOpen` rule (REGION_START / BACK_FILL) changing where a span opens,
+        or None (today's burst-open rule). `serve_start` with REGION_START raises ValueError, and
+        `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).
+    :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
+        `apply_replay_mask` before speed is computed, or None.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
         `[(rally_id, contact_frame, proximity_ok), ...]`.
     """
+    if serve_start is not None and span_open is SpanOpen.REGION_START:
+        raise ValueError(
+            'serve_start with span_open=REGION_START is contradictory: REGION_START drops the '
+            'qualifying gate serve_start refines. Use span_open=BACK_FILL under serve gating '
+            '(the two forms coincide there).'
+        )
+    if serve_start is not None and serve_start.close is not None and span_open is SpanOpen.BACK_FILL:
+        raise ValueError(
+            'serve_start.close (split placement) with span_open=BACK_FILL is contradictory: '
+            'BACK_FILL emits one span per qualifying region at region_start, so there is nothing '
+            'to split. Drop the split close, or use it without BACK_FILL.'
+        )
+    if replay_mask is not None:
+        track = apply_replay_mask(track, replay_mask)
+
     speed = compute_speed(track)
-    at_rest = _rest_mask(speed, track)
-    spans = _find_rally_spans(speed, at_rest)
+
+    # Rest mask. thresholds None keeps today's exact two-arg module-dispatched call so the
+    # sweep's gap-state monkey-patch (and the patched globals) still bind; a preset threads
+    # its rest thresholds through instead.
+    at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
+
+    # Rally spans. Serve-start and span_open are the landed options; absent both, thresholds
+    # None keeps today's exact module-dispatched _find_rally_spans (quiet-start-patchable).
+    if serve_start is not None:
+        spans = _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
+    elif span_open is not None:
+        spans = _find_rally_spans_span_open(speed, at_rest, thresholds, span_open)
+    elif thresholds is None:
+        spans = _find_rally_spans(speed, at_rest)
+    else:
+        spans = _find_rally_spans(speed, at_rest, thresholds)
 
     contacts: list[tuple[int, int, bool | None]] = []
     for rally_id, (start, end) in enumerate(spans):
-        for contact_frame in detect_contacts(track, start, end):
+        frames = (detect_contacts(track, start, end) if thresholds is None
+                  else detect_contacts(track, start, end, thresholds))
+        for contact_frame in frames:
             proximity_ok = contact_proximity_ok(track, positions, contact_frame)
             contacts.append((rally_id, contact_frame, proximity_ok))
     return spans, contacts
@@ -302,6 +915,12 @@ def segment_video(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+# CLI preset names -> the shipped threshold sets. Library callers pass a Stage8Thresholds
+# directly; the CLI only exposes the two committed presets (spec: library-first).
+_THRESHOLD_PRESETS = {'shipped': SHIPPED_THRESHOLDS, 'best': BEST_CONFIG_THRESHOLDS}
+_SPAN_OPEN_CHOICES = {'region-start': SpanOpen.REGION_START, 'back-fill': SpanOpen.BACK_FILL}
+
+
 def _format_bool(value: bool | None) -> str:
     """Serialise a guardrail bool for the CSV: 'True'/'False', blank when unmeasured.
 
@@ -323,12 +942,37 @@ def _load_positions(pos_dir: Path | None, video_id: str) -> np.ndarray | None:
     return np.load(pos_path)
 
 
+def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None:
+    """Load `<video_id>_dead_mask.npy` from mask_dir if present, else None.
+
+    A missing file means the video runs unmasked. A present-but-invalid mask hits
+    `apply_replay_mask`'s fail-loud checks inside segment_video, which the per-video
+    log-and-skip in `main` catches.
+    """
+    if mask_dir is None:
+        return None
+    mask_path = mask_dir / f'{video_id}_dead_mask.npy'
+    if not mask_path.exists():
+        log.info('no dead mask for %s, running unmasked', video_id)
+        return None
+    return np.load(mask_path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
                         help='Directory of <video_id>.npy (t, 3) shuttle tracks')
     parser.add_argument('--pos-dir', type=Path, default=None,
                         help='Optional directory of <video_id>_pos.npy court positions')
+    parser.add_argument('--mask-dir', type=Path, default=None,
+                        help='Optional directory of <video_id>_dead_mask.npy dead-time masks '
+                             '(True = dead); a missing file runs that video unmasked')
+    parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
+                        help='which threshold preset to segment with (default: shipped)')
+    parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
+                        help='optional span-opening rule: region-start (every active region '
+                             'yields a span) or back-fill (a qualifying region opens at its '
+                             'start). Default: open at the first qualifying burst')
     parser.add_argument('--rally-spans-csv', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--contact-frames-csv', type=Path, default=CONTACT_FRAMES_CSV)
     args = parser.parse_args()
@@ -336,6 +980,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     if not args.shuttle_dir.is_dir():
         raise FileNotFoundError(f'shuttle dir not found: {args.shuttle_dir}')
+
+    thresholds = _THRESHOLD_PRESETS[args.thresholds]
+    span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
 
     args.rally_spans_csv.parent.mkdir(parents=True, exist_ok=True)
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -347,7 +994,9 @@ def main() -> None:
         try:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
-            spans, contacts = segment_video(track, positions)
+            replay_mask = _load_replay_mask(args.mask_dir, video_id)
+            spans, contacts = segment_video(track, positions, thresholds=thresholds,
+                                            span_open=span_open, replay_mask=replay_mask)
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             log.warning('skipping %s: %s', video_id, exc)
             continue

@@ -23,26 +23,19 @@ from scripts.stage8_sweep import (
     BOUNDARY_START_MIN_FRAMES,
     BOUNDARY_START_SPEED,
     CROWN_KEY_COLUMN,
+    HOMOGRAPHY_COURT_BOX,
     LABEL_GRID,
     LABEL_SHIPPED,
     PARAM_COLUMNS,
-    PILOT_HOMOG_COURT_MID_BAND,
-    PILOT_HOMOG_COURT_X,
-    PILOT_HOMOG_COURT_Y,
-    PILOT_STANDIN_COURT_X,
-    PILOT_STANDIN_COURT_Y,
     RAW_PRECISION_COLUMNS,
     ROW_COLUMNS,
-    SERVE_START_LOOKBACK_FRAMES,
     SHIPPED_DEFAULTS,
+    STANDIN_COURT_BOX,
     SWEEP_TOLERANCES,
     ReentryGuardVariant,
-    ServeStartClose,
-    ServeStartMode,
     Stage8Params,
     SweepCtx,
     SweepTask,
-    WideshotInputs,
     _STOCK_FIND_RALLY_SPANS,
     _STOCK_REST_MASK,
     _gap_holds_open,
@@ -50,21 +43,16 @@ from scripts.stage8_sweep import (
     _gap_passes_reentry_guard,
     _init_worker,
     _is_quiet_before,
-    _last_rest_close,
     _patch_stage8,
     _reentry_velocity_y,
     _score_config,
     _serialise_row,
-    _serve_setup_before,
-    _wide_shot_before,
-    apply_replay_mask,
     boundary_sort_key_as_built,
     build_boundary_crowns,
     build_boundary_grid,
     build_boundary_tasks,
     build_contact_grid,
     build_contact_tasks,
-    build_serve_start_wideshot_inputs,
     contact_frontier,
     contact_sort_key,
     flatten_row,
@@ -73,14 +61,12 @@ from scripts.stage8_sweep import (
     install_gap_state,
     install_nan_smoothing,
     install_quiet_start,
-    install_serve_start,
     nan_rolling_mean,
     nan_smoothing_detect_contacts,
     quiet_start_find_rally_spans,
     select_boundary_winner,
     select_start_alignment_winner,
     select_winner,
-    serve_start_find_rally_spans,
     stage8_module,
     write_crowns_csv,
 )
@@ -504,88 +490,6 @@ def test_plumbing_two_configs_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# 6. Optional replay-mask track transform (freeze masked frames to rest)
-# ---------------------------------------------------------------------------
-def _distinct_track(n_frames: int) -> np.ndarray:
-    """A (n, 3) track with a unique xy per frame and vis 0 everywhere.
-
-    Distinct xy lets a test read exactly which frame a masked run froze to; vis 0
-    everywhere means a forced vis 1 is unambiguous evidence of masking.
-    """
-    xs = np.arange(n_frames, dtype=float) * 0.1
-    ys = np.arange(n_frames, dtype=float) * 0.01 + 0.5
-    vis = np.zeros(n_frames, dtype=float)
-    return np.column_stack([xs, ys, vis])
-
-
-def test_apply_replay_mask_mid_run_freezes_to_preceding_frame():
-    track = _distinct_track(6)
-    original = track.copy()
-    mask = np.array([False, False, True, True, False, False])
-
-    frozen = apply_replay_mask(track, mask)
-    # Frames 2, 3 take frame 1's xy (the last live frame before the run); vis -> 1.
-    assert np.array_equal(frozen[2, :2], track[1, :2])
-    assert np.array_equal(frozen[3, :2], track[1, :2])
-    assert frozen[2, 2] == 1.0 and frozen[3, 2] == 1.0
-    # Pure: the source track is untouched.
-    assert np.array_equal(track, original)
-
-
-def test_apply_replay_mask_run_at_frame_zero_freezes_to_first_post_run_frame():
-    track = _distinct_track(6)
-    mask = np.array([True, True, False, False, False, False])
-
-    frozen = apply_replay_mask(track, mask)
-    # No frame before the run, so frames 0, 1 take frame 2's xy (first live after).
-    assert np.array_equal(frozen[0, :2], track[2, :2])
-    assert np.array_equal(frozen[1, :2], track[2, :2])
-    assert frozen[0, 2] == 1.0 and frozen[1, 2] == 1.0
-
-
-def test_apply_replay_mask_two_runs_each_freeze_to_own_predecessor():
-    track = _distinct_track(8)
-    mask = np.array([False, True, False, False, True, True, False, False])
-
-    frozen = apply_replay_mask(track, mask)
-    # First run (frame 1) anchors to frame 0.
-    assert np.array_equal(frozen[1, :2], track[0, :2])
-    # Second run (frames 4, 5) anchors to frame 3, its own predecessor.
-    assert np.array_equal(frozen[4, :2], track[3, :2])
-    assert np.array_equal(frozen[5, :2], track[3, :2])
-    assert frozen[1, 2] == 1.0 and frozen[4, 2] == 1.0 and frozen[5, 2] == 1.0
-
-
-def test_apply_replay_mask_all_false_returns_bit_identical():
-    track = _distinct_track(5)
-    mask = np.zeros(5, dtype=bool)
-    assert np.array_equal(apply_replay_mask(track, mask), track)
-
-
-def test_apply_replay_mask_length_mismatch_raises():
-    track = _distinct_track(5)
-    with pytest.raises(ValueError):
-        apply_replay_mask(track, np.zeros(4, dtype=bool))
-
-
-def test_apply_replay_mask_all_true_raises():
-    track = _distinct_track(5)
-    with pytest.raises(ValueError):
-        apply_replay_mask(track, np.ones(5, dtype=bool))
-
-
-def test_apply_replay_mask_leaves_unmasked_frames_untouched():
-    track = _distinct_track(6)
-    mask = np.array([False, False, True, True, False, False])
-
-    frozen = apply_replay_mask(track, mask)
-    # Unmasked frames keep their original xy and their original vis (0).
-    for frame in (0, 1, 4, 5):
-        assert np.array_equal(frozen[frame], track[frame])
-        assert frozen[frame, 2] == 0.0
-
-
-# ---------------------------------------------------------------------------
 # 7. Optional NaN-smoothing patch (exclude invisible frames from contact smooth)
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
@@ -602,16 +506,11 @@ def _restore_stage8_smoothing():
     saved_detect = stage8_module.detect_contacts
     saved_rest_mask = stage8_module._rest_mask
     saved_find_spans = stage8_module._find_rally_spans
-    # The gap-state / guard and serve-start per-process state live on the sweep module,
-    # not stage8_module, so snapshot them too or a test leaks its buffer/variant/threshold.
+    # The gap-state / guard per-process state lives on the sweep module, not stage8_module,
+    # so snapshot it too or a test leaks its demotion bound / variant / buffer.
     saved_demotion = stage8_sweep._GAP_STATE_DEMOTION_BOUND
     saved_guard_variant = stage8_sweep._REENTRY_GUARD_VARIANT
     saved_guard_buffer = stage8_sweep._REENTRY_GUARD_BUFFER
-    saved_serve_dist = stage8_sweep._SERVE_START_DIST
-    saved_serve_threshold = stage8_sweep._SERVE_START_THRESHOLD
-    saved_serve_mode = stage8_sweep._SERVE_START_MODE
-    saved_serve_wideshot = stage8_sweep._SERVE_START_WIDESHOT
-    saved_serve_close = stage8_sweep._SERVE_START_CLOSE
     yield
     stage8_module._rolling_mean = saved_rolling
     stage8_module.detect_contacts = saved_detect
@@ -620,11 +519,6 @@ def _restore_stage8_smoothing():
     stage8_sweep._GAP_STATE_DEMOTION_BOUND = saved_demotion
     stage8_sweep._REENTRY_GUARD_VARIANT = saved_guard_variant
     stage8_sweep._REENTRY_GUARD_BUFFER = saved_guard_buffer
-    stage8_sweep._SERVE_START_DIST = saved_serve_dist
-    stage8_sweep._SERVE_START_THRESHOLD = saved_serve_threshold
-    stage8_sweep._SERVE_START_MODE = saved_serve_mode
-    stage8_sweep._SERVE_START_WIDESHOT = saved_serve_wideshot
-    stage8_sweep._SERVE_START_CLOSE = saved_serve_close
 
 
 def _gap_track() -> tuple[np.ndarray, np.ndarray]:
@@ -1044,453 +938,23 @@ def test_is_quiet_before_fraction_and_truncation():
     assert not _is_quiet_before(at_rest, burst_start=0, window=5)
 
 
-# ---------------------------------------------------------------------------
-# 11. Serve-start arm (Change 5: --serve-start _find_rally_spans patch)
-# ---------------------------------------------------------------------------
-def _serve_start_speed_rest_dist(qualifying_bursts: set[int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Length-120 speed with two 5-frame bursts at 10 and 60, no rest, and a gate dist array.
-
-    ``qualifying_bursts`` is the subset of burst starts (of {10, 60}) whose SERVE_START_LOOKBACK
-    lookback is made to pass the serve-setup gate: those lookback frames get a small (<= 0.10)
-    distance; every other frame stays NaN so its lookback fails. END_REST_FRAMES is patched to 40
-    by the caller and no rest run reaches it, so the whole track is one active region [0, 120).
-    """
-    speed = np.zeros(120)
-    speed[10:15] = 0.05  # > shipped START_SPEED 0.03, >= START_MIN_FRAMES 3
-    speed[60:65] = 0.05
-    at_rest = np.zeros(120, dtype=bool)
-    dist = np.full(120, np.nan)
-    for burst in qualifying_bursts:
-        dist[max(0, burst - SERVE_START_LOOKBACK_FRAMES):burst] = 0.03  # small -> median passes <= 0.10
-    return speed, at_rest, dist
-
-
-def test_serve_setup_before_gate_pass_fail_nan():
-    dist = np.full(80, np.nan)
-    dist[35:60] = 0.03  # small distances over the 25-frame lookback before burst 60
-    # Median 0.03 <= 0.10: passes.
-    assert _serve_setup_before(dist, burst_start=60, threshold=0.10)
-    # Same lookback, tighter threshold 0.02: 0.03 > 0.02, fails.
-    assert not _serve_setup_before(dist, burst_start=60, threshold=0.02)
-    # A finite but far lookback (median above threshold) fails.
-    far = np.full(80, np.nan)
-    far[35:60] = 0.5
-    assert not _serve_setup_before(far, burst_start=60, threshold=0.10)
-    # An all-NaN lookback (no visible-shuttle court-scale frame in that second) fails.
-    assert not _serve_setup_before(dist, burst_start=20, threshold=0.10)
-
-
-def test_serve_start_opens_at_first_qualifying_burst():
-    # Burst 10's lookback is NaN (fails); burst 60's is small (passes). Both modes open the
-    # span at 60, same region end, so coverage of the late strokes holds.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _serve_start_speed_rest_dist({60})
-    assert _STOCK_FIND_RALLY_SPANS(speed, at_rest) == [(10, 120)]  # stock opens at the first burst
-    for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
-        install_serve_start(dist, 0.10, mode)
-        assert serve_start_find_rally_spans(speed, at_rest) == [(60, 120)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_trim_falls_back_when_no_qualifying_burst():
-    # No burst's lookback qualifies. TRIM falls back to the first burst (the stock start), so
-    # the span survives; the region is recorded as fell-back.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _serve_start_speed_rest_dist(set())  # all-NaN dist: nothing qualifies
-    install_serve_start(dist, 0.10, ServeStartMode.TRIM)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]  # stock first burst
-    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
-    assert diag['n_no_qualify'] == 1 and diag['n_qualified'] == 0
-    assert diag['no_qualify_regions'] == [(0, 120)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_reject_drops_region_when_no_qualifying_burst():
-    # Same no-qualify region under REJECT: no span at all (the region is dropped).
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _serve_start_speed_rest_dist(set())
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT)
-    assert serve_start_find_rally_spans(speed, at_rest) == []
-    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
-    assert diag['n_no_qualify'] == 1 and diag['no_qualify_regions'] == [(0, 120)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_flag_off_leaves_stock_find_spans():
-    _init_worker(SweepCtx(track=np.zeros((3, 3)), gt_rallies=[]), nan_smoothing=False)
-    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
-
-
-def test_serve_start_installs_and_uninstalls_through_init_worker():
-    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
-    dist = np.full(3, np.nan)
-    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
-                 serve_start_threshold=0.10, serve_start_dist=dist)
-    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
-    assert stage8_sweep._SERVE_START_MODE is ServeStartMode.REJECT
-    assert stage8_sweep._SERVE_START_THRESHOLD == 0.10
-    assert stage8_sweep._SERVE_START_DIST is dist
-    # Re-init with the arm off: the stock binding must return.
-    _init_worker(ctx, nan_smoothing=False)
-    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
-
-
-def test_serve_start_absent_is_exact_stock():
-    # Bit-for-bit pin: install the arm, then turn it off, and segment_video is the stock
-    # segmentation again. The arm changes _find_rally_spans and nothing else.
-    _patch_stage8(SHIPPED_DEFAULTS)
-    track, _gt = _rally_track_and_gt()  # all visible, forms one span under shipped
-    speed = stage8_module.compute_speed(track)
-    stock_mask = _STOCK_REST_MASK(speed, track)
-    stock_spans = _STOCK_FIND_RALLY_SPANS(speed, stock_mask)
-    assert stock_spans  # the track really does form a span, so the equality below bites
-    install_serve_start(np.full(len(track), np.nan), 0.10, ServeStartMode.TRIM)
-    _init_worker(SweepCtx(track=track, gt_rallies=[]), nan_smoothing=False)  # arm off
-    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
-    assert stage8_module.segment_video(track)[0] == stock_spans
-    _patch_stage8(SHIPPED_DEFAULTS)
 
 
 # ---------------------------------------------------------------------------
-# 12. Serve-start wide-shot refinement (--serve-start-wideshot)
+# 11. Court box selection (install_court_box returns the pilot CourtBox)
 # ---------------------------------------------------------------------------
-# Synthetic court-scale boxes under the PILOT_* constants (court x [635, 1316],
-# foot y [254, 1030], height [84, 336], mid-line 642): one player per half, static.
-TOP_BOX = (900.0, 500.0, 150.0)  # (foot_x, foot_y, height) px; foot y 500 < 642 -> top half
-BOT_BOX = (1000.0, 900.0, 250.0)  # foot y 900 >= 642 -> bottom half
+def test_install_court_box_returns_standin_and_homography():
+    # install_court_box stays in the runner (pilot geometry is pilot-scoped) and now returns
+    # the CourtBox the runner hands to the segmenter's builders. 'standin' is the default with
+    # its zero-width 642 px half-split; 'homography' the tighter quad plus the buffered net band.
+    standin = install_court_box('standin')
+    assert standin is STANDIN_COURT_BOX
+    assert standin.x_range == (635.0, 1316.0)
+    assert standin.mid_band == (642.0, 642.0)  # zero-width stand-in split
 
-
-def _mk_wideshot_inputs(frame_boxes: list[list[tuple[float, float, float]]]) -> WideshotInputs:
-    """WideshotInputs from per-frame (foot_x, foot_y, height) pixel boxes.
-
-    Boxes become xyxy with a fixed 60 px width; scores descend with list order so the
-    first box of a half is its highest-score pick. Empty frames stay all-NaN, the raw
-    pose padding convention build_serve_start_wideshot_inputs expects.
-    """
-    n_frames = len(frame_boxes)
-    bboxes = np.full((n_frames, 16, 4), np.nan)
-    scores = np.full((n_frames, 16), np.nan)
-    for frame, boxes in enumerate(frame_boxes):
-        for slot, (foot_x, foot_y, height) in enumerate(boxes):
-            bboxes[frame, slot] = (foot_x - 30.0, foot_y - height, foot_x + 30.0, foot_y)
-            scores[frame, slot] = 0.9 - 0.1 * slot
-    return build_serve_start_wideshot_inputs(bboxes, scores)
-
-
-def test_wide_shot_gate_passes_on_static_two_player_lookback():
-    # 25 frames, one static court-scale player per half: count_med 2, both halves
-    # occupied, drift 0. The canonical serve wide shot.
-    inputs = _mk_wideshot_inputs([[TOP_BOX, BOT_BOX]] * 25)
-    assert _wide_shot_before(inputs, burst_start=25)
-
-
-def test_wide_shot_gate_count_fail():
-    # Each half occupied for 13 of 25 frames (>= the 12.5 present floor) but only frame 12
-    # has both at once: count median 1 < 2. Isolates the count condition; presence and
-    # drift both pass.
-    frames = [[TOP_BOX] for _ in range(25)]
-    for frame in range(12, 25):
-        frames[frame] = [BOT_BOX]
-    frames[12] = [TOP_BOX, BOT_BOX]
-    inputs = _mk_wideshot_inputs(frames)
-    assert not _wide_shot_before(inputs, burst_start=25)
-
-
-def test_wide_shot_gate_slot_fail():
-    # Two static court-scale players, both in the TOP half: count_med 2 passes but the
-    # bottom half is never occupied.
-    second_top = (800.0, 550.0, 160.0)
-    inputs = _mk_wideshot_inputs([[TOP_BOX, second_top]] * 25)
-    assert not _wide_shot_before(inputs, burst_start=25)
-
-
-def test_wide_shot_gate_drift_fail():
-    # Both halves occupied every frame, but the bottom player walks 10 px/frame: the
-    # head/tail foot means sit 150 px apart (0.078 image-fraction > 0.05). Count and
-    # presence pass; the drift condition binds.
-    frames = [
-        [TOP_BOX, (1000.0 + 10.0 * frame, 900.0, 250.0)] for frame in range(25)
-    ]
-    inputs = _mk_wideshot_inputs(frames)
-    assert not _wide_shot_before(inputs, burst_start=25)
-
-
-def test_wide_shot_gate_short_series_drift_abstains():
-    # Ten present feet fill exactly one drift window, so head and tail would fully
-    # overlap and read 0.0 even though the bottom player sprints 15 px/frame. The
-    # short series must abstain to NaN and the gate fail closed. Presence still passes
-    # (10 of 10 frames >= the 5-frame floor of this truncated lookback); drift decides.
-    frames = [
-        [TOP_BOX, (1000.0 + 15.0 * frame, 900.0, 250.0)] for frame in range(10)
-    ]
-    inputs = _mk_wideshot_inputs(frames)
-    assert not _wide_shot_before(inputs, burst_start=10)
-
-
-def test_wide_shot_gate_empty_or_truncated_lookback_fails():
-    # No detections at all in the lookback: count 0, no halves. And burst_start 0 has no
-    # lookback frames at all. Both read as not-wide-shot rather than crash.
-    inputs = _mk_wideshot_inputs([[] for _ in range(25)])
-    assert not _wide_shot_before(inputs, burst_start=25)
-    assert not _wide_shot_before(inputs, burst_start=0)
-
-
-def test_serve_start_wideshot_requires_both_gates():
-    # Bursts at 10 and 60 BOTH pass the distance gate; only burst 60's lookback holds the
-    # wide shot. With the refinement on, the span opens at 60; off, at 10 (the prior
-    # serve-start pick). The refinement is a strict AND on top of the distance gate.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _serve_start_speed_rest_dist({10, 60})
-    frames: list[list[tuple[float, float, float]]] = [[] for _ in range(120)]
-    for frame in range(35, 60):  # burst 60's 25-frame lookback
-        frames[frame] = [TOP_BOX, BOT_BOX]
-    inputs = _mk_wideshot_inputs(frames)
-    install_serve_start(dist, 0.10, ServeStartMode.TRIM, wideshot=inputs)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(60, 120)]
-    install_serve_start(dist, 0.10, ServeStartMode.TRIM)  # refinement off
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_wideshot_off_is_prior_behaviour_bit_for_bit():
-    # With wideshot left at the default None the arm must reproduce the pre-refinement
-    # spans exactly, even straight after a wideshot install (install resets the state).
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _serve_start_speed_rest_dist({60})
-    failing_everywhere = _mk_wideshot_inputs([[] for _ in range(120)])
-    install_serve_start(dist, 0.10, ServeStartMode.TRIM, wideshot=failing_everywhere)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 120)]  # gate vetoes 60
-    for mode, expected in ((ServeStartMode.TRIM, [(60, 120)]),
-                           (ServeStartMode.REJECT, [(60, 120)])):
-        install_serve_start(dist, 0.10, mode)
-        assert stage8_sweep._SERVE_START_WIDESHOT is None
-        assert serve_start_find_rally_spans(speed, at_rest) == expected  # the pinned prior picks
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_wideshot_installs_and_uninstalls_through_init_worker():
-    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
-    dist = np.full(3, np.nan)
-    inputs = _mk_wideshot_inputs([[] for _ in range(3)])
-    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
-                 serve_start_threshold=0.10, serve_start_dist=dist,
-                 serve_start_wideshot=inputs)
-    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
-    assert stage8_sweep._SERVE_START_WIDESHOT is inputs
-    # Re-init with serve-start on but the refinement off: the wideshot state must clear.
-    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
-                 serve_start_threshold=0.10, serve_start_dist=dist)
-    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
-    assert stage8_sweep._SERVE_START_WIDESHOT is None
-    # Re-init with the arm off entirely: stock binding returns AND the per-process
-    # arrays drop, so an off-arm worker holds no stale distance/wideshot copy.
-    _init_worker(ctx, nan_smoothing=False)
-    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
-    assert stage8_sweep._SERVE_START_DIST is None
-    assert stage8_sweep._SERVE_START_WIDESHOT is None
-
-
-# ---------------------------------------------------------------------------
-# 13. Serve-start split (--serve-start-split: cut a region at every qualifying burst)
-# ---------------------------------------------------------------------------
-def _three_burst_speed_rest_dist(
-    qualifying_bursts: set[int], rest_runs: tuple[tuple[int, int], ...] = (),
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Length-200 speed with three 5-frame bursts at 10, 80, 150, plus optional rest runs.
-
-    ``qualifying_bursts`` (a subset of {10, 80, 150}) get a small (<= 0.10) distance over their
-    SERVE_START_LOOKBACK lookback so the serve-setup gate passes; every other frame stays NaN so
-    its lookback fails. ``rest_runs`` are ``(start, end)`` at_rest runs the caller keeps shorter
-    than the patched END_REST_FRAMES 40, so no long rest splits the track: it stays one active
-    region [0, 200). The three burst starts sit far enough apart (spacing 70) that their 25-frame
-    lookbacks never overlap a burst.
-    """
-    speed = np.zeros(200)
-    for burst in (10, 80, 150):
-        speed[burst:burst + 5] = 0.05  # > shipped START_SPEED 0.03, >= START_MIN_FRAMES 3
-    at_rest = np.zeros(200, dtype=bool)
-    for start, end in rest_runs:
-        at_rest[start:end] = True
-    dist = np.full(200, np.nan)
-    for burst in qualifying_bursts:
-        dist[max(0, burst - SERVE_START_LOOKBACK_FRAMES):burst] = 0.03  # median passes <= 0.10
-    return speed, at_rest, dist
-
-
-def test_last_rest_close_picks_last_qualifying_run_else_burst():
-    # The cut is the START of the last at_rest run ending at or before the next burst and opening
-    # after this span's open; fall back to the burst when none sits between the two opens.
-    rest_runs = [(5, 8), (30, 40), (55, 60), (90, 100)]
-    # open 10, next 80: (30,40) and (55,60) qualify; the later start (55) wins.
-    assert _last_rest_close(rest_runs, open_frame=10, next_burst=80) == 55
-    # open 45 excludes (30,40) (starts before the open); only (55,60) remains.
-    assert _last_rest_close(rest_runs, open_frame=45, next_burst=80) == 55
-    # open 10, next 25: no run both ends by 25 and opens after 10 -> fall back to the burst.
-    assert _last_rest_close(rest_runs, open_frame=10, next_burst=25) == 25
-    # open 60, next 95: (90,100) ends past the burst -> fall back to the burst.
-    assert _last_rest_close(rest_runs, open_frame=60, next_burst=95) == 95
-
-
-def test_serve_start_split_off_is_single_span_bit_for_bit():
-    # Three qualifying bursts, split off (close defaults to None): the arm opens ONE span at the
-    # first qualifying burst running to region end, exactly the pre-split behaviour. The
-    # diagnostics still see all three qualifying bursts, so split-off changes only the spans.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
-    for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
-        install_serve_start(dist, 0.10, mode)
-        assert stage8_sweep._SERVE_START_CLOSE is None
-        assert serve_start_find_rally_spans(speed, at_rest) == [(10, 200)]
-    assert stage8_sweep._SERVE_START_LAST_DIAGNOSTICS['qualifying_counts'] == [3]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_burst_cuts_at_every_qualifying_burst():
-    # close='burst': each qualifying burst opens a span closing at the next burst; the last runs
-    # to region end. Three qualifying bursts -> three contiguous spans.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 80), (80, 150), (150, 200)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_burst_unions_to_the_single_span():
-    # close='burst' is coverage-identical to the single-span arm by construction: the cut spans
-    # tile the region with no gap, so their union is exactly the split-off span.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT)  # split off
-    single = serve_start_find_rally_spans(speed, at_rest)
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
-    split = serve_start_find_rally_spans(speed, at_rest)
-    assert single == [(10, 200)]
-    assert split[0][0] == single[0][0] and split[-1][1] == single[0][1]
-    assert all(earlier[1] == later[0] for earlier, later in zip(split, split[1:]))  # contiguous
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
-    # Only one rest run, sitting between bursts 80 and 150. Span 0 (open 10) has no rest run to
-    # cut at and falls back to the next burst 80; span 1 (open 80) closes at the rest start 100.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150}, rest_runs=((100, 110),))
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.LAST_REST)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 80), (80, 100), (150, 200)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_last_rest_takes_the_last_of_several_runs():
-    # Two rest runs between bursts 10 and 80: the LATER run's start (55) is the cut, not 30.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80}, rest_runs=((30, 40), (55, 60)))
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.LAST_REST)
-    assert serve_start_find_rally_spans(speed, at_rest) == [(10, 55), (80, 200)]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_no_qualify_region_honours_mode():
-    # No burst qualifies (all-NaN dist), split on. TRIM still falls back to the stock first burst;
-    # REJECT still drops the region. Split changes only qualifying regions.
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist(set())  # nothing qualifies
-    for close in (ServeStartClose.BURST, ServeStartClose.LAST_REST):
-        install_serve_start(dist, 0.10, ServeStartMode.TRIM, close=close)
-        assert serve_start_find_rally_spans(speed, at_rest) == [(10, 200)]  # stock first burst
-        diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
-        assert diag['n_no_qualify'] == 1 and diag['qualifying_counts'] == [0]
-        install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=close)
-        assert serve_start_find_rally_spans(speed, at_rest) == []
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_diagnostics_carry_counts_and_spacings():
-    # Three qualifying bursts in one region: qualifying_counts [3] and the consecutive spacings
-    # 80-10=70 and 150-80=70 (the double-fire read; small spacings would flag a mid-rally cut).
-    _patch_stage8(SHIPPED_DEFAULTS._replace(end_rest_frames=40))
-    speed, at_rest, dist = _three_burst_speed_rest_dist({10, 80, 150})
-    install_serve_start(dist, 0.10, ServeStartMode.REJECT, close=ServeStartClose.BURST)
-    serve_start_find_rally_spans(speed, at_rest)
-    diag = stage8_sweep._SERVE_START_LAST_DIAGNOSTICS
-    assert diag['qualifying_counts'] == [3]
-    assert diag['qualifying_spacings'] == [70, 70]
-    _patch_stage8(SHIPPED_DEFAULTS)
-
-
-def test_serve_start_split_installs_and_uninstalls_through_init_worker():
-    ctx = SweepCtx(track=np.zeros((3, 3)), gt_rallies=[])
-    dist = np.full(3, np.nan)
-    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
-                 serve_start_threshold=0.10, serve_start_dist=dist,
-                 serve_start_close=ServeStartClose.LAST_REST)
-    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
-    assert stage8_sweep._SERVE_START_CLOSE is ServeStartClose.LAST_REST
-    # Re-init with serve-start on but split off: the close state clears back to None.
-    _init_worker(ctx, nan_smoothing=False, serve_start_mode=ServeStartMode.REJECT,
-                 serve_start_threshold=0.10, serve_start_dist=dist)
-    assert stage8_module._find_rally_spans is serve_start_find_rally_spans
-    assert stage8_sweep._SERVE_START_CLOSE is None
-    # Re-init with the arm off entirely: stock binding returns and the close state stays clear.
-    _init_worker(ctx, nan_smoothing=False)
-    assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
-    assert stage8_sweep._SERVE_START_CLOSE is None
-
-
-# ---------------------------------------------------------------------------
-# 15. Court box selection (--court-box)
-# ---------------------------------------------------------------------------
-def test_court_box_default_is_standin_bounds():
-    # At import the active court geometry is the stand-in occupancy box and its zero-width 642
-    # half-split: the default, bit-identical path. Read the live module globals, not the
-    # import-time bindings.
-    assert stage8_sweep.PILOT_COURT_X == PILOT_STANDIN_COURT_X
-    assert stage8_sweep.PILOT_COURT_Y == PILOT_STANDIN_COURT_Y
-    assert stage8_sweep.PILOT_COURT_MID_BAND == (642.0, 642.0)
-
-
-def test_court_box_homography_rebinds_outline_and_half_split():
-    # Selecting homography swaps PILOT_COURT_X/Y to the quad bounding box AND the half-split
-    # to the buffered net-line band (the geometry moves together; a 642 split against the
-    # tighter quad would sit 42 px above the real net); the height band stays the stand-in
-    # (the quad says nothing about bbox heights). A foot at y=300 sits inside the stand-in
-    # court but above the homography quad's top edge (461.1), so _court_scale_boxes keeps the
-    # box under stand-in and drops it under homography: proof the rebind reaches the actual
-    # filter. Restore the default in finally so no later test in the process inherits the
-    # homography geometry.
-    bboxes = np.full((16, 4), np.nan)
-    scores = np.full(16, np.nan)
-    bboxes[0] = (970.0, 150.0, 1030.0, 300.0)  # foot (1000, 300), height 150: inside stand-in only
-    scores[0] = 0.9
-    assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 1  # kept under the stand-in
-    try:
-        install_court_box('homography')
-        assert stage8_sweep.PILOT_COURT_X == PILOT_HOMOG_COURT_X
-        assert stage8_sweep.PILOT_COURT_Y == PILOT_HOMOG_COURT_Y
-        assert stage8_sweep.PILOT_COURT_MID_BAND == PILOT_HOMOG_COURT_MID_BAND  # buffered net band
-        assert stage8_sweep.PILOT_PLAYER_HEIGHT == (84.0, 336.0)  # height band untouched
-        assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 0  # dropped under homography
-    finally:
-        install_court_box('standin')
-    assert stage8_sweep.PILOT_COURT_X == PILOT_STANDIN_COURT_X
-    assert stage8_sweep.PILOT_COURT_MID_BAND == (642.0, 642.0)  # half-split restored with the outline
-    assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 1  # back inside the stand-in
-
-
-def test_court_box_homography_mid_band_foot_claims_neither_half():
-    # A foot inside the homography mid band claims NEITHER court half (the band absorbs the
-    # net-line's 3D model error: net height, sag, monocular template binding), while the
-    # court-scale count still sees it. One foot clearly in the top half plus one in-band foot:
-    # top slot filled, bottom slot empty despite two court-scale detections.
-    bboxes = np.full((1, 16, 4), np.nan)
-    scores = np.full((1, 16), np.nan)
-    bboxes[0, 0] = (900.0, 380.0, 960.0, 500.0)    # foot (930, 500): top half under homography
-    bboxes[0, 1] = (1000.0, 560.0, 1060.0, 684.0)  # foot (1030, 684): inside the band (664.6, 703.7)
-    scores[0, :2] = 0.9
-    try:
-        install_court_box('homography')
-        inputs = stage8_sweep.build_serve_start_wideshot_inputs(bboxes, scores)
-        assert inputs.count[0] == 2  # both detections are court-scale
-        assert np.isfinite(inputs.top_foot[0]).all()  # the y=500 foot owns the top half
-        assert np.isnan(inputs.bot_foot[0]).all()  # the in-band foot claims neither half
-    finally:
-        install_court_box('standin')
+    homography = install_court_box('homography')
+    assert homography is HOMOGRAPHY_COURT_BOX
+    assert homography.x_range == (460.8, 1459.5)
+    assert homography.mid_band == (664.6, 703.7)  # buffered net-line band
+    # The height band stays the stand-in under both (the quad says nothing about bbox heights).
+    assert standin.height_band == homography.height_band == (84.0, 336.0)
