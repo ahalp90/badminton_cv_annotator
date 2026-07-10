@@ -26,6 +26,11 @@ from scripts.stage8_sweep import (
     LABEL_GRID,
     LABEL_SHIPPED,
     PARAM_COLUMNS,
+    PILOT_HOMOG_COURT_MID_BAND,
+    PILOT_HOMOG_COURT_X,
+    PILOT_HOMOG_COURT_Y,
+    PILOT_STANDIN_COURT_X,
+    PILOT_STANDIN_COURT_Y,
     RAW_PRECISION_COLUMNS,
     ROW_COLUMNS,
     SERVE_START_LOOKBACK_FRAMES,
@@ -64,6 +69,7 @@ from scripts.stage8_sweep import (
     contact_sort_key,
     flatten_row,
     gap_state_rest_mask,
+    install_court_box,
     install_gap_state,
     install_nan_smoothing,
     install_quiet_start,
@@ -1428,3 +1434,63 @@ def test_serve_start_split_installs_and_uninstalls_through_init_worker():
     _init_worker(ctx, nan_smoothing=False)
     assert stage8_module._find_rally_spans is _STOCK_FIND_RALLY_SPANS
     assert stage8_sweep._SERVE_START_CLOSE is None
+
+
+# ---------------------------------------------------------------------------
+# 15. Court box selection (--court-box)
+# ---------------------------------------------------------------------------
+def test_court_box_default_is_standin_bounds():
+    # At import the active court geometry is the stand-in occupancy box and its zero-width 642
+    # half-split: the default, bit-identical path. Read the live module globals, not the
+    # import-time bindings.
+    assert stage8_sweep.PILOT_COURT_X == PILOT_STANDIN_COURT_X
+    assert stage8_sweep.PILOT_COURT_Y == PILOT_STANDIN_COURT_Y
+    assert stage8_sweep.PILOT_COURT_MID_BAND == (642.0, 642.0)
+
+
+def test_court_box_homography_rebinds_outline_and_half_split():
+    # Selecting homography swaps PILOT_COURT_X/Y to the quad bounding box AND the half-split
+    # to the buffered net-line band (the geometry moves together; a 642 split against the
+    # tighter quad would sit 42 px above the real net); the height band stays the stand-in
+    # (the quad says nothing about bbox heights). A foot at y=300 sits inside the stand-in
+    # court but above the homography quad's top edge (461.1), so _court_scale_boxes keeps the
+    # box under stand-in and drops it under homography: proof the rebind reaches the actual
+    # filter. Restore the default in finally so no later test in the process inherits the
+    # homography geometry.
+    bboxes = np.full((16, 4), np.nan)
+    scores = np.full(16, np.nan)
+    bboxes[0] = (970.0, 150.0, 1030.0, 300.0)  # foot (1000, 300), height 150: inside stand-in only
+    scores[0] = 0.9
+    assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 1  # kept under the stand-in
+    try:
+        install_court_box('homography')
+        assert stage8_sweep.PILOT_COURT_X == PILOT_HOMOG_COURT_X
+        assert stage8_sweep.PILOT_COURT_Y == PILOT_HOMOG_COURT_Y
+        assert stage8_sweep.PILOT_COURT_MID_BAND == PILOT_HOMOG_COURT_MID_BAND  # buffered net band
+        assert stage8_sweep.PILOT_PLAYER_HEIGHT == (84.0, 336.0)  # height band untouched
+        assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 0  # dropped under homography
+    finally:
+        install_court_box('standin')
+    assert stage8_sweep.PILOT_COURT_X == PILOT_STANDIN_COURT_X
+    assert stage8_sweep.PILOT_COURT_MID_BAND == (642.0, 642.0)  # half-split restored with the outline
+    assert len(stage8_sweep._court_scale_boxes(bboxes, scores)[0]) == 1  # back inside the stand-in
+
+
+def test_court_box_homography_mid_band_foot_claims_neither_half():
+    # A foot inside the homography mid band claims NEITHER court half (the band absorbs the
+    # net-line's 3D model error: net height, sag, monocular template binding), while the
+    # court-scale count still sees it. One foot clearly in the top half plus one in-band foot:
+    # top slot filled, bottom slot empty despite two court-scale detections.
+    bboxes = np.full((1, 16, 4), np.nan)
+    scores = np.full((1, 16), np.nan)
+    bboxes[0, 0] = (900.0, 380.0, 960.0, 500.0)    # foot (930, 500): top half under homography
+    bboxes[0, 1] = (1000.0, 560.0, 1060.0, 684.0)  # foot (1030, 684): inside the band (664.6, 703.7)
+    scores[0, :2] = 0.9
+    try:
+        install_court_box('homography')
+        inputs = stage8_sweep.build_serve_start_wideshot_inputs(bboxes, scores)
+        assert inputs.count[0] == 2  # both detections are court-scale
+        assert np.isfinite(inputs.top_foot[0]).all()  # the y=500 foot owns the top half
+        assert np.isnan(inputs.bot_foot[0]).all()  # the in-band foot claims neither half
+    finally:
+        install_court_box('standin')

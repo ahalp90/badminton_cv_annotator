@@ -1269,15 +1269,55 @@ def install_quiet_start(window: int) -> None:
 #            lever, kills replay and crowd stretches, at the risk of dropping a GT rally that
 #            sits in a no-qualify region.
 #
-# LOUD CAVEAT ON THE COURT REGION. These constants are PILOT-VIDEO-1-ONLY, data-derived
+# LOUD CAVEAT ON THE STAND-IN COURT REGION. These constants are PILOT-VIDEO-1-ONLY, data-derived
 # stand-ins for the court quad (production gets CourtKeyNet). They are the axis-quantile
 # foot-point box and padded pixel-height band fitted in start_side_scoping.py from the
 # top-2-score in-rally detections. NOT a measured court quad; do not reuse for another
 # video (one broadcast camera, one court framing).
-PILOT_COURT_X = (635.0, 1316.0)      # foot-point x bounds, pixels (frame is 1920 wide)
-PILOT_COURT_Y = (254.0, 1030.0)      # foot-point y bounds, pixels (frame is 1080 tall)
+PILOT_STANDIN_COURT_X = (635.0, 1316.0)  # foot-point x bounds, pixels (frame is 1920 wide)
+PILOT_STANDIN_COURT_Y = (254.0, 1030.0)  # foot-point y bounds, pixels (frame is 1080 tall)
+
+# The homography alternative the --court-box flag selects. Bounding box of ShuttleSet's recorded
+# court quad for pilot vid 1, mapped into the 1920x1080 working space by homography_check.py
+# (verified 2026-07-10 against ShuttleSet's static, per-video homography; the four corners live in
+# local_scratch/autograder_architecture/pilot_results/homography_view_rule/homography_check.csv).
+# Being the ACTUAL court-outline quad's bounding box, it sits TIGHTER than the occupancy stand-ins
+# above: players legitimately stand outside it (lunges, clears past the baseline), and courtside
+# officials sit outside it but inside the stand-in box.
+PILOT_HOMOG_COURT_X = (460.8, 1459.5)  # quad x-range, pixels (downleft .. downright corners)
+PILOT_HOMOG_COURT_Y = (461.1, 1006.8)  # quad y-range, pixels (upright .. downleft corners)
+# The net line's image y under the same homography (H^-1 of the court-space mid-line, spread
+# under 2.2 px across the court width; homography_check.py, 2026-07-10). Perspective
+# compresses the far half, so no arithmetic midpoint lands here: the stand-in half-split
+# (642) sits 42 px above the real net, the quad-y midpoint (~734) 50 px below it.
+PILOT_HOMOG_COURT_MID_Y = 683.9
+# The homography half-split is a BAND, not a knife edge: the recorded homography binds a flat
+# template to a monocular image of a 3D net (own height, minor x/y/z sag), so the floor-plane
+# net line carries model error beyond its numeric spread (Ariel's ruling, 2026-07-10). The
+# band is +/-0.5 m along court length at the net, through H^-1 at centre-court x; feet inside
+# it count to NEITHER court half. Vid 15's band is (583.9, 626.6) for the coming
+# generalisation window.
+PILOT_HOMOG_COURT_MID_BAND = (664.6, 703.7)
+
 PILOT_PLAYER_HEIGHT = (84.0, 336.0)  # court-player bbox pixel-height band
 PILOT_RESOLUTION = (1920.0, 1080.0)  # (W, H) the shuttle xy and the bbox centres normalise by
+
+# The active court geometry the serve-start machinery reads: the foot-point x/y filter in
+# _court_scale_boxes plus the top/bottom half-split band in the wide-shot gate. --court-box
+# swaps all three together (install_court_box rebinds them); stand-in is the default,
+# bit-identical to before the flag existed (its band is zero-width: the stand-in split never
+# had a buffer and the audited 70/113 + 10/619 anchors pin it). The height band stays the
+# stand-in under both choices (the homography fixes the court outline, it says nothing about
+# bbox pixel heights).
+PILOT_STANDIN_COURT_MID_Y = (PILOT_STANDIN_COURT_Y[0] + PILOT_STANDIN_COURT_Y[1]) / 2.0  # 642 px
+PILOT_STANDIN_COURT_MID_BAND = (PILOT_STANDIN_COURT_MID_Y, PILOT_STANDIN_COURT_MID_Y)
+PILOT_COURT_X = PILOT_STANDIN_COURT_X
+PILOT_COURT_Y = PILOT_STANDIN_COURT_Y
+PILOT_COURT_MID_BAND = PILOT_STANDIN_COURT_MID_BAND
+COURT_BOXES = {
+    'standin': (PILOT_STANDIN_COURT_X, PILOT_STANDIN_COURT_Y, PILOT_STANDIN_COURT_MID_BAND),
+    'homography': (PILOT_HOMOG_COURT_X, PILOT_HOMOG_COURT_Y, PILOT_HOMOG_COURT_MID_BAND),
+}
 
 SERVE_START_LOOKBACK_FRAMES = 25  # the last second before a burst (25 fps): the serve-setup window
 
@@ -1293,7 +1333,8 @@ WIDESHOT_COUNT_MED_MIN = 2.0      # median court-scale detections over the lookb
 WIDESHOT_SLOT_PRESENT_FRAC = 0.5  # a half counts as occupied when present >= this fraction
 WIDESHOT_DRIFT_MAX = 0.05         # max per-half total foot drift, image-fraction
 WIDESHOT_DRIFT_END_FRAMES = 10    # drift = gap between head/tail means over up-to-10 present feet
-PILOT_COURT_MID_Y = (PILOT_COURT_Y[0] + PILOT_COURT_Y[1]) / 2.0  # top/bottom half split (642 px)
+# The active top/bottom half-split lives in PILOT_COURT_MID_BAND (above, beside the court
+# boxes); --court-box homography rebinds it to the buffered net-line band.
 
 
 class ServeStartMode(StrEnum):
@@ -1351,6 +1392,23 @@ _SERVE_START_CLOSE: ServeStartClose | None = None    # None = single span (split
 # function rewrites it every call), valid to read immediately after segment_video in the same
 # process. None until the first call.
 _SERVE_START_LAST_DIAGNOSTICS: dict | None = None
+
+
+def install_court_box(choice: str) -> None:
+    """Point the serve-start court geometry at the chosen box, in this process.
+
+    'standin' keeps the data-fitted occupancy box and its zero-width 642 px half-split (the
+    module default, bit-identical to before the flag existed); 'homography' swaps in the
+    court quad's bounding box AND the buffered net-line half-split band (the geometry moves
+    together: a 642 split against the tighter quad would sit 42 px above the real net, and
+    the band absorbs the net-line's 3D model error). The height band stays the stand-in
+    under both (the homography fixes the court outline, not bbox heights). Main-only:
+    _court_scale_boxes and the wide-shot half-split run when the serve-start
+    distance/wide-shot inputs are precomputed, both in the main process, so there is no
+    per-worker install to thread. Re-callable, same seam as install_serve_start.
+    """
+    global PILOT_COURT_X, PILOT_COURT_Y, PILOT_COURT_MID_BAND
+    PILOT_COURT_X, PILOT_COURT_Y, PILOT_COURT_MID_BAND = COURT_BOXES[choice]
 
 
 def _court_scale_boxes(
@@ -1461,9 +1519,13 @@ def build_serve_start_wideshot_inputs(bboxes: np.ndarray, scores: np.ndarray) ->
         if len(x1) == 0:
             continue
         foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
-        in_top_half = y2 < PILOT_COURT_MID_Y
+        # Feet inside the mid band claim NEITHER half (net-line 3D model error); the standin
+        # band is zero-width, so there y2 >= band_hi is exactly the audited ~(y2 < mid).
+        band_lo, band_hi = PILOT_COURT_MID_BAND
+        in_top_half = y2 < band_lo
+        in_bot_half = y2 >= band_hi
         for half_idx, foot_out in ((np.flatnonzero(in_top_half), top_foot),
-                                   (np.flatnonzero(~in_top_half), bot_foot)):
+                                   (np.flatnonzero(in_bot_half), bot_foot)):
             if len(half_idx):
                 best = half_idx[np.argmax(cs_scores[half_idx])]
                 foot_out[frame] = (foot_x[best] / width, y2[best] / height)
@@ -1776,6 +1838,14 @@ def _build_parser() -> argparse.ArgumentParser:
                              'burst, so coverage matches the single-span arm) or "last_rest" (it closes '
                              'at the start of the last rest run before that burst, dropping the '
                              'between-rally dead tail). Needs --serve-start')
+    parser.add_argument('--court-box', choices=('standin', 'homography'), default='standin',
+                        help='which court geometry the serve-start machinery uses: "standin" (default, '
+                             'the data-fitted occupancy box with its zero-width 642 px half-split) or '
+                             '"homography" (the homography quad bounding box for pilot vid 1, tighter '
+                             'than the stand-in, with a buffered net-line half-split band 664.6-703.7 '
+                             'px; feet inside the band claim neither half). The player-height band '
+                             'stays the stand-in either way (the homography says nothing about bbox '
+                             'pixel heights). No effect unless --serve-start is on')
     parser.add_argument('--shots-master', type=Path, default=DEFAULT_SHOTS_MASTER,
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
@@ -1839,6 +1909,14 @@ def main() -> None:
         print(f'Quiet-start on: quiet-start _find_rally_spans at W {args.quiet_start} (installed per worker)')
     if reentry_variant is not None:
         print(f'Re-entry guard on: {reentry_variant.value} variant at buffer {args.reentry_buffer}')
+
+    # Point the serve-start court geometry at the chosen box before the gate arrays build
+    # below (both build in this process). Standin is the default no-op; homography swaps the
+    # x/y outline and the half-split together, leaving the height band as the stand-in.
+    install_court_box(args.court_box)
+    if args.court_box != 'standin':
+        print(f'Court box: {args.court_box} (foot-point filter uses the homography quad, half-split '
+              f'the buffered net-line band {PILOT_HOMOG_COURT_MID_BAND}; height band stays the stand-in)')
 
     # Serve-start needs the per-frame gate distance array (and, with the wide-shot
     # refinement on, the per-frame count + per-half feet). Build them once here from the raw
