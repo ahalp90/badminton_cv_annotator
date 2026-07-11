@@ -45,7 +45,7 @@ from src.scraper.stage8_rally_segmentation import (
 # keeps the reversal-junction speed above MIN_CONTACT_SPEED.
 RALLY_STEP = 0.14
 REST_PRE = 45
-REST_POST = 60
+REST_POST = 100  # past END_REST_FRAMES, so the trailing rest closes the rally region
 REST_Y = 0.01
 
 
@@ -139,7 +139,7 @@ def test_contact_detected_on_fast_reversal():
 
 
 def test_contact_suppressed_below_min_contact_speed():
-    slow_step = 0.01                             # < MIN_CONTACT_SPEED (0.02), so the gate rejects it
+    slow_step = 0.002                            # < MIN_CONTACT_SPEED, so the gate rejects it
     assert slow_step < MIN_CONTACT_SPEED
     assert slow_step < START_SPEED
     track = _triangle_track(slow_step)
@@ -194,8 +194,9 @@ _SERVE_THRESHOLDS = SHIPPED_THRESHOLDS._replace(end_rest_frames=40)
 def _burst_track() -> np.ndarray:
     """Rest, a visible burst at ~0.025/frame, then rest.
 
-    The burst speed sits between a lowered start_speed (0.02) and the shipped one (0.03), so a
-    rally span forms only under the lower threshold. Long rests on both sides isolate the burst.
+    The burst speed sits between the shipped start_speed (0.015) and a raised one (0.03), so a
+    rally span forms under the shipped defaults but not under a stricter preset. Long rests on
+    both sides isolate the burst.
     """
     rest_pre, burst, rest_post = 40, 20, 40
     burst_step = 0.025
@@ -222,20 +223,21 @@ def test_thresholds_none_matches_explicit_shipped_preset():
 
 
 def test_thresholds_preset_changes_behaviour():
-    # The 0.025 burst never reads as fast under shipped START_SPEED 0.03 -> no span; a preset
-    # lowering start_speed to 0.02 makes the same burst qualify -> a span forms.
+    # The 0.025 burst qualifies under the shipped START_SPEED 0.015 -> a span forms; a stricter
+    # preset raising start_speed to 0.03 rejects the same burst -> no span, proving the preset
+    # flows all the way through segmentation.
     track = _burst_track()
-    assert segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0] == []
-    lowered = SHIPPED_THRESHOLDS._replace(start_speed=0.02)
-    assert len(segment_video(track, thresholds=lowered)[0]) >= 1
+    assert len(segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0]) >= 1
+    stricter = SHIPPED_THRESHOLDS._replace(start_speed=0.03)
+    assert segment_video(track, thresholds=stricter)[0] == []
 
 
-def test_thresholds_best_config_preset_shifts_spans():
-    # The best-config preset (looser start/rest) forms a span on the burst track the shipped
-    # preset rejects, proving the preset flows all the way through segmentation.
+def test_thresholds_best_config_is_the_shipped_default():
+    # The block-2 sweep pick ships as the default: BEST_CONFIG_THRESHOLDS aliases the shipped
+    # preset, and the default globals path agrees with it bit-for-bit.
+    assert BEST_CONFIG_THRESHOLDS == SHIPPED_THRESHOLDS
     track = _burst_track()
-    assert segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0] == []
-    assert len(segment_video(track, thresholds=BEST_CONFIG_THRESHOLDS)[0]) >= 1
+    assert segment_video(track) == segment_video(track, thresholds=BEST_CONFIG_THRESHOLDS)
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +331,7 @@ def _span_open_speed_rest() -> tuple[np.ndarray, np.ndarray]:
     """Length-200 speed/at_rest: region [0,60) carries a qualifying fast burst, a 50-frame rest
     [60,110) splits (long at end_rest_frames <= 50), region [110,200) has no fast burst."""
     speed = np.zeros(200)
-    speed[10:15] = 0.05  # a qualifying burst in region 1 (> START_SPEED 0.03, len 5 >= 3)
+    speed[10:15] = 0.05  # a qualifying burst in region 1 (> START_SPEED, len 5 >= 3)
     at_rest = np.zeros(200, dtype=bool)
     at_rest[60:110] = True
     return speed, at_rest
@@ -347,13 +349,13 @@ def test_span_open_region_start_vs_back_fill_differ_on_no_burst_region():
 
 
 def _slow_drift_track() -> np.ndarray:
-    """Rest, a visible slow drift (~0.02/frame, above REST_SPEED but below START_SPEED), rest.
+    """Rest, a visible slow drift (~0.01/frame, above REST_SPEED but below START_SPEED), rest.
 
     The drift is an active region (not rest) with no qualifying fast burst, so the default
     burst-open rule yields no span but REGION_START (gate dropped) does.
     """
     rest_pre, drift, rest_post = 40, 20, 40
-    step = 0.02
+    step = 0.01
     xs = [0.5] * rest_pre
     position = 0.5
     for _ in range(drift):
@@ -401,7 +403,7 @@ def _serve_start_speed_rest_dist(qualifying_bursts: set[int]) -> tuple[np.ndarra
     SERVE_START_LOOKBACK lookback so the serve-setup gate passes; every other frame stays NaN.
     """
     speed = np.zeros(120)
-    speed[10:15] = 0.05  # > START_SPEED 0.03, >= START_MIN_FRAMES 3
+    speed[10:15] = 0.05  # > START_SPEED, >= START_MIN_FRAMES 3
     speed[60:65] = 0.05
     at_rest = np.zeros(120, dtype=bool)
     dist = np.full(120, np.nan)

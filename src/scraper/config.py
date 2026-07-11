@@ -167,15 +167,15 @@ PAIR_WINDOW_S = 8
 # Stage 8: rally segmentation and contact rules (spec s6)
 # ---------------------------------------------------------------------------
 # Speed means per-frame L2 displacement of (x_norm, y_norm) on visibility-1
-# frames. All starting values; tuned on ShuttleSet ground-truth contacts.
-REST_SPEED = 0.01  # norm-units/frame; a span is at rest below this
-REST_WINDOW = 15  # frames (~0.5 s at 30 fps)
-START_SPEED = 0.03  # rally start: speed above this...
+# frames. The block-2 sweep winners; tuned on only a couple of videos so far.
+REST_SPEED = 0.002  # norm-units/frame; a span is at rest below this
+REST_WINDOW = 5  # frames (~0.17 s at 30 fps)
+START_SPEED = 0.015  # rally start: speed above this...
 START_MIN_FRAMES = 3  # ...for this many consecutive frames out of rest
-SMOOTH_WINDOW = 5  # moving-average window over (x, y) to survive TrackNetV3 jitter
-MIN_DIR_CHANGE_DEG = 90  # contact: smoothed-velocity direction change beyond this
-MIN_CONTACT_SPEED = 0.02  # with pre- and post-reversal speed above this
-END_REST_FRAMES = 30  # rally end: extended rest of at least this (~1 s)
+SMOOTH_WINDOW = 3  # moving-average window over (x, y) to survive TrackNetV3 jitter
+MIN_DIR_CHANGE_DEG = 30  # contact: smoothed-velocity direction change beyond this
+MIN_CONTACT_SPEED = 0.005  # with pre- and post-reversal speed above this
+END_REST_FRAMES = 90  # rally end: extended rest of at least this (~3 s)
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
 
 
@@ -185,9 +185,10 @@ class Stage8Thresholds(NamedTuple):
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
     reads the globals (the default path); a preset here reads its fields instead.
-    Two presets ship: SHIPPED_THRESHOLDS (the constants above) and
-    BEST_CONFIG_THRESHOLDS (the block-2 sweep pick). PROXIMITY_MAX is not swept, so
-    it stays a plain global and is not carried here.
+    One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep
+    pick); BEST_CONFIG_THRESHOLDS aliases it so the CLI 'best' preset keeps
+    selecting the same values. PROXIMITY_MAX is not swept, so it stays a plain
+    global and is not carried here.
     """
 
     rest_speed: float
@@ -214,20 +215,10 @@ SHIPPED_THRESHOLDS = Stage8Thresholds(
     min_contact_speed=MIN_CONTACT_SPEED,
 )
 
-# The block-2 widened-sweep pick under the merge-penalised selection key (frozen
-# boundary winner plus its contact winner). Off by default; select with
-# segment_video(thresholds=BEST_CONFIG_THRESHOLDS). Values restated here because
-# this is their source of truth: the sweep froze them, no global carries them.
-BEST_CONFIG_THRESHOLDS = Stage8Thresholds(
-    rest_speed=0.002,
-    rest_window=5,
-    end_rest_frames=90,
-    start_speed=0.015,
-    start_min_frames=3,
-    smooth_window=3,
-    min_dir_change_deg=30,
-    min_contact_speed=0.005,
-)
+# The block-2 widened-sweep pick under the merge-penalised selection key is now
+# the shipped default (the constants above). The name survives as an alias so
+# the CLI 'best' preset keeps working.
+BEST_CONFIG_THRESHOLDS = SHIPPED_THRESHOLDS
 
 # ---------------------------------------------------------------------------
 # Stage 9: replay and off-rally rules (spec s7)

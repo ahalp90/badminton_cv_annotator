@@ -83,6 +83,7 @@ from scraper.stage8_rally_segmentation import (  # noqa: E402  — moved stage-8
     ServeStartOptions,
     SpanOpen,
     WideshotInputs,
+    build_serve_start_box_height,
     build_serve_start_dist,
     build_serve_start_wideshot_inputs,
 )
@@ -1334,9 +1335,10 @@ def _build_parser() -> argparse.ArgumentParser:
                              'coverage held) or "reject" (a no-qualify region is dropped, the stronger '
                              'anti-spurious lever). Needs --serve-start-pose-dir; mutually exclusive with '
                              '--quiet-start; composes with --gap-state')
-    parser.add_argument('--serve-start-threshold', type=float, default=0.10, metavar='DIST',
-                        help='serve-start gate distance in image-fraction (default 0.10, the scoped '
-                             'operating point that keeps 103/113 GT serves)')
+    parser.add_argument('--serve-start-threshold', type=float, default=0.725, metavar='DIST',
+                        help='serve-start gate distance in box heights of the nearest court-scale '
+                             'player (default 0.725, splitting the measured 0.75 -> 105/113 and '
+                             '0.70 -> 101/113 GT-serve keeps; tuned on only a couple of videos)')
     parser.add_argument('--serve-start-pose-dir', type=Path, default=None,
                         help='directory of the raw pose npys (<prefix>_bboxes.npy, <prefix>_scores.npy) '
                              'the serve-start gate reads to precompute the shuttle-to-court-scale-centre '
@@ -1439,18 +1441,20 @@ def main() -> None:
         print(f'Court box: {args.court_box} (foot-point filter uses the homography quad, half-split '
               f'the buffered net-line band {PILOT_HOMOG_COURT_MID_BAND}; height band stays the stand-in)')
 
-    # Serve-start needs the per-frame gate distance array (and, with the wide-shot refinement on,
-    # the per-frame count + per-half feet), built once here from the raw pose boxes over the
-    # UNMASKED track and carried into every worker via SweepCtx; None (and no build) when off.
+    # Serve-start needs the per-frame gate distance and nearest-box-height arrays (and, with the
+    # wide-shot refinement on, the per-frame count + per-half feet), built once here from the raw
+    # pose boxes over the UNMASKED track and carried into every worker via SweepCtx; None (and no
+    # build) when off.
     serve_start: ServeStartOptions | None = None
     if serve_start_mode is not None:
         pose_dir = args.serve_start_pose_dir
         bboxes = np.load(pose_dir / f'{args.serve_start_pose_prefix}_bboxes.npy')
         scores = np.load(pose_dir / f'{args.serve_start_pose_prefix}_scores.npy')
         serve_start_dist = build_serve_start_dist(track, bboxes, scores, court_box, PILOT_RESOLUTION)
+        serve_start_height = build_serve_start_box_height(track, bboxes, scores, court_box, PILOT_RESOLUTION)
         serve_start_wideshot: WideshotInputs | None = None
         print(f'Serve-start on: {serve_start_mode.value} mode, gate <= {args.serve_start_threshold} '
-              f'over the last {SERVE_START_LOOKBACK_FRAMES}f; distance array built from {pose_dir}')
+              f'box heights over the last {SERVE_START_LOOKBACK_FRAMES}f; gate arrays built from {pose_dir}')
         if args.serve_start_wideshot:
             serve_start_wideshot = build_serve_start_wideshot_inputs(
                 bboxes, scores, court_box, PILOT_RESOLUTION)
@@ -1461,7 +1465,7 @@ def main() -> None:
                   f'(each qualifying burst opens a span)')
         serve_start = ServeStartOptions(
             dist=serve_start_dist, threshold=args.serve_start_threshold, mode=serve_start_mode,
-            wideshot=serve_start_wideshot, close=serve_start_close,
+            wideshot=serve_start_wideshot, close=serve_start_close, height=serve_start_height,
         )
 
     shots_master = pd.read_csv(args.shots_master)

@@ -368,9 +368,9 @@ def test_contact_winner_maximises_recall_then_falls_through_tiebreaks():
 def _burst_track() -> np.ndarray:
     """Rest, then a visible burst at ~0.025/frame, then rest.
 
-    The burst speed sits between a lowered START_SPEED (0.02) and the shipped one
-    (0.03), so a rally span forms only under the lower threshold. Long rests on
-    both sides (>= END_REST_FRAMES) isolate the burst as its own active region.
+    The burst speed sits between the shipped START_SPEED (0.015) and a raised one
+    (0.03), so a rally span forms under the shipped defaults but not under the
+    raised patch. Long rests on both sides isolate the burst.
     """
     rest_pre, burst, rest_post = 40, 20, 40
     burst_step = 0.025
@@ -389,16 +389,16 @@ def _burst_track() -> np.ndarray:
 def test_patch_changes_segment_video_behaviour():
     track = _burst_track()
 
-    # Shipped START_SPEED (0.03): the 0.025 burst never reads as fast -> no span.
+    # Shipped START_SPEED (0.015): the 0.025 burst qualifies -> a span forms.
     _patch_stage8(SHIPPED_DEFAULTS)
     spans_shipped, _ = stage8_module.segment_video(track)
-    assert spans_shipped == []
+    assert len(spans_shipped) >= 1
 
-    # Lower START_SPEED to 0.02: the same burst now qualifies -> a span forms.
-    lowered = SHIPPED_DEFAULTS._replace(start_speed=0.02)
-    _patch_stage8(lowered)
-    spans_lowered, _ = stage8_module.segment_video(track)
-    assert len(spans_lowered) >= 1
+    # Raise START_SPEED to 0.03: the same burst never reads as fast -> no span.
+    raised = SHIPPED_DEFAULTS._replace(start_speed=0.03)
+    _patch_stage8(raised)
+    spans_raised, _ = stage8_module.segment_video(track)
+    assert spans_raised == []
 
     # Restore shipped defaults; the module global is shared within this process.
     _patch_stage8(SHIPPED_DEFAULTS)
@@ -555,8 +555,8 @@ def test_nan_rolling_mean_matches_stock_on_visible_track():
 def test_nan_smoothing_survives_midrally_gap():
     # Stock smoothing averages the gap's zero-fill in and drags the smoothed x
     # toward the corner near the gap; NaN smoothing drops the gap and stays on the
-    # real trajectory. window=5 (shipped SMOOTH_WINDOW); frames 17 and 23 straddle
-    # the gap so their windows overlap the zero-fill.
+    # real trajectory. window=5; frames 17 and 23 straddle the gap so their
+    # windows overlap the zero-fill.
     track, true_x = _gap_track()
     x_raw = track[:, 0]  # zero-filled at the gap, as stage 8 sees it
     stock_smooth = stage8_module._rolling_mean(x_raw, 5)
@@ -638,7 +638,7 @@ def _high_shot_oob_gap_track() -> np.ndarray:
     """Six visible frames climbing off the top, a 12-frame invisible high_shot_oob gap, six visible.
 
     The pre-gap climb (y 0.5 -> 0.05) extrapolates well above the top edge, so the gap
-    is high_shot_oob. Twelve invisible frames are long enough that stock's REST_WINDOW=15
+    is high_shot_oob. Twelve invisible frames are long enough that stock's rest mask
     reads the gap centre as mostly-untracked rest; the arm must not.
     """
     pre_y = np.linspace(0.5, 0.05, 6)
