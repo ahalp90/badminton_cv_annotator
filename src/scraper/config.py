@@ -230,6 +230,13 @@ COURT_ABSENT_WINDOW = 15  # frames of court-present False to fire the signal
 PERSPECTIVE_SHIFT_THRESH = 0.05
 SLOWMO_SPEED_FRAC = 0.3  # median speed under this fraction of rally median = slow-mo
 
+# Composition dead-mask (stage9_composition_mask), the per-segment alternative to
+# the replay mask. A PySceneDetect content pass cuts the timeline; each segment is
+# kept or dropped by the court-view vote. content threshold 27 with vote 0.5
+# (comp_content27_v0p5) is the config the pilot scoring picked.
+COMPOSITION_CONTENT_THRESHOLD = 27.0  # PySceneDetect ContentDetector default
+COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of its frames vote court-view
+
 # ---------------------------------------------------------------------------
 # Doubles guard windowing (spec s8)
 # ---------------------------------------------------------------------------
