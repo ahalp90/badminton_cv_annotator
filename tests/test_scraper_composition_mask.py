@@ -28,7 +28,7 @@ def test_dead_segment_masks_its_whole_span():
     assert not mask[:40].any()      # court-view segment stays live
     assert mask[40:70].all()        # cutaway segment fully dead
     assert not mask[70:100].any()
-    assert [seg[3] for seg in segments] == [False, True, False]  # is_dead per segment
+    assert [seg.is_dead for seg in segments] == [False, True, False]
 
 
 def test_all_court_view_leaves_mask_all_false():
@@ -39,7 +39,7 @@ def test_all_court_view_leaves_mask_all_false():
     mask, segments = build_composition_mask(cuts, keep, n_frames, vote=0.5)
 
     assert not mask.any()
-    assert all(not seg[3] for seg in segments)
+    assert all(not seg.is_dead for seg in segments)
 
 
 def test_vote_equality_is_live():
@@ -52,14 +52,14 @@ def test_vote_equality_is_live():
 
     mask, segments = build_composition_mask(cuts, keep, n_frames, vote=0.5)
 
-    assert segments[0][2] == pytest.approx(0.5)   # segment A keep_fraction
-    assert not segments[0][3]                     # 0.5 >= 0.5, so live
+    assert segments[0].keep_fraction == pytest.approx(0.5)
+    assert not segments[0].is_dead                # 0.5 >= 0.5, so live
     assert not mask[:10].any()
 
     # Nudge the vote just above A's fraction and A alone flips to dead.
     dead_mask, dead_segments = build_composition_mask(cuts, keep, n_frames, vote=0.51)
-    assert dead_segments[0][3]                     # A now dead
-    assert not dead_segments[1][3]                 # B still live
+    assert dead_segments[0].is_dead
+    assert not dead_segments[1].is_dead
     assert dead_mask[:10].all()
     assert not dead_mask[10:30].any()
 
@@ -73,7 +73,7 @@ def test_boundaries_fold_zero_and_end_and_dedupe():
     mask, segments = build_composition_mask(cuts, keep, n_frames, vote=0.5)
 
     assert len(segments) == 2                     # [0,25) and [25,50), no empties
-    assert [(seg[0], seg[1]) for seg in segments] == [(0, 25), (25, 50)]
+    assert [(seg.start, seg.end) for seg in segments] == [(0, 25), (25, 50)]
     assert not mask[:25].any()
     assert mask[25:50].all()
 

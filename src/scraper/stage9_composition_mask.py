@@ -27,6 +27,7 @@ Run as `python -m scraper.stage9_composition_mask --video-id ... --video <288p>
 import argparse
 import logging
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 
@@ -84,9 +85,18 @@ def detect_cuts(video_path: Path, expected_frames: int, threshold: float) -> np.
 # ---------------------------------------------------------------------------
 # Composition mask build
 # ---------------------------------------------------------------------------
+class CompositionSegment(NamedTuple):
+    """One cut-to-cut segment [start, end) with its court-view verdict."""
+
+    start: int
+    end: int
+    keep_fraction: float
+    is_dead: bool
+
+
 def build_composition_mask(
     cut_frames: np.ndarray, keep_vote: np.ndarray, n_frames: int, vote: float,
-) -> tuple[np.ndarray, list[tuple[int, int, float, bool]]]:
+) -> tuple[np.ndarray, list[CompositionSegment]]:
     """Cut-segment the timeline; label each segment live/dead by the court-view vote.
 
     Boundaries are the cut frames plus 0 and n_frames (np.unique folds any
@@ -103,18 +113,18 @@ def build_composition_mask(
     :param keep_vote: `(n_frames,)` bool homography court-view vote, True = court view (live-like).
     :param n_frames: video frame count (the mask length).
     :param vote: live threshold on a segment's court-view keep fraction.
-    :return: (`(n_frames,)` bool mask True = dead, [(start, end, keep_fraction, is_dead), ...]).
+    :return: (`(n_frames,)` bool mask True = dead, one `CompositionSegment` per segment).
     """
     boundaries = np.unique(np.concatenate([[0], cut_frames.astype(int), [n_frames]]))
     mask = np.zeros(n_frames, dtype=bool)
-    segments: list[tuple[int, int, float, bool]] = []
+    segments: list[CompositionSegment] = []
     for start, end in zip(boundaries[:-1], boundaries[1:]):
         start, end = int(start), int(end)
         keep_fraction = float(keep_vote[start:end].mean())
         is_dead = keep_fraction < vote
         if is_dead:
             mask[start:end] = True
-        segments.append((start, end, keep_fraction, is_dead))
+        segments.append(CompositionSegment(start, end, keep_fraction, is_dead))
     if mask.all():
         raise ValueError(
             f'composition mask (vote={vote}) is all dead: no segment cleared the court-view vote, '
@@ -149,7 +159,7 @@ def main() -> None:
 
     cut_frames = detect_cuts(args.video, n_frames, args.content_threshold)
     mask, segments = build_composition_mask(cut_frames, keep_vote, n_frames, args.vote)
-    n_live = sum(1 for *_, is_dead in segments if not is_dead)
+    n_live = sum(1 for seg in segments if not seg.is_dead)
 
     # Feeds stage 8's existing dead-mask slot (segment_video reads <video_id>_dead_mask.npy).
     args.out_dir.mkdir(parents=True, exist_ok=True)

@@ -370,9 +370,10 @@ def _burst_track() -> np.ndarray:
 
     The burst speed sits between the shipped START_SPEED (0.015) and a raised one
     (0.03), so a rally span forms under the shipped defaults but not under the
-    raised patch. Long rests on both sides isolate the burst.
+    raised patch. Long rests on both sides isolate the burst; the trailing rest
+    exceeds END_REST_FRAMES, so the span closes by rest, not by the track ending.
     """
-    rest_pre, burst, rest_post = 40, 20, 40
+    rest_pre, burst, rest_post = 40, 20, 100
     burst_step = 0.025
     xs = [0.5] * rest_pre
     position = 0.5
@@ -617,7 +618,7 @@ def test_flatten_row_carries_raw_precision_columns():
     rallies = [GtRally(set_id='set1', rally=1, stroke_frames=(10,)),
                GtRally(set_id='set1', rally=2, stroke_frames=(12,))]
     spans = [(5, 20), (100, 110)]
-    contacts = [(0, 11, None), (1, 105, None)]
+    contacts = [(0, 11, None, None), (1, 105, None, None)]
     metrics = score_stage8(spans, contacts, rallies, tolerances=SWEEP_TOLERANCES)
 
     row = flatten_row(LABEL_GRID, SHIPPED_DEFAULTS, n_spans=2, metrics=metrics)
