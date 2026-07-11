@@ -268,7 +268,7 @@ def split_true_junk(
         matched in more than one rally's pool).
     """
     contacts_by_span: dict[int, list[int]] = defaultdict(list)
-    for rally_id, contact_frame, _proximity in contacts:
+    for rally_id, contact_frame, *_ in contacts:
         contacts_by_span[rally_id].append(contact_frame)
 
     matched_frames: set[int] = set()
@@ -281,7 +281,7 @@ def split_true_junk(
         for _gt_index, candidate_index in pairs:
             matched_frames.add(pooled[candidate_index])
 
-    all_frames = {contact_frame for _rally_id, contact_frame, _proximity in contacts}
+    all_frames = {contact_frame for _rally_id, contact_frame, *_ in contacts}
     true_frames = sorted(matched_frames)
     junk_frames = sorted(all_frames - matched_frames)
     return true_frames, junk_frames, total_matches

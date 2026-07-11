@@ -330,7 +330,7 @@ def _tolerance_curve(
 
 
 def _raw_precision_curve(
-    contacts: Sequence[tuple[int, int, bool | None]],
+    contacts: Sequence[tuple[int, int, bool | None, bool | None]],
     rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]],
     tolerances: Sequence[int],
 ) -> dict[str, dict]:
@@ -364,7 +364,7 @@ def _raw_precision_curve(
     :return: ``{str(tolerance): {precision_raw, matched, candidates}}``; precision_raw
         None only when no candidate was detected at all.
     """
-    n_unique_candidates = len({contact_frame for _rally_id, contact_frame, _prox in contacts})
+    n_unique_candidates = len({contact_frame for _rally_id, contact_frame, *_ in contacts})
     curve: dict[str, dict] = {}
     for tolerance in tolerances:
         matched_frames: set[int] = set()
@@ -391,7 +391,7 @@ def _count_gate(passes: int, total: int) -> dict:
 
 def score_contacts(
     spans: Sequence[tuple[int, int]],
-    contacts: Sequence[tuple[int, int, bool | None]],
+    contacts: Sequence[tuple[int, int, bool | None, bool | None]],
     gt_rallies: Sequence[GtRally],
     tolerances: Sequence[int] = DEFAULT_TOLERANCES,
 ) -> dict:
@@ -413,7 +413,7 @@ def score_contacts(
     merged = merged_span_indices(spans, gt_rallies)
 
     contacts_by_span: dict[int, list[int]] = defaultdict(list)
-    for rally_id, contact_frame, _proximity in contacts:
+    for rally_id, contact_frame, *_ in contacts:
         contacts_by_span[rally_id].append(contact_frame)
 
     # Per rally: its candidate frames (from overlapping spans) and count-gate pass.
@@ -476,7 +476,7 @@ def score_contacts(
 # ---------------------------------------------------------------------------
 def score_stage8(
     spans: Sequence[tuple[int, int]],
-    contacts: Sequence[tuple[int, int, bool | None]],
+    contacts: Sequence[tuple[int, int, bool | None, bool | None]],
     gt_rallies: Sequence[GtRally],
     tolerances: Sequence[int] = DEFAULT_TOLERANCES,
 ) -> dict:
@@ -519,11 +519,19 @@ def _parse_proximity(value: object) -> bool | None:
     return str(value) == 'True'
 
 
-def _contacts_from_df(contacts_df: pd.DataFrame) -> list[tuple[int, int, bool | None]]:
-    """Build the contacts list from a contact_frames frame (one video)."""
-    contacts: list[tuple[int, int, bool | None]] = []
+def _contacts_from_df(contacts_df: pd.DataFrame) -> list[tuple[int, int, bool | None, bool | None]]:
+    """Build the contacts list from a contact_frames frame (one video).
+
+    wrist_near (the contact wrist check) rides in the fourth field when the column is present;
+    an older CSV without it reads None, so scoring a pre-wrist-check file still works. Both bool
+    columns share `_parse_proximity`'s blank/True/False encoding.
+    """
+    has_wrist = 'wrist_near' in contacts_df.columns
+    contacts: list[tuple[int, int, bool | None, bool | None]] = []
     for row in contacts_df.itertuples(index=False):
-        contacts.append((int(row.rally_id), int(row.contact_frame), _parse_proximity(row.proximity_ok)))
+        wrist_near = _parse_proximity(row.wrist_near) if has_wrist else None
+        contacts.append((int(row.rally_id), int(row.contact_frame),
+                         _parse_proximity(row.proximity_ok), wrist_near))
     return contacts
 
 

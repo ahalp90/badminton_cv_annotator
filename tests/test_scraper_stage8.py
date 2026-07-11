@@ -16,9 +16,12 @@ from src.scraper.config import (
     SHIPPED_THRESHOLDS,
     SMOOTH_WINDOW,
     START_SPEED,
+    WRIST_SHUTTLE_MAX,
 )
 from src.scraper.stage8_rally_segmentation import (
     SERVE_START_LOOKBACK_FRAMES,
+    WRIST_L,
+    WRIST_R,
     ServeStartClose,
     ServeStartMode,
     ServeStartOptions,
@@ -35,10 +38,12 @@ from src.scraper.stage8_rally_segmentation import (
     build_serve_start_box_height,
     build_serve_start_dist,
     build_serve_start_wideshot_inputs,
+    build_wrist_shuttle_dist,
     compute_speed,
     contact_proximity_ok,
     detect_contacts,
     segment_video,
+    wrist_contact_near,
 )
 
 # A per-frame step that keeps raw speed above START_SPEED and, once smoothed,
@@ -100,7 +105,7 @@ def test_single_rally_span_and_three_contacts():
     assert abs(start - rally_start) <= 4
     assert abs(end - rally_end) <= 4
 
-    contact_frames = sorted(frame for _, frame, _ in contacts)
+    contact_frames = sorted(frame for _, frame, *_ in contacts)
     assert len(contact_frames) == 3
     for detected, truth in zip(contact_frames, truth_contacts):
         assert abs(detected - truth) <= 3
@@ -169,12 +174,93 @@ def test_segment_video_proximity_paths():
     # No positions: every contact carries a blank guardrail.
     _, contacts_blank = segment_video(track, positions=None)
     assert contacts_blank
-    assert all(proximity_ok is None for _, _, proximity_ok in contacts_blank)
+    assert all(proximity_ok is None for _, _, proximity_ok, _ in contacts_blank)
 
     # Player sitting on the shuttle at every frame: every contact reads True.
     positions = np.repeat(track[:, None, :2], 2, axis=1)  # (t, 2, 2) both slots on the shuttle
     _, contacts_near = segment_video(track, positions=positions)
-    assert all(proximity_ok is True for _, _, proximity_ok in contacts_near)
+    assert all(proximity_ok is True for _, _, proximity_ok, _ in contacts_near)
+
+
+# ---------------------------------------------------------------------------
+# Contact wrist check: build_wrist_shuttle_dist, wrist_contact_near, segment_video
+# ---------------------------------------------------------------------------
+def _wrist_frame_kps(n_max: int, wrists_by_det: list[list[tuple[float, float] | None]]) -> np.ndarray:
+    """One frame's (n_max, 17, 2) NaN-padded keypoints with the given L/R wrist pixels.
+
+    ``wrists_by_det[d]`` is ``[left_xy_or_None, right_xy_or_None]`` for detection d; None leaves
+    that wrist NaN (an undetected joint). Only the two wrist channels are set; the rest stay NaN.
+    """
+    kps = np.full((n_max, 17, 2), np.nan)
+    for det_index, (left, right) in enumerate(wrists_by_det):
+        if left is not None:
+            kps[det_index, WRIST_L] = left
+        if right is not None:
+            kps[det_index, WRIST_R] = right
+    return kps
+
+
+def test_build_wrist_shuttle_dist_nearest_over_detections_and_wrists():
+    # width 1000, height 500 -> shuttle norm (0.5, 0.5) is pixel (500, 250).
+    track = np.array([
+        [0.5, 0.5, 1.0],  # visible; two detections, nearest wrist 0.02 away
+        [0.5, 0.5, 1.0],  # visible but ndet 0 -> no wrist to measure -> NaN
+        [0.5, 0.5, 0.0],  # invisible shuttle -> NaN regardless of pose
+    ])
+    kps = np.stack([
+        # det0 L 0.06 away, det0 R far; det1 L 0.02 away (the nearest), det1 R undetected.
+        _wrist_frame_kps(2, [[(560.0, 250.0), (900.0, 450.0)], [(520.0, 250.0), None]]),
+        _wrist_frame_kps(2, [[None, None], [None, None]]),
+        _wrist_frame_kps(2, [[(500.0, 250.0), None], [None, None]]),  # on-shuttle but frame invisible
+    ])
+    ndet = np.array([2, 0, 1], dtype=np.int8)
+
+    dist = build_wrist_shuttle_dist(track, kps, ndet, resolution=(1000.0, 500.0))
+    assert dist[0] == pytest.approx(0.02)  # min over both detections and both wrists
+    assert np.isnan(dist[1])               # no detection
+    assert np.isnan(dist[2])               # invisible shuttle
+
+
+def test_build_wrist_shuttle_dist_all_wrists_nan_is_nan():
+    # A detection is present but both its wrists are undetected: unmeasured -> NaN.
+    track = np.array([[0.5, 0.5, 1.0]])
+    kps = np.stack([_wrist_frame_kps(1, [[None, None]])])
+    ndet = np.array([1], dtype=np.int8)
+    dist = build_wrist_shuttle_dist(track, kps, ndet, resolution=(1000.0, 500.0))
+    assert np.isnan(dist[0])
+
+
+def test_wrist_contact_near_verdicts():
+    # None distances (no pose supplied): unmeasured -> None, never a pass.
+    assert wrist_contact_near(None, 0) is None
+
+    # Below / at / above the gate, plus a NaN frame (measured, no wrist -> False).
+    below = WRIST_SHUTTLE_MAX - 0.01
+    above = WRIST_SHUTTLE_MAX + 0.01
+    wrist_dist = np.array([below, WRIST_SHUTTLE_MAX, above, np.nan])
+    assert wrist_contact_near(wrist_dist, 0) is True
+    assert wrist_contact_near(wrist_dist, 1) is True   # equality passes (<=)
+    assert wrist_contact_near(wrist_dist, 2) is False
+    assert wrist_contact_near(wrist_dist, 3) is False  # pose supplied, no wrist at frame
+
+
+def test_segment_video_wrist_near_paths():
+    track, _, _, _ = _build_rally_track()
+
+    # No wrist distances: every contact's wrist_near is blank (unmeasured), like proximity_ok.
+    _, contacts_blank = segment_video(track)
+    assert contacts_blank
+    assert all(wrist_near is None for *_, wrist_near in contacts_blank)
+
+    # A wrist on the shuttle at every frame (distance 0): every contact keeps (True).
+    near = np.zeros(len(track))
+    _, contacts_near = segment_video(track, wrist_dist=near)
+    assert all(wrist_near is True for *_, wrist_near in contacts_near)
+
+    # A wrist far from the shuttle everywhere: every contact drops (False).
+    far = np.full(len(track), WRIST_SHUTTLE_MAX + 0.5)
+    _, contacts_far = segment_video(track, wrist_dist=far)
+    assert all(wrist_near is False for *_, wrist_near in contacts_far)
 
 
 def test_end_rest_frames_constant_used():

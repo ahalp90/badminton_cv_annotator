@@ -25,6 +25,10 @@ today's behaviour exactly when left at their default:
   - `replay_mask`: a `(t,)` bool dead-time mask applied at entry (via
     `apply_replay_mask`), freezing replay/off-rally frames to rest before speed.
 
+`wrist_dist` is a fifth off-by-default option: a `(t,)` shuttle-to-nearest-wrist gap
+(`build_wrist_shuttle_dist`) that fills each contact's `wrist_near` verdict (the contact wrist
+check). None leaves every verdict blank, so the raw candidate set is unchanged.
+
 Run as `python -m scraper.stage8_rally_segmentation --shuttle-dir ...` with
 PYTHONPATH=src.
 """
@@ -54,6 +58,7 @@ from .config import (
     START_MIN_FRAMES,
     START_SPEED,
     Stage8Thresholds,
+    WRIST_SHUTTLE_MAX,
 )
 
 log = logging.getLogger(__name__)
@@ -947,13 +952,78 @@ def contact_proximity_ok(
     return bool(np.nanmin(distances) <= PROXIMITY_MAX)
 
 
+# COCO wrist keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays.
+WRIST_L, WRIST_R = 9, 10
+
+
+def build_wrist_shuttle_dist(
+    track: np.ndarray, kps: np.ndarray, ndet: np.ndarray, resolution: tuple[float, float],
+) -> np.ndarray:
+    """Per-frame smallest normalised gap from the shuttle to any player's wrist.
+
+    The contact wrist check's input, precomputed once by the caller (like the serve-start
+    builders precompute their `(t,)` arrays). For every frame where the shuttle is visible,
+    take the frame's real detections' wrists, divide by the same resolution that normalised
+    the shuttle track so both sit in the [0, 1] image space, and record the smallest L2 gap to
+    any wrist. NaN where the shuttle is invisible, no player is detected, or every wrist is NaN.
+
+    The arithmetic is the scoping script's `min_wrist_distance`
+    (scripts/wrist_contact_separation.py) promoted into the pipeline: identical per-frame gap,
+    so the array reproduces the item-7 separation the wrist gate was tuned on.
+
+    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track (built UNMASKED;
+        contact frames are visible, so masking never moves a measured value).
+    :param kps: `(t, n_max, 17, 2)` pixel keypoints, NaN-padded past the per-frame ndet.
+    :param ndet: `(t,)` per-frame detection count.
+    :param resolution: `(width, height)` the shuttle xy and the wrist pixels normalise by.
+    :return: `(t,)` float; NaN where undefined (invisible shuttle / no detection / all wrists NaN).
+    """
+    n_frames = len(track)
+    resolution_xy = np.array(resolution)
+    dist = np.full(n_frames, np.nan)
+    for frame in np.flatnonzero(track[:, 2] == 1):
+        n = int(ndet[frame])
+        if n == 0:
+            continue  # no player detected: nothing to measure against, stays NaN
+        wrists_norm = kps[frame, :n][:, (WRIST_L, WRIST_R), :] / resolution_xy  # (n, 2, 2)
+        gaps = np.linalg.norm(wrists_norm - track[frame, :2], axis=-1)  # (n, 2) per detection per wrist
+        if np.all(np.isnan(gaps)):
+            continue  # every wrist NaN (undetected joints): unmeasured, stays NaN
+        dist[frame] = float(np.nanmin(gaps))
+    return dist
+
+
+def wrist_contact_near(wrist_dist: np.ndarray | None, contact_frame: int) -> bool | None:
+    """The wrist gate on one contact: was a player's wrist near the shuttle at the turn?
+
+    Mirrors `contact_proximity_ok`'s three-way verdict. When no wrist distances were supplied
+    the gate is unmeasured, which returns None (serialised blank downstream): a gate with no
+    evidence must not read as a pass. When they were supplied but the frame's value is NaN (no
+    player detected, or every wrist undetected) the gate is measured-but-unconfirmed, so it
+    fails closed to False. Otherwise it passes when the gap is within WRIST_SHUTTLE_MAX.
+
+    :param wrist_dist: `(t,)` per-frame shuttle-to-nearest-wrist gap (build_wrist_shuttle_dist),
+        or None when no pose was supplied.
+    :param contact_frame: whole-video frame index of the contact.
+    :return: True (wrist near, keep) / False (no wrist near) when measured, None when unmeasured.
+    """
+    if wrist_dist is None:
+        return None
+    dist = wrist_dist[contact_frame]
+    if np.isnan(dist):
+        # Pose supplied but no measurable wrist at this frame: measured, unconfirmed.
+        return False
+    return bool(dist <= WRIST_SHUTTLE_MAX)
+
+
 def segment_video(
     track: np.ndarray, positions: np.ndarray | None = None, *,
     thresholds: Stage8Thresholds | None = None,
     serve_start: ServeStartOptions | None = None,
     span_open: SpanOpen | None = None,
     replay_mask: np.ndarray | None = None,
-) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None]]]:
+    wrist_dist: np.ndarray | None = None,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None, bool | None]]]:
     """Full stage-8 pass over one video's shuttle track.
 
     Every keyword option is off by default and each default preserves today's behaviour
@@ -975,9 +1045,16 @@ def segment_video(
         `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).
     :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
         `apply_replay_mask` before speed is computed, or None.
+    :param wrist_dist: optional `(t,)` shuttle-to-nearest-wrist gap (build_wrist_shuttle_dist)
+        for the contact wrist check; None (the default) leaves every contact's `wrist_near`
+        blank, exactly as `positions=None` leaves `proximity_ok` blank.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
-        `[(rally_id, contact_frame, proximity_ok), ...]`.
+        `[(rally_id, contact_frame, proximity_ok, wrist_near), ...]`. Every detected candidate
+        is a row (the RAW set, kept for recall-first uses); `wrist_near` is the filter verdict
+        (True = a wrist was near the shuttle at the turn). The FILTERED set downstream consumers
+        default to is the rows with `wrist_near` True; a blank `wrist_near` (no `wrist_dist`
+        supplied) means the filter never ran, so every raw candidate stands.
     """
     if serve_start is not None and span_open is SpanOpen.REGION_START:
         raise ValueError(
@@ -1012,13 +1089,14 @@ def segment_video(
     else:
         spans = _find_rally_spans(speed, at_rest, thresholds)
 
-    contacts: list[tuple[int, int, bool | None]] = []
+    contacts: list[tuple[int, int, bool | None, bool | None]] = []
     for rally_id, (start, end) in enumerate(spans):
         frames = (detect_contacts(track, start, end) if thresholds is None
                   else detect_contacts(track, start, end, thresholds))
         for contact_frame in frames:
             proximity_ok = contact_proximity_ok(track, positions, contact_frame)
-            contacts.append((rally_id, contact_frame, proximity_ok))
+            wrist_near = wrist_contact_near(wrist_dist, contact_frame)
+            contacts.append((rally_id, contact_frame, proximity_ok, wrist_near))
     return spans, contacts
 
 
@@ -1068,6 +1146,47 @@ def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None
     return np.load(mask_path)
 
 
+def _load_resolution_map(resolution_csv: Path | None) -> dict[str, tuple[float, float]] | None:
+    """Map `<video_id> -> (width, height)` from the resolution CSV, or None when not given.
+
+    Keyed by the id as a string so it matches the track file stem directly. The wrist pixels
+    normalise by the same resolution the shuttle track did, so this is the SAME source the
+    shuttle extractor read.
+    """
+    if resolution_csv is None:
+        return None
+    with resolution_csv.open(newline='', encoding='utf-8') as handle:
+        return {
+            str(row['id']): (float(row['width']), float(row['height']))
+            for row in csv.DictReader(handle)
+        }
+
+
+def _load_wrist_dist(
+    pose_dir: Path | None, resolution_map: dict[str, tuple[float, float]] | None,
+    video_id: str, track: np.ndarray,
+) -> np.ndarray | None:
+    """Build the `<video_id>` shuttle-to-nearest-wrist array from its pose npys, or None.
+
+    Needs both the pose (`<video_id>_kps.npy` + `<video_id>_ndet.npy`) and a resolution entry;
+    any missing input leaves the wrist gate off for that video (`wrist_near` blank), exactly as a
+    missing positions/mask file leaves those columns off. kps is memory-mapped (it is large).
+    """
+    if pose_dir is None or resolution_map is None:
+        return None
+    kps_path = pose_dir / f'{video_id}_kps.npy'
+    ndet_path = pose_dir / f'{video_id}_ndet.npy'
+    if not (kps_path.exists() and ndet_path.exists()):
+        log.info('no pose for %s, wrist_near left blank', video_id)
+        return None
+    if video_id not in resolution_map:
+        log.info('no resolution for %s, wrist_near left blank', video_id)
+        return None
+    kps = np.load(kps_path, mmap_mode='r')
+    ndet = np.load(ndet_path)
+    return build_wrist_shuttle_dist(track, kps, ndet, resolution_map[video_id])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
@@ -1077,6 +1196,12 @@ def main() -> None:
     parser.add_argument('--mask-dir', type=Path, default=None,
                         help='Optional directory of <video_id>_dead_mask.npy dead-time masks '
                              '(True = dead); a missing file runs that video unmasked')
+    parser.add_argument('--pose-dir', type=Path, default=None,
+                        help='Optional directory of <video_id>_kps.npy and <video_id>_ndet.npy '
+                             'pose arrays for the contact wrist check; needs --resolution-csv too')
+    parser.add_argument('--resolution-csv', type=Path, default=None,
+                        help='Optional id,width,height CSV (the shuttle-normalisation source); '
+                             'with --pose-dir it drives the wrist_near column, else it is blank')
     parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
                         help='which threshold preset to segment with (default: shipped)')
     parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
@@ -1093,36 +1218,43 @@ def main() -> None:
 
     thresholds = _THRESHOLD_PRESETS[args.thresholds]
     span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
+    resolution_map = _load_resolution_map(args.resolution_csv)
 
     args.rally_spans_csv.parent.mkdir(parents=True, exist_ok=True)
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
 
     span_rows: list[tuple[str, int, int, int]] = []
-    contact_rows: list[tuple[str, int, int, str]] = []
+    contact_rows: list[tuple[str, int, int, str, str]] = []
     for track_path in sorted(args.shuttle_dir.glob('*.npy')):
         video_id = track_path.stem
         try:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
+            wrist_dist = _load_wrist_dist(args.pose_dir, resolution_map, video_id, track)
             spans, contacts = segment_video(track, positions, thresholds=thresholds,
-                                            span_open=span_open, replay_mask=replay_mask)
+                                            span_open=span_open, replay_mask=replay_mask,
+                                            wrist_dist=wrist_dist)
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             log.warning('skipping %s: %s', video_id, exc)
             continue
         for rally_id, (start, end) in enumerate(spans):
             span_rows.append((video_id, rally_id, start, end))
-        for rally_id, contact_frame, proximity_ok in contacts:
-            contact_rows.append((video_id, rally_id, contact_frame, _format_bool(proximity_ok)))
+        for rally_id, contact_frame, proximity_ok, wrist_near in contacts:
+            contact_rows.append((video_id, rally_id, contact_frame,
+                                 _format_bool(proximity_ok), _format_bool(wrist_near)))
         log.info('%s: %d rallies, %d contacts', video_id, len(spans), len(contacts))
 
     with args.rally_spans_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
         writer.writerows(span_rows)
+    # wrist_near is the contact wrist-check verdict: True = keep, blank = filter not run (no pose).
+    # Every detected candidate is written (the RAW set); downstream defaults to the wrist_near-True
+    # rows (the FILTERED set), so nothing recall-first loses its input.
     with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
-        writer.writerow(['video_id', 'rally_id', 'contact_frame', 'proximity_ok'])
+        writer.writerow(['video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near'])
         writer.writerows(contact_rows)
     log.info('wrote %d rally spans, %d contacts', len(span_rows), len(contact_rows))
 
