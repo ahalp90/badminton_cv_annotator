@@ -14,8 +14,10 @@ Design goals (see docs/ci.md):
 
 Environment:
   GEMINI_API_KEY     required; if empty the script no-ops (the workflow already
-                     guards on this, this is just belt-and-suspenders).
-  GEMINI_MODEL       optional model id; defaults to ``gemini-2.5-flash``.
+                     guards on this, this is just belt-and-suspenders). The
+                     workflow fills it from the ``PR_MESSAGE_BOT_KEY`` repo secret.
+  GEMINI_MODEL       optional model id; defaults to ``gemini-2.5-flash``. Filled
+                     from the ``PR_MESSAGE_BOT_MODEL`` repo variable.
   GITHUB_EVENT_PATH  path to the PR event payload (provided by Actions).
   GITHUB_TOKEN       optional; if present, post/update a sticky PR comment.
   GITHUB_REPOSITORY  "owner/repo" (provided by Actions).
@@ -208,8 +210,8 @@ def main() -> int:
         elif exc.code in (400, 404):
             warn(
                 f"Gemini rejected the request (HTTP {exc.code}) -- the model name "
-                f"'{model}' may be wrong; set the GEMINI_MODEL repo variable to a "
-                f"current free-tier model. {detail}"
+                f"'{model}' may be wrong; set the PR_MESSAGE_BOT_MODEL repo variable "
+                f"to a current free-tier model. {detail}"
             )
         elif exc.code in (401, 403):
             warn(f"Gemini auth/quota problem (HTTP {exc.code}) for model '{model}'. {detail}")

@@ -32,8 +32,9 @@ Off until you add a key; without one it skips silently. With one, it comments on
 commit/PR legibility and only ever *warns* on rate limits or outages — never blocks.
 
 1. Free key: <https://aistudio.google.com/app/apikey>
-2. Add it as repo secret **`GEMINI_API_KEY`** (Settings → Secrets and variables → Actions).
-3. Optional: set repo variable `GEMINI_MODEL` if the default `gemini-2.5-flash` is retired.
+2. Add it as repo secret **`PR_MESSAGE_BOT_KEY`** (Settings → Secrets and variables → Actions).
+3. Optional: set repo variable `PR_MESSAGE_BOT_MODEL` to override the default
+   `gemini-2.5-flash` (e.g. a Gemma model id).
 
 Called once per PR, so the ~1,500/day free tier is plenty. Fork PRs don't get
 secrets, so it runs on in-repo branches only.
