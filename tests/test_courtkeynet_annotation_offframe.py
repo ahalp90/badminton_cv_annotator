@@ -9,6 +9,7 @@ to the same module object.
 
 import csv
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -137,15 +138,23 @@ def test_fit_with_click_noise_stays_close() -> None:
     assert errors.max() < 8.0
 
 
-def test_fit_needs_four_pairs() -> None:
-    names = list(court.LANDMARK_NAMES[:3])
-    with pytest.raises(ValueError, match="at least 4"):
-        court.fit_homography(np.array([court.LANDMARKS[name] for name in names]), landmark_pixels(names, H_TRUE))
+def test_fit_floor_refuses_exact_four_point_fits() -> None:
+    """4 pairs fit exactly, zero residual even on a mislabelled point, so the
+    default floor is 5; callers that gate correctness another way opt down."""
+    names = GOOD_NAMES[:4]
+    court_pts = np.array([court.LANDMARKS[name] for name in names])
+    pixels = landmark_pixels(names, H_TRUE)
+    with pytest.raises(ValueError, match="at least 5"):
+        court.fit_homography(court_pts, pixels)
+    # The blindness the floor exists for: an exact fit shows no residual at all.
+    _homography, residuals = court.fit_homography(court_pts, pixels, min_points=4)
+    assert residuals == pytest.approx(np.zeros(4), abs=1e-3)
 
 
 def test_fit_rejects_collinear_landmarks() -> None:
-    """Four points along one line cannot pin a homography and must not pretend to."""
-    names = [f"far_baseline_x_{x_name}" for x_name in ("left_doubles", "left_singles", "centre", "right_doubles")]
+    """Five points along one line cannot pin a homography and must not pretend to."""
+    names = [f"far_baseline_x_{x_name}"
+             for x_name in ("left_doubles", "left_singles", "centre", "right_singles", "right_doubles")]
     with pytest.raises(ValueError, match="degenerate"):
         court.fit_homography(np.array([court.LANDMARKS[name] for name in names]), landmark_pixels(names, H_TRUE))
 
@@ -171,11 +180,70 @@ def test_fit_rejects_the_hidden_court_diagonal() -> None:
         "far_short_service_x_centre", "near_short_service_x_left_doubles",
     ]
     with pytest.raises(ValueError, match="degenerate"):
-        court.fit_homography(np.array([court.LANDMARKS[name] for name in names]), landmark_pixels(names, H_TRUE))
+        # min_points=4 isolates the conditioning guard on the minimal sneaky pick.
+        court.fit_homography(np.array([court.LANDMARKS[name] for name in names]),
+                             landmark_pixels(names, H_TRUE), min_points=4)
 
 
 def test_extrapolation_errors_vanish_under_the_true_homography() -> None:
     assert court.extrapolation_errors(IMG_CORNERS_OFF, H_TRUE) == pytest.approx(np.zeros(4), abs=1e-3)
+
+
+def test_check_fit_low_count_catches_a_misclick_the_mean_would_pass() -> None:
+    """Port of the tour tool's spread-points case: one 30 px misidentification
+    among six clicks smears into a low mean while the worst point sticks out."""
+    names = GOOD_NAMES[:6]
+    pixels = landmark_pixels(names, H_TRUE)
+    pixels[2] += 30.0  # one wrong crossing
+    _homography, residuals = court.fit_homography(np.array([court.LANDMARKS[n] for n in names]), pixels)
+    verdict = court.check_fit(residuals, WIDTH)
+    assert verdict.level == "fail" and "mislabelled" in verdict.reason
+    assert verdict.rms_px < verdict.worst_px  # the smear the worst-point statistic defeats
+
+
+def test_check_fit_bands() -> None:
+    """3 px native floor at low counts; width-scaled warn/fail bands above."""
+    low = np.array([0.5, 1.0, 2.9, 1.2, 0.8])
+    assert court.check_fit(low, 1280).level == "ok"
+    low_bad = low.copy()
+    low_bad[2] = 3.2
+    assert court.check_fit(low_bad, 1280).level == "fail"
+
+    high = np.full(12, 2.0)
+    assert court.check_fit(high, 1280).level == "ok"
+    high[0] = 8.0  # inside the 1280-wide warn band (6.7 to 10)
+    assert court.check_fit(high, 1280).level == "warn"
+    assert court.check_fit(high, 1920).level == "ok"  # the same error is fine on wider footage
+    high[0] = 12.0  # over the 1280 ceiling, inside the 1920 warn band (10 to 15)
+    assert court.check_fit(high, 1280).level == "fail"
+    assert court.check_fit(high, 1920).level == "warn"
+
+
+def test_quad_camera_validity() -> None:
+    """Convex behind-baseline quads pass; crossed and upside-down ones do not."""
+    assert court.quad_is_camera_valid(IMG_CORNERS_OFF)
+    crossed = IMG_CORNERS_OFF[[0, 1, 3, 2]]  # BR and BL swapped: a bowtie
+    assert not court.quad_is_camera_valid(crossed)
+    upside_down = IMG_CORNERS_OFF[[3, 2, 1, 0]]  # near baseline above the far one
+    assert not court.quad_is_camera_valid(upside_down)
+
+
+def test_shipped_ground_truth_passes_the_gates() -> None:
+    """The calibration must accept the accepted: all 11 committed frames refit
+    inside the gates on their native 1920-wide footage."""
+    landmarks_csv = REPO_ROOT / "data/amateur_court_corners/hand_corners_landmarks.csv"
+    by_frame: dict[tuple[str, str], list[dict[str, str]]] = {}
+    with landmarks_csv.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            by_frame.setdefault((row["video"], row["frame"]), []).append(row)
+    assert len(by_frame) == 11
+    for rows in by_frame.values():
+        court_pts = np.array([[float(r["court_x_m"]), float(r["court_y_m"])] for r in rows])
+        image_pts = np.array([[float(r["x_px"]), float(r["y_px"])] for r in rows])
+        homography, residuals = court.fit_homography(court_pts, image_pts)
+        verdict = court.check_fit(residuals, 1920)
+        assert verdict.level == "ok", verdict
+        assert court.quad_is_camera_valid(court.project_corners(homography))
 
 
 # --- Capture session ---------------------------------------------------------
@@ -241,9 +309,9 @@ def test_offframe_flow_extrapolates_the_missing_corner(tmp_path: Path) -> None:
     seeds = list(court.CORNER_LANDMARK_NAMES[:3])
     assert [name for name, _x, _y in session.landmarks] == seeds
 
-    # Enter and fit both refuse while the fourth landmark is missing.
+    # Enter and fit both refuse while the landmark set is under the floor.
     assert "press f" in session.commit().message
-    assert "at least 4" in session.do_fit().message
+    assert "at least" in session.do_fit().message
 
     names = GOOD_NAMES[:4]
     for name in names:
@@ -331,6 +399,54 @@ def test_session_reports_a_degenerate_landmark_spread(tmp_path: Path) -> None:
     assert "fit failed" in action.message
     assert session.fit is None
     assert "press f" in session.commit().message
+
+
+def test_do_fit_applies_the_reprojection_gates(tmp_path: Path) -> None:
+    """Floor, hard fail, and warn all surface through do_fit; only warn and ok
+    leave a usable fit behind."""
+    session = make_session(tmp_path)
+    session.begin_capture(0)
+    for slot in range(3):
+        click_at(session, tuple(IMG_CORNERS_OFF[slot]))
+    session.mark_offframe()  # three seeded corner landmarks ride in
+
+    place_landmark(session, GOOD_NAMES[0])  # 4 total: under the floor
+    action = session.do_fit()
+    assert "at least 5" in action.message and session.fit is None
+
+    for name in GOOD_NAMES[1:4]:
+        place_landmark(session, name)  # 7 total, all honest
+    assert "fit:" in session.do_fit().message and session.fit is not None
+
+    def place_offset(name: str, dx: float) -> None:
+        while session.cursor_name != name:
+            session.next_landmark()
+        point = landmark_pixels([name], H_TRUE)[0]
+        click_at(session, (float(point[0]) + dx, float(point[1])))
+
+    place_offset(GOOD_NAMES[4], 30.0)  # 8 total, one mislabel-sized error
+    action = session.do_fit()
+    assert "fit failed" in action.message and session.fit is None
+
+    place_offset(GOOD_NAMES[4], 12.0)  # replaced with a warn-band error (worst ~7.5 px)
+    action = session.do_fit()
+    assert "WARN" in action.message and "Enter commits anyway" in action.message
+    assert session.fit is not None
+    assert session.commit().kind is offframe.ActionKind.COMMITTED
+
+
+def test_undo_cancels_a_provisional_point_first(tmp_path: Path) -> None:
+    """One-key undo parity with the tour tool: u drops the pending cross first,
+    then starts popping confirmed points."""
+    session = make_session(tmp_path)
+    session.begin_capture(0)
+    click_at(session, (350.0, 140.0))
+    session.coarse_click(700, 300)  # aiming TR
+    action = session.undo_last()
+    assert "cancelled" in action.message
+    assert session.pending_point is None
+    assert session.state is offframe.CaptureState.CORNER_COARSE
+    assert len(session.slots) == 1  # the confirmed corner survived
 
 
 def test_reclicking_a_landmark_replaces_it(tmp_path: Path) -> None:
@@ -556,8 +672,8 @@ def test_copy_forward_prefills_and_reextrapolates(tmp_path: Path) -> None:
 
 
 def test_clicked_corners_seed_the_fit_on_offframe_frames(tmp_path: Path) -> None:
-    """Two clicked corners plus two crossings suffice: the corners auto-join
-    the fit under their crossing names, so nothing is asked for twice."""
+    """Two clicked corners plus three crossings reach the floor: the corners
+    auto-join the fit under their crossing names, so nothing is asked twice."""
     session = make_session(tmp_path)
     session.begin_capture(0)
     for slot in range(2):
@@ -568,6 +684,7 @@ def test_clicked_corners_seed_the_fit_on_offframe_frames(tmp_path: Path) -> None
     assert [name for name, _x, _y in session.landmarks] == list(court.CORNER_LANDMARK_NAMES[:2])
     place_landmark(session, GOOD_NAMES[2])
     place_landmark(session, GOOD_NAMES[3])
+    place_landmark(session, GOOD_NAMES[4])
     assert "fit:" in session.do_fit().message
     session.commit()
     rows = read_rows(tmp_path / "corners.csv")
@@ -619,6 +736,24 @@ def test_overlay_renders_in_every_state(tmp_path: Path) -> None:
     render()  # fitted quad drawn, possibly wild but clamped
 
 
+def test_offframe_tool_imports_without_torch() -> None:
+    """The whole annotator chain runs with torch blocked, pinning the decouple
+    that lets the GUI venv stay opencv-only. A subprocess, so torch is blocked
+    from interpreter start; exit 0 is the proof."""
+    script = (
+        "import sys\n"
+        "sys.modules['torch'] = None\n"  # any `import torch` on the chain now raises
+        "sys.path.insert(0, 'src/courtkeynet/validation_scripts')\n"
+        "import annotate_court_corners_offframe\n"
+        "import court_landmarks\n"
+        "assert len(court_landmarks.LANDMARK_NAMES) == 30\n"
+        "print('OK')\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, f"torch-free import failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    assert result.stdout.startswith("OK"), result.stdout
+
+
 # --- Row builders ------------------------------------------------------------
 
 def test_build_slot_rows_guards() -> None:
@@ -644,10 +779,12 @@ def test_frame_errors_recover_exact_clicks() -> None:
         "video": "vid.mp4", "frame": 3, "corner_idx": [0, 1, 2, 3],
         "corner_label": ["tl", "tr", "br", "bl"],
         "x_px": IMG_CORNERS_OFF[:, 0], "y_px": IMG_CORNERS_OFF[:, 1],
+        "x_norm": IMG_CORNERS_OFF[:, 0] / WIDTH,  # the gate recovers frame width from this
         "source": ["click", "click", "click", "extrapolated"],
     })
-    errors, in_fit, rms, worst = check.frame_errors(corner_rows, landmark_rows)
+    errors, in_fit, verdict = check.frame_errors(corner_rows, landmark_rows)
     assert set(errors) == {"tl", "tr", "br"}  # the extrapolated row is not ground truth
     assert in_fit == []  # none of these landmarks are corner crossings
     assert list(errors.values()) == pytest.approx([0.0, 0.0, 0.0], abs=1e-2)
-    assert rms == pytest.approx(0.0, abs=1e-3) and worst == pytest.approx(0.0, abs=1e-3)
+    assert verdict.level == "ok"
+    assert verdict.rms_px == pytest.approx(0.0, abs=1e-3) and verdict.worst_px == pytest.approx(0.0, abs=1e-3)

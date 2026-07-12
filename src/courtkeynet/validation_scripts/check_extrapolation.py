@@ -36,7 +36,7 @@ import court_landmarks as court  # noqa: E402
 
 def frame_errors(
     corner_rows: pd.DataFrame, landmark_rows: pd.DataFrame
-) -> tuple[dict[str, float], list[str], float, float]:
+) -> tuple[dict[str, float], list[str], "court.FitCheck"]:
     """Fit from one frame's landmarks and compare against its clicked corners.
 
     Clicked corners whose own crossing sits in the landmark set (the annotation
@@ -44,16 +44,22 @@ def frame_errors(
     they are listed separately instead of scored.
 
     :param corner_rows: the frame's corner rows; only ``source == "click"`` rows
-        are compared
-    :param landmark_rows: the frame's landmark sidecar rows, 4+ of them
+        are compared. Frame width for the gate is recovered from x_px / x_norm
+    :param landmark_rows: the frame's landmark sidecar rows, 5+ of them
     :return: (per-label error in px for independent clicked corners, labels of
-        clicked corners that were inside the fit, fit rms px, fit max px)
-    :raises ValueError: propagated from a degenerate landmark fit
+        clicked corners that were inside the fit, the reprojection gate verdict)
+    :raises ValueError: propagated from a degenerate or under-floor landmark fit
     """
     court_pts = landmark_rows[["court_x_m", "court_y_m"]].to_numpy(dtype=np.float64)  # (n, 2)
     image_pts = landmark_rows[["x_px", "y_px"]].to_numpy(dtype=np.float64)  # (n, 2)
     homography, residuals = court.fit_homography(court_pts, image_pts)
     projected = court.project_corners(homography)  # (slot=4, xy=2)
+
+    # The corners CSV stores both px and normalised coords, so the frame width
+    # the gate needs falls out of their ratio.
+    first = corner_rows.iloc[0]
+    frame_width = int(round(float(first["x_px"]) / float(first["x_norm"]))) if float(first["x_norm"]) else 1920
+    verdict = court.check_fit(residuals, frame_width)
 
     landmark_names = set(landmark_rows["landmark"].astype(str))
     errors: dict[str, float] = {}
@@ -66,8 +72,7 @@ def frame_errors(
             continue
         offset = projected[slot] - np.array([row["x_px"], row["y_px"]], dtype=np.float64)
         errors[str(row["corner_label"])] = float(np.linalg.norm(offset))
-    rms = float(np.sqrt(np.mean(residuals**2)))
-    return errors, in_fit, rms, float(residuals.max())
+    return errors, in_fit, verdict
 
 
 def main() -> int:
@@ -99,21 +104,24 @@ def main() -> int:
     all_errors: list[float] = []
     frames_checked = 0
     for (video, frame), landmark_rows in landmarks.groupby(["video", "frame"]):
-        if len(landmark_rows) < 4:
-            print(f"{Path(str(video)).name} frame {frame}: only {len(landmark_rows)} landmarks, skipped")
+        if len(landmark_rows) < court.FIT_MIN_POINTS:
+            print(f"{Path(str(video)).name} frame {frame}: only {len(landmark_rows)} landmarks "
+                  f"(floor {court.FIT_MIN_POINTS}), skipped")
             continue
         corner_rows = corners[(corners["video"] == video) & (corners["frame"] == frame)]
         if corner_rows.empty:
             print(f"{Path(str(video)).name} frame {frame}: landmarks but no corner rows, skipped")
             continue
         try:
-            errors, in_fit, rms, worst = frame_errors(corner_rows, landmark_rows)
+            errors, in_fit, verdict = frame_errors(corner_rows, landmark_rows)
         except ValueError as error:
             print(f"{Path(str(video)).name} frame {frame}: fit failed ({error})")
             continue
         frames_checked += 1
         print(f"{Path(str(video)).name} frame {frame}: {len(landmark_rows)} landmarks, "
-              f"fit rms {rms:.2f} px, max {worst:.2f} px")
+              f"fit rms {verdict.rms_px:.2f} px, max {verdict.worst_px:.2f} px [{verdict.level}]")
+        if verdict.reason:
+            print(f"  gate: {verdict.reason}")
         skipped = [str(label) for label in corner_rows.loc[corner_rows["source"] != "click", "corner_label"]]
         parts = [f"{label} {error:.1f} px" for label, error in errors.items()]
         if in_fit:
@@ -124,10 +132,15 @@ def main() -> int:
         all_errors.extend(errors.values())
 
     if not frames_checked:
-        sys.exit("ERROR: no frame had both 4+ landmarks and corner rows to compare")
-    pooled = np.array(all_errors, dtype=np.float64)
-    print(f"\n{frames_checked} frame(s), {pooled.size} clicked corners: "
-          f"median {np.median(pooled):.1f} px, worst {pooled.max():.1f} px")
+        sys.exit(f"ERROR: no frame had both {court.FIT_MIN_POINTS}+ landmarks and corner rows to compare")
+    if all_errors:
+        pooled = np.array(all_errors, dtype=np.float64)
+        print(f"\n{frames_checked} frame(s), {pooled.size} clicked corners: "
+              f"median {np.median(pooled):.1f} px, worst {pooled.max():.1f} px")
+    else:
+        # Every clicked corner's own crossing fed its fit (the tool seeds them),
+        # so there is nothing independent to pool; the gate levels above stand.
+        print(f"\n{frames_checked} frame(s); no independent clicked corners to pool")
     return 0
 
 

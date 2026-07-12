@@ -38,7 +38,7 @@ earlier rows (matched by video basename plus frame) instead of duplicating
 them. Appending into a CSV written by a different tool or version is refused up
 front, before any clicking happens.
 
-Controls (``h`` shows them in the window):
+Controls (a help panel opens at launch; ``h`` brings it back any time):
 
 - trackbar, or ``,`` / ``.`` for -1 / +1 frame, ``<`` / ``>`` for -25 / +25
 - ``c`` starts a capture on the current frame; corners are prompted in slot
@@ -72,6 +72,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -575,8 +576,12 @@ class OffframeSession:
         whether clicked or marked off-frame.
 
         :return: REDRAW describing what was undone (or that nothing could be),
-            NOOP outside the two coarse states
+            NOOP outside a capture
         """
+        if self.adjusting:
+            # One-key parity with the tour tool: a provisional point cancels
+            # first, then confirmed points start popping.
+            return self.cancel_aim()
         if self.state is CaptureState.LANDMARK_COARSE and self._landmarks:
             name, _x, _y = self._landmarks.pop()
             self.fit = None
@@ -593,16 +598,23 @@ class OffframeSession:
         return SessionAction(ActionKind.NOOP)
 
     def do_fit(self) -> SessionAction:
-        """Fit the homography from the clicked landmarks and project the corners.
+        """Fit the homography from the clicked landmarks, gated, and project corners.
+
+        Refusals (fit stays None): under the point floor, a degenerate spread, a
+        worst-point reprojection over the calibrated ceiling, or a projected quad
+        that is not a convex behind-baseline court. A warn-level reprojection
+        keeps the fit but says so; Enter then commits deliberately.
 
         :return: REDRAW with the fit summary (or the reason it refused),
             or NOOP outside landmark mode
         """
         if self.state is not CaptureState.LANDMARK_COARSE:
             return SessionAction(ActionKind.NOOP)
-        if len(self._landmarks) < 4:
+        if len(self._landmarks) < court.FIT_MIN_POINTS:
             return SessionAction(
-                ActionKind.REDRAW, message=f"fit needs at least 4 landmarks, have {len(self._landmarks)}"
+                ActionKind.REDRAW,
+                message=f"fit needs at least {court.FIT_MIN_POINTS} landmarks "
+                        f"(4 fit exactly and hide a mislabel); have {len(self._landmarks)}",
             )
         court_pts = np.array([court.LANDMARKS[name] for name, _x, _y in self._landmarks], dtype=np.float64)
         image_pts = np.array([[x, y] for _name, x, y in self._landmarks], dtype=np.float64)
@@ -610,11 +622,21 @@ class OffframeSession:
             homography, residuals = court.fit_homography(court_pts, image_pts)
         except ValueError as error:
             return SessionAction(ActionKind.REDRAW, message=f"fit failed: {error}")
+        corners_px = court.project_corners(homography)
+        if not court.quad_is_camera_valid(corners_px):
+            return SessionAction(
+                ActionKind.REDRAW,
+                message="fit failed: projected quad is not a convex behind-baseline court "
+                        "(check for a mislabelled crossing)",
+            )
+        verdict = court.check_fit(residuals, self.width)
+        if verdict.level == "fail":
+            return SessionAction(ActionKind.REDRAW, message=f"fit failed: {verdict.reason}")
         self.fit = FitResult(
             homography=homography,
-            corners_px=court.project_corners(homography),
-            rms_px=float(np.sqrt(np.mean(residuals**2))),
-            max_px=float(residuals.max()),
+            corners_px=corners_px,
+            rms_px=verdict.rms_px,
+            max_px=verdict.worst_px,
             n_landmarks=len(self._landmarks),
         )
         placed = ", ".join(
@@ -624,6 +646,9 @@ class OffframeSession:
         summary = f"fit: {self.fit.n_landmarks} landmarks, rms {self.fit.rms_px:.2f} px, max {self.fit.max_px:.2f} px"
         if placed:
             summary += f"; projected {placed}"
+        if verdict.level == "warn":
+            return SessionAction(ActionKind.REDRAW,
+                                 message=f"fit WARN: {verdict.reason}. {summary}. Enter commits anyway")
         return SessionAction(ActionKind.REDRAW, message=summary + ". Enter commits")
 
     def commit(self) -> SessionAction:
@@ -923,6 +948,36 @@ TYPING_CHARS = "0123456789. ,-"
 KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN = 81, 82, 83, 84
 JUMP = 25
 
+# A double-click's second press can land inside the loupe the first press just
+# opened, pinning a point the user never chose. Clicks arriving this soon after
+# the loupe opens are the double-click's echo, not a deliberate click. (Grafted
+# from the tour tool, along with the beside-the-window loupe placement.)
+LOUPE_CLICK_GUARD_S = 0.35
+
+# Initial main-window cap (the frame still renders full-resolution inside a
+# resizable window). Without the cap a 1920-wide video fills the screen and the
+# beside-the-window loupe placement lands off-screen, where the WM dumps it
+# anywhere, including behind. Grafted from the tour tool, which the loupe
+# placement was calibrated against.
+INIT_MAX_W = 1280
+INIT_MAX_H = 720
+
+
+def window_visible(name: str) -> bool:
+    """:return: True when the named cv2 window is open and visible.
+
+    Closing the LAST window via its X tears down Qt's GUI thread, and the
+    property query then raises cv2.error instead of returning 0; that raise
+    crashed the tour tool on quit, so it is caught and folded into "not
+    visible". (Grafted from the tour tool.)
+
+    :param name: the cv2 window name to query
+    """
+    try:
+        return cv2.getWindowProperty(name, cv2.WND_PROP_VISIBLE) >= 1
+    except cv2.error:
+        return False
+
 HELP_LINES = (
     "c  start capture on this frame      q  quit",
     ", .  step 1 frame    < >  step 25    or drag the trackbar",
@@ -936,10 +991,25 @@ HELP_LINES = (
     "   u  undo the last landmark    f  fit    Enter (at prompt)  commit frame",
     "j  jump to the next target frame (--frames evenly spaced per video)",
     "v  copy the nearest annotated frame: points arrive pre-aimed, Enter each",
-    "ESC from a bare prompt abandons the frame    h  hide this help",
+    "ESC from a bare prompt abandons the frame",
+    "the toolbar up top is OpenCV's own: its disk icon saves a SCREENSHOT",
+    "   of the view, not your annotations",
+    "press any key to close this help    h brings it back",
 )
 
-STRIP_HEIGHT = 44  # two status lines
+STRIP_HEIGHT = 44  # two status lines, at the 1920-wide reference
+
+
+def hud_factor(width: int) -> float:
+    """HUD size multiplier for a frame width.
+
+    Text metrics below are calibrated at 1920 wide; fixed sizes become
+    unreadable when the video is narrower or the window smaller (a tour-tool
+    lesson). Clamped so tiny test frames stay legible and 4K does not shout.
+
+    :param width: frame width in px
+    """
+    return min(max(width / 1920, 0.75), 2.0)
 # cv2 draws int32 coordinates; a degenerate fit can project corners to absurd
 # values, so drawn points are clamped well inside int32 while the CSV keeps the
 # real numbers.
@@ -1040,6 +1110,7 @@ def draw_overlay(
     total: int,
     message: str,
     show_help: bool = False,
+    factor: float | None = None,
 ) -> np.ndarray:
     """Draw the status strip, placed corners, landmarks, and any fitted quad.
 
@@ -1049,6 +1120,9 @@ def draw_overlay(
     :param total: total frames, for the strip
     :param message: the most recent session message
     :param show_help: draw the key reference panel under the strip
+    :param factor: HUD size multiplier; None derives it from the frame width.
+        The shell passes one compensated for the window's display scale, since
+        the frame renders full-resolution into a downscaled window
     :return: a copy of the frame with the overlay drawn
     """
     canvas = frame.copy()
@@ -1072,12 +1146,15 @@ def draw_overlay(
     if session.pending_point is not None:
         px, py = (int(round(value)) for value in session.pending_point)
         cv2.drawMarker(canvas, (px, py), CORNER_COLOUR, cv2.MARKER_CROSS, 14, 1, cv2.LINE_AA)
+    if factor is None:
+        factor = hud_factor(canvas.shape[1])
+    strip_height = int(STRIP_HEIGHT * factor)
     if session.state is not CaptureState.SCRUB:
         # Court map in the top-right corner: which crossing or corner is wanted.
         key_width = int(court.COURT_WIDTH_M * COURT_KEY_SCALE)
         key_height = int(court.COURT_LENGTH_M * COURT_KEY_SCALE)
         key_x = canvas.shape[1] - key_width - 30
-        key_y = STRIP_HEIGHT + 30
+        key_y = strip_height + 30
         if key_x > 0 and key_y + key_height + 20 < canvas.shape[0]:
             in_landmarks = session.state in (CaptureState.LANDMARK_COARSE, CaptureState.LANDMARK_ADJUST)
             draw_court_key(
@@ -1087,15 +1164,21 @@ def draw_overlay(
                 corner_slot=None if in_landmarks else min(session.slot, 3),
             )
     top, bottom = status_lines(session, frame_idx, total, message)
-    cv2.rectangle(canvas, (0, 0), (canvas.shape[1], STRIP_HEIGHT), (0, 0, 0), -1)
-    cv2.putText(canvas, top, (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_COLOUR, 1, cv2.LINE_AA)
-    cv2.putText(canvas, bottom, (6, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_COLOUR, 1, cv2.LINE_AA)
+    font = 0.45 * factor
+    thickness = 1 if factor < 1.5 else 2
+    cv2.rectangle(canvas, (0, 0), (canvas.shape[1], strip_height), (0, 0, 0), -1)
+    cv2.putText(canvas, top, (6, int(16 * factor)), cv2.FONT_HERSHEY_SIMPLEX, font,
+                TEXT_COLOUR, thickness, cv2.LINE_AA)
+    cv2.putText(canvas, bottom, (6, int(36 * factor)), cv2.FONT_HERSHEY_SIMPLEX, font,
+                TEXT_COLOUR, thickness, cv2.LINE_AA)
     if show_help:
-        panel_height = 18 * len(HELP_LINES) + 12
-        cv2.rectangle(canvas, (0, STRIP_HEIGHT), (620, STRIP_HEIGHT + panel_height), (0, 0, 0), -1)
+        line_height = int(18 * factor)
+        panel_height = line_height * len(HELP_LINES) + int(12 * factor)
+        panel_width = int(620 * factor)
+        cv2.rectangle(canvas, (0, strip_height), (panel_width, strip_height + panel_height), (0, 0, 0), -1)
         for line_idx, line in enumerate(HELP_LINES):
-            cv2.putText(canvas, line, (6, STRIP_HEIGHT + 22 + 18 * line_idx),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, TEXT_COLOUR, 1, cv2.LINE_AA)
+            cv2.putText(canvas, line, (6, strip_height + int(22 * factor) + line_height * line_idx),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42 * factor, TEXT_COLOUR, thickness, cv2.LINE_AA)
     return canvas
 
 
@@ -1133,23 +1216,35 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
         frame_state["idx"] = max(0, min(idx, total - 1))
         frame_state["frame"] = read_frame(cap, frame_state["idx"])
 
+    help_state = {"visible": True}  # shown at launch; any key or click dismisses it
+    loupe_state = {"opened_at": 0.0, "seen": False}
+
     def on_main_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        if help_state["visible"]:
+            help_state["visible"] = False  # a click dismisses the help; nothing else fires
+            return
         # A main-window click aims the point; while adjusting it re-aims.
-        if event == cv2.EVENT_LBUTTONDOWN and (
-            session.adjusting or session.state in (CaptureState.CORNER_COARSE, CaptureState.LANDMARK_COARSE)
-        ):
+        if session.adjusting or session.state in (CaptureState.CORNER_COARSE, CaptureState.LANDMARK_COARSE):
             pending.append(session.coarse_click(float(x), float(y)))
 
     def on_loupe_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         # A loupe click repositions the provisional point; it confirms nothing.
-        if event == cv2.EVENT_LBUTTONDOWN and session.adjusting:
-            pending.append(session.reposition_from_loupe(float(x), float(y)))
+        if event != cv2.EVENT_LBUTTONDOWN or not session.adjusting:
+            return
+        if time.monotonic() - loupe_state["opened_at"] < LOUPE_CLICK_GUARD_S:
+            return  # a double-click's second press landing inside the just-opened loupe
+        pending.append(session.reposition_from_loupe(float(x), float(y)))
 
-    cv2.namedWindow(MAIN_WINDOW)
+    cv2.namedWindow(MAIN_WINDOW, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+    window_scale = min(1.0, INIT_MAX_W / width, INIT_MAX_H / height)
+    cv2.resizeWindow(MAIN_WINDOW, int(width * window_scale), int(height * window_scale))
     cv2.setMouseCallback(MAIN_WINDOW, on_main_mouse)
     cv2.createTrackbar("frame", MAIN_WINDOW, frame_state["idx"], max(total - 1, 1), lambda idx: load(idx))
     load(frame_state["idx"])
-    print(f"{args.video}: {width}x{height}, {total} frames. Press h in the window for keys.")
+    print(f"{args.video}: {width}x{height}, {total} frames.")
+    print("  a help panel is open in the window; press h any time to bring it back")
     if session.annotated_frames:
         done = ", ".join(str(idx) for idx in sorted(session.annotated_frames))
         print(f"  resuming: frame(s) {done} already annotated for this video; re-committing one replaces it")
@@ -1162,7 +1257,8 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
     def show_loupe(target_xy: tuple[float, float] | None, origin: tuple[int, int] | None, banner: str) -> None:
         # Reuses the base clicker's renderer; the crosshair tracks the placed
         # point, so nudges are visible at loupe magnification. A banner strip
-        # says what the window wants, since it covers the main status bar.
+        # says what the window wants, since it covers the main status bar. The
+        # window itself is created and positioned by the open_loupe_window step.
         if frame_state["frame"] is None or origin is None:
             return
         synthetic = SessionAction(ActionKind.OPEN_LOUPE, loupe_origin=origin, coarse_xy=target_xy)
@@ -1170,9 +1266,30 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
         cv2.rectangle(zoomed, (0, zoomed.shape[0] - 24), (zoomed.shape[1], zoomed.shape[0]), (0, 0, 0), -1)
         cv2.putText(zoomed, banner, (6, zoomed.shape[0] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
                     TEXT_COLOUR, 1, cv2.LINE_AA)
+        cv2.imshow(LOUPE_WINDOW, zoomed)
+
+    def open_loupe_window() -> None:
+        # Create, position, and pin the loupe BEFORE its first show, so it never
+        # flashes at a WM-default spot or spawns behind the main window. It sits
+        # over the main window's LEFT side: the court map lives top-right, and
+        # over-the-window can never land off-screen.
         cv2.namedWindow(LOUPE_WINDOW)
         cv2.setMouseCallback(LOUPE_WINDOW, on_loupe_mouse)
-        cv2.imshow(LOUPE_WINDOW, zoomed)
+        try:
+            main_x, main_y, main_w, _ = cv2.getWindowImageRect(MAIN_WINDOW)
+            good_rect = main_w > 0
+        except cv2.error:
+            good_rect = False
+        if good_rect:
+            cv2.moveWindow(LOUPE_WINDOW, main_x + 16, max(main_y + 16, 0))
+        else:
+            cv2.moveWindow(LOUPE_WINDOW, 24, 24)
+        try:
+            # It overlaps the main window on purpose, so it must actually stay
+            # in front; some WMs spawn unfocused windows behind.
+            cv2.setWindowProperty(LOUPE_WINDOW, cv2.WND_PROP_TOPMOST, 1)
+        except cv2.error:
+            pass
 
     typing_state = {"active": False, "buffer": ""}
     step_state = {"px": args.nudge_step}
@@ -1212,7 +1329,7 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
             pending.append(SessionAction(ActionKind.ADJUSTED))
 
     message = "c starts a capture; h shows the keys"
-    show_help = False
+    main_seen = False
     loupe_open = False
     while True:
         frame = frame_state["frame"]
@@ -1222,7 +1339,17 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
             # scrub keys visibly work.
             frame = np.zeros((height, width, 3), dtype=np.uint8)
             message = f"frame {frame_state['idx']} failed to decode; scrub with , . or the trackbar"
-        cv2.imshow(MAIN_WINDOW, draw_overlay(frame, session, frame_state["idx"], total, message, show_help))
+        # HUD sizes compensate for the window's live display scale: the frame
+        # renders full-resolution into a (usually) downscaled resizable window.
+        try:
+            _wx, _wy, shown_width, _wh = cv2.getWindowImageRect(MAIN_WINDOW)
+        except cv2.error:
+            shown_width = 0
+        display_scale = shown_width / width if shown_width > 0 else window_scale
+        factor = min(max(hud_factor(width) / max(display_scale, 0.2), 0.75), 3.0)
+        cv2.imshow(MAIN_WINDOW,
+                   draw_overlay(frame, session, frame_state["idx"], total, message,
+                                help_state["visible"], factor=factor))
 
         while pending:
             action = pending.pop(0)
@@ -1231,7 +1358,11 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
                 if action.kind is not ActionKind.ADJUSTED:  # arrow-key repeats would spam the console
                     print(f"  {action.message}")
             if action.kind is ActionKind.OPEN_LOUPE:
+                if not loupe_open:
+                    open_loupe_window()
                 loupe_open = True
+                loupe_state["opened_at"] = time.monotonic()  # arms the double-click guard
+                loupe_state["seen"] = False  # re-arm closed-detection for this loupe
                 show_loupe(session.pending_point, session.pending_origin, adjust_banner())
             elif action.kind is ActionKind.ADJUSTED and loupe_open:
                 show_loupe(session.pending_point, session.pending_origin, adjust_banner())
@@ -1240,8 +1371,27 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
                 loupe_open = False
 
         key = cv2.waitKey(20) & 0xFF
+        # Not-visible only means "user closed it" AFTER the window has reported
+        # visible once: a busy WM can read a not-yet-mapped window as closed,
+        # and quitting on that reading kills the tool at launch.
+        main_visible = window_visible(MAIN_WINDOW)
+        main_seen = main_seen or main_visible
+        if main_seen and not main_visible:
+            break  # the main window's X quits; otherwise the next imshow reopens it
+        if loupe_open:
+            loupe_visible = window_visible(LOUPE_WINDOW)
+            loupe_state["seen"] = loupe_state["seen"] or loupe_visible
+            if loupe_state["seen"] and not loupe_visible:
+                # The loupe's X, not a click: drop the aim like ESC would.
+                loupe_open = False
+                pending.append(session.cancel_aim())
         if typing_state["active"]:
             handle_typing(key)
+        elif help_state["visible"]:
+            if key != 255:
+                # Any key closes the help panel, and fires nothing else on this
+                # pass; the panel promises "press any key".
+                help_state["visible"] = False
         elif key == KEY_QUIT:
             break
         elif key == KEY_ESC:
@@ -1263,7 +1413,7 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
             step_state["px"] = min(max(step_state["px"] * factor, 0.05), 8.0)
             pending.append(SessionAction(ActionKind.ADJUSTED, message=f"nudge step {step_state['px']:g} px"))
         elif key == KEY_HELP:
-            show_help = not show_help
+            help_state["visible"] = True
         elif key == KEY_JUMP and session.state is CaptureState.SCRUB:
             target = next((anchor for anchor in anchors if anchor > frame_state["idx"]), anchors[0])
             load(target)
