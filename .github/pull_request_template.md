@@ -1,5 +1,5 @@
 <!--
-Fill in each section below. The "PR quality" check verifies these three
+Fill in each section below. The "PR quality" check verifies these four
 sections exist and are non-empty. Keep it readable: short sentences, plain
 language. Lines inside HTML comments like this one are ignored by the check.
 -->
@@ -12,3 +12,10 @@ language. Lines inside HTML comments like this one are ignored by the check.
 
 ## Testing
 <!-- How did you check it works? Tests run, manual steps, screenshots, etc. -->
+
+## Reviewer focus
+<!--
+Where should reviewers spend their attention? Point at the risky or
+uncertain parts: a tricky function, a design choice you're unsure about,
+an area you couldn't test. "Nothing specific, general review" is fine.
+-->
