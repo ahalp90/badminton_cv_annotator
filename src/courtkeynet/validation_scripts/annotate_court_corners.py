@@ -57,7 +57,12 @@ from typing import NamedTuple
 import cv2
 import numpy as np
 
-from src.courtkeynet.fallback import (
+# Resolve the repo root (three parents up) so the `src.` import below works when
+# this file is run as a plain script; mirrors render_court_overlay.py.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.courtkeynet.fallback import (  # noqa: E402
     CORNER_COURT_M,
     COURT_LENGTH_M,
     COURT_WIDTH_M,
