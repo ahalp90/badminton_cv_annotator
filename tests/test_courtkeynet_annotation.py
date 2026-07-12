@@ -9,6 +9,7 @@ needed, are tiny numpy arrays.
 
 import importlib.util
 import itertools
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -516,3 +517,29 @@ def test_append_rows_refuses_mismatched_header(tmp_path: Path) -> None:
     rows = annotate.build_corner_rows("clip.mp4", 1, [(1.0, 2.0)] * 4, 512, 288, "portrait")
     with pytest.raises(ValueError, match="header"):
         annotate.append_rows(csv_path, rows)
+
+
+# --- Torch decouple: the annotator runs without torch installed ------------
+
+def test_annotator_imports_without_torch() -> None:
+    """fallback.py and the annotator's build_point_table import and run with torch
+    blocked, pinning the decouple so a future import can't re-couple torch onto the
+    annotator's path (the GUI-capable OpenCV venv has no torch).
+
+    A subprocess, so torch is blocked from interpreter start: this pytest process
+    has already imported torch (via the wrapper tests), so an in-process block
+    would not model torch being absent. The proof is the subprocess exiting 0: a
+    blocked ``import torch`` anywhere on the chain raises and crashes it.
+    """
+    script = (
+        "import sys\n"
+        "sys.modules['torch'] = None\n"  # None in sys.modules makes any `import torch` raise ImportError
+        "import src.courtkeynet.fallback\n"
+        "from src.courtkeynet.validation_scripts.annotate_court_corners import build_point_table\n"
+        "table = build_point_table()\n"
+        "assert len(table) == 30, f'expected 30 tour points, got {len(table)}'\n"
+        "print('OK', len(table))\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, f"torch-free import failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    assert result.stdout.startswith("OK"), result.stdout

@@ -19,6 +19,7 @@ import yaml
 from safetensors.torch import load_file
 
 from ._vendor.models import CourtKeyNet
+from .constants import DEFAULT_CORNER_MIN_PEAK_CONF
 
 DEFAULT_WEIGHTS = Path(__file__).parent / "weights" / "courtkeynet_finetuned.safetensors"
 CONFIG_PATH = Path(__file__).parent / "_vendor" / "configs" / "courtkeynet.yaml"
@@ -30,8 +31,9 @@ CONFIG_PATH = Path(__file__).parent / "_vendor" / "configs" / "courtkeynet.yaml"
 # and still rejected the entire non-court sample in pad mode. One video's court
 # frames run below even this floor and fail closed, which is the designed
 # behaviour (ShuttleSet's recorded homography is the backstop). Amateur footage
-# is unmeasured; re-measure before trusting these there.
-DEFAULT_MIN_PEAK = 0.02
+# is unmeasured; re-measure before trusting these there. The peak floor's default
+# now lives in constants.py as DEFAULT_CORNER_MIN_PEAK_CONF; the two below are the
+# other gate thresholds from that same measurement.
 DEFAULT_MAX_ENTROPY = 0.8
 DEFAULT_AREA_BOUNDS = (0.01, 0.95)
 
@@ -212,7 +214,7 @@ def _gate_flags(
     frame_wh: tuple[float, float],
     peak: np.ndarray,
     entropy: np.ndarray,
-    min_peak: float,
+    corner_min_peak_conf: float,
     max_entropy: float,
     area_bounds: tuple[float, float],
 ) -> tuple[str, ...]:
@@ -222,13 +224,13 @@ def _gate_flags(
     :param frame_wh: (width, height) of the frame the corners live in
     :param peak: (4,) per-corner softmax max prob
     :param entropy: (4,) per-corner normalised entropy
-    :param min_peak: any corner below this flags 'low_peak'
+    :param corner_min_peak_conf: any corner below this flags 'low_peak'
     :param max_entropy: any corner above this flags 'high_entropy'
     :param area_bounds: (min, max) allowed area as a fraction of the frame
     :return: all triggered flags; empty tuple == clean detection
     """
     flags: list[str] = []
-    if (peak < min_peak).any():
+    if (peak < corner_min_peak_conf).any():
         flags.append("low_peak")
     if (entropy > max_entropy).any():
         flags.append("high_entropy")
@@ -244,7 +246,7 @@ class CourtKeyNetDetector:
         weights_path: Path = DEFAULT_WEIGHTS,
         device: str = "cpu",
         resize_mode: str = "pad",
-        min_peak: float = DEFAULT_MIN_PEAK,
+        corner_min_peak_conf: float = DEFAULT_CORNER_MIN_PEAK_CONF,
         max_entropy: float = DEFAULT_MAX_ENTROPY,
         area_bounds: tuple[float, float] = DEFAULT_AREA_BOUNDS,
     ) -> None:
@@ -253,7 +255,7 @@ class CourtKeyNetDetector:
         :param weights_path: safetensors finetuned weights
         :param device: torch device string, e.g. 'cpu' or 'cuda'
         :param resize_mode: 'pad' (aspect-preserving letterbox) or 'squash' (upstream's)
-        :param min_peak: gate threshold; any corner peak below flags 'low_peak'
+        :param corner_min_peak_conf: gate threshold; any corner peak below flags 'low_peak'
         :param max_entropy: gate threshold; any corner entropy above flags 'high_entropy'
         :param area_bounds: (min, max) allowed normalised quad area
         """
@@ -261,7 +263,7 @@ class CourtKeyNetDetector:
             raise ValueError(f"resize_mode must be 'pad' or 'squash', got {resize_mode!r}")
         self.device = device
         self.resize_mode = resize_mode
-        self.min_peak = min_peak
+        self.corner_min_peak_conf = corner_min_peak_conf
         self.max_entropy = max_entropy
         self.area_bounds = area_bounds
         self.size = MODEL_INPUT_SIZE
@@ -334,7 +336,7 @@ class CourtKeyNetDetector:
             peak, entropy = _peak_entropy(heatmaps[frame_idx])
             flags = _gate_flags(
                 corners_px, (geom.orig_w, geom.orig_h), peak, entropy,
-                self.min_peak, self.max_entropy, self.area_bounds,
+                self.corner_min_peak_conf, self.max_entropy, self.area_bounds,
             )
             detections.append(CornerDetection(corners_px=corners_px, peak=peak, entropy=entropy, flags=flags))
         return detections

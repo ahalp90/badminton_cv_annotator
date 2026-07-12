@@ -20,14 +20,22 @@ top corners (TL/TR) are the far baseline, which is why the far baseline takes
 y=0. cv2 + numpy only; no new dependencies.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import cv2
 import numpy as np
 
-from .wrapper import CornerDetection, DEFAULT_MIN_PEAK, scene_corners
+from .constants import DEFAULT_CORNER_MIN_PEAK_CONF
+
+if TYPE_CHECKING:
+    # Type-only, so this module imports without torch (the annotator needs just the
+    # court constants). The one runtime wrapper name loads where used: scene_corners
+    # in _model_path.
+    from .wrapper import CornerDetection
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +312,7 @@ def _scene_peaks(clean: list[CornerDetection]) -> np.ndarray:
     return np.median(np.stack([detection.peak for detection in clean]), axis=0)
 
 
-def _anchor_points(clean: list[CornerDetection], confident: np.ndarray, min_peak: float) -> dict[int, np.ndarray]:
+def _anchor_points(clean: list[CornerDetection], confident: np.ndarray, corner_min_peak_conf: float) -> dict[int, np.ndarray]:
     """Median image position of each confident corner over its own strong frames.
 
     Per corner the median runs only over the geometry-clean frames where THAT
@@ -313,12 +321,12 @@ def _anchor_points(clean: list[CornerDetection], confident: np.ndarray, min_peak
 
     :param clean: geometry-clean detections for the scene
     :param confident: (4,) bool, corners whose scene-median peak cleared the floor
-    :param min_peak: per-corner peak floor
+    :param corner_min_peak_conf: per-corner peak-confidence floor
     :return: {corner slot: (2,) float64 anchor pixel} for each confident corner
     """
     anchors: dict[int, np.ndarray] = {}
     for corner in np.flatnonzero(confident):
-        strong = [d.corners_px[corner] for d in clean if d.peak[corner] >= min_peak]
+        strong = [d.corners_px[corner] for d in clean if d.peak[corner] >= corner_min_peak_conf]
         anchors[int(corner)] = np.median(np.stack(strong), axis=0).astype(np.float64)
     return anchors
 
@@ -827,6 +835,8 @@ def _assemble_corners(
 
 def _model_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> CourtQuad | None:
     """All four corners confident: reuse the wrapper's per-scene median verbatim."""
+    from .wrapper import scene_corners  # local import keeps this module torch-free
+
     corners = scene_corners(detections)
     if corners is None:
         logger.info("court fallback: 4 confident corners but no fully-passing frame; failing closed")
@@ -845,10 +855,10 @@ def _fallback_path(
     clean: list[CornerDetection],
     scene_peaks: np.ndarray,
     confident: np.ndarray,
-    min_peak: float,
+    corner_min_peak_conf: float,
 ) -> CourtQuad | None:
     """Recover 1-2 withheld corners from pooled line evidence and the BWF model."""
-    anchors = _anchor_points(clean, confident, min_peak)
+    anchors = _anchor_points(clean, confident, corner_min_peak_conf)
     sample_quad = _scene_sample_quad(clean)
 
     segments = [_frame_segments(frame, _mat_roi(frame, sample_quad)) for frame in frames_bgr]
@@ -924,7 +934,7 @@ def scene_court(
     frames_bgr: list[np.ndarray],
     detections: list[CornerDetection],
     *,
-    min_peak: float = DEFAULT_MIN_PEAK,
+    corner_min_peak_conf: float = DEFAULT_CORNER_MIN_PEAK_CONF,
 ) -> CourtQuad | None:
     """One scene in, four court corners with provenance out, or None (fail closed).
 
@@ -936,7 +946,8 @@ def scene_court(
 
     :param frames_bgr: the scene's sampled BGR frames (static-camera assumption)
     :param detections: the matching CornerDetection per frame, same order/length
-    :param min_peak: per-corner peak floor defining a confident corner
+    :param corner_min_peak_conf: per-corner peak-confidence floor defining a
+        confident corner
     :return: the recovered court quad, or None when the scene fails closed
     """
     clean = [detection for detection in detections if _geometry_clean(detection)]
@@ -945,7 +956,7 @@ def scene_court(
         return None
 
     scene_peaks = _scene_peaks(clean)
-    confident = scene_peaks >= min_peak
+    confident = scene_peaks >= corner_min_peak_conf
     n_confident = int(confident.sum())
 
     if n_confident == 4:
@@ -955,4 +966,4 @@ def scene_court(
         return None
 
     clean_frames = [frame for frame, detection in zip(frames_bgr, detections) if _geometry_clean(detection)]
-    return _fallback_path(clean_frames, clean, scene_peaks, confident, min_peak)
+    return _fallback_path(clean_frames, clean, scene_peaks, confident, corner_min_peak_conf)
