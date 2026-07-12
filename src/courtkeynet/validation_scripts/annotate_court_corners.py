@@ -30,13 +30,20 @@ The model is never loaded here; this tool only produces ground truth.
 
 Controls:
 
-- trackbar, or ``,`` / ``.`` for -1 / +1 frame, ``<`` / ``>`` for -25 / +25
+- a help panel is open on launch; press ``h`` any time to bring it back
+- the trackbar scrubs to any frame; ``,`` / ``.`` step -1 / +1, ``<`` / ``>`` jump
+  -25 / +25
 - ``c`` starts a 4-corner capture: click a corner, then click again in the loupe
-  to refine; ESC aborts the frame cleanly
+  to refine; ``u`` undoes the last click, ESC aborts the frame cleanly
 - ``i`` starts an intersection tour for footage with off-frame corners: the
   overlay names each painted intersection in turn; ``s`` skips the one on screen,
-  ``d`` declares the tour done and runs the fit, ESC aborts writing nothing
+  ``d`` declares the tour done and runs the fit, ``u`` undoes, ESC aborts writing
+  nothing
+- clicking the main window with nothing started just flashes a hint to press
+  ``c`` or ``i``; it does not begin a capture on its own
 - ``q`` quits
+- the toolbar above the window is OpenCV's own: its arrows and ctrl+wheel zoom
+  only change the view, and its disk icon saves a screenshot, not an annotation
 
 Usage::
 
@@ -49,6 +56,7 @@ import argparse
 import csv
 import itertools
 import sys
+import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -227,6 +235,31 @@ def append_rows(csv_path: Path, rows: list[dict[str, object]]) -> None:
     :param rows: row dicts keyed by :data:`CSV_HEADER`
     """
     _append_rows(csv_path, rows, CSV_HEADER)
+
+
+def load_annotated_frames(csv_path: Path, video: str) -> set[int]:
+    """Frame indices the main CSV already carries rows for, on this video.
+
+    Warns the user before they double-annotate a frame: the scorer reads exactly
+    four rows per (video, frame), and a duplicate frame poisons that read.
+
+    :param csv_path: the main corner CSV; a missing or empty file has no annotations
+    :param video: source video path string, matched by basename against the CSV's
+        video column (tolerates a different path prefix, mirroring the scorer)
+    :return: the set of already-annotated frame indices for this video
+    """
+    csv_path = Path(csv_path)
+    if not csv_path.exists() or csv_path.stat().st_size == 0:
+        return set()
+    with csv_path.open("r", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None or "video" not in reader.fieldnames or "frame" not in reader.fieldnames:
+            raise ValueError(
+                f"{csv_path} header {reader.fieldnames} is missing the video/frame columns "
+                "load_annotated_frames needs"
+            )
+        video_name = Path(video).name
+        return {int(row["frame"]) for row in reader if Path(row["video"]).name == video_name}
 
 
 def build_point_rows(
@@ -541,6 +574,7 @@ class ActionKind(StrEnum):
     CORNER_PLACED = "corner_placed"  # corner refined; more corners to go
     COMMITTED = "committed"  # rows appended (corner capture or tour); back to scrub
     ABORTED = "aborted"  # capture cancelled or a tour commit failed; back to scrub
+    UNDONE = "undone"  # last click un-placed / pending loupe cancelled; shell closes the loupe
     # Tour-only transitions; the loupe cycle (AWAIT_COARSE / OPEN_LOUPE) is shared.
     POINT_PLACED = "point_placed"  # tour point refined; advanced to the next
     POINT_SKIPPED = "point_skipped"  # tour point skipped; advanced to the next
@@ -555,6 +589,7 @@ class SessionAction:
     :param loupe_origin: crop top-left for OPEN_LOUPE, else None
     :param coarse_xy: the coarse click for OPEN_LOUPE (loupe crosshair), else None
     :param corners: corners placed so far (CORNER_PLACED) or all four (COMMITTED)
+    :param message: human-readable note for the shell to display, else empty
     """
 
     kind: ActionKind
@@ -562,6 +597,7 @@ class SessionAction:
     loupe_origin: tuple[int, int] | None = None
     coarse_xy: tuple[float, float] | None = None
     corners: tuple[tuple[float, float], ...] = field(default_factory=tuple)
+    message: str = ""
 
 
 class CaptureSession:
@@ -690,6 +726,26 @@ class CaptureSession:
         self.state = CaptureState.SCRUB
         return SessionAction(ActionKind.ABORTED)
 
+    def undo(self) -> SessionAction:
+        """Step back one click: a pending loupe cancels first, else the last corner pops.
+
+        One press undoes one thing. ESC already covers leaving the capture, so undo
+        with nothing placed and no loupe pending is a NOOP.
+
+        :return: UNDONE with the corner count/corners after stepping back, else NOOP
+        """
+        if self.state is CaptureState.SCRUB:
+            return SessionAction(ActionKind.NOOP)
+        if self.state is CaptureState.AWAITING_REFINE:
+            self._pending_origin = None
+            self._pending_coarse = None
+            self.state = CaptureState.AWAITING_COARSE
+            return SessionAction(ActionKind.UNDONE, corner_index=len(self._corners), corners=tuple(self._corners))
+        if not self._corners:
+            return SessionAction(ActionKind.NOOP)
+        self._corners.pop()
+        return SessionAction(ActionKind.UNDONE, corner_index=len(self._corners), corners=tuple(self._corners))
+
 
 @dataclass(frozen=True)
 class TourAction:
@@ -706,6 +762,7 @@ class TourAction:
     :param clicked: how many points have been clicked so far this tour
     :param skipped: how many points have been skipped so far this tour
     :param corners: the four committed corners (COMMITTED), else empty
+    :param message: human-readable note for the shell to display, else empty
     """
 
     kind: ActionKind
@@ -716,6 +773,7 @@ class TourAction:
     clicked: int = 0
     skipped: int = 0
     corners: tuple[tuple[float, float], ...] = field(default_factory=tuple)
+    message: str = ""
 
 
 class IntersectionSession:
@@ -880,6 +938,29 @@ class IntersectionSession:
         self._reset()
         return TourAction(ActionKind.ABORTED)
 
+    def undo(self) -> TourAction:
+        """Step back one point: a pending loupe cancels first, else the cursor steps back.
+
+        Stepping back re-poses the previous point whether it was clicked or skipped.
+        In-capture only, by ruling: after a commit (scrub) undo is a NOOP.
+
+        :return: UNDONE re-awaiting the point stepped back to, else NOOP
+        """
+        if self.state is CaptureState.SCRUB:
+            return TourAction(ActionKind.NOOP)
+        if self.state is CaptureState.AWAITING_REFINE:
+            self._pending_origin = None
+            self._pending_coarse = None
+            self.state = CaptureState.AWAITING_COARSE
+            return self._await_current(ActionKind.UNDONE)
+        if self._cursor == 0:
+            return TourAction(ActionKind.NOOP)
+        self._cursor -= 1
+        # The stepped-back point is in at most one of the two records.
+        self._clicked.pop(self._cursor, None)
+        self._skipped.discard(self._cursor)
+        return self._await_current(ActionKind.UNDONE)
+
     def _await_current(self, kind: ActionKind) -> TourAction:
         """:return: ``kind`` carrying the current point's name and tour progress."""
         point = self.point_table[self._cursor]
@@ -979,7 +1060,7 @@ class IntersectionSession:
         """
         print(f"  tour aborted on frame {self.frame_idx}: {message}")
         self._reset()
-        return TourAction(ActionKind.ABORTED)
+        return TourAction(ActionKind.ABORTED, message=message)
 
     def _reset(self) -> None:
         """Clear tour progress and return to scrub; frame_idx is kept for logging."""
@@ -1009,51 +1090,233 @@ KEY_CAPTURE = ord("c")
 KEY_TOUR = ord("i")
 KEY_SKIP = ord("s")
 KEY_DONE = ord("d")
+KEY_UNDO = ord("u")
+KEY_HELP = ord("h")
 KEY_QUIT = ord("q")
 KEY_ESC = 27
 JUMP = 25
+WAIT_MS = 20  # waitKey poll interval, ms; also the tick unit the hint flash counts down in
+# A double-click's second press can land inside the loupe the first press just
+# opened, pinning a corner the user never chose. Clicks arriving this soon after
+# the loupe opens are the double-click's echo, not a deliberate refine click.
+LOUPE_CLICK_GUARD_S = 0.35
+
+HELP_TITLE = "COURT CORNER ANNOTATOR - HELP"
+HELP_LINES: tuple[str, ...] = (
+    "Mark corners: press c, then for each of the 4 corners:",
+    "  1) click roughly near the corner - a zoom window opens",
+    "  2) click the exact corner inside the zoom window",
+    "The frame saves itself after the 4th corner. No save button needed.",
+    "Corners out of view? press i: the tour names each painted line crossing;",
+    "  click it, or s to skip it; d when done (needs all 4 corners or 5+ points).",
+    "u undo last click    ESC cancel this frame    q quit",
+    ",/. step 1 frame    </> jump 25 frames    the slider scrubs anywhere",
+    "The toolbar up top is OpenCV's own: the arrows pan a ctrl+wheel zoom,",
+    "  and the disk icon saves a SCREENSHOT of the view, not your annotations.",
+    "Annotations append to the --out-csv file.",
+    "",
+    "press any key to close this help    h brings it back",
+)
 
 
-def draw_scrub_overlay(frame: np.ndarray, session: CaptureSession, frame_idx: int, total: int) -> np.ndarray:
-    """Draw the frame index strip and any corners placed so far this capture.
+def window_visible(name: str) -> bool:
+    """:return: True when the named cv2 window is open and visible.
+
+    Closing the LAST window via its X tears down Qt's GUI thread, and the
+    property query then raises cv2.error instead of returning 0; that raise used
+    to crash the tool on quit, so it is caught here and folded into "not visible".
+
+    :param name: the cv2 window name to query
+    """
+    try:
+        return cv2.getWindowProperty(name, cv2.WND_PROP_VISIBLE) >= 1
+    except cv2.error:
+        return False
+
+
+def _hud_scale(width: int) -> tuple[float, int, int]:
+    """Derive the HUD's font scale, text thickness, and line height from frame width.
+
+    Shared by every overlay drawer so the HUD reads at a consistent size whether
+    the source frame is a phone-pixel amateur clip or a full HD broadcast one.
+
+    :param width: frame width in pixels
+    :return: (font scale, text thickness, line height in pixels)
+    """
+    scale = max(0.55, width / 1600)
+    thickness = 1 if scale < 0.9 else 2
+    line_height = int(30 * scale)
+    return scale, thickness, line_height
+
+
+def _draw_hud_strip(
+    canvas: np.ndarray,
+    lines: list[tuple[str, tuple[int, int, int]]],
+    scale: float,
+    thickness: int,
+    line_height: int,
+) -> None:
+    """Paint a black strip sized to ``lines`` and the text inside it, in place.
+
+    :param canvas: the frame to draw on (mutated)
+    :param lines: (text, colour) pairs, top to bottom
+    :param scale: cv2.putText font scale
+    :param thickness: cv2.putText line thickness
+    :param line_height: vertical spacing between baselines, pixels
+    """
+    strip_height = line_height * len(lines) + line_height // 2
+    cv2.rectangle(canvas, (0, 0), (canvas.shape[1], strip_height), (0, 0, 0), -1)
+    for row, (text, colour) in enumerate(lines):
+        baseline_y = line_height * (row + 1) - line_height // 4
+        cv2.putText(canvas, text, (6, baseline_y), cv2.FONT_HERSHEY_SIMPLEX, scale, colour, thickness, cv2.LINE_AA)
+
+
+def draw_scrub_overlay(
+    frame: np.ndarray,
+    session: CaptureSession,
+    frame_idx: int,
+    total: int,
+    annotated: set[int],
+    saved_this_run: int,
+    hint_text: str,
+) -> np.ndarray:
+    """Draw the scrub/capture HUD: status line, key legend or capture prompt, hint.
 
     :param frame: the current BGR frame
     :param session: the live capture session (for placed corners and state)
     :param frame_idx: current frame index
     :param total: total frames, for the strip
+    :param annotated: frame indices this video already has CSV rows for, any run
+    :param saved_this_run: frames committed since this process started
+    :param hint_text: a transient hint line to show last, or "" to omit it
     :return: a copy of the frame with the overlay drawn
     """
     canvas = frame.copy()
-    status = f"frame {frame_idx}/{total - 1}   [{session.state}]   corners {len(session.placed_corners)}/4"
-    cv2.rectangle(canvas, (0, 0), (canvas.shape[1], 22), (0, 0, 0), -1)
-    cv2.putText(canvas, status, (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_COLOUR, 1, cv2.LINE_AA)
-    for corner_idx, (x_px, y_px) in enumerate(session.placed_corners):
+    scale, thickness, line_height = _hud_scale(canvas.shape[1])
+    placed = session.placed_corners
+    capturing = session.state is not CaptureState.SCRUB
+
+    lines: list[tuple[str, tuple[int, int, int]]] = []
+    if capturing:
+        lines.append((f"MARKING CORNERS   {len(placed)}/4 placed   frame {frame_idx}", TEXT_COLOUR))
+        if session.state is CaptureState.AWAITING_COARSE:
+            prompt = f"click near corner {len(placed) + 1} of 4 (a zoom window will open)"
+        else:
+            prompt = "click the exact corner in the zoom window"
+        lines.append((prompt, CORNER_COLOUR))
+        lines.append(("u undo last   ESC cancel frame", TEXT_COLOUR))
+    else:
+        lines.append((f"frame {frame_idx}/{total - 1}   saved this run: {saved_this_run}", TEXT_COLOUR))
+        if frame_idx in annotated:
+            lines.append(("already annotated (saving again duplicates rows)", CORNER_COLOUR))
+        lines.append((
+            "c mark 4 corners   i intersection tour   ,/. step 1   </> jump 25   h help   q quit", TEXT_COLOUR
+        ))
+    if hint_text:
+        lines.append((hint_text, CORNER_COLOUR))
+    _draw_hud_strip(canvas, lines, scale, thickness, line_height)
+
+    dot_radius = max(3, int(4 * scale))
+    for corner_idx, (x_px, y_px) in enumerate(placed):
         centre = (int(round(x_px)), int(round(y_px)))
-        cv2.circle(canvas, centre, 4, CORNER_COLOUR, -1, cv2.LINE_AA)
+        cv2.circle(canvas, centre, dot_radius, CORNER_COLOUR, -1, cv2.LINE_AA)
         cv2.putText(canvas, str(corner_idx), (centre[0] + 6, centre[1] - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, CORNER_COLOUR, 1, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, scale * 0.6, CORNER_COLOUR, thickness, cv2.LINE_AA)
     return canvas
 
 
-def draw_tour_overlay(frame: np.ndarray, tour: IntersectionSession, frame_idx: int, total: int) -> np.ndarray:
-    """Draw the tour status strip, the current point's name, and clicked points.
+def draw_tour_overlay(
+    frame: np.ndarray,
+    tour: IntersectionSession,
+    frame_idx: int,
+    total: int,
+    hint_text: str,
+) -> np.ndarray:
+    """Draw the tour HUD: progress, the save-readiness note, the current prompt, hint.
 
     :param frame: the current BGR frame
     :param tour: the live intersection session (for the current point and progress)
     :param frame_idx: current frame index
     :param total: total frames, for the strip
+    :param hint_text: a transient hint line to show last, or "" to omit it
     :return: a copy of the frame with the overlay drawn
     """
     canvas = frame.copy()
+    scale, thickness, line_height = _hud_scale(canvas.shape[1])
     total_points = len(tour.point_table)
-    status = (f"frame {frame_idx}/{total - 1}   [tour]   "
-              f"{tour.clicked_count} clicked / {tour.skipped_count} skipped / {total_points} points")
-    prompt = f"click: {tour.point_table[tour.cursor].name}   (s=skip  d=done  ESC=abort)"
-    cv2.rectangle(canvas, (0, 0), (canvas.shape[1], 44), (0, 0, 0), -1)
-    cv2.putText(canvas, status, (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_COLOUR, 1, cv2.LINE_AA)
-    cv2.putText(canvas, prompt, (6, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.5, CORNER_COLOUR, 1, cv2.LINE_AA)
+    clicked, skipped = tour.clicked_count, tour.skipped_count
+
+    lines: list[tuple[str, tuple[int, int, int]]] = [
+        (f"INTERSECTION TOUR   point {tour.cursor + 1}/{total_points}   "
+         f"{clicked} clicked   {skipped} skipped   frame {frame_idx}", TEXT_COLOUR),
+        (f"saves on d: all 4 corners or 5+ points ({clicked} so far)", CORNER_COLOUR),
+    ]
+    if tour.state is CaptureState.AWAITING_REFINE:
+        prompt = "click the exact point in the zoom window"
+    else:
+        prompt = f"click: {tour.point_table[tour.cursor].name}"
+    lines.append((prompt, CORNER_COLOUR))
+    lines.append(("s skip   d done   u undo   ESC abort", TEXT_COLOUR))
+    if hint_text:
+        lines.append((hint_text, CORNER_COLOUR))
+    _draw_hud_strip(canvas, lines, scale, thickness, line_height)
+
+    dot_radius = max(3, int(4 * scale))
     for x_px, y_px in tour.clicked_points:
-        cv2.circle(canvas, (int(round(x_px)), int(round(y_px))), 4, CORNER_COLOUR, -1, cv2.LINE_AA)
+        cv2.circle(canvas, (int(round(x_px)), int(round(y_px))), dot_radius, CORNER_COLOUR, -1, cv2.LINE_AA)
+    return canvas
+
+
+def draw_help_overlay(frame: np.ndarray) -> np.ndarray:
+    """Draw the help panel: a darkened centred box behind the title and control list.
+
+    :param frame: the current composed BGR frame (already carries the HUD strip)
+    :return: a copy of the frame with the help panel drawn over it
+    """
+    canvas = frame.copy()
+    scale, thickness, line_height = _hud_scale(canvas.shape[1])
+    title_scale = scale * 1.15
+
+    all_lines = (HELP_TITLE,) + HELP_LINES
+    widths: list[int] = []
+    for text in all_lines:
+        line_scale = title_scale if text == HELP_TITLE else scale
+        (text_width, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, line_scale, thickness)
+        widths.append(text_width)
+    text_block_width = max(widths)
+
+    frame_height, frame_width = canvas.shape[:2]
+    # A frame narrower than the text block (small amateur crops) would clip the
+    # panel at the frame edge. Hershey text width scales linearly with font scale,
+    # so one proportional shrink refits the whole panel; the line-height floor
+    # keeps the text legible on absurdly small frames at the cost of some clipping.
+    shrink = min(1.0, frame_width / (text_block_width + 2 * line_height))
+    scale *= shrink
+    title_scale *= shrink
+    line_height = max(12, int(line_height * shrink))
+    text_block_width = int(text_block_width * shrink)
+    # +1 row: a blank gap line separates the title from the body.
+    text_block_height = line_height * (len(all_lines) + 1)
+
+    padding = line_height
+    panel_width = text_block_width + 2 * padding
+    panel_height = text_block_height + 2 * padding
+    panel_x = (frame_width - panel_width) // 2
+    panel_y = (frame_height - panel_height) // 2
+
+    # Darken only the panel rectangle: blending the all-black copy against the
+    # original leaves pixels outside the rectangle unchanged (black*0.75 + orig*0.25
+    # outside would darken the whole frame, so the rectangle is drawn on a copy first).
+    panel = canvas.copy()
+    cv2.rectangle(panel, (panel_x, panel_y), (panel_x + panel_width, panel_y + panel_height), (0, 0, 0), -1)
+    cv2.addWeighted(panel, 0.75, canvas, 0.25, 0, canvas)
+
+    cv2.putText(canvas, HELP_TITLE, (panel_x + padding, panel_y + padding + line_height),
+                cv2.FONT_HERSHEY_SIMPLEX, title_scale, CORNER_COLOUR, thickness, cv2.LINE_AA)
+    for row, text in enumerate(HELP_LINES, start=2):  # row 0 is the title, row 1 the gap
+        text_y = panel_y + padding + line_height * row
+        cv2.putText(canvas, text, (panel_x + padding, text_y), cv2.FONT_HERSHEY_SIMPLEX, scale, TEXT_COLOUR,
+                    thickness, cv2.LINE_AA)
     return canvas
 
 
@@ -1122,6 +1385,15 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
     # creation/teardown stays on the loop thread.
     pending: list[SessionAction | TourAction] = []
     frame_state = {"idx": max(0, min(args.start_frame, total - 1)), "frame": None}
+    loupe_state = {"opened_at": 0.0, "seen": False}
+    help_visible = {"visible": True}  # shown on launch; on_main_mouse can dismiss it
+    hint = {"text": "", "ticks": 0}
+    annotated = load_annotated_frames(Path(args.out_csv), str(args.video))
+    saved_this_run = 0
+
+    def flash(text: str, seconds: float = 3.0) -> None:
+        hint["text"] = text
+        hint["ticks"] = int(seconds * 1000 / WAIT_MS)
 
     def load(idx: int) -> None:
         # Frozen during any capture: clicks are recorded against the frame the
@@ -1139,12 +1411,22 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
     def on_main_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         # Qt reports (x, y) in source-image pixels regardless of window size, so the
         # coordinates need no scaling here even when the window is resized or maximised.
-        if event == cv2.EVENT_LBUTTONDOWN and active is not None and active.state is CaptureState.AWAITING_COARSE:
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        if help_visible["visible"]:
+            help_visible["visible"] = False  # any main-window click dismisses it, nothing else fires this pass
+            return
+        if active is not None and active.state is CaptureState.AWAITING_COARSE:
             pending.append(active.coarse_click(float(x), float(y)))
+        elif active is None:
+            flash("press c to mark corners, or i for the intersection tour")
 
     def on_loupe_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
-        if event == cv2.EVENT_LBUTTONDOWN and active is not None and active.state is CaptureState.AWAITING_REFINE:
-            pending.append(active.refine_click(float(x), float(y)))
+        if event != cv2.EVENT_LBUTTONDOWN or active is None or active.state is not CaptureState.AWAITING_REFINE:
+            return
+        if time.monotonic() - loupe_state["opened_at"] < LOUPE_CLICK_GUARD_S:
+            return  # the double-click's second press landing inside the just-opened loupe
+        pending.append(active.refine_click(float(x), float(y)))
 
     cv2.namedWindow(MAIN_WINDOW, cv2.WINDOW_NORMAL)  # resizable, keeps aspect (KEEPRATIO is the default); drag/maximise freely and Qt still maps clicks to source pixels
     init_scale = min(1.0, INIT_MAX_W / width, INIT_MAX_H / height)
@@ -1152,16 +1434,25 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
     cv2.setMouseCallback(MAIN_WINDOW, on_main_mouse)
     cv2.createTrackbar("frame", MAIN_WINDOW, frame_state["idx"], max(total - 1, 1), lambda idx: load(idx))
     load(frame_state["idx"])
-    print(f"{args.video}: {width}x{height}, {total} frames. Window resizes freely: drag or maximise to fit the screen.")
-    print("c=corners  i=intersection tour (s=skip d=done)  ,/. = -1/+1  </> = -25/+25  q=quit")
+    print(f"{args.video}: {width}x{height}, {total} frames -> {args.out_csv}")
+    print("A help panel is open in the window; press h any time to bring it back.")
 
     loupe_open = False
+    main_seen = False
     while True:
         frame = frame_state["frame"]
+        hint_text = hint["text"] if hint["ticks"] > 0 else ""
         if frame is not None:
-            overlay = (draw_tour_overlay(frame, tour, frame_state["idx"], total) if active is tour
-                       else draw_scrub_overlay(frame, session, frame_state["idx"], total))
+            if active is tour:
+                overlay = draw_tour_overlay(frame, tour, frame_state["idx"], total, hint_text)
+            else:
+                overlay = draw_scrub_overlay(frame, session, frame_state["idx"], total, annotated,
+                                             saved_this_run, hint_text)
+            if help_visible["visible"]:
+                overlay = draw_help_overlay(overlay)
             cv2.imshow(MAIN_WINDOW, overlay)
+        if hint["ticks"] > 0:
+            hint["ticks"] -= 1
 
         while pending:
             action = pending.pop(0)
@@ -1169,31 +1460,68 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
                 cv2.namedWindow(LOUPE_WINDOW)
                 cv2.setMouseCallback(LOUPE_WINDOW, on_loupe_mouse)
                 cv2.imshow(LOUPE_WINDOW, render_loupe(frame, action, args.loupe_size, args.loupe_zoom))
+                # Predictable placement away from the click, so a double-click's
+                # second press cannot land in the loupe, and the user learns where
+                # to look for it.
+                try:
+                    main_x, main_y, main_w, _ = cv2.getWindowImageRect(MAIN_WINDOW)
+                    good_rect = main_w > 0
+                except cv2.error:
+                    good_rect = False
+                if good_rect:
+                    cv2.moveWindow(LOUPE_WINDOW, main_x + main_w + 16, max(main_y, 0))
+                else:
+                    cv2.moveWindow(LOUPE_WINDOW, 24, 24)
                 loupe_open = True
+                loupe_state["opened_at"] = time.monotonic()
+                loupe_state["seen"] = False  # re-arm the closed-detection latch for this loupe
             elif action.kind in (
                 ActionKind.CORNER_PLACED, ActionKind.POINT_PLACED, ActionKind.POINT_SKIPPED,
-                ActionKind.COMMITTED, ActionKind.ABORTED,
+                ActionKind.COMMITTED, ActionKind.ABORTED, ActionKind.UNDONE,
             ):
                 if loupe_open:
                     cv2.destroyWindow(LOUPE_WINDOW)
                     loupe_open = False
                 if action.kind is ActionKind.COMMITTED:
+                    committed_frame = tour.frame_idx if active is tour else session.frame_idx
+                    annotated.add(committed_frame)
+                    saved_this_run += 1
                     if active is tour:
-                        print(f"  saved frame {tour.frame_idx}: 4 corners (tour) -> {args.out_csv} (+ points sidecar)")
+                        print(f"  saved frame {committed_frame}: 4 corners (tour) -> {args.out_csv} (+ points sidecar)")
                     else:
-                        print(f"  saved frame {session.frame_idx}: 4 corners -> {args.out_csv}")
+                        print(f"  saved frame {committed_frame}: 4 corners -> {args.out_csv}")
+                    flash(f"saved frame {committed_frame} -> {args.out_csv.name}")
+                if action.kind is ActionKind.ABORTED:
+                    flash(action.message or "cancelled, nothing saved")
                 if action.kind in (ActionKind.COMMITTED, ActionKind.ABORTED):
                     active = None  # commit or abort ends the capture; back to scrub
 
-        key = cv2.waitKey(20) & 0xFF
-        if key == KEY_QUIT or cv2.getWindowProperty(MAIN_WINDOW, cv2.WND_PROP_VISIBLE) < 1:
-            break  # 'q' or the window's close button; the visibility check is what makes the X quit, instead of the next imshow reopening the window
-        if loupe_open and cv2.getWindowProperty(LOUPE_WINDOW, cv2.WND_PROP_VISIBLE) < 1:
-            # Loupe closed with its window button instead of a refine click; abort the
-            # capture the same way ESC does, so the main window doesn't sit unresponsive.
-            pending.append(active.abort())
-            active = None
-        if key == KEY_ESC and active is not None:
+        key = cv2.waitKey(WAIT_MS) & 0xFF
+        # Not-visible only means "user closed it" AFTER the window has reported
+        # visible once: on a busy WM the first loop passes can read a not-yet-mapped
+        # window as closed, and quitting on that reading kills the tool at launch.
+        main_visible = window_visible(MAIN_WINDOW)
+        main_seen = main_seen or main_visible
+        if main_seen and not main_visible:
+            break  # the window's close button; this check is what makes the X quit, instead of the next imshow reopening the window
+        if loupe_open:
+            loupe_visible = window_visible(LOUPE_WINDOW)
+            loupe_state["seen"] = loupe_state["seen"] or loupe_visible
+            if loupe_state["seen"] and not loupe_visible:
+                # Loupe closed with its window button instead of a refine click; abort the
+                # capture the same way ESC does, so the main window doesn't sit unresponsive.
+                pending.append(active.abort())
+                active = None
+        if help_visible["visible"]:
+            if key != 255:
+                # Any key closes it, 'q' included: the panel promises "press any key",
+                # so no key may fire its normal action (quit included) on this pass.
+                help_visible["visible"] = False
+        elif key == KEY_QUIT:
+            break
+        elif key == KEY_HELP:
+            help_visible["visible"] = True
+        elif key == KEY_ESC and active is not None:
             pending.append(active.abort())
             active = None
         elif key == KEY_CAPTURE and active is None:
@@ -1206,6 +1534,8 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
             pending.append(tour.skip())
         elif key == KEY_DONE and active is tour:
             pending.append(tour.declare_done())
+        elif key == KEY_UNDO and active is not None:
+            pending.append(active.undo())
         elif key == KEY_PREV and active is None:
             load(frame_state["idx"] - 1)
             cv2.setTrackbarPos("frame", MAIN_WINDOW, frame_state["idx"])

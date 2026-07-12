@@ -543,3 +543,129 @@ def test_annotator_imports_without_torch() -> None:
     result = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode == 0, f"torch-free import failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
     assert result.stdout.startswith("OK"), result.stdout
+
+
+# --- Undo ------------------------------------------------------------------
+
+def test_capture_undo_removes_last_corner(tmp_path: Path) -> None:
+    """Undo pops the last placed corner; re-clicking back up to four still commits cleanly."""
+    session = _make_session(tmp_path)
+    session.begin_capture(frame_idx=1)
+    for coarse_x, coarse_y in [(100, 90), (400, 90)]:
+        session.coarse_click(coarse_x, coarse_y)
+        session.refine_click(64 * 8, 64 * 8)
+    assert len(session.placed_corners) == 2
+
+    undone = session.undo()
+    assert undone.kind is annotate.ActionKind.UNDONE
+    assert len(session.placed_corners) == 1
+    assert undone.corner_index == 1
+
+    for coarse_x, coarse_y in [(400, 90), (410, 250), (95, 255)]:
+        session.coarse_click(coarse_x, coarse_y)
+        session.refine_click(64 * 8, 64 * 8)
+
+    table = pd.read_csv(tmp_path / "hand.csv")
+    assert len(table) == 4
+
+
+def test_capture_undo_cancels_pending_loupe(tmp_path: Path) -> None:
+    """Undo on a pending loupe cancels the coarse click without touching placed corners."""
+    session = _make_session(tmp_path)
+    session.begin_capture(frame_idx=2)
+    session.coarse_click(100, 90)
+    assert session.state is annotate.CaptureState.AWAITING_REFINE
+
+    undone = session.undo()
+    assert undone.kind is annotate.ActionKind.UNDONE
+    assert session.state is annotate.CaptureState.AWAITING_COARSE
+    assert session.placed_corners == ()
+
+    assert session.coarse_click(100, 90).kind is annotate.ActionKind.OPEN_LOUPE
+
+
+def test_capture_undo_noops(tmp_path: Path) -> None:
+    """Undo is a NOOP in scrub, and a NOOP mid-capture with nothing placed yet."""
+    session = _make_session(tmp_path)
+    assert session.undo().kind is annotate.ActionKind.NOOP  # scrub
+    session.begin_capture(frame_idx=1)
+    assert session.undo().kind is annotate.ActionKind.NOOP  # awaiting coarse, nothing placed
+
+
+def test_tour_undo_steps_back_over_click_and_skip(tmp_path: Path) -> None:
+    """Undo re-poses the previous point whether it was clicked or skipped."""
+    table = annotate.build_point_table()
+    session = _tour_session(tmp_path, table)
+    session.begin_tour(frame_idx=1)
+    _click_point(session, 100.0, 90.0)  # point 0 clicked
+    session.skip()  # point 1 skipped; cursor now 2
+    assert session.cursor == 2
+
+    undone = session.undo()
+    assert undone.kind is annotate.ActionKind.UNDONE
+    assert session.cursor == 1
+    assert session.skipped_count == 0
+    assert session.clicked_count == 1
+
+    undone = session.undo()
+    assert undone.kind is annotate.ActionKind.UNDONE
+    assert session.cursor == 0
+    assert session.clicked_count == 0
+
+    assert session.undo().kind is annotate.ActionKind.NOOP
+
+
+def test_tour_undo_cancels_pending_loupe(tmp_path: Path) -> None:
+    """Undo on a pending loupe cancels the coarse click and re-awaits the same point."""
+    table = annotate.build_point_table()
+    session = _tour_session(tmp_path, table)
+    session.begin_tour(frame_idx=1)
+    session.coarse_click(100, 90)
+    assert session.state is annotate.CaptureState.AWAITING_REFINE
+
+    undone = session.undo()
+    assert undone.kind is annotate.ActionKind.UNDONE
+    assert session.state is annotate.CaptureState.AWAITING_COARSE
+    assert session.cursor == 0
+    assert session.clicked_count == 0
+    assert undone.point_name == table[0].name
+
+
+def test_tour_fail_reason_reaches_action_message(tmp_path: Path) -> None:
+    """A tour that fails the 5-point floor carries the rejection reason in the action."""
+    table = annotate.build_point_table()
+    session = _tour_session(tmp_path, table)
+    session.begin_tour(frame_idx=6)
+    for _ in range(4):
+        session.skip()  # skip the four corner slots so the direct-corners path can't fire
+    for index in range(3):
+        _click_point(session, 100.0 + 10 * index, 120.0 + 5 * index)
+    action = session.declare_done()
+    assert action.kind is annotate.ActionKind.ABORTED
+    assert "need the 4 corners" in action.message
+
+
+# --- Annotated-frame loading -------------------------------------------------
+
+def test_load_annotated_frames_missing_file(tmp_path: Path) -> None:
+    """A CSV that doesn't exist yet has no annotated frames."""
+    assert annotate.load_annotated_frames(tmp_path / "hand.csv", "clip.mp4") == set()
+
+
+def test_load_annotated_frames_matches_by_basename(tmp_path: Path) -> None:
+    """Frames for the matching video (by basename) come back; other videos don't."""
+    csv_path = tmp_path / "hand.csv"
+    corners = [(10.0, 20.0), (110.0, 22.0), (108.0, 120.0), (12.0, 118.0)]
+    annotate.append_rows(csv_path, annotate.build_corner_rows("clip.mp4", 3, corners, 512, 288, "portrait"))
+    annotate.append_rows(csv_path, annotate.build_corner_rows("clip.mp4", 9, corners, 512, 288, "portrait"))
+    annotate.append_rows(csv_path, annotate.build_corner_rows("other.mp4", 7, corners, 512, 288, "portrait"))
+
+    assert annotate.load_annotated_frames(csv_path, "/x/clip.mp4") == {3, 9}
+
+
+def test_load_annotated_frames_rejects_wrong_header(tmp_path: Path) -> None:
+    """A CSV without video/frame columns fails loud instead of silently seeing nothing."""
+    csv_path = tmp_path / "hand.csv"
+    csv_path.write_text("point_name,x_px,y_px,rms_px\n")
+    with pytest.raises(ValueError):
+        annotate.load_annotated_frames(csv_path, "clip.mp4")
