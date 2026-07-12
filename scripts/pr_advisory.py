@@ -47,6 +47,17 @@ block a merge. Judge two things about this pull request:
 2. PR description -- does it substantively and readably explain WHAT changed,
    WHY, and HOW it was tested? Note anything important that's missing.
 
+Judge the writing in both against this house style, and point out where it
+strays:
+* Bottom line up front: the main point comes first, detail after.
+* Logically positive phrasing except where unavoidable: state what is, not
+  what is not.
+* At most one sub-clause per sentence.
+* Technical terms, jargon and operations come with their significance
+  explained. Jargon is fine only when essential, or when it is the term
+  non-experts casually use anyway.
+* Straightforward wording. The message is not overdressed.
+
 Keep it under ~180 words, specific and kind (cite hashes/sections, don't scold).
 Use GitHub-flavoured markdown. End with a single **Verdict:** line. Open with a
 one-sentence summary. Do not restate these instructions.
