@@ -996,6 +996,10 @@ class IntersectionSession:
 MAIN_WINDOW = "annotate court corners"
 LOUPE_WINDOW = "refine (click the corner)"
 
+# Modest fit size the main window opens at; it stays freely resizable after.
+INIT_MAX_W = 1280
+INIT_MAX_H = 720
+
 # Key codes as returned by waitKey & 0xFF.
 KEY_PREV = ord(",")
 KEY_NEXT = ord(".")
@@ -1133,6 +1137,8 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
         frame_state["frame"] = read_frame(cap, frame_state["idx"])
 
     def on_main_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
+        # Qt reports (x, y) in source-image pixels regardless of window size, so the
+        # coordinates need no scaling here even when the window is resized or maximised.
         if event == cv2.EVENT_LBUTTONDOWN and active is not None and active.state is CaptureState.AWAITING_COARSE:
             pending.append(active.coarse_click(float(x), float(y)))
 
@@ -1140,12 +1146,14 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
         if event == cv2.EVENT_LBUTTONDOWN and active is not None and active.state is CaptureState.AWAITING_REFINE:
             pending.append(active.refine_click(float(x), float(y)))
 
-    cv2.namedWindow(MAIN_WINDOW)
+    cv2.namedWindow(MAIN_WINDOW, cv2.WINDOW_NORMAL)  # resizable, keeps aspect (KEEPRATIO is the default); drag/maximise freely and Qt still maps clicks to source pixels
+    init_scale = min(1.0, INIT_MAX_W / width, INIT_MAX_H / height)
+    cv2.resizeWindow(MAIN_WINDOW, round(width * init_scale), round(height * init_scale))
     cv2.setMouseCallback(MAIN_WINDOW, on_main_mouse)
     cv2.createTrackbar("frame", MAIN_WINDOW, frame_state["idx"], max(total - 1, 1), lambda idx: load(idx))
     load(frame_state["idx"])
-    print(f"{args.video}: {width}x{height}, {total} frames. "
-          f"c=corners  i=intersection tour (s=skip d=done)  ,/. = -1/+1  </> = -25/+25  q=quit")
+    print(f"{args.video}: {width}x{height}, {total} frames. Window resizes freely: drag or maximise to fit the screen.")
+    print("c=corners  i=intersection tour (s=skip d=done)  ,/. = -1/+1  </> = -25/+25  q=quit")
 
     loupe_open = False
     while True:
@@ -1178,8 +1186,13 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
                     active = None  # commit or abort ends the capture; back to scrub
 
         key = cv2.waitKey(20) & 0xFF
-        if key == KEY_QUIT:
-            break
+        if key == KEY_QUIT or cv2.getWindowProperty(MAIN_WINDOW, cv2.WND_PROP_VISIBLE) < 1:
+            break  # 'q' or the window's close button; the visibility check is what makes the X quit, instead of the next imshow reopening the window
+        if loupe_open and cv2.getWindowProperty(LOUPE_WINDOW, cv2.WND_PROP_VISIBLE) < 1:
+            # Loupe closed with its window button instead of a refine click; abort the
+            # capture the same way ESC does, so the main window doesn't sit unresponsive.
+            pending.append(active.abort())
+            active = None
         if key == KEY_ESC and active is not None:
             pending.append(active.abort())
             active = None
