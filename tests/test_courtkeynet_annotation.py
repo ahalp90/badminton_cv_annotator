@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import cv2
 import numpy as np
 import pandas as pd
 import pytest
@@ -247,3 +248,271 @@ def test_rows_for_video_matches_basename() -> None:
     matched = score.rows_for_video(annotations, Path("/a/different/prefix/clip.mp4"))
     assert len(matched) == 2
     assert set(matched["frame"]) == {1}
+
+
+# --- Intersection tour: point table ----------------------------------------
+
+def test_point_table_count_and_corner_order() -> None:
+    """The plan yields 30 clickable intersections; the four corners come first."""
+    table = annotate.build_point_table()
+    assert len(table) == 30
+    assert [point.name for point in table[:4]] == [
+        "top-left corner (far baseline meets left doubles sideline)",
+        "top-right corner (far baseline meets right doubles sideline)",
+        "bottom-right corner (near baseline meets right doubles sideline)",
+        "bottom-left corner (near baseline meets left doubles sideline)",
+    ]
+    # Corner coords come straight from CORNER_COURT_M, in TL TR BR BL slot order.
+    for slot in range(4):
+        assert table[slot].court_xy == pytest.approx(tuple(annotate.CORNER_COURT_M[slot]))
+
+
+def test_point_table_spot_check_intersections() -> None:
+    """Split-centre-line cases: reaches the short/near lines but skips the net gap."""
+    table = annotate.build_point_table()
+    names = {point.name for point in table}
+    assert "centre line meets far short service line" in names
+    # The centre line reaches the near baseline through its near-half segment.
+    assert "centre line meets near baseline" in names
+    # It is split across the net, so no centre-line point sits strictly between the
+    # two short service lines (4.72 < y < 8.68).
+    mid_centre = [p for p in table if abs(p.court_xy[0] - 3.05) < 0.01 and 4.72 < p.court_xy[1] < 8.68]
+    assert mid_centre == []
+
+
+def test_point_table_fails_loud_on_unknown_constant(monkeypatch) -> None:
+    """A painted segment whose constant is not in the lookup raises at build time."""
+    doctored = ((np.array([1.23, 0.0], dtype=np.float32), np.array([1.23, 13.4], dtype=np.float32)),)
+    monkeypatch.setattr(annotate, "PAINTED_SEGMENTS_M", doctored)
+    with pytest.raises(ValueError, match="no name"):
+        annotate.build_point_table()
+
+
+# --- Intersection tour: driving helpers ------------------------------------
+
+# A homography that drops both near corners (BL, BR) below the 720 px frame
+# bottom, so the tour's off-frame corner projection is actually exercised.
+TOUR_W, TOUR_H = 1280, 720
+IMG_CORNERS_OFF = np.array([[350, 140], [1000, 140], [1500, 900], [-150, 900]], dtype=np.float32)
+
+
+def _tour_session(tmp_path: Path, table, csv_name: str = "hand.csv") -> "annotate.IntersectionSession":
+    return annotate.IntersectionSession(
+        video="clip.mp4", width=TOUR_W, height=TOUR_H, orientation="portrait",
+        csv_path=tmp_path / csv_name, half=64, zoom=8, point_table=table,
+    )
+
+
+def _click_point(session, src_x: float, src_y: float):
+    """Two-click flow landing exactly on (src_x, src_y): coarse, then the loupe
+    coord that maps back to that source pixel (the round-trip the loupe guarantees).
+    """
+    open_loupe = session.coarse_click(src_x, src_y)
+    lx, ly = annotate.source_to_loupe(src_x, src_y, open_loupe.loupe_origin, session.zoom)
+    return session.refine_click(lx, ly)
+
+
+def _run_tour(session, frame_idx: int, clicked_px: dict, table):
+    """Drive a whole tour: click the mapped points, skip the rest, declare done
+    right after the last clicked point. Returns the final action.
+    """
+    session.begin_tour(frame_idx)
+    last_index = max(clicked_px)
+    action = None
+    for index in range(len(table)):
+        action = _click_point(session, *clicked_px[index]) if index in clicked_px else session.skip()
+        if index == last_index:
+            action = session.declare_done()
+            break
+    return action
+
+
+def _homography_off() -> np.ndarray:
+    return cv2.getPerspectiveTransform(annotate.CORNER_COURT_M, IMG_CORNERS_OFF)
+
+
+def _project_plan(homography: np.ndarray, court_xy: tuple[float, float]) -> tuple[float, float]:
+    point = cv2.perspectiveTransform(np.array([[court_xy]], dtype=np.float64), homography)
+    return float(point[0, 0, 0]), float(point[0, 0, 1])
+
+
+def _index_of(table, court_xy: tuple[float, float]) -> int:
+    for index, point in enumerate(table):
+        if round(point.court_xy[0], 2) == round(court_xy[0], 2) and round(point.court_xy[1], 2) == round(court_xy[1], 2):
+            return index
+    raise KeyError(court_xy)
+
+
+# --- Intersection tour: state machine --------------------------------------
+
+def test_tour_state_machine_skip_and_abort(tmp_path: Path) -> None:
+    """Skip advances and counts; a second begin and a stray refine are no-ops; ESC resets."""
+    table = annotate.build_point_table()
+    session = _tour_session(tmp_path, table)
+
+    assert session.refine_click(10, 10).kind is annotate.ActionKind.NOOP  # nothing to refine yet
+    begin = session.begin_tour(frame_idx=4)
+    assert begin.kind is annotate.ActionKind.AWAIT_COARSE
+    assert begin.point_name == table[0].name
+    assert session.begin_tour(frame_idx=9).kind is annotate.ActionKind.NOOP  # already touring
+
+    skipped = session.skip()
+    assert skipped.kind is annotate.ActionKind.POINT_SKIPPED
+    assert session.cursor == 1 and session.skipped_count == 1
+
+    assert session.abort().kind is annotate.ActionKind.ABORTED
+    assert session.state is annotate.CaptureState.SCRUB
+    assert not (tmp_path / "hand.csv").exists()
+
+
+def test_tour_all_corners_clicked_matches_c_mode(tmp_path: Path) -> None:
+    """Clicking the four corner points writes rows byte-identical to the 'c' mode's."""
+    table = annotate.build_point_table()
+    corners = [(100.0, 90.0), (400.0, 90.0), (410.0, 250.0), (95.0, 255.0)]
+
+    corner_session = annotate.CaptureSession(
+        video="clip.mp4", width=TOUR_W, height=TOUR_H, orientation="portrait",
+        csv_path=tmp_path / "corner.csv", half=64, zoom=8,
+    )
+    corner_session.begin_capture(frame_idx=7)
+    for src_x, src_y in corners:
+        _click_point(corner_session, src_x, src_y)
+
+    tour_session = _tour_session(tmp_path, table, csv_name="tour.csv")
+    action = _run_tour(tour_session, 7, {index: corners[index] for index in range(4)}, table)
+    assert action.kind is annotate.ActionKind.COMMITTED
+
+    assert (tmp_path / "corner.csv").read_bytes() == (tmp_path / "tour.csv").read_bytes()
+    # The sidecar still records all four clicked corners, with an empty rms (no fit).
+    sidecar = pd.read_csv(tmp_path / "tour_points.csv")
+    assert len(sidecar) == 4
+    assert sidecar["rms_px"].isna().all()
+
+
+def test_tour_done_early_with_too_few_points_writes_nothing(tmp_path: Path) -> None:
+    """'Done' with three clicks (no corners, under the 5-point floor) aborts cleanly."""
+    table = annotate.build_point_table()
+    homography = _homography_off()
+    visible = [(0, 0.76), (0, 4.72), (0.46, 4.72)]
+    clicked_px = {_index_of(table, xy): _project_plan(homography, xy) for xy in visible}
+    session = _tour_session(tmp_path, table)
+    action = _run_tour(session, 6, clicked_px, table)
+    assert action.kind is annotate.ActionKind.ABORTED
+    assert not (tmp_path / "hand.csv").exists()
+    assert not (tmp_path / "hand_points.csv").exists()
+
+
+# --- Intersection tour: homography fit -------------------------------------
+
+def test_tour_fit_recovers_offframe_corners(tmp_path: Path) -> None:
+    """Six visible far-half clicks fit a homography that recovers all four corners,
+    the near two landing below the frame bottom.
+    """
+    table = annotate.build_point_table()
+    homography = _homography_off()
+    # Spread over three rows and both sidelines, so a 4-subset is in general position.
+    visible = [(0, 0), (6.1, 0), (0, 0.76), (6.1, 0.76), (0, 4.72), (6.1, 4.72)]
+    clicked_px = {_index_of(table, xy): _project_plan(homography, xy) for xy in visible}
+    session = _tour_session(tmp_path, table)
+    action = _run_tour(session, 12, clicked_px, table)
+    assert action.kind is annotate.ActionKind.COMMITTED
+
+    written = pd.read_csv(tmp_path / "hand.csv").sort_values("corner_idx")
+    got = written[["x_px", "y_px"]].to_numpy()
+    truth = cv2.perspectiveTransform(
+        annotate.CORNER_COURT_M.reshape(-1, 1, 2).astype(np.float64), homography
+    ).reshape(-1, 2)
+    assert np.max(np.linalg.norm(got - truth, axis=1)) < 0.5
+    # corner_idx 2 (BR) and 3 (BL) are the near corners and land off the frame bottom.
+    assert got[2, 1] > TOUR_H and got[3, 1] > TOUR_H
+
+
+def test_tour_fit_rejects_a_misclick(tmp_path: Path) -> None:
+    """A single 30 px misclick on a minimal 5-point fit trips the worst-point gate."""
+    table = annotate.build_point_table()
+    homography = _homography_off()
+    # Minimal general-position set, the 5-point boundary the fit accepts: the
+    # worst-point gate must fire here just as it does with more clicks.
+    visible = [(0, 0), (6.1, 0), (0, 4.72), (6.1, 4.72), (3.05, 0.76)]
+    clicked_px = {_index_of(table, xy): _project_plan(homography, xy) for xy in visible}
+    centre_index = _index_of(table, (3.05, 0.76))
+    off_x, off_y = clicked_px[centre_index]
+    clicked_px[centre_index] = (off_x + 30.0, off_y + 30.0)
+    session = _tour_session(tmp_path, table)
+    action = _run_tour(session, 12, clicked_px, table)
+    assert action.kind is annotate.ActionKind.ABORTED
+    assert not (tmp_path / "hand.csv").exists()
+    assert not (tmp_path / "hand_points.csv").exists()
+
+
+def test_tour_fit_rejects_a_misclick_among_six_spread_points(tmp_path: Path) -> None:
+    """The worst-point gate catches a 30 px misclick among six well-spread points,
+    where least squares smears the mean RMS to ~1.8 px and a mean gate would pass.
+    """
+    table = annotate.build_point_table()
+    homography = _homography_off()
+    visible = [(0, 0), (6.1, 0), (0, 0.76), (6.1, 0.76), (0, 4.72), (6.1, 4.72)]
+    clicked_px = {_index_of(table, xy): _project_plan(homography, xy) for xy in visible}
+    # Perturb the (0, 4.72) click: worst residual 3.22 px, mean RMS 1.77 px, so the
+    # max gate aborts where a mean gate would not. The (6.1, 4.72) click is NOT a
+    # usable case: with six points the DLT nearly interpolates that high-leverage
+    # click (worst residual 2.31 px), so no residual gate at any statistic can see
+    # a misclick the fit absorbs. A leverage limit, not a gate-metric choice.
+    bad_index = _index_of(table, (0, 4.72))
+    off_x, off_y = clicked_px[bad_index]
+    clicked_px[bad_index] = (off_x + 30.0, off_y + 30.0)
+    session = _tour_session(tmp_path, table)
+    action = _run_tour(session, 12, clicked_px, table)
+    assert action.kind is annotate.ActionKind.ABORTED
+    assert not (tmp_path / "hand.csv").exists()
+    assert not (tmp_path / "hand_points.csv").exists()
+
+
+def test_collinear_catches_diagonal_grid_triples() -> None:
+    """The court grid's even spacings put diagonal triples on one line; float fuzz
+    in the cross product must not hide them from the general-position guard.
+    """
+    diagonal = np.array([(0.46, 0.76), (3.05, 4.72), (5.64, 8.68)], dtype=np.float64)
+    assert annotate._collinear(diagonal[0], diagonal[1], diagonal[2])
+
+
+def test_tour_fit_rejects_degenerate_points(tmp_path: Path) -> None:
+    """Four clicks on one sideline plus one off it have no general-position quad."""
+    table = annotate.build_point_table()
+    # Four points on the left doubles sideline (x=0) plus one off it: every 4-subset
+    # keeps three collinear, so no homography can be fitted.
+    degenerate = [(0, 0), (0, 0.76), (0, 4.72), (0, 8.68), (0.46, 0.76)]
+    clicked_px = {_index_of(table, xy): (100.0 + 10 * i, 120.0 + 5 * i) for i, xy in enumerate(degenerate)}
+    session = _tour_session(tmp_path, table)
+    action = _run_tour(session, 3, clicked_px, table)
+    assert action.kind is annotate.ActionKind.ABORTED
+    assert not (tmp_path / "hand.csv").exists()
+    assert not (tmp_path / "hand_points.csv").exists()
+
+
+def test_tour_sidecar_records_rms_only_when_fitted(tmp_path: Path) -> None:
+    """A fitted commit fills rms_px on every sidecar row (the direct path leaves it empty)."""
+    table = annotate.build_point_table()
+    homography = _homography_off()
+    visible = [(0, 0), (6.1, 0), (0, 0.76), (6.1, 0.76), (0, 4.72), (6.1, 4.72)]
+    clicked_px = {_index_of(table, xy): _project_plan(homography, xy) for xy in visible}
+    session = _tour_session(tmp_path, table, csv_name="fit.csv")
+    _run_tour(session, 5, clicked_px, table)
+
+    sidecar = pd.read_csv(tmp_path / "fit_points.csv")
+    assert len(sidecar) == len(visible)
+    assert sidecar["rms_px"].notna().all()
+    assert (sidecar["rms_px"] >= 0).all()
+
+
+# --- CSV header cross-guard --------------------------------------------------
+
+def test_append_rows_refuses_mismatched_header(tmp_path: Path) -> None:
+    """Appending main corner rows onto a sidecar-headed file raises instead of
+    silently mixing the two schemas in one file.
+    """
+    csv_path = tmp_path / "hand_points.csv"
+    csv_path.write_text(",".join(annotate.POINT_CSV_HEADER) + "\n")
+    rows = annotate.build_corner_rows("clip.mp4", 1, [(1.0, 2.0)] * 4, 512, 288, "portrait")
+    with pytest.raises(ValueError, match="header"):
+        annotate.append_rows(csv_path, rows)
