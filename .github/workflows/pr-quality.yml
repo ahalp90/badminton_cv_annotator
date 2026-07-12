@@ -38,7 +38,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const REQUIRED = ['What', 'Why', 'Testing'];
+            const REQUIRED = ['What', 'Why', 'Testing', 'Reviewer focus'];
             const raw = context.payload.pull_request.body || '';
             // Strip HTML comments (template guidance/placeholders) before checking.
             const body = raw.replace(/<!--[\s\S]*?-->/g, '');

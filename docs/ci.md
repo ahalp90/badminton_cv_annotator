@@ -12,8 +12,9 @@ is removed) · `docker-build` (builds the images, no push).
 
 **`pr-quality.yml`** (PRs):
 `commit-lint` (gitlint, rules in `.gitlint`) · `pr-body` (needs **What / Why /
-Testing** sections) · `main-files` (deterministic; inserts a short **Main files
-changed** block into the PR body) · `advisory` (AI review, never blocks).
+Testing / Reviewer focus** sections) · `main-files` (deterministic; inserts a
+short **Main files changed** block into the PR body) · `advisory` (AI review,
+never blocks).
 
 `main-files` (`scripts/pr_main_files.py`) lists the most-impactful changed files
 (up to 8), ranked by churn × path relevance (`src/`, `training/` outrank config;
