@@ -8,7 +8,6 @@ needed, are tiny numpy arrays.
 """
 
 import importlib.util
-import itertools
 import subprocess
 import sys
 from pathlib import Path
@@ -175,23 +174,9 @@ def test_events_out_of_state_are_noops(tmp_path: Path) -> None:
     assert session.coarse_click(60, 60).kind is annotate.ActionKind.NOOP  # awaiting refine, not coarse
 
 
-# --- Canonicalisation ------------------------------------------------------
-
-# A court-like perspective trapezium already in TL, TR, BR, BL order: narrow top,
-# wide bottom, in native-ish pixels. TL is the corner nearest the image origin.
+# A court-like perspective trapezium in TL, TR, BR, BL order: narrow top, wide
+# bottom, in native-ish pixels.
 TRAPEZIUM = np.array([[150, 80], [360, 80], [470, 250], [40, 250]], dtype=np.float64)
-
-
-def test_canonicalise_reproduces_tl_tr_br_bl() -> None:
-    """The rule leaves an already-ordered court trapezium unchanged."""
-    assert np.allclose(score.canonicalise_quad(TRAPEZIUM), TRAPEZIUM)
-
-
-def test_canonicalise_all_permutations_agree() -> None:
-    """All 24 orderings of the same four points canonicalise to one TL TR BR BL ring."""
-    for permuted in itertools.permutations(range(4)):
-        result = score.canonicalise_quad(TRAPEZIUM[list(permuted)])
-        assert np.allclose(result, TRAPEZIUM), f"permutation {permuted} broke the ring"
 
 
 # --- Adapter error maths ---------------------------------------------------
@@ -210,34 +195,80 @@ def test_per_corner_error_recovers_known_offset() -> None:
     assert err == pytest.approx([5.0, 0.0, 2.0, 0.0])
 
 
-def test_canonicalise_then_error_survives_scrambled_order() -> None:
-    """Scrambled detected vs hand quads still score zero once both are canonicalised."""
-    hand = TRAPEZIUM[[2, 0, 3, 1]]       # some click order
-    detected = TRAPEZIUM[[1, 3, 0, 2]]   # the detector's own order
-    err = score.per_corner_error(score.canonicalise_quad(detected), score.canonicalise_quad(hand))
-    assert np.allclose(err, np.zeros(4))
-
-
 # --- hand_quad_px + row filtering ------------------------------------------
 
 def test_hand_quad_px_from_normalised() -> None:
-    """Normalised rows rebuild to native pixels in corner_idx order."""
+    """Normalised rows rebuild to native pixels in tl, tr, br, bl slot order."""
     frame_rows = pd.DataFrame({
-        "corner_idx": [2, 0, 3, 1],  # deliberately unsorted
+        "corner_idx": [2, 0, 3, 1],  # agrees with corner_label, as the annotator writes it; the label drives the ordering
+        "corner_label": ["br", "tl", "bl", "tr"],  # deliberately unsorted
         "x_norm": [0.9, 0.1, 0.05, 0.7],
         "y_norm": [0.8, 0.3, 0.8, 0.3],
     })
     quad = score.hand_quad_px(frame_rows, width=512, height=288)
-    # sorted by corner_idx: 0,1,2,3 -> the (0.1,0.3),(0.7,0.3),(0.9,0.8),(0.05,0.8) rows
+    # ordered tl, tr, br, bl -> the (0.1,0.3), (0.7,0.3), (0.9,0.8), (0.05,0.8) rows
     assert quad[0] == pytest.approx([0.1 * 512, 0.3 * 288])
     assert quad[3] == pytest.approx([0.05 * 512, 0.8 * 288])
 
 
 def test_hand_quad_px_requires_four_rows() -> None:
     """Fewer than four corner rows for a frame fails loudly."""
-    frame_rows = pd.DataFrame({"corner_idx": [0, 1], "x_norm": [0.1, 0.2], "y_norm": [0.3, 0.4]})
+    frame_rows = pd.DataFrame({
+        "corner_idx": [0, 1], "corner_label": ["tl", "tr"], "x_norm": [0.1, 0.2], "y_norm": [0.3, 0.4],
+    })
     with pytest.raises(ValueError):
         score.hand_quad_px(frame_rows, width=512, height=288)
+
+
+def test_hand_quad_px_scrambled_rows_still_tl_tr_br_bl() -> None:
+    """Rows can arrive in any order, with no corner_idx column at all; corner_label alone drives the slot."""
+    frame_rows = pd.DataFrame({
+        "corner_label": ["bl", "br", "tl", "tr"],  # shuffled
+        "x_norm": [0.05, 0.9, 0.1, 0.7],
+        "y_norm": [0.8, 0.8, 0.3, 0.3],
+    })
+    quad = score.hand_quad_px(frame_rows, width=512, height=288)
+    assert quad[0] == pytest.approx([0.1 * 512, 0.3 * 288])   # tl
+    assert quad[1] == pytest.approx([0.7 * 512, 0.3 * 288])   # tr
+    assert quad[2] == pytest.approx([0.9 * 512, 0.8 * 288])   # br
+    assert quad[3] == pytest.approx([0.05 * 512, 0.8 * 288])  # bl
+
+
+def test_hand_quad_px_missing_corner_label_column_raises() -> None:
+    """No corner_label column fails loud instead of silently falling back to click order."""
+    frame_rows = pd.DataFrame({
+        "corner_idx": [0, 1, 2, 3], "x_norm": [0.1, 0.7, 0.9, 0.05], "y_norm": [0.3, 0.3, 0.8, 0.8],
+    })
+    with pytest.raises(ValueError, match="corner_label"):
+        score.hand_quad_px(frame_rows, width=512, height=288)
+
+
+def test_hand_quad_px_duplicate_label_raises() -> None:
+    """Two tl rows and no bl row fails loud: the CSV must carry exactly one of each label."""
+    frame_rows = pd.DataFrame({
+        "corner_label": ["tl", "tl", "tr", "br"],
+        "x_norm": [0.1, 0.15, 0.7, 0.9],
+        "y_norm": [0.3, 0.32, 0.3, 0.8],
+    })
+    with pytest.raises(ValueError):
+        score.hand_quad_px(frame_rows, width=512, height=288)
+
+
+def test_hand_quad_px_regression_bkjerias_zu4_frame150() -> None:
+    """Real GT case where geometric canonicalisation used to mispair corners: BL is
+    extrapolated to (-82.2, 577.8), nearer the pixel origin than TL's (1047.8,
+    422.6), so a nearest-origin rule rolled the ring to bl, tl, tr, br. Ordering by
+    corner_label instead holds tl, tr, br, bl, matching the CSV's own labels.
+    """
+    annotations = pd.read_csv(REPO_ROOT / "data/amateur_court_corners/hand_corners.csv")
+    frame_rows = annotations[(annotations["video"] == "BkjErIAsZu4.mkv") & (annotations["frame"] == 150)]
+    assert len(frame_rows) == 4  # sanity: the tracked fixture still has this frame
+    width, height = 1920, 1080  # the clip's native resolution (x_px / x_norm in the CSV)
+    quad = score.hand_quad_px(frame_rows, width=width, height=height)
+    expected = frame_rows.set_index("corner_label").loc[list(score.CORNER_NAMES), ["x_px", "y_px"]].to_numpy()
+    assert quad == pytest.approx(expected, abs=0.1)
+    assert quad[0] == pytest.approx([1047.8158029590911, 422.5816366627653], abs=0.1)  # tl
+    assert quad[3] == pytest.approx([-82.1618184025611, 577.7633792671987], abs=0.1)   # bl, still off-frame
 
 
 def test_rows_for_video_matches_basename() -> None:

@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Score CourtKeyNet against hand-annotated court corners.
 
-Companion to ``annotate_court_corners.py``. Where ``ckn_corner_eval.py`` scores
+Companion to ``annotate_court_corners_offframe.py``. Where ``ckn_corner_eval.py`` scores
 the detector against ShuttleSet's recorded homographies in a 1280x720 reference
 space, this scores it against hand annotations, which have no reference space:
 error is measured in the video's own native pixels.
 
-For each annotated frame it reads the frame, runs the detector, canonicalises
-BOTH the detected quad and the hand quad to TL TR BR BL (click order is thrown
-away by the annotation contract), and takes the per-corner Euclidean error in
-native pixels. Gate signals (peak, entropy, flags, pass) are carried through so
-the same reporting as the reference-homography eval applies.
+For each annotated frame it reads the frame, runs the detector, and takes the
+per-corner Euclidean error in native pixels: the detected quad's contractual
+TL TR BR BL slot order (src/courtkeynet/PROVENANCE.md) against the hand quad's
+``corner_label`` slot order, corner to same-named corner, with no re-sorting on
+either side. That makes the score slot-wise: a detection that genuinely emits
+the wrong slot order scores its own honest per-slot error rather than being
+geometrically re-paired with its nearest hand corner. Gate signals (peak,
+entropy, flags, pass) are carried through so the same reporting as the
+reference-homography eval applies.
 
 Run from a checkout so the detector import resolves (``--repo-root``); works on
 CPU or CUDA.
@@ -31,31 +35,19 @@ import cv2
 import numpy as np
 import pandas as pd
 
-CORNER_NAMES = ("tl", "tr", "br", "bl")
+# Sibling import: this script runs from its own directory (python puts the
+# script's dir on sys.path), and the test file loads it by file path, where
+# __file__ still resolves. Matches annotate_court_corners_offframe.py's route,
+# which keeps this module importable without pulling in the courtkeynet
+# package's torch-loading __init__.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+from court_landmarks import CORNER_NAMES  # noqa: E402
 
 
-# --- Pure helpers: canonicalisation + error (unit-tested) ------------------
-
-def canonicalise_quad(quad: np.ndarray) -> np.ndarray:
-    """Order four points TL TR BR BL regardless of the input order.
-
-    Sort the corners by angle about their centroid into a clockwise ring (image
-    y grows downward, so ascending ``atan2`` traverses clockwise on screen), then
-    rotate the ring to start at the corner nearest the image origin. For a court
-    seen in perspective the top-left corner is nearest (0, 0), so the rotated
-    ring reads TL, TR, BR, BL, matching the wrapper's own corner order.
-
-    :param quad: (4, 2) xy in any order and any consistent pixel space
-    :return: (4, 2) float32 xy ordered TL TR BR BL
-    """
-    quad = np.asarray(quad, dtype=np.float64)
-    centroid = quad.mean(axis=0)
-    offsets = quad - centroid
-    angles = np.arctan2(offsets[:, 1], offsets[:, 0])
-    ring = quad[np.argsort(angles)]  # clockwise on screen
-    start = int(np.argmin((ring ** 2).sum(axis=1)))  # corner nearest (0, 0) == TL
-    return np.roll(ring, -start, axis=0).astype(np.float32)
-
+# --- Pure helpers: error (unit-tested) --------------------------------------
 
 def per_corner_error(quad_a: np.ndarray, quad_b: np.ndarray) -> np.ndarray:
     """:return: (4,) Euclidean per-corner distance; both quads must already be TL TR BR BL.
@@ -67,19 +59,30 @@ def per_corner_error(quad_a: np.ndarray, quad_b: np.ndarray) -> np.ndarray:
 
 
 def hand_quad_px(frame_rows: pd.DataFrame, width: int, height: int) -> np.ndarray:
-    """Rebuild one frame's hand corners in native pixels from the normalised columns.
+    """Rebuild one frame's hand corners in native pixels, ordered TL TR BR BL.
 
     Normalised xy times the current video extent, so the annotation stays valid
-    even if it was clicked on a differently-sized copy of the same video.
+    even if it was clicked on a differently-sized copy of the same video. Rows
+    are ordered by ``corner_label``, the annotator's own tl/tr/br/bl call, which
+    matches the detector's slot contract by name. Geometric re-sorting is gone
+    because it mispairs off-frame corners: an extrapolated corner can sit nearer
+    another corner's pixel position than its own (a hard-left camera pan puts BL
+    nearer the origin than TL).
 
-    :param frame_rows: the 4 CSV rows for one frame (any corner_idx order)
+    :param frame_rows: the 4 CSV rows for one frame (any row order), with a
+        corner_label column holding exactly one each of tl, tr, br, bl
     :param width: native video width in pixels
     :param height: native video height in pixels
-    :return: (4, 2) float64 xy in native pixels, in stored corner_idx order
+    :return: (4, 2) float64 xy in native pixels, ordered TL TR BR BL
+    :raises ValueError: no corner_label column, or its 4 values are not exactly
+        one each of tl/tr/br/bl (wrong row count, a duplicate, or a gap)
     """
-    if len(frame_rows) != 4:
-        raise ValueError(f"expected 4 corner rows per frame, got {len(frame_rows)}")
-    ordered = frame_rows.sort_values("corner_idx")
+    if "corner_label" not in frame_rows.columns:
+        raise ValueError("corners CSV has no corner_label column; annotate with the off-frame tool")
+    labels = frame_rows["corner_label"].tolist()
+    if sorted(labels) != sorted(CORNER_NAMES):
+        raise ValueError(f"expected exactly one row each of {CORNER_NAMES}, got corner_label {sorted(labels)}")
+    ordered = frame_rows.set_index("corner_label").loc[list(CORNER_NAMES)]
     xs = ordered["x_norm"].to_numpy(dtype=np.float64) * width
     ys = ordered["y_norm"].to_numpy(dtype=np.float64) * height
     return np.column_stack([xs, ys])
@@ -181,9 +184,8 @@ def main() -> int:
         chunk = order[chunk_start : chunk_start + args.batch]
         detections = detector.detect_batch([frames[idx] for idx in chunk])
         for frame_idx, detection in zip(chunk, detections):
-            detected = canonicalise_quad(detection.corners_px)
-            hand = canonicalise_quad(hand_quad_px(video_rows[video_rows["frame"] == frame_idx], width, height))
-            err = per_corner_error(detected, hand)
+            hand = hand_quad_px(video_rows[video_rows["frame"] == frame_idx], width, height)
+            err = per_corner_error(detection.corners_px, hand)
             row = {
                 "video": args.video.name,
                 "frame": frame_idx,
