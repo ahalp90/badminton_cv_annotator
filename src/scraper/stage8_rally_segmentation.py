@@ -426,10 +426,13 @@ def _find_rally_spans_span_open(
 # span only at a burst whose last second reads like SERVE SETUP: the shuttle sits close to a
 # court-scale player (held for the toss). The court geometry is a caller-supplied CourtBox, so no
 # pilot-scoped geometry lives here.
-def _court_scale_boxes(
+def court_scale_boxes(
     frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """One frame's court-scale person boxes; the serve-start builders' shared filter.
+
+    Public: stage 10's point-winner attribution and landing filter (the same court-scale
+    candidate set, re-detected per window frame) import this too.
 
     Keeps the detections whose foot point (bottom-centre) sits inside the court region AND
     whose pixel height is court-player scale; both builders filter through here so the rule
@@ -477,7 +480,7 @@ def _build_serve_start_metrics(
     dist = np.full(n_frames, np.nan)
     box_height = np.full(n_frames, np.nan)
     for frame in np.flatnonzero(track[:, 2] == 1):
-        x1, y1, x2, y2, _ = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        x1, y1, x2, y2, _ = court_scale_boxes(bboxes[frame], scores[frame], court_box)
         if len(x1) == 0:
             continue
         centre_x = (x1 + x2) / 2.0 / width
@@ -496,7 +499,7 @@ def build_serve_start_dist(
     """Per-frame nearest court-scale player bbox-centre distance; the serve-start gate input.
 
     For every frame where the shuttle is visible, take the frame's court-scale detections
-    (the rule lives in `_court_scale_boxes`) and return the smallest normalised
+    (the rule lives in `court_scale_boxes`) and return the smallest normalised
     (image-fraction) distance from the shuttle to any of their bbox centres. NaN where the
     shuttle is invisible or no court-scale detection is present.
 
@@ -595,7 +598,7 @@ def build_serve_start_wideshot_inputs(
     """Per-frame court-scale count and per-half best feet; the wide-shot gate input.
 
     For EVERY frame (shuttle visibility is irrelevant to the wide shot), count the frame's
-    court-scale detections (the rule lives in `_court_scale_boxes`, shared with
+    court-scale detections (the rule lives in `court_scale_boxes`, shared with
     build_serve_start_dist) and keep the highest-score court-scale foot per court half
     (top: foot y < the court mid-band low edge; bottom: foot y >= the high edge; feet inside
     the band claim neither half), normalised to image-fraction.
@@ -613,7 +616,7 @@ def build_serve_start_wideshot_inputs(
     top_foot = np.full((n_frames, 2), np.nan)
     bot_foot = np.full((n_frames, 2), np.nan)
     for frame in range(n_frames):
-        x1, _, x2, y2, cs_scores = _court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        x1, _, x2, y2, cs_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
         count[frame] = len(x1)
         if len(x1) == 0:
             continue
@@ -952,8 +955,10 @@ def contact_proximity_ok(
     return bool(np.nanmin(distances) <= PROXIMITY_MAX)
 
 
-# COCO wrist keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays.
+# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Ankles are
+# unused here; stage 10's landing-filter kinematics reads them alongside the wrists.
 WRIST_L, WRIST_R = 9, 10
+ANKLE_L, ANKLE_R = 15, 16
 
 
 def build_wrist_shuttle_dist(

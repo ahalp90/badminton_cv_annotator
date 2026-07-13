@@ -26,7 +26,7 @@ from src.scraper.stage8_rally_segmentation import (
     ServeStartMode,
     ServeStartOptions,
     SpanOpen,
-    _court_scale_boxes,
+    court_scale_boxes,
     _find_rally_spans,
     _find_rally_spans_span_open,
     _last_rest_close,
@@ -757,13 +757,13 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
 # ---------------------------------------------------------------------------
 def test_court_box_filter_honours_standin_vs_homography():
     # A foot at y=300 sits inside the stand-in court but above the homography quad's top edge
-    # (461.1), so _court_scale_boxes keeps the box under stand-in and drops it under homography.
+    # (461.1), so court_scale_boxes keeps the box under stand-in and drops it under homography.
     bboxes = np.full((16, 4), np.nan)
     scores = np.full(16, np.nan)
     bboxes[0] = (970.0, 150.0, 1030.0, 300.0)  # foot (1000, 300), height 150
     scores[0] = 0.9
-    assert len(_court_scale_boxes(bboxes, scores, STANDIN_COURT_BOX)[0]) == 1
-    assert len(_court_scale_boxes(bboxes, scores, HOMOGRAPHY_COURT_BOX)[0]) == 0
+    assert len(court_scale_boxes(bboxes, scores, STANDIN_COURT_BOX)[0]) == 1
+    assert len(court_scale_boxes(bboxes, scores, HOMOGRAPHY_COURT_BOX)[0]) == 0
 
 
 def test_court_box_homography_mid_band_foot_claims_neither_half():
