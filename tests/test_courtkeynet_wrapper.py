@@ -17,7 +17,7 @@ from courtkeynet.wrapper import (
     _letterbox_geometry,
     _peak_entropy,
     _squash_geometry,
-    scene_corners,
+    ckn_scene_corners,
 )
 
 
@@ -136,7 +136,7 @@ def test_peak_entropy_uniform() -> None:
     assert np.allclose(entropy, 1.0, atol=1e-6)
 
 
-# --- Model-free: scene_corners ---------------------------------------------
+# --- Model-free: ckn_scene_corners ---------------------------------------------
 
 def _clean_detection(corners_px: np.ndarray) -> CornerDetection:
     """Build a passing detection (empty flags) with dummy confidence signals."""
@@ -148,33 +148,33 @@ def _clean_detection(corners_px: np.ndarray) -> CornerDetection:
     )
 
 
-def test_scene_corners_median_ignores_outlier() -> None:
+def test_ckn_scene_corners_median_ignores_outlier() -> None:
     """Two frames agree, one has an outlier corner: per-corner median wins."""
     base = np.array([[100, 100], [500, 100], [500, 400], [100, 400]], dtype=np.float32)
     outlier = base.copy()
     outlier[0] = [900, 900]
     detections = [_clean_detection(base), _clean_detection(base), _clean_detection(outlier)]
-    result = scene_corners(detections)
+    result = ckn_scene_corners(detections)
     assert result is not None
     assert np.allclose(result, base)
 
 
-def test_scene_corners_all_flagged_returns_none() -> None:
+def test_ckn_scene_corners_all_flagged_returns_none() -> None:
     """No passers means fail closed: no corners for the scene."""
     base = np.array([[100, 100], [500, 100], [500, 400], [100, 400]], dtype=np.float32)
     flagged = CornerDetection(
         corners_px=base, peak=np.full(4, 0.05, dtype=np.float32), entropy=np.full(4, 0.9, dtype=np.float32),
         flags=("low_peak",),
     )
-    assert scene_corners([flagged, flagged, flagged]) is None
+    assert ckn_scene_corners([flagged, flagged, flagged]) is None
 
 
-def test_scene_corners_empty_returns_none() -> None:
+def test_ckn_scene_corners_empty_returns_none() -> None:
     """No detections at all also fails closed."""
-    assert scene_corners([]) is None
+    assert ckn_scene_corners([]) is None
 
 
-def test_scene_corners_broken_median_returns_none() -> None:
+def test_ckn_scene_corners_broken_median_returns_none() -> None:
     """A synthesised median that is not court-shaped fails closed too.
 
     Per-axis medians of individually-passing quads can land on a broken shape
@@ -183,7 +183,7 @@ def test_scene_corners_broken_median_returns_none() -> None:
     """
     concave = np.array([[100, 100], [900, 100], [500, 350], [900, 900]], dtype=np.float32)
     detections = [_clean_detection(concave) for _ in range(3)]
-    assert scene_corners(detections) is None
+    assert ckn_scene_corners(detections) is None
 
 
 # --- Model-backed: one detector load, four forwards total ------------------

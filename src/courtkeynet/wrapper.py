@@ -342,7 +342,7 @@ class CourtKeyNetDetector:
         return detections
 
 
-def scene_corners(detections: Sequence[CornerDetection]) -> np.ndarray | None:
+def ckn_scene_corners(detections: Sequence[CornerDetection]) -> np.ndarray | None:
     """Per-corner median over the detections that passed the gate.
 
     Per-scene protocol: the caller samples ~10 frames per PySceneDetect scene and

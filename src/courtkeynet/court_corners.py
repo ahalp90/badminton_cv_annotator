@@ -20,9 +20,9 @@ top corners (TL/TR) are the far baseline, which is why the far baseline takes
 y=0. cv2 + numpy only; no new dependencies.
 
 A second, video-level pass lives at the bottom of this module: consensus_repair()
-takes one video's per-scene quads (from scene_court above, run once per scene) and
+takes one video's per-scene quads (from pick_scene_corners above, run once per scene) and
 repairs the minority that drifted far from the video's own per-corner median.
-scene_court's per-scene contract is untouched; consensus_repair is an opt-in
+pick_scene_corners's per-scene contract is untouched; consensus_repair is an opt-in
 post-pass a caller runs across a video's scenes.
 """
 
@@ -39,8 +39,8 @@ from .constants import DEFAULT_CORNER_MIN_PEAK_CONF
 
 if TYPE_CHECKING:
     # Type-only, so this module imports without torch (the annotator needs just the
-    # court constants). The one runtime wrapper name loads where used: scene_corners
-    # in _model_path.
+    # court constants). The one runtime wrapper name loads where used: ckn_scene_corners
+    # in _ckn_path.
     from .wrapper import CornerDetection
 
 logger = logging.getLogger(__name__)
@@ -167,11 +167,11 @@ GATE_ANCHOR_FRAC = 0.020
 # on the session-18 fb5 eval, good scenes sit <=18.1 refpx from the video's own
 # per-corner-median consensus while the 7 boards-aliased vid-3 scenes start at
 # >=177.3 refpx, a clean ~10x gap. It ships below as consensus_repair();
-# scene_court above is untouched and can still hit this failure mode on its own,
+# pick_scene_corners above is untouched and can still hit this failure mode on its own,
 # which is why consensus_repair runs as a separate video-level post-pass.
-# tests/test_courtkeynet_fallback.py::test_boards_alias_minority_flagged_and_repaired_by_consensus
+# tests/test_courtkeynet_court_corners.py::test_boards_alias_minority_flagged_and_repaired_by_consensus
 # drives consensus_repair() over this exact scene shape (reproduced with
-# scene_court, boards line and all) and passes.
+# pick_scene_corners, boards line and all) and passes.
 # Distortion: the pooled residual of a straight painted line already runs a few
 # pixels from line thickness, anti-aliasing and Hough endpoint quantisation, so
 # the material-curvature floor sits above that noise. Real barrel distortion bows
@@ -844,11 +844,11 @@ def _assemble_corners(
 
 # --- Entry point -----------------------------------------------------------
 
-def _model_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> CourtQuad | None:
+def _ckn_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> CourtQuad | None:
     """All four corners confident: reuse the wrapper's per-scene median verbatim."""
-    from .wrapper import scene_corners  # local import keeps this module torch-free
+    from .wrapper import ckn_scene_corners  # local import keeps this module torch-free
 
-    corners = scene_corners(detections)
+    corners = ckn_scene_corners(detections)
     if corners is None:
         logger.info("court fallback: 4 confident corners but no fully-passing frame; failing closed")
         return None
@@ -861,7 +861,7 @@ def _model_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> C
     )
 
 
-def _fallback_path(
+def _cv2_path(
     frames_bgr: list[np.ndarray],
     clean: list[CornerDetection],
     scene_peaks: np.ndarray,
@@ -941,7 +941,7 @@ def _fallback_path(
     )
 
 
-def scene_court(
+def pick_scene_corners(
     frames_bgr: list[np.ndarray],
     detections: list[CornerDetection],
     *,
@@ -971,13 +971,13 @@ def scene_court(
     n_confident = int(confident.sum())
 
     if n_confident == 4:
-        return _model_path(detections, scene_peaks)
+        return _ckn_path(detections, scene_peaks)
     if n_confident <= 1:
         logger.info("court fallback: only %d confident corner(s); from-zero detection is out of scope", n_confident)
         return None
 
     clean_frames = [frame for frame, detection in zip(frames_bgr, detections) if _geometry_clean(detection)]
-    return _fallback_path(clean_frames, clean, scene_peaks, confident, corner_min_peak_conf)
+    return _cv2_path(clean_frames, clean, scene_peaks, confident, corner_min_peak_conf)
 
 
 # --- Cross-scene consensus repair (video-level post-pass) ------------------
@@ -998,7 +998,7 @@ CONSENSUS_FLAG_THRESHOLD_PX = 55.0
 class ConsensusRepair:
     """Video-level consensus over one video's per-scene quads, outliers repaired.
 
-    scene_court's per-scene output stays primary; this is an opt-in post-pass a
+    pick_scene_corners's per-scene output stays primary; this is an opt-in post-pass a
     caller runs across a video's own scenes. A flagged scene is replaced
     WHOLE-QUAD by the consensus, not just its offending corner or corners: the
     boards-alias failure this targets fits a self-consistent-looking homography
@@ -1018,7 +1018,7 @@ def consensus_repair(quads: np.ndarray) -> ConsensusRepair:
     """Per-corner median across a video's scene quads, with far-flung scenes repaired.
 
     Pure and torch-free: operates on whatever pixel space the caller's quads
-    already share (native-frame px throughout scene_court's contract; every quad
+    already share (native-frame px throughout pick_scene_corners's contract; every quad
     passed in must be from the SAME video, since the consensus assumes one fixed
     camera). Distance is maxed over the 4 corners, mirroring the scoping's
     dist_to_quad: a homography-level fault moves corners together, and one
