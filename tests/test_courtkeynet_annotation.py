@@ -553,7 +553,7 @@ def test_append_rows_refuses_mismatched_header(tmp_path: Path) -> None:
 # --- Torch decouple: the annotator runs without torch installed ------------
 
 def test_annotator_imports_without_torch() -> None:
-    """fallback.py and the annotator's build_point_table import and run with torch
+    """court_corners.py and the annotator's build_point_table import and run with torch
     blocked, pinning the decouple so a future import can't re-couple torch onto the
     annotator's path (the GUI-capable OpenCV venv has no torch).
 
@@ -565,7 +565,7 @@ def test_annotator_imports_without_torch() -> None:
     script = (
         "import sys\n"
         "sys.modules['torch'] = None\n"  # None in sys.modules makes any `import torch` raise ImportError
-        "import src.courtkeynet.fallback\n"
+        "import src.courtkeynet.court_corners\n"
         "from src.courtkeynet.validation_scripts.annotate_court_corners import build_point_table\n"
         "table = build_point_table()\n"
         "assert len(table) == 30, f'expected 30 tour points, got {len(table)}'\n"

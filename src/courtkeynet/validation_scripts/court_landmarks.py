@@ -7,13 +7,13 @@ position even when the corner lies beyond the visible frame. That is the whole
 trick behind off-frame ground truth: the visible markings determine where the
 unseen corner must be.
 
-Convention matches ``fallback.py`` on the court-fallback branch: court metres,
+Convention matches ``court_corners.py`` on the court-fallback branch: court metres,
 origin at the TL corner, x across the 6.10 m width, y down-court along the
 13.40 m length, corner slots ordered TL TR BR BL. "Far" and "near" describe the
 view on screen (far baseline = the one at the top of a normal court view). The
 court is symmetric end to end, so any consistent far/near reading of a frame
 yields a valid homography. Constants are duplicated here rather than imported
-from fallback.py so the annotation tooling stands alone; unify when the
+from court_corners.py so the annotation tooling stands alone; unify when the
 branches merge.
 """
 from __future__ import annotations
