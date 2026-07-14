@@ -439,8 +439,9 @@ def _settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
     frames: the moment the shuttle came to rest, after which all motion is out-of-play.
     """
     speed_seg = kin.speed[final_contact:win_end]
-    static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr  # NaN -> not static
-    static = np.where(np.isnan(kin.speed[final_contact:win_end]) & ~static, False, static)
+    # Unseen frames stay out of the median (nanmedian) but take their visible
+    # neighbours' verdict; an all-unseen window reads not-static (NaN <= thr is False).
+    static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
     held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
     if opts.use_ankle_rule:
         # Ankle refinement: a static frame whose shuttle is nearer an ankle than a wrist is resting
