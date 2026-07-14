@@ -1,13 +1,13 @@
 """Point-winner verdict chain tests: synthetic tracks/poses, one obvious answer each.
 
-Covers the promoted D5 chain (src/scraper/stage10_point_winner.py): the alternation-rhythm fit,
+Covers the promoted D5 chain (src/scraper/point_winner.py): the alternation-rhythm fit,
 the window fix, the ankle-refined landing filter, the net rule / in-out verdict, margins, hit
 height, and the verdict assembly. No fixtures; each test builds its own small numpy arrays.
 """
 import numpy as np
 import pytest
 
-from src.scraper.stage10_point_winner import (
+from src.scraper.point_winner import (
     Half,
     HitHeightRow,
     Landing,
