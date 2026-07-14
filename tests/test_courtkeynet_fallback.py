@@ -363,38 +363,60 @@ def test_fallback_is_deterministic() -> None:
     assert np.array_equal(first.corners_px, second.corners_px)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="known failure mode, measured on ShuttleSet vid 3 (session 17): a boards-like "
-    "line beyond the far baseline steals the extreme-line far-baseline pick and the "
-    "aliased fit passes the gate. Candidate fixes measured worse or are parked; see the "
-    "KNOWN FAILURE MODE note beside the gate constants in fallback.py.",
-)
-def test_boards_alias_line_is_overridden() -> None:
-    """A strong spurious line beyond the far baseline should not steal it.
+def test_boards_alias_minority_flagged_and_repaired_by_consensus() -> None:
+    """Cross-scene consensus repair fixes the boards-alias failure at the video level.
 
-    Encodes the measured ShuttleSet vid-3 failure: the advertising boards' bottom
-    edge sits on mat colour beyond the far baseline and wins the extreme-line rule.
-    A fix should recover the true far baseline (or fail closed) and flip this xfail
-    to a pass.
+    Formerly a strict xfail (known failure mode, measured on ShuttleSet vid 3,
+    session 17): a boards-like line beyond the far baseline steals the
+    extreme-line far-baseline pick, and the aliased fit is self-consistent enough
+    to pass scene_court's own acceptance gate. Baseline-candidate enumeration was
+    measured as a per-scene fix and came out worse (see the KNOWN FAILURE MODE
+    note beside the gate constants in fallback.py); scene_court's per-scene fit
+    is untouched and still carries this bug on its own, which this test's
+    good_scene/bad_scene split below still demonstrates.
+
+    The fix that landed is video-level: a minority of a video's scenes latching
+    onto the offset boards line, against a majority that agree, is exactly what
+    fb.consensus_repair() flags and repairs. This reproduces that failure shape
+    with real scene_court output (same boards-line trick as the original
+    scenario, pushed to y=50 so the far-corner displacement lands in the
+    93-143 refpx range the real vid-3 aliased scenes measured) and drives it
+    through the shipped consensus function.
     """
     homography = _homography(IMG_CORNERS)
-    frames = []
+    true_corners = _project(homography, CORNER_COURT_M)
+
+    frames_good = [_render_court(homography, GREEN_MAT, YELLOW_LINE) for _ in range(4)]
+    detections_good = [_detection(homography, {BL, BR}, 25.0) for _ in range(4)]
+    good_scene = scene_court(frames_good, detections_good)
+    assert good_scene is not None
+    assert np.linalg.norm(good_scene.corners_px[TL] - true_corners[TL]) < 4.0
+
+    frames_bad = []
     for _ in range(4):
         frame = _render_court(homography, GREEN_MAT, YELLOW_LINE)
         # The boards edge: bright, well-supported, parallel to and above the far
         # baseline (y=150 at the corners), still on the all-mat canvas so it lands
         # inside the ROI exactly as vid 3's surround apron put it there.
-        cv2.line(frame, (250, 90), (1050, 90), WHITE_LINE, 2, cv2.LINE_AA)
-        frames.append(frame)
-    detections = [_detection(homography, {BL, BR}, 25.0) for _ in range(4)]
-    true_corners = _project(homography, CORNER_COURT_M)
+        cv2.line(frame, (250, 50), (1050, 50), WHITE_LINE, 2, cv2.LINE_AA)
+        frames_bad.append(frame)
+    detections_bad = [_detection(homography, {BL, BR}, 25.0) for _ in range(4)]
+    bad_scene = scene_court(frames_bad, detections_bad)
+    assert bad_scene is not None
+    assert bad_scene.source == "fallback"
+    # The per-scene bug persists (scene_court is untouched): far corners still
+    # land far from truth, deep inside the real vid-3 aliased-scene error range.
+    assert np.linalg.norm(bad_scene.corners_px[TL] - true_corners[TL]) > 90.0
 
-    result = scene_court(frames, detections)
-    assert result is not None
-    assert result.source == "fallback"
-    for slot in (TL, TR):
-        assert np.linalg.norm(result.corners_px[slot] - true_corners[slot]) < 4.0
+    # A fixed camera means a video's scenes should agree: 4 good scenes (a
+    # majority) plus this 1 aliased minority scene.
+    quads = np.stack([good_scene.corners_px] * 4 + [bad_scene.corners_px])
+    result = fb.consensus_repair(quads)
+
+    assert list(result.flagged) == [False, False, False, False, True]
+    assert np.array_equal(result.repaired_quads[:4], quads[:4])  # good scenes untouched
+    assert np.linalg.norm(result.repaired_quads[4, TL] - true_corners[TL]) < 4.0
+    assert np.linalg.norm(result.repaired_quads[4, TR] - true_corners[TR]) < 4.0
 
 
 def test_cluster_segments_joins_across_angle_wrap() -> None:
@@ -426,3 +448,83 @@ def test_cluster_segments_joins_near_vertical_fragments() -> None:
     ])
     lines, _ = _cluster_segments(segments)
     assert len(lines) == 1
+
+
+# --- Cross-scene consensus repair (video-level) -----------------------------
+
+_GOOD_QUAD = np.array([[100.0, 100.0], [400.0, 100.0], [400.0, 300.0], [100.0, 300.0]])  # TL TR BR BL
+
+
+def test_consensus_quad_is_immune_to_a_contaminated_minority() -> None:
+    """The per-corner median survives a minority of wildly offset scenes."""
+    quads = np.stack([_GOOD_QUAD] * 4 + [_GOOD_QUAD + 500.0])  # 1 of 5 scenes offset by 500 px
+    result = fb.consensus_repair(quads)
+    assert np.allclose(result.consensus_quad, _GOOD_QUAD)
+
+
+def test_consensus_repair_flags_exactly_the_outlier_scene() -> None:
+    """Only the scene whose quad sits far from consensus is flagged."""
+    quads = np.stack([_GOOD_QUAD, _GOOD_QUAD, _GOOD_QUAD, _GOOD_QUAD + 500.0])
+    result = fb.consensus_repair(quads)
+    assert list(result.flagged) == [False, False, False, True]
+
+
+def test_consensus_repair_flags_nothing_on_a_clean_set() -> None:
+    """A set of scenes that already agree closely raises no flags."""
+    rng = np.random.default_rng(0)
+    jitter = rng.uniform(-5.0, 5.0, size=(6, 4, 2))  # well under CONSENSUS_FLAG_THRESHOLD_PX
+    quads = _GOOD_QUAD[None] + jitter
+    result = fb.consensus_repair(quads)
+    assert not result.flagged.any()
+
+
+def test_consensus_repair_replaces_whole_quad_not_single_corners() -> None:
+    """A flagged scene's quad is swapped wholesale for the consensus, not per corner.
+
+    Only TL is offset far enough to flag the scene; TR drifts by a single pixel,
+    which alone would never flag. Whole-quad repair overwrites TR too, proving
+    the replacement isn't a selective per-corner patch (the corners-only variant
+    is measured, not shipped; see ConsensusRepair's docstring in fallback.py).
+    """
+    outlier = _GOOD_QUAD.copy()
+    outlier[fb.TL] += [500.0, 0.0]
+    outlier[fb.TR] += [1.0, 0.0]
+    quads = np.stack([_GOOD_QUAD, _GOOD_QUAD, _GOOD_QUAD, outlier])
+    result = fb.consensus_repair(quads)
+
+    assert result.flagged[3]
+    assert np.array_equal(result.repaired_quads[3], result.consensus_quad)
+
+
+def test_consensus_repair_leaves_unflagged_scenes_untouched() -> None:
+    """Non-flagged scenes keep their own quad exactly, not snapped to consensus."""
+    nudged = _GOOD_QUAD + 3.0  # inside the flag threshold, but not identical to consensus
+    outlier = _GOOD_QUAD + 500.0
+    quads = np.stack([_GOOD_QUAD, _GOOD_QUAD, nudged, outlier])
+    result = fb.consensus_repair(quads)
+    assert np.array_equal(result.repaired_quads[2], nudged)
+
+
+def test_consensus_repair_refuses_an_even_split() -> None:
+    """Half the scenes disagreeing means no trustworthy majority: fail loud.
+
+    With a 50/50 split the median lands at a midpoint NO scene produced; every
+    scene then sits far from it, and a silent repair would overwrite the good
+    half with that hallucinated quad. The guard raises instead, and the caller
+    keeps the per-scene answers.
+    """
+    quads = np.stack([_GOOD_QUAD, _GOOD_QUAD + 200.0])
+    with pytest.raises(ValueError, match="majority"):
+        fb.consensus_repair(quads)
+
+
+def test_consensus_repair_rejects_empty_input() -> None:
+    """Zero scenes is a broken invariant, not a valid consensus: fail loud."""
+    with pytest.raises(ValueError):
+        fb.consensus_repair(np.empty((0, 4, 2)))
+
+
+def test_consensus_repair_rejects_malformed_quad_shape() -> None:
+    """A quad array that isn't (n_scenes, 4, 2) is a broken invariant: fail loud."""
+    with pytest.raises(ValueError):
+        fb.consensus_repair(np.zeros((3, 5, 2)))

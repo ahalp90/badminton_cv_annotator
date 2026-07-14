@@ -18,6 +18,12 @@ Court model note: TL/TR/BR/BL map to court metres (0,0)/(6.1,0)/(6.1,13.4)/
 (0,13.4) with the far baseline at y=0. On behind-baseline footage the image's
 top corners (TL/TR) are the far baseline, which is why the far baseline takes
 y=0. cv2 + numpy only; no new dependencies.
+
+A second, video-level pass lives at the bottom of this module: consensus_repair()
+takes one video's per-scene quads (from scene_court above, run once per scene) and
+repairs the minority that drifted far from the video's own per-corner median.
+scene_court's per-scene contract is untouched; consensus_repair is an opt-in
+post-pass a caller runs across a video's scenes.
 """
 
 from __future__ import annotations
@@ -154,13 +160,18 @@ GATE_ANCHOR_FRAC = 0.020
 # advertising boards' bottom edge (the green surround apron pulls it into the mat
 # ROI), and the resulting fit is self-consistent enough to pass both gate arms
 # (9 of 43 rescued scenes, far corners ~220-450 refpx off while anchors stay
-# ~4 px). Two candidate fixes were measured or considered and NOT shipped:
-# baseline-candidate enumeration scored by model-line coverage measured WORSE
-# (vid 3 good rescues 34 -> 24; near-court line spacing is too tight for
-# nearest-match scoring to discriminate hypotheses), and a cross-scene consensus
-# vote is a contract change (scene-level -> video-level) parked for a ruling.
-# tests/test_courtkeynet_fallback.py::test_boards_alias_line_is_overridden
-# encodes the scenario as a strict xfail so a future fix flips it to a pass.
+# ~4 px). Baseline-candidate enumeration scored by model-line coverage was measured
+# as a fix and came out WORSE (vid 3 good rescues 34 -> 24; near-court line spacing
+# is too tight for nearest-match scoring to discriminate hypotheses); it is NOT
+# shipped. A cross-scene consensus vote (video-level, not scene-level) is: measured
+# on the session-18 fb5 eval, good scenes sit <=18.1 refpx from the video's own
+# per-corner-median consensus while the 7 boards-aliased vid-3 scenes start at
+# >=177.3 refpx, a clean ~10x gap. It ships below as consensus_repair();
+# scene_court above is untouched and can still hit this failure mode on its own,
+# which is why consensus_repair runs as a separate video-level post-pass.
+# tests/test_courtkeynet_fallback.py::test_boards_alias_minority_flagged_and_repaired_by_consensus
+# drives consensus_repair() over this exact scene shape (reproduced with
+# scene_court, boards line and all) and passes.
 # Distortion: the pooled residual of a straight painted line already runs a few
 # pixels from line thickness, anti-aliasing and Hough endpoint quantisation, so
 # the material-curvature floor sits above that noise. Real barrel distortion bows
@@ -967,3 +978,84 @@ def scene_court(
 
     clean_frames = [frame for frame, detection in zip(frames_bgr, detections) if _geometry_clean(detection)]
     return _fallback_path(clean_frames, clean, scene_peaks, confident, corner_min_peak_conf)
+
+
+# --- Cross-scene consensus repair (video-level post-pass) ------------------
+
+# A fixed broadcast camera keeps every scene's true corners nearly still, so a
+# scene that latched onto a spurious line (the KNOWN FAILURE MODE above
+# GATE_LINE_FRAC) sits far from where the rest of the video agrees. Measured on
+# the recorded 720p eval (46 + 44 fallback scenes over the two videos): good
+# scenes drift at most 18.1 px from the per-corner-median consensus, the 7
+# boards-aliased scenes start at 177.3 px, and the clean control maxes at 8.2 px
+# with zero false flags anywhere inside that ~10x gap. 55 sits at ~3x the
+# good-scene max. Absolute px in the caller's frame space: at 1080p the gap
+# reads 1.5x these numbers so 55 still fits; 4K needs a re-measure first.
+CONSENSUS_FLAG_THRESHOLD_PX = 55.0
+
+
+@dataclass(frozen=True)
+class ConsensusRepair:
+    """Video-level consensus over one video's per-scene quads, outliers repaired.
+
+    scene_court's per-scene output stays primary; this is an opt-in post-pass a
+    caller runs across a video's own scenes. A flagged scene is replaced
+    WHOLE-QUAD by the consensus, not just its offending corner or corners: the
+    boards-alias failure this targets fits a self-consistent-looking homography
+    through the whole quad (both far corners move together), so per-corner
+    patching would leave a mismatched blend of real and aliased geometry. A
+    corners-only variant was measured beside this and is not shipped (see
+    local_scratch/autograder_architecture/courtkeynet_eval/ckn_consensus_ship_check.py).
+    """
+
+    consensus_quad: np.ndarray  # (4, 2) float64, per-corner median over all scenes
+    distances_px: np.ndarray  # (n_scenes,) worst-corner distance of each scene's quad to the consensus
+    flagged: np.ndarray  # (n_scenes,) bool, True where distances_px exceeds CONSENSUS_FLAG_THRESHOLD_PX
+    repaired_quads: np.ndarray  # (n_scenes, 4, 2) float64, flagged scenes replaced by consensus_quad; others unchanged
+
+
+def consensus_repair(quads: np.ndarray) -> ConsensusRepair:
+    """Per-corner median across a video's scene quads, with far-flung scenes repaired.
+
+    Pure and torch-free: operates on whatever pixel space the caller's quads
+    already share (native-frame px throughout scene_court's contract; every quad
+    passed in must be from the SAME video, since the consensus assumes one fixed
+    camera). Distance is maxed over the 4 corners, mirroring the scoping's
+    dist_to_quad: a homography-level fault moves corners together, and one
+    strayed corner registers the full displacement. A single-scene video is its
+    own consensus and comes back unflagged.
+
+    :param quads: (n_scenes, 4, 2) one video's scene quads, TL TR BR BL corner
+        order (matching CourtQuad.corners_px), all in the same pixel space
+    :return: ConsensusRepair
+    :raises ValueError: malformed shape, no scenes, or half or more of the
+        scenes disagree with the median. That last case means there is no
+        trustworthy majority to repair from (an even 50/50 split puts the median
+        at a hallucinated midpoint that NO scene produced, so everything flags
+        and a silent repair would overwrite the good scenes with it); the caller
+        keeps the per-scene answers instead.
+    """
+    quads = np.asarray(quads, dtype=np.float64)
+    if quads.ndim != 3 or quads.shape[1:] != (4, 2):
+        raise ValueError(f"consensus_repair: expected (n_scenes, 4, 2) quads, got shape {quads.shape}")
+    if quads.shape[0] == 0:
+        raise ValueError("consensus_repair: at least one scene quad is required")
+
+    consensus = np.median(quads, axis=0)  # marginal per-axis median, matching the scoping's consensus_quad
+    per_corner_dist = np.linalg.norm(quads - consensus, axis=2)  # (n_scenes, 4)
+    distances = per_corner_dist.max(axis=1)  # (n_scenes,), worst corner per scene
+    flagged = distances > CONSENSUS_FLAG_THRESHOLD_PX
+    if flagged.sum() * 2 >= quads.shape[0]:
+        raise ValueError(
+            f"consensus_repair: {int(flagged.sum())} of {quads.shape[0]} scenes sit beyond "
+            f"{CONSENSUS_FLAG_THRESHOLD_PX} px of the median; no trustworthy majority exists, "
+            "keep the per-scene answers"
+        )
+    repaired_quads = np.where(flagged[:, None, None], consensus, quads)
+
+    return ConsensusRepair(
+        consensus_quad=consensus,
+        distances_px=distances,
+        flagged=flagged,
+        repaired_quads=repaired_quads,
+    )
