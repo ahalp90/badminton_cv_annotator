@@ -1,7 +1,7 @@
 name: PR quality
 
 # PR-scoped gates. commit-lint + pr-body block; advisory is an AI review that is
-# dormant without a GEMINI_API_KEY and never blocks. See docs/ci.md.
+# dormant without the PR_MESSAGE_BOT_KEY secret and never blocks. See docs/ci.md.
 on:
   pull_request:
     # `edited` re-runs pr-body when the PR description is filled in / fixed.
@@ -38,7 +38,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const REQUIRED = ['What', 'Why', 'Testing'];
+            const REQUIRED = ['What', 'Why', 'Testing', 'Reviewer focus'];
             const raw = context.payload.pull_request.body || '';
             // Strip HTML comments (template guidance/placeholders) before checking.
             const body = raw.replace(/<!--[\s\S]*?-->/g, '');
@@ -90,12 +90,12 @@ jobs:
       contents: read
       pull-requests: write   # post/update the advisory comment
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # dormant unless set
-      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}           # optional model override
+      GEMINI_API_KEY: ${{ secrets.PR_MESSAGE_BOT_KEY }}   # dormant unless set
+      GEMINI_MODEL: ${{ vars.PR_MESSAGE_BOT_MODEL }}       # optional model override
     steps:
       - name: Dormant notice (no key configured)
         if: ${{ env.GEMINI_API_KEY == '' }}
-        run: echo "GEMINI_API_KEY not set -- AI advisory is dormant (this is fine). See docs/ci.md to enable it for free."
+        run: echo "PR_MESSAGE_BOT_KEY secret not set -- AI advisory is dormant (this is fine). See docs/ci.md to enable it for free."
 
       - uses: actions/checkout@v7
         if: ${{ env.GEMINI_API_KEY != '' }}

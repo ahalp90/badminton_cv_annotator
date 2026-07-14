@@ -14,8 +14,10 @@ Design goals (see docs/ci.md):
 
 Environment:
   GEMINI_API_KEY     required; if empty the script no-ops (the workflow already
-                     guards on this, this is just belt-and-suspenders).
-  GEMINI_MODEL       optional model id; defaults to ``gemini-2.5-flash``.
+                     guards on this, this is just belt-and-suspenders). The
+                     workflow fills it from the ``PR_MESSAGE_BOT_KEY`` repo secret.
+  GEMINI_MODEL       optional model id; defaults to ``gemini-2.5-flash``. Filled
+                     from the ``PR_MESSAGE_BOT_MODEL`` repo variable.
   GITHUB_EVENT_PATH  path to the PR event payload (provided by Actions).
   GITHUB_TOKEN       optional; if present, post/update a sticky PR comment.
   GITHUB_REPOSITORY  "owner/repo" (provided by Actions).
@@ -44,6 +46,17 @@ block a merge. Judge two things about this pull request:
    with a one-line suggestion. Ignore messages that are already clear.
 2. PR description -- does it substantively and readably explain WHAT changed,
    WHY, and HOW it was tested? Note anything important that's missing.
+
+Judge the writing in both against this house style, and point out where it
+strays:
+* Bottom line up front: the main point comes first, detail after.
+* Logically positive phrasing except where unavoidable: state what is, not
+  what is not.
+* At most one sub-clause per sentence.
+* Technical terms, jargon and operations come with their significance
+  explained. Jargon is fine only when essential, or when it is the term
+  non-experts casually use anyway.
+* Straightforward wording. The message is not overdressed.
 
 Keep it under ~180 words, specific and kind (cite hashes/sections, don't scold).
 Use GitHub-flavoured markdown. End with a single **Verdict:** line. Open with a
@@ -208,8 +221,8 @@ def main() -> int:
         elif exc.code in (400, 404):
             warn(
                 f"Gemini rejected the request (HTTP {exc.code}) -- the model name "
-                f"'{model}' may be wrong; set the GEMINI_MODEL repo variable to a "
-                f"current free-tier model. {detail}"
+                f"'{model}' may be wrong; set the PR_MESSAGE_BOT_MODEL repo variable "
+                f"to a current free-tier model. {detail}"
             )
         elif exc.code in (401, 403):
             warn(f"Gemini auth/quota problem (HTTP {exc.code}) for model '{model}'. {detail}")
