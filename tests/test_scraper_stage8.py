@@ -235,6 +235,45 @@ def test_segment_video_wrist_near_paths():
     assert all(wrist_near is False for *_, wrist_near in contacts_far)
 
 
+def test_sticky_gate_requires_the_complete_library_context():
+    track, _, _, _ = _build_rally_track()
+    arrays = {
+        'pose_bboxes': np.zeros((len(track), 1, 4)),
+        'pose_scores': np.zeros((len(track), 1)),
+        'pose_kps': np.zeros((len(track), 1, 17, 2)),
+        'pose_ndet': np.zeros(len(track), dtype=int),
+    }
+    with pytest.raises(ValueError, match='sticky gate requires'):
+        segment_video(track, pose_bboxes=arrays['pose_bboxes'])
+    with pytest.raises(ValueError, match='sticky gate requires'):
+        segment_video(track, **arrays, court_box=STANDIN_COURT_BOX)
+
+
+@pytest.mark.parametrize('failure_distance', [np.nan])
+def test_sticky_gate_failure_rows_fail_closed(monkeypatch, failure_distance):
+    track, _, _, _ = _build_rally_track()
+    arrays = {
+        'pose_bboxes': np.zeros((len(track), 1, 4)),
+        'pose_scores': np.zeros((len(track), 1)),
+        'pose_kps': np.zeros((len(track), 1, 17, 2)),
+        'pose_ndet': np.zeros(len(track), dtype=int),
+    }
+    import src.scraper.stage8_rally_segmentation as stage8_module
+
+    monkeypatch.setattr(
+        stage8_module, '_sticky_gate_distances',
+        lambda _track, spans, *_args: {
+            frame: failure_distance for start, end in spans for frame in range(start, end)
+        },
+    )
+    _, contacts = segment_video(
+        track, **arrays, court_box=STANDIN_COURT_BOX, gate_video_id='1',
+        gate_court_info={'1': {}}, gate_resolution_table=object(),
+    )
+    assert contacts
+    assert all(wrist_near is False for *_, wrist_near in contacts)
+
+
 def test_end_rest_frames_constant_used():
     # A short rest between two bursts must not split into two rallies unless it
     # reaches END_REST_FRAMES. Sanity that the constant is the gate.

@@ -35,6 +35,7 @@ PYTHONPATH=src.
 import argparse
 import csv
 import logging
+import sys
 import warnings
 from enum import StrEnum
 from pathlib import Path
@@ -57,6 +58,15 @@ from .config import (
     START_SPEED,
     Stage8Thresholds,
 )
+
+# sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
+# at the package boundary so the picker remains the single implementation.
+_BST_X_ROOT = Path(__file__).resolve().parents[1] / 'bst_x'
+if str(_BST_X_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BST_X_ROOT))
+
+from preparing_data.heuristics import sticky_anchor  # noqa: E402
+from preparing_data.heuristics.base import ClipContext, RawClip  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -1073,6 +1083,111 @@ def suppress_contact_flags(
     return sorted(accepted)
 
 
+def _sticky_filtered_raw_slots(
+    frame: int, bboxes: np.ndarray, scores: np.ndarray, ndet: np.ndarray,
+    ctx: ClipContext, params: sticky_anchor.StickyAnchorParams,
+) -> np.ndarray:
+    """Recover picker candidate indices in the raw pose-slot space.
+
+    The picker first applies its parameterised score filter, then removes NaN
+    homography projections. Retaining this order preserves the picker's lowest-
+    filtered-slot tie behaviour when a picked slot is passed to point_winner.
+    """
+    n_detections = int(ndet[frame])
+    score_slots = np.flatnonzero(scores[frame, :n_detections] > params.score_filter)
+    projected = sticky_anchor._project_bbox_bottom_centre(  # noqa: SLF001
+        bboxes[frame, score_slots].astype(np.float64), ctx,
+    )
+    valid = ~np.isnan(projected).any(axis=1)
+    return score_slots[valid]
+
+
+def _sticky_gate_distances(
+    track: np.ndarray, spans: list[tuple[int, int]],
+    pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
+    pose_ndet: np.ndarray, gate_video_id: str,
+    gate_court_info: dict[str, dict], gate_resolution_table: object,
+    court_box: CourtBox, resolution: tuple[float, float],
+) -> dict[int, float]:
+    """Run sticky_anchor over every frame in every detected rally span.
+
+    A span is one clip for EMA purposes. The sequential loop deliberately runs
+    on every frame, including non-contact frames, because skipped frames change
+    the picker's EMA state and therefore later candidate choices.
+    """
+    from . import point_winner
+
+    params = sticky_anchor.StickyAnchorParams()
+    raw = RawClip(
+        kps=pose_kps,
+        bboxes=pose_bboxes,
+        scores=pose_scores,
+        # The picker does not read keypoint scores, but RawClip requires the field.
+        kp_scores=np.zeros((*pose_scores.shape, 17), dtype=np.float32),
+        ndet=pose_ndet,
+    )
+    ctx = ClipContext(gate_video_id, gate_court_info, gate_resolution_table)
+    court_info = ctx.all_court_info[ctx.vid]
+    halfcourt_centre = sticky_anchor._compute_halfcourt_centres(court_info)  # noqa: SLF001
+    gaps: dict[int, float] = {}
+
+    for start, end in spans:
+        ema = halfcourt_centre.copy()
+        for frame in range(start, end):
+            result = sticky_anchor._pick_one_frame(  # noqa: SLF001
+                raw, frame, ema, halfcourt_centre, ctx, params,
+            )
+            if not result:
+                gaps[frame] = float('nan')
+                ema[:] = halfcourt_centre
+                continue
+
+            picks, court_base_pos, _kps_f, bboxes_f, _n_counted = result
+            picked_slots = _sticky_filtered_raw_slots(
+                frame, pose_bboxes, pose_scores, pose_ndet, ctx, params,
+            )
+            frame_has_zero = False
+            picked_raw_slots: list[int] = []
+            for slot in (sticky_anchor.SLOT_TOP, sticky_anchor.SLOT_BOTTOM):
+                if picks[slot] < 0:
+                    frame_has_zero = True
+                    ema[slot] = halfcourt_centre[slot]
+                    continue
+                candidate_position = court_base_pos[picks[slot]]
+                if sticky_anchor._in_generous_court(  # noqa: SLF001
+                    candidate_position, params.update_gate_eps,
+                ):
+                    ema[slot] = (
+                        params.ema_alpha * candidate_position
+                        + (1 - params.ema_alpha) * ema[slot]
+                    )
+                picked_raw_slots.append(int(picked_slots[picks[slot]]))
+
+            # A partial pick is valid. Only the retained raw slots enter the
+            # body-unit denominator association; no doubles/count machinery is
+            # part of this contact gate.
+            if frame_has_zero and not picked_raw_slots:
+                gaps[frame] = float('nan')
+                continue
+            picked_boxes = pose_bboxes[frame, picked_raw_slots].astype(np.float64)
+            x1, y1, x2, y2 = picked_boxes.T
+            try:
+                candidate_gaps = point_winner._body_unit_gaps(  # noqa: SLF001
+                    frame, x1, y1, x2, y2, picked_raw_slots,
+                    pose_bboxes, pose_scores, pose_kps, court_box,
+                    track, resolution[0], resolution[1],
+                )
+            except ValueError as exc:
+                if not str(exc).startswith('body-unit gap:'):
+                    raise
+                gaps[frame] = float('nan')
+                continue
+            finite_gaps = candidate_gaps[np.isfinite(candidate_gaps)]
+            gaps[frame] = float(np.min(finite_gaps)) if len(finite_gaps) else float('nan')
+
+    return gaps
+
+
 def segment_video(
     track: np.ndarray, positions: np.ndarray | None = None, *,
     thresholds: Stage8Thresholds | None = None,
@@ -1083,7 +1198,12 @@ def segment_video(
     pose_bboxes: np.ndarray | None = None,
     pose_scores: np.ndarray | None = None,
     pose_kps: np.ndarray | None = None,
+    pose_ndet: np.ndarray | None = None,
     court_box: CourtBox | None = None,
+    gate_video_id: str | None = None,
+    gate_court_info: dict[str, dict] | None = None,
+    gate_resolution_table: object | None = None,
+    suppression_radius: int | None = None,
     resolution: tuple[float, float] = (1920.0, 1080.0),
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None, bool | None]]]:
     """Full stage-8 pass over one video's shuttle track.
@@ -1112,7 +1232,12 @@ def segment_video(
     :param pose_bboxes: `(t, n, 4)` pose boxes for the body-unit gate.
     :param pose_scores: `(t, n)` pose scores aligned to `pose_bboxes`.
     :param pose_kps: `(t, n, 17, 2)` pose keypoints aligned to `pose_bboxes`.
-    :param court_box: court-scale box filter geometry used by point-winner's body-unit machinery.
+    :param pose_ndet: `(t,)` raw detection counts consumed by sticky_anchor.
+    :param court_box: per-video CourtBox used by point-winner's body-unit denominator association.
+    :param gate_video_id: string video ID used by sticky_anchor's homography context.
+    :param gate_court_info: `{video_id: court_info}` from the homography table.
+    :param gate_resolution_table: resolution DataFrame indexed by string video ID.
+    :param suppression_radius: optional contact suppression radius; None keeps the shipped 9-frame default.
     :param resolution: `(width, height)` of the track and pose pixels.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
@@ -1162,17 +1287,20 @@ def segment_video(
         for contact_frame, impulse in flags:
             raw_flags.append((rally_id, contact_frame, impulse))
 
-    if body_unit_dist is not None and any(
-        value is not None for value in (pose_bboxes, pose_scores, pose_kps, court_box)
-    ):
+    gate_inputs = (
+        pose_bboxes, pose_scores, pose_kps, pose_ndet, court_box,
+        gate_video_id, gate_court_info, gate_resolution_table,
+    )
+    if body_unit_dist is not None and any(value is not None for value in gate_inputs):
         raise ValueError('body_unit_dist cannot be combined with pose gate inputs')
-    pose_inputs_present = (pose_bboxes, pose_scores, pose_kps, court_box)
-    if body_unit_dist is None and any(value is not None for value in pose_inputs_present):
-        if not all(value is not None for value in pose_inputs_present):
-            raise ValueError('pose_bboxes, pose_scores, pose_kps, and court_box are all required')
+    if body_unit_dist is None and any(value is not None for value in gate_inputs):
+        if not all(value is not None for value in gate_inputs):
+            raise ValueError(
+                'sticky gate requires pose_bboxes, pose_scores, pose_kps, pose_ndet, '
+                'court_box, gate_video_id, gate_court_info, and gate_resolution_table'
+            )
 
-    gate_ran = body_unit_dist is not None or all(
-        value is not None for value in pose_inputs_present)
+    gate_ran = body_unit_dist is not None or all(value is not None for value in gate_inputs)
     if not gate_ran:
         # Gate never ran: every wrist_near is None (serialised blank), raw candidates stand,
         # and suppression is skipped, because the measured composition is defined over gate
@@ -1182,21 +1310,25 @@ def segment_video(
             for rally_id, contact_frame, _impulse in raw_flags
         ]
 
+    sticky_distances: dict[int, float] | None = None
+    if body_unit_dist is None:
+        sticky_distances = _sticky_gate_distances(
+            gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
+            gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
+        )
+
     gated_flags: list[tuple[int, float]] = []
     for _rally_id, contact_frame, impulse in raw_flags:
         if body_unit_dist is not None:
             gate_passes = wrist_contact_near(body_unit_dist, contact_frame)
         else:
-            width, height = resolution
-            distance = body_unit_dist_at_frame(
-                contact_frame, gate_track, pose_bboxes, pose_scores, pose_kps, court_box,
-                width, height,
-            )
+            distance = sticky_distances[contact_frame]
             gate_passes = bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
         if gate_passes:
             gated_flags.append((contact_frame, impulse))
 
-    accepted_frames = set(suppress_contact_flags(gated_flags))
+    radius = CONTACT_SUPPRESSION_RADIUS_FRAMES if suppression_radius is None else suppression_radius
+    accepted_frames = set(suppress_contact_flags(gated_flags, radius=radius))
     contacts: list[tuple[int, int, bool | None, bool | None]] = []
     for rally_id, contact_frame, _impulse in raw_flags:
         proximity_ok = contact_proximity_ok(track, positions, contact_frame)
@@ -1250,6 +1382,97 @@ def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None
     return np.load(mask_path)
 
 
+def _gate_array_path(gate_dir: Path, video_id: str, kind: str) -> Path:
+    """Find one per-video raw pose array under the batch gate directory."""
+    candidates = (
+        gate_dir / f'{video_id}_{kind}.npy',
+        gate_dir / f'{video_id}_raw_{kind}.npy',
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _load_gate_arrays(
+    gate_dir: Path, video_id: str, track_length: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    """Load and validate all four raw arrays, or None when none are present."""
+    paths = {
+        kind: _gate_array_path(gate_dir, video_id, kind)
+        for kind in ('bboxes', 'scores', 'kps', 'ndet')
+    }
+    present = [path.exists() for path in paths.values()]
+    if not any(present):
+        return None
+    if not all(present):
+        missing = ', '.join(kind for kind, path in paths.items() if not path.exists())
+        raise ValueError(f'{video_id}: gate arrays are incomplete; missing {missing}')
+
+    bboxes = np.load(paths['bboxes'])
+    scores = np.load(paths['scores'])
+    kps = np.load(paths['kps'])
+    ndet = np.load(paths['ndet'])
+    if len(bboxes) != track_length or len(scores) != track_length or len(kps) != track_length \
+            or len(ndet) != track_length:
+        raise ValueError(f'{video_id}: gate arrays do not match track length {track_length}')
+    if bboxes.ndim != 3 or bboxes.shape[-1] != 4:
+        raise ValueError(f'{video_id}: bboxes shape {bboxes.shape} is not (frames, detections, 4)')
+    if scores.shape != bboxes.shape[:2] or kps.shape[:2] != bboxes.shape[:2]:
+        raise ValueError(f'{video_id}: gate array detection axes disagree')
+    if kps.ndim != 4 or kps.shape[2:] != (17, 2):
+        raise ValueError(f'{video_id}: kps shape {kps.shape} is not (frames, detections, 17, 2)')
+    if ndet.ndim != 1:
+        raise ValueError(f'{video_id}: ndet shape {ndet.shape} is not (frames,)')
+    return bboxes, scores, kps, ndet
+
+
+def _read_string_id_table(path: Path, label: str):
+    """Read a table with unique string IDs and retain the indexed DataFrame."""
+    import pandas as pd
+
+    table = pd.read_csv(path, dtype={'id': str, 'video_id': str})
+    id_column = 'id' if 'id' in table.columns else 'video_id' if 'video_id' in table.columns else None
+    if id_column is None:
+        raise ValueError(f'{label}: expected an id or video_id column')
+    table[id_column] = table[id_column].astype(str)
+    if table[id_column].duplicated().any():
+        duplicate_ids = sorted(table.loc[table[id_column].duplicated(), id_column].unique())
+        raise ValueError(f'{label}: duplicate IDs {duplicate_ids}')
+    return table.set_index(id_column)
+
+
+def _load_gate_context(
+    homography_csv: Path, resolution_csv: Path, court_box_csv: Path,
+) -> tuple[dict[str, dict], object, dict[str, CourtBox]]:
+    """Load the three batch gate tables with string-keyed joins."""
+    from pipeline.court_utils import get_court_info
+
+    homography = _read_string_id_table(homography_csv, 'homography CSV')
+    resolution = _read_string_id_table(resolution_csv, 'resolution table')
+    court_rows = _read_string_id_table(court_box_csv, 'CourtBox table')
+    required = {
+        'x_lo', 'x_hi', 'y_lo', 'y_hi', 'height_lo', 'height_hi', 'mid_lo', 'mid_hi',
+    }
+    missing = sorted(required - set(court_rows.columns))
+    if missing:
+        raise ValueError(f'CourtBox table: missing columns {missing}')
+    all_court_info = {
+        str(video_id): get_court_info(homography, str(video_id))
+        for video_id in homography.index
+    }
+    court_boxes = {
+        str(video_id): CourtBox(
+            x_range=(float(row.x_lo), float(row.x_hi)),
+            y_range=(float(row.y_lo), float(row.y_hi)),
+            height_band=(float(row.height_lo), float(row.height_hi)),
+            mid_band=(float(row.mid_lo), float(row.mid_hi)),
+        )
+        for video_id, row in court_rows.iterrows()
+    }
+    return all_court_info, resolution, court_boxes
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
@@ -1259,6 +1482,16 @@ def main() -> None:
     parser.add_argument('--mask-dir', type=Path, default=None,
                         help='Optional directory of <video_id>_dead_mask.npy dead-time masks '
                              '(True = dead); a missing file runs that video unmasked')
+    parser.add_argument('--gate-dir', '--pose-dir', dest='gate_dir', type=Path, default=None,
+                        help='Optional directory of per-video gate arrays: '
+                             '<video_id>_{bboxes,scores,kps,ndet}.npy')
+    parser.add_argument('--homography-csv', type=Path, default=None,
+                        help='Homography table for sticky-anchor projection')
+    parser.add_argument('--resolution-csv', type=Path, default=None,
+                        help='Per-video resolution table for sticky-anchor projection')
+    parser.add_argument('--court-box-csv', type=Path, default=None,
+                        help='Per-video CourtBox table with id/video_id and '
+                             'x_lo,x_hi,y_lo,y_hi,height_lo,height_hi,mid_lo,mid_hi')
     parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
                         help='which threshold preset to segment with (default: shipped)')
     parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
@@ -1275,10 +1508,19 @@ def main() -> None:
 
     thresholds = _THRESHOLD_PRESETS[args.thresholds]
     span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
-    log.warning(
-        'contact gating will not run: the body-unit wrist gate needs pose and court inputs '
-        'this CLI does not yet plumb, so wrist_near is written blank and every raw candidate '
-        'stands (the old image-fraction gate is gone)')
+    gate_options = (args.gate_dir, args.homography_csv, args.resolution_csv, args.court_box_csv)
+    if any(option is not None for option in gate_options) and not all(
+        option is not None for option in gate_options
+    ):
+        raise ValueError(
+            '--gate-dir, --homography-csv, --resolution-csv, and --court-box-csv '
+            'must be supplied together'
+        )
+    gate_context = None
+    if all(option is not None for option in gate_options):
+        gate_context = _load_gate_context(
+            args.homography_csv, args.resolution_csv, args.court_box_csv,
+        )
     args.rally_spans_csv.parent.mkdir(parents=True, exist_ok=True)
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1290,9 +1532,30 @@ def main() -> None:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
-            spans, contacts = segment_video(track, positions, thresholds=thresholds,
-                                            span_open=span_open, replay_mask=replay_mask,
-                                            )
+            gate_arrays = None if args.gate_dir is None else _load_gate_arrays(
+                args.gate_dir, video_id, len(track),
+            )
+            if gate_arrays is None:
+                log.warning('%s: gate inputs absent; running without contact gate', video_id)
+                spans, contacts = segment_video(
+                    track, positions, thresholds=thresholds, span_open=span_open,
+                    replay_mask=replay_mask,
+                )
+            else:
+                all_court_info, resolution_table, court_boxes = gate_context
+                if video_id not in all_court_info or video_id not in resolution_table.index \
+                        or video_id not in court_boxes:
+                    raise ValueError(f'{video_id}: missing gate-table row')
+                row = resolution_table.loc[video_id]
+                resolution = (float(row['width']), float(row['height']))
+                spans, contacts = segment_video(
+                    track, positions, thresholds=thresholds, span_open=span_open,
+                    replay_mask=replay_mask, pose_bboxes=gate_arrays[0],
+                    pose_scores=gate_arrays[1], pose_kps=gate_arrays[2],
+                    pose_ndet=gate_arrays[3], court_box=court_boxes[video_id],
+                    gate_video_id=video_id, gate_court_info=all_court_info,
+                    gate_resolution_table=resolution_table, resolution=resolution,
+                )
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             log.warning('skipping %s: %s', video_id, exc)
             continue
