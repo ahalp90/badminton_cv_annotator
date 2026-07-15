@@ -25,9 +25,9 @@ today's behaviour exactly when left at their default:
   - `replay_mask`: a `(t,)` bool dead-time mask applied at entry (via
     `apply_replay_mask`), freezing replay/off-rally frames to rest before speed.
 
-`wrist_dist` is a fifth off-by-default option: a `(t,)` shuttle-to-nearest-wrist gap
-(`build_wrist_shuttle_dist`) that fills each contact's `wrist_near` verdict (the contact wrist
-check). None leaves every verdict blank, so the raw candidate set is unchanged.
+The contact chain keeps raw impulse candidates, applies a body-unit wrist gate,
+then applies greedy suppression. The three operations are separate helpers and
+`segment_video` composes them in that order.
 
 Run as `python -m scraper.stage8_rally_segmentation --shuttle-dir ...` with
 PYTHONPATH=src.
@@ -47,8 +47,6 @@ from .config import (
     BEST_CONFIG_THRESHOLDS,
     CONTACT_FRAMES_CSV,
     END_REST_FRAMES,
-    MIN_CONTACT_SPEED,
-    MIN_DIR_CHANGE_DEG,
     PROXIMITY_MAX,
     RALLY_SPANS_CSV,
     REST_SPEED,
@@ -58,7 +56,6 @@ from .config import (
     START_MIN_FRAMES,
     START_SPEED,
     Stage8Thresholds,
-    WRIST_SHUTTLE_MAX,
 )
 
 log = logging.getLogger(__name__)
@@ -68,6 +65,16 @@ log = logging.getLogger(__name__)
 # counts as rest (spec s6 "visibility mostly 0 across the window"). Not in
 # config: it is the numeric reading of "mostly", not a swept rule threshold.
 VISIBILITY_REST_FRAC = 0.5
+
+# Contact-chain frame constants are measured at 25 fps. The floor window and the
+# suppression radius are expressed in frames so their temporal meaning is visible
+# when this module is read without the measurement harness.
+IMPULSE_FLOOR_HALF_WINDOW_FRAMES = 12
+CONTACT_DEDUP_RADIUS_FRAMES = 3
+CONTACT_IMPULSE_MULTIPLE = 4.0
+FLOOR_EPS = 1e-4
+BODY_UNIT_WRIST_THRESHOLD = 1.4
+CONTACT_SUPPRESSION_RADIUS_FRAMES = 9
 
 
 # ---------------------------------------------------------------------------
@@ -855,79 +862,104 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Contacts
 # ---------------------------------------------------------------------------
+# The rule this chain replaced (measured s25-s26; kept here as context and as the fallback):
+# a junction was a contact when the direction changed by over 30 degrees AND both smoothed
+# segment speeds exceeded 0.005 (25 fps per-frame units), dedup sharpest-angle-first; the
+# wrist gate then kept contacts within 0.125 image-fractions of a wrist. End to end that read
+# 60.9% recall at 54.0% precision (+/-10 frames); the impulse chain below reads 82.4% at
+# 70.1%. If the impulse chain ever needs retiring, the measured simple fallback is
+# OR(angle > 60 with speeds > 0.0035) plus the body-unit gate: 73.8% recall / 55.3% precision.
+def span_impulses(
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+) -> np.ndarray | None:
+    """Return ``|v_out - v_in|`` for each junction in one rally span.
+
+    The track is already replay-masked when this is called from ``segment_video``.
+    Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.
+    """
+    smooth_window = SMOOTH_WINDOW if thresholds is None else thresholds.smooth_window
+    span = track[start:end]
+    if len(span) < smooth_window + 2:
+        return None
+
+    smooth_x = _rolling_mean(span[:, 0], smooth_window)
+    smooth_y = _rolling_mean(span[:, 1], smooth_window)
+    velocity = np.diff(np.column_stack([smooth_x, smooth_y]), axis=0)
+    return np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
+
+
+def rolling_floor(
+    values: np.ndarray, around_visible: np.ndarray,
+    half_window: int = IMPULSE_FLOOR_HALF_WINDOW_FRAMES,
+) -> np.ndarray:
+    """Median floor over visible junctions within a frame-count window.
+
+    ``half_window`` counts junctions on each side at 25 fps. A junction with no
+    visible neighbour in its window receives NaN and cannot pass the rule.
+    """
+    visible_values = np.where(around_visible, values, np.nan)
+    floor = np.full(len(values), np.nan)
+    for junction_index in range(len(values)):
+        window_start = max(junction_index - half_window, 0)
+        window_end = min(junction_index + half_window + 1, len(values))
+        window = visible_values[window_start:window_end]
+        if np.isfinite(window).any():
+            floor[junction_index] = np.nanmedian(window)
+    return floor
+
+
+def impulse_cell_candidates(
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+) -> list[tuple[int, float]]:
+    """Find raw impulse candidates and retain their impulse for suppression.
+
+    The measured rule is pure impulse. It uses the three-frame visibility mask,
+    a rolling impulse floor, and largest-impulse-first de-duplication at the
+    three-frame boundary used at 25 fps.
+    """
+    span = track[start:end]
+    impulses = span_impulses(track, start, end, thresholds)
+    if impulses is None:
+        return []
+
+    around_visible = (
+        (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
+    )
+    floors = rolling_floor(impulses, around_visible)
+    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > CONTACT_IMPULSE_MULTIPLE
+    is_contact = impulse_pass & around_visible
+
+    candidate_local = np.flatnonzero(is_contact) + 1
+    candidate_impulses = impulses[is_contact]
+    kept: list[tuple[int, float]] = []
+    for candidate_index in np.argsort(-candidate_impulses):
+        local_frame = int(candidate_local[candidate_index])
+        if all(
+            abs(local_frame - other_frame) >= CONTACT_DEDUP_RADIUS_FRAMES
+            for other_frame, _other_impulse in kept
+        ):
+            kept.append((local_frame, float(candidate_impulses[candidate_index])))
+    kept.sort()
+    return [(start + local_frame, impulse) for local_frame, impulse in kept]
+
+
+def detect_contact_flags(
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+) -> list[tuple[int, float]]:
+    """Independently invoke the raw contact finder and retain ``(frame, impulse)`` flags."""
+    return impulse_cell_candidates(track, start, end, thresholds)
+
+
 def detect_contacts(
     track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
 ) -> list[int]:
-    """Contact frames inside one rally span, from smoothed-velocity reversals.
+    """Raw contact frames from the measured impulse rule, in ascending order.
 
-    Smooth `(x, y)` over SMOOTH_WINDOW to survive TrackNetV3 jitter, take the
-    per-frame velocity vectors, and flag a junction where the incoming and
-    outgoing velocity turn by more than MIN_DIR_CHANGE_DEG with both segment
-    speeds above MIN_CONTACT_SPEED and the three frames around the reversal all
-    visible. A real contact often trips several adjacent junctions once
-    smoothed; de-dup keeps the sharpest-angle junction and drops any other
-    within SMOOTH_WINDOW frames of it (the spec is silent on de-dup: the true
-    contact vertex carries the largest reversal, so sharpest-angle-wins).
-
-    :param track: `(t, 3)` whole-video track.
-    :param start: rally span start frame (inclusive).
-    :param end: rally span end frame (exclusive).
-    :param thresholds: a preset to read smooth_window / min_dir_change_deg / min_contact_speed
-        from; None reads the module globals (the default path; the sweep monkey-patches this
-        whole function under nan-smoothing, so its three-arg call stays intact).
-    :return: contact frames in whole-video frame indices, ascending.
+    The three-frame-smoothed track and replay mask are unchanged from the old
+    detector. The old angle and segment-speed conjunction is not part of this
+    path. Use ``detect_contact_flags`` when suppression needs the impulse value.
     """
-    smooth_window = SMOOTH_WINDOW if thresholds is None else thresholds.smooth_window
-    min_dir_change_deg = MIN_DIR_CHANGE_DEG if thresholds is None else thresholds.min_dir_change_deg
-    min_contact_speed = MIN_CONTACT_SPEED if thresholds is None else thresholds.min_contact_speed
-
-    span = track[start:end]  # (n, 3) rally-local view
-    if len(span) < smooth_window + 2:
-        return []  # too short to smooth and difference twice
-
-    # Invisible frames carry zero-filled (0, 0) xy, so windows straddling a
-    # visibility gap average the corner in and can seed reversal candidates at
-    # gap edges. Measured on the pilot (sweep --nan-smoothing arm, 2026-07-08):
-    # NaN-masking removes ~73% of near-gap candidates and +4% relative precision
-    # at +/-5, but costs 1.1 recall points there (gaps often start AT a fast
-    # contact, so some gap-edge candidates are the only match for it). Left
-    # as-is under the recall-first ruling; revisit if the precision stage moves.
-    smooth_x = _rolling_mean(span[:, 0], smooth_window)  # (n,)
-    smooth_y = _rolling_mean(span[:, 1], smooth_window)  # (n,)
-    smoothed = np.column_stack([smooth_x, smooth_y])  # (n, 2)
-    visibility = span[:, 2]  # (n,)
-
-    velocity = np.diff(smoothed, axis=0)  # (n-1, 2) segment j spans local frames j -> j+1
-    v_in = velocity[:-1]  # (n-2, 2) segment into junction k+1
-    v_out = velocity[1:]  # (n-2, 2) segment out of junction k+1
-    speed_in = np.linalg.norm(v_in, axis=1)  # (n-2,)
-    speed_out = np.linalg.norm(v_out, axis=1)  # (n-2,)
-
-    # Angle between incoming and outgoing velocity at each interior junction.
-    # Guard the zero-speed denominator so a stalled segment reads as no turn.
-    denom = speed_in * speed_out
-    safe = denom > 0
-    cos_angle = np.ones(len(denom))  # (n-2,) default 1.0 -> 0 deg where unsafe
-    cos_angle[safe] = np.sum(v_in[safe] * v_out[safe], axis=1) / denom[safe]
-    angle_deg = np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0)))  # (n-2,)
-
-    # All per-junction arrays share index k in [0, n-3]; junction k sits at
-    # local frame k+1, touching local frames k, k+1, k+2.
-    around_visible = (visibility[:-2] == 1) & (visibility[1:-1] == 1) & (visibility[2:] == 1)
-    sharp_turn = angle_deg > min_dir_change_deg
-    fast_enough = (speed_in > min_contact_speed) & (speed_out > min_contact_speed)
-    is_contact = sharp_turn & fast_enough & around_visible
-
-    candidate_local = np.flatnonzero(is_contact) + 1  # local frame of each candidate
-    candidate_angle = angle_deg[is_contact]
-
-    kept: list[int] = []
-    for idx in np.argsort(-candidate_angle):  # sharpest angle first
-        frame = int(candidate_local[idx])
-        if all(abs(frame - other) >= smooth_window for other in kept):
-            kept.append(frame)
-    kept.sort()
-    return [start + frame for frame in kept]
+    return [frame for frame, _impulse in detect_contact_flags(track, start, end, thresholds)]
 
 
 def contact_proximity_ok(
@@ -955,70 +987,72 @@ def contact_proximity_ok(
     return bool(np.nanmin(distances) <= PROXIMITY_MAX)
 
 
-# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Ankles are
-# unused here; stage 10's landing-filter kinematics reads them alongside the wrists.
+# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Defined
+# here because stage 8 owns the pose-array conventions; point_winner reads them for
+# attribution and landing kinematics.
 WRIST_L, WRIST_R = 9, 10
 ANKLE_L, ANKLE_R = 15, 16
 
 
-def build_wrist_shuttle_dist(
-    track: np.ndarray, kps: np.ndarray, ndet: np.ndarray, resolution: tuple[float, float],
-) -> np.ndarray:
-    """Per-frame smallest normalised gap from the shuttle to any player's wrist.
+def body_unit_dist_at_frame(
+    frame: int, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
+    court_box: CourtBox, width: float, height: float,
+) -> float:
+    """Body-unit shuttle-to-nearest-wrist gap at one frame, or NaN.
 
-    The contact wrist check's input, precomputed once by the caller (like the serve-start
-    builders precompute their `(t,)` arrays). For every frame where the shuttle is visible,
-    take the frame's real detections' wrists, divide by the same resolution that normalised
-    the shuttle track so both sit in the [0, 1] image space, and record the smallest L2 gap to
-    any wrist. NaN where the shuttle is invisible, no player is detected, or every wrist is NaN.
-
-    The arithmetic is the scoping script's `min_wrist_distance`
-    (scripts/wrist_contact_separation.py) promoted into the pipeline: identical per-frame gap,
-    so the array reproduces the item-7 separation the wrist gate was tuned on.
-
-    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track (built UNMASKED;
-        contact frames are visible, so masking never moves a measured value).
-    :param kps: `(t, n_max, 17, 2)` pixel keypoints, NaN-padded past the per-frame ndet.
-    :param ndet: `(t,)` per-frame detection count.
-    :param resolution: `(width, height)` the shuttle xy and the wrist pixels normalise by.
-    :return: `(t,)` float; NaN where undefined (invisible shuttle / no detection / all wrists NaN).
+    This is the gate wrapper around point-winner's own body-unit machinery.
+    Keeping the wrapper here lets the contact chain invoke the measured stage
+    without copying its box-window association or slot recovery.
     """
-    n_frames = len(track)
-    resolution_xy = np.array(resolution)
-    dist = np.full(n_frames, np.nan)
-    for frame in np.flatnonzero(track[:, 2] == 1):
-        n = int(ndet[frame])
-        if n == 0:
-            continue  # no player detected: nothing to measure against, stays NaN
-        wrists_norm = kps[frame, :n][:, (WRIST_L, WRIST_R), :] / resolution_xy  # (n, 2, 2)
-        gaps = np.linalg.norm(wrists_norm - track[frame, :2], axis=-1)  # (n, 2) per detection per wrist
-        if np.all(np.isnan(gaps)):
-            continue  # every wrist NaN (undetected joints): unmeasured, stays NaN
-        dist[frame] = float(np.nanmin(gaps))
-    return dist
+    if track[frame, 2] != 1:
+        return float('nan')
+    x1, y1, x2, y2, candidate_scores = court_scale_boxes(
+        bboxes[frame], scores[frame], court_box)
+    if len(x1) == 0:
+        return float('nan')
+
+    from . import point_winner
+
+    frame_scores = scores[frame]
+    candidate_slots = [int(np.flatnonzero(frame_scores == score)[0]) for score in candidate_scores]
+    gaps = point_winner._body_unit_gaps(  # noqa: SLF001 — shared measured machinery
+        frame, x1, y1, x2, y2, candidate_slots, bboxes, scores, kps, court_box,
+        track, width, height,
+    )
+    finite_gaps = gaps[np.isfinite(gaps)]
+    return float(finite_gaps.min()) if len(finite_gaps) else float('nan')
 
 
-def wrist_contact_near(wrist_dist: np.ndarray | None, contact_frame: int) -> bool | None:
-    """The wrist gate on one contact: was a player's wrist near the shuttle at the turn?
+def wrist_contact_near(body_unit_dist: np.ndarray | None, contact_frame: int) -> bool | None:
+    """The single-frame body-unit wrist gate on one contact, in player-box-height units.
 
-    Mirrors `contact_proximity_ok`'s three-way verdict. When no wrist distances were supplied
-    the gate is unmeasured, which returns None (serialised blank downstream): a gate with no
-    evidence must not read as a pass. When they were supplied but the frame's value is NaN (no
-    player detected, or every wrist undetected) the gate is measured-but-unconfirmed, so it
-    fails closed to False. Otherwise it passes when the gap is within WRIST_SHUTTLE_MAX.
-
-    :param wrist_dist: `(t,)` per-frame shuttle-to-nearest-wrist gap (build_wrist_shuttle_dist),
-        or None when no pose was supplied.
-    :param contact_frame: whole-video frame index of the contact.
-    :return: True (wrist near, keep) / False (no wrist near) when measured, None when unmeasured.
+    Mirrors `contact_proximity_ok`'s three-way verdict. None distances mean the gate never
+    ran (no body-unit or pose/court inputs), which returns None (serialised blank
+    downstream): raw candidates stand, per the recall-first convention. A NaN frame is
+    measured-but-unconfirmed and fails closed to False, the measured arm's behaviour.
     """
-    if wrist_dist is None:
+    if body_unit_dist is None:
         return None
-    dist = wrist_dist[contact_frame]
-    if np.isnan(dist):
-        # Pose supplied but no measurable wrist at this frame: measured, unconfirmed.
-        return False
-    return bool(dist <= WRIST_SHUTTLE_MAX)
+    distance = body_unit_dist[contact_frame]
+    return bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
+
+
+def suppress_contact_flags(
+    flags: list[tuple[int, float]],
+    radius: int = CONTACT_SUPPRESSION_RADIUS_FRAMES,
+) -> list[int]:
+    """Greedy argmax suppression over ``(frame, impulse)`` flags.
+
+    Flags are ranked by descending impulse and then ascending frame. A flag is
+    accepted only when it is at least ``radius`` frames from every accepted flag.
+    The default radius is nine frames at 25 fps.
+    """
+    ordered = sorted(flags, key=lambda flag: (-flag[1], flag[0]))
+    accepted: list[int] = []
+    for frame, _impulse in ordered:
+        if all(abs(frame - other) >= radius for other in accepted):
+            accepted.append(frame)
+    return sorted(accepted)
 
 
 def segment_video(
@@ -1027,7 +1061,12 @@ def segment_video(
     serve_start: ServeStartOptions | None = None,
     span_open: SpanOpen | None = None,
     replay_mask: np.ndarray | None = None,
-    wrist_dist: np.ndarray | None = None,
+    body_unit_dist: np.ndarray | None = None,
+    pose_bboxes: np.ndarray | None = None,
+    pose_scores: np.ndarray | None = None,
+    pose_kps: np.ndarray | None = None,
+    court_box: CourtBox | None = None,
+    resolution: tuple[float, float] = (1920.0, 1080.0),
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None, bool | None]]]:
     """Full stage-8 pass over one video's shuttle track.
 
@@ -1050,16 +1089,20 @@ def segment_video(
         `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).
     :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
         `apply_replay_mask` before speed is computed, or None.
-    :param wrist_dist: optional `(t,)` shuttle-to-nearest-wrist gap (build_wrist_shuttle_dist)
-        for the contact wrist check; None (the default) leaves every contact's `wrist_near`
-        blank, exactly as `positions=None` leaves `proximity_ok` blank.
+    :param body_unit_dist: optional `(t,)` body-unit shuttle-to-nearest-wrist gaps. NaN fails
+        closed. If absent, all four pose inputs must be supplied for the gate to run.
+    :param pose_bboxes: `(t, n, 4)` pose boxes for the body-unit gate.
+    :param pose_scores: `(t, n)` pose scores aligned to `pose_bboxes`.
+    :param pose_kps: `(t, n, 17, 2)` pose keypoints aligned to `pose_bboxes`.
+    :param court_box: court-scale box filter geometry used by point-winner's body-unit machinery.
+    :param resolution: `(width, height)` of the track and pose pixels.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
         `[(rally_id, contact_frame, proximity_ok, wrist_near), ...]`. Every detected candidate
-        is a row (the RAW set, kept for recall-first uses); `wrist_near` is the filter verdict
-        (True = a wrist was near the shuttle at the turn). The FILTERED set downstream consumers
-        default to is the rows with `wrist_near` True; a blank `wrist_near` (no `wrist_dist`
-        supplied) means the filter never ran, so every raw candidate stands.
+        is a row (the RAW set, kept for recall-first uses); `wrist_near` is the final gate-plus-
+        suppression verdict. The FILTERED set downstream consumers default to is the rows with
+        `wrist_near` True; a blank `wrist_near` (no gate inputs supplied) means the gate never
+        ran, so every raw candidate stands.
     """
     if serve_start is not None and span_open is SpanOpen.REGION_START:
         raise ValueError(
@@ -1073,6 +1116,7 @@ def segment_video(
             'BACK_FILL emits one span per qualifying region at region_start, so there is nothing '
             'to split. Drop the split close, or use it without BACK_FILL.'
         )
+    gate_track = track
     if replay_mask is not None:
         track = apply_replay_mask(track, replay_mask)
 
@@ -1094,14 +1138,51 @@ def segment_video(
     else:
         spans = _find_rally_spans(speed, at_rest, thresholds)
 
-    contacts: list[tuple[int, int, bool | None, bool | None]] = []
+    raw_flags: list[tuple[int, int, float]] = []
     for rally_id, (start, end) in enumerate(spans):
-        frames = (detect_contacts(track, start, end) if thresholds is None
-                  else detect_contacts(track, start, end, thresholds))
-        for contact_frame in frames:
-            proximity_ok = contact_proximity_ok(track, positions, contact_frame)
-            wrist_near = wrist_contact_near(wrist_dist, contact_frame)
-            contacts.append((rally_id, contact_frame, proximity_ok, wrist_near))
+        flags = detect_contact_flags(track, start, end, thresholds)
+        for contact_frame, impulse in flags:
+            raw_flags.append((rally_id, contact_frame, impulse))
+
+    if body_unit_dist is not None and any(
+        value is not None for value in (pose_bboxes, pose_scores, pose_kps, court_box)
+    ):
+        raise ValueError('body_unit_dist cannot be combined with pose gate inputs')
+    pose_inputs_present = (pose_bboxes, pose_scores, pose_kps, court_box)
+    if body_unit_dist is None and any(value is not None for value in pose_inputs_present):
+        if not all(value is not None for value in pose_inputs_present):
+            raise ValueError('pose_bboxes, pose_scores, pose_kps, and court_box are all required')
+
+    gate_ran = body_unit_dist is not None or all(
+        value is not None for value in pose_inputs_present)
+    if not gate_ran:
+        # Gate never ran: every wrist_near is None (serialised blank), raw candidates stand,
+        # and suppression is skipped, because the measured composition is defined over gate
+        # survivors. Mirrors how positions=None leaves proximity_ok blank.
+        return spans, [
+            (rally_id, contact_frame, contact_proximity_ok(track, positions, contact_frame), None)
+            for rally_id, contact_frame, _impulse in raw_flags
+        ]
+
+    gated_flags: list[tuple[int, float]] = []
+    for _rally_id, contact_frame, impulse in raw_flags:
+        if body_unit_dist is not None:
+            gate_passes = wrist_contact_near(body_unit_dist, contact_frame)
+        else:
+            width, height = resolution
+            distance = body_unit_dist_at_frame(
+                contact_frame, gate_track, pose_bboxes, pose_scores, pose_kps, court_box,
+                width, height,
+            )
+            gate_passes = bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
+        if gate_passes:
+            gated_flags.append((contact_frame, impulse))
+
+    accepted_frames = set(suppress_contact_flags(gated_flags))
+    contacts: list[tuple[int, int, bool | None, bool | None]] = []
+    for rally_id, contact_frame, _impulse in raw_flags:
+        proximity_ok = contact_proximity_ok(track, positions, contact_frame)
+        contacts.append((rally_id, contact_frame, proximity_ok, contact_frame in accepted_frames))
     return spans, contacts
 
 
@@ -1151,47 +1232,6 @@ def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None
     return np.load(mask_path)
 
 
-def _load_resolution_map(resolution_csv: Path | None) -> dict[str, tuple[float, float]] | None:
-    """Map `<video_id> -> (width, height)` from the resolution CSV, or None when not given.
-
-    Keyed by the id as a string so it matches the track file stem directly. The wrist pixels
-    normalise by the same resolution the shuttle track did, so this is the SAME source the
-    shuttle extractor read.
-    """
-    if resolution_csv is None:
-        return None
-    with resolution_csv.open(newline='', encoding='utf-8') as handle:
-        return {
-            str(row['id']): (float(row['width']), float(row['height']))
-            for row in csv.DictReader(handle)
-        }
-
-
-def _load_wrist_dist(
-    pose_dir: Path | None, resolution_map: dict[str, tuple[float, float]] | None,
-    video_id: str, track: np.ndarray,
-) -> np.ndarray | None:
-    """Build the `<video_id>` shuttle-to-nearest-wrist array from its pose npys, or None.
-
-    Needs both the pose (`<video_id>_kps.npy` + `<video_id>_ndet.npy`) and a resolution entry;
-    any missing input leaves the wrist gate off for that video (`wrist_near` blank), exactly as a
-    missing positions/mask file leaves those columns off. kps is memory-mapped (it is large).
-    """
-    if pose_dir is None or resolution_map is None:
-        return None
-    kps_path = pose_dir / f'{video_id}_kps.npy'
-    ndet_path = pose_dir / f'{video_id}_ndet.npy'
-    if not (kps_path.exists() and ndet_path.exists()):
-        log.info('no pose for %s, wrist_near left blank', video_id)
-        return None
-    if video_id not in resolution_map:
-        log.info('no resolution for %s, wrist_near left blank', video_id)
-        return None
-    kps = np.load(kps_path, mmap_mode='r')
-    ndet = np.load(ndet_path)
-    return build_wrist_shuttle_dist(track, kps, ndet, resolution_map[video_id])
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
@@ -1201,12 +1241,6 @@ def main() -> None:
     parser.add_argument('--mask-dir', type=Path, default=None,
                         help='Optional directory of <video_id>_dead_mask.npy dead-time masks '
                              '(True = dead); a missing file runs that video unmasked')
-    parser.add_argument('--pose-dir', type=Path, default=None,
-                        help='Optional directory of <video_id>_kps.npy and <video_id>_ndet.npy '
-                             'pose arrays for the contact wrist check; needs --resolution-csv too')
-    parser.add_argument('--resolution-csv', type=Path, default=None,
-                        help='Optional id,width,height CSV (the shuttle-normalisation source); '
-                             'with --pose-dir it drives the wrist_near column, else it is blank')
     parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
                         help='which threshold preset to segment with (default: shipped)')
     parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
@@ -1223,8 +1257,10 @@ def main() -> None:
 
     thresholds = _THRESHOLD_PRESETS[args.thresholds]
     span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
-    resolution_map = _load_resolution_map(args.resolution_csv)
-
+    log.warning(
+        'contact gating will not run: the body-unit wrist gate needs pose and court inputs '
+        'this CLI does not yet plumb, so wrist_near is written blank and every raw candidate '
+        'stands (the old image-fraction gate is gone)')
     args.rally_spans_csv.parent.mkdir(parents=True, exist_ok=True)
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1236,10 +1272,9 @@ def main() -> None:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
-            wrist_dist = _load_wrist_dist(args.pose_dir, resolution_map, video_id, track)
             spans, contacts = segment_video(track, positions, thresholds=thresholds,
                                             span_open=span_open, replay_mask=replay_mask,
-                                            wrist_dist=wrist_dist)
+                                            )
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             log.warning('skipping %s: %s', video_id, exc)
             continue
@@ -1254,9 +1289,9 @@ def main() -> None:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
         writer.writerows(span_rows)
-    # wrist_near is the contact wrist-check verdict: True = keep, blank = filter not run (no pose).
-    # Every detected candidate is written (the RAW set); downstream defaults to the wrist_near-True
-    # rows (the FILTERED set), so nothing recall-first loses its input.
+    # wrist_near is the final body-unit-gate plus suppression verdict; from this CLI it is
+    # always blank (gate inputs not plumbed here yet), so every raw candidate stands. Every
+    # detected candidate is written (the RAW set), so nothing recall-first loses its input.
     with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near'])

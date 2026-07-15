@@ -184,7 +184,6 @@ PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrai
 # 0.125 is the item-7 pilot operating point (pilot_results/item7/wrist_separation.csv,
 # dist_image_norm): keeps ~90% of real contacts (0.898) and drops ~78% of the false ones (0.782).
 # Promoted from the scoping script scripts/wrist_contact_separation.py (measured at e48889e).
-WRIST_SHUTTLE_MAX = 0.125  # normalised image-fraction; contact wrist-proximity gate
 
 
 class Stage8Thresholds(NamedTuple):

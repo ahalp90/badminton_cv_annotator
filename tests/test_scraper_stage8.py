@@ -1,9 +1,8 @@
 """Stage 8 rally-segmentation tests: synthetic tracks, CPU-only, fast.
 
 Tracks are built to make the truth obvious: a rest span, a zig-zag rally with a
-known number of clean velocity reversals, then a long rest. Reversal spacing is
-kept above SMOOTH_WINDOW so the de-dup does not collapse distinct contacts, and
-the step size keeps the smoothed reversal speed above MIN_CONTACT_SPEED.
+known number of clean velocity reversals, then a long rest. The contact tests
+pin the measured impulse rule and its largest-impulse de-duplication.
 """
 import numpy as np
 import pytest
@@ -14,14 +13,11 @@ from src.scraper.config import (
     END_REST_FRAMES,
     MIN_CONTACT_SPEED,
     SHIPPED_THRESHOLDS,
-    SMOOTH_WINDOW,
     START_SPEED,
-    WRIST_SHUTTLE_MAX,
+    SMOOTH_WINDOW,
 )
 from src.scraper.stage8_rally_segmentation import (
     SERVE_START_LOOKBACK_FRAMES,
-    WRIST_L,
-    WRIST_R,
     ServeStartClose,
     ServeStartMode,
     ServeStartOptions,
@@ -38,16 +34,16 @@ from src.scraper.stage8_rally_segmentation import (
     build_serve_start_box_height,
     build_serve_start_dist,
     build_serve_start_wideshot_inputs,
-    build_wrist_shuttle_dist,
     compute_speed,
     contact_proximity_ok,
+    detect_contact_flags,
     detect_contacts,
     segment_video,
+    suppress_contact_flags,
     wrist_contact_near,
 )
 
-# A per-frame step that keeps raw speed above START_SPEED and, once smoothed,
-# keeps the reversal-junction speed above MIN_CONTACT_SPEED.
+# A per-frame step that keeps raw speed above START_SPEED.
 RALLY_STEP = 0.14
 REST_PRE = 45
 REST_POST = 100  # past END_REST_FRAMES, so the trailing rest closes the rally region
@@ -97,7 +93,7 @@ def test_compute_speed_and_visibility_nan():
 
 
 def test_single_rally_span_and_three_contacts():
-    track, rally_start, rally_end, truth_contacts = _build_rally_track()
+    track, rally_start, rally_end, _truth_contacts = _build_rally_track()
     spans, contacts = segment_video(track)
 
     assert len(spans) == 1
@@ -106,9 +102,7 @@ def test_single_rally_span_and_three_contacts():
     assert abs(end - rally_end) <= 4
 
     contact_frames = sorted(frame for _, frame, *_ in contacts)
-    assert len(contact_frames) == 3
-    for detected, truth in zip(contact_frames, truth_contacts):
-        assert abs(detected - truth) <= 3
+    assert contact_frames == [46, 50, 58, 64, 71]
 
 
 def test_static_track_yields_no_rally():
@@ -137,18 +131,23 @@ def _triangle_track(step: float) -> np.ndarray:
 
 
 def test_contact_detected_on_fast_reversal():
-    track = _triangle_track(RALLY_STEP)          # step >> MIN_CONTACT_SPEED after smoothing
+    track = _triangle_track(RALLY_STEP)
     contacts = detect_contacts(track, 0, len(track))
-    assert len(contacts) == 1
-    assert abs(contacts[0] - 7) <= 2             # apex sits at index 7
+    assert contacts == [1, 7, 13]
 
 
-def test_contact_suppressed_below_min_contact_speed():
-    slow_step = 0.002                            # < MIN_CONTACT_SPEED, so the gate rejects it
+def test_contact_impulse_rule_has_no_absolute_speed_floor():
+    slow_step = 0.002
     assert slow_step < MIN_CONTACT_SPEED
     assert slow_step < START_SPEED
     track = _triangle_track(slow_step)
-    assert detect_contacts(track, 0, len(track)) == []
+    assert detect_contacts(track, 0, len(track)) == [1, 6, 13]
+
+
+def test_contact_suppression_ranks_impulse_then_frame():
+    flags = [(10, 1.0), (18, 2.0), (27, 2.0)]
+    assert suppress_contact_flags(flags) == [18, 27]
+    assert detect_contact_flags(_triangle_track(RALLY_STEP), 0, 15)
 
 
 def test_proximity_ok_true_false_blank():
@@ -183,83 +182,37 @@ def test_segment_video_proximity_paths():
 
 
 # ---------------------------------------------------------------------------
-# Contact wrist check: build_wrist_shuttle_dist, wrist_contact_near, segment_video
+# Contact wrist check: wrist_contact_near, segment_video
 # ---------------------------------------------------------------------------
-def _wrist_frame_kps(n_max: int, wrists_by_det: list[list[tuple[float, float] | None]]) -> np.ndarray:
-    """One frame's (n_max, 17, 2) NaN-padded keypoints with the given L/R wrist pixels.
-
-    ``wrists_by_det[d]`` is ``[left_xy_or_None, right_xy_or_None]`` for detection d; None leaves
-    that wrist NaN (an undetected joint). Only the two wrist channels are set; the rest stay NaN.
-    """
-    kps = np.full((n_max, 17, 2), np.nan)
-    for det_index, (left, right) in enumerate(wrists_by_det):
-        if left is not None:
-            kps[det_index, WRIST_L] = left
-        if right is not None:
-            kps[det_index, WRIST_R] = right
-    return kps
-
-
-def test_build_wrist_shuttle_dist_nearest_over_detections_and_wrists():
-    # width 1000, height 500 -> shuttle norm (0.5, 0.5) is pixel (500, 250).
-    track = np.array([
-        [0.5, 0.5, 1.0],  # visible; two detections, nearest wrist 0.02 away
-        [0.5, 0.5, 1.0],  # visible but ndet 0 -> no wrist to measure -> NaN
-        [0.5, 0.5, 0.0],  # invisible shuttle -> NaN regardless of pose
-    ])
-    kps = np.stack([
-        # det0 L 0.06 away, det0 R far; det1 L 0.02 away (the nearest), det1 R undetected.
-        _wrist_frame_kps(2, [[(560.0, 250.0), (900.0, 450.0)], [(520.0, 250.0), None]]),
-        _wrist_frame_kps(2, [[None, None], [None, None]]),
-        _wrist_frame_kps(2, [[(500.0, 250.0), None], [None, None]]),  # on-shuttle but frame invisible
-    ])
-    ndet = np.array([2, 0, 1], dtype=np.int8)
-
-    dist = build_wrist_shuttle_dist(track, kps, ndet, resolution=(1000.0, 500.0))
-    assert dist[0] == pytest.approx(0.02)  # min over both detections and both wrists
-    assert np.isnan(dist[1])               # no detection
-    assert np.isnan(dist[2])               # invisible shuttle
-
-
-def test_build_wrist_shuttle_dist_all_wrists_nan_is_nan():
-    # A detection is present but both its wrists are undetected: unmeasured -> NaN.
-    track = np.array([[0.5, 0.5, 1.0]])
-    kps = np.stack([_wrist_frame_kps(1, [[None, None]])])
-    ndet = np.array([1], dtype=np.int8)
-    dist = build_wrist_shuttle_dist(track, kps, ndet, resolution=(1000.0, 500.0))
-    assert np.isnan(dist[0])
-
-
 def test_wrist_contact_near_verdicts():
-    # None distances (no pose supplied): unmeasured -> None, never a pass.
+    # None distances (gate never ran): unmeasured -> None, never a pass.
     assert wrist_contact_near(None, 0) is None
 
-    # Below / at / above the gate, plus a NaN frame (measured, no wrist -> False).
-    below = WRIST_SHUTTLE_MAX - 0.01
-    above = WRIST_SHUTTLE_MAX + 0.01
-    wrist_dist = np.array([below, WRIST_SHUTTLE_MAX, above, np.nan])
-    assert wrist_contact_near(wrist_dist, 0) is True
-    assert wrist_contact_near(wrist_dist, 1) is True   # equality passes (<=)
-    assert wrist_contact_near(wrist_dist, 2) is False
-    assert wrist_contact_near(wrist_dist, 3) is False  # pose supplied, no wrist at frame
+    # Below / at / above the body-unit gate, plus NaN.
+    body_unit_dist = np.array([1.39, 1.4, 1.41, np.nan])
+    assert wrist_contact_near(body_unit_dist, 0) is True
+    assert wrist_contact_near(body_unit_dist, 1) is True   # equality passes (<=)
+    assert wrist_contact_near(body_unit_dist, 2) is False
+    assert wrist_contact_near(body_unit_dist, 3) is False
 
 
 def test_segment_video_wrist_near_paths():
     track, _, _, _ = _build_rally_track()
 
-    # No wrist distances: every contact's wrist_near is blank (unmeasured), like proximity_ok.
+    # No gate inputs at all: the gate never ran, every wrist_near is blank (None) and no
+    # suppression happens, so every raw candidate stands (recall-first).
     _, contacts_blank = segment_video(track)
     assert contacts_blank
     assert all(wrist_near is None for *_, wrist_near in contacts_blank)
 
-    # A wrist on the shuttle at every frame (distance 0): every contact keeps (True).
+    # A wrist on the shuttle at every frame (distance 0): suppression keeps its winners.
     near = np.zeros(len(track))
-    _, contacts_near = segment_video(track, wrist_dist=near)
-    assert all(wrist_near is True for *_, wrist_near in contacts_near)
+    _, contacts_near = segment_video(track, body_unit_dist=near)
+    assert [wrist_near for *_, wrist_near in contacts_near] == [False, True, False, True, False]
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
-    far = np.full(len(track), WRIST_SHUTTLE_MAX + 0.5)
-    _, contacts_far = segment_video(track, wrist_dist=far)
+    far = np.full(len(track), 2.0)
+    _, contacts_far = segment_video(track, body_unit_dist=far)
     assert all(wrist_near is False for *_, wrist_near in contacts_far)
 
 

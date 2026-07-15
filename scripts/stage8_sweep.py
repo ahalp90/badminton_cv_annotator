@@ -72,6 +72,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 import scraper.stage8_rally_segmentation as stage8_module  # noqa: E402  — needs the src path above
+from scraper.config import MIN_CONTACT_SPEED, MIN_DIR_CHANGE_DEG  # noqa: E402  — old-rule knobs, config keeps them for this sweep's grid
 
 from scraper.stage8_rally_segmentation import (  # noqa: E402  — moved stage-8 machinery, now first-class
     SERVE_START_LOOKBACK_FRAMES,
@@ -117,7 +118,10 @@ class Stage8Params(NamedTuple):
 
 
 # Field -> the UPPER_CASE global the stage-8 module reads. Single source for both
-# the patch loop and the CSV param columns, so the two never drift.
+# the patch loop and the CSV param columns, so the two never drift. The two contact
+# knobs are inert since the impulse rule replaced the angle/speed conjunction: the
+# patch loop still sets them on the module, but the promoted detector never reads
+# them (pinned by test_plumbing_two_configs_end_to_end's strict-speed row).
 PARAM_TO_MODULE_ATTR = {
     'rest_speed': 'REST_SPEED',
     'rest_window': 'REST_WINDOW',
@@ -138,8 +142,8 @@ SHIPPED_DEFAULTS = Stage8Params(
     start_speed=stage8_module.START_SPEED,
     start_min_frames=stage8_module.START_MIN_FRAMES,
     smooth_window=stage8_module.SMOOTH_WINDOW,
-    min_dir_change_deg=stage8_module.MIN_DIR_CHANGE_DEG,
-    min_contact_speed=stage8_module.MIN_CONTACT_SPEED,
+    min_dir_change_deg=MIN_DIR_CHANGE_DEG,
+    min_contact_speed=MIN_CONTACT_SPEED,
 )
 
 LABEL_GRID = 'grid'

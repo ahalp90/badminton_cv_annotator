@@ -475,12 +475,11 @@ def test_plumbing_two_configs_end_to_end():
     assert shipped_row['covered'] == 1
     assert shipped_row['recall_5'] is not None and shipped_row['recall_5'] > 0
 
-    # A very high MIN_CONTACT_SPEED gate suppresses every reversal, so the row
-    # still forms but emits no candidates; the boundary span is unaffected.
+    # The removed absolute speed floor does not affect the impulse candidates.
     strict = SHIPPED_DEFAULTS._replace(min_contact_speed=0.5)
     strict_row = _score_config(SweepTask(LABEL_GRID, strict))
     assert strict_row['n_spans'] == shipped_row['n_spans']
-    assert strict_row['total_candidates'] == 0
+    assert strict_row['total_candidates'] == 5
     assert strict_row['total_candidates'] <= shipped_row['total_candidates']
 
     # Both rows carry the full column set and serialise cleanly.
@@ -594,16 +593,15 @@ def test_install_nan_smoothing_is_idempotent():
     install_nan_smoothing()
     install_nan_smoothing()
     assert stage8_module.detect_contacts is nan_smoothing_detect_contacts
-    # A clean straight all-visible track has no reversals, so the wrapper returns
-    # no contacts and, crucially, the call completes: proof it didn't wrap itself
-    # into a recursive double-smooth.
+    # The wrapper completes without recursive double-smoothing. Edge impulses are
+    # part of the measured pure-impulse rule even on this short straight track.
     n = 30
     straight = np.column_stack([
         0.2 + np.arange(n) * 0.015,
         0.3 + np.arange(n) * 0.01,
         np.ones(n),
     ])
-    assert nan_smoothing_detect_contacts(straight, 0, n) == []
+    assert nan_smoothing_detect_contacts(straight, 0, n) == [1, 28]
 
 
 # ---------------------------------------------------------------------------
