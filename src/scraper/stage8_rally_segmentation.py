@@ -1570,9 +1570,9 @@ def main() -> None:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
         writer.writerows(span_rows)
-    # wrist_near is the final body-unit-gate plus suppression verdict; from this CLI it is
-    # always blank (gate inputs not plumbed here yet), so every raw candidate stands. Every
-    # detected candidate is written (the RAW set), so nothing recall-first loses its input.
+    # wrist_near is the final body-unit-gate plus suppression verdict; blank when a video ran
+    # without gate inputs (the gate never ran), so its raw candidates stand. Every detected
+    # candidate is written (the RAW set), so nothing recall-first loses its input.
     with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near'])
