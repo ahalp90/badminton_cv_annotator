@@ -452,6 +452,25 @@ def court_scale_boxes(
     :param court_box: the court geometry to filter against.
     :return: (x1, y1, x2, y2, scores) filtered to the court-scale detections, each (k,).
     """
+    slots = court_scale_slots(frame_bboxes, frame_scores, court_box)
+    x1, y1, x2, y2 = frame_bboxes[slots].T  # each (k,) pixels
+    return x1, y1, x2, y2, frame_scores[slots]
+
+
+def court_scale_slots(
+    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
+) -> np.ndarray:
+    """Original pose-slot indices of the court-scale detections, ascending.
+
+    The filter's mask logic lives here once. Callers that need the detections'
+    identities (the contact gate) take slots directly; a score-equality lookup
+    can alias two detections that share a score.
+
+    :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
+    :param frame_scores: (16,) detection scores, NaN on padding slots.
+    :param court_box: the court geometry to filter against.
+    :return: (k,) int slot indices into the frame's pose arrays.
+    """
     valid = np.isfinite(frame_scores)
     x1, y1, x2, y2 = frame_bboxes[valid].T  # each (m,) pixels
     foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
@@ -461,9 +480,7 @@ def court_scale_boxes(
     height_lo, height_hi = court_box.height_band
     in_court = (x_lo <= foot_x) & (foot_x <= x_hi) & (y_lo <= y2) & (y2 <= y_hi)
     in_scale = (height_lo <= box_height) & (box_height <= height_hi)
-    court_scale = in_court & in_scale
-    return (x1[court_scale], y1[court_scale], x2[court_scale], y2[court_scale],
-            frame_scores[valid][court_scale])
+    return np.flatnonzero(valid)[in_court & in_scale]
 
 
 def _build_serve_start_metrics(
@@ -932,7 +949,10 @@ def impulse_cell_candidates(
     candidate_local = np.flatnonzero(is_contact) + 1
     candidate_impulses = impulses[is_contact]
     kept: list[tuple[int, float]] = []
-    for candidate_index in np.argsort(-candidate_impulses):
+    # Stable sort: equal impulses keep the earlier frame, matching suppression's
+    # (-impulse, frame) ordering. Exact ties occur in real data (the pilot has one),
+    # so an unstable sort here is a platform-dependent output.
+    for candidate_index in np.argsort(-candidate_impulses, kind='stable'):
         local_frame = int(candidate_local[candidate_index])
         if all(
             abs(local_frame - other_frame) >= CONTACT_DEDUP_RADIUS_FRAMES
@@ -1006,18 +1026,16 @@ def body_unit_dist_at_frame(
     """
     if track[frame, 2] != 1:
         return float('nan')
-    x1, y1, x2, y2, candidate_scores = court_scale_boxes(
-        bboxes[frame], scores[frame], court_box)
-    if len(x1) == 0:
+    candidate_slots = court_scale_slots(bboxes[frame], scores[frame], court_box)
+    if len(candidate_slots) == 0:
         return float('nan')
 
     from . import point_winner
 
-    frame_scores = scores[frame]
-    candidate_slots = [int(np.flatnonzero(frame_scores == score)[0]) for score in candidate_scores]
+    x1, y1, x2, y2 = bboxes[frame, candidate_slots].T
     gaps = point_winner._body_unit_gaps(  # noqa: SLF001 — shared measured machinery
-        frame, x1, y1, x2, y2, candidate_slots, bboxes, scores, kps, court_box,
-        track, width, height,
+        frame, x1, y1, x2, y2, [int(slot) for slot in candidate_slots], bboxes, scores, kps,
+        court_box, track, width, height,
     )
     finite_gaps = gaps[np.isfinite(gaps)]
     return float(finite_gaps.min()) if len(finite_gaps) else float('nan')

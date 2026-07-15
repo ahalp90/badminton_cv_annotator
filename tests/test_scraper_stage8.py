@@ -18,6 +18,7 @@ from src.scraper.config import (
 )
 from src.scraper.stage8_rally_segmentation import (
     SERVE_START_LOOKBACK_FRAMES,
+    CourtBox,
     ServeStartClose,
     ServeStartMode,
     ServeStartOptions,
@@ -36,6 +37,7 @@ from src.scraper.stage8_rally_segmentation import (
     build_serve_start_wideshot_inputs,
     compute_speed,
     contact_proximity_ok,
+    court_scale_slots,
     detect_contact_flags,
     detect_contacts,
     segment_video,
@@ -102,7 +104,9 @@ def test_single_rally_span_and_three_contacts():
     assert abs(end - rally_end) <= 4
 
     contact_frames = sorted(frame for _, frame, *_ in contacts)
-    assert contact_frames == [46, 50, 58, 64, 71]
+    # The zigzag's symmetric reversals produce exact impulse ties; the stable dedup
+    # keeps the earlier frame (57, was 58 under the unstable sort).
+    assert contact_frames == [46, 50, 57, 64, 71]
 
 
 def test_static_track_yields_no_rally():
@@ -182,8 +186,23 @@ def test_segment_video_proximity_paths():
 
 
 # ---------------------------------------------------------------------------
-# Contact wrist check: wrist_contact_near, segment_video
+# Contact wrist check: court_scale_slots, wrist_contact_near, segment_video
 # ---------------------------------------------------------------------------
+def test_court_scale_slots_keeps_identities_on_tied_scores():
+    # Two detections share a score and only the second sits inside the court bands.
+    # The old score-equality lookup returned the first's slot for the survivor, so
+    # the gate measured the wrong detection's wrists.
+    court_box = CourtBox(x_range=(0.0, 100.0), y_range=(0.0, 100.0),
+                         height_band=(10.0, 50.0), mid_band=(50.0, 50.0))
+    frame_bboxes = np.array([
+        [500.0, 500.0, 520.0, 540.0],  # slot 0: tied score, foot point far off court
+        [40.0, 40.0, 60.0, 80.0],  # slot 1: in court, court-scale height
+        [np.nan, np.nan, np.nan, np.nan],  # padding slot
+    ])
+    frame_scores = np.array([0.9, 0.9, np.nan])
+    assert court_scale_slots(frame_bboxes, frame_scores, court_box).tolist() == [1]
+
+
 def test_wrist_contact_near_verdicts():
     # None distances (gate never ran): unmeasured -> None, never a pass.
     assert wrist_contact_near(None, 0) is None
