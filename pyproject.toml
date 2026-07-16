@@ -139,6 +139,7 @@ exclude = [
     "src/bst_x/TrackNetV3/",
     "src/bric/perception/_vendor/",   # All vendored upstream code (currently TrackNetV3)
     "src/courtkeynet/_vendor/",       # Vendored CourtKeyNet (see src/courtkeynet/PROVENANCE.md)
+    "scripts/autoseg_trials/",        # Frozen s27-s29 trial-harness records, committed byte-identical, not restyled
 ]
 
 [tool.ruff.lint]
@@ -160,7 +161,7 @@ ignore = [
 # needs jaxtyping importable to resolve the shape annotations (not torch), so the CI install is light.
 [tool.pyrefly]
 project-includes = ["src", "scripts", "tests"]
-project-excludes = ["**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**"]
+project-excludes = ["**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**"]
 search-path = ["src"]
 preset = "off"
 
