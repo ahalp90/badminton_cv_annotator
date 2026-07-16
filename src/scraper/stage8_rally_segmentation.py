@@ -893,8 +893,9 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 # a junction was a contact when the direction changed by over 30 degrees AND both smoothed
 # segment speeds exceeded 0.005 (25 fps per-frame units), dedup sharpest-angle-first; the
 # wrist gate then kept contacts within 0.125 image-fractions of a wrist. End to end that read
-# 60.9% recall at 54.0% precision (+/-10 frames); the impulse chain below reads 82.4% at
-# 70.1%. If the impulse chain ever needs retiring, the measured simple fallback is
+# 60.9% recall at 54.0% precision (+/-10 frames); the impulse chain below reads 0.8296
+# recall at 0.7120 precision (re-earned sticky table, m4/r9, +/-10). If the impulse chain
+# ever needs retiring, the measured simple fallback is
 # OR(angle > 60 with speeds > 0.0035) plus the body-unit gate: 73.8% recall / 55.3% precision.
 def span_impulses(
     track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,

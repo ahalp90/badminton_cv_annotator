@@ -177,13 +177,6 @@ MIN_DIR_CHANGE_DEG = 30  # contact: smoothed-velocity direction change beyond th
 MIN_CONTACT_SPEED = 0.005  # with pre- and post-reversal speed above this
 END_REST_FRAMES = 90  # rally end: extended rest of at least this (~3 s)
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
-# Shuttle-to-nearest-wrist gate for the contact wrist check (segment_video wrist_dist).
-# A detected contact candidate counts only when the smallest normalised (image-fraction) gap
-# from the shuttle to any player's wrist at the contact frame is <= this. Image-fraction, not
-# court units: the wrist pixels divide by the same resolution that normalised the shuttle track.
-# 0.125 is the item-7 pilot operating point (pilot_results/item7/wrist_separation.csv,
-# dist_image_norm): keeps ~90% of real contacts (0.898) and drops ~78% of the false ones (0.782).
-# Promoted from the scoping script scripts/wrist_contact_separation.py (measured at e48889e).
 
 
 class Stage8Thresholds(NamedTuple):
