@@ -149,8 +149,11 @@ def test_contact_impulse_rule_has_no_absolute_speed_floor():
 
 
 def test_contact_suppression_ranks_impulse_then_frame():
+    # Radius pinned explicitly: this test is about the ranking rule, and the module default
+    # scales with the fps table (8 at the 25 fps surface under base-30, where this fixture
+    # would suppress nothing).
     flags = [(10, 1.0), (18, 2.0), (27, 2.0)]
-    assert suppress_contact_flags(flags) == [18, 27]
+    assert suppress_contact_flags(flags, radius=9) == [18, 27]
     assert detect_contact_flags(_triangle_track(RALLY_STEP), 0, 15)
 
 

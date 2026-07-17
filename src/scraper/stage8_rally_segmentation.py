@@ -77,8 +77,8 @@ log = logging.getLogger(__name__)
 # config: it is the numeric reading of "mostly", not a swept rule threshold.
 VISIBILITY_REST_FRAC = 0.5
 
-# Contact-chain constants are tuned at 25 fps. fps_constants.py stores their
-# base-30 expressions and performs the one-time conversion for explicit presets.
+# Contact-chain constants: the base-30 table in fps_constants.py scaled once
+# to the 25 fps surface these module defaults serve.
 IMPULSE_FLOOR_HALF_WINDOW_FRAMES = scale_for_fps(25.0).impulse_floor_half_window_frames
 CONTACT_DEDUP_RADIUS_FRAMES = scale_for_fps(25.0).contact_dedup_radius_frames
 CONTACT_IMPULSE_MULTIPLE = 4.0
@@ -88,7 +88,9 @@ CONTACT_SUPPRESSION_RADIUS_FRAMES = scale_for_fps(25.0).contact_suppression_radi
 
 
 def scale_thresholds(thresholds: Stage8Thresholds, fps: float) -> Stage8Thresholds:
-    """Scale a tuned-25 preset once; returned fields are final fps-specific values."""
+    """Replace a preset's fps-dependent fields from the base-30 table; the preset
+    contributes only its non-fps fields. Returned fields are final.
+    """
     values = scale_for_fps(fps)
     return thresholds._replace(
         rest_speed=values.rest_speed, rest_window=values.rest_window,
@@ -1089,7 +1091,7 @@ def suppress_contact_flags(
 
     Flags are ranked by descending impulse and then ascending frame. A flag is
     accepted only when it is at least ``radius`` frames from every accepted flag.
-    The default radius is nine frames at 25 fps.
+    The default radius is the base-30 nine, eight frames at the 25 fps surface.
     """
     ordered = sorted(flags, key=lambda flag: (-flag[1], flag[0]))
     accepted: list[int] = []
@@ -1567,7 +1569,7 @@ def main() -> None:
             elif args.fps_csv is not None and video_id in fps_by_id:
                 thresholds = scale_thresholds(declared_thresholds, fps_by_id[video_id])
             elif args.fps_csv is not None:
-                log.warning('%s: absent from fps CSV; using tuned-25 defaults', video_id)
+                log.warning('%s: absent from fps CSV; assuming 25 fps', video_id)
                 thresholds = scale_thresholds(declared_thresholds, 25.0)
             else:
                 thresholds = scale_thresholds(declared_thresholds, 25.0)

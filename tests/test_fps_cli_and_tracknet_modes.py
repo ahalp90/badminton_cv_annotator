@@ -28,15 +28,15 @@ def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Pat
     monkeypatch.setattr(sys, 'argv', ['stage9', *common])
     stage9.main()
 
-    assert captured == [36, 15]
+    assert captured == [30, 13]
 
 
 @pytest.mark.parametrize(
     ('fps_args', 'expected_impulse'),
     [
-        (['--fps-csv'], 24),
-        (['--fps-csv', '--missing-id'], 12),
-        (['--fps', '60'], 29),
+        (['--fps-csv'], 20),
+        (['--fps-csv', '--missing-id'], 10),
+        (['--fps', '60'], 24),
     ],
 )
 def test_stage8_main_resolves_fps_thresholds(

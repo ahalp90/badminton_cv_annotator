@@ -397,13 +397,13 @@ class LandingFilterOptions(NamedTuple):
 
 
 def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
-    """Convert tuned-25 landing options once; returned fields are final fps values."""
+    """Convert base-30 landing options once; returned fields are final fps values."""
     if fps <= 0 or not math.isfinite(fps):
         raise ValueError(f'fps must be positive and finite, got {fps!r}')
-    time = lambda value: max(1, math.floor(value * fps / 25.0 + 0.5))
+    time = lambda value: max(1, math.floor(value * fps / 30.0 + 0.5))
     return opts._replace(
         settle_win=time(opts.settle_win),
-        settle_thr=opts.settle_thr * 25.0 / fps,
+        settle_thr=opts.settle_thr * 30.0 / fps,
         settle_min=time(opts.settle_min),
         carry_win=time(opts.carry_win),
     )

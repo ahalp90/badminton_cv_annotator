@@ -1,7 +1,7 @@
 """Frame-rate-relative scraper constants.
 
 All caller-supplied frame counts and per-frame speeds on the scraper surface
-are tuned-25 values. They are scaled exactly once when fps context exists.
+are base-30 values. They are scaled exactly once when fps context exists.
 Fields of :class:`FpsConstants` are final and never rescaled. YouTube sources
 are assumed CFR; :func:`probe_fps` rejects variable-frame-rate files loudly.
 """
@@ -15,14 +15,13 @@ from fractions import Fraction
 from pathlib import Path
 
 BASE_FPS = 30.0
-TUNED_FPS = 25.0
-REST_SPEED_BASE30 = 0.002 * 25.0 / 30.0
-START_SPEED_BASE30 = 0.015 * 25.0 / 30.0
+REST_SPEED_BASE30 = 0.002
+START_SPEED_BASE30 = 0.015
 
 
 @dataclass(frozen=True)
 class FpsConstants:
-    """Final fps-scaled values; caller values were tuned at 25 fps exactly once."""
+    """Final fps-scaled values; the base-30 table is scaled exactly once."""
     rest_speed: float
     rest_window: int
     start_speed: float
@@ -53,14 +52,14 @@ def scale_for_fps(fps: float) -> FpsConstants:
         raise ValueError(f'fps must be positive and finite, got {fps!r}')
     return FpsConstants(
         rest_speed=REST_SPEED_BASE30 * BASE_FPS / fps,
-        rest_window=_time(6.0, fps), start_speed=START_SPEED_BASE30 * BASE_FPS / fps,
-        start_min_frames=_time(3.6, fps), smooth_window=_time(3.6, fps),
-        end_rest_frames=_time(108.0, fps), court_absent_window=_time(18.0, fps),
-        impulse_floor_half_window_frames=_time(14.4, fps), contact_dedup_radius_frames=_time(3.6, fps),
-        contact_suppression_radius_frames=_time(10.8, fps), serve_start_lookback_frames=_time(30.0, fps),
-        wideshot_drift_end_frames=_time(12.0, fps), sustained_loss_frames=_time(12.0, fps),
-        min_descend_samples=_time(3.6, fps), body_unit_half_window=_time(14.4, fps),
-        composition_min_scene_len=_time(18.0, fps),
+        rest_window=_time(5.0, fps), start_speed=START_SPEED_BASE30 * BASE_FPS / fps,
+        start_min_frames=_time(3.0, fps), smooth_window=_time(3.0, fps),
+        end_rest_frames=_time(90.0, fps), court_absent_window=_time(15.0, fps),
+        impulse_floor_half_window_frames=_time(12.0, fps), contact_dedup_radius_frames=_time(3.0, fps),
+        contact_suppression_radius_frames=_time(9.0, fps), serve_start_lookback_frames=_time(25.0, fps),
+        wideshot_drift_end_frames=_time(10.0, fps), sustained_loss_frames=_time(10.0, fps),
+        min_descend_samples=_time(3.0, fps), body_unit_half_window=_time(12.0, fps),
+        composition_min_scene_len=_time(15.0, fps),
     )
 
 
