@@ -67,6 +67,7 @@ class StickyAnchorParams:
     ``--<field>`` block from these fields, and ``apply`` constructs an
     instance from any keyword overrides at the registry boundary.
     """
+    # Tested at 25/30 fps. No vid fps scaling. At 60fps anchor drifts faster, but also snaps back faster.
     prior_weight: float = 0.75
     ema_alpha: float = 0.1
     sanity_ceiling: float = 0.6

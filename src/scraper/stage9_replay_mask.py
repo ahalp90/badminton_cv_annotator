@@ -22,14 +22,12 @@ from pathlib import Path
 import numpy as np
 
 from .config import (
-    COURT_ABSENT_WINDOW,
     MASKS_DIR,
-    PERSPECTIVE_SHIFT_THRESH,
+    PERSPECTIVE_SHIFT_THRESHOLD,
     RALLY_SPANS_CSV,
-    REST_SPEED,
-    REST_WINDOW,
     SLOWMO_SPEED_FRAC,
 )
+from .fps_constants import scale_for_fps
 from .stage8_rally_segmentation import compute_speed, rolling_nanmedian, true_runs
 
 log = logging.getLogger(__name__)
@@ -48,7 +46,7 @@ HOMOGRAPHY_CORNER_COLS = [
 # ---------------------------------------------------------------------------
 # Signal 1: court absence
 # ---------------------------------------------------------------------------
-def court_absence_signal(court_present: np.ndarray | None, n_frames: int) -> np.ndarray:
+def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float | None = None) -> np.ndarray:
     """Fire across any court-absent run of at least COURT_ABSENT_WINDOW frames.
 
     A sustained absence (>= the window) masks its whole run; a one- or two-frame
@@ -68,7 +66,8 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int) -> np.
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)  # (frames,)
     for start, end in true_runs(absent):
-        if end - start >= COURT_ABSENT_WINDOW:
+        window = scale_for_fps(25.0 if fps is None else fps).court_absent_window
+        if end - start >= window:
             mask[start:end] = True
     return mask
 
@@ -100,7 +99,7 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
     The dominant broadcast view is the duration-weighted median of each corner
     coordinate across all segments; a segment whose mean corner displacement
     from it (normalised by the reference court's bounding-box diagonal) exceeds
-    PERSPECTIVE_SHIFT_THRESH is a replay or cutaway angle and its frames fire.
+    PERSPECTIVE_SHIFT_THRESHOLD is a replay or cutaway angle and its frames fire.
 
     Comparing every segment to the dominant view (not to its neighbour) realises
     the spec's adjacent-shift intent without masking the whole tail after one
@@ -137,7 +136,7 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
         log.info('degenerate reference court (zero diagonal); perspective-shift signal all-False')
         return mask
 
-    shifted = (mean_displacement / diagonal) > PERSPECTIVE_SHIFT_THRESH  # (n_seg,)
+    shifted = (mean_displacement / diagonal) > PERSPECTIVE_SHIFT_THRESHOLD  # (n_seg,)
     for seg in np.flatnonzero(shifted):
         mask[starts[seg]:ends[seg]] = True
     return mask
@@ -147,7 +146,7 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
 # Signal 3: velocity drop (slow motion)
 # ---------------------------------------------------------------------------
 def velocity_drop_signal(
-    track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int
+    track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float | None = None,
 ) -> np.ndarray:
     """Fire where visible shuttle speed drops well below the rally norm (slow-mo).
 
@@ -186,10 +185,11 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
-    rolling_median = rolling_nanmedian(speed, REST_WINDOW)  # (t,)
+    values = scale_for_fps(25.0 if fps is None else fps)
+    rolling_median = rolling_nanmedian(speed, values.rest_window)  # (t,)
     visible = track[:, 2] == 1  # (t,)
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)  # NaN windows read not-slow
-    moving = rolling_median >= REST_SPEED  # rest is not slow-mo (see docstring)
+    moving = rolling_median >= values.rest_speed  # rest is not slow-mo (see docstring)
     mask[below_norm & moving & visible] = True
     return mask
 
@@ -203,14 +203,15 @@ def combine_mask(
     track: np.ndarray | None,
     rally_spans: list[tuple[int, int]] | None,
     n_frames: int,
+    fps: float | None = None,
 ) -> np.ndarray:
     """Union the three replay/off-rally signals (any-of, the spec's default).
 
     :return: `(n_frames,)` bool mask, True where any signal fires.
     """
-    court = court_absence_signal(court_present, n_frames)
+    court = court_absence_signal(court_present, n_frames, fps)
     perspective = perspective_shift_signal(homography_rows, n_frames)
-    velocity = velocity_drop_signal(track, rally_spans, n_frames)
+    velocity = velocity_drop_signal(track, rally_spans, n_frames, fps)
     return court | perspective | velocity
 
 
@@ -249,6 +250,7 @@ def main() -> None:
                         help='Per-segment homography CSV (video_id, start_frame, end_frame, corners)')
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
+    parser.add_argument('--fps', type=float, default=None)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
@@ -267,7 +269,7 @@ def main() -> None:
     else:
         raise FileNotFoundError('need a court-present mask or a shuttle track to size the frame mask')
 
-    mask = combine_mask(court_present, homography_rows, track, rally_spans, n_frames)
+    mask = combine_mask(court_present, homography_rows, track, rally_spans, n_frames, args.fps)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.out_dir / f'{args.video_id}_replay.npy'

@@ -58,6 +58,7 @@ from .config import (
     START_SPEED,
     Stage8Thresholds,
 )
+from .fps_constants import scale_for_fps
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -76,15 +77,27 @@ log = logging.getLogger(__name__)
 # config: it is the numeric reading of "mostly", not a swept rule threshold.
 VISIBILITY_REST_FRAC = 0.5
 
-# Contact-chain frame constants are measured at 25 fps. The floor window and the
-# suppression radius are expressed in frames so their temporal meaning is visible
-# when this module is read without the measurement harness.
-IMPULSE_FLOOR_HALF_WINDOW_FRAMES = 12
-CONTACT_DEDUP_RADIUS_FRAMES = 3
+# Contact-chain constants are tuned at 25 fps. fps_constants.py stores their
+# base-30 expressions and performs the one-time conversion for explicit presets.
+IMPULSE_FLOOR_HALF_WINDOW_FRAMES = scale_for_fps(25.0).impulse_floor_half_window_frames
+CONTACT_DEDUP_RADIUS_FRAMES = scale_for_fps(25.0).contact_dedup_radius_frames
 CONTACT_IMPULSE_MULTIPLE = 4.0
 FLOOR_EPS = 1e-4
 BODY_UNIT_WRIST_THRESHOLD = 1.4
-CONTACT_SUPPRESSION_RADIUS_FRAMES = 9
+CONTACT_SUPPRESSION_RADIUS_FRAMES = scale_for_fps(25.0).contact_suppression_radius_frames
+
+
+def scale_thresholds(thresholds: Stage8Thresholds, fps: float) -> Stage8Thresholds:
+    """Scale a tuned-25 preset once; returned fields are final fps-specific values."""
+    values = scale_for_fps(fps)
+    return thresholds._replace(
+        rest_speed=values.rest_speed, rest_window=values.rest_window,
+        start_speed=values.start_speed, start_min_frames=values.start_min_frames,
+        smooth_window=values.smooth_window, end_rest_frames=values.end_rest_frames,
+        impulse_floor_half_window_frames=values.impulse_floor_half_window_frames,
+        contact_dedup_radius_frames=values.contact_dedup_radius_frames,
+        contact_suppression_radius_frames=values.contact_suppression_radius_frames,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -953,7 +966,9 @@ def impulse_cell_candidates(
     around_visible = (
         (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
     )
-    floors = rolling_floor(impulses, around_visible)
+    half_window = IMPULSE_FLOOR_HALF_WINDOW_FRAMES if thresholds is None else thresholds.impulse_floor_half_window_frames
+    dedup_radius = CONTACT_DEDUP_RADIUS_FRAMES if thresholds is None else thresholds.contact_dedup_radius_frames
+    floors = rolling_floor(impulses, around_visible, half_window)
     impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > CONTACT_IMPULSE_MULTIPLE
     is_contact = impulse_pass & around_visible
 
@@ -966,7 +981,7 @@ def impulse_cell_candidates(
     for candidate_index in np.argsort(-candidate_impulses, kind='stable'):
         local_frame = int(candidate_local[candidate_index])
         if all(
-            abs(local_frame - other_frame) >= CONTACT_DEDUP_RADIUS_FRAMES
+            abs(local_frame - other_frame) >= dedup_radius
             for other_frame, _other_impulse in kept
         ):
             kept.append((local_frame, float(candidate_impulses[candidate_index])))
@@ -1328,7 +1343,10 @@ def segment_video(
         if gate_passes:
             gated_flags.append((contact_frame, impulse))
 
-    radius = CONTACT_SUPPRESSION_RADIUS_FRAMES if suppression_radius is None else suppression_radius
+    radius = (
+        (CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
+        if suppression_radius is None else suppression_radius
+    )
     accepted_frames = set(suppress_contact_flags(gated_flags, radius=radius))
     contacts: list[tuple[int, int, bool | None, bool | None]] = []
     for rally_id, contact_frame, _impulse in raw_flags:
@@ -1443,6 +1461,14 @@ def _read_string_id_table(path: Path, label: str):
     return table.set_index(id_column)
 
 
+def _read_fps_table(path: Path):
+    """Read a unique string-id FPS table written by stage 11."""
+    table = _read_string_id_table(path, 'fps CSV')
+    if 'fps' not in table.columns:
+        raise ValueError('fps CSV: expected an fps column')
+    return {str(video_id): float(row.fps) for video_id, row in table.iterrows()}
+
+
 def _load_gate_context(
     homography_csv: Path, resolution_csv: Path, court_box_csv: Path,
 ) -> tuple[dict[str, dict], object, dict[str, CourtBox]]:
@@ -1495,6 +1521,11 @@ def main() -> None:
                              'x_lo,x_hi,y_lo,y_hi,height_lo,height_hi,mid_lo,mid_hi')
     parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
                         help='which threshold preset to segment with (default: shipped)')
+    fps_group = parser.add_mutually_exclusive_group()
+    fps_group.add_argument('--fps-csv', type=Path, default=None,
+                           help='per-video id,fps table written by stage 11')
+    fps_group.add_argument('--fps', type=float, default=None,
+                           help='CFR override for every video in this run')
     parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
                         help='optional span-opening rule: region-start (every active region '
                              'yields a span) or back-fill (a qualifying region opens at its '
@@ -1507,7 +1538,8 @@ def main() -> None:
     if not args.shuttle_dir.is_dir():
         raise FileNotFoundError(f'shuttle dir not found: {args.shuttle_dir}')
 
-    thresholds = _THRESHOLD_PRESETS[args.thresholds]
+    declared_thresholds = _THRESHOLD_PRESETS[args.thresholds]
+    fps_by_id = _read_fps_table(args.fps_csv) if args.fps_csv is not None else {}
     span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
     gate_options = (args.gate_dir, args.homography_csv, args.resolution_csv, args.court_box_csv)
     if any(option is not None for option in gate_options) and not all(
@@ -1530,6 +1562,15 @@ def main() -> None:
     for track_path in sorted(args.shuttle_dir.glob('*.npy')):
         video_id = track_path.stem
         try:
+            if args.fps is not None:
+                thresholds = scale_thresholds(declared_thresholds, args.fps)
+            elif args.fps_csv is not None and video_id in fps_by_id:
+                thresholds = scale_thresholds(declared_thresholds, fps_by_id[video_id])
+            elif args.fps_csv is not None:
+                log.warning('%s: absent from fps CSV; using tuned-25 defaults', video_id)
+                thresholds = scale_thresholds(declared_thresholds, 25.0)
+            else:
+                thresholds = scale_thresholds(declared_thresholds, 25.0)
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)

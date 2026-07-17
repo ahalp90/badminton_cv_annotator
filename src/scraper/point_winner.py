@@ -27,6 +27,7 @@ D5 retest's arm-2 verdict CSVs from this module.
 from __future__ import annotations
 
 from enum import StrEnum
+import math
 from typing import NamedTuple
 
 import numpy as np
@@ -52,6 +53,7 @@ from .stage8_rally_segmentation import (
     rolling_nanmedian,
     true_runs,
 )
+from .fps_constants import scale_for_fps
 
 
 class Half(StrEnum):
@@ -286,7 +288,9 @@ def _gap_after_top_exit(final_contact: int, run_start: int, track: np.ndarray) -
     return bool(track[last_vis, 2] == 1 and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
-def window_end(final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray) -> int:
+def window_end(
+    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray, fps: float | None = None,
+) -> int:
     """Earliest of the next rally's GT start, a sustained track loss, or replay-mask onset.
 
     Half-open: the window is [final_contact, window_end). Scans forward from final_contact + 1.
@@ -305,7 +309,8 @@ def window_end(final_contact: int, next_start: int, track: np.ndarray, dead: np.
         end = min(end, final_contact + 1 + int(np.argmax(seg_dead)))
     invisible = track[final_contact + 1:cap, 2] != 1  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
-        if run_end - run_start >= SUSTAINED_LOSS_FRAMES:
+        loss_frames = scale_for_fps(25.0 if fps is None else fps).sustained_loss_frames
+        if run_end - run_start >= loss_frames:
             if _gap_after_top_exit(final_contact, run_start, track):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
             end = min(end, final_contact + 1 + run_start)
@@ -389,6 +394,19 @@ class LandingFilterOptions(NamedTuple):
     use_carry: bool = True
     null_if_all_carried: bool = False
     use_ankle_rule: bool = True
+
+
+def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
+    """Convert tuned-25 landing options once; returned fields are final fps values."""
+    if fps <= 0 or not math.isfinite(fps):
+        raise ValueError(f'fps must be positive and finite, got {fps!r}')
+    time = lambda value: max(1, math.floor(value * fps / 25.0 + 0.5))
+    return opts._replace(
+        settle_win=time(opts.settle_win),
+        settle_thr=opts.settle_thr * 25.0 / fps,
+        settle_min=time(opts.settle_min),
+        carry_win=time(opts.carry_win),
+    )
 
 
 def build_landing_kinematics(
@@ -483,7 +501,7 @@ def _carried_terminal(terminal: int, kin: LandingKinematics, opts: LandingFilter
 
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
-    kin: LandingKinematics, opts: LandingFilterOptions,
+    kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int = MIN_DESCEND_SAMPLES,
 ) -> tuple[int, np.ndarray] | None:
     """The landing: the last descending run surviving the settle cap and carry filter.
 
@@ -496,7 +514,7 @@ def filtered_descending_landing(
     search_end = max(cap, final_contact + 1)
     frames = np.arange(final_contact, search_end)
     visible = frames[track[frames, 2] == 1]
-    if len(visible) < MIN_DESCEND_SAMPLES:
+    if len(visible) < min_descend_samples:
         return None
     ys = track[visible, 1]  # normalised image-y, ascending frame order
     terminals: list[int] = []
@@ -504,7 +522,7 @@ def filtered_descending_landing(
     for idx in range(1, len(visible) + 1):
         # a run breaks when the next step is not strictly increasing (falling), or at the end
         if idx == len(visible) or ys[idx] <= ys[idx - 1]:
-            if idx - run_start >= MIN_DESCEND_SAMPLES:
+            if idx - run_start >= min_descend_samples:
                 terminals.append(int(visible[idx - 1]))
             run_start = idx
     if not terminals:
@@ -674,12 +692,18 @@ def pick_landing(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
+    fps: float | None = None,
 ) -> Landing | None:
     """The picked landing for one rally: the filtered terminal, projected to court space, with
     quality flags. None when nothing survives the landing filter within the window.
     """
-    win_end = window_end(final_contact, next_start, track, dead)
-    landing = filtered_descending_landing(final_contact, win_end, track, kin, opts)
+    target_fps = 25.0 if fps is None else fps
+    values = scale_for_fps(target_fps)
+    win_end = window_end(final_contact, next_start, track, dead, target_fps)
+    landing = filtered_descending_landing(
+        final_contact, win_end, track, kin, convert_landing_options(opts, target_fps),
+        values.min_descend_samples,
+    )
     if landing is None:
         return None
     landing_frame, landing_xy = landing

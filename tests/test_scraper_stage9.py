@@ -7,7 +7,7 @@ import numpy as np
 
 from src.scraper.config import (
     COURT_ABSENT_WINDOW,
-    PERSPECTIVE_SHIFT_THRESH,
+    PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
 )
 from src.scraper.stage9_replay_mask import (
@@ -53,7 +53,7 @@ def test_perspective_fires_only_on_deviant_segment():
     mask = perspective_shift_signal(rows, n_frames)
 
     # 200 / 500 = 0.4 displacement, well over the threshold.
-    assert (200.0 / 500.0) > PERSPECTIVE_SHIFT_THRESH
+    assert (200.0 / 500.0) > PERSPECTIVE_SHIFT_THRESHOLD
     assert not mask[:200].any()
     assert mask[200:220].all()
 

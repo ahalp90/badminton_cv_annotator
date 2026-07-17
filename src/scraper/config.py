@@ -20,6 +20,8 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
+from .fps_constants import scale_for_fps
+
 # ---------------------------------------------------------------------------
 # Output layout (dataset_schema.md section 2 tree)
 # ---------------------------------------------------------------------------
@@ -167,15 +169,17 @@ PAIR_WINDOW_S = 8
 # Stage 8: rally segmentation and contact rules (spec s6)
 # ---------------------------------------------------------------------------
 # Speed means per-frame L2 displacement of (x_norm, y_norm) on visibility-1
-# frames. The block-2 sweep winners; tuned on only a couple of videos so far.
-REST_SPEED = 0.002  # norm-units/frame; a span is at rest below this
-REST_WINDOW = 5  # frames (~0.17 s at 30 fps)
-START_SPEED = 0.015  # rally start: speed above this...
-START_MIN_FRAMES = 3  # ...for this many consecutive frames out of rest
-SMOOTH_WINDOW = 3  # moving-average window over (x, y) to survive TrackNetV3 jitter
+# frames. Tuning is at 25 fps; fps_constants.py stores the base-30 expressions
+# and converts them back at this compatibility boundary.
+_TUNED_25 = scale_for_fps(25.0)
+REST_SPEED = _TUNED_25.rest_speed  # norm-units/frame; a span is at rest below this
+REST_WINDOW = _TUNED_25.rest_window  # frames (~0.20 s at 25 fps)
+START_SPEED = _TUNED_25.start_speed  # rally start: speed above this...
+START_MIN_FRAMES = _TUNED_25.start_min_frames  # ...for this many consecutive frames out of rest
+SMOOTH_WINDOW = _TUNED_25.smooth_window  # moving-average window over (x, y) to survive TrackNetV3 jitter
 MIN_DIR_CHANGE_DEG = 30  # contact: smoothed-velocity direction change beyond this
 MIN_CONTACT_SPEED = 0.005  # with pre- and post-reversal speed above this
-END_REST_FRAMES = 90  # rally end: extended rest of at least this (~3 s)
+END_REST_FRAMES = _TUNED_25.end_rest_frames  # rally end: extended rest of at least this (~3.6 s)
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
 
 
@@ -199,6 +203,9 @@ class Stage8Thresholds(NamedTuple):
     smooth_window: int
     min_dir_change_deg: float
     min_contact_speed: float
+    impulse_floor_half_window_frames: int = _TUNED_25.impulse_floor_half_window_frames
+    contact_dedup_radius_frames: int = _TUNED_25.contact_dedup_radius_frames
+    contact_suppression_radius_frames: int = _TUNED_25.contact_suppression_radius_frames
 
 
 # The shipped thresholds as one value, built from the constants above so the
@@ -223,11 +230,11 @@ BEST_CONFIG_THRESHOLDS = SHIPPED_THRESHOLDS
 # ---------------------------------------------------------------------------
 # Stage 9: replay and off-rally rules (spec s7)
 # ---------------------------------------------------------------------------
-COURT_ABSENT_WINDOW = 15  # frames of court-present False to fire the signal
+COURT_ABSENT_WINDOW = _TUNED_25.court_absent_window  # frames of court-present False to fire the signal
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
 # the build's starting value, tuned at B5.
-PERSPECTIVE_SHIFT_THRESH = 0.05
+PERSPECTIVE_SHIFT_THRESHOLD = 0.05
 SLOWMO_SPEED_FRAC = 0.3  # median speed under this fraction of rally median = slow-mo
 
 # Composition dead-mask (stage9_composition_mask), the per-segment alternative to

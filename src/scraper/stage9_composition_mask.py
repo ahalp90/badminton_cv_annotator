@@ -36,6 +36,7 @@ from .config import (
     COMPOSITION_KEEP_VOTE,
     MASKS_DIR,
 )
+from .fps_constants import scale_for_fps
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Cut detection
 # ---------------------------------------------------------------------------
-def detect_cuts(video_path: Path, expected_frames: int, threshold: float) -> np.ndarray:
+def detect_cuts(video_path: Path, expected_frames: int, threshold: float, min_scene_len: int) -> np.ndarray:
     """Broadcast-cut frames from a PySceneDetect content pass over the downsample.
 
     Fail loud unless the container-declared duration and the frames actually read
@@ -69,7 +70,7 @@ def detect_cuts(video_path: Path, expected_frames: int, threshold: float) -> np.
             f'!= expected {expected_frames} (the downsample must preserve the source frame count)'
         )
     manager = SceneManager()
-    manager.add_detector(ContentDetector(threshold=threshold))
+    manager.add_detector(ContentDetector(threshold=threshold, min_scene_len=min_scene_len))
     n_read = manager.detect_scenes(video, show_progress=False)
     if n_read != expected_frames:
         raise ValueError(
@@ -147,6 +148,7 @@ def main() -> None:
                         help='<video_id> homography court-view vote (frames,) bool npy, True = court view')
     parser.add_argument('--content-threshold', type=float, default=COMPOSITION_CONTENT_THRESHOLD)
     parser.add_argument('--vote', type=float, default=COMPOSITION_KEEP_VOTE)
+    parser.add_argument('--fps', type=float, default=None)
     parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
     args = parser.parse_args()
 
@@ -157,7 +159,8 @@ def main() -> None:
         raise ValueError(f'keep-vote must be bool (True = court view), got {keep_vote.dtype}')
     n_frames = len(keep_vote)
 
-    cut_frames = detect_cuts(args.video, n_frames, args.content_threshold)
+    min_scene_len = scale_for_fps(25.0 if args.fps is None else args.fps).composition_min_scene_len
+    cut_frames = detect_cuts(args.video, n_frames, args.content_threshold, min_scene_len)
     mask, segments = build_composition_mask(cut_frames, keep_vote, n_frames, args.vote)
     n_live = sum(1 for seg in segments if not seg.is_dead)
 
