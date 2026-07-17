@@ -32,6 +32,17 @@ _DEFAULT_WEIGHTS_DIR = (
     Path(__file__).resolve().parents[3]
     / 'runtime' / 'checkpoints' / 'tracknetv3'
 )
+TRACKNET_STRIDE = 1
+# streaming builds its median background image from a capped sample of frames (1800) instead of all of them
+TRACKNET_LARGE_VIDEO = True
+
+
+def _tracknet_eval_mode(stride: int) -> str:
+    if stride == 1:
+        return 'weight'
+    if stride == 8:
+        return 'nonoverlap'
+    raise ValueError(f'tracknet stride must be 1 or 8, got {stride}')
 
 
 def extract_shuttle(
@@ -39,6 +50,8 @@ def extract_shuttle(
     save_dir: Path,
     weights_dir: Path = _DEFAULT_WEIGHTS_DIR,
     batch_size: int = 16,
+    tracknet_stride: int = TRACKNET_STRIDE,
+    large_video: bool = TRACKNET_LARGE_VIDEO,
 ) -> Path:
     """Run TrackNetV3 + InpaintNet on a video; return path to the output CSV.
 
@@ -80,8 +93,10 @@ def extract_shuttle(
         '--inpaintnet_file', str(inpaintnet_weights),
         '--save_dir', str(save_dir),
         '--batch_size', str(batch_size),
-        '--large_video',
+        '--eval_mode', _tracknet_eval_mode(tracknet_stride),
     ]
+    if large_video:
+        cmd.append('--large_video')
     subprocess.run(cmd, cwd=_VENDOR_DIR, check=True)
 
     out_csv = save_dir / f'{video_path.stem}_ball.csv'

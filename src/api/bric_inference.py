@@ -50,6 +50,11 @@ from bric.perception._vendor.tracknetv3.predict import (
     predict_video as tracknet_predict_video,
 )
 
+TRACKNET_STRIDE = 1
+# streaming builds its median background image from a capped sample of frames (1800) instead of all of them
+TRACKNET_LARGE_VIDEO = False
+_EVAL_MODE_BY_STRIDE = {1: "weight", 8: "nonoverlap"}
+
 TRACKNET_WEIGHTS = REPO_ROOT / "runtime" / "checkpoints" / "tracknetv3" / "TrackNet_best.pt"
 INPAINTNET_WEIGHTS = REPO_ROOT / "runtime" / "checkpoints" / "tracknetv3" / "InpaintNet_best.pt"
 
@@ -423,6 +428,8 @@ def classify(
             inpaintnet_seq_len=_inpaintnet_seq_len,
             bg_mode=_tracknet_bg_mode,
             save_dir=str(tracknet_save_dir),
+            eval_mode=_EVAL_MODE_BY_STRIDE[TRACKNET_STRIDE],
+            large_video=TRACKNET_LARGE_VIDEO,
         )
 
         # TrackNet writes {video_stem}_ball.csv with columns: Frame, Visibility, X, Y

@@ -25,6 +25,19 @@ from pipeline.config import (
 
 _DEFAULT_TRACKNET_SUBPATH = Path('ckpts') / 'TrackNet_best.pt'
 _DEFAULT_INPAINTNET_SUBPATH = Path('ckpts') / 'InpaintNet_best.pt'
+TRACKNET_STRIDE = 1
+# The batch subprocess (batch_predict.py) is in-RAM only; per-file vendored predict.py is the
+# streaming route. streaming builds its median background image from a capped sample of frames
+# (1800) instead of all of them
+TRACKNET_LARGE_VIDEO = False
+
+
+def _tracknet_eval_mode(stride: int) -> str:
+    if stride == 1:
+        return 'weight'
+    if stride == 8:
+        return 'nonoverlap'
+    raise ValueError(f'tracknet stride must be 1 or 8, got {stride}')
 
 
 def _default_csv_dir(clips_dir: Path) -> Path:
@@ -61,6 +74,7 @@ def extract_all_shuttles(
     tracknet_python: Path | None = None,
     max_workers: int = 2,
     batch_size: int = 32,
+    tracknet_stride: int = TRACKNET_STRIDE,
     dry_run: bool = False,
 ) -> None:
     """Run TrackNetV3 on all clips using batch mode.
@@ -140,6 +154,7 @@ def extract_all_shuttles(
             '--tracknet_file', str(resolved_model),
             '--save_dir', str(output_csv_dir),
             '--batch_size', str(batch_size),
+            '--eval_mode', _tracknet_eval_mode(tracknet_stride),
         ]
         if resolved_inpaint: #TODO aren't we *only* running inpaint, making this redundant?
             process_args.extend(['--inpaintnet_file', str(resolved_inpaint)])
@@ -279,6 +294,7 @@ def main():
                         help='Batch size for TrackNet DataLoader (default 32, use 64 with --workers 1)')
     parser.add_argument('--tracknet-python', type=Path, default=None,
                         help='Python executable in BST venv (shared with TrackNetV3)')
+    parser.add_argument('--tracknet-stride', choices=(1, 8), type=int, default=TRACKNET_STRIDE)
     parser.add_argument('--skip-extraction', action='store_true',
                         help='Skip TrackNetV3 extraction, only convert existing CSVs to NPY')
     parser.add_argument('--dry-run', action='store_true',
@@ -296,6 +312,7 @@ def main():
             tracknet_python=args.tracknet_python,
             max_workers=args.workers,
             batch_size=args.batch_size,
+            tracknet_stride=args.tracknet_stride,
             dry_run=args.dry_run,
         )
 

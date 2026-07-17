@@ -150,6 +150,11 @@ DENSITY_MIN_PER_MIN = 0.15  # longs judged on chunks per minute
 # known-stable ID at write time.
 TRIAGE_MODEL = 'gemini-2.5-flash'
 TRIAGE_MAX_TOKENS = 8192
+# The current hand-run s29 chain is the scrape-lane consumer. A promoted wrapper
+# must use these values at its subprocess boundary.
+SCRAPE_TRACKNET_STRIDE = 8
+# streaming builds its median background image from a capped sample of frames (1800) instead of all of them
+SCRAPE_TRACKNET_LARGE_VIDEO = True
 API_KEY_ENV = 'GEMINI_API_KEY'  # referenced by name only; never a value
 
 # ---------------------------------------------------------------------------
