@@ -149,7 +149,12 @@ DENSITY_MIN_PER_MIN = 0.15  # longs judged on chunks per minute
 # fast, Gemini flash via GEMINI_API_KEY, 2026-07-05). gemini-2.5-flash is the
 # known-stable ID at write time.
 TRIAGE_MODEL = 'gemini-2.5-flash'
-TRIAGE_MAX_TOKENS = 8192
+# The documented floor across the candidate seats, kept at the min for fair comparison:
+# gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960 (hard error above it)
+# < nemotron-3-ultra :free / gemini-2.5-flash 65,536. Google-served gemma documents no output
+# cap (probe at the gemma re-test) and runs ~14,400 req/day free. Thinking tokens count
+# against this budget on the gemini/nemotron seats. Raise to 40,960 if gemma exits.
+TRIAGE_MAX_TOKENS = 32768
 # The current hand-run s29 chain is the scrape-lane consumer. A promoted wrapper
 # must use these values at its subprocess boundary.
 SCRAPE_TRACKNET_STRIDE = 8
