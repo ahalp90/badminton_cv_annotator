@@ -614,6 +614,11 @@ def render_table(scores: dict[str, dict[str, int | float | None]], references=RE
     return "\n".join(lines)
 
 
+# Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
+# raised from the drafted 0.5).
+FLOOR_MULTIPLIER = 0.75
+
+
 def assert_floors(fixture: Fixture, metrics: dict[str, int | float | None]) -> None:
     if REFERENCE_SCORES is None:
         raise AssertionError("REFERENCE_SCORES is not captured")
@@ -624,8 +629,9 @@ def assert_floors(fixture: Fixture, metrics: dict[str, int | float | None]) -> N
             raise AssertionError(f"invalid reference {fixture.name} {metric}: {reference!r}")
         if not isinstance(current, (int, float)) or not math.isfinite(current):
             raise AssertionError(f"invalid current {fixture.name} {metric}: {current!r}")
-        if current < 0.5 * reference:
-            raise AssertionError(f"{fixture.name} {metric}: {current!r} < floor {0.5 * reference!r}")
+        if current < FLOOR_MULTIPLIER * reference:
+            raise AssertionError(
+                f"{fixture.name} {metric}: {current!r} < floor {FLOOR_MULTIPLIER * reference!r}")
 
 
 def run_fixture(fixture: Fixture) -> VideoScoring:
