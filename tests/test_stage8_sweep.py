@@ -16,6 +16,7 @@ import pytest
 
 import scripts.stage8_sweep as stage8_sweep
 from scripts.stage8_score import GtRally, score_stage8
+from annotator.calibration.pilot_geometry import HOMOGRAPHY_COURT_BOX, STANDIN_COURT_BOX
 from scripts.stage8_sweep import (
     BOUNDARY_END_REST_FRAMES,
     BOUNDARY_REST_SPEED,
@@ -23,14 +24,12 @@ from scripts.stage8_sweep import (
     BOUNDARY_START_MIN_FRAMES,
     BOUNDARY_START_SPEED,
     CROWN_KEY_COLUMN,
-    HOMOGRAPHY_COURT_BOX,
     LABEL_GRID,
     LABEL_SHIPPED,
     PARAM_COLUMNS,
     RAW_PRECISION_COLUMNS,
     ROW_COLUMNS,
     SHIPPED_DEFAULTS,
-    STANDIN_COURT_BOX,
     SWEEP_TOLERANCES,
     ReentryGuardVariant,
     Stage8Params,

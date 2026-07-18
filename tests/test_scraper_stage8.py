@@ -7,7 +7,7 @@ pin the measured impulse rule and its largest-impulse de-duplication.
 import numpy as np
 import pytest
 
-from scripts.stage8_sweep import HOMOGRAPHY_COURT_BOX, PILOT_RESOLUTION, STANDIN_COURT_BOX
+from annotator.calibration.pilot_geometry import HOMOGRAPHY_COURT_BOX, PILOT_RESOLUTION, STANDIN_COURT_BOX
 from src.scraper.config import (
     BEST_CONFIG_THRESHOLDS,
     END_REST_FRAMES,
