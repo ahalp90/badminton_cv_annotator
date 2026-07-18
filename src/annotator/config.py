@@ -3,9 +3,10 @@
 Constant provenance is cited inline as "spec sN" against the section of
 local_scratch/autograder_architecture/scraper_spec.md it came from.
 """
+from dataclasses import dataclass
 from typing import NamedTuple
 
-from .fps_constants import scale_for_fps
+from .fps_constants import FpsConstants, scale_for_fps
 
 # ---------------------------------------------------------------------------
 # Stage 8: rally segmentation and contact rules (spec s6)
@@ -95,3 +96,32 @@ COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of it
 # would fire on any passerby crossing the court. Transient walk-throughs
 # (a coach or ball-kid crossing) stay unflagged. Starting value.
 DOUBLES_SPAN_FRACTION = 0.5
+
+
+@dataclass(frozen=True)
+class BaseAnnotatorConfig:
+    """Preset carrying the non-fps knobs for an annotator run.
+
+    The preset carries ``min_dir_change_deg`` and ``min_contact_speed`` plus
+    legacy 25fps-surface values for fps-sensitive fields. Resolution overwrites
+    every fps-sensitive field from the base-30 table, so only the non-fps knobs
+    survive a custom preset. This is not a caller-supplied base-30 table; that
+    table lives in ``fps_constants``. Strategy fields (dead-mask producer and
+    serve lanes) arrive with their stages.
+    """
+
+    thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
+
+
+@dataclass(frozen=True)
+class ResolvedAnnotatorConfig:
+    """Final per-video configuration, built once and never rescaled.
+
+    ``thresholds`` is the run_video-ready value (run_video declares the
+    already-scaled precondition). ``constants`` is deliberately unwired until
+    threading.
+    """
+
+    fps: float
+    constants: FpsConstants
+    thresholds: Stage8Thresholds
