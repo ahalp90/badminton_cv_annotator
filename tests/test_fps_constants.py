@@ -6,8 +6,8 @@ import subprocess
 import numpy as np
 import pytest
 
-from src.scraper.config import SHIPPED_THRESHOLDS
-from src.scraper.fps_constants import probe_fps, scale_for_fps
+from src.annotator.config import SHIPPED_THRESHOLDS
+from src.annotator.fps_constants import probe_fps, scale_for_fps
 from src.scraper.point_winner import LandingFilterOptions, convert_landing_options
 from src.scraper.stage8_rally_segmentation import scale_thresholds, segment_video
 from src.scraper.stage9_replay_mask import court_absence_signal
