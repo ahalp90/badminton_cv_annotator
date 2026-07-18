@@ -7,7 +7,7 @@ the vote arithmetic that turns cuts + a court-view vote into the dead mask.
 import numpy as np
 import pytest
 
-from src.scraper.stage9_composition_mask import build_composition_mask
+from annotator.composition_mask import build_composition_mask
 
 
 def _keep(n_frames: int, court_view_spans: list[tuple[int, int]]) -> np.ndarray:

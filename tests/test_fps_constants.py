@@ -10,7 +10,7 @@ from src.annotator.config import SHIPPED_THRESHOLDS
 from src.annotator.fps_constants import probe_fps, scale_for_fps
 from annotator.point_winner import LandingFilterOptions, convert_landing_options
 from annotator.rally_segmentation import scale_thresholds, segment_video
-from src.scraper.stage9_replay_mask import court_absence_signal
+from annotator.replay_mask import court_absence_signal
 
 
 def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:

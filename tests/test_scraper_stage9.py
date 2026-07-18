@@ -5,12 +5,12 @@ obvious quiet region.
 """
 import numpy as np
 
-from src.scraper.config import (
+from annotator.config import (
     COURT_ABSENT_WINDOW,
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
 )
-from src.scraper.stage9_replay_mask import (
+from annotator.replay_mask import (
     HOMOGRAPHY_CORNER_COLS,
     combine_mask,
     court_absence_signal,

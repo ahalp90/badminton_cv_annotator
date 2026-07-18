@@ -11,8 +11,8 @@ import csv
 
 import numpy as np
 
-from scraper import config
-from scraper.doubles_flag import doubles_flag
+from annotator import config
+from annotator.doubles_flag import doubles_flag
 
 
 # -- Span-fraction boundary: strict greater-than -----------------------------
@@ -70,7 +70,7 @@ def test_span_slicing_restricts_to_window():
 
 def test_cli_whole_video_and_spans(tmp_path, monkeypatch):
     """main() sweeps <video_id>_overcount.npy into doubles_flags.csv, per-video and per-span."""
-    from scraper import doubles_flag as df_mod
+    from annotator import doubles_flag as df_mod
 
     overcount_dir = tmp_path / "overcount"
     overcount_dir.mkdir()

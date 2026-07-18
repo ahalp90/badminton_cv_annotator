@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
-    import src.scraper.stage9_composition_mask as stage9
+    import annotator.composition_mask as stage9
 
     keep_vote_path = tmp_path / 'keep_vote.npy'
     np.save(keep_vote_path, np.ones(200, dtype=bool))
