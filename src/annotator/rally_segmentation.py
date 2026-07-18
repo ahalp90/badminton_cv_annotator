@@ -319,6 +319,8 @@ WIDESHOT_COUNT_MED_MIN = 2.0      # median court-scale detections over the lookb
 WIDESHOT_SLOT_PRESENT_FRAC = 0.5  # a half counts as occupied when present >= this fraction
 WIDESHOT_DRIFT_MAX = 0.05         # max per-half total foot drift, image-fraction
 WIDESHOT_DRIFT_END_FRAMES = 10    # drift = gap between head/tail means over up-to-10 present feet
+# Stage 6 bridge fixed body-height window. The resolved path supplies this explicitly.
+BODY_UNIT_HALF_WINDOW = 12
 
 
 # ---------------------------------------------------------------------------
@@ -1043,7 +1045,7 @@ ANKLE_L, ANKLE_R = 15, 16
 
 def body_unit_dist_at_frame(
     frame: int, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, width: float, height: float,
+    court_box: CourtBox, width: float, height: float, half_window: int = BODY_UNIT_HALF_WINDOW,
 ) -> float:
     """Body-unit shuttle-to-nearest-wrist gap at one frame, or NaN.
 
@@ -1062,7 +1064,7 @@ def body_unit_dist_at_frame(
     x1, y1, x2, y2 = bboxes[frame, candidate_slots].T
     gaps = point_winner._body_unit_gaps(  # noqa: SLF001 — shared measured machinery
         frame, x1, y1, x2, y2, [int(slot) for slot in candidate_slots], bboxes, scores, kps,
-        court_box, track, width, height,
+        court_box, track, width, height, half_window,
     )
     finite_gaps = gaps[np.isfinite(gaps)]
     return float(finite_gaps.min()) if len(finite_gaps) else float('nan')
@@ -1124,7 +1126,7 @@ def _sticky_gate_distances(
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
-    court_box: CourtBox, resolution: tuple[float, float],
+    court_box: CourtBox, resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
 ) -> dict[int, float]:
     """Run sticky_anchor over every frame in every detected rally span.
 
@@ -1192,7 +1194,7 @@ def _sticky_gate_distances(
                 candidate_gaps = point_winner._body_unit_gaps(  # noqa: SLF001
                     frame, x1, y1, x2, y2, picked_raw_slots,
                     pose_bboxes, pose_scores, pose_kps, court_box,
-                    track, resolution[0], resolution[1],
+                    track, resolution[0], resolution[1], half_window,
                 )
             except ValueError as exc:
                 if not str(exc).startswith('body-unit gap:'):
@@ -1221,6 +1223,7 @@ def segment_video(
     gate_court_info: dict[str, dict] | None = None,
     gate_resolution_table: object | None = None,
     suppression_radius: int | None = None,
+    body_unit_half_window: int | None = None,
     resolution: tuple[float, float] = (1920.0, 1080.0),
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None, bool | None]]]:
     """Full stage-8 pass over one video's shuttle track.
@@ -1255,6 +1258,8 @@ def segment_video(
     :param gate_court_info: `{video_id: court_info}` from the homography table.
     :param gate_resolution_table: resolution DataFrame indexed by string video ID.
     :param suppression_radius: optional contact suppression radius; None keeps the shipped 9-frame default.
+    :param body_unit_half_window: resolved body-height window. Required with explicit
+        thresholds; bare callers retain the Stage 6 bridge's legacy 12-frame default.
     :param resolution: `(width, height)` of the track and pose pixels.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
@@ -1264,6 +1269,11 @@ def segment_video(
         `wrist_near` True; a blank `wrist_near` (no gate inputs supplied) means the gate never
         ran, so every raw candidate stands.
     """
+    # Stage 6 bridge: bare calls preserve the frozen sweep/pilot's module-dispatched globals.
+    if body_unit_half_window is None:
+        if thresholds is not None:
+            raise ValueError('explicit thresholds require body_unit_half_window')
+        body_unit_half_window = BODY_UNIT_HALF_WINDOW
     if serve_start is not None and span_open is SpanOpen.REGION_START:
         raise ValueError(
             'serve_start with span_open=REGION_START is contradictory: REGION_START drops the '
@@ -1332,6 +1342,7 @@ def segment_video(
         sticky_distances = _sticky_gate_distances(
             gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
             gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
+            body_unit_half_window,
         )
 
     gated_flags: list[tuple[int, float]] = []
@@ -1344,6 +1355,7 @@ def segment_video(
         if gate_passes:
             gated_flags.append((contact_frame, impulse))
 
+    # Stage 6 bridge: suppression_radius=None reads its legacy module global only on bare calls.
     radius = (
         (CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
         if suppression_radius is None else suppression_radius
@@ -1538,6 +1550,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     if not args.shuttle_dir.is_dir():
         raise FileNotFoundError(f'shuttle dir not found: {args.shuttle_dir}')
+    if args.fps is None and args.fps_csv is None:
+        parser.error('one of --fps or --fps-csv is required before processing videos')
 
     declared_thresholds = _THRESHOLD_PRESETS[args.thresholds]
     fps_by_id = _read_fps_table(args.fps_csv) if args.fps_csv is not None else {}
@@ -1562,16 +1576,16 @@ def main() -> None:
     contact_rows: list[tuple[str, int, int, str, str]] = []
     for track_path in sorted(args.shuttle_dir.glob('*.npy')):
         video_id = track_path.stem
+        if args.fps is None and video_id not in fps_by_id:
+            log.warning('skipping %s: absent from fps CSV', video_id)
+            continue
         try:
             if args.fps is not None:
-                thresholds = scale_thresholds(declared_thresholds, args.fps)
-            elif args.fps_csv is not None and video_id in fps_by_id:
-                thresholds = scale_thresholds(declared_thresholds, fps_by_id[video_id])
-            elif args.fps_csv is not None:
-                log.warning('%s: absent from fps CSV; assuming 25 fps', video_id)
-                thresholds = scale_thresholds(declared_thresholds, 25.0)
+                fps = args.fps
             else:
-                thresholds = scale_thresholds(declared_thresholds, 25.0)
+                fps = fps_by_id[video_id]
+            thresholds = scale_thresholds(declared_thresholds, fps)
+            body_unit_half_window = scale_for_fps(fps).body_unit_half_window
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
@@ -1582,7 +1596,7 @@ def main() -> None:
                 log.warning('%s: gate inputs absent; running without contact gate', video_id)
                 spans, contacts = segment_video(
                     track, positions, thresholds=thresholds, span_open=span_open,
-                    replay_mask=replay_mask,
+                    replay_mask=replay_mask, body_unit_half_window=body_unit_half_window,
                 )
             else:
                 all_court_info, resolution_table, court_boxes = gate_context
@@ -1598,6 +1612,7 @@ def main() -> None:
                     pose_ndet=gate_arrays[3], court_box=court_boxes[video_id],
                     gate_video_id=video_id, gate_court_info=all_court_info,
                     gate_resolution_table=resolution_table, resolution=resolution,
+                    body_unit_half_window=body_unit_half_window,
                 )
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             log.warning('skipping %s: %s', video_id, exc)

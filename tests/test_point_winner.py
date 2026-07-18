@@ -6,6 +6,7 @@ height, and the verdict assembly. No fixtures; each test builds its own small nu
 """
 import numpy as np
 import pytest
+from annotator.fps_constants import scale_for_fps
 
 from annotator.point_winner import (
     Half,
@@ -116,7 +117,7 @@ def test_window_end_waits_past_a_top_exit_gap():
     rows += [(0.5, 0.5, 1)] * 5     # frames 11-15: back in view
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead) == len(track)
+    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == len(track)
 
 
 def test_window_end_closes_at_a_non_top_exit_gap():
@@ -127,7 +128,7 @@ def test_window_end_closes_at_a_non_top_exit_gap():
     rows += [(0.5, 0.5, 1)] * 5
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead) == 1
+    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 1
 
 
 def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
@@ -140,7 +141,7 @@ def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
     rows += [(0.5, 0.5, 1)] * 3
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead) == 14
+    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 14
 
 
 def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
@@ -148,7 +149,7 @@ def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
     dead[3] = True
-    assert window_end(0, len(track), track, dead) == 3
+    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ def test_body_unit_gaps_raises_when_no_window_frame_associates():
     with pytest.raises(ValueError, match='no accepted window frame'):
         _body_unit_gaps(
             15, np.array([100.0]), np.array([0.0]), np.array([160.0]), np.array([100.0]),
-            [0], bboxes, scores, kps, TEST_COURT_BOX, track, 1920.0, 1080.0,
+            [0], bboxes, scores, kps, TEST_COURT_BOX, track, 1920.0, 1080.0, 12,
         )
 
 
@@ -185,7 +186,7 @@ def test_body_unit_gaps_raises_on_non_positive_denominator():
     with pytest.raises(ValueError, match='non-finite or non-positive'):
         _body_unit_gaps(
             15, np.array([100.0]), np.array([100.0]), np.array([100.0]), np.array([100.0]),
-            [0], bboxes, scores, kps, zero_height_court_box, track, 1920.0, 1080.0,
+            [0], bboxes, scores, kps, zero_height_court_box, track, 1920.0, 1080.0, 12,
         )
 
 
@@ -204,7 +205,7 @@ def test_attribute_half_reads_the_wrist_boxh_nearest_candidates_half():
     player_frame = [(500.0, 600.0, 100.0, shuttle_px, (500.0, 600.0))]
     bboxes, scores, kps = _mk_pose_arrays(n_frames, [player_frame] * n_frames)
 
-    half = attribute_half(contact, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution)
+    half = attribute_half(contact, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12)
     assert half == Half.BOT
 
 
@@ -215,10 +216,10 @@ def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
     kps = np.full((5, 16, 17, 2), np.nan)
     resolution = (1920.0, 1080.0)
 
-    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution) is None
+    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12) is None
 
     track[2, 2] = 1  # visible now, but still no court-scale detection anywhere
-    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution) is None
+    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12) is None
 
 
 # ---------------------------------------------------------------------------
@@ -460,7 +461,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
                   'border_U': 0.0, 'border_D': resolution[1]}
     net_band = (100.0, 200.0)  # well above the landing: irrelevant to net_ender here
 
-    landing = pick_landing(2, n_frames, track, dead, kin, opts, Half.TOP, net_band, resolution, court_info)
+    landing = pick_landing(2, n_frames, track, dead, kin, opts, Half.TOP, net_band, resolution, court_info, scale_for_fps(25.0), 25.0)
 
     assert landing is not None
     assert landing.frame == 4

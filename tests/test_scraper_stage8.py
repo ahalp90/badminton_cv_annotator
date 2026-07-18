@@ -44,6 +44,7 @@ from annotator.rally_segmentation import (
     suppress_contact_flags,
     wrist_contact_near,
 )
+from annotator.fps_constants import scale_for_fps
 
 # A per-frame step that keeps raw speed above START_SPEED.
 RALLY_STEP = 0.14
@@ -318,7 +319,10 @@ def test_thresholds_none_matches_explicit_shipped_preset():
     # the two must agree bit-for-bit on the rally track (spans and contacts).
     track, _rally_start, _rally_end, _contacts = _build_rally_track()
     spans_globals, contacts_globals = segment_video(track)
-    spans_shipped, contacts_shipped = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
+    spans_shipped, contacts_shipped = segment_video(
+        track, thresholds=SHIPPED_THRESHOLDS,
+        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
+    )
     assert spans_globals == spans_shipped
     assert contacts_globals == contacts_shipped
 
@@ -328,9 +332,15 @@ def test_thresholds_preset_changes_behaviour():
     # preset raising start_speed to 0.03 rejects the same burst -> no span, proving the preset
     # flows all the way through segmentation.
     track = _burst_track()
-    assert len(segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0]) >= 1
+    assert len(segment_video(
+        track, thresholds=SHIPPED_THRESHOLDS,
+        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
+    )[0]) >= 1
     stricter = SHIPPED_THRESHOLDS._replace(start_speed=0.03)
-    assert segment_video(track, thresholds=stricter)[0] == []
+    assert segment_video(
+        track, thresholds=stricter,
+        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
+    )[0] == []
 
 
 def test_thresholds_best_config_is_the_shipped_default():
@@ -338,7 +348,10 @@ def test_thresholds_best_config_is_the_shipped_default():
     # preset, and the default globals path agrees with it bit-for-bit.
     assert BEST_CONFIG_THRESHOLDS == SHIPPED_THRESHOLDS
     track = _burst_track()
-    assert segment_video(track) == segment_video(track, thresholds=BEST_CONFIG_THRESHOLDS)
+    assert segment_video(track) == segment_video(
+        track, thresholds=BEST_CONFIG_THRESHOLDS,
+        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
+    )
 
 
 # ---------------------------------------------------------------------------

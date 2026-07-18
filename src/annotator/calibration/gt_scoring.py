@@ -17,7 +17,7 @@ from annotator.calibration.fixtures import (
 from annotator.run_video import AnnotatorResult, run_video
 from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
-from annotator.rally_segmentation import CourtBox, SHIPPED_THRESHOLDS, scale_thresholds
+from annotator.rally_segmentation import CourtBox
 from scripts.stage8_score import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
 )
@@ -640,7 +640,7 @@ def run_fixture(fixture: Fixture) -> VideoScoring:
     gate_courts = {str(video_id): info for video_id, info in courts.items()}
     gate_resolution = resolution.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
-    result = run_video(*arrays, fps=fixture.fps, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, fixture.fps),
+    result = run_video(*arrays, fps=fixture.fps,
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75), court_box=CourtBox(*fixture.court_box),
         net_band=fixture.net_band, resolution=fixture.resolution, video_id=fixture.video_id, court_info=courts[fixture.video_id],
         homo_df=homo, gate_court_info=gate_courts, gate_resolution_table=gate_resolution)

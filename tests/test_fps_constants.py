@@ -1,16 +1,28 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
+from dataclasses import replace
 import subprocess
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from src.annotator.config import SHIPPED_THRESHOLDS
+from annotator.config import BaseAnnotatorConfig
+from annotator.resolve import resolve
 from src.annotator.fps_constants import probe_fps, scale_for_fps
-from annotator.point_winner import LandingFilterOptions, convert_landing_options
+from annotator.point_winner import (
+    Half,
+    LandingFilterOptions,
+    LandingKinematics,
+    attribute_half,
+    convert_landing_options,
+    pick_landing,
+    window_end,
+)
 from annotator.rally_segmentation import scale_thresholds, segment_video
-from annotator.replay_mask import court_absence_signal
+from annotator.replay_mask import combine_mask, court_absence_signal
 
 
 def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
@@ -56,6 +68,16 @@ def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
     assert scale_for_fps(1.0).start_min_frames == 1
 
 
+def test_resolution_keeps_inert_contact_fields_dimensionless() -> None:
+    base = BaseAnnotatorConfig()
+    for fps in (25.0, 50.0, 60.0):
+        resolved = resolve(base, fps)
+        assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
+        assert resolved.thresholds.min_contact_speed == base.thresholds.min_contact_speed
+    assert resolve(base, 25.0).constants.body_unit_half_window == 10
+    assert resolve(base, 50.0).constants.body_unit_half_window == 20
+
+
 def test_scale_for_fps_composition_scene_length_is_distinct_but_currently_equal() -> None:
     values60 = scale_for_fps(60.0)
     values25 = scale_for_fps(25.0)
@@ -81,8 +103,14 @@ def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:
     track[:, 2] = 1
     track[20:40, 0] = np.arange(20) * 0.01
     track[40:, 0] = track[39, 0]
-    unaware, _ = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
-    aware, _ = segment_video(track, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 50.0))
+    unaware, _ = segment_video(
+        track, thresholds=SHIPPED_THRESHOLDS,
+        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
+    )
+    aware, _ = segment_video(
+        track, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 50.0),
+        body_unit_half_window=scale_for_fps(50.0).body_unit_half_window,
+    )
     assert unaware == []
     assert aware == [(21, 41)]
 
@@ -90,7 +118,7 @@ def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:
 def test_replay_court_absence_scales_at_50fps() -> None:
     present = np.ones(40, dtype=bool)
     present[5:25] = False
-    assert court_absence_signal(present, 40).any()
+    assert court_absence_signal(present, 40, 25.0).any()
     assert not court_absence_signal(present, 40, 50.0).any()
 
 
@@ -100,3 +128,142 @@ def test_landing_options_are_converted_once() -> None:
     assert (scaled.settle_win, scaled.settle_thr, scaled.settle_min, scaled.carry_win, scaled.carry_thr) == (
         12, 0.0024, 8, 12, 0.75,
     )
+
+
+def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
+) -> None:
+    """One resolved config crosses every promoted FPS-sensitive boundary exactly once."""
+    base = BaseAnnotatorConfig()
+    resolved = resolve(base, 60.0)
+    assert resolved.constants.court_absent_window == 30
+    assert resolved.constants.sustained_loss_frames == 20
+    assert resolved.constants.min_descend_samples == 6
+    assert resolved.constants.body_unit_half_window == 24
+    assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
+    assert resolved.thresholds.min_contact_speed == base.thresholds.min_contact_speed
+
+    # 29 is below the correct 30-frame replay threshold; 40 brackets correct 30 and double 60.
+    present = np.ones(500, dtype=bool)
+    present[10:39] = False
+    present[60:100] = False
+    replay = combine_mask(present, None, None, None, len(present), resolved.fps)
+    assert not replay[10:39].any()
+    assert replay[60:100].all()
+
+    # A real zig-zag produces impulse contacts.  The 30-frame absent run masks frames that would
+    # otherwise open the span, proving the produced replay mask is actually consumed.
+    n_frames = 240
+    y = np.full(n_frames, 0.1)
+    value, direction = 0.1, 1.0
+    for offset in range(78):
+        value += direction * 0.02
+        y[45 + offset] = value
+        if (offset + 1) % 13 == 0:
+            direction *= -1.0
+    y[123:] = y[122]
+    y[109:118] = np.linspace(y[108] + 0.01, y[108] + 0.09, 9)
+    y[118:] = y[117]
+    track = np.column_stack([np.full(n_frames, 0.5), y, np.ones(n_frames)])
+    present = np.ones(n_frames, dtype=bool)
+    present[45:75] = False
+    replay = combine_mask(present, None, None, None, n_frames, resolved.fps)
+    plain_spans, _ = segment_video(
+        track, thresholds=resolved.thresholds,
+        body_unit_half_window=resolved.constants.body_unit_half_window,
+    )
+    masked_spans, _ = segment_video(
+        track, thresholds=resolved.thresholds, replay_mask=replay,
+        body_unit_half_window=resolved.constants.body_unit_half_window,
+    )
+    assert plain_spans[0][0] == 45
+    assert masked_spans[0][0] == 75
+
+    # This is the smallest real sticky-gate context: one in-court standing pose and identity
+    # camera-to-court mapping.  The two short boxes sit just outside the base-12 association
+    # window around contact 82, but inside the resolved-24 window.
+    from annotator.rally_segmentation import CourtBox
+
+    bboxes = np.zeros((n_frames, 1, 4))
+    bboxes[:, 0] = (900.0, 250.0, 1020.0, 350.0)
+    bboxes[58:70, 0, 1] = 330.0
+    bboxes[95:107, 0, 1] = 330.0
+    scores = np.ones((n_frames, 1))
+    kps = np.zeros((n_frames, 1, 17, 2))
+    kps[:, 0, 9, 0] = 1055.0
+    kps[:, 0, 10, 0] = 1055.0
+    kps[:, 0, 9, 1] = track[:, 1] * 1080.0
+    kps[:, 0, 10, 1] = track[:, 1] * 1080.0
+    ndet = np.ones(n_frames, dtype=int)
+    court_box = CourtBox((0.0, 1920.0), (0.0, 1080.0), (1.0, 1000.0), (0.0, 1080.0))
+    court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
+                  'border_U': 0.0, 'border_D': 1080.0}
+    gate_kwargs = dict(
+        thresholds=resolved.thresholds, pose_bboxes=bboxes, pose_scores=scores, pose_kps=kps,
+        pose_ndet=ndet, court_box=court_box, gate_video_id='v', gate_court_info={'v': court_info},
+        gate_resolution_table=pd.DataFrame({'width': [1920.0], 'height': [1080.0]}, index=['v']),
+    )
+
+    base_radius_contacts = segment_video(
+        track, body_unit_half_window=12,
+        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
+    )[1]
+    resolved_contacts = segment_video(
+        track, body_unit_half_window=12, **gate_kwargs,
+    )[1]
+    assert {frame for _, frame, _, kept in base_radius_contacts if kept} >= {73, 82}
+    assert sum(kept for _, frame, _, kept in resolved_contacts if frame in (73, 82)) == 1
+
+    short_window_contacts = segment_video(
+        track, body_unit_half_window=12,
+        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
+    )[1]
+    full_contacts = segment_video(
+        track, body_unit_half_window=resolved.constants.body_unit_half_window,
+        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
+    )[1]
+    assert next(kept for _, frame, _, kept in short_window_contacts if frame == 82)
+    assert not next(kept for _, frame, _, kept in full_contacts if frame == 82)
+
+    # The final resolved contact uses the same track, real pose gate, and resolved constants for
+    # both attribution and landing.
+    resolved_full_contacts = segment_video(
+        track, body_unit_half_window=resolved.constants.body_unit_half_window, **gate_kwargs,
+    )[1]
+    final_contact = [frame for _, frame, _, kept in resolved_full_contacts if kept][-1]
+    assert attribute_half(
+        final_contact, track, bboxes, scores, kps, court_box, (520.0, 560.0), (1920.0, 1080.0),
+        resolved.constants.body_unit_half_window,
+    ) is Half.TOP
+    # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the resolved 20.
+    # It exposes two post-contact descents: five samples (base 3 accepts; resolved 6 rejects),
+    # then eight samples (resolved 6 accepts; double-scaled 12 rejects).
+    landing_track = track.copy()
+    landing_track[112:117, 1] = np.linspace(0.20, 0.24, 5)
+    landing_track[117:120, 1] = (0.20, 0.80, 0.80)
+    landing_track[120:135, 2] = 0
+    landing_track[135:143, 1] = np.linspace(0.20, 0.27, 8)
+    landing_track[143:, 1] = 0.20
+    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 20) > 135
+    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 10) == 120
+
+    kin = LandingKinematics(np.full(n_frames, np.nan), np.full(n_frames, np.nan), np.zeros(n_frames))
+    opts = LandingFilterOptions(1, 0.0, 1, 1, 0.0, use_settle=False, use_carry=False)
+    unscaled_landing = pick_landing(
+        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
+        (520.0, 560.0), (1920.0, 1080.0), court_info,
+        replace(resolved.constants, sustained_loss_frames=10, min_descend_samples=3), resolved.fps,
+    )
+    landing = pick_landing(
+        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
+        (520.0, 560.0), (1920.0, 1080.0), court_info, resolved.constants, resolved.fps,
+    )
+    double_scaled_landing = pick_landing(
+        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
+        (520.0, 560.0), (1920.0, 1080.0), court_info,
+        replace(resolved.constants, min_descend_samples=12), resolved.fps,
+    )
+    assert unscaled_landing is not None
+    assert unscaled_landing.frame == 116
+    assert landing is not None
+    assert landing.frame == 142
+    assert double_scaled_landing is None

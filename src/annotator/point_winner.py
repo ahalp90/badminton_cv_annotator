@@ -53,7 +53,7 @@ from .rally_segmentation import (
     rolling_nanmedian,
     true_runs,
 )
-from .fps_constants import scale_for_fps
+from .fps_constants import FpsConstants
 
 
 class Half(StrEnum):
@@ -137,7 +137,7 @@ def project_pixels_to_court(
 def _body_unit_gaps(
     frame: int, x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.ndarray,
     cand_slots: list[int], bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, track: np.ndarray, width: float, height: float,
+    court_box: CourtBox, track: np.ndarray, width: float, height: float, half_window: int,
 ) -> np.ndarray:
     """Body-unit (box-height) shuttle-to-candidate distance, the shipped attribution arm.
 
@@ -163,8 +163,8 @@ def _body_unit_gaps(
 
     n_cand = len(x1)
     n_frames = len(bboxes)
-    lo = max(0, frame - BODY_UNIT_HALF_WINDOW)
-    hi = min(n_frames - 1, frame + BODY_UNIT_HALF_WINDOW)
+    lo = max(0, frame - half_window)
+    hi = min(n_frames - 1, frame + half_window)
     denom_sum = np.zeros(n_cand)
     denom_count = np.zeros(n_cand, dtype=int)
     for g in range(lo, hi + 1):
@@ -191,6 +191,7 @@ def _body_unit_gaps(
 def attribute_half(
     frame: int, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
     court_box: CourtBox, net_band: tuple[float, float], resolution: tuple[float, float],
+    body_unit_half_window: int,
 ) -> Half | None:
     """Court half of the nearest court-scale detection to the shuttle at `frame`, or None.
 
@@ -216,7 +217,7 @@ def attribute_half(
     width, height = resolution
 
     gaps = _body_unit_gaps(frame, x1, y1, x2, y2, cand_slots, bboxes, scores, kps, court_box,
-                           track, width, height)
+                           track, width, height, body_unit_half_window)
 
     foot_y = float(y2[int(np.argmin(gaps))])  # bbox bottom-centre y, pixels
     band_lo, band_hi = net_band
@@ -289,7 +290,8 @@ def _gap_after_top_exit(final_contact: int, run_start: int, track: np.ndarray) -
 
 
 def window_end(
-    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray, fps: float | None = None,
+    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
+    sustained_loss_frames: int,
 ) -> int:
     """Earliest of the next rally's GT start, a sustained track loss, or replay-mask onset.
 
@@ -309,8 +311,7 @@ def window_end(
         end = min(end, final_contact + 1 + int(np.argmax(seg_dead)))
     invisible = track[final_contact + 1:cap, 2] != 1  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
-        loss_frames = scale_for_fps(25.0 if fps is None else fps).sustained_loss_frames
-        if run_end - run_start >= loss_frames:
+        if run_end - run_start >= sustained_loss_frames:
             if _gap_after_top_exit(final_contact, run_start, track):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
             end = min(end, final_contact + 1 + run_start)
@@ -692,17 +693,18 @@ def pick_landing(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
-    fps: float | None = None,
+    constants: FpsConstants, fps: float,
 ) -> Landing | None:
     """The picked landing for one rally: the filtered terminal, projected to court space, with
     quality flags. None when nothing survives the landing filter within the window.
+
+    ``fps`` must be the rate for which ``constants`` was resolved; it is used only to convert
+    landing options once.
     """
-    target_fps = 25.0 if fps is None else fps
-    values = scale_for_fps(target_fps)
-    win_end = window_end(final_contact, next_start, track, dead, target_fps)
+    win_end = window_end(final_contact, next_start, track, dead, constants.sustained_loss_frames)
     landing = filtered_descending_landing(
-        final_contact, win_end, track, kin, convert_landing_options(opts, target_fps),
-        values.min_descend_samples,
+        final_contact, win_end, track, kin, convert_landing_options(opts, fps),
+        constants.min_descend_samples,
     )
     if landing is None:
         return None

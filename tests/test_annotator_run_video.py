@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 
 from annotator.run_video import AnnotatorResult, run_video
-from scraper.config import SHIPPED_THRESHOLDS
 from annotator.point_winner import LandingFilterOptions
-from annotator.rally_segmentation import CourtBox, scale_thresholds
+from annotator.rally_segmentation import CourtBox
 
 
 def test_run_video_no_play_returns_empty_result():
@@ -40,7 +39,6 @@ def test_run_video_no_play_returns_empty_result():
     result = run_video(
         track, bboxes, scores, kps, ndet, dead,
         fps=25.0,
-        thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 25.0),
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75),
         court_box=CourtBox(
             x_range=(635.0, 1316.0), y_range=(254.0, 1030.0),

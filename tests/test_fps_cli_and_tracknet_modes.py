@@ -19,6 +19,7 @@ def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Pat
         return np.array([100], dtype=int)
 
     monkeypatch.setattr(stage9, 'detect_cuts', fake_detect_cuts)
+    monkeypatch.setattr(stage9, 'probe_fps', lambda _video: 50.0)
     common = [
         '--video-id', 'video-1', '--video', str(tmp_path / 'unused.mp4'),
         '--keep-vote', str(keep_vote_path), '--out-dir', str(tmp_path / 'masks'),
@@ -28,14 +29,14 @@ def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Pat
     monkeypatch.setattr(sys, 'argv', ['stage9', *common])
     stage9.main()
 
-    assert captured == [30, 13]
+    assert captured == [30, 25]
 
 
 @pytest.mark.parametrize(
     ('fps_args', 'expected_impulse'),
     [
         (['--fps-csv'], 20),
-        (['--fps-csv', '--missing-id'], 10),
+        (['--fps-csv', '--missing-id'], None),
         (['--fps', '60'], 24),
     ],
 )
@@ -73,9 +74,35 @@ def test_stage8_main_resolves_fps_thresholds(
     monkeypatch.setattr(sys, 'argv', ['stage8', *args])
     stage8.main()
 
-    assert captured[0].impulse_floor_half_window_frames == expected_impulse
+    if expected_impulse is not None:
+        assert captured[0].impulse_floor_half_window_frames == expected_impulse
     if '--missing-id' in fps_args:
-        assert 'absent from fps CSV' in caplog.text
+        assert not captured
+        assert 'skipping missing-id: absent from fps CSV' in caplog.text
+
+
+def test_stage8_main_requires_an_fps_source(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
+) -> None:
+    import annotator.rally_segmentation as stage8
+
+    shuttle_dir = tmp_path / 'shuttles'
+    shuttle_dir.mkdir()
+    monkeypatch.setattr(sys, 'argv', [
+        'stage8', '--shuttle-dir', str(shuttle_dir), '--rally-spans-csv', str(tmp_path / 'spans.csv'),
+        '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
+    ])
+    with pytest.raises(SystemExit, match='2'):
+        stage8.main()
+    assert 'one of --fps or --fps-csv is required' in capsys.readouterr().err
+
+
+def test_replay_main_requires_fps(monkeypatch: pytest.MonkeyPatch) -> None:
+    import annotator.replay_mask as replay
+
+    monkeypatch.setattr(sys, 'argv', ['replay', '--video-id', 'one'])
+    with pytest.raises(SystemExit, match='2'):
+        replay.main()
 
 
 @pytest.mark.parametrize(

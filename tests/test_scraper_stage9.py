@@ -36,7 +36,7 @@ def test_court_absence_fires_on_sustained_gap_not_blips():
     court_present[long_gap] = False
     court_present[short_blip] = False
 
-    mask = court_absence_signal(court_present, n_frames)
+    mask = court_absence_signal(court_present, n_frames, 25.0)
     assert mask[long_gap].all()
     assert not mask[short_blip].any()
     assert not mask[:10].any()
@@ -71,7 +71,7 @@ def test_velocity_drop_fires_on_slow_span_not_normal_play():
     track[40:80, 1] = 0.4 + slow_step * (np.arange(40, 80) % 2)  # slow replay span
     rally_spans = [(0, 31)]                                       # normal play defines the norm
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames)
+    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
     # slow_step (0.015) < SLOWMO_SPEED_FRAC * normal_step (0.03); normal play stays above.
     assert slow_step < SLOWMO_SPEED_FRAC * normal_step
     assert mask[45:78].all()
@@ -89,7 +89,7 @@ def test_velocity_drop_ignores_genuine_rest():
     track[40:80, 1] = 0.4                                 # shuttle at rest: zero speed, visible
     rally_spans = [(0, 31)]
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames)
+    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
     assert not mask[45:78].any()
     assert not mask[3:28].any()
 
@@ -107,15 +107,15 @@ def test_union_combines_signals():
     track = _speed_track(0.1, n_frames)
     rally_spans = [(30, 200)]
 
-    mask = combine_mask(court_present, rows, track, rally_spans, n_frames)
+    mask = combine_mask(court_present, rows, track, rally_spans, n_frames, 25.0)
     assert mask[15:25].all()                             # court absence
     assert mask[205:215].all()                           # perspective shift
 
 
 def test_missing_inputs_contribute_all_false():
     n_frames = 50
-    assert not court_absence_signal(None, n_frames).any()
+    assert not court_absence_signal(None, n_frames, 25.0).any()
     assert not perspective_shift_signal(None, n_frames).any()
-    assert not velocity_drop_signal(None, [(0, 10)], n_frames).any()
-    assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames).any()
-    assert not combine_mask(None, None, None, None, n_frames).any()
+    assert not velocity_drop_signal(None, [(0, 10)], n_frames, 25.0).any()
+    assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames, 25.0).any()
+    assert not combine_mask(None, None, None, None, n_frames, 25.0).any()

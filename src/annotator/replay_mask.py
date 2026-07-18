@@ -42,7 +42,7 @@ HOMOGRAPHY_CORNER_COLS = [
 # ---------------------------------------------------------------------------
 # Signal 1: court absence
 # ---------------------------------------------------------------------------
-def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float | None = None) -> np.ndarray:
+def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float) -> np.ndarray:
     """Fire across any court-absent run of at least COURT_ABSENT_WINDOW frames.
 
     A sustained absence (>= the window) masks its whole run; a one- or two-frame
@@ -62,7 +62,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)  # (frames,)
     for start, end in true_runs(absent):
-        window = scale_for_fps(25.0 if fps is None else fps).court_absent_window
+        window = scale_for_fps(fps).court_absent_window
         if end - start >= window:
             mask[start:end] = True
     return mask
@@ -142,7 +142,7 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
 # Signal 3: velocity drop (slow motion)
 # ---------------------------------------------------------------------------
 def velocity_drop_signal(
-    track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float | None = None,
+    track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float,
 ) -> np.ndarray:
     """Fire where visible shuttle speed drops well below the rally norm (slow-mo).
 
@@ -181,7 +181,7 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
-    values = scale_for_fps(25.0 if fps is None else fps)
+    values = scale_for_fps(fps)
     rolling_median = rolling_nanmedian(speed, values.rest_window)  # (t,)
     visible = track[:, 2] == 1  # (t,)
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)  # NaN windows read not-slow
@@ -199,7 +199,7 @@ def combine_mask(
     track: np.ndarray | None,
     rally_spans: list[tuple[int, int]] | None,
     n_frames: int,
-    fps: float | None = None,
+    fps: float,
 ) -> np.ndarray:
     """Union the three replay/off-rally signals (any-of, the spec's default).
 
@@ -246,7 +246,7 @@ def main() -> None:
                         help='Per-segment homography CSV (video_id, start_frame, end_frame, corners)')
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
-    parser.add_argument('--fps', type=float, default=None)
+    parser.add_argument('--fps', type=float, required=True)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')

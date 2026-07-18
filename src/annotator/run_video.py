@@ -5,6 +5,8 @@ from typing import NamedTuple
 
 import annotator.point_winner as point_winner
 import annotator.rally_segmentation as stage8_seg
+from annotator.config import BaseAnnotatorConfig
+from annotator.resolve import resolve
 
 
 OTHER_HALF = point_winner.OTHER_HALF
@@ -63,7 +65,7 @@ def run_video(
     track, bboxes, scores, kps, ndet, dead,
     *,
     fps: float,
-    thresholds,
+    base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
     landing_options,
     court_box,
     net_band: tuple[float, float],
@@ -79,13 +81,16 @@ def run_video(
 
     Caller preconditions (intentionally not validated here): arrays are frame-aligned; `dead` is
     a one-dimensional bool array of `len(track)`, where True means dead, and is not all True;
-    `fps` is positive and finite and `thresholds` were scaled for that same fps; `court_info` is
+    `fps` is positive and finite; `court_info` is
     semantically `gate_court_info[str(video_id)]`; `gate_resolution_table` contains this video
     under a string index with width and height columns; and `homo_df` contains the video's full
     corner-column row.
     """
+    resolved = resolve(base, fps)
     spans, contacts = stage8_seg.segment_video(
-        track, positions=None, thresholds=thresholds, span_open=stage8_seg.SpanOpen.BACK_FILL,
+        track, positions=None, thresholds=resolved.thresholds,
+        body_unit_half_window=resolved.constants.body_unit_half_window,
+        span_open=stage8_seg.SpanOpen.BACK_FILL,
         replay_mask=dead, pose_bboxes=bboxes, pose_scores=scores, pose_kps=kps,
         pose_ndet=ndet, court_box=court_box, gate_video_id=str(video_id),
         gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
@@ -103,6 +108,7 @@ def run_video(
         guesses = [
             point_winner.attribute_half(
                 frame, track, bboxes, scores, kps, court_box, net_band, resolution,
+                resolved.constants.body_unit_half_window,
             )
             for frame in frames
         ]
@@ -130,7 +136,7 @@ def run_video(
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
         landing = point_winner.pick_landing(
             final_contact, next_start, track, dead, kin, landing_options, striker, net_band,
-            resolution, court_info, fps=fps,
+            resolution, court_info, resolved.constants, fps,
         )
         verdict_rows[rally_id] = point_winner.rally_verdict(
             rally_id, striker, next_servers[rally_id], landing, band_m,
