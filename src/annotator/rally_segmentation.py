@@ -58,6 +58,7 @@ from .config import (
 )
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
 from .fps_constants import scale_for_fps
+from .types import ContactCandidate
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -1263,11 +1264,11 @@ def segment_video(
     :param resolution: `(width, height)` of the track and pose pixels.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
-        `[(rally_id, contact_frame, proximity_ok, wrist_near), ...]`. Every detected candidate
-        is a row (the RAW set, kept for recall-first uses); `wrist_near` is the final gate-plus-
-        suppression verdict. The FILTERED set downstream consumers default to is the rows with
-        `wrist_near` True; a blank `wrist_near` (no gate inputs supplied) means the gate never
-        ran, so every raw candidate stands.
+        `ContactCandidate(rally_id, contact_frame, proximity_ok, wrist_near, suppressed)`.
+        Every detected candidate is a row (the RAW set, kept for recall-first uses).
+        `wrist_near` is the pure wrist-gate verdict and `suppressed` records a gate-passing
+        candidate that lost the suppression-radius contest. Both are blank when no gate inputs
+        are supplied, so every raw candidate stands.
     """
     # Stage 6 bridge: bare calls preserve the frozen sweep/pilot's module-dispatched globals.
     if body_unit_half_window is None:
@@ -1329,11 +1330,14 @@ def segment_video(
 
     gate_ran = body_unit_dist is not None or all(value is not None for value in gate_inputs)
     if not gate_ran:
-        # Gate never ran: every wrist_near is None (serialised blank), raw candidates stand,
-        # and suppression is skipped, because the measured composition is defined over gate
+        # Gate never ran: both verdicts are None (serialised blank), raw candidates stand, and
+        # suppression is skipped, because the measured composition is defined over gate
         # survivors. Mirrors how positions=None leaves proximity_ok blank.
         return spans, [
-            (rally_id, contact_frame, contact_proximity_ok(track, positions, contact_frame), None)
+            ContactCandidate(
+                rally_id, contact_frame, contact_proximity_ok(track, positions, contact_frame),
+                None, None,
+            )
             for rally_id, contact_frame, _impulse in raw_flags
         ]
 
@@ -1361,10 +1365,15 @@ def segment_video(
         if suppression_radius is None else suppression_radius
     )
     accepted_frames = set(suppress_contact_flags(gated_flags, radius=radius))
-    contacts: list[tuple[int, int, bool | None, bool | None]] = []
+    gate_frames = {contact_frame for contact_frame, _impulse in gated_flags}
+    contacts: list[ContactCandidate] = []
     for rally_id, contact_frame, _impulse in raw_flags:
         proximity_ok = contact_proximity_ok(track, positions, contact_frame)
-        contacts.append((rally_id, contact_frame, proximity_ok, contact_frame in accepted_frames))
+        gate_passes = contact_frame in gate_frames
+        contacts.append(ContactCandidate(
+            rally_id, contact_frame, proximity_ok, gate_passes,
+            gate_passes and contact_frame not in accepted_frames,
+        ))
     return spans, contacts
 
 
@@ -1573,7 +1582,7 @@ def main() -> None:
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
 
     span_rows: list[tuple[str, int, int, int]] = []
-    contact_rows: list[tuple[str, int, int, str, str]] = []
+    contact_rows: list[tuple[str, int, int, str, str, str]] = []
     for track_path in sorted(args.shuttle_dir.glob('*.npy')):
         video_id = track_path.stem
         if args.fps is None and video_id not in fps_by_id:
@@ -1619,21 +1628,27 @@ def main() -> None:
             continue
         for rally_id, (start, end) in enumerate(spans):
             span_rows.append((video_id, rally_id, start, end))
-        for rally_id, contact_frame, proximity_ok, wrist_near in contacts:
-            contact_rows.append((video_id, rally_id, contact_frame,
-                                 _format_bool(proximity_ok), _format_bool(wrist_near)))
+        for contact in contacts:
+            contact_rows.append((
+                video_id, contact.rally_id, contact.contact_frame,
+                _format_bool(contact.proximity_ok), _format_bool(contact.wrist_near),
+                _format_bool(contact.suppressed),
+            ))
         log.info('%s: %d rallies, %d contacts', video_id, len(spans), len(contacts))
 
     with args.rally_spans_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
         writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
         writer.writerows(span_rows)
-    # wrist_near is the final body-unit-gate plus suppression verdict; blank when a video ran
-    # without gate inputs (the gate never ran), so its raw candidates stand. Every detected
-    # candidate is written (the RAW set), so nothing recall-first loses its input.
+    # wrist_near is the pure body-unit gate verdict; suppressed is true only for a gate-passing
+    # candidate that lost the suppression contest. Both are blank when a video ran without gate
+    # inputs (the gate never ran), so its raw candidates stand. Every detected candidate is
+    # written (the RAW set), so nothing recall-first loses its input.
     with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
         writer = csv.writer(handle)
-        writer.writerow(['video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near'])
+        writer.writerow([
+            'video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near', 'suppressed',
+        ])
         writer.writerows(contact_rows)
     log.info('wrote %d rally spans, %d contacts', len(span_rows), len(contact_rows))
 

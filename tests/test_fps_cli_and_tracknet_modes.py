@@ -81,6 +81,43 @@ def test_stage8_main_resolves_fps_thresholds(
         assert 'skipping missing-id: absent from fps CSV' in caplog.text
 
 
+def test_stage8_main_serialises_split_verdicts_to_csv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The contacts CSV carries both verdict columns, blank on the no-gate path."""
+    import annotator.rally_segmentation as stage8
+    from annotator.types import ContactCandidate
+
+    shuttle_dir = tmp_path / 'shuttles'
+    shuttle_dir.mkdir()
+    np.save(shuttle_dir / 'video-1.npy', np.zeros((4, 3)))
+    contacts_csv = tmp_path / 'contacts.csv'
+
+    def fake_segment_video(track, positions=None, **kwargs):
+        return [(0, 20)], [
+            ContactCandidate(0, 1, True, True, False),    # gate winner
+            ContactCandidate(0, 5, True, True, True),     # suppression loser
+            ContactCandidate(0, 9, False, False, False),  # gate failure
+            ContactCandidate(0, 13, None, None, None),    # no-gate path
+        ]
+
+    monkeypatch.setattr(stage8, 'segment_video', fake_segment_video)
+    monkeypatch.setattr(sys, 'argv', [
+        'stage8', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
+        '--rally-spans-csv', str(tmp_path / 'spans.csv'),
+        '--contact-frames-csv', str(contacts_csv),
+    ])
+    stage8.main()
+
+    assert contacts_csv.read_text(encoding='utf-8').splitlines() == [
+        'video_id,rally_id,contact_frame,proximity_ok,wrist_near,suppressed',
+        'video-1,0,1,True,True,False',
+        'video-1,0,5,True,True,True',
+        'video-1,0,9,False,False,False',
+        'video-1,0,13,,,',
+    ]
+
+
 def test_stage8_main_requires_an_fps_source(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
 ) -> None:

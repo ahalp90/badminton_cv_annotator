@@ -16,8 +16,8 @@ def _video_cell(cfg, chain, label: str, radius: int, multiple: float) -> dict[st
     gt_rallies = pin.harness.retest.load_gt_rallies(master, cfg.vid)
     gt_frames = [frame for rally in gt_rallies for frame in rally.stroke_frames]
     candidates = [
-        frame for _rally_id, frame, _proximity, wrist_near in chain.filtered_contacts
-        if wrist_near is not False
+        contact.contact_frame for contact in chain.filtered_contacts
+        if contact.wrist_near is not False and contact.suppressed is not True
     ]
     matches = census._global_matches(gt_frames, candidates)
     return {

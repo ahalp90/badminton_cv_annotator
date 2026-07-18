@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from enum import IntEnum, StrEnum
+from typing import NamedTuple
 
 from .fps_constants import BASE_FPS
 
@@ -36,6 +37,16 @@ class DeadMaskMode(StrEnum):
     REPLAY = 'replay'
     COMPOSITION = 'composition'
     UNION = 'union'
+
+
+class ContactCandidate(NamedTuple):
+    """One raw contact candidate and its independent gate/suppression verdicts."""
+
+    rally_id: int
+    contact_frame: int
+    proximity_ok: bool | None
+    wrist_near: bool | None
+    suppressed: bool | None
 
 
 class Slot(IntEnum):

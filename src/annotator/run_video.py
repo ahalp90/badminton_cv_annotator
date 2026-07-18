@@ -7,6 +7,7 @@ import annotator.point_winner as point_winner
 import annotator.rally_segmentation as stage8_seg
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import resolve
+from annotator.types import ContactCandidate
 
 
 OTHER_HALF = point_winner.OTHER_HALF
@@ -16,9 +17,10 @@ class AnnotatorResult(NamedTuple):
     """Everything the chain produces for one video, before any GT is read.
 
     :param spans: detected rally spans, `[(start, end), ...]`; rally_id is the list index.
-    :param contacts: RAW contact candidates, `(rally_id, contact_frame, proximity_ok, wrist_near)`.
-    :param filtered_contacts: the same shape, rows whose `wrist_near is not False` only (keeps
-        True and the unmeasured None, drops only a confirmed non-wrist candidate) — the set
+    :param contacts: RAW `ContactCandidate` rows. `wrist_near` is the wrist gate verdict and
+        `suppressed` records a gate-passing candidate that lost suppression.
+    :param filtered_contacts: rows where `wrist_near is not False and suppressed is not True`.
+        This keeps suppression winners and the unmeasured no-gate path — the set
         `scripts.stage8_score.score_contacts` scores the ball_round column against.
     :param filtered_by_rally: rally_id -> ascending contact frames from `filtered_contacts`.
     :param striker_halves: fitted final-contact half per rally_id (None: no contacts, or a tied
@@ -36,8 +38,8 @@ class AnnotatorResult(NamedTuple):
     """
 
     spans: list[tuple[int, int]]
-    contacts: list[tuple[int, int, bool | None, bool | None]]
-    filtered_contacts: list[tuple[int, int, bool | None, bool | None]]
+    contacts: list[ContactCandidate]
+    filtered_contacts: list[ContactCandidate]
     filtered_by_rally: dict[int, list[int]]
     striker_halves: list
     n_strokes_list: list[int]
@@ -97,10 +99,13 @@ def run_video(
         resolution=resolution,
     )
 
-    filtered_contacts = [c for c in contacts if c[3] is not False]
+    filtered_contacts = [
+        contact for contact in contacts
+        if contact.wrist_near is not False and contact.suppressed is not True
+    ]
     filtered_by_rally: dict[int, list[int]] = {}
-    for rally_id, contact_frame, _proximity_ok, _wrist_near in filtered_contacts:
-        filtered_by_rally.setdefault(rally_id, []).append(contact_frame)
+    for contact in filtered_contacts:
+        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
 
     striker_halves = []
     for rally_id in range(len(spans)):

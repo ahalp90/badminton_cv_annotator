@@ -181,12 +181,12 @@ def test_segment_video_proximity_paths():
     # No positions: every contact carries a blank guardrail.
     _, contacts_blank = segment_video(track, positions=None)
     assert contacts_blank
-    assert all(proximity_ok is None for _, _, proximity_ok, _ in contacts_blank)
+    assert all(contact.proximity_ok is None for contact in contacts_blank)
 
     # Player sitting on the shuttle at every frame: every contact reads True.
     positions = np.repeat(track[:, None, :2], 2, axis=1)  # (t, 2, 2) both slots on the shuttle
     _, contacts_near = segment_video(track, positions=positions)
-    assert all(proximity_ok is True for _, _, proximity_ok, _ in contacts_near)
+    assert all(contact.proximity_ok is True for contact in contacts_near)
 
 
 # ---------------------------------------------------------------------------
@@ -222,21 +222,34 @@ def test_wrist_contact_near_verdicts():
 def test_segment_video_wrist_near_paths():
     track, _, _, _ = _build_rally_track()
 
-    # No gate inputs at all: the gate never ran, every wrist_near is blank (None) and no
+    # No gate inputs at all: the gate never ran, both verdicts are blank (None), and no
     # suppression happens, so every raw candidate stands (recall-first).
     _, contacts_blank = segment_video(track)
     assert contacts_blank
-    assert all(wrist_near is None for *_, wrist_near in contacts_blank)
+    assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts_blank)
+    assert contacts_blank[0][:4] == (
+        contacts_blank[0].rally_id, contacts_blank[0].contact_frame,
+        contacts_blank[0].proximity_ok, contacts_blank[0].wrist_near,
+    )
 
-    # A wrist on the shuttle at every frame (distance 0): suppression keeps its winners.
+    # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and
+    # suppression records only its losers.
     near = np.zeros(len(track))
     _, contacts_near = segment_video(track, body_unit_dist=near)
-    assert [wrist_near for *_, wrist_near in contacts_near] == [False, True, False, True, False]
+    assert [contact.wrist_near for contact in contacts_near] == [True] * len(contacts_near)
+    assert [contact.suppressed for contact in contacts_near] == [True, False, True, False, True]
+    filtered = [
+        contact for contact in contacts_near
+        if contact.wrist_near is not False and contact.suppressed is not True
+    ]
+    assert [contact.contact_frame for contact in filtered] == [
+        contact.contact_frame for contact in contacts_near if not contact.suppressed
+    ]
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
     far = np.full(len(track), 2.0)
     _, contacts_far = segment_video(track, body_unit_dist=far)
-    assert all(wrist_near is False for *_, wrist_near in contacts_far)
+    assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts_far)
 
 
 def test_sticky_gate_requires_the_complete_library_context():
@@ -275,7 +288,7 @@ def test_sticky_gate_failure_rows_fail_closed(monkeypatch, failure_distance):
         gate_court_info={'1': {}}, gate_resolution_table=object(),
     )
     assert contacts
-    assert all(wrist_near is False for *_, wrist_near in contacts)
+    assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts)
 
 
 def test_end_rest_frames_constant_used():

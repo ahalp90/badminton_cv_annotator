@@ -74,10 +74,13 @@ def build_chain(cfg, track, bboxes, scores, kps, ndet, dead, homo_df, court_info
         resolution=harness.RESOLUTION,
     )
 
-    filtered_contacts = [contact for contact in contacts if contact[3] is not False]
+    filtered_contacts = [
+        contact for contact in contacts
+        if contact.wrist_near is not False and contact.suppressed is not True
+    ]
     filtered_by_rally: dict[int, list[int]] = {}
-    for rally_id, contact_frame, _proximity_ok, _wrist_near in filtered_contacts:
-        filtered_by_rally.setdefault(rally_id, []).append(contact_frame)
+    for contact in filtered_contacts:
+        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
 
     striker_halves = []
     for rally_id in range(len(spans)):

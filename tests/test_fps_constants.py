@@ -210,8 +210,14 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     resolved_contacts = segment_video(
         track, body_unit_half_window=12, **gate_kwargs,
     )[1]
-    assert {frame for _, frame, _, kept in base_radius_contacts if kept} >= {73, 82}
-    assert sum(kept for _, frame, _, kept in resolved_contacts if frame in (73, 82)) == 1
+    assert {
+        contact.contact_frame for contact in base_radius_contacts
+        if contact.wrist_near is not False and contact.suppressed is not True
+    } >= {73, 82}
+    assert sum(
+        contact.wrist_near is not False and contact.suppressed is not True
+        for contact in resolved_contacts if contact.contact_frame in (73, 82)
+    ) == 1
 
     short_window_contacts = segment_video(
         track, body_unit_half_window=12,
@@ -221,15 +227,20 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         track, body_unit_half_window=resolved.constants.body_unit_half_window,
         **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
     )[1]
-    assert next(kept for _, frame, _, kept in short_window_contacts if frame == 82)
-    assert not next(kept for _, frame, _, kept in full_contacts if frame == 82)
+    short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
+    full_contact = next(contact for contact in full_contacts if contact.contact_frame == 82)
+    assert (short_contact.wrist_near, short_contact.suppressed) == (True, False)
+    assert (full_contact.wrist_near, full_contact.suppressed) == (False, False)
 
     # The final resolved contact uses the same track, real pose gate, and resolved constants for
     # both attribution and landing.
     resolved_full_contacts = segment_video(
         track, body_unit_half_window=resolved.constants.body_unit_half_window, **gate_kwargs,
     )[1]
-    final_contact = [frame for _, frame, _, kept in resolved_full_contacts if kept][-1]
+    final_contact = [
+        contact.contact_frame for contact in resolved_full_contacts
+        if contact.wrist_near is not False and contact.suppressed is not True
+    ][-1]
     assert attribute_half(
         final_contact, track, bboxes, scores, kps, court_box, (520.0, 560.0), (1920.0, 1080.0),
         resolved.constants.body_unit_half_window,

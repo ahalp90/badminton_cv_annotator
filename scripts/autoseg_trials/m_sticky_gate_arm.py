@@ -17,6 +17,8 @@ if str(BST_ROOT) not in sys.path:
 
 import m_miss_junk_census as census  # noqa: E402
 
+from annotator.types import ContactCandidate  # noqa: E402  — census's import set up the src path
+
 pin = census.pin
 harness = census.harness
 stage8 = census.stage8
@@ -43,7 +45,7 @@ class StickyRun:
     records: list[FramePick | None]
     kept_frames: set[int]
     gaps: dict[int, float]
-    contacts: list[tuple[int, int, None, bool]]
+    contacts: list[ContactCandidate]
     scoring: object
 
 
@@ -246,7 +248,10 @@ def main() -> None:
             for flag in run.flags if flag.frame in gate_pass_frames
         ]))
         sticky_contacts = [
-            (flag.rally_id, flag.frame, None, flag.frame in kept_frames)
+            ContactCandidate(
+                flag.rally_id, flag.frame, None, flag.frame in gate_pass_frames,
+                flag.frame in gate_pass_frames and flag.frame not in kept_frames,
+            )
             for flag in run.flags
         ]
         chain = _build_sticky_chain(run, sticky_contacts)
@@ -257,7 +262,10 @@ def main() -> None:
         sticky_runs[video] = StickyRun(records, kept_frames, gaps, sticky_contacts, scoring)
 
         court_final = set(run.final_frames)
-        sticky_final = set(frame for _rally, frame, _prox, kept in sticky_contacts if kept)
+        sticky_final = {
+            contact.contact_frame for contact in sticky_contacts
+            if contact.wrist_near is not False and contact.suppressed is not True
+        }
         for arm, only_frames, own_final in (
             ('sticky_only', sorted(sticky_final - court_final), sticky_final),
             ('courtbox_only', sorted(court_final - sticky_final), court_final),

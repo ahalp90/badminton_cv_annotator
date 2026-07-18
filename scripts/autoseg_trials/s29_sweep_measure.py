@@ -92,22 +92,23 @@ def ranks(values: np.ndarray) -> np.ndarray:
 def signal_for(chain, cfg, track, dead, pin, census):
     masked = pin.stage8.apply_replay_mask(track, dead)
     by_frame = {}
-    for rally_id, frame, _proximity, wrist in chain.filtered_contacts:
-        if wrist is False:
+    for contact in chain.filtered_contacts:
+        if contact.wrist_near is False or contact.suppressed is True:
             continue
-        by_frame[frame] = rally_id
+        by_frame[contact.contact_frame] = contact.rally_id
     result = []
     span_junction_cache = {}
-    for rally_id, frame, _proximity, wrist in chain.filtered_contacts:
-        if wrist is False:
+    for contact in chain.filtered_contacts:
+        if contact.wrist_near is False or contact.suppressed is True:
             continue
-        start, end = chain.spans[rally_id]
-        if rally_id not in span_junction_cache:
-            span_junction_cache[rally_id] = census.span_junctions(masked, start, end)
-        junctions = span_junction_cache[rally_id]
+        start, end = chain.spans[contact.rally_id]
+        if contact.rally_id not in span_junction_cache:
+            span_junction_cache[contact.rally_id] = census.span_junctions(masked, start, end)
+        junctions = span_junction_cache[contact.rally_id]
         if junctions is None:
-            raise AssertionError(f'{cfg.name} span {rally_id} has a surviving candidate')
+            raise AssertionError(f'{cfg.name} span {contact.rally_id} has a surviving candidate')
         _angle, speed_in, speed_out, _visible = junctions
+        frame = contact.contact_frame
         local = frame - start - 1
         assert 0 <= local < len(speed_in)
         incoming, outgoing = float(speed_in[local]), float(speed_out[local])
@@ -117,7 +118,7 @@ def signal_for(chain, cfg, track, dead, pin, census):
         while next_frame < end and not dead[next_frame] and track[next_frame, 2] == 1:
             visible_run += 1
             next_frame += 1
-        result.append({'cell': '', 'video': cfg.name, 'rally_id': rally_id, 'frame': frame,
+        result.append({'cell': '', 'video': cfg.name, 'rally_id': contact.rally_id, 'frame': frame,
                        'burst_ratio': burst, 'visible_run': visible_run, 'span_end_gap': end - frame,
                        'run_truncated': visible_run == end - frame - 1})
     assert len(result) == len(by_frame) and len({row['frame'] for row in result}) == len(result)

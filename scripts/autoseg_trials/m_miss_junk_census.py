@@ -193,8 +193,8 @@ def _promotion_pass() -> dict[str, VideoRun]:
                 visible_run[frame] = run_length
 
         raw_frames = [flag.frame for flag in flags]
-        final_frames = [frame for _rally_id, frame, _proximity, wrist_near in chain.filtered_contacts]
-        if raw_frames != [frame for _rally_id, frame, _p, _w in chain.contacts]:
+        final_frames = [contact.contact_frame for contact in chain.filtered_contacts]
+        if raw_frames != [contact.contact_frame for contact in chain.contacts]:
             raise AssertionError(f'{cfg.name}: independent raw flag list drifted from chain')
 
         gate_measurements = {
