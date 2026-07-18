@@ -232,6 +232,123 @@ class WideshotInputs(NamedTuple):
     bot_foot: np.ndarray  # (t, 2) same for the bottom half
 
 
+class ServeSetupInputs(NamedTuple):
+    """Per-frame evidence for the body-height-unit serve-setup gate.
+
+    Ankles are image-fraction centroids and heights are image-HEIGHT fractions.
+    Distances are body-height-unit gaps, with ``+inf`` outside analysed
+    coverage. The next batch supplies the builder that fills these fields from
+    the sticky cache.
+    """
+
+    count: np.ndarray
+    distances: np.ndarray
+    analysed: np.ndarray
+    top_ankles: np.ndarray
+    bot_ankles: np.ndarray
+    top_height: np.ndarray
+    bot_height: np.ndarray
+
+    def validate(self) -> None:
+        """Validate shapes, dtypes, and the count contract."""
+        arrays = {name: np.asarray(value) for name, value in self._asdict().items()}
+        trailing_shapes = {
+            'count': (), 'distances': (2,), 'analysed': (),
+            'top_ankles': (2,), 'bot_ankles': (2,),
+            'top_height': (), 'bot_height': (),
+        }
+        for name, trailing in trailing_shapes.items():
+            value = arrays[name]
+            if value.ndim != 1 + len(trailing) or value.shape[1:] != trailing:
+                raise ValueError(f'{name} has wrong shape/rank')
+        if len({value.shape[0] for value in arrays.values()}) != 1:
+            raise ValueError('ServeSetupInputs fields must have equal first-axis length')
+
+        count = arrays['count']
+        if (np.issubdtype(count.dtype, np.bool_) or
+                not np.issubdtype(count.dtype, np.number) or
+                np.issubdtype(count.dtype, np.complexfloating)):
+            raise ValueError('count must be numeric real values')
+        if not np.all(np.isfinite(count)) or np.any(count < 0) or np.any(count != np.floor(count)):
+            raise ValueError('count must be finite, nonnegative, integer-valued reals')
+        if not np.issubdtype(arrays['analysed'].dtype, np.bool_):
+            raise ValueError('analysed must have boolean dtype')
+        for name in ('distances', 'top_ankles', 'bot_ankles', 'top_height', 'bot_height'):
+            if not np.issubdtype(arrays[name].dtype, np.floating):
+                raise ValueError(f'{name} must have floating-point dtype')
+
+
+def series_drift(points: np.ndarray) -> tuple[float, int]:
+    """Return median-half drift for a sentinel-coded point series.
+
+    ``points`` may contain NaN rows and the paired-zero ``(0, 0)`` sentinel;
+    it is not suitable for arbitrary geometry where the origin is meaningful.
+    Both coordinates must be finite and the pair must not be zero, while
+    ``(0, y)`` and ``(x, 0)`` remain detected.
+    """
+    points = np.asarray(points)
+    if points.ndim != 2 or points.shape[1:] != (2,):
+        raise ValueError('points must have shape (n, 2)')
+    if (np.issubdtype(points.dtype, np.bool_) or
+            not np.issubdtype(points.dtype, np.number) or
+            np.issubdtype(points.dtype, np.complexfloating)):
+        raise ValueError('points must have real numeric dtype')
+    detected = np.all(np.isfinite(points), axis=1) & np.any(points != 0, axis=1)
+    points = points[detected]
+    detected_count = len(points)
+    if detected_count < 2:
+        return float('nan'), detected_count
+    split = (detected_count + 1) // 2
+    first = np.median(points[:split], axis=0)
+    second = np.median(points[split:], axis=0)
+    return float(np.linalg.norm(second - first)), detected_count
+
+
+# Presence floor per required player; consumed by the next batch.
+PLAYER_PRESENT_MIN_FRAC = 0.5
+
+
+def serve_setup_still(
+    inputs: ServeSetupInputs,
+    claimed_serve_frame: int,
+    window_frames: int,
+    threshold_bh: float,
+    slots: tuple[Slot, ...],
+) -> bool:
+    """Return whether every requested player is still through the serve frame."""
+    inputs.validate()
+    if isinstance(window_frames, bool) or not isinstance(window_frames, (int, np.integer)) or window_frames <= 0:
+        raise ValueError('window_frames must be a positive integer')
+    t = len(inputs.count)
+    if isinstance(claimed_serve_frame, bool) or not isinstance(claimed_serve_frame, (int, np.integer)):
+        raise ValueError('claimed_serve_frame must be an integer in range [0, t)')
+    if not 0 <= claimed_serve_frame < t:
+        raise ValueError('claimed_serve_frame must be in range [0, t)')
+    if not np.isfinite(threshold_bh) or threshold_bh < 0:
+        raise ValueError('threshold_bh must be finite and nonnegative')
+    # Element check before set(): an unhashable member must ValueError, not TypeError.
+    if (not isinstance(slots, tuple) or not slots or
+            any(not isinstance(slot, Slot) for slot in slots) or
+            len(set(slots)) != len(slots)):
+        raise ValueError('slots must be a nonempty duplicate-free tuple of Slot values')
+
+    end = int(claimed_serve_frame) + 1
+    window = slice(max(0, end - int(window_frames)), end)
+    for slot in slots:
+        ankles = inputs.top_ankles[window] if slot is Slot.TOP else inputs.bot_ankles[window]
+        heights = inputs.top_height[window] if slot is Slot.TOP else inputs.bot_height[window]
+        drift, _ = series_drift(ankles)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            body_unit = float(np.nanmean(heights))
+        if not np.isfinite(body_unit) or body_unit <= 0:
+            return False
+        ratio = drift / body_unit
+        if not np.isfinite(ratio) or ratio > threshold_bh:
+            return False
+    return True
+
+
 class ServeStartMode(StrEnum):
     """What a region whose bursts are none of them serve-setup-preceded does.
 

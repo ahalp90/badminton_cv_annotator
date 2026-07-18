@@ -30,6 +30,7 @@ _FIELDS = {
     'contact_dedup_radius_frames': (3.0, ScalingKind.FRAME_COUNT),
     'contact_suppression_radius_frames': (9.0, ScalingKind.FRAME_COUNT),
     'serve_start_lookback_frames': (25.0, ScalingKind.FRAME_COUNT),
+    'serve_stillness_window_frames': (15.0, ScalingKind.FRAME_COUNT),
     'wideshot_drift_end_frames': (10.0, ScalingKind.FRAME_COUNT),
     'sustained_loss_frames': (10.0, ScalingKind.FRAME_COUNT),
     'min_descend_samples': (3.0, ScalingKind.FRAME_COUNT),
