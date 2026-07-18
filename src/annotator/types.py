@@ -30,6 +30,14 @@ class ScalingKind(StrEnum):
         return value
 
 
+class DeadMaskMode(StrEnum):
+    """Select the producer policy for the per-frame dead-time mask."""
+
+    REPLAY = 'replay'
+    COMPOSITION = 'composition'
+    UNION = 'union'
+
+
 class Slot(IntEnum):
     """Storage-row indices pinned to sticky_anchor's public constants.
 

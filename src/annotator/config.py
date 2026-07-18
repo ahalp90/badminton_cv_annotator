@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 from .fps_constants import FpsConstants, scale_for_fps
+from .types import DeadMaskMode
 
 # ---------------------------------------------------------------------------
 # Stage 8: rally segmentation and contact rules (spec s6)
@@ -111,6 +112,7 @@ class BaseAnnotatorConfig:
     """
 
     thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
+    dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
 
 
 @dataclass(frozen=True)
@@ -125,3 +127,4 @@ class ResolvedAnnotatorConfig:
     fps: float
     constants: FpsConstants
     thresholds: Stage8Thresholds
+    dead_mask_mode: DeadMaskMode

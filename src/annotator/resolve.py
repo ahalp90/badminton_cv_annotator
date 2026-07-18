@@ -14,4 +14,9 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
     """Resolve one preset for a probed fps; probing fps is the caller's business."""
     constants = scale_for_fps(fps)
     thresholds = scale_thresholds(base.thresholds, fps)
-    return ResolvedAnnotatorConfig(fps=fps, constants=constants, thresholds=thresholds)
+    return ResolvedAnnotatorConfig(
+        fps=fps,
+        constants=constants,
+        thresholds=thresholds,
+        dead_mask_mode=base.dead_mask_mode,
+    )

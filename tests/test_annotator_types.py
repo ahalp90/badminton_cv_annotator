@@ -14,7 +14,7 @@ from annotator.config import (
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import scale_thresholds
 from annotator.resolve import resolve
-from annotator.types import ScalingKind, Slot
+from annotator.types import DeadMaskMode, ScalingKind, Slot
 from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
 
 
@@ -71,8 +71,16 @@ def test_resolve_composes_final_constants_and_thresholds(fps: float) -> None:
     expected_thresholds = scale_thresholds(SHIPPED_THRESHOLDS, fps)
     assert resolved == ResolvedAnnotatorConfig(
         fps=fps, constants=expected_constants, thresholds=expected_thresholds,
+        dead_mask_mode=DeadMaskMode.REPLAY,
     )
     assert base.thresholds == SHIPPED_THRESHOLDS
+    assert resolved.dead_mask_mode is DeadMaskMode.REPLAY
+
+
+def test_resolve_preserves_dead_mask_mode_without_fps_scaling() -> None:
+    base = BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.UNION)
+    resolved = resolve(base, 50.0)
+    assert resolved.dead_mask_mode is DeadMaskMode.UNION
 
 
 def test_config_dataclasses_are_frozen() -> None:
