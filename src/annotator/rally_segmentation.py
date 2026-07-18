@@ -58,7 +58,7 @@ from .config import (
 )
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
 from .fps_constants import scale_for_fps
-from .types import ContactCandidate
+from .types import ContactCandidate, Slot
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -1063,7 +1063,7 @@ def body_unit_dist_at_frame(
     from . import point_winner
 
     x1, y1, x2, y2 = bboxes[frame, candidate_slots].T
-    gaps = point_winner._body_unit_gaps(  # noqa: SLF001 — shared measured machinery
+    gaps = point_winner.body_unit_gaps(
         frame, x1, y1, x2, y2, [int(slot) for slot in candidate_slots], bboxes, scores, kps,
         court_box, track, width, height, half_window,
     )
@@ -1103,33 +1103,24 @@ def suppress_contact_flags(
     return sorted(accepted)
 
 
-def _sticky_filtered_raw_slots(
-    frame: int, bboxes: np.ndarray, scores: np.ndarray, ndet: np.ndarray,
-    ctx: ClipContext, params: sticky_anchor.StickyAnchorParams,
-) -> np.ndarray:
-    """Recover picker candidate indices in the raw pose-slot space.
+class StickyResult(NamedTuple):
+    """Cached sticky evidence. ``bbox_height`` is in pixels."""
 
-    The picker first applies its parameterised score filter, then removes NaN
-    homography projections. Retaining this order preserves the picker's lowest-
-    filtered-slot tie behaviour when a picked slot is passed to point_winner.
-    """
-    n_detections = int(ndet[frame])
-    score_slots = np.flatnonzero(scores[frame, :n_detections] > params.score_filter)
-    projected = sticky_anchor._project_bbox_bottom_centre(  # noqa: SLF001
-        bboxes[frame, score_slots].astype(np.float64), ctx,
-    )
-    valid = ~np.isnan(projected).any(axis=1)
-    return score_slots[valid]
+    distances: np.ndarray
+    picks: np.ndarray
+    standing_count: np.ndarray
+    ankle_pos: np.ndarray
+    bbox_height: np.ndarray
 
 
-def _sticky_gate_distances(
+def build_sticky_result(
     track: np.ndarray, spans: list[tuple[int, int]],
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
     court_box: CourtBox, resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
-) -> dict[int, float]:
-    """Run sticky_anchor over every frame in every detected rally span.
+) -> StickyResult:
+    """Run one sticky analysis loop over the supplied spans.
 
     A span is one clip for EMA purposes. The sequential loop deliberately runs
     on every frame, including non-contact frames, because skipped frames change
@@ -1148,51 +1139,60 @@ def _sticky_gate_distances(
     )
     ctx = ClipContext(gate_video_id, gate_court_info, gate_resolution_table)
     court_info = ctx.all_court_info[ctx.vid]
-    halfcourt_centre = sticky_anchor._compute_halfcourt_centres(court_info)  # noqa: SLF001
-    gaps: dict[int, float] = {}
+    halfcourt_centre = sticky_anchor.compute_halfcourt_centres(court_info)
+    n_frames = len(track)
+    gaps = np.full(n_frames, np.inf)
+    picks_out = np.full((n_frames, 2), -1, dtype=int)
+    standing_count = np.zeros(n_frames, dtype=int)
+    ankle_pos = np.full((n_frames, 2, 2), np.nan)
+    bbox_height = np.full((n_frames, 2), np.nan)
 
     for start, end in spans:
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
-            result = sticky_anchor._pick_one_frame(  # noqa: SLF001
-                raw, frame, ema, halfcourt_centre, ctx, params,
-            )
-            if not result:
-                gaps[frame] = float('nan')
+            analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)
+            standing_count[frame] = analysis.standing_in_court_count
+            if analysis.picks is None:
+                gaps[frame] = np.nan
                 ema[:] = halfcourt_centre
                 continue
-
-            picks, court_base_pos, _kps_f, bboxes_f, _n_counted = result
-            picked_slots = _sticky_filtered_raw_slots(
-                frame, pose_bboxes, pose_scores, pose_ndet, ctx, params,
-            )
+            assert analysis.court_base_pos is not None
+            assert analysis.bboxes is not None
+            assert analysis.filtered_to_raw is not None
             frame_has_zero = False
             picked_raw_slots: list[int] = []
-            for slot in (sticky_anchor.SLOT_TOP, sticky_anchor.SLOT_BOTTOM):
-                if picks[slot] < 0:
+            for slot in Slot:
+                pick = analysis.picks[slot]
+                if pick < 0:
                     frame_has_zero = True
                     ema[slot] = halfcourt_centre[slot]
                     continue
-                candidate_position = court_base_pos[picks[slot]]
-                if sticky_anchor._in_generous_court(  # noqa: SLF001
+                candidate_position = analysis.court_base_pos[pick]
+                if sticky_anchor.in_generous_court(
                     candidate_position, params.update_gate_eps,
                 ):
                     ema[slot] = (
                         params.ema_alpha * candidate_position
                         + (1 - params.ema_alpha) * ema[slot]
                     )
-                picked_raw_slots.append(int(picked_slots[picks[slot]]))
+                raw_slot = int(analysis.filtered_to_raw[pick])
+                picks_out[frame, slot] = raw_slot
+                picked_raw_slots.append(raw_slot)
+                box = analysis.bboxes[pick]
+                bbox_height[frame, slot] = box[3] - box[1]
+                ankles = pose_kps[frame, raw_slot, (ANKLE_L, ANKLE_R), :]
+                ankle_pos[frame, slot] = ankles.mean(axis=0) / np.asarray(resolution)
 
             # A partial pick is valid. Only the retained raw slots enter the
             # body-unit denominator association; no doubles/count machinery is
             # part of this contact gate.
             if frame_has_zero and not picked_raw_slots:
-                gaps[frame] = float('nan')
+                gaps[frame] = np.nan
                 continue
             picked_boxes = pose_bboxes[frame, picked_raw_slots].astype(np.float64)
             x1, y1, x2, y2 = picked_boxes.T
             try:
-                candidate_gaps = point_winner._body_unit_gaps(  # noqa: SLF001
+                candidate_gaps = point_winner.body_unit_gaps(
                     frame, x1, y1, x2, y2, picked_raw_slots,
                     pose_bboxes, pose_scores, pose_kps, court_box,
                     track, resolution[0], resolution[1], half_window,
@@ -1200,12 +1200,47 @@ def _sticky_gate_distances(
             except ValueError as exc:
                 if not str(exc).startswith('body-unit gap:'):
                     raise
-                gaps[frame] = float('nan')
+                gaps[frame] = np.nan
                 continue
             finite_gaps = candidate_gaps[np.isfinite(candidate_gaps)]
             gaps[frame] = float(np.min(finite_gaps)) if len(finite_gaps) else float('nan')
 
-    return gaps
+    return StickyResult(gaps, picks_out, standing_count, ankle_pos, bbox_height)
+
+
+def find_rally_spans(
+    track: np.ndarray, thresholds: Stage8Thresholds | None = None,
+    serve_start: ServeStartOptions | None = None, span_open: SpanOpen | None = None,
+) -> list[tuple[int, int]]:
+    """Span-only segmentation; deliberately performs no contact extraction."""
+    speed = compute_speed(track)
+    at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
+    if serve_start is not None:
+        return _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
+    if span_open is not None:
+        return _find_rally_spans_span_open(speed, at_rest, thresholds, span_open)
+    return _find_rally_spans(speed, at_rest) if thresholds is None else _find_rally_spans(speed, at_rest, thresholds)
+
+
+def assemble_contacts(
+    track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
+    thresholds: Stage8Thresholds | None, body_unit_dist: np.ndarray | None,
+    suppression_radius: int | None,
+) -> list[ContactCandidate]:
+    """Detect, gate, and suppress contacts for already-selected spans."""
+    raw_flags = [(rally_id, frame, impulse) for rally_id, (start, end) in enumerate(spans)
+                 for frame, impulse in detect_contact_flags(track, start, end, thresholds)]
+    if body_unit_dist is None:
+        return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)
+                for r, f, _ in raw_flags]
+    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(body_unit_dist, f)]
+    radius = ((CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
+              if suppression_radius is None else suppression_radius)
+    accepted = set(suppress_contact_flags(gated, radius=radius))
+    gate_frames = {frame for frame, _ in gated}
+    return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), f in gate_frames,
+                             f in gate_frames and f not in accepted)
+            for r, f, _ in raw_flags]
 
 
 def segment_video(
@@ -1215,6 +1250,8 @@ def segment_video(
     span_open: SpanOpen | None = None,
     replay_mask: np.ndarray | None = None,
     body_unit_dist: np.ndarray | None = None,
+    sticky_distances: np.ndarray | None = None,
+    spans: list[tuple[int, int]] | None = None,
     pose_bboxes: np.ndarray | None = None,
     pose_scores: np.ndarray | None = None,
     pose_kps: np.ndarray | None = None,
@@ -1226,7 +1263,7 @@ def segment_video(
     suppression_radius: int | None = None,
     body_unit_half_window: int | None = None,
     resolution: tuple[float, float] = (1920.0, 1080.0),
-) -> tuple[list[tuple[int, int]], list[tuple[int, int, bool | None, bool | None]]]:
+) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Full stage-8 pass over one video's shuttle track.
 
     Every keyword option is off by default and each default preserves today's behaviour
@@ -1287,38 +1324,17 @@ def segment_video(
             'BACK_FILL emits one span per qualifying region at region_start, so there is nothing '
             'to split. Drop the split close, or use it without BACK_FILL.'
         )
-    gate_track = track
-    if replay_mask is not None:
-        track = apply_replay_mask(track, replay_mask)
-
-    speed = compute_speed(track)
-
-    # Rest mask. thresholds None keeps today's exact two-arg module-dispatched call so the
-    # sweep's gap-state monkey-patch (and the patched globals) still bind; a preset threads
-    # its rest thresholds through instead.
-    at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
-
-    # Rally spans. Serve-start and span_open are the landed options; absent both, thresholds
-    # None keeps today's exact module-dispatched _find_rally_spans (quiet-start-patchable).
-    if serve_start is not None:
-        spans = _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
-    elif span_open is not None:
-        spans = _find_rally_spans_span_open(speed, at_rest, thresholds, span_open)
-    elif thresholds is None:
-        spans = _find_rally_spans(speed, at_rest)
-    else:
-        spans = _find_rally_spans(speed, at_rest, thresholds)
-
-    raw_flags: list[tuple[int, int, float]] = []
-    for rally_id, (start, end) in enumerate(spans):
-        flags = detect_contact_flags(track, start, end, thresholds)
-        for contact_frame, impulse in flags:
-            raw_flags.append((rally_id, contact_frame, impulse))
-
+    # Argument validation precedes any span work so bad combinations fail loudly
+    # here, never as a numpy error from deep inside span finding.
     gate_inputs = (
         pose_bboxes, pose_scores, pose_kps, pose_ndet, court_box,
         gate_video_id, gate_court_info, gate_resolution_table,
     )
+    if sticky_distances is not None:
+        if sticky_distances.shape != (len(track),):
+            raise ValueError('sticky_distances must have shape (len(track),)')
+        if body_unit_dist is not None or any(value is not None for value in gate_inputs):
+            raise ValueError('sticky_distances cannot be combined with other gate inputs')
     if body_unit_dist is not None and any(value is not None for value in gate_inputs):
         raise ValueError('body_unit_dist cannot be combined with pose gate inputs')
     if body_unit_dist is None and any(value is not None for value in gate_inputs):
@@ -1328,53 +1344,29 @@ def segment_video(
                 'court_box, gate_video_id, gate_court_info, and gate_resolution_table'
             )
 
-    gate_ran = body_unit_dist is not None or all(value is not None for value in gate_inputs)
+    gate_track = track
+    if replay_mask is not None:
+        track = apply_replay_mask(track, replay_mask)
+
+    if spans is None:
+        spans = find_rally_spans(track, thresholds, serve_start, span_open)
+
+    gate_ran = sticky_distances is not None or body_unit_dist is not None or all(value is not None for value in gate_inputs)
     if not gate_ran:
-        # Gate never ran: both verdicts are None (serialised blank), raw candidates stand, and
-        # suppression is skipped, because the measured composition is defined over gate
-        # survivors. Mirrors how positions=None leaves proximity_ok blank.
-        return spans, [
-            ContactCandidate(
-                rally_id, contact_frame, contact_proximity_ok(track, positions, contact_frame),
-                None, None,
-            )
-            for rally_id, contact_frame, _impulse in raw_flags
-        ]
+        return spans, assemble_contacts(track, positions, spans, thresholds, None, suppression_radius)
 
-    sticky_distances: dict[int, float] | None = None
+    distances = sticky_distances
     if body_unit_dist is None:
-        sticky_distances = _sticky_gate_distances(
-            gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
-            gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
-            body_unit_half_window,
+        if distances is None:
+            distances = build_sticky_result(
+                gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
+                gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
+                body_unit_half_window,
+            ).distances
+        return spans, assemble_contacts(
+            track, positions, spans, thresholds, distances, suppression_radius,
         )
-
-    gated_flags: list[tuple[int, float]] = []
-    for _rally_id, contact_frame, impulse in raw_flags:
-        if body_unit_dist is not None:
-            gate_passes = wrist_contact_near(body_unit_dist, contact_frame)
-        else:
-            distance = sticky_distances[contact_frame]
-            gate_passes = bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
-        if gate_passes:
-            gated_flags.append((contact_frame, impulse))
-
-    # Stage 6 bridge: suppression_radius=None reads its legacy module global only on bare calls.
-    radius = (
-        (CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
-        if suppression_radius is None else suppression_radius
-    )
-    accepted_frames = set(suppress_contact_flags(gated_flags, radius=radius))
-    gate_frames = {contact_frame for contact_frame, _impulse in gated_flags}
-    contacts: list[ContactCandidate] = []
-    for rally_id, contact_frame, _impulse in raw_flags:
-        proximity_ok = contact_proximity_ok(track, positions, contact_frame)
-        gate_passes = contact_frame in gate_frames
-        contacts.append(ContactCandidate(
-            rally_id, contact_frame, proximity_ok, gate_passes,
-            gate_passes and contact_frame not in accepted_frames,
-        ))
-    return spans, contacts
+    return spans, assemble_contacts(track, positions, spans, thresholds, body_unit_dist, suppression_radius)
 
 
 # ---------------------------------------------------------------------------

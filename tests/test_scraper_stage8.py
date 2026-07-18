@@ -266,26 +266,16 @@ def test_sticky_gate_requires_the_complete_library_context():
         segment_video(track, **arrays, court_box=STANDIN_COURT_BOX)
 
 
-@pytest.mark.parametrize('failure_distance', [np.nan])
-def test_sticky_gate_failure_rows_fail_closed(monkeypatch, failure_distance):
-    track, _, _, _ = _build_rally_track()
-    arrays = {
-        'pose_bboxes': np.zeros((len(track), 1, 4)),
-        'pose_scores': np.zeros((len(track), 1)),
-        'pose_kps': np.zeros((len(track), 1, 17, 2)),
-        'pose_ndet': np.zeros(len(track), dtype=int),
-    }
-    import annotator.rally_segmentation as stage8_module
+@pytest.mark.parametrize('failure_distance', [np.nan, np.inf])
+def test_sticky_gate_failure_rows_fail_closed(failure_distance):
+    """A no-evidence distance row (NaN inside spans, +inf outside) fails the gate closed.
 
-    monkeypatch.setattr(
-        stage8_module, '_sticky_gate_distances',
-        lambda _track, spans, *_args: {
-            frame: failure_distance for start, end in spans for frame in range(start, end)
-        },
-    )
+    Uses the cached-distances injection surface that replaced the old internal
+    monkeypatch: the caller supplies the full-length series directly.
+    """
+    track, _, _, _ = _build_rally_track()
     _, contacts = segment_video(
-        track, **arrays, court_box=STANDIN_COURT_BOX, gate_video_id='1',
-        gate_court_info={'1': {}}, gate_resolution_table=object(),
+        track, sticky_distances=np.full(len(track), failure_distance),
     )
     assert contacts
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts)

@@ -640,10 +640,12 @@ def run_fixture(fixture: Fixture) -> VideoScoring:
     gate_courts = {str(video_id): info for video_id, info in courts.items()}
     gate_resolution = resolution.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
-    result = run_video(*arrays, fps=fixture.fps,
+    track, bboxes, scores, kps, ndet, committed_mask = arrays
+    result = run_video(track, bboxes, scores, kps, ndet, fps=fixture.fps,
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75), court_box=CourtBox(*fixture.court_box),
         net_band=fixture.net_band, resolution=fixture.resolution, video_id=fixture.video_id, court_info=courts[fixture.video_id],
-        homo_df=homo, gate_court_info=gate_courts, gate_resolution_table=gate_resolution)
+        homo_df=homo, gate_court_info=gate_courts, gate_resolution_table=gate_resolution,
+        dead_mask=committed_mask)
     return score_video(fixture, result, master, courts, canonical_tolerance(fixture.fps))
 
 

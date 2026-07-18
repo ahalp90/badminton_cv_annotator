@@ -3,14 +3,40 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+import numpy as np
+
 import annotator.point_winner as point_winner
 import annotator.rally_segmentation as stage8_seg
 from annotator.config import BaseAnnotatorConfig
+from annotator.dead_mask import build_dead_mask
 from annotator.resolve import resolve
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, ServeStartConfig
 
 
 OTHER_HALF = point_winner.OTHER_HALF
+
+
+def scoring_filter(contacts):
+    """Rows the scorer reads: wrist gate not failed, not suppressed."""
+    return [c for c in contacts
+            if c.wrist_near is not False and c.suppressed is not True]
+
+
+def build_serve_options(
+    config, track, bboxes, scores, court_box, resolution,
+) -> stage8_seg.ServeStartOptions:
+    """Build serve-start evidence from the unmasked track and pose detections."""
+    if config.close is not None:
+        raise ValueError('serve_start.close is unsupported with BACK_FILL')
+    dist = stage8_seg.build_serve_start_dist(track, bboxes, scores, court_box, resolution)
+    height = (stage8_seg.build_serve_start_box_height(track, bboxes, scores, court_box, resolution)
+              if config.body_height_units else None)
+    wideshot = (stage8_seg.build_serve_start_wideshot_inputs(bboxes, scores, court_box, resolution)
+                if config.wideshot else None)
+    # Mirror scripts/stage8_sweep.py:1395-1420; evidence is always unmasked.
+    return stage8_seg.ServeStartOptions(
+        dist, config.threshold, config.mode, wideshot, config.close, None, height,
+    )
 
 
 class AnnotatorResult(NamedTuple):
@@ -64,7 +90,7 @@ def _first_stroke_half(final_half, n_strokes: int):
 
 
 def run_video(
-    track, bboxes, scores, kps, ndet, dead,
+    track, bboxes, scores, kps, ndet,
     *,
     fps: float,
     base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
@@ -78,31 +104,63 @@ def run_video(
     gate_court_info: dict,
     gate_resolution_table,
     ref_err_px: float = 3.5,
+    dead_mask: np.ndarray | None = None,
+    court_present=None,
+    homography_rows=None,
+    cut_frames=None,
+    keep_vote=None,
+    serve_start: ServeStartConfig | None = None,
+    spans: list[tuple[int, int]] | None = None,
+    contacts: dict[int, list[int]] | None = None,
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
-    Caller preconditions (intentionally not validated here): arrays are frame-aligned; `dead` is
-    a one-dimensional bool array of `len(track)`, where True means dead, and is not all True;
+    Caller preconditions (intentionally not validated here): arrays are frame-aligned;
     `fps` is positive and finite; `court_info` is
     semantically `gate_court_info[str(video_id)]`; `gate_resolution_table` contains this video
     under a string index with width and height columns; and `homo_df` contains the video's full
     corner-column row.
     """
     resolved = resolve(base, fps)
-    spans, contacts = stage8_seg.segment_video(
-        track, positions=None, thresholds=resolved.thresholds,
-        body_unit_half_window=resolved.constants.body_unit_half_window,
-        span_open=stage8_seg.SpanOpen.BACK_FILL,
-        replay_mask=dead, pose_bboxes=bboxes, pose_scores=scores, pose_kps=kps,
-        pose_ndet=ndet, court_box=court_box, gate_video_id=str(video_id),
-        gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
-        resolution=resolution,
-    )
+    if contacts is not None:
+        # Injected contacts already carry the selected rally IDs. Only the preliminary
+        # span pass is needed when callers did not inject spans; all discarded evidence
+        # builders are irrelevant because segmentation is bypassed below.
+        final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+            track, resolved.thresholds, span_open=stage8_seg.SpanOpen.BACK_FILL,
+        )
+        raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
+                        for rally_id, frames in contacts.items() for frame in frames]
+    else:
+        # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
+        bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+            track, resolved.thresholds, span_open=stage8_seg.SpanOpen.BACK_FILL,
+        )
+        sticky = stage8_seg.build_sticky_result(
+            track, bootstrap_spans, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
+            gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
+        )
+        mask = dead_mask if dead_mask is not None else build_dead_mask(
+            resolved.dead_mask_mode, len(track), fps, court_present=court_present,
+            homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
+            cut_frames=cut_frames, keep_vote=keep_vote,
+        )
+        serve_options = None
+        if serve_start is not None:
+            serve_options = build_serve_options(
+                serve_start, track, bboxes, scores, court_box, resolution,
+            )
+        final_spans = spans
+        final_spans, raw_contacts = stage8_seg.segment_video(
+            track, positions=None, thresholds=resolved.thresholds,
+            body_unit_half_window=resolved.constants.body_unit_half_window,
+            span_open=stage8_seg.SpanOpen.BACK_FILL,
+            replay_mask=mask, sticky_distances=sticky.distances, serve_start=serve_options,
+            spans=final_spans, resolution=resolution,
+        )
+    spans, contacts = final_spans, raw_contacts
 
-    filtered_contacts = [
-        contact for contact in contacts
-        if contact.wrist_near is not False and contact.suppressed is not True
-    ]
+    filtered_contacts = scoring_filter(contacts)
     filtered_by_rally: dict[int, list[int]] = {}
     for contact in filtered_contacts:
         filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
@@ -140,7 +198,7 @@ def run_video(
         final_contact = frames[-1]
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
         landing = point_winner.pick_landing(
-            final_contact, next_start, track, dead, kin, landing_options, striker, net_band,
+            final_contact, next_start, track, mask, kin, landing_options, striker, net_band,
             resolution, court_info, resolved.constants, fps,
         )
         verdict_rows[rally_id] = point_winner.rally_verdict(

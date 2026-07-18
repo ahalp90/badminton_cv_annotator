@@ -134,7 +134,7 @@ def project_pixels_to_court(
 # ---------------------------------------------------------------------------
 # Striker attribution (the shipped wrist_boxh arm: nearer-wrist px / mean windowed box height)
 # ---------------------------------------------------------------------------
-def _body_unit_gaps(
+def body_unit_gaps(
     frame: int, x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.ndarray,
     cand_slots: list[int], bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
     court_box: CourtBox, track: np.ndarray, width: float, height: float, half_window: int,
@@ -216,7 +216,7 @@ def attribute_half(
     cand_slots = [int(np.flatnonzero(frame_scores == s)[0]) for s in cand_scores]
     width, height = resolution
 
-    gaps = _body_unit_gaps(frame, x1, y1, x2, y2, cand_slots, bboxes, scores, kps, court_box,
+    gaps = body_unit_gaps(frame, x1, y1, x2, y2, cand_slots, bboxes, scores, kps, court_box,
                            track, width, height, body_unit_half_window)
 
     foot_y = float(y2[int(np.argmin(gaps))])  # bbox bottom-centre y, pixels
@@ -226,6 +226,10 @@ def attribute_half(
     if foot_y > band_hi:
         return Half.BOT
     return None  # inside the net band
+
+
+# Compatibility alias for frozen callers; remove when the old sticky seam retires.
+_body_unit_gaps = body_unit_gaps
 
 
 # ---------------------------------------------------------------------------

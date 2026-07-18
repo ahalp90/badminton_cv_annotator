@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import math
 from enum import IntEnum, StrEnum
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from .fps_constants import BASE_FPS
+
+if TYPE_CHECKING:
+    from .rally_segmentation import ServeStartClose, ServeStartMode
 
 
 class ScalingKind(StrEnum):
@@ -47,6 +50,16 @@ class ContactCandidate(NamedTuple):
     proximity_ok: bool | None
     wrist_near: bool | None
     suppressed: bool | None
+
+
+class ServeStartConfig(NamedTuple):
+    """Policy-only serve-start request; run_video builds its evidence arrays."""
+
+    threshold: float
+    mode: 'ServeStartMode'
+    wideshot: bool = False
+    close: 'ServeStartClose | None' = None
+    body_height_units: bool = True
 
 
 class Slot(IntEnum):
