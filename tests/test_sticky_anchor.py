@@ -16,6 +16,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.bst_x.preparing_data.heuristics import sticky_anchor
 from src.bst_x.preparing_data.heuristics.base import (
     ClipContext,
     RawClip,
@@ -26,6 +27,9 @@ from src.bst_x.preparing_data.heuristics.sticky_anchor import (
     StickyAnchorParams,
     _pick_one_frame,
     _run_clip,
+    analyse_frame,
+    compute_halfcourt_centres,
+    pick_one_frame,
 )
 
 J = 17  # COCO 17-joint skeleton
@@ -354,3 +358,160 @@ def test_update_gate_eps_blocks_off_court_update():
     np.testing.assert_allclose(ema_history[0, SLOT_BOTTOM], halfcourt[SLOT_BOTTOM], atol=1e-12)
     # Top EMA must have moved (alpha=0.1, target around (0.55, 0.20)).
     assert not np.allclose(ema_history[0, SLOT_TOP], halfcourt[SLOT_TOP])
+
+
+# -- Public per-frame analysis API --------------------------------------------
+
+
+def test_analyse_frame_agrees_with_picker_on_success_and_maps_raw_slots():
+    """Analysis retains picker indices and maps them back after score filtering."""
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    ignored_bbox = _bbox_for(0.2, 0.2)
+    top_bbox = _bbox_for(0.50, 0.20)
+    bottom_bbox = _bbox_for(0.50, 0.80)
+    raw = _build_raw_clip([[
+        (ignored_bbox, _standing_kps_for_bbox(ignored_bbox), 0.1),
+        (top_bbox, _standing_kps_for_bbox(top_bbox), 0.9),
+        (bottom_bbox, _standing_kps_for_bbox(bottom_bbox), 0.9),
+    ]])
+
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    picked = _pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+
+    assert picked is not None
+    assert analysis.picks == picked[0]
+    public_picked = pick_one_frame(
+        raw, 0, halfcourt.copy(), halfcourt, ctx, _params(),
+    )
+    assert public_picked is not None
+    assert public_picked[0] == picked[0]
+    for public_array, private_array in zip(public_picked[1:4], picked[1:4], strict=True):
+        np.testing.assert_array_equal(public_array, private_array)
+    assert public_picked[4] == picked[4]
+    np.testing.assert_array_equal(analysis.filtered_to_raw, np.array([1, 2]))
+    assert analysis.picks == [0, 1]
+
+
+def test_analyse_frame_keeps_partial_pick_and_count_on_picker_failure():
+    """A partial pick is data, while a whole pick failure retains evidence."""
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    bottom_bbox = _bbox_for(0.50, 0.78)
+    partial_raw = _build_raw_clip([[
+        (bottom_bbox, _standing_kps_for_bbox(bottom_bbox), 0.9),
+    ]])
+    partial = analyse_frame(
+        partial_raw, 0, halfcourt.copy(), halfcourt, ctx, _params(),
+    )
+    assert partial.picks == [-1, 0]
+
+    in_court_bbox = _bbox_for(0.50, 0.50)
+    failed_raw = _build_raw_clip([[
+        (in_court_bbox, _standing_kps_for_bbox(in_court_bbox), 0.9),
+    ]])
+    failed = analyse_frame(
+        failed_raw, 0, halfcourt.copy(), halfcourt, ctx,
+        _params(sanity_ceiling=-1.0),
+    )
+    assert failed.picks is None
+    assert failed.standing_in_court_count == 1
+    assert failed.court_base_pos is not None
+    assert failed.kps is not None
+    assert failed.bboxes is not None
+
+
+def test_analyse_frame_empty_and_infinite_projection_cases():
+    """Empty frames have no evidence; infinities retain picker parity but do not count."""
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    empty_raw = _build_raw_clip([[]])
+    empty = analyse_frame(empty_raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    assert empty.standing_in_court_count == 0
+    assert empty.picks is None
+    assert empty.court_base_pos is None
+    assert empty.kps is None
+    assert empty.bboxes is None
+
+    inf_ctx = _identity_court_ctx()
+    inf_ctx.all_court_info[inf_ctx.vid]["H"] = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0],
+    ])
+    inf_bbox = _bbox_for(0.50, 0.75)
+    inf_raw = _build_raw_clip([[
+        (inf_bbox, _standing_kps_for_bbox(inf_bbox), 0.9),
+    ]])
+    analysis = analyse_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
+    picked = _pick_one_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
+    assert analysis.picks is None
+    assert picked is None
+    assert analysis.standing_in_court_count == 0
+    assert analysis.court_base_pos is not None
+    assert np.isinf(analysis.court_base_pos).all()
+
+
+def test_underscore_helper_aliases_resolve_to_public_helpers():
+    """Frozen consumers retain the Stage-7 compatibility names."""
+    assert sticky_anchor._project_bbox_bottom_centre is sticky_anchor.project_bbox_bottom_centre
+    assert sticky_anchor._compute_halfcourt_centres is sticky_anchor.compute_halfcourt_centres
+    assert sticky_anchor._pick_one_frame is sticky_anchor.pick_one_frame
+    assert sticky_anchor._in_generous_court is sticky_anchor.in_generous_court
+
+
+def test_analyse_frame_score_filter_empty_returns_no_evidence():
+    """Every detection below score_filter leaves an empty candidate population."""
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    weak_bbox = _bbox_for(0.50, 0.75)
+    raw = _build_raw_clip([[
+        (weak_bbox, _standing_kps_for_bbox(weak_bbox), 0.1),
+    ]])
+
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+
+    assert analysis == sticky_anchor.FrameAnalysis(0, None, None, None, None, None)
+
+
+def test_analyse_frame_all_nan_projection_returns_no_evidence():
+    """A NaN bbox projects to NaN, emptying the candidate population."""
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    nan_bbox = np.full(4, np.nan, dtype=np.float32)
+    raw = _build_raw_clip([[
+        (nan_bbox, _standing_kps_for_bbox(_bbox_for(0.5, 0.75)), 0.9),
+    ]])
+
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+
+    assert analysis == sticky_anchor.FrameAnalysis(0, None, None, None, None, None)
+
+
+def test_analyse_frame_generous_court_rejection_keeps_candidate_arrays():
+    """Both slots picked but both outside the generous court: picks clear, evidence stays.
+
+    (0.5, 1.2) sits 0.45 from the Bottom halfcourt centre and (0.5, -0.2) sits
+    0.45 from the Top one, so both pass the 0.6 sanity ceiling and get picked,
+    yet both lie outside the [-0.15, 1.15] generous box.
+    """
+    ctx = _identity_court_ctx()
+    halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
+    below_bbox = _bbox_for(0.50, 1.20)
+    above_bbox = _bbox_for(0.50, -0.20)
+    raw = _build_raw_clip([[
+        (below_bbox, _standing_kps_for_bbox(below_bbox), 0.9),
+        (above_bbox, _standing_kps_for_bbox(above_bbox), 0.9),
+    ]])
+
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+
+    assert picked is None
+    assert analysis.picks is None
+    # Both candidates project outside the count margin, so the count reads 0.
+    assert analysis.standing_in_court_count == 0
+    assert analysis.court_base_pos is not None
+    assert analysis.kps is not None
+    assert analysis.bboxes is not None
+    assert analysis.filtered_to_raw is not None

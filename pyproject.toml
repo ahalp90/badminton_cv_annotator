@@ -162,7 +162,7 @@ ignore = [
 [tool.pyrefly]
 project-includes = ["src", "scripts", "tests"]
 project-excludes = ["**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**"]
-search-path = ["src"]
+search-path = ["src", "src/bst_x"]
 preset = "off"
 
 [tool.pyrefly.errors]
