@@ -6,7 +6,8 @@ import pytest
 import annotator.run_video as run_video_module
 import annotator.rally_segmentation as stage8_seg
 from annotator.point_winner import LandingFilterOptions
-from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode
+from annotator.fps_constants import scale_for_fps
+from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
 from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
 from annotator.types import ContactCandidate, ServeStartConfig
 
@@ -72,53 +73,31 @@ def test_scoring_filter_keeps_only_unfailed_unsuppressed_rows():
     assert scoring_filter(rows) == [rows[0], rows[3]]
 
 
-def test_build_serve_options_wires_all_evidence_builders():
+def test_build_serve_options_wires_sticky_setup() -> None:
     n_frames = 40
-    track = np.zeros((n_frames, 3), dtype=np.float64)
-    bboxes = np.zeros((n_frames, 1, 4), dtype=np.float32)
-    scores = np.zeros((n_frames, 1), dtype=np.float32)
-    court_box = CourtBox(
-        x_range=(635.0, 1316.0), y_range=(254.0, 1030.0),
-        height_band=(84.0, 336.0), mid_band=(642.0, 642.0),
+    sticky = StickyResult(
+        distances=np.full(n_frames, np.nan), picks=np.full((n_frames, 2), -1),
+        standing_count=np.full(n_frames, 2),
+        ankle_pos=np.full((n_frames, 2, 2), (0.2, 0.3)),
+        bbox_height=np.full((n_frames, 2), 100.0),
+        distances_per_slot=np.full((n_frames, 2), 0.1), analysed=np.ones(n_frames, dtype=bool),
     )
     resolution = (1920.0, 1080.0)
-    dist = stage8_seg.build_serve_start_dist(track, bboxes, scores, court_box, resolution)
-    height = stage8_seg.build_serve_start_box_height(track, bboxes, scores, court_box, resolution)
-
-    raw = build_serve_options(
-        ServeStartConfig(0.1, ServeStartMode.TRIM, body_height_units=False),
-        track, bboxes, scores, court_box, resolution,
+    options = build_serve_options(
+        ServeStartConfig(0.75, ServeStartMode.TRIM, stillness_threshold_bh=0.2),
+        sticky, scale_for_fps(30.0), resolution,
     )
-    assert np.array_equal(raw.dist, dist, equal_nan=True)
-    assert raw.height is None
-    assert raw.wideshot is None
-    assert raw.diagnostics is None
-
-    wide = build_serve_options(
-        ServeStartConfig(0.1, ServeStartMode.TRIM, wideshot=True, body_height_units=False),
-        track, bboxes, scores, court_box, resolution,
-    )
-    expected_wide = stage8_seg.build_serve_start_wideshot_inputs(
-        bboxes, scores, court_box, resolution,
-    )
-    np.testing.assert_array_equal(wide.wideshot.count, expected_wide.count)
-    np.testing.assert_array_equal(wide.wideshot.top_foot, expected_wide.top_foot)
-    np.testing.assert_array_equal(wide.wideshot.bot_foot, expected_wide.bot_foot)
-    assert wide.height is None
-
-    body = build_serve_options(
-        ServeStartConfig(0.75, ServeStartMode.TRIM, body_height_units=True),
-        track, bboxes, scores, court_box, resolution,
-    )
-    assert np.array_equal(body.dist, dist, equal_nan=True)
-    assert np.array_equal(body.height, height, equal_nan=True)
-    assert body.wideshot is None
-    assert body.diagnostics is None
+    assert options.dist is None
+    assert options.setup is not None
+    assert options.stillness_threshold_bh == 0.2
+    assert options.lookback_frames == 25
+    assert options.stillness_window_frames == 15
+    assert options.setup.top_height[0] == pytest.approx(100.0 / 1080.0)
 
     with pytest.raises(ValueError, match='serve_start.close is unsupported with BACK_FILL'):
         build_serve_options(
             ServeStartConfig(0.1, ServeStartMode.TRIM, close=ServeStartClose.BURST),
-            track, bboxes, scores, court_box, resolution,
+            sticky, scale_for_fps(30.0), resolution,
         )
 
 
@@ -133,6 +112,14 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     result = run_video(**inputs, spans=injected)
 
     assert result.spans == injected
+
+
+def test_run_video_rejects_serve_start_with_injected_spans() -> None:
+    inputs = _synthetic_inputs()
+    with pytest.raises(ValueError, match='serve_start cannot be combined with injected spans'):
+        run_video(
+            **inputs, spans=[(10, 20)], serve_start=ServeStartConfig(0.5, ServeStartMode.TRIM),
+        )
 
 
 def test_run_video_injected_contacts_are_unmeasured_and_scored():

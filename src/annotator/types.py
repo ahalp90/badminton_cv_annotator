@@ -57,9 +57,8 @@ class ServeStartConfig(NamedTuple):
 
     threshold: float
     mode: 'ServeStartMode'
-    wideshot: bool = False
     close: 'ServeStartClose | None' = None
-    body_height_units: bool = True
+    stillness_threshold_bh: float | None = None
 
 
 class Slot(IntEnum):

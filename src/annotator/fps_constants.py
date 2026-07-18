@@ -34,7 +34,6 @@ class FpsConstants:
     contact_suppression_radius_frames: int
     serve_start_lookback_frames: int
     serve_stillness_window_frames: int
-    wideshot_drift_end_frames: int
     sustained_loss_frames: int
     min_descend_samples: int
     body_unit_half_window: int
@@ -59,7 +58,7 @@ def scale_for_fps(fps: float) -> FpsConstants:
         impulse_floor_half_window_frames=_time(12.0, fps), contact_dedup_radius_frames=_time(3.0, fps),
         contact_suppression_radius_frames=_time(9.0, fps), serve_start_lookback_frames=_time(25.0, fps),
         serve_stillness_window_frames=_time(15.0, fps),
-        wideshot_drift_end_frames=_time(10.0, fps), sustained_loss_frames=_time(10.0, fps),
+        sustained_loss_frames=_time(10.0, fps),
         min_descend_samples=_time(3.0, fps), body_unit_half_window=_time(12.0, fps),
         composition_min_scene_len=_time(15.0, fps),
     )

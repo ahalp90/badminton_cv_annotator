@@ -23,19 +23,17 @@ def scoring_filter(contacts):
 
 
 def build_serve_options(
-    config, track, bboxes, scores, court_box, resolution,
+    config, sticky, constants, resolution,
 ) -> stage8_seg.ServeStartOptions:
-    """Build serve-start evidence from the unmasked track and pose detections."""
+    """Build sticky-sourced serve-start evidence from the unmasked cache."""
     if config.close is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
-    dist = stage8_seg.build_serve_start_dist(track, bboxes, scores, court_box, resolution)
-    height = (stage8_seg.build_serve_start_box_height(track, bboxes, scores, court_box, resolution)
-              if config.body_height_units else None)
-    wideshot = (stage8_seg.build_serve_start_wideshot_inputs(bboxes, scores, court_box, resolution)
-                if config.wideshot else None)
-    # Mirror scripts/stage8_sweep.py:1395-1420; evidence is always unmasked.
     return stage8_seg.ServeStartOptions(
-        dist, config.threshold, config.mode, wideshot, config.close, None, height,
+        dist=None, threshold=config.threshold, mode=config.mode, close=config.close,
+        setup=stage8_seg.build_serve_setup_inputs(sticky, resolution),
+        stillness_threshold_bh=config.stillness_threshold_bh,
+        lookback_frames=constants.serve_start_lookback_frames,
+        stillness_window_frames=constants.serve_stillness_window_frames,
     )
 
 
@@ -122,6 +120,9 @@ def run_video(
     corner-column row.
     """
     resolved = resolve(base, fps)
+    # Injected spans skip span finding, so serve-start would otherwise silently never run.
+    if serve_start is not None and spans is not None:
+        raise ValueError('serve_start cannot be combined with injected spans')
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Only the preliminary
         # span pass is needed when callers did not inject spans; all discarded evidence
@@ -148,7 +149,7 @@ def run_video(
         serve_options = None
         if serve_start is not None:
             serve_options = build_serve_options(
-                serve_start, track, bboxes, scores, court_box, resolution,
+                serve_start, sticky, resolved.constants, resolution,
             )
         final_spans = spans
         final_spans, raw_contacts = stage8_seg.segment_video(

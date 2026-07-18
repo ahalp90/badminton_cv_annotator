@@ -30,7 +30,7 @@ def _standing_pose(box: np.ndarray, ankle_left: tuple[float, float], ankle_right
 
 
 def _sticky_inputs():
-    n_frames, n_slots = 4, 3
+    n_frames, n_slots = 5, 3
     bboxes = np.full((n_frames, n_slots, 4), np.nan, dtype=np.float32)
     scores = np.full((n_frames, n_slots), np.nan, dtype=np.float32)
     kps = np.full((n_frames, n_slots, 17, 2), np.nan, dtype=np.float32)
@@ -49,7 +49,12 @@ def _sticky_inputs():
         (_bbox(640, 180), 0.9),
         (_bbox(640, 540), 0.9),
     ]
-    for frame, detections in ((1, frame_one), (2, frame_two)):
+    # Frame 3 has a single top-half detection: exactly one sticky slot picks,
+    # making the per-slot distance mapping observable.
+    frame_three = [
+        (_bbox(640, 180), 0.9),
+    ]
+    for frame, detections in ((1, frame_one), (2, frame_two), (3, frame_three)):
         ndet[frame] = len(detections)
         for slot, (box, score) in enumerate(detections):
             bboxes[frame, slot] = box
@@ -59,6 +64,7 @@ def _sticky_inputs():
     track = np.array([
         [0.5, 0.5, 0.0],
         [0.5, 0.5, 1.0],
+        [600 / 1280, 170 / 720, 1.0],
         [600 / 1280, 170 / 720, 1.0],
         [0.5, 0.5, 0.0],
     ])
@@ -71,7 +77,7 @@ def _sticky_inputs():
         'border_U': 0.0, 'border_D': 720.0,
     }
     resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
-    return (track, [(1, 3)], bboxes, scores, kps, ndet, court_box,
+    return (track, [(1, 4)], bboxes, scores, kps, ndet, court_box,
             {'1': court_info}, resolution_table)
 
 
@@ -95,6 +101,29 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
     assert result.bbox_height[2].tolist() == [120.0, 120.0]
     np.testing.assert_allclose(result.ankle_pos[2, 0], [610 / 1280, 180 / 720])
     np.testing.assert_allclose(result.ankle_pos[2, 1], [610 / 1280, 540 / 720])
+
+    # Additive Stage 5 fields: analysed marks exactly the span frames; per-slot
+    # distances are +inf outside the spans, NaN on a visited frame with no
+    # finite gap, and consistent with the min-collapsed series where finite.
+    assert result.analysed.tolist() == [False, True, True, True, False]
+    assert np.isposinf(result.distances_per_slot[0]).all()
+    assert np.isposinf(result.distances_per_slot[4]).all()
+    assert np.isnan(result.distances_per_slot[1]).all()
+    per_slot = result.distances_per_slot[2]
+    finite = np.isfinite(per_slot)
+    assert np.isfinite(result.distances[2]) == finite.any()
+    if finite.any():
+        assert result.distances[2] == per_slot[finite].min()
+
+    # Frame 3's single top-half detection: the unpicked bottom slot stays NaN
+    # while the picked top slot owns whatever gap the collapse saw.
+    assert result.picks[3].tolist()[1] == -1
+    assert result.picks[3][0] >= 0
+    assert np.isnan(result.distances_per_slot[3, 1])
+    top_gap = result.distances_per_slot[3, 0]
+    assert np.isfinite(result.distances[3]) == bool(np.isfinite(top_gap))
+    if np.isfinite(top_gap):
+        assert result.distances[3] == top_gap
 
 
 def test_segment_video_sticky_distance_exclusions_are_mutual():

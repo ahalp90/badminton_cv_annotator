@@ -38,6 +38,7 @@ import logging
 import sys
 import warnings
 from enum import StrEnum
+from numbers import Real
 from pathlib import Path
 from typing import NamedTuple
 
@@ -349,6 +350,44 @@ def serve_setup_still(
     return True
 
 
+def build_serve_setup_inputs(
+    sticky: 'StickyResult', resolution: tuple[float, float],
+) -> ServeSetupInputs:
+    """Build validated sticky-sourced evidence for the serve-setup gate."""
+    if (not isinstance(resolution, tuple) or len(resolution) != 2 or
+            any(isinstance(value, bool) or not isinstance(value, Real)
+                or not np.isfinite(value) or value <= 0 for value in resolution)):
+        raise ValueError('resolution must be two finite positive real components')
+
+    height = float(resolution[1])
+    count = np.asarray(sticky.standing_count).copy()
+    distances = np.asarray(sticky.distances_per_slot, dtype=np.float64).copy()
+    analysed = np.asarray(sticky.analysed, dtype=bool).copy()
+    top_ankles = np.full_like(sticky.ankle_pos[:, Slot.TOP], np.nan, dtype=float)
+    bot_ankles = np.full_like(sticky.ankle_pos[:, Slot.BOTTOM], np.nan, dtype=float)
+    top_height = np.full(len(count), np.nan, dtype=float)
+    bot_height = np.full(len(count), np.nan, dtype=float)
+
+    for slot, ankles_out, heights_out in (
+        (Slot.TOP, top_ankles, top_height), (Slot.BOTTOM, bot_ankles, bot_height),
+    ):
+        ankles = sticky.ankle_pos[:, slot]
+        box_height = sticky.bbox_height[:, slot]
+        valid = np.all(np.isfinite(ankles), axis=1)
+        valid &= np.any(ankles != 0, axis=1)
+        valid &= np.isfinite(box_height) & (box_height > 0)
+        ankles_out[valid] = ankles[valid]
+        heights_out[valid] = box_height[valid] / height
+
+    inputs = ServeSetupInputs(
+        count=count, distances=distances, analysed=analysed,
+        top_ankles=top_ankles, bot_ankles=bot_ankles,
+        top_height=top_height, bot_height=bot_height,
+    )
+    inputs.validate()
+    return inputs
+
+
 class ServeStartMode(StrEnum):
     """What a region whose bursts are none of them serve-setup-preceded does.
 
@@ -414,15 +453,29 @@ class ServeStartOptions(NamedTuple):
     :param height: optional `(t,)` nearest-player bbox height, image-fraction
         (build_serve_start_box_height), sharing dist's finite frames. None (the default) keeps the
         raw-fraction gate; supplying it switches the gate to the body-height form above.
+    :param setup: optional sticky-sourced evidence (build_serve_setup_inputs). Supplying it
+        dispatches the three-lane sticky gate; exactly one of dist and setup is required, and
+        the legacy wideshot/height fields belong to the dist path only.
+    :param stillness_threshold_bh: optional stillness bound in body heights for the sticky
+        gate; None (the default) leaves the stillness check off. Sticky path only.
+    :param lookback_frames: resolved setup-window length in frames (the fps table's
+        serve_start_lookback_frames row); required with setup. Sticky path only.
+    :param stillness_window_frames: resolved stillness-window length in frames (the
+        serve_stillness_window_frames row); required once stillness_threshold_bh is set.
+        Sticky path only.
     """
 
-    dist: np.ndarray
+    dist: np.ndarray | None
     threshold: float
     mode: ServeStartMode
     wideshot: WideshotInputs | None = None
     close: ServeStartClose | None = None
     diagnostics: dict | None = None
     height: np.ndarray | None = None
+    setup: ServeSetupInputs | None = None
+    stillness_threshold_bh: float | None = None
+    lookback_frames: int | None = None
+    stillness_window_frames: int | None = None
 
 
 # The last second before a burst (25 fps): the serve-setup lookback window.
@@ -627,6 +680,7 @@ def court_scale_slots(
     return np.flatnonzero(valid)[in_court & in_scale]
 
 
+# Dies at Stage 7 with the frozen sweep.
 def _build_serve_start_metrics(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
     court_box: CourtBox, resolution: tuple[float, float],
@@ -660,6 +714,7 @@ def _build_serve_start_metrics(
     return dist, box_height
 
 
+# Dies at Stage 7 with the frozen sweep.
 def build_serve_start_dist(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
     court_box: CourtBox, resolution: tuple[float, float],
@@ -681,6 +736,7 @@ def build_serve_start_dist(
     return _build_serve_start_metrics(track, bboxes, scores, court_box, resolution)[0]
 
 
+# Dies at Stage 7 with the frozen sweep.
 def build_serve_start_box_height(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
     court_box: CourtBox, resolution: tuple[float, float],
@@ -760,6 +816,7 @@ def _serve_setup_before_boxheight(
     return bool(raw / denom <= threshold_bh)
 
 
+# Dies at Stage 7 with the frozen sweep.
 def build_serve_start_wideshot_inputs(
     bboxes: np.ndarray, scores: np.ndarray, court_box: CourtBox, resolution: tuple[float, float],
 ) -> WideshotInputs:
@@ -877,6 +934,99 @@ def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_bur
     return rest_starts[-1] if rest_starts else next_burst  # ascending, so [-1] is the last run
 
 
+def _valid_serve_window(value: object, name: str) -> int:
+    """Return one positive integer window length."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value <= 0:
+        raise ValueError(f'{name} must be a positive integer')
+    return int(value)
+
+
+def _valid_serve_threshold(value: object, name: str) -> float:
+    """Return one finite nonnegative serve threshold."""
+    if isinstance(value, bool) or not isinstance(value, Real) or not np.isfinite(value) or value < 0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+    return float(value)
+
+
+def _sticky_serve_setup_before(
+    setup: ServeSetupInputs, burst: int, threshold: float, lookback_frames: int,
+    stillness_threshold_bh: float | None, stillness_window_frames: int | None,
+) -> bool:
+    """Apply the sticky coverage gate and its three serve-setup lanes."""
+    if not 0 <= burst < len(setup.count):
+        raise ValueError('claimed_serve_frame must be in range [0, t)')
+    end = burst + 1
+    setup_window = slice(max(0, end - lookback_frames), end)
+    stillness_window = slice(max(0, end - stillness_window_frames), end) if stillness_window_frames is not None else setup_window
+    if not np.all(setup.analysed[min(setup_window.start, stillness_window.start):end]):
+        return False
+
+    count = setup.count[setup_window]
+    median_count = float(np.median(count))
+    distances = setup.distances[setup_window]
+    ankles = (setup.top_ankles[setup_window], setup.bot_ankles[setup_window])
+    heights = (setup.top_height[setup_window], setup.bot_height[setup_window])
+    valid = np.empty(distances.shape, dtype=bool)
+    for slot in Slot:
+        valid[:, slot] = (
+            np.isfinite(distances[:, slot]) & np.all(np.isfinite(ankles[slot]), axis=1) &
+            np.isfinite(heights[slot])
+        )
+
+    if median_count >= 2:
+        # Presence floor AND the primitive's minimum detections: below two valid
+        # rows a drift cannot be split into halves, so the window fails closed
+        # even with the stillness gate off.
+        if any(np.mean(valid[:, slot]) < PLAYER_PRESENT_MIN_FRAC or
+               np.count_nonzero(valid[:, slot]) < 2 for slot in Slot):
+            return False
+        nearest = np.full(len(distances), np.nan)
+        for frame in range(len(distances)):
+            finite = distances[frame, np.isfinite(distances[frame])]
+            if len(finite):
+                nearest[frame] = np.min(finite)
+        finite_nearest = nearest[np.isfinite(nearest)]
+        if not len(finite_nearest) or np.median(finite_nearest) > threshold:
+            return False
+        return stillness_threshold_bh is None or serve_setup_still(
+            setup, burst, stillness_window_frames, stillness_threshold_bh, (Slot.TOP, Slot.BOTTOM),
+        )
+
+    if median_count >= 1:
+        for slot in Slot:
+            slot_valid = valid[:, slot]
+            if np.mean(slot_valid) < PLAYER_PRESENT_MIN_FRAC or np.count_nonzero(slot_valid) < 2:
+                continue
+            finite_distances = distances[:, slot][slot_valid]
+            if not len(finite_distances) or np.median(finite_distances) > threshold:
+                continue
+            if stillness_threshold_bh is None:
+                return True
+            masked = setup._replace(
+                top_ankles=setup.top_ankles.copy(), bot_ankles=setup.bot_ankles.copy(),
+                top_height=setup.top_height.copy(), bot_height=setup.bot_height.copy(),
+            )
+            ankles_out = masked.top_ankles if slot is Slot.TOP else masked.bot_ankles
+            heights_out = masked.top_height if slot is Slot.TOP else masked.bot_height
+            stillness_distances = setup.distances[stillness_window, slot]
+            stillness_ankles = ankles_out[stillness_window]
+            stillness_heights = heights_out[stillness_window]
+            stillness_valid = (
+                np.isfinite(stillness_distances) & np.all(np.isfinite(stillness_ankles), axis=1) &
+                np.isfinite(stillness_heights)
+            )
+            stillness_indexes = np.arange(stillness_window.start, stillness_window.stop)
+            ankles_out[stillness_indexes[~stillness_valid]] = np.nan
+            heights_out[stillness_indexes[~stillness_valid]] = np.nan
+            if serve_setup_still(masked, burst, stillness_window_frames, stillness_threshold_bh, (slot,)):
+                return True
+        return False
+
+    # TODO: position-based count means a tight close-up CAN read 1 and route partial; the old
+    # "close-ups read zero" claim was size-banded and retires with court_scale_boxes.
+    return False
+
+
 def _serve_start_find_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None,
     options: ServeStartOptions, span_open: SpanOpen | None,
@@ -903,23 +1053,51 @@ def _serve_start_find_rally_spans(
     :param span_open: None (burst-open) or BACK_FILL (open qualifying regions at region_start).
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    dist = options.dist
-    threshold = options.threshold
-    mode = options.mode
-    wideshot = options.wideshot
-    close = options.close
-    height = options.height
-
-    def qualifies(burst: int) -> bool:
-        """Serve-setup gate (raw-fraction, or body-height-normalised when options.height is set),
-        AND the wide-shot gate when the refinement is on."""
-        if height is None:
-            setup = _serve_setup_before(dist, burst, threshold)
+    if (options.dist is None) == (options.setup is None):
+        raise ValueError('exactly one of dist and setup must be supplied')
+    threshold = _valid_serve_threshold(options.threshold, 'threshold')
+    if options.setup is not None:
+        lookback_frames = _valid_serve_window(options.lookback_frames, 'lookback_frames')
+        if options.stillness_threshold_bh is not None:
+            stillness_threshold_bh = _valid_serve_threshold(
+                options.stillness_threshold_bh, 'stillness_threshold_bh',
+            )
+            stillness_window_frames = _valid_serve_window(
+                options.stillness_window_frames, 'stillness_window_frames',
+            )
         else:
-            setup = _serve_setup_before_boxheight(dist, height, burst, threshold)
-        if not setup:
-            return False
-        return wideshot is None or _wide_shot_before(wideshot, burst)
+            stillness_threshold_bh = None
+            # Still validated when supplied: a bad window would silently wrap the
+            # coverage-gate slice even with the stillness gate off.
+            stillness_window_frames = (
+                None if options.stillness_window_frames is None
+                else _valid_serve_window(options.stillness_window_frames, 'stillness_window_frames')
+            )
+        options.setup.validate()
+
+        def qualifies(burst: int) -> bool:
+            return _sticky_serve_setup_before(
+                options.setup, burst, threshold, lookback_frames,
+                stillness_threshold_bh, stillness_window_frames,
+            )
+    else:
+        dist = options.dist
+        wideshot = options.wideshot
+        height = options.height
+
+        def qualifies(burst: int) -> bool:
+            """Serve-setup gate (raw-fraction, or body-height-normalised when options.height is set),
+            AND the wide-shot gate when the refinement is on."""
+            if height is None:
+                setup = _serve_setup_before(dist, burst, threshold)
+            else:
+                setup = _serve_setup_before_boxheight(dist, height, burst, threshold)
+            if not setup:
+                return False
+            return wideshot is None or _wide_shot_before(wideshot, burst)
+
+    mode = options.mode
+    close = options.close
 
     fast_runs, rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
 
@@ -1228,6 +1406,8 @@ class StickyResult(NamedTuple):
     standing_count: np.ndarray
     ankle_pos: np.ndarray
     bbox_height: np.ndarray
+    distances_per_slot: np.ndarray
+    analysed: np.ndarray
 
 
 def build_sticky_result(
@@ -1263,10 +1443,16 @@ def build_sticky_result(
     standing_count = np.zeros(n_frames, dtype=int)
     ankle_pos = np.full((n_frames, 2, 2), np.nan)
     bbox_height = np.full((n_frames, 2), np.nan)
+    # Same fail-closed sentinel as the collapsed series: +inf outside the spans,
+    # NaN once a frame is visited but a slot carries no finite gap.
+    distances_per_slot = np.full((n_frames, 2), np.inf, dtype=np.float64)
+    analysed = np.zeros(n_frames, dtype=bool)
 
     for start, end in spans:
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
+            analysed[frame] = True
+            distances_per_slot[frame] = np.nan
             analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)
             standing_count[frame] = analysis.standing_in_court_count
             if analysis.picks is None:
@@ -1278,6 +1464,7 @@ def build_sticky_result(
             assert analysis.filtered_to_raw is not None
             frame_has_zero = False
             picked_raw_slots: list[int] = []
+            picked_slots: list[Slot] = []
             for slot in Slot:
                 pick = analysis.picks[slot]
                 if pick < 0:
@@ -1295,6 +1482,7 @@ def build_sticky_result(
                 raw_slot = int(analysis.filtered_to_raw[pick])
                 picks_out[frame, slot] = raw_slot
                 picked_raw_slots.append(raw_slot)
+                picked_slots.append(slot)
                 box = analysis.bboxes[pick]
                 bbox_height[frame, slot] = box[3] - box[1]
                 ankles = pose_kps[frame, raw_slot, (ANKLE_L, ANKLE_R), :]
@@ -1319,10 +1507,15 @@ def build_sticky_result(
                     raise
                 gaps[frame] = np.nan
                 continue
+            for slot, gap in zip(picked_slots, candidate_gaps):
+                if np.isfinite(gap):
+                    distances_per_slot[frame, slot] = gap
             finite_gaps = candidate_gaps[np.isfinite(candidate_gaps)]
             gaps[frame] = float(np.min(finite_gaps)) if len(finite_gaps) else float('nan')
 
-    return StickyResult(gaps, picks_out, standing_count, ankle_pos, bbox_height)
+    return StickyResult(
+        gaps, picks_out, standing_count, ankle_pos, bbox_height, distances_per_slot, analysed,
+    )
 
 
 def find_rally_spans(

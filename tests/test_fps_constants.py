@@ -36,10 +36,10 @@ def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
         values.impulse_floor_half_window_frames, values.contact_dedup_radius_frames,
         values.contact_suppression_radius_frames, values.serve_start_lookback_frames,
         values.serve_stillness_window_frames,
-        values.wideshot_drift_end_frames, values.sustained_loss_frames,
+        values.sustained_loss_frames,
         values.min_descend_samples, values.body_unit_half_window,
         values.composition_min_scene_len,
-    ) == (5, 3, 3, 90, 15, 12, 3, 9, 25, 15, 10, 10, 3, 12, 15)
+    ) == (5, 3, 3, 90, 15, 12, 3, 9, 25, 15, 10, 3, 12, 15)
 
     values25 = scale_for_fps(25.0)
     assert values25.rest_speed == 0.0024
@@ -50,10 +50,10 @@ def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
         values25.impulse_floor_half_window_frames, values25.contact_dedup_radius_frames,
         values25.contact_suppression_radius_frames, values25.serve_start_lookback_frames,
         values25.serve_stillness_window_frames,
-        values25.wideshot_drift_end_frames, values25.sustained_loss_frames,
+        values25.sustained_loss_frames,
         values25.min_descend_samples, values25.body_unit_half_window,
         values25.composition_min_scene_len,
-    ) == (4, 3, 3, 75, 13, 10, 3, 8, 21, 13, 8, 8, 3, 10, 13)
+    ) == (4, 3, 3, 75, 13, 10, 3, 8, 21, 13, 8, 3, 10, 13)
 
 
 def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
