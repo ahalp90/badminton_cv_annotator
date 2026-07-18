@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-import scraper.point_winner as point_winner
-import scraper.stage8_rally_segmentation as stage8_seg
+import annotator.point_winner as point_winner
+import annotator.rally_segmentation as stage8_seg
 
 
 OTHER_HALF = point_winner.OTHER_HALF

@@ -12,7 +12,7 @@ court quad; do not reuse for another video (one broadcast camera, one court
 framing).
 """
 
-from scraper.stage8_rally_segmentation import CourtBox
+from annotator.rally_segmentation import CourtBox
 
 
 PILOT_STANDIN_COURT_X = (635.0, 1316.0)  # foot-point x bounds, pixels (frame is 1920 wide)

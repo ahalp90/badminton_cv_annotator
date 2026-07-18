@@ -4,8 +4,8 @@ import pandas as pd
 
 from annotator.run_video import AnnotatorResult, run_video
 from scraper.config import SHIPPED_THRESHOLDS
-from scraper.point_winner import LandingFilterOptions
-from scraper.stage8_rally_segmentation import CourtBox, scale_thresholds
+from annotator.point_winner import LandingFilterOptions
+from annotator.rally_segmentation import CourtBox, scale_thresholds
 
 
 def test_run_video_no_play_returns_empty_result():

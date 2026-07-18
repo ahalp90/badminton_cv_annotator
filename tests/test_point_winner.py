@@ -7,7 +7,7 @@ height, and the verdict assembly. No fixtures; each test builds its own small nu
 import numpy as np
 import pytest
 
-from src.scraper.point_winner import (
+from annotator.point_winner import (
     Half,
     HitHeightRow,
     Landing,
@@ -33,7 +33,7 @@ from src.scraper.point_winner import (
     rally_verdict,
     window_end,
 )
-from src.scraper.stage8_rally_segmentation import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtBox
+from annotator.rally_segmentation import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtBox
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40

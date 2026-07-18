@@ -46,7 +46,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
-from scraper.stage8_rally_segmentation import detect_contacts  # noqa: E402  — follows sys.path insertion
+from annotator.rally_segmentation import detect_contacts  # noqa: E402  — follows sys.path insertion
 
 # COCO wrist keypoint indices in the raw_kps (F, N_max, 17, 2) arrays.
 WRIST_L, WRIST_R = 9, 10

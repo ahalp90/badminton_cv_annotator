@@ -46,7 +46,7 @@ def test_stage8_main_resolves_fps_thresholds(
     fps_args: list[str],
     expected_impulse: int,
 ) -> None:
-    import src.scraper.stage8_rally_segmentation as stage8
+    import annotator.rally_segmentation as stage8
 
     shuttle_dir = tmp_path / 'shuttles'
     shuttle_dir.mkdir()

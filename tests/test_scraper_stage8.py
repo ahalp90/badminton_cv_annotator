@@ -16,7 +16,7 @@ from src.scraper.config import (
     START_SPEED,
     SMOOTH_WINDOW,
 )
-from src.scraper.stage8_rally_segmentation import (
+from annotator.rally_segmentation import (
     SERVE_START_LOOKBACK_FRAMES,
     CourtBox,
     ServeStartClose,
@@ -261,7 +261,7 @@ def test_sticky_gate_failure_rows_fail_closed(monkeypatch, failure_distance):
         'pose_kps': np.zeros((len(track), 1, 17, 2)),
         'pose_ndet': np.zeros(len(track), dtype=int),
     }
-    import src.scraper.stage8_rally_segmentation as stage8_module
+    import annotator.rally_segmentation as stage8_module
 
     monkeypatch.setattr(
         stage8_module, '_sticky_gate_distances',

@@ -50,7 +50,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
-import scraper.stage8_rally_segmentation as stage8_module  # noqa: E402  — needs the src path above
+import annotator.rally_segmentation as stage8_module  # noqa: E402  — needs the src path above
 
 from scripts.stage8_score import (  # noqa: E402  — sibling script, imported after the src path insert
     DEFAULT_SHOTS_MASTER,

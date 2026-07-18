@@ -15,9 +15,9 @@ from annotator.calibration.fixtures import (
     FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file, verify_fixture,
 )
 from annotator.run_video import AnnotatorResult, run_video
-from scraper import point_winner
-from scraper.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
-from scraper.stage8_rally_segmentation import CourtBox, SHIPPED_THRESHOLDS, scale_thresholds
+from annotator import point_winner
+from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
+from annotator.rally_segmentation import CourtBox, SHIPPED_THRESHOLDS, scale_thresholds
 from scripts.stage8_score import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
 )
