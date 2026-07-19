@@ -4,10 +4,10 @@ Constant provenance is cited inline as "spec sN" against the section of
 local_scratch/autograder_architecture/scraper_spec.md it came from.
 """
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Mapping, NamedTuple
 
 from .fps_constants import FpsConstants, scale_for_fps
-from .types import DeadMaskMode, SmoothingMode
+from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
 # Stage 8: rally segmentation and contact rules (spec s6)
@@ -28,7 +28,7 @@ PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrai
 
 
 class Stage8Thresholds(NamedTuple):
-    """The eleven stage-8 trajectory-rule thresholds bundled as one value.
+    """The twelve stage-8 trajectory-rule thresholds bundled as one value.
 
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
@@ -50,6 +50,7 @@ class Stage8Thresholds(NamedTuple):
     impulse_floor_half_window_frames: int = _AT_25FPS.impulse_floor_half_window_frames
     contact_dedup_radius_frames: int = _AT_25FPS.contact_dedup_radius_frames
     contact_suppression_radius_frames: int = _AT_25FPS.contact_suppression_radius_frames
+    contact_impulse_multiple: float = 4.0
 
 
 # The shipped thresholds as one value, built from the constants above so the
@@ -105,15 +106,27 @@ class BaseAnnotatorConfig:
 
     The preset carries ``min_dir_change_deg`` and ``min_contact_speed`` plus
     legacy 25fps-surface values for fps-sensitive fields. Resolution overwrites
-    every fps-sensitive field from the base-30 table, so only the non-fps knobs
-    survive a custom preset. This is not a caller-supplied base-30 table; that
-    table lives in ``fps_constants``. Strategy fields (dead-mask producer,
-    smoothing, and serve lanes) arrive with their stages.
+    every fps-sensitive field from the shipped base-30 table. ``overrides_base30``
+    may replace named rows before their final per-fps values are built. Strategy
+    fields (dead-mask producer, smoothing, and serve lanes) arrive with their stages.
     """
 
     thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL
+    overrides_base30: Mapping[str, float] | None = None
+    span_open: SpanOpen | None = SpanOpen.BACK_FILL
+    gap_state_demotion_bound: float | None = None
+    reentry_guard_variant: ReentryGuardVariant | None = None
+    reentry_guard_buffer: float | None = None
+    quiet_start_window: float | None = None
+
+    def __post_init__(self) -> None:
+        guard_specified = self.reentry_guard_variant is not None or self.reentry_guard_buffer is not None
+        if guard_specified and self.gap_state_demotion_bound is None:
+            raise ValueError('reentry guard requires gap_state_demotion_bound')
+        if (self.reentry_guard_variant is None) != (self.reentry_guard_buffer is None):
+            raise ValueError('reentry guard needs both a variant and a buffer, or neither')
 
 
 @dataclass(frozen=True)
@@ -130,3 +143,8 @@ class ResolvedAnnotatorConfig:
     thresholds: Stage8Thresholds
     dead_mask_mode: DeadMaskMode
     smoothing_mode: SmoothingMode
+    span_open: SpanOpen | None = SpanOpen.BACK_FILL
+    gap_state_demotion_bound: int | None = None
+    reentry_guard_variant: ReentryGuardVariant | None = None
+    reentry_guard_buffer: float | None = None
+    quiet_start_window: int | None = None

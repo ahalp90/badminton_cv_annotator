@@ -49,6 +49,29 @@ class SmoothingMode(StrEnum):
     IGNORE_INVISIBLE = 'ignore_invisible'
 
 
+class SpanOpen(StrEnum):
+    """Where a rally span opens; segment_video(span_open=...), default None.
+
+    None keeps today's burst-open rule bit-for-bit: a span opens at the first
+    qualifying fast burst in its active region. The two named rules trade that:
+      REGION_START drops the qualifying-burst gate entirely and opens a span at
+      every active region's start (each maximal run of non-long-rest frames).
+      BACK_FILL keeps the qualifying-burst gate unchanged (a region with no
+      qualifying fast run yields no rally) but moves the emitted span's start
+      back from the burst to the region start.
+    """
+
+    REGION_START = 'region_start'
+    BACK_FILL = 'back_fill'
+
+
+class ReentryGuardVariant(StrEnum):
+    """Which sides of a high-shot gap the re-entry buffer tests."""
+
+    TWO_SIDED = 'two-sided'
+    REENTRY_ONLY = 'reentry-only'
+
+
 class ContactCandidate(NamedTuple):
     """One raw contact candidate and its independent gate/suppression verdicts."""
 

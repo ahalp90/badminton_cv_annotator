@@ -23,10 +23,10 @@ def scoring_filter(contacts):
 
 
 def build_serve_options(
-    config, sticky, constants, resolution,
+    config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,
 ) -> stage8_seg.ServeStartOptions:
     """Build sticky-sourced serve-start evidence from the unmasked cache."""
-    if config.close is not None:
+    if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
     return stage8_seg.ServeStartOptions(
         dist=None, threshold=config.threshold, mode=config.mode, close=config.close,
@@ -123,19 +123,29 @@ def run_video(
     # Injected spans skip span finding, so serve-start would otherwise silently never run.
     if serve_start is not None and spans is not None:
         raise ValueError('serve_start cannot be combined with injected spans')
+    if serve_start is not None and resolved.quiet_start_window is not None:
+        raise ValueError('quiet_start_window cannot be combined with serve_start')
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Only the preliminary
         # span pass is needed when callers did not inject spans; all discarded evidence
         # builders are irrelevant because segmentation is bypassed below.
         final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-            track, resolved.thresholds, span_open=stage8_seg.SpanOpen.BACK_FILL,
+            track, resolved.thresholds, span_open=resolved.span_open,
+            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+            reentry_guard_variant=resolved.reentry_guard_variant,
+            reentry_guard_buffer=resolved.reentry_guard_buffer,
+            quiet_start_window=resolved.quiet_start_window,
         )
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
     else:
         # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
         bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-            track, resolved.thresholds, span_open=stage8_seg.SpanOpen.BACK_FILL,
+            track, resolved.thresholds, span_open=resolved.span_open,
+            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+            reentry_guard_variant=resolved.reentry_guard_variant,
+            reentry_guard_buffer=resolved.reentry_guard_buffer,
+            quiet_start_window=resolved.quiet_start_window,
         )
         sticky = stage8_seg.build_sticky_result(
             track, bootstrap_spans, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
@@ -149,15 +159,19 @@ def run_video(
         serve_options = None
         if serve_start is not None:
             serve_options = build_serve_options(
-                serve_start, sticky, resolved.constants, resolution,
+                serve_start, sticky, resolved.constants, resolution, resolved.span_open,
             )
         final_spans = spans
         final_spans, raw_contacts = stage8_seg.segment_video(
             track, positions=None, thresholds=resolved.thresholds,
             body_unit_half_window=resolved.constants.body_unit_half_window,
-            span_open=stage8_seg.SpanOpen.BACK_FILL,
+            span_open=resolved.span_open,
             replay_mask=mask, sticky_distances=sticky.distances, serve_start=serve_options,
             spans=final_spans, resolution=resolution, smoothing_mode=resolved.smoothing_mode,
+            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+            reentry_guard_variant=resolved.reentry_guard_variant,
+            reentry_guard_buffer=resolved.reentry_guard_buffer,
+            quiet_start_window=resolved.quiet_start_window,
         )
     spans, contacts = final_spans, raw_contacts
 

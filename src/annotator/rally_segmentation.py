@@ -40,7 +40,7 @@ import warnings
 from enum import StrEnum
 from numbers import Real
 from pathlib import Path
-from typing import NamedTuple
+from typing import Mapping, NamedTuple
 
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
@@ -58,8 +58,8 @@ from .config import (
     Stage8Thresholds,
 )
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
-from .fps_constants import scale_for_fps
-from .types import ContactCandidate, Slot, SmoothingMode
+from .fps_constants import FpsConstants, scale_for_fps
+from .types import ContactCandidate, ReentryGuardVariant, ScalingKind, Slot, SmoothingMode, SpanOpen
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -77,6 +77,7 @@ log = logging.getLogger(__name__)
 # counts as rest (spec s6 "visibility mostly 0 across the window"). Not in
 # config: it is the numeric reading of "mostly", not a swept rule threshold.
 VISIBILITY_REST_FRAC = 0.5
+QUIET_START_REST_FRACTION = 0.8
 
 # Contact-chain constants: the base-30 table in fps_constants.py scaled once
 # to the 25 fps surface these module defaults serve.
@@ -88,11 +89,15 @@ BODY_UNIT_WRIST_THRESHOLD = 1.4
 CONTACT_SUPPRESSION_RADIUS_FRAMES = scale_for_fps(25.0).contact_suppression_radius_frames
 
 
-def scale_thresholds(thresholds: Stage8Thresholds, fps: float) -> Stage8Thresholds:
+def scale_thresholds(
+    thresholds: Stage8Thresholds, fps: float, *,
+    constants: FpsConstants | None = None, overrides_base30: Mapping[str, float] | None = None,
+) -> Stage8Thresholds:
     """Replace a preset's fps-dependent fields from the base-30 table; the preset
     contributes only its non-fps fields. Returned fields are final.
     """
-    values = scale_for_fps(fps)
+    values = scale_for_fps(fps) if constants is None else constants
+    overrides = {} if overrides_base30 is None else overrides_base30
     return thresholds._replace(
         rest_speed=values.rest_speed, rest_window=values.rest_window,
         start_speed=values.start_speed, start_min_frames=values.start_min_frames,
@@ -100,6 +105,11 @@ def scale_thresholds(thresholds: Stage8Thresholds, fps: float) -> Stage8Threshol
         impulse_floor_half_window_frames=values.impulse_floor_half_window_frames,
         contact_dedup_radius_frames=values.contact_dedup_radius_frames,
         contact_suppression_radius_frames=values.contact_suppression_radius_frames,
+        contact_impulse_multiple=overrides.get('contact_impulse_multiple', thresholds.contact_impulse_multiple),
+        min_dir_change_deg=overrides.get('min_dir_change_deg', thresholds.min_dir_change_deg),
+        min_contact_speed=ScalingKind.PER_FRAME_SPEED.scale(
+            overrides['min_contact_speed'], fps,
+        ) if 'min_contact_speed' in overrides else thresholds.min_contact_speed,
     )
 
 
@@ -202,22 +212,6 @@ def _nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Selectable-option types (off by default; see segment_video)
 # ---------------------------------------------------------------------------
-class SpanOpen(StrEnum):
-    """Where a rally span opens; segment_video(span_open=...), default None.
-
-    None keeps today's burst-open rule bit-for-bit: a span opens at the first
-    qualifying fast burst in its active region. The two named rules trade that:
-      REGION_START drops the qualifying-burst gate entirely and opens a span at
-      every active region's start (each maximal run of non-long-rest frames).
-      BACK_FILL keeps the qualifying-burst gate unchanged (a region with no
-      qualifying fast run yields no rally) but moves the emitted span's start
-      back from the burst to the region start.
-    """
-
-    REGION_START = 'region_start'
-    BACK_FILL = 'back_fill'
-
-
 class CourtBox(NamedTuple):
     """The pilot court geometry the serve-start builders filter against.
 
@@ -514,7 +508,69 @@ BODY_UNIT_HALF_WINDOW = 12
 # ---------------------------------------------------------------------------
 # Rally spans
 # ---------------------------------------------------------------------------
-def _rest_mask(speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds | None = None) -> np.ndarray:
+def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int, constants: FpsConstants) -> bool:
+    run_start = gap_start
+    while (run_start > 0 and track[run_start - 1, 2] == 1
+           and gap_start - run_start < constants.high_shot_oob_lookback_frames):
+        run_start -= 1
+    n_visible = gap_start - run_start
+    if n_visible < constants.high_shot_oob_min_visible_frames:
+        return False
+    first_xy = track[run_start, :2]
+    last_xy = track[gap_start - 1, :2]
+    mean_velocity = (last_xy - first_xy) / (n_visible - 1)
+    return bool(last_xy[1] + constants.high_shot_oob_extrap_frames * mean_velocity[1] < 0.0)
+
+
+def _gap_passes_reentry_guard(
+    track: np.ndarray, gap_start: int, gap_end: int, variant: ReentryGuardVariant, buffer: float,
+    constants: FpsConstants,
+) -> bool:
+    if gap_end >= len(track):
+        return True
+    stop = gap_end
+    limit = min(gap_end + constants.reentry_lookahead_frames, len(track))
+    while stop < limit and track[stop, 2] == 1:
+        stop += 1
+    n_visible = stop - gap_end
+    if n_visible < constants.reentry_min_visible_frames:
+        return False
+    descending = (track[stop - 1, 1] - track[gap_end, 1]) / (n_visible - 1) > 0.0
+    near_top = track[gap_end, 1] <= buffer
+    if variant is ReentryGuardVariant.TWO_SIDED:
+        return bool(track[gap_start - 1, 1] <= buffer and near_top and descending)
+    return bool(near_top and descending)
+
+
+def _gap_state_rest_mask(
+    speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds, constants: FpsConstants, demotion_bound: int,
+    reentry_guard_variant: ReentryGuardVariant | None, reentry_guard_buffer: float | None,
+) -> np.ndarray:
+    speed_median = rolling_nanmedian(speed, thresholds.rest_window)
+    slow = speed_median < thresholds.rest_speed
+    high_shot_oob = np.zeros(len(track), dtype=bool)
+    dead = np.zeros(len(track), dtype=bool)
+    for gap_start, gap_end in true_runs(track[:, 2] != 1):
+        holds_open = _gap_is_high_shot_oob(track, gap_start, constants)
+        if holds_open and reentry_guard_variant is not None:
+            assert reentry_guard_buffer is not None
+            holds_open = _gap_passes_reentry_guard(
+                track, gap_start, gap_end, reentry_guard_variant, reentry_guard_buffer, constants,
+            )
+        if holds_open:
+            demotion_frame = min(gap_start + demotion_bound, gap_end)
+            high_shot_oob[gap_start:demotion_frame] = True
+            dead[demotion_frame:gap_end] = True
+        elif gap_end - gap_start > constants.blip_max_frames:
+            dead[gap_start:gap_end] = True
+    return dead | (slow & ~high_shot_oob)
+
+
+def _rest_mask(
+    speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds | None = None, *,
+    constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
+    reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
+) -> np.ndarray:
     """Per-frame rest flag: slow OR mostly untracked across the window (spec s6).
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
@@ -523,6 +579,12 @@ def _rest_mask(speed: np.ndarray, track: np.ndarray, thresholds: Stage8Threshold
         module globals (the default path, so the sweep's global patching still binds).
     :return: `(t,)` bool, True where the frame reads as rest.
     """
+    if gap_state_demotion_bound is not None:
+        assert thresholds is not None and constants is not None
+        return _gap_state_rest_mask(
+            speed, track, thresholds, constants, gap_state_demotion_bound,
+            reentry_guard_variant, reentry_guard_buffer,
+        )
     rest_window = REST_WINDOW if thresholds is None else thresholds.rest_window
     rest_speed = REST_SPEED if thresholds is None else thresholds.rest_speed
     speed_median = rolling_nanmedian(speed, rest_window)  # (t,)
@@ -636,6 +698,24 @@ def _find_rally_spans_span_open(
         has_burst = any(region_start <= start < region_end for start, _ in fast_runs)
         if has_burst:
             spans.append((int(region_start), int(region_end)))
+    return spans
+
+
+def _find_rally_spans_quiet_start(
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds, window: int,
+) -> list[tuple[int, int]]:
+    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    spans: list[tuple[int, int]] = []
+    for region_start, region_end in regions:
+        bursts = [start for start, _end in fast_runs if region_start <= start < region_end]
+        if not bursts:
+            continue
+        quiet_burst = next(
+            (start for start in bursts if len(at_rest[max(0, start - window):start])
+             and at_rest[max(0, start - window):start].mean() >= QUIET_START_REST_FRACTION),
+            None,
+        )
+        spans.append((int(bursts[0] if quiet_burst is None else quiet_burst), int(region_end)))
     return spans
 
 
@@ -1297,7 +1377,8 @@ def impulse_cell_candidates(
     half_window = IMPULSE_FLOOR_HALF_WINDOW_FRAMES if thresholds is None else thresholds.impulse_floor_half_window_frames
     dedup_radius = CONTACT_DEDUP_RADIUS_FRAMES if thresholds is None else thresholds.contact_dedup_radius_frames
     floors = rolling_floor(impulses, around_visible, half_window)
-    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > CONTACT_IMPULSE_MULTIPLE
+    impulse_multiple = CONTACT_IMPULSE_MULTIPLE if thresholds is None else thresholds.contact_impulse_multiple
+    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > impulse_multiple
     is_contact = impulse_pass & around_visible
 
     candidate_local = np.flatnonzero(is_contact) + 1
@@ -1556,12 +1637,30 @@ def build_sticky_result(
 def find_rally_spans(
     track: np.ndarray, thresholds: Stage8Thresholds | None = None,
     serve_start: ServeStartOptions | None = None, span_open: SpanOpen | None = None,
+    *, constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
+    reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
+    quiet_start_window: int | None = None,
 ) -> list[tuple[int, int]]:
     """Span-only segmentation; deliberately performs no contact extraction."""
+    if (reentry_guard_variant is None) != (reentry_guard_buffer is None):
+        raise ValueError('reentry guard needs both a variant and a buffer, or neither')
+    if reentry_guard_variant is not None and gap_state_demotion_bound is None:
+        raise ValueError('reentry guard requires gap_state_demotion_bound')
     speed = compute_speed(track)
-    at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
+    if gap_state_demotion_bound is not None:
+        at_rest = _rest_mask(
+            speed, track, thresholds, constants=constants, gap_state_demotion_bound=gap_state_demotion_bound,
+            reentry_guard_variant=reentry_guard_variant, reentry_guard_buffer=reentry_guard_buffer,
+        )
+    else:
+        # The frozen sweep rebinds _rest_mask to a (speed, track) replacement, so
+        # the OFF path must keep the legacy call shapes until Stage 7 retires it.
+        at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
     if serve_start is not None:
         return _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
+    if quiet_start_window is not None:
+        assert thresholds is not None
+        return _find_rally_spans_quiet_start(speed, at_rest, thresholds, quiet_start_window)
     if span_open is not None:
         return _find_rally_spans_span_open(speed, at_rest, thresholds, span_open)
     return _find_rally_spans(speed, at_rest) if thresholds is None else _find_rally_spans(speed, at_rest, thresholds)
@@ -1612,6 +1711,11 @@ def segment_video(
     body_unit_half_window: int | None = None,
     resolution: tuple[float, float] = (1920.0, 1080.0),
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
+    constants: FpsConstants | None = None,
+    gap_state_demotion_bound: int | None = None,
+    reentry_guard_variant: ReentryGuardVariant | None = None,
+    reentry_guard_buffer: float | None = None,
+    quiet_start_window: int | None = None,
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Full stage-8 pass over one video's shuttle track.
 
@@ -1700,7 +1804,12 @@ def segment_video(
         track = apply_replay_mask(track, replay_mask)
 
     if spans is None:
-        spans = find_rally_spans(track, thresholds, serve_start, span_open)
+        spans = find_rally_spans(
+            track, thresholds, serve_start, span_open, constants=constants,
+            gap_state_demotion_bound=gap_state_demotion_bound,
+            reentry_guard_variant=reentry_guard_variant, reentry_guard_buffer=reentry_guard_buffer,
+            quiet_start_window=quiet_start_window,
+        )
 
     gate_ran = sticky_distances is not None or body_unit_dist is not None or all(value is not None for value in gate_inputs)
     if not gate_ran:
