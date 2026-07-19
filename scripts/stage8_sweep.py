@@ -9,7 +9,7 @@ the committed scorer core in ``scripts.stage8_score``:
      (REST_SPEED, REST_WINDOW, END_REST_FRAMES, START_SPEED, START_MIN_FRAMES),
      contact thresholds pinned at shipped defaults; the frozen winner is the
      merge-penalised pick (``select_boundary_winner``), not the as-built sort.
-  2. contact phase: a 45-config grid over the three contact thresholds
+  2. contact phase: a 45-config grid over three contact parameters, two inert,
      (SMOOTH_WINDOW, MIN_DIR_CHANGE_DEG, MIN_CONTACT_SPEED) at the frozen
      boundary winner.
 

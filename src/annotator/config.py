@@ -28,7 +28,7 @@ PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrai
 
 
 class Stage8Thresholds(NamedTuple):
-    """The eight stage-8 trajectory-rule thresholds bundled as one value.
+    """The eleven stage-8 trajectory-rule thresholds bundled as one value.
 
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``

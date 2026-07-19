@@ -168,9 +168,10 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
 
 
 def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
-    """Centred rolling mean with a shrinking window at the edges (no NaN handling).
+    """Centred zero-inclusive rolling mean with a shrinking edge window.
 
-    Used only for the visibility fraction, which is a clean 0/1 array.
+    Invisible frames contribute their zeros. Any visibility masking is the
+    caller's concern.
 
     :param values: `(t,)` values, no NaN.
     :param window: window width in frames.
@@ -1023,7 +1024,8 @@ def _sticky_serve_setup_before(
         return False
 
     # TODO: position-based count means a tight close-up CAN read 1 and route partial; the old
-    # "close-ups read zero" claim was size-banded and retires with court_scale_boxes.
+    # "close-ups read zero" claim was size-banded and does not describe the permanent
+    # court-scale box and slot paths.
     return False
 
 
@@ -1298,11 +1300,11 @@ def detect_contact_flags(
 def detect_contacts(
     track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
 ) -> list[int]:
-    """Raw contact frames from the measured impulse rule, in ascending order.
+    """Raw contact frames from ``impulse_cell_candidates``, in ascending order.
 
-    The three-frame-smoothed track and replay mask are unchanged from the old
-    detector. The old angle and segment-speed conjunction is not part of this
-    path. Use ``detect_contact_flags`` when suppression needs the impulse value.
+    The candidate rule uses a three-frame visibility mask, a rolling impulse
+    floor, and largest-impulse-first de-duplication. Use
+    ``detect_contact_flags`` when suppression needs the impulse value.
     """
     return [frame for frame, _impulse in detect_contact_flags(track, start, end, thresholds)]
 
