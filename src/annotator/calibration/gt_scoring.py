@@ -347,6 +347,19 @@ class VideoScoring(NamedTuple):
     timing_errs: list[int]
 
 
+class RunVideoInputs(NamedTuple):
+    """Fixture-invariant arguments for one ``run_video`` invocation.
+
+    Calibration callers overlay only the candidate configuration, serve request,
+    or an explicitly supplied replacement dead mask.
+    """
+
+    positional: tuple[object, object, object, object, object]
+    keyword: dict[str, object]
+    master: pd.DataFrame
+    courts: dict
+
+
 def _ratio(numerator: int, denominator: int) -> float | None:
     return numerator / denominator if denominator else None
 
@@ -379,6 +392,30 @@ def load_gt_tables() -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:
     court_info = load_all_court_info(homography)
     resolution = pd.read_csv(REPO_ROOT / "training/data/shuttleset/annotations/my_raw_video_resolution.csv").set_index("id")
     return master, homo_df, court_info, resolution
+
+
+def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
+    """Load one fixture and assemble its invariant ``run_video`` inputs."""
+    arrays = load_fixture_arrays(fixture)
+    master, homo, courts, resolution = load_gt_tables()
+    gate_courts = {str(video_id): info for video_id, info in courts.items()}
+    gate_resolution = resolution.copy()
+    gate_resolution.index = gate_resolution.index.astype(str)
+    track, bboxes, scores, kps, ndet, committed_mask = arrays
+    keyword: dict[str, object] = {
+        "fps": fixture.fps,
+        "landing_options": LandingFilterOptions(7, 0.004, 5, 7, 0.75),
+        "court_box": CourtBox(*fixture.court_box),
+        "net_band": fixture.net_band,
+        "resolution": fixture.resolution,
+        "video_id": fixture.video_id,
+        "court_info": courts[fixture.video_id],
+        "homo_df": homo,
+        "gate_court_info": gate_courts,
+        "gate_resolution_table": gate_resolution,
+        "dead_mask": committed_mask,
+    }
+    return RunVideoInputs((track, bboxes, scores, kps, ndet), keyword, master, courts)
 
 
 def load_set_tables(fixture: Fixture, gt_rallies: list) -> dict[str, pd.DataFrame]:
@@ -635,18 +672,9 @@ def assert_floors(fixture: Fixture, metrics: dict[str, int | float | None]) -> N
 
 
 def run_fixture(fixture: Fixture) -> VideoScoring:
-    arrays = load_fixture_arrays(fixture)
-    master, homo, courts, resolution = load_gt_tables()
-    gate_courts = {str(video_id): info for video_id, info in courts.items()}
-    gate_resolution = resolution.copy()
-    gate_resolution.index = gate_resolution.index.astype(str)
-    track, bboxes, scores, kps, ndet, committed_mask = arrays
-    result = run_video(track, bboxes, scores, kps, ndet, fps=fixture.fps,
-        landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75), court_box=CourtBox(*fixture.court_box),
-        net_band=fixture.net_band, resolution=fixture.resolution, video_id=fixture.video_id, court_info=courts[fixture.video_id],
-        homo_df=homo, gate_court_info=gate_courts, gate_resolution_table=gate_resolution,
-        dead_mask=committed_mask)
-    return score_video(fixture, result, master, courts, canonical_tolerance(fixture.fps))
+    inputs = build_run_video_inputs(fixture)
+    result = run_video(*inputs.positional, **inputs.keyword)
+    return score_video(fixture, result, inputs.master, inputs.courts, canonical_tolerance(fixture.fps))
 
 
 def write_rallies_csv(rows: Iterable[RallyRow], path: Path) -> None:
