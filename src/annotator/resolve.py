@@ -19,4 +19,5 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
         constants=constants,
         thresholds=thresholds,
         dead_mask_mode=base.dead_mask_mode,
+        smoothing_mode=base.smoothing_mode,
     )

@@ -27,6 +27,8 @@ from annotator.rally_segmentation import (
     _find_rally_spans,
     _find_rally_spans_span_open,
     _last_rest_close,
+    _nan_rolling_mean,
+    _rolling_mean,
     _serve_setup_before,
     _serve_setup_before_boxheight,
     _serve_start_find_rally_spans,
@@ -41,10 +43,12 @@ from annotator.rally_segmentation import (
     detect_contact_flags,
     detect_contacts,
     segment_video,
+    span_impulses,
     suppress_contact_flags,
     wrist_contact_near,
 )
 from annotator.fps_constants import scale_for_fps
+from annotator.types import SmoothingMode
 
 # A per-frame step that keeps raw speed above START_SPEED.
 RALLY_STEP = 0.14
@@ -126,6 +130,42 @@ def test_invisible_moving_track_reads_as_rest():
     track = np.column_stack([np.full(150, 0.5), ys, np.zeros(150)])
     spans, _ = segment_video(track)
     assert spans == []
+
+
+def test_ignore_invisible_smoothing_uses_even_fps_scaled_window() -> None:
+    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=scale_for_fps(60.0).smooth_window)
+    assert thresholds.smooth_window == 6
+    track = np.column_stack([
+        [1.0, 99.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0],
+        np.zeros(8),
+        [1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+    ])
+
+    impulses = span_impulses(
+        track, 0, len(track), thresholds, smoothing_mode=SmoothingMode.IGNORE_INVISIBLE,
+    )
+
+    # Width-six smoothing gives [2, 3, 4, 5, 7, 8, 9, 10], so the impulse is
+    # the absolute velocity change [0, 0, 1, 1, 0, 0].
+    np.testing.assert_array_equal(impulses, [0.0, 0.0, 1.0, 1.0, 0.0, 0.0])
+    assert track[1, 0] == 99.0
+
+
+def test_ignore_invisible_smoothing_marks_all_invisible_span_unmeasurable() -> None:
+    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=6)
+    track = np.column_stack([np.arange(8, dtype=float), np.zeros(8), np.zeros(8)])
+
+    impulses = span_impulses(
+        track, 0, len(track), thresholds, smoothing_mode=SmoothingMode.IGNORE_INVISIBLE,
+    )
+
+    assert np.isnan(impulses).all()
+
+
+def test_nan_rolling_mean_matches_stock_mean_on_finite_input() -> None:
+    values = np.array([1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0])
+
+    assert np.array_equal(_nan_rolling_mean(values, 6), _rolling_mean(values, 6))
 
 
 def _triangle_track(step: float) -> np.ndarray:

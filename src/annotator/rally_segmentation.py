@@ -59,7 +59,7 @@ from .config import (
 )
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
 from .fps_constants import scale_for_fps
-from .types import ContactCandidate, Slot
+from .types import ContactCandidate, Slot, SmoothingMode
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -170,8 +170,8 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
 def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     """Centred zero-inclusive rolling mean with a shrinking edge window.
 
-    Invisible frames contribute their zeros. Any visibility masking is the
-    caller's concern.
+    This is a plain mean: zeros go in like any other value, nothing is
+    excluded, and any masking is the caller's job.
 
     :param values: `(t,)` values, no NaN.
     :param window: window width in frames.
@@ -181,6 +181,22 @@ def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     counts = np.convolve(np.ones_like(values), kernel, mode='same')  # samples per position
     sums = np.convolve(values, kernel, mode='same')
     return sums / counts
+
+
+def _nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred rolling mean that ignores NaN with a shrinking edge window.
+
+    :param values: `(t,)` values, may contain NaN.
+    :param window: window width in frames.
+    :return: `(t,)` centred mean; NaN where a whole window is NaN.
+    """
+    kernel = np.ones(window)
+    valid = ~np.isnan(values)
+    filled = np.where(valid, values, 0.0)
+    counts = np.convolve(valid.astype(float), kernel, mode='same')
+    sums = np.convolve(filled, kernel, mode='same')
+    with np.errstate(invalid='ignore', divide='ignore'):
+        return sums / counts
 
 
 # ---------------------------------------------------------------------------
@@ -1212,20 +1228,30 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 # ever needs retiring, the measured simple fallback is
 # OR(angle > 60 with speeds > 0.0035) plus the body-unit gate: 73.8% recall / 55.3% precision.
 def span_impulses(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> np.ndarray | None:
     """Return ``|v_out - v_in|`` for each junction in one rally span.
 
     The track is already replay-masked when this is called from ``segment_video``.
     Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.
+    Track xy inputs are finite. IGNORE_INVISIBLE makes a float copy whose invisible
+    xy values are NaN. A NaN output means its smoothing window was unmeasurable;
+    downstream comparisons drop the corresponding junction.
     """
     smooth_window = SMOOTH_WINDOW if thresholds is None else thresholds.smooth_window
     span = track[start:end]
     if len(span) < smooth_window + 2:
         return None
 
-    smooth_x = _rolling_mean(span[:, 0], smooth_window)
-    smooth_y = _rolling_mean(span[:, 1], smooth_window)
+    if smoothing_mode is SmoothingMode.ZERO_FILL:
+        smooth_x = _rolling_mean(span[:, 0], smooth_window)
+        smooth_y = _rolling_mean(span[:, 1], smooth_window)
+    else:
+        smooth_xy = span[:, :2].astype(float, copy=True)
+        smooth_xy[span[:, 2] != 1] = np.nan
+        smooth_x = _nan_rolling_mean(smooth_xy[:, 0], smooth_window)
+        smooth_y = _nan_rolling_mean(smooth_xy[:, 1], smooth_window)
     velocity = np.diff(np.column_stack([smooth_x, smooth_y]), axis=0)
     return np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
 
@@ -1251,7 +1277,8 @@ def rolling_floor(
 
 
 def impulse_cell_candidates(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[tuple[int, float]]:
     """Find raw impulse candidates and retain their impulse for suppression.
 
@@ -1260,7 +1287,7 @@ def impulse_cell_candidates(
     three-frame boundary used at 25 fps.
     """
     span = track[start:end]
-    impulses = span_impulses(track, start, end, thresholds)
+    impulses = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
     if impulses is None:
         return []
 
@@ -1291,14 +1318,16 @@ def impulse_cell_candidates(
 
 
 def detect_contact_flags(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[tuple[int, float]]:
     """Independently invoke the raw contact finder and retain ``(frame, impulse)`` flags."""
-    return impulse_cell_candidates(track, start, end, thresholds)
+    return impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
 
 
 def detect_contacts(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None,
+    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[int]:
     """Raw contact frames from ``impulse_cell_candidates``, in ascending order.
 
@@ -1306,7 +1335,11 @@ def detect_contacts(
     floor, and largest-impulse-first de-duplication. Use
     ``detect_contact_flags`` when suppression needs the impulse value.
     """
-    return [frame for frame, _impulse in detect_contact_flags(track, start, end, thresholds)]
+    return [
+        frame for frame, _impulse in detect_contact_flags(
+            track, start, end, thresholds, smoothing_mode=smoothing_mode,
+        )
+    ]
 
 
 def contact_proximity_ok(
@@ -1538,10 +1571,13 @@ def assemble_contacts(
     track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
     thresholds: Stage8Thresholds | None, body_unit_dist: np.ndarray | None,
     suppression_radius: int | None,
+    *, smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[ContactCandidate]:
     """Detect, gate, and suppress contacts for already-selected spans."""
     raw_flags = [(rally_id, frame, impulse) for rally_id, (start, end) in enumerate(spans)
-                 for frame, impulse in detect_contact_flags(track, start, end, thresholds)]
+                 for frame, impulse in detect_contact_flags(
+                     track, start, end, thresholds, smoothing_mode=smoothing_mode,
+                 )]
     if body_unit_dist is None:
         return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)
                 for r, f, _ in raw_flags]
@@ -1575,6 +1611,7 @@ def segment_video(
     suppression_radius: int | None = None,
     body_unit_half_window: int | None = None,
     resolution: tuple[float, float] = (1920.0, 1080.0),
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Full stage-8 pass over one video's shuttle track.
 
@@ -1611,6 +1648,8 @@ def segment_video(
     :param body_unit_half_window: resolved body-height window. Required with explicit
         thresholds; bare callers retain the Stage 6 bridge's legacy 12-frame default.
     :param resolution: `(width, height)` of the track and pose pixels.
+    :param smoothing_mode: span coordinate smoothing policy; ZERO_FILL preserves
+        the shipped rule and IGNORE_INVISIBLE drops invisible xy from each mean.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
         (rally_id is the list index) and contacts is
         `ContactCandidate(rally_id, contact_frame, proximity_ok, wrist_near, suppressed)`.
@@ -1665,7 +1704,10 @@ def segment_video(
 
     gate_ran = sticky_distances is not None or body_unit_dist is not None or all(value is not None for value in gate_inputs)
     if not gate_ran:
-        return spans, assemble_contacts(track, positions, spans, thresholds, None, suppression_radius)
+        return spans, assemble_contacts(
+            track, positions, spans, thresholds, None, suppression_radius,
+            smoothing_mode=smoothing_mode,
+        )
 
     distances = sticky_distances
     if body_unit_dist is None:
@@ -1677,8 +1719,12 @@ def segment_video(
             ).distances
         return spans, assemble_contacts(
             track, positions, spans, thresholds, distances, suppression_radius,
+            smoothing_mode=smoothing_mode,
         )
-    return spans, assemble_contacts(track, positions, spans, thresholds, body_unit_dist, suppression_radius)
+    return spans, assemble_contacts(
+        track, positions, spans, thresholds, body_unit_dist, suppression_radius,
+        smoothing_mode=smoothing_mode,
+    )
 
 
 # ---------------------------------------------------------------------------

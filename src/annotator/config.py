@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 from .fps_constants import FpsConstants, scale_for_fps
-from .types import DeadMaskMode
+from .types import DeadMaskMode, SmoothingMode
 
 # ---------------------------------------------------------------------------
 # Stage 8: rally segmentation and contact rules (spec s6)
@@ -107,12 +107,13 @@ class BaseAnnotatorConfig:
     legacy 25fps-surface values for fps-sensitive fields. Resolution overwrites
     every fps-sensitive field from the base-30 table, so only the non-fps knobs
     survive a custom preset. This is not a caller-supplied base-30 table; that
-    table lives in ``fps_constants``. Strategy fields (dead-mask producer and
-    serve lanes) arrive with their stages.
+    table lives in ``fps_constants``. Strategy fields (dead-mask producer,
+    smoothing, and serve lanes) arrive with their stages.
     """
 
     thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
+    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL
 
 
 @dataclass(frozen=True)
@@ -128,3 +129,4 @@ class ResolvedAnnotatorConfig:
     constants: FpsConstants
     thresholds: Stage8Thresholds
     dead_mask_mode: DeadMaskMode
+    smoothing_mode: SmoothingMode

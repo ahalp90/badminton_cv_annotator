@@ -42,6 +42,13 @@ class DeadMaskMode(StrEnum):
     UNION = 'union'
 
 
+class SmoothingMode(StrEnum):
+    """Select how invisible frames contribute to span smoothing."""
+
+    ZERO_FILL = 'zero_fill'
+    IGNORE_INVISIBLE = 'ignore_invisible'
+
+
 class ContactCandidate(NamedTuple):
     """One raw contact candidate and its independent gate/suppression verdicts."""
 

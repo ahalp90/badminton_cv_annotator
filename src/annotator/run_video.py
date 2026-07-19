@@ -157,7 +157,7 @@ def run_video(
             body_unit_half_window=resolved.constants.body_unit_half_window,
             span_open=stage8_seg.SpanOpen.BACK_FILL,
             replay_mask=mask, sticky_distances=sticky.distances, serve_start=serve_options,
-            spans=final_spans, resolution=resolution,
+            spans=final_spans, resolution=resolution, smoothing_mode=resolved.smoothing_mode,
         )
     spans, contacts = final_spans, raw_contacts
 

@@ -14,7 +14,7 @@ from annotator.config import (
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import scale_thresholds
 from annotator.resolve import resolve
-from annotator.types import DeadMaskMode, ScalingKind, Slot
+from annotator.types import DeadMaskMode, ScalingKind, Slot, SmoothingMode
 from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
 
 
@@ -72,15 +72,23 @@ def test_resolve_composes_final_constants_and_thresholds(fps: float) -> None:
     assert resolved == ResolvedAnnotatorConfig(
         fps=fps, constants=expected_constants, thresholds=expected_thresholds,
         dead_mask_mode=DeadMaskMode.REPLAY,
+        smoothing_mode=SmoothingMode.ZERO_FILL,
     )
     assert base.thresholds == SHIPPED_THRESHOLDS
     assert resolved.dead_mask_mode is DeadMaskMode.REPLAY
+    assert resolved.smoothing_mode is SmoothingMode.ZERO_FILL
 
 
 def test_resolve_preserves_dead_mask_mode_without_fps_scaling() -> None:
     base = BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.UNION)
     resolved = resolve(base, 50.0)
     assert resolved.dead_mask_mode is DeadMaskMode.UNION
+
+
+def test_resolve_preserves_smoothing_mode_without_fps_scaling() -> None:
+    base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.IGNORE_INVISIBLE)
+    resolved = resolve(base, 50.0)
+    assert resolved.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
 
 
 def test_config_dataclasses_are_frozen() -> None:
