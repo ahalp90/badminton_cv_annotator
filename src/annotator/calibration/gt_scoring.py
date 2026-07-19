@@ -18,7 +18,7 @@ from annotator.run_video import AnnotatorResult, run_video
 from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
 from annotator.rally_segmentation import CourtBox
-from scripts.stage8_score import (
+from annotator.calibration.scoring import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
 )
 from shared.court import load_all_court_info
