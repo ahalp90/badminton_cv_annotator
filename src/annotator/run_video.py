@@ -127,8 +127,8 @@ def run_video(
         raise ValueError('quiet_start_window cannot be combined with serve_start')
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Only the preliminary
-        # span pass is needed when callers did not inject spans; all discarded evidence
-        # builders are irrelevant because segmentation is bypassed below.
+        # span pass is needed when callers did not inject spans; the sticky builder is
+        # irrelevant because segmentation is bypassed below.
         final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
@@ -138,6 +138,12 @@ def run_video(
         )
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
+        # Replay mask baselines slow-motion detection against each rally's normal speed.
+        mask = dead_mask if dead_mask is not None else build_dead_mask(
+            resolved.dead_mask_mode, len(track), fps, court_present=court_present,
+            homography_rows=homography_rows, track=track, rally_spans=final_spans,
+            cut_frames=cut_frames, keep_vote=keep_vote,
+        )
     else:
         # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
         bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(

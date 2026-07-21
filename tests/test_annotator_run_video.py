@@ -5,7 +5,7 @@ import pytest
 
 import annotator.run_video as run_video_module
 import annotator.rally_segmentation as stage8_seg
-from annotator.point_winner import LandingFilterOptions
+from annotator.point_winner import Half, LandingFilterOptions
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
 from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
@@ -133,6 +133,20 @@ def test_run_video_injected_contacts_are_unmeasured_and_scored():
     assert result.contacts == expected
     assert result.filtered_contacts == expected
     assert result.filtered_by_rally == {0: frames}
+
+
+def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
+    inputs = _synthetic_inputs()
+    del inputs['dead_mask']
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: Half.TOP,
+    )
+
+    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+
+    assert result.striker_halves == [Half.TOP]
+    assert 0 in result.verdict_rows
 
 
 def test_run_video_injected_contacts_skip_discarded_evidence_builders(monkeypatch):
