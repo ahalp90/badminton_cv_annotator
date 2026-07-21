@@ -148,6 +148,8 @@ def run_video(
             cut_frames=cut_frames, keep_vote=keep_vote,
         )
     else:
+        if homography_rows is None or court_present is None:
+            raise ValueError('scene-gated sticky needs homography_rows and court_present')
         # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
         bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
@@ -156,8 +158,9 @@ def run_video(
             reentry_guard_buffer=resolved.reentry_guard_buffer,
             quiet_start_window=resolved.quiet_start_window,
         )
+        segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
         sticky = stage8_seg.build_sticky_result(
-            track, bootstrap_spans, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
+            track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
             gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
         )
         mask = dead_mask if dead_mask is not None else build_dead_mask(

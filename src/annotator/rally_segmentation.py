@@ -1524,16 +1524,65 @@ class StickyResult(NamedTuple):
     analysed: np.ndarray
 
 
+def tracker_segments(homography_rows, court_present, n_frames):
+    """Return scene-row intervals intersected with court-present runs.
+
+    :param homography_rows: Scene rows with named ``start_frame`` and ``end_frame`` bounds.
+    :param court_present: `(n_frames,)` boolean court-detection mask.
+    :param n_frames: Number of frames in the aligned video arrays.
+    :return: Maximal court-present half-open intervals within each scene row.
+    """
+    if (
+        not isinstance(court_present, np.ndarray)
+        or court_present.shape != (n_frames,)
+        or court_present.dtype != np.bool_
+    ):
+        raise ValueError('court_present must have shape (n_frames,) and bool dtype')
+
+    parsed_rows = []
+    for row in homography_rows:
+        try:
+            start = int(row['start_frame'])
+            end = int(row['end_frame'])
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise ValueError('homography row bounds must be integers') from exc
+        if end < start:
+            raise ValueError('homography rows must not be reversed')
+        parsed_rows.append((start, end))
+
+    parsed_rows.sort()
+    for previous, current in zip(parsed_rows, parsed_rows[1:]):
+        if current[0] < previous[1]:
+            raise ValueError('homography rows must not overlap')
+
+    segments = []
+    for row_start, row_end in parsed_rows:
+        start = max(0, row_start)
+        end = min(n_frames, row_end)
+        if start >= end:
+            continue
+        run_start = None
+        for frame in range(start, end):
+            if court_present[frame] and run_start is None:
+                run_start = frame
+            elif not court_present[frame] and run_start is not None:
+                segments.append((run_start, frame))
+                run_start = None
+        if run_start is not None:
+            segments.append((run_start, end))
+    return segments
+
+
 def build_sticky_result(
-    track: np.ndarray, spans: list[tuple[int, int]],
+    track: np.ndarray, segments: list[tuple[int, int]],
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
     court_box: CourtBox, resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
 ) -> StickyResult:
-    """Run one sticky analysis loop over the supplied spans.
+    """Run one sticky analysis loop over the supplied segments.
 
-    A span is one clip for EMA purposes. The sequential loop deliberately runs
+    A segment is one EMA lifetime. The sequential loop deliberately runs
     on every frame, including non-contact frames, because skipped frames change
     the picker's EMA state and therefore later candidate choices.
     """
@@ -1562,7 +1611,7 @@ def build_sticky_result(
     distances_per_slot = np.full((n_frames, 2), np.inf, dtype=np.float64)
     analysed = np.zeros(n_frames, dtype=bool)
 
-    for start, end in spans:
+    for start, end in segments:
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
             analysed[frame] = True

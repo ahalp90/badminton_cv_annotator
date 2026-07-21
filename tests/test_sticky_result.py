@@ -82,10 +82,10 @@ def _sticky_inputs():
 
 
 def test_build_sticky_result_pins_failure_defaults_and_success_contract():
-    (track, spans, bboxes, scores, kps, ndet, court_box,
+    (track, segments, bboxes, scores, kps, ndet, court_box,
      court_info, resolution_table) = _sticky_inputs()
     result = build_sticky_result(
-        track, spans, bboxes, scores, kps, ndet, '1', court_info,
+        track, segments, bboxes, scores, kps, ndet, '1', court_info,
         resolution_table, court_box, (1280.0, 720.0), half_window=1,
     )
 
@@ -102,8 +102,8 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
     np.testing.assert_allclose(result.ankle_pos[2, 0], [610 / 1280, 180 / 720])
     np.testing.assert_allclose(result.ankle_pos[2, 1], [610 / 1280, 540 / 720])
 
-    # Additive Stage 5 fields: analysed marks exactly the span frames; per-slot
-    # distances are +inf outside the spans, NaN on a visited frame with no
+    # Additive Stage 5 fields: analysed marks exactly the segment frames; per-slot
+    # distances are +inf outside the segments, NaN on a visited frame with no
     # finite gap, and consistent with the min-collapsed series where finite.
     assert result.analysed.tolist() == [False, True, True, True, False]
     assert np.isposinf(result.distances_per_slot[0]).all()

@@ -58,6 +58,7 @@ def test_run_video_no_play_returns_empty_result():
         gate_court_info={str(video_id): court_info},
         gate_resolution_table=gate_resolution_table,
         dead_mask=dead,
+        **_default_scene_inputs(len(track)),
     )
 
     assert result == AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
@@ -110,16 +111,22 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
         lambda *args, **kwargs: pytest.fail('natural span finding was not bypassed'),
     )
 
-    result = run_video(**inputs, spans=injected)
+    result = run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=injected)
 
     assert result.spans == injected
+
+
+def test_run_video_requires_scene_inputs_for_non_injected_sticky():
+    with pytest.raises(ValueError, match='^scene-gated sticky needs homography_rows and court_present$'):
+        run_video(**_synthetic_inputs())
 
 
 def test_run_video_rejects_serve_start_with_injected_spans() -> None:
     inputs = _synthetic_inputs()
     with pytest.raises(ValueError, match='serve_start cannot be combined with injected spans'):
         run_video(
-            **inputs, spans=[(10, 20)], serve_start=ServeStartConfig(0.5, ServeStartMode.TRIM),
+            **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+            serve_start=ServeStartConfig(0.5, ServeStartMode.TRIM),
         )
 
 
@@ -254,6 +261,19 @@ def _synthetic_inputs():
             {'width': [1920.0], 'height': [1080.0]}, index=[str(video_id)],
         ),
         'dead_mask': np.zeros(n_frames, dtype=bool),
+    }
+
+
+def _default_scene_inputs(n_frames: int):
+    return {
+        'court_present': np.ones(n_frames, dtype=bool),
+        'homography_rows': [{
+            'start_frame': '0', 'end_frame': str(n_frames),
+            'upleft_x': 0.0, 'upright_x': 1280.0,
+            'downleft_x': 0.0, 'downright_x': 1280.0,
+            'upleft_y': 0.0, 'upright_y': 0.0,
+            'downleft_y': 720.0, 'downright_y': 720.0,
+        }],
     }
 
 
