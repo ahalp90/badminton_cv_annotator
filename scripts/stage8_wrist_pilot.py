@@ -60,7 +60,7 @@ from scripts.stage8_score import (  # noqa: E402  — sibling script, imported a
     load_gt_rallies,
     score_stage8,
 )
-from scripts.stage8_sweep import Stage8Params, _patch_stage8  # noqa: E402
+from scripts.archive.stage8_sweep import Stage8Params, _patch_stage8  # noqa: E402
 from scripts.wrist_contact_separation import (  # noqa: E402
     WRIST_L,
     WRIST_R,

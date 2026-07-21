@@ -11,9 +11,7 @@ from annotator.calibration.pilot_geometry import HOMOGRAPHY_COURT_BOX, PILOT_RES
 from src.scraper.config import (
     BEST_CONFIG_THRESHOLDS,
     END_REST_FRAMES,
-    MIN_CONTACT_SPEED,
     SHIPPED_THRESHOLDS,
-    START_SPEED,
     SMOOTH_WINDOW,
 )
 from annotator.rally_segmentation import (
@@ -179,14 +177,6 @@ def test_contact_detected_on_fast_reversal():
     track = _triangle_track(RALLY_STEP)
     contacts = detect_contacts(track, 0, len(track))
     assert contacts == [1, 7, 13]
-
-
-def test_contact_impulse_rule_has_no_absolute_speed_floor():
-    slow_step = 0.002
-    assert slow_step < MIN_CONTACT_SPEED
-    assert slow_step < START_SPEED
-    track = _triangle_track(slow_step)
-    assert detect_contacts(track, 0, len(track)) == [1, 6, 13]
 
 
 def test_contact_suppression_ranks_impulse_then_frame():

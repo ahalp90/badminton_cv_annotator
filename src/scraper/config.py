@@ -178,7 +178,6 @@ from annotator.config import START_SPEED as START_SPEED  # noqa: E402
 from annotator.config import START_MIN_FRAMES as START_MIN_FRAMES  # noqa: E402
 from annotator.config import SMOOTH_WINDOW as SMOOTH_WINDOW  # noqa: E402
 from annotator.config import MIN_DIR_CHANGE_DEG as MIN_DIR_CHANGE_DEG  # noqa: E402
-from annotator.config import MIN_CONTACT_SPEED as MIN_CONTACT_SPEED  # noqa: E402
 from annotator.config import END_REST_FRAMES as END_REST_FRAMES  # noqa: E402
 from annotator.config import PROXIMITY_MAX as PROXIMITY_MAX  # noqa: E402
 from annotator.config import Stage8Thresholds as Stage8Thresholds  # noqa: E402

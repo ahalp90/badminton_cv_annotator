@@ -76,10 +76,11 @@ def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) 
         composition_min_scene_len=frame_count('composition_min_scene_len', 15.0),
         blip_max_frames=frame_count('blip_max_frames', 12.0),
         high_shot_oob_lookback_frames=frame_count('high_shot_oob_lookback_frames', 6.0),
-        high_shot_oob_min_visible_frames=frame_count('high_shot_oob_min_visible_frames', 2.4),
+        # Consumers divide by sample count minus one, so each needs at least two frames.
+        high_shot_oob_min_visible_frames=max(2, frame_count('high_shot_oob_min_visible_frames', 2.4)),
         high_shot_oob_extrap_frames=frame_count('high_shot_oob_extrap_frames', 12.0),
         reentry_lookahead_frames=frame_count('reentry_lookahead_frames', 6.0),
-        reentry_min_visible_frames=frame_count('reentry_min_visible_frames', 2.4),
+        reentry_min_visible_frames=max(2, frame_count('reentry_min_visible_frames', 2.4)),
     )
 
 

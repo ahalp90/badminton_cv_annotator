@@ -75,7 +75,6 @@ def test_resolution_keeps_inert_contact_fields_dimensionless() -> None:
     for fps in (25.0, 50.0, 60.0):
         resolved = resolve(base, fps)
         assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
-        assert resolved.thresholds.min_contact_speed == base.thresholds.min_contact_speed
     assert resolve(base, 25.0).constants.body_unit_half_window == 10
     assert resolve(base, 50.0).constants.body_unit_half_window == 20
 
@@ -85,6 +84,16 @@ def test_scale_for_fps_composition_scene_length_is_distinct_but_currently_equal(
     values25 = scale_for_fps(25.0)
     assert values60.composition_min_scene_len == values60.court_absent_window
     assert values25.composition_min_scene_len == values25.court_absent_window
+
+
+def test_scale_for_fps_visible_sample_rows_floor_at_two_frames() -> None:
+    values10 = scale_for_fps(10.0)
+    assert values10.high_shot_oob_min_visible_frames == 2
+    assert values10.reentry_min_visible_frames == 2
+    assert scale_for_fps(25.0).high_shot_oob_min_visible_frames == 2
+    assert scale_for_fps(60.0).high_shot_oob_min_visible_frames == 5
+    assert scale_for_fps(25.0).reentry_min_visible_frames == 2
+    assert scale_for_fps(60.0).reentry_min_visible_frames == 5
 
 
 def test_probe_fps_rejects_vfr_and_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,7 +151,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     assert resolved.constants.min_descend_samples == 6
     assert resolved.constants.body_unit_half_window == 24
     assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
-    assert resolved.thresholds.min_contact_speed == base.thresholds.min_contact_speed
 
     # 29 is below the correct 30-frame replay threshold; 40 brackets correct 30 and double 60.
     present = np.ones(500, dtype=bool)

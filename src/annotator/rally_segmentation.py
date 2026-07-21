@@ -59,7 +59,7 @@ from .config import (
 )
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
 from .fps_constants import FpsConstants, scale_for_fps
-from .types import ContactCandidate, ReentryGuardVariant, ScalingKind, Slot, SmoothingMode, SpanOpen
+from .types import ContactCandidate, ReentryGuardVariant, Slot, SmoothingMode, SpanOpen
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -107,9 +107,6 @@ def scale_thresholds(
         contact_suppression_radius_frames=values.contact_suppression_radius_frames,
         contact_impulse_multiple=overrides.get('contact_impulse_multiple', thresholds.contact_impulse_multiple),
         min_dir_change_deg=overrides.get('min_dir_change_deg', thresholds.min_dir_change_deg),
-        min_contact_speed=ScalingKind.PER_FRAME_SPEED.scale(
-            overrides['min_contact_speed'], fps,
-        ) if 'min_contact_speed' in overrides else thresholds.min_contact_speed,
     )
 
 

@@ -68,11 +68,13 @@ from typing import Callable, NamedTuple
 import numpy as np
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 import annotator.rally_segmentation as stage8_module  # noqa: E402  — needs the src path above
-from annotator.config import MIN_CONTACT_SPEED, MIN_DIR_CHANGE_DEG  # noqa: E402  — old-rule knobs, config keeps them for this sweep's grid
+from annotator.config import MIN_DIR_CHANGE_DEG  # noqa: E402
+# The config constant died with the impulse rule; the archived grid keeps the shipped literal so the frozen sweep records stay reproducible.
+MIN_CONTACT_SPEED = 0.005
 
 from annotator.rally_segmentation import (  # noqa: E402  — moved stage-8 machinery, now first-class
     SERVE_START_LOOKBACK_FRAMES,

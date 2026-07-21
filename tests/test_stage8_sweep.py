@@ -14,10 +14,10 @@ import csv
 import numpy as np
 import pytest
 
-import scripts.stage8_sweep as stage8_sweep
+import scripts.archive.stage8_sweep as stage8_sweep
 from scripts.stage8_score import GtRally, score_stage8
 from annotator.calibration.pilot_geometry import HOMOGRAPHY_COURT_BOX, STANDIN_COURT_BOX
-from scripts.stage8_sweep import (
+from scripts.archive.stage8_sweep import (
     BOUNDARY_END_REST_FRAMES,
     BOUNDARY_REST_SPEED,
     BOUNDARY_REST_WINDOW,
@@ -474,16 +474,8 @@ def test_plumbing_two_configs_end_to_end():
     assert shipped_row['covered'] == 1
     assert shipped_row['recall_5'] is not None and shipped_row['recall_5'] > 0
 
-    # The removed absolute speed floor does not affect the impulse candidates.
-    strict = SHIPPED_DEFAULTS._replace(min_contact_speed=0.5)
-    strict_row = _score_config(SweepTask(LABEL_GRID, strict))
-    assert strict_row['n_spans'] == shipped_row['n_spans']
-    assert strict_row['total_candidates'] == 5
-    assert strict_row['total_candidates'] <= shipped_row['total_candidates']
-
-    # Both rows carry the full column set and serialise cleanly.
+    # The shipped row carries the full column set and serialises cleanly.
     assert set(_serialise_row(shipped_row)) == set(ROW_COLUMNS)
-    assert set(_serialise_row(strict_row)) == set(ROW_COLUMNS)
 
     _patch_stage8(SHIPPED_DEFAULTS)  # leave the shared module at defaults
 
