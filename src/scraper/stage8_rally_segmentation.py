@@ -53,5 +53,4 @@ from annotator.rally_segmentation import _serve_setup_before as _serve_setup_bef
 from annotator.rally_segmentation import _serve_setup_before_boxheight as _serve_setup_before_boxheight
 from annotator.rally_segmentation import _serve_start_find_rally_spans as _serve_start_find_rally_spans
 from annotator.rally_segmentation import _wide_shot_before as _wide_shot_before
-from annotator.rally_segmentation import _sticky_gate_distances as _sticky_gate_distances
 from annotator.rally_segmentation import main as main
