@@ -8,11 +8,15 @@ tuned value rather than a hard-coded default.
 from __future__ import annotations
 
 import csv
+import logging
+import sys
+from pathlib import Path
 
 import numpy as np
+import pytest
 
 from annotator import config
-from annotator.doubles_flag import doubles_flag
+from annotator.doubles_flag import doubles_flag, read_whole_video_flags
 
 
 # -- Span-fraction boundary: strict greater-than -----------------------------
@@ -109,3 +113,85 @@ def test_cli_whole_video_and_spans(tmp_path, monkeypatch):
     }
     assert verdict[("vid_a", "r1")] == "False"
     assert verdict[("vid_a", "r2")] == "True"
+
+
+def _write_flags(path: Path, rows: list[tuple[str, str, str]]) -> None:
+    with path.open('w', newline='') as handle:
+        writer = csv.writer(handle)
+        writer.writerow(['video_id', 'rally_id', 'doubles_flag'])
+        writer.writerows(rows)
+
+
+def test_read_whole_video_flags_ignores_rally_rows(tmp_path):
+    flags_csv = tmp_path / 'doubles_flags.csv'
+    _write_flags(flags_csv, [
+        ('vid_a', '', 'True'),
+        ('vid_a', 'rally-1', 'False'),
+        ('vid_b', '', 'False'),
+    ])
+
+    assert read_whole_video_flags(flags_csv) == {'vid_a': True, 'vid_b': False}
+
+
+def test_read_whole_video_flags_rejects_duplicate_whole_video(tmp_path):
+    flags_csv = tmp_path / 'doubles_flags.csv'
+    _write_flags(flags_csv, [('vid_a', '', 'True'), ('vid_a', '', 'False')])
+
+    with pytest.raises(ValueError, match='duplicate whole-video'):
+        read_whole_video_flags(flags_csv)
+
+
+@pytest.mark.parametrize('value', ['true', '1', ''])
+def test_read_whole_video_flags_rejects_non_literal_booleans(tmp_path, value):
+    flags_csv = tmp_path / 'doubles_flags.csv'
+    _write_flags(flags_csv, [('vid_a', '', value)])
+
+    with pytest.raises(ValueError, match='vid_a'):
+        read_whole_video_flags(flags_csv)
+
+
+def _run_segmentation_cli(tmp_path, monkeypatch, *, doubles_csv: Path | None, processed: list[str]) -> None:
+    shuttle_dir = tmp_path / 'tracks'
+    shuttle_dir.mkdir()
+    for video_id in ('vid_a', 'vid_b', 'vid_c'):
+        np.save(shuttle_dir / f'{video_id}.npy', np.zeros((4, 3)))
+
+    from annotator import rally_segmentation as segmentation
+
+    def fake_segment_video(track, *args, **kwargs):
+        processed.append(str(len(track)))
+        return [], []
+
+    monkeypatch.setattr(
+        segmentation, 'segment_video', fake_segment_video,
+    )
+    argv = [
+        'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
+        '--rally-spans-csv', str(tmp_path / 'spans.csv'),
+        '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
+    ]
+    if doubles_csv is not None:
+        argv.extend(['--doubles-csv', str(doubles_csv)])
+    monkeypatch.setattr(sys, 'argv', argv)
+    segmentation.main()
+
+
+def test_runner_excludes_doubles_and_missing_rows(tmp_path, monkeypatch, caplog):
+    flags_csv = tmp_path / 'doubles_flags.csv'
+    _write_flags(flags_csv, [('vid_a', '', 'True'), ('vid_b', '', 'False')])
+    processed: list[str] = []
+
+    with caplog.at_level(logging.WARNING):
+        _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=flags_csv, processed=processed)
+
+    assert processed == ['4']
+    assert 'excluding vid_a: flagged doubles' in caplog.text
+    assert 'excluding vid_c: no doubles row; not assuming singles' in caplog.text
+
+
+def test_runner_without_doubles_csv_processes_all(tmp_path, monkeypatch):
+    processed: list[str] = []
+
+    _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=None, processed=processed)
+
+    assert processed == ['4', '4', '4']

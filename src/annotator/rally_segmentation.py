@@ -57,6 +57,7 @@ from .config import (
     START_SPEED,
     Stage8Thresholds,
 )
+from .doubles_flag import read_whole_video_flags
 from scraper.config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
 from .fps_constants import FpsConstants, scale_for_fps
 from .types import ContactCandidate, ReentryGuardVariant, Slot, SmoothingMode, SpanOpen
@@ -1997,6 +1998,8 @@ def main() -> None:
     parser.add_argument('--court-box-csv', type=Path, default=None,
                         help='Per-video CourtBox table with id/video_id and '
                              'x_lo,x_hi,y_lo,y_hi,height_lo,height_hi,mid_lo,mid_hi')
+    parser.add_argument('--doubles-csv', type=Path, default=None,
+                        help='Optional doubles flags CSV; only whole-video False rows are processed')
     parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
                         help='which threshold preset to segment with (default: shipped)')
     fps_group = parser.add_mutually_exclusive_group()
@@ -2039,7 +2042,21 @@ def main() -> None:
 
     span_rows: list[tuple[str, int, int, int]] = []
     contact_rows: list[tuple[str, int, int, str, str, str]] = []
-    for track_path in sorted(args.shuttle_dir.glob('*.npy')):
+    track_paths = sorted(args.shuttle_dir.glob('*.npy'))
+    if args.doubles_csv is not None:
+        whole_video_flags = read_whole_video_flags(args.doubles_csv)
+        filtered_track_paths = []
+        for track_path in track_paths:
+            video_id = track_path.stem
+            if video_id not in whole_video_flags:
+                log.warning('excluding %s: no doubles row; not assuming singles', video_id)
+            elif whole_video_flags[video_id]:
+                log.warning('excluding %s: flagged doubles', video_id)
+            else:
+                filtered_track_paths.append(track_path)
+        track_paths = filtered_track_paths
+
+    for track_path in track_paths:
         video_id = track_path.stem
         if args.fps is None and video_id not in fps_by_id:
             log.warning('skipping %s: absent from fps CSV', video_id)

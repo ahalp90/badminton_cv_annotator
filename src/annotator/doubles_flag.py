@@ -35,6 +35,34 @@ DOUBLES_FLAGS_CSV = SCRAPE_DIR / 'doubles_flags.csv'
 DOUBLES_FLAGS_COLUMNS = ['video_id', 'rally_id', 'doubles_flag']
 
 
+def read_whole_video_flags(csv_path: Path) -> dict[str, bool]:
+    """Read unique whole-video doubles flags from a doubles flags CSV.
+
+    :param csv_path: CSV written by this module, with the fixed three-column header.
+    :return: Mapping from video ID to its whole-video doubles verdict.
+    :raises ValueError: If the header, flag value or whole-video uniqueness is invalid.
+    """
+    with csv_path.open(newline='', encoding='utf-8') as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != DOUBLES_FLAGS_COLUMNS:
+            raise ValueError(
+                f'{csv_path}: expected header {DOUBLES_FLAGS_COLUMNS}, got {reader.fieldnames}'
+            )
+
+        flags: dict[str, bool] = {}
+        for row in reader:
+            if row['rally_id'] != '':
+                continue
+            video_id = row['video_id']
+            if video_id in flags:
+                raise ValueError(f'{csv_path}: duplicate whole-video row for {video_id}')
+            value = row['doubles_flag']
+            if value not in {'True', 'False'}:
+                raise ValueError(f'{csv_path}: invalid doubles_flag for {video_id}: {value!r}')
+            flags[video_id] = value == 'True'
+        return flags
+
+
 def doubles_flag(overcount: np.ndarray, span: tuple[int, int] | None = None) -> bool:
     """Windowed doubles verdict for one span of the per-frame over-count (spec s8).
 
