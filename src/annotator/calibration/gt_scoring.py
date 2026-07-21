@@ -345,6 +345,7 @@ class VideoScoring(NamedTuple):
     hit_height_failures: list[tuple[int, int, int, str]]
     ball_round_diffs: list[int]
     timing_errs: list[int]
+    geometric_verdict_rows: dict[int, object]
 
 
 class RunVideoInputs(NamedTuple):
@@ -611,7 +612,8 @@ def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame,
         (timing[0], timing[1]), (timing[2], timing[3]),
         ColumnAgg(*player), ColumnAgg(*server), ColumnAgg(*height), ColumnAgg(*landing), ColumnAgg(*winner),
         contact_matches, len(result.filtered_contacts), sum(r.n_strokes for r in gt), len(result.contacts),
-        len(result.filtered_contacts), result.hit_height_failures, ball_round_diffs, timing_errs)
+        len(result.filtered_contacts), result.hit_height_failures, ball_round_diffs, timing_errs,
+        result.geometric_verdict_rows)
 
 
 def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
@@ -684,6 +686,20 @@ def write_rallies_csv(rows: Iterable[RallyRow], path: Path) -> None:
         writer.writerows(rows)
 
 
+def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:
+    """Write the additive per-rally geometric winner diagnostics."""
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(("rally_id", "geometric_verdict", "geometric_winner", "agreement"))
+        for row in rows:
+            writer.writerow((
+                row.rally_id,
+                row.geometric_verdict.value if row.geometric_verdict is not None else "",
+                row.geometric_winner.value if row.geometric_winner is not None else "",
+                row.agreement if row.agreement is not None else "",
+            ))
+
+
 def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:
     for fixture, values in scores.items():
         for metric in ("covered_fraction", "contact_f1"):
@@ -716,6 +732,10 @@ def main() -> None:
         out.mkdir(parents=True, exist_ok=True)
         for fixture in FIXTURES:
             write_rallies_csv(scorings[fixture.name].rows, out / f"{fixture.name}.csv")
+            write_geometric_verdicts_csv(
+                scorings[fixture.name].geometric_verdict_rows.values(),
+                out / f"{fixture.name}_geometric_verdicts.csv",
+            )
 
 
 if __name__ == "__main__":

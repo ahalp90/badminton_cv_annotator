@@ -775,6 +775,15 @@ class VerdictRow(NamedTuple):
     within_net_margin: bool
 
 
+class GeometricVerdictRow(NamedTuple):
+    """The geometric winner arm and its consistency check for one rally."""
+
+    rally_id: int
+    geometric_verdict: Verdict | None
+    geometric_winner: Half | None
+    agreement: bool | None
+
+
 def rally_verdict(
     rally_id: int, striker_half: Half, next_server: Half | None, landing: Landing | None,
     band_m: float,

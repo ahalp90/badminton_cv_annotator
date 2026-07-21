@@ -5,7 +5,7 @@ import pytest
 
 import annotator.run_video as run_video_module
 import annotator.rally_segmentation as stage8_seg
-from annotator.point_winner import Half, LandingFilterOptions
+from annotator.point_winner import Half, Landing, LandingFilterOptions
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
 from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
@@ -59,7 +59,7 @@ def test_run_video_no_play_returns_empty_result():
         dead_mask=dead,
     )
 
-    assert result == AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, [])
+    assert result == AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
 
 
 def test_scoring_filter_keeps_only_unfailed_unsuppressed_rows():
@@ -147,6 +147,58 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
 
     assert result.striker_halves == [Half.TOP]
     assert 0 in result.verdict_rows
+    assert 0 in result.geometric_verdict_rows
+
+
+def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
+    inputs = _synthetic_inputs()
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing',
+        lambda *args, **kwargs: None,
+    )
+
+    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+
+    diagnostic = result.geometric_verdict_rows[0]
+    assert diagnostic.geometric_verdict is None
+    assert diagnostic.geometric_winner is None
+    assert diagnostic.agreement is None
+
+
+def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
+    inputs = _synthetic_inputs()
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing',
+        lambda *args, **kwargs: Landing(15, (0.5, 0.75), Half.BOT, False, False, False),
+    )
+
+    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+
+    diagnostic = result.geometric_verdict_rows[0]
+    assert diagnostic.geometric_verdict.value == 'won'
+    assert diagnostic.geometric_winner is Half.TOP
+    assert diagnostic.agreement is True
+
+
+def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
+    inputs = _synthetic_inputs()
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: None,
+    )
+
+    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+
+    assert result.verdict_rows == {}
+    assert result.geometric_verdict_rows == {}
 
 
 def test_run_video_injected_contacts_skip_discarded_evidence_builders(monkeypatch):

@@ -55,6 +55,8 @@ class AnnotatorResult(NamedTuple):
         index-aligned to `spans`; None where `striker_halves[rally_id]` is None.
     :param verdict_rows: rally_id -> VerdictRow, only for rallies with a resolved striker.
     :param landings: rally_id -> Landing or None, same keys as `verdict_rows`.
+    :param geometric_verdict_rows: rally_id -> geometric diagnostic, only for rallies with a
+        resolved striker.
     :param hit_height_by_frame: contact_frame -> ShuttleSet-coded hit_height (1/2), one entry per
         filtered contact that scored successfully.
     :param hit_height_failures: `(rally_id, stroke_idx, contact_frame, error)` for filtered
@@ -71,6 +73,7 @@ class AnnotatorResult(NamedTuple):
     fitted_first_all: list
     verdict_rows: dict[int, object]
     landings: dict[int, object | None]
+    geometric_verdict_rows: dict[int, object]
     hit_height_by_frame: dict[int, int]
     hit_height_failures: list[tuple[int, int, int, str]]
 
@@ -211,6 +214,7 @@ def run_video(
 
     verdict_rows: dict[int, object] = {}
     landings: dict[int, object | None] = {}
+    geometric_verdict_rows: dict[int, object] = {}
     for rally_id in range(len(spans)):
         striker = striker_halves[rally_id]
         if striker is None:
@@ -222,8 +226,23 @@ def run_video(
             final_contact, next_start, track, mask, kin, landing_options, striker, net_band,
             resolution, court_info, resolved.constants, fps,
         )
-        verdict_rows[rally_id] = point_winner.rally_verdict(
+        verdict = point_winner.rally_verdict(
             rally_id, striker, next_servers[rally_id], landing, band_m,
+        )
+        verdict_rows[rally_id] = verdict
+        geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
+        shipped_winner = None
+        if verdict.verdict == point_winner.Verdict.WON:
+            shipped_winner = striker
+        elif verdict.verdict == point_winner.Verdict.LOST:
+            shipped_winner = OTHER_HALF[striker]
+        # Agreement is a consistency check, not an accuracy meter: both arms share the same
+        # fitted hitting order.
+        agreement = None
+        if shipped_winner is not None and geometric_winner is not None:
+            agreement = shipped_winner == geometric_winner
+        geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
+            rally_id, geometric, geometric_winner, agreement,
         )
         landings[rally_id] = landing
 
@@ -245,5 +264,6 @@ def run_video(
         filtered_by_rally=filtered_by_rally,
         striker_halves=striker_halves, n_strokes_list=n_strokes_list, next_servers=next_servers,
         fitted_first_all=fitted_first_all, verdict_rows=verdict_rows, landings=landings,
+        geometric_verdict_rows=geometric_verdict_rows,
         hit_height_by_frame=hit_height_by_frame, hit_height_failures=hit_height_failures,
     )
