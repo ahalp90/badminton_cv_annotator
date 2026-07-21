@@ -5,7 +5,8 @@ import pytest
 
 import annotator.run_video as run_video_module
 import annotator.rally_segmentation as stage8_seg
-from annotator.point_winner import Half, Landing, LandingFilterOptions
+from annotator.calibration.gt_scoring import write_geometric_verdicts_csv
+from annotator.point_winner import GeometricVerdictRow, Half, Landing, LandingFilterOptions, Verdict
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
 from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
@@ -254,3 +255,17 @@ def _synthetic_inputs():
         ),
         'dead_mask': np.zeros(n_frames, dtype=bool),
     }
+
+
+def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
+    rows = [
+        GeometricVerdictRow(0, Verdict.WON, Half.TOP, True),
+        GeometricVerdictRow(2, None, None, None),
+    ]
+    path = tmp_path / 'pilot_geometric_verdicts.csv'
+    write_geometric_verdicts_csv(rows, path)
+    assert path.read_text(encoding='utf-8').splitlines() == [
+        'rally_id,geometric_verdict,geometric_winner,agreement',
+        '0,won,Top,True',
+        '2,,,',
+    ]

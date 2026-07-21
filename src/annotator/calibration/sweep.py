@@ -686,7 +686,11 @@ def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:
     strategies = phase[WINNER_SPEC_STRATEGIES_KEY]
     if set(document) != {WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY}:
         raise ValueError("boundary winner document has unknown or missing phase keys")
-    if set(meta) != {"fixture", "phases_run", "verdict", "tolerances_base30"}:
+    # A winner written since the provenance change carries three extra meta keys; accept and
+    # validate them so a boundary-phase winner can still feed a contact-phase run.
+    if "schema_version" in meta:
+        _validate_provenance(meta, _fixture(fixture_name))
+    elif set(meta) != {"fixture", "phases_run", "verdict", "tolerances_base30"}:
         raise ValueError("boundary winner meta has unknown or missing keys")
     if meta["fixture"] != fixture_name:
         raise ValueError("boundary winner fixture does not match --fixture")

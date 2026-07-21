@@ -708,20 +708,20 @@ def write_contact_frontier_csv(path: Path, rows: list[dict]) -> None:
 
 
 def _params_of(row: dict) -> dict:
-    """The eight param columns of a row (config_winner.json params half)."""
+    """The eight param columns of a row (winner.json params half)."""
     return {field: row[field] for field in PARAM_COLUMNS}
 
 
 def _metrics_of(row: dict) -> dict:
-    """The metric columns of a row (config_winner.json metrics half)."""
+    """The metric columns of a row (winner.json metrics half)."""
     return {column: row[column] for column in METRIC_COLUMNS}
 
 
 def load_boundary_winner_json(path: Path) -> tuple[Stage8Params, dict]:
-    """Reconstruct a boundary winner from a prior config_winner.json (to skip phase 1).
+    """Reconstruct a boundary winner from a prior winner.json (to skip phase 1).
 
     :return: ``(params, loaded_json)`` so phase 2 can freeze the boundary params
-        and the final config_winner.json can echo the loaded boundary half.
+        and the final winner.json can echo the loaded boundary half.
     """
     loaded = json.loads(path.read_text(encoding='utf-8'))
     params_dict = loaded['boundary']
@@ -1322,13 +1322,13 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='ShuttleSet shots_master.csv (default: the in-repo training annotations)')
     parser.add_argument('--out-dir', type=Path, required=True,
                         help='writes boundary_sweep.csv, boundary_crowns.csv, contact_sweep.csv, '
-                             'contact_frontier.csv, config_winner.json')
+                             'contact_frontier.csv, winner.json')
     parser.add_argument('--workers', type=int, default=os.cpu_count() or 1,
                         help='multiprocessing pool size (default: all cores)')
     parser.add_argument('--phase', choices=('both', 'boundary', 'contact'), default='both',
                         help='which phase(s) to run (default both)')
     parser.add_argument('--boundary-winner-json', type=Path, default=None,
-                        help='a prior config_winner.json; supply to skip phase 1 and freeze its boundary params')
+                        help='a prior winner.json; supply to skip phase 1 and freeze its boundary params')
     return parser
 
 
@@ -1470,9 +1470,11 @@ def main() -> None:
         winner_json['contact'] = _params_of(contact_winner_row)
         winner_json['contact_metrics'] = _metrics_of(contact_winner_row)
 
-    winner_path = args.out_dir / 'config_winner.json'
+    # Deliberately winner.json, the archive era's name: this script predates the validated
+    # winner.json schema and must not squat the canonical filename.
+    winner_path = args.out_dir / 'winner.json'
     winner_path.write_text(json.dumps(winner_json, indent=2), encoding='utf-8')
-    print(f'\nWrote config_winner.json to {winner_path}')
+    print(f'\nWrote winner.json to {winner_path}')
 
     print_summary(boundary_winner_row, boundary_defaults_row, contact_winner_row, contact_defaults_row)
 

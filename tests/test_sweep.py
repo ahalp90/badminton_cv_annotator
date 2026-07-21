@@ -368,3 +368,19 @@ def test_failure_continuation_and_pool_initialiser_contract(capsys) -> None:
         sweep._pool_production_candidate(specs[0])
     with pytest.raises(RuntimeError, match="no boundary grid row succeeded"):
         sweep._run_candidates(specs, phase="boundary", fixture_inputs=object(), candidate_runner=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("all fail")), workers=1)
+
+
+def test_load_boundary_winner_accepts_provenance_document(tmp_path, monkeypatch) -> None:
+    """A boundary-phase winner written since the provenance change must feed a contact run."""
+    boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
+    digests = {"fixture-input.npy": "abc123"}
+    monkeypatch.setattr(sweep, "_input_digest_bundle", lambda fixture: digests)
+    monkeypatch.setattr(sweep, "verify_file", lambda pin: None)
+    document = sweep.winner_document(
+        "pilot", ["boundary"], boundary=sweep.winner_spec(boundary, {}),
+        schema_version=1, tuning_video_ids=[PILOT.video_id], input_digests=digests,
+    )
+    path = tmp_path / "config_winner.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    loaded = sweep.load_boundary_winner(path, "pilot")
+    assert loaded.overrides_base30 == boundary
