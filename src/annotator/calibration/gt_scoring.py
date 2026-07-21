@@ -17,6 +17,7 @@ from annotator.calibration.fixtures import (
 from annotator.run_video import AnnotatorResult, run_video
 from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
+from annotator.replay_mask import _read_homography_rows
 from annotator.rally_segmentation import CourtBox
 from annotator.calibration.scoring import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
@@ -403,6 +404,19 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     gate_resolution = resolution.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
     track, bboxes, scores, kps, ndet, committed_mask = arrays
+    root = fixtures_root()
+    court_present = np.load(root / fixture.court_present_path)
+    if court_present.shape != (len(track),):
+        raise ValueError(
+            f"{fixture.name}: court_present shape {court_present.shape} != ({len(track)},)"
+        )
+    if court_present.dtype != np.bool_:
+        raise ValueError(f"{fixture.name}: court_present dtype {court_present.dtype} is not bool")
+    homography_rows = _read_homography_rows(
+        root / fixture.scene_rows_path, str(fixture.video_id)
+    )
+    if not homography_rows:
+        raise ValueError(f"{fixture.name}: homography_rows are missing or empty")
     keyword: dict[str, object] = {
         "fps": fixture.fps,
         "landing_options": LandingFilterOptions(7, 0.004, 5, 7, 0.75),
@@ -415,6 +429,8 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "gate_court_info": gate_courts,
         "gate_resolution_table": gate_resolution,
         "dead_mask": committed_mask,
+        "court_present": court_present,
+        "homography_rows": homography_rows,
     }
     return RunVideoInputs((track, bboxes, scores, kps, ndet), keyword, master, courts)
 

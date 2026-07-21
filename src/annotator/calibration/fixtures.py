@@ -22,7 +22,12 @@ class FilePin:
 
 @dataclass(frozen=True)
 class Fixture:
-    """All external and repository-local inputs for one scoring fixture."""
+    """All external and repository-local inputs for one scoring fixture.
+
+    The ``court_present_path`` field is a pose-derived court-view proxy (True =
+    court view); the scene-gated tracker's producer choice is re-approved at
+    its activation commit.
+    """
 
     name: str
     video_id: int
@@ -31,6 +36,8 @@ class Fixture:
     pose_dir: Path
     pose_prefix: str
     mask_path: Path
+    court_present_path: Path
+    scene_rows_path: Path
     gt_set_dir: Path
     court_box: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]
     net_band: tuple[float, float]
@@ -66,11 +73,19 @@ def _fixture_files(
     pose_dir: Path,
     pose_prefix: str,
     mask_path: Path,
+    court_present_path: Path,
+    scene_rows_path: Path,
     md5s: dict[Path, str],
     *,
     kp_scores: bool = False,
 ) -> tuple[FilePin, ...]:
-    paths = (track_path, *_pose_files(pose_dir, pose_prefix, kp_scores=kp_scores), mask_path)
+    paths = (
+        track_path,
+        *_pose_files(pose_dir, pose_prefix, kp_scores=kp_scores),
+        mask_path,
+        court_present_path,
+        scene_rows_path,
+    )
     return tuple(FilePin(path, md5s[path], "fixtures") for path in paths)
 
 
@@ -97,6 +112,8 @@ PILOT = Fixture(
     pose_dir=_PILOT_POSE,
     pose_prefix=_PILOT_PREFIX,
     mask_path=Path("pilot_results/composition_mask/comp_content27_v0p5.npy"),
+    court_present_path=Path("pilot_results/homography_smoothing/raw_keep_hard_any_m0p10.npy"),
+    scene_rows_path=Path("pilot_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals"),
     court_box=((635.0, 1316.0), (254.0, 1030.0), (84.0, 336.0), (642.0, 642.0)),
     net_band=(664.6, 703.7),
@@ -106,6 +123,8 @@ PILOT = Fixture(
     files=_fixture_files(
         _PILOT_TRACK, _PILOT_POSE, _PILOT_PREFIX,
         Path("pilot_results/composition_mask/comp_content27_v0p5.npy"),
+        Path("pilot_results/homography_smoothing/raw_keep_hard_any_m0p10.npy"),
+        Path("pilot_results/scene_rows_content27_refcorners.csv"),
         {
             _PILOT_TRACK: "08c5afced66b561517a43571df567b2f",
             Path("pilot_pose_raw/pilot_1080p_raw_bboxes.npy"): "4c9525949d1c79f0161f81b2bb63d5ef",
@@ -113,6 +132,8 @@ PILOT = Fixture(
             Path("pilot_pose_raw/pilot_1080p_raw_kps.npy"): "621427713fc617d81d4081db15613b06",
             Path("pilot_pose_raw/pilot_1080p_raw_ndet.npy"): "5cc366f2cd459ea9be44876bc07e74ea",
             Path("pilot_results/composition_mask/comp_content27_v0p5.npy"): "a5043d329752a4e202c8566515b37231",
+            Path("pilot_results/homography_smoothing/raw_keep_hard_any_m0p10.npy"): "095f6ee3a3a3042c06f42e6e4467e88d",
+            Path("pilot_results/scene_rows_content27_refcorners.csv"): "378cfeb29a44e90ef9f9694344cca649",
         },
     ),
 )
@@ -125,6 +146,8 @@ VID15 = Fixture(
     pose_dir=_VID15_POSE,
     pose_prefix=_VID15_PREFIX,
     mask_path=Path("vid15_results/composition_mask/comp_content27_v0p7.npy"),
+    court_present_path=Path("vid15_results/composition_mask/vid15_keep_hard_any_m0p10.npy"),
+    scene_rows_path=Path("vid15_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Anthony_Sinisuka_GINTING_Anders_ANTONSEN_Indonesia_Masters_2020_Final"),
     court_box=((439.5, 1472.1), (378.0, 994.2), (84.0, 336.0), (583.9, 626.6)),
     net_band=(583.9, 626.6),
@@ -134,6 +157,8 @@ VID15 = Fixture(
     files=_fixture_files(
         _VID15_TRACK, _VID15_POSE, _VID15_PREFIX,
         Path("vid15_results/composition_mask/comp_content27_v0p7.npy"),
+        Path("vid15_results/composition_mask/vid15_keep_hard_any_m0p10.npy"),
+        Path("vid15_results/scene_rows_content27_refcorners.csv"),
         {
             _VID15_TRACK: "0b9c0966ffc58a36c65f97a5a9a78deb",
             Path("vid15_pose_raw/vid15_1080p_raw_bboxes.npy"): "031d4f61f71f7e3f2e18a0af5e52b138",
@@ -141,6 +166,8 @@ VID15 = Fixture(
             Path("vid15_pose_raw/vid15_1080p_raw_kps.npy"): "1d74ceef0fdd53dab60e3afd64e4a6fc",
             Path("vid15_pose_raw/vid15_1080p_raw_ndet.npy"): "71f7f8a9e7f270fc0ffea868da437e08",
             Path("vid15_results/composition_mask/comp_content27_v0p7.npy"): "c01914b9788afef3bca6e0b5bd88dc7f",
+            Path("vid15_results/composition_mask/vid15_keep_hard_any_m0p10.npy"): "8268eeed2c48914d165c31899ce9417b",
+            Path("vid15_results/scene_rows_content27_refcorners.csv"): "a893afaf12920658338586e4b9b0d6d6",
         },
     ),
 )
@@ -153,6 +180,8 @@ SSET21 = Fixture(
     pose_dir=_SSET_POSE,
     pose_prefix=_SSET_PREFIX,
     mask_path=Path("sset21_results/R/21_dead_mask.npy"),
+    court_present_path=Path("sset21_results/keep_vote_hard_any_m0p10.npy"),
+    scene_rows_path=Path("sset21_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals"),
     court_box=((434.1, 1480.2), (453.3, 988.5), (84.0, 336.0), (644.6, 682.5)),
     net_band=(644.6, 682.5),
@@ -161,6 +190,8 @@ SSET21 = Fixture(
     n_strokes=663,
     files=_fixture_files(
         _SSET_TRACK, _SSET_POSE, _SSET_PREFIX, Path("sset21_results/R/21_dead_mask.npy"),
+        Path("sset21_results/keep_vote_hard_any_m0p10.npy"),
+        Path("sset21_results/scene_rows_content27_refcorners.csv"),
         {
             _SSET_TRACK: "ad00846dc78b08de728cf59ea773ad61",
             Path("sset21_pose_raw/sset_21_gloiZ_gTJaE_raw_bboxes.npy"): "3ee48b9637a49157ed494cbc0fbfab9a",
@@ -169,6 +200,8 @@ SSET21 = Fixture(
             Path("sset21_pose_raw/sset_21_gloiZ_gTJaE_raw_kp_scores.npy"): "014561d30e74bd6811933d68dfd19525",
             Path("sset21_pose_raw/sset_21_gloiZ_gTJaE_raw_ndet.npy"): "1844e00ffd6cddfa1dd52e26442fef14",
             Path("sset21_results/R/21_dead_mask.npy"): "9a6b43bc14f795d8c5e4d62e86005798",
+            Path("sset21_results/keep_vote_hard_any_m0p10.npy"): "93f5cbea19f8b7e65e272df9a5d0b252",
+            Path("sset21_results/scene_rows_content27_refcorners.csv"): "f9fb06285637076c5817301ae7a7b41b",
         },
         kp_scores=True,
     ),
@@ -177,7 +210,6 @@ SSET21 = Fixture(
 FIXTURES = (PILOT, VID15, SSET21)
 
 SHARED_FILES = (
-    FilePin(Path("sset21_results/keep_vote_hard_any_m0p10.npy"), "93f5cbea19f8b7e65e272df9a5d0b252", "fixtures"),
     FilePin(Path("training/data/shuttleset/annotations/shots_master.csv"), "39cdc201057050abfe4c6f8770734fde", "repo"),
     FilePin(Path("training/data/shuttleset/annotations/set/homography.csv"), "07de7edf7951f4f5ca2d76d9f5490600", "repo"),
     FilePin(Path("training/data/shuttleset/annotations/my_raw_video_resolution.csv"), "d252694e01497e43aedcdd01c6dce251", "repo"),
