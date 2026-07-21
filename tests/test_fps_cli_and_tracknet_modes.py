@@ -192,12 +192,17 @@ def test_extract_shuttle_rejects_stride_three(tmp_path: Path) -> None:
         shuttle.extract_shuttle(video_path, tmp_path / 'output', weights_dir, tracknet_stride=3)
 
 
-@pytest.mark.parametrize('stride, expected_mode', [(1, 'weight'), (8, 'nonoverlap')])
-def test_batch_shuttle_extractor_maps_mode_without_large_video_flag(
+@pytest.mark.parametrize(
+    ('stride', 'expected_mode'), [(8, 'nonoverlap'), (1, 'weight')],
+)
+@pytest.mark.parametrize('large_video, present', [(False, False), (True, True), (None, False)])
+def test_batch_shuttle_extractor_builds_tracknet_command(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     stride: int,
     expected_mode: str,
+    large_video: bool | None,
+    present: bool,
 ) -> None:
     import src.bst_x.pipeline.shuttle_extractor as extractor
 
@@ -221,14 +226,56 @@ def test_batch_shuttle_extractor_maps_mode_without_large_video_flag(
         return FakeProcess()
 
     monkeypatch.setattr(extractor.subprocess, 'Popen', fake_popen)
-    extractor.extract_all_shuttles(
-        tracknet_dir, clips_dir=clips_dir, output_csv_dir=tmp_path / 'csv',
-        max_workers=1, tracknet_stride=stride, dry_run=True,
-    )
+
+    kwargs = {
+        'tracknet_dir': tracknet_dir,
+        'clips_dir': clips_dir,
+        'output_csv_dir': tmp_path / 'csv',
+        'max_workers': 1,
+        'tracknet_stride': stride,
+        'dry_run': True,
+    }
+    if large_video is not None:
+        kwargs['large_video'] = large_video
+
+    extractor.extract_all_shuttles(**kwargs)
 
     argv = captured[0]
     assert argv[argv.index('--eval_mode') + 1] == expected_mode
-    assert '--large_video' not in argv
+    assert ('--large_video' in argv) is present
+
+
+@pytest.mark.parametrize(
+    ('cli_args', 'expected_stride', 'expected_large_video'),
+    [
+        ([], 1, False),
+        (['--profile', 'scrape'], 8, True),
+        (['--profile', 'scrape', '--tracknet-stride', '1'], 1, True),
+        (['--profile', 'scrape', '--no-large-video'], 8, False),
+        (['--large-video'], 1, True),
+    ],
+)
+def test_batch_shuttle_extractor_main_resolves_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cli_args: list[str],
+    expected_stride: int,
+    expected_large_video: bool,
+) -> None:
+    import src.bst_x.pipeline.shuttle_extractor as extractor
+
+    captured = []
+
+    def fake_extract(*args, **kwargs):
+        captured.append(kwargs)
+
+    monkeypatch.setattr(extractor, 'extract_all_shuttles', fake_extract)
+    monkeypatch.setattr(sys, 'argv', ['shuttle_extractor', '--tracknet-dir', str(tmp_path), '--dry-run', *cli_args])
+
+    extractor.main()
+
+    assert captured[0]['tracknet_stride'] == expected_stride
+    assert captured[0]['large_video'] is expected_large_video
 
 
 def test_bric_api_pins_tracknet_modes() -> None:

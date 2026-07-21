@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--eval_mode', type=str, default='weight',
                         choices=['nonoverlap', 'average', 'weight'],
                         help='Temporal ensemble mode (default: weight)')
+    parser.add_argument('--large_video', action='store_true', default=False,
+                        help='whether to process large video')
     parser.add_argument('--dry_run', action='store_true', default=False,
                         help='Run inference without writing output files')
     args = parser.parse_args()
@@ -74,6 +76,7 @@ def main():
                 video_file, tracknet, inpaintnet, t_seq, i_seq, bg_mode,
                 args.save_dir, eval_mode=args.eval_mode,
                 batch_size=args.batch_size, dry_run=args.dry_run,
+                large_video=args.large_video,
             )
             successes += 1
         except Exception as e:

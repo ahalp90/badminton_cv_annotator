@@ -9,19 +9,24 @@ TrackNetV3/README.md.
 
 Usage:
     python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 [--clips-dir DIR] \
-        [--tracknet-python /path/to/bst-venv/bin/python]
+        [--tracknet-python /path/to/bst-venv/bin/python] [--profile {bst,scrape}]
 """
 import argparse
 import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
+_SRC = Path(__file__).resolve().parents[2]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from pipeline.config import (
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from pipeline.config import (  # noqa: E402
     CLIPS_OUTPUT_DIR, SHUTTLE_OUTPUT_DIR, RESOLUTION_CSV_PATH,
 )
+from scraper.config import SCRAPE_TRACKNET_STRIDE, SCRAPE_TRACKNET_LARGE_VIDEO  # noqa: E402
 
 _DEFAULT_TRACKNET_SUBPATH = Path('ckpts') / 'TrackNet_best.pt'
 _DEFAULT_INPAINTNET_SUBPATH = Path('ckpts') / 'InpaintNet_best.pt'
@@ -31,6 +36,7 @@ TRACKNET_STRIDE = 1
 # (1800) instead of all of them
 TRACKNET_LARGE_VIDEO = False
 
+PROFILE_DEFAULTS = {'bst': (TRACKNET_STRIDE, TRACKNET_LARGE_VIDEO), 'scrape': (SCRAPE_TRACKNET_STRIDE, SCRAPE_TRACKNET_LARGE_VIDEO)}
 
 def _tracknet_eval_mode(stride: int) -> str:
     if stride == 1:
@@ -75,6 +81,7 @@ def extract_all_shuttles(
     max_workers: int = 2,
     batch_size: int = 32,
     tracknet_stride: int = TRACKNET_STRIDE,
+    large_video: bool = TRACKNET_LARGE_VIDEO,
     dry_run: bool = False,
 ) -> None:
     """Run TrackNetV3 on all clips using batch mode.
@@ -99,6 +106,7 @@ def extract_all_shuttles(
         Each worker loads its own model copy — needs enough GPU memory.
     :param batch_size: Batch size for TrackNet DataLoader (default 32).
         Safe at 32 with max_workers=2; use 64 with max_workers=1.
+    :param large_video: Use large video mode (default TRACKNET_LARGE_VIDEO).
     """
     # Preflight: verify TrackNetV3 is set up correctly
     if not tracknet_dir.is_dir():
@@ -156,6 +164,8 @@ def extract_all_shuttles(
             '--batch_size', str(batch_size),
             '--eval_mode', _tracknet_eval_mode(tracknet_stride),
         ]
+        if large_video:
+            process_args.append('--large_video')
         if resolved_inpaint: #TODO aren't we *only* running inpaint, making this redundant?
             process_args.extend(['--inpaintnet_file', str(resolved_inpaint)])
         if dry_run:
@@ -294,12 +304,20 @@ def main():
                         help='Batch size for TrackNet DataLoader (default 32, use 64 with --workers 1)')
     parser.add_argument('--tracknet-python', type=Path, default=None,
                         help='Python executable in BST venv (shared with TrackNetV3)')
-    parser.add_argument('--tracknet-stride', choices=(1, 8), type=int, default=TRACKNET_STRIDE)
+    parser.add_argument('--tracknet-stride', choices=(1, 8), type=int, default=None)
+    parser.add_argument('--large-video', action=argparse.BooleanOptionalAction, default=None,
+                        help='Streaming TrackNet mode for long videos (default: profile setting)')
+    parser.add_argument('--profile', choices=('bst', 'scrape'), default='bst',
+                        help='Lane defaults for stride and large-video mode (default bst)')
     parser.add_argument('--skip-extraction', action='store_true',
                         help='Skip TrackNetV3 extraction, only convert existing CSVs to NPY')
     parser.add_argument('--dry-run', action='store_true',
                         help='Run inference without writing output files (test that pipeline works)')
     args = parser.parse_args()
+
+    default_stride, default_large_video = PROFILE_DEFAULTS[args.profile]
+    resolved_stride = default_stride if args.tracknet_stride is None else args.tracknet_stride
+    resolved_large_video = default_large_video if args.large_video is None else args.large_video
 
     if not args.skip_extraction:
         print('=== Extracting shuttle trajectories ===')
@@ -312,7 +330,8 @@ def main():
             tracknet_python=args.tracknet_python,
             max_workers=args.workers,
             batch_size=args.batch_size,
-            tracknet_stride=args.tracknet_stride,
+            tracknet_stride=resolved_stride,
+            large_video=resolved_large_video,
             dry_run=args.dry_run,
         )
 
