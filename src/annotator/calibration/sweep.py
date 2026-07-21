@@ -23,12 +23,13 @@ from typing import Any, Callable, Iterable, Mapping
 import numpy as np
 
 from annotator.calibration import selection
-from annotator.calibration.fixtures import FIXTURES, Fixture
+from annotator.calibration.fixtures import FIXTURES, SHARED_FILES, FilePin, Fixture, verify_file
 from annotator.calibration.gt_scoring import RunVideoInputs, build_run_video_inputs
 from annotator.calibration.scoring import RallyBoundary, classify_all, load_gt_rallies, merged_span_indices, score_boundaries, score_contacts
 from annotator.calibration.schemas import (
     CSV_COLUMNS_BY_FILENAME,
     WINNER_JSON_BOUNDARY_KEY,
+    WINNER_JSON_CONTACT_KEY,
     WINNER_JSON_META_KEY,
     WINNER_SPEC_OVERRIDES_KEY,
     WINNER_SPEC_STRATEGIES_KEY,
@@ -37,6 +38,7 @@ from annotator.calibration.schemas import (
 )
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import _OVERRIDABLE_BASE30_ROWS
+from annotator.resolve import resolve
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
 from annotator.run_video import run_video
 from annotator.types import ScalingKind, ServeStartConfig, SpanOpen
@@ -44,6 +46,8 @@ from annotator.fps_constants import scale_for_fps
 
 LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
+WINNER_FILENAME = "config_winner.json"
+WINNER_SCHEMA_VERSION = 1
 TOLERANCES = (1, 2, 5, 10)
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
@@ -422,7 +426,7 @@ def run_sweep(*, fixture: Fixture, out_dir: Path, phase: str = "both", boundary_
     if phase == "contact" and boundary_spec is None:
         raise ValueError("contact phase requires a boundary winner")
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "winner.json").unlink(missing_ok=True)
+    (out_dir / WINNER_FILENAME).unlink(missing_ok=True)
     _empty_outputs(out_dir)
     inputs = build_run_video_inputs(fixture) if fixture_inputs is None else fixture_inputs
     boundary_rows: list[dict[str, Any]] = []
@@ -493,11 +497,26 @@ def run_sweep(*, fixture: Fixture, out_dir: Path, phase: str = "both", boundary_
                     "same_winner_as_live": auxiliary_winner is not None and serialise_spec(CandidateSpec(auxiliary_winner["label"], {key: auxiliary_winner[key] for key in (*BOUNDARY_KEYS, *CONTACT_KEYS)}, {})) == serialise_spec(contact_spec),
                 })
         _write_csv(out_dir / "contact_stability.csv", CSV_COLUMNS_BY_FILENAME["contact_stability.csv"], stability_rows)
-        document = winner_document(fixture.name, phases_run, boundary=serialise_spec(winner), contact=serialise_spec(contact_spec))
-        (out_dir / "winner.json").write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        document = winner_document(
+            fixture.name,
+            phases_run,
+            boundary=serialise_spec(winner),
+            contact=serialise_spec(contact_spec),
+            schema_version=WINNER_SCHEMA_VERSION,
+            tuning_video_ids=[fixture.video_id],
+            input_digests=_input_digest_bundle(fixture),
+        )
+        (out_dir / WINNER_FILENAME).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     elif winner is not None:
-        document = winner_document(fixture.name, phases_run, boundary=serialise_spec(winner))
-        (out_dir / "winner.json").write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        document = winner_document(
+            fixture.name,
+            phases_run,
+            boundary=serialise_spec(winner),
+            schema_version=WINNER_SCHEMA_VERSION,
+            tuning_video_ids=[fixture.video_id],
+            input_digests=_input_digest_bundle(fixture),
+        )
+        (out_dir / WINNER_FILENAME).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return 0
 
 
@@ -511,6 +530,128 @@ def _fixture(value: str) -> Fixture:
     if len(matches) != 1:
         raise argparse.ArgumentTypeError(f"unknown fixture {value!r}")
     return matches[0]
+
+
+def _input_pins(fixture: Fixture) -> tuple[FilePin, ...]:
+    return (*fixture.files, *SHARED_FILES)
+
+
+def _input_digest_bundle(fixture: Fixture) -> dict[str, str]:
+    """Return the existing fixture-layer MD5 pins consumed by one sweep."""
+    return {str(pin.path): pin.md5 for pin in _input_pins(fixture)}
+
+
+def _validate_provenance(meta: dict[str, Any], fixture: Fixture) -> None:
+    expected_keys = {"fixture", "phases_run", "verdict", "tolerances_base30", "schema_version", "tuning_video_ids", "input_digests"}
+    if set(meta) != expected_keys:
+        raise ValueError("config winner meta has unknown or missing keys")
+    if meta["schema_version"] != WINNER_SCHEMA_VERSION:
+        raise ValueError(f"unknown config winner schema_version {meta['schema_version']!r}")
+    video_ids = meta["tuning_video_ids"]
+    if not isinstance(video_ids, list) or not video_ids or any(isinstance(value, bool) or not isinstance(value, int) for value in video_ids):
+        raise ValueError("config winner tuning_video_ids must be a non-empty list of integers")
+    if len(set(video_ids)) != len(video_ids):
+        raise ValueError("config winner tuning_video_ids must not contain duplicates")
+    if fixture.video_id not in video_ids:
+        raise ValueError("config winner tuning_video_ids do not include the requested fixture video")
+    digests = meta["input_digests"]
+    if not isinstance(digests, dict) or not digests:
+        raise ValueError("config winner input_digests must be a non-empty object")
+    expected_digests = _input_digest_bundle(fixture)
+    if digests != expected_digests:
+        mismatched = sorted(set(digests) ^ set(expected_digests))
+        mismatched.extend(key for key in set(digests) & set(expected_digests) if digests[key] != expected_digests[key])
+        file_name = mismatched[0] if mismatched else "input digest bundle"
+        raise ValueError(f"config winner input digest mismatch for {file_name}")
+    for pin in _input_pins(fixture):
+        verify_file(pin)
+
+
+def _load_winner_document(path: Path) -> dict[str, Any]:
+    try:
+        def no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            payload: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in payload:
+                    raise ValueError(f"duplicate winner-document key {key!r}")
+                payload[key] = value
+
+            return payload
+
+        document = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_keys)
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise ValueError(f"invalid config winner document: {error}") from error
+    if not isinstance(document, dict):
+        raise ValueError("invalid config winner document: offending key 'document' is not a dict")
+    return document
+
+
+def load_winner_config(path: Path, fixture_name: str) -> CandidateSpec:
+    """Load and validate a complete boundary or contact winner spec."""
+    document = _load_winner_document(path)
+    if set(document) - {WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY, WINNER_JSON_CONTACT_KEY}:
+        raise ValueError("config winner document has unknown or missing phase keys")
+    if WINNER_JSON_META_KEY not in document or not isinstance(document[WINNER_JSON_META_KEY], dict):
+        raise ValueError("invalid config winner document: offending key 'meta' is not a dict")
+    meta = document[WINNER_JSON_META_KEY]
+    if meta.get("fixture") != fixture_name:
+        raise ValueError("config winner fixture does not match --fixture")
+    if "schema_version" in meta:
+        fixture = _fixture(fixture_name)
+        _validate_provenance(meta, fixture)
+    elif set(meta) != {"fixture", "phases_run", "verdict", "tolerances_base30"}:
+        raise ValueError("config winner meta has unknown or missing keys")
+    if WINNER_JSON_BOUNDARY_KEY not in document or not isinstance(document[WINNER_JSON_BOUNDARY_KEY], dict):
+        raise ValueError("invalid config winner document: offending key 'boundary' is not a dict")
+    boundary = document[WINNER_JSON_BOUNDARY_KEY]
+    contact = document.get(WINNER_JSON_CONTACT_KEY)
+    if contact is not None and not isinstance(contact, dict):
+        raise ValueError("invalid config winner document: offending key 'contact' is not a dict")
+    phases_run = meta.get("phases_run")
+    if (
+        not isinstance(phases_run, list)
+        or any(not isinstance(item, str) for item in phases_run)
+        or not phases_run
+        or len(set(phases_run)) != len(phases_run)
+        or any(item not in {"boundary", "contact"} for item in phases_run)
+    ):
+        raise ValueError("config winner phases_run is invalid")
+    if (contact is None) != ("contact" not in phases_run):
+        raise ValueError("config winner phases_run does not match its phase keys")
+    if meta.get("verdict") != "issued" or meta.get("tolerances_base30") != list(TOLERANCES):
+        raise ValueError("config winner meta does not describe an issued base-30 verdict")
+    for name, phase in (("boundary", boundary), ("contact", contact)):
+        if phase is None:
+            continue
+        if set(phase) != {WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY}:
+            raise ValueError(f"{name} winner phase has unknown or missing spec keys")
+        if not isinstance(phase[WINNER_SPEC_OVERRIDES_KEY], dict) or not isinstance(phase[WINNER_SPEC_STRATEGIES_KEY], dict):
+            raise ValueError(f"invalid {name} winner phase spec")
+    if contact is not None:
+        overrides = contact[WINNER_SPEC_OVERRIDES_KEY]
+        if set(overrides) != {*BOUNDARY_KEYS, *CONTACT_KEYS}:
+            raise ValueError("contact winner must contain exactly boundary and contact numeric keys")
+        selected = contact
+    else:
+        overrides = boundary[WINNER_SPEC_OVERRIDES_KEY]
+        if set(overrides) != set(BOUNDARY_KEYS):
+            raise ValueError("boundary winner must contain exactly the five boundary numeric keys")
+        selected = boundary
+    if selected[WINNER_SPEC_STRATEGIES_KEY] != {}:
+        raise ValueError("winner strategies must be empty")
+    checked: dict[str, float] = {}
+    for key, raw_value in selected[WINNER_SPEC_OVERRIDES_KEY].items():
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+            raise ValueError(f"invalid winner numeric value for {key!r}")
+        value = float(raw_value)
+        values = BOUNDARY_VALUES.get(key, CONTACT_VALUES.get(key))
+        if isinstance(value, bool) or not math.isfinite(value) or value <= 0 or values is None or value not in values:
+            raise ValueError(f"invalid winner numeric value for {key!r}")
+        checked[key] = value
+    spec = CandidateSpec(selection.GRID_LABEL, checked, {})
+    base, _serve = _base_and_serve(spec)
+    resolve(base, _fixture(fixture_name).fps)
+    return spec
 
 
 def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:

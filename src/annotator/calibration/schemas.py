@@ -172,21 +172,31 @@ def winner_document(
     *,
     boundary: Mapping[str, Any] | None = None,
     contact: Mapping[str, Any] | None = None,
+    schema_version: int | None = None,
+    tuning_video_ids: list[int] | None = None,
+    input_digests: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
-    """Build winner.json; a missing phase mapping omits its key.
+    """Build config_winner.json; a missing phase mapping omits its key.
 
     Phase keys carry the specs the document depends on (a contact-only run
     passes its loaded boundary spec too); ``phases_run`` records only the work
     the invocation performed.
     """
-    document: dict[str, object] = {
-        WINNER_JSON_META_KEY: {
-            "fixture": fixture,
-            "phases_run": phases_run,
-            "verdict": WINNER_JSON_VERDICT_ISSUED,
-            "tolerances_base30": list(WINNER_JSON_TOLERANCES_BASE30),
-        },
+    meta: dict[str, object] = {
+        "fixture": fixture,
+        "phases_run": phases_run,
+        "verdict": WINNER_JSON_VERDICT_ISSUED,
+        "tolerances_base30": list(WINNER_JSON_TOLERANCES_BASE30),
     }
+    document: dict[str, object] = {WINNER_JSON_META_KEY: meta}
+    if schema_version is not None or tuning_video_ids is not None or input_digests is not None:
+        if schema_version is None or tuning_video_ids is None or input_digests is None:
+            raise ValueError("winner provenance fields must be supplied together")
+        meta.update({
+            "schema_version": schema_version,
+            "tuning_video_ids": tuning_video_ids,
+            "input_digests": dict(input_digests),
+        })
     if boundary is not None:
         document[WINNER_JSON_BOUNDARY_KEY] = dict(boundary)
     if contact is not None:

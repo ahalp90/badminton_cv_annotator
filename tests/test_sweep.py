@@ -73,7 +73,7 @@ def test_quality_floor_uses_greatest_coverage(tmp_path, monkeypatch, capsys) -> 
     )
     assert status == 0
     assert "WITHHELD" not in capsys.readouterr().out
-    assert (tmp_path / "winner.json").exists()
+    assert (tmp_path / "config_winner.json").exists()
 
 
 def test_routing_and_fake_score_orchestration(tmp_path, monkeypatch) -> None:
@@ -85,15 +85,18 @@ def test_routing_and_fake_score_orchestration(tmp_path, monkeypatch) -> None:
     assert status == 0
     for filename in CSV_COLUMNS_BY_FILENAME:
         assert (tmp_path / filename).read_text(encoding="utf-8").splitlines()
-    document = json.loads((tmp_path / "winner.json").read_text(encoding="utf-8"))
+    document = json.loads((tmp_path / "config_winner.json").read_text(encoding="utf-8"))
     assert document["meta"]["phases_run"] == ["boundary", "contact"]
+    assert document["meta"]["schema_version"] == 1
+    assert document["meta"]["tuning_video_ids"] == [PILOT.video_id]
+    assert document["meta"]["input_digests"] == sweep._input_digest_bundle(PILOT)
     assert document["contact"]["overrides_base30"]["smooth_window"] == 4
 
 
 def test_withheld_quality_floor_writes_empty_outputs_and_removes_stale_winner(tmp_path, monkeypatch, capsys) -> None:
     spec = sweep.CandidateSpec("grid", {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}, {})
     monkeypatch.setattr(sweep, "build_boundary_grid", lambda: [spec])
-    stale = tmp_path / "winner.json"
+    stale = tmp_path / "config_winner.json"
     stale.write_text("stale", encoding="utf-8")
 
     assert sweep.run_sweep(
@@ -113,7 +116,7 @@ def test_withheld_contact_writes_empty_outputs_and_removes_stale_winner(tmp_path
     boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
     contact = sweep.CandidateSpec("grid", boundary, {})
     monkeypatch.setattr(sweep, "build_contact_grid", lambda _: [contact])
-    (tmp_path / "winner.json").write_text("stale", encoding="utf-8")
+    (tmp_path / "config_winner.json").write_text("stale", encoding="utf-8")
 
     assert sweep.run_sweep(
         fixture=PILOT, out_dir=tmp_path, phase="contact", boundary_spec=contact,
@@ -125,7 +128,7 @@ def test_withheld_contact_writes_empty_outputs_and_removes_stale_winner(tmp_path
     captured = capsys.readouterr()
     assert captured.out.splitlines().count(message) == 1
     assert captured.err.splitlines().count(message) == 1
-    assert not (tmp_path / "winner.json").exists()
+    assert not (tmp_path / "config_winner.json").exists()
     assert set(CSV_COLUMNS_BY_FILENAME) == {path.name for path in tmp_path.glob("*.csv")}
 
 
@@ -265,7 +268,7 @@ def _valid_winner() -> dict[str, object]:
 def test_loader_rejects_malformed_winner_documents(tmp_path, mutate) -> None:
     document = _valid_winner()
     mutate(document)
-    path = tmp_path / "winner.json"
+    path = tmp_path / "config_winner.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     with pytest.raises(ValueError):
         sweep.load_boundary_winner(path, "pilot")
@@ -287,6 +290,45 @@ def test_loader_rejects_duplicate_keys_and_masks(tmp_path) -> None:
     mask_path = tmp_path / "valid.npy"
     np.save(mask_path, np.array([True, False, True, False], dtype=bool))
     assert np.array_equal(sweep._replace_mask(inputs, mask_path).keyword["dead_mask"], [True, False, True, False])
+
+
+def test_load_winner_config_returns_contact_or_boundary_spec(tmp_path, monkeypatch) -> None:
+    boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
+    contact = {**boundary, **{key: values[0] for key, values in sweep.CONTACT_VALUES.items()}}
+    legacy = sweep.winner_document("pilot", ["boundary"], boundary=sweep.winner_spec(boundary, {}))
+    two_phase = sweep.winner_document(
+        "pilot", ["boundary", "contact"], boundary=sweep.winner_spec(boundary, {}),
+        contact=sweep.winner_spec(contact, {}),
+    )
+    for name, document, expected in (("boundary", legacy, boundary), ("contact", two_phase, contact)):
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        loaded = sweep.load_winner_config(path, "pilot")
+        assert loaded.overrides_base30 == expected
+
+    digests = sweep._input_digest_bundle(PILOT)
+    monkeypatch.setattr(sweep, "_input_digest_bundle", lambda fixture: digests)
+    provenance = sweep.winner_document(
+        "pilot", ["boundary"], boundary=sweep.winner_spec(boundary, {}),
+        schema_version=1, tuning_video_ids=[PILOT.video_id], input_digests=digests,
+    )
+    provenance["meta"]["input_digests"] = {**digests, "missing-input.npy": "bad"}
+    path = tmp_path / "mismatch.json"
+    path.write_text(json.dumps(provenance), encoding="utf-8")
+    with pytest.raises(ValueError, match="missing-input.npy"):
+        sweep.load_winner_config(path, "pilot")
+
+
+def test_load_winner_config_rejects_unknown_schema_version(tmp_path) -> None:
+    boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
+    document = sweep.winner_document(
+        "pilot", ["boundary"], boundary=sweep.winner_spec(boundary, {}),
+        schema_version=99, tuning_video_ids=[PILOT.video_id], input_digests={"input": "digest"},
+    )
+    path = tmp_path / "unknown-schema.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown config winner schema_version"):
+        sweep.load_winner_config(path, "pilot")
 
 
 def test_main_classifies_configuration_and_execution_errors(tmp_path, monkeypatch) -> None:
