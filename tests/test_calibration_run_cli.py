@@ -26,8 +26,9 @@ def test_parser_has_only_manifest_and_output_controls():
     args = run_cli.build_parser().parse_args([])
     assert args.fixtures is None
     assert args.out is None
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as excinfo:
         run_cli.build_parser().parse_args(["--fps", "25"])
+    assert excinfo.value.code == 2
 
 
 def test_selected_fixture_writes_flat_metrics_row(tmp_path, capsys):
@@ -56,9 +57,38 @@ def test_fixture_failure_is_skipped_and_next_fixture_runs(tmp_path, capsys):
         assert run_cli.run_manifest(
             registry=(PILOT, second), runner=runner,
             flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
-        ) == 0
+        ) == 3
     assert calls == ["pilot", "second"]
     assert "pilot: SKIP" in capsys.readouterr().err
+
+
+def test_one_fixture_failure_in_three_returns_usable_output(tmp_path):
+    second = PILOT.__class__(**{**PILOT.__dict__, "name": "second"})
+    third = PILOT.__class__(**{**PILOT.__dict__, "name": "third"})
+
+    def runner(fixture):
+        if fixture.name == "pilot":
+            raise ValueError("bad digest")
+        return object()
+
+    with fixture_root(tmp_path):
+        assert run_cli.run_manifest(
+            registry=(PILOT, second, third), runner=runner,
+            flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
+        ) == 0
+
+
+def test_every_fixture_failure_returns_three(tmp_path):
+    second = PILOT.__class__(**{**PILOT.__dict__, "name": "second"})
+
+    def runner(_):
+        raise ValueError("bad fixture")
+
+    with fixture_root(tmp_path):
+        assert run_cli.run_manifest(
+            registry=(PILOT, second), runner=runner,
+            flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
+        ) == 3
 
 
 def test_environment_and_registry_fail_before_runner(tmp_path):

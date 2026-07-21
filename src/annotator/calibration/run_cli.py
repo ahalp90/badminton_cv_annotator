@@ -79,6 +79,10 @@ def run_manifest(
 ) -> int:
     """Run selected manifest entries, skipping failures local to one fixture.
 
+    Return 0 when fewer than half the selected fixtures fail, 3 when half or more
+    fail, and let process failures raise for the entry point's exit 1. Exit 2 is
+    reserved for argparse's bad-command-line handling.
+
     Registry and fixture-root validation happen before the loop.  The runner includes
     digest verification, array loading, the committed-mask ``dead_mask=`` call, and scoring.
     """
@@ -91,10 +95,12 @@ def run_manifest(
         raise ValueError(f"unknown fixture(s): {', '.join(unknown)}")
 
     scores: dict[str, dict[str, int | float | None]] = {}
+    failed: list[str] = []
     for name in selected:
         try:
             scores[name] = flattener(runner(by_name[name]))
         except Exception as exc:  # noqa: BLE001 - one bad fixture must not abort the batch
+            failed.append(name)
             print(f"{name}: SKIP: {type(exc).__name__}: {exc}", file=sys.stderr)
             continue
         if out is not None:
@@ -102,7 +108,7 @@ def run_manifest(
 
     if scores:
         print(renderer(scores))
-    return 0
+    return 3 if len(failed) * 2 >= len(selected) else 0
 
 
 def main(argv: Sequence[str] | None = None, *, registry: Iterable[Fixture] = FIXTURES,
