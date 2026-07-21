@@ -115,4 +115,4 @@ def main(argv: Sequence[str] | None = None, *, registry: Iterable[Fixture] = FIX
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
