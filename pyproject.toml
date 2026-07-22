@@ -170,3 +170,6 @@ unknown-name = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: tests that run the full source-identity verification gate",
+]
