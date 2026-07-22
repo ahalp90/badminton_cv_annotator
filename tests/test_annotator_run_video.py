@@ -6,6 +6,7 @@ import pytest
 import annotator.run_video as run_video_module
 import annotator.rally_segmentation as stage8_seg
 from annotator.calibration.gt_scoring import write_geometric_verdicts_csv
+from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import GeometricVerdictRow, Half, Landing, LandingFilterOptions, Verdict
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
@@ -193,6 +194,166 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     assert result.striker_halves == [Half.TOP]
     assert 0 in result.verdict_rows
     assert 0 in result.geometric_verdict_rows
+
+
+def test_run_video_uses_latest_unmasked_contact_for_landing(monkeypatch):
+    inputs = _synthetic_inputs()
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[16] = 1
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1})), inpaint_codes=codes,
+    )
+    called_frames = []
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing',
+        lambda final_contact, *args, **kwargs: called_frames.append(final_contact) or None,
+    )
+
+    run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+        contacts={0: [12, 14, 16]},
+    )
+
+    assert called_frames == [14]
+
+
+def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch):
+    inputs = _synthetic_inputs()
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[12:17] = 1
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1})), inpaint_codes=codes,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing',
+        lambda *args, **kwargs: pytest.fail('landing must not run without an unmasked contact'),
+    )
+
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+        contacts={0: [12, 14, 16]},
+    )
+
+    assert result.verdict_rows[0].verdict is None
+    assert result.landings[0] is None
+
+
+def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
+    inputs = _synthetic_inputs()
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[14] = 3
+    codes[16] = 3
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
+    )
+    rows = []
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+    )
+
+    run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows,
+    )
+
+    assert rows == [{
+        'rule': 'final_contact', 'rally_id': 0, 'start_frame': 14, 'end_frame': 17,
+        'trigger_frame': 14, 'trigger_code': 3,
+    }]
+
+
+def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
+    inputs = _synthetic_inputs()
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[14] = 3
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
+    )
+    rows = []
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing', lambda *args, **kwargs: None,
+    )
+
+    run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows,
+    )
+
+    assert rows == []
+
+
+def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(monkeypatch):
+    inputs = _synthetic_inputs()
+    contacts = {0: [12, 14, 16], 1: [30, 32, 34, 36]}
+    for frame in sum(contacts.values(), []):
+        inputs['track'][frame] = (0.5, 0.4, 1.0)
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[contacts[0]] = 3
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
+    )
+
+    def attribute(_frame, *_args, **_kwargs):
+        return Half.TOP if _frame in {12, 14, 16, 30, 34} else Half.BOT
+
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', attribute)
+    monkeypatch.setattr(run_video_module.point_winner, 'pick_landing', lambda *args, **kwargs: None)
+
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20), (25, 45)],
+        contacts=contacts,
+    )
+
+    assert result.verdict_rows[0].verdict is Verdict.WON
+    assert result.verdict_rows[0].verdict_source.value == 'next_server'
+    assert result.filtered_by_rally[0] == contacts[0]
+    assert set(result.hit_height_by_frame) == set(sum(contacts.values(), []))
+    assert result.hit_height_failures == []
+
+
+def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
+    inputs = _synthetic_inputs()
+    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
+    codes[[16, 25, 26, 27, 40]] = 3
+    inputs.update(
+        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
+    )
+    rows = []
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+    )
+
+    def fake_pick(_final_contact, _next_start, _track, _dead, _kin, _opts, _striker, _net_band,
+                  _resolution, _court_info, _constants, _fps, *, event_non_evidence_mask,
+                  rejected_intervals):
+        assert event_non_evidence_mask[40]
+        rejected_intervals.append((39, 41))
+        return None
+
+    monkeypatch.setattr(run_video_module.point_winner, 'pick_landing', fake_pick)
+    track = inputs['track']
+    track[15:27, 2] = 1
+    track[15:27, 1] = 0.5
+    track[27:, 2] = 0
+
+    run_video(
+        **inputs, **_default_scene_inputs(len(track)), spans=[(10, 20), (22, 45)],
+        contacts={0: [12, 14, 16], 1: [24]}, rejection_diagnostics=rows,
+    )
+
+    assert {row['rule'] for row in rows} == {
+        'final_contact', 'lost_shuttle_guard', 'landing_descent',
+    }
+    assert all(row['trigger_code'] == 3 for row in rows)
 
 
 def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):

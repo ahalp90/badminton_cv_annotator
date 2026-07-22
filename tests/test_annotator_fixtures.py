@@ -52,12 +52,16 @@ def test_calibration_inputs_have_expected_shapes_and_rows(fixture):
 
     inputs = build_run_video_inputs(fixture)
     track = inputs.positional[0]
+    inpaint_codes = inputs.keyword["inpaint_codes"]
     court_present = inputs.keyword["court_present"]
     homography_rows = inputs.keyword["homography_rows"]
 
     assert isinstance(court_present, np.ndarray)
     assert court_present.shape == (len(track),)
     assert court_present.dtype == np.bool_
+    assert isinstance(inpaint_codes, np.ndarray)
+    assert inpaint_codes.shape == (len(track),)
+    assert inpaint_codes.dtype == np.uint8
     assert isinstance(homography_rows, list) and homography_rows
     starts = [int(row["start_frame"]) for row in homography_rows]
     ends = [int(row["end_frame"]) for row in homography_rows]

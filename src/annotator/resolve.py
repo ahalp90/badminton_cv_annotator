@@ -45,4 +45,5 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
         reentry_guard_variant=base.reentry_guard_variant,
         reentry_guard_buffer=base.reentry_guard_buffer,
         quiet_start_window=frame_count(base.quiet_start_window),
+        rejected_grades=base.rejected_grades,
     )

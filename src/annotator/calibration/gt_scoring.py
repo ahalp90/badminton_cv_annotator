@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
 import math
 from collections.abc import Iterable
 from pathlib import Path
@@ -15,6 +16,7 @@ from annotator.calibration.fixtures import (
     FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file, verify_fixture,
 )
 from annotator.run_video import AnnotatorResult, run_video
+from annotator.inpaint_guard import code_counts, grade_track
 from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
 from annotator.replay_mask import _read_homography_rows
@@ -23,6 +25,8 @@ from annotator.calibration.scoring import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
 )
 from shared.court import load_all_court_info
+
+log = logging.getLogger(__name__)
 
 
 # Re-pinned from the commit-11 capture (sticky-sourced consumers, 3f78797),
@@ -404,6 +408,17 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     gate_resolution = resolution.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
     track, bboxes, scores, kps, ndet, committed_mask = arrays
+    inpaint_codes, guard_info = grade_track(track)
+    counts = code_counts(inpaint_codes)
+    log.info(
+        "inpaint guard video=%s length=%d threshold=%s margin=%s presence=%s counts=%s",
+        fixture.video_id,
+        len(track),
+        guard_info["threshold"],
+        guard_info["margin"],
+        guard_info["presence_validation"],
+        counts,
+    )
     root = fixtures_root()
     court_present = np.load(root / fixture.court_present_path)
     if court_present.shape != (len(track),):
@@ -432,6 +447,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "court_present": court_present,
         "homography_rows": homography_rows,
     }
+    keyword["inpaint_codes"] = inpaint_codes
     return RunVideoInputs((track, bboxes, scores, kps, ndet), keyword, master, courts)
 
 
@@ -689,9 +705,14 @@ def assert_floors(fixture: Fixture, metrics: dict[str, int | float | None]) -> N
                 f"{fixture.name} {metric}: {current!r} < floor {FLOOR_MULTIPLIER * reference!r}")
 
 
-def run_fixture(fixture: Fixture) -> VideoScoring:
+def run_fixture(fixture: Fixture, diagnostics_dir: Path | None = None) -> VideoScoring:
     inputs = build_run_video_inputs(fixture)
-    result = run_video(*inputs.positional, **inputs.keyword)
+    rejection_rows: list[dict[str, object]] = []
+    keyword = dict(inputs.keyword)
+    keyword["rejection_diagnostics"] = rejection_rows
+    result = run_video(*inputs.positional, **keyword)
+    if diagnostics_dir is not None:
+        write_guard_diagnostics(fixture, inputs, rejection_rows, diagnostics_dir)
     return score_video(fixture, result, inputs.master, inputs.courts, canonical_tolerance(fixture.fps))
 
 
@@ -714,6 +735,25 @@ def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:
                 row.geometric_winner.value if row.geometric_winner is not None else "",
                 row.agreement if row.agreement is not None else "",
             ))
+
+
+def write_guard_diagnostics(
+    fixture: Fixture, inputs: RunVideoInputs, rows: Iterable[dict[str, object]], output_dir: Path,
+) -> None:
+    """Write unpinned inpaint grades and event-rejection rows for one video."""
+    video_dir = output_dir / fixture.name
+    video_dir.mkdir(parents=True, exist_ok=True)
+    codes = inputs.keyword["inpaint_codes"]
+    if not isinstance(codes, np.ndarray):
+        raise ValueError("inpaint_codes are missing from fixture inputs")
+    np.save(video_dir / "codes.npy", codes, allow_pickle=False)
+    with (video_dir / "rejections.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=("rule", "rally_id", "start_frame", "end_frame", "trigger_frame", "trigger_code"),
+        )
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:
@@ -740,7 +780,7 @@ def main() -> None:
     out = args.out.resolve() if args.out else None
     if out is not None and (out == REPO_ROOT or REPO_ROOT in out.parents):
         parser.error("--out must be outside the repo")
-    scorings = {fixture.name: run_fixture(fixture) for fixture in FIXTURES}
+    scorings = {fixture.name: run_fixture(fixture, out) for fixture in FIXTURES}
     scores = {name: flatten_metrics(scoring) for name, scoring in scorings.items()}
     print(render_table(scores, None))
     print(_literal(scores))

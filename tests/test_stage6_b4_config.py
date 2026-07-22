@@ -39,6 +39,19 @@ def test_unknown_base30_override_fails_loudly() -> None:
         resolve(BaseAnnotatorConfig(overrides_base30={'not_a_row': 1.0}), 30.0)
 
 
+def test_rejected_grades_are_validated_and_copied_to_resolved_config() -> None:
+    base = BaseAnnotatorConfig(rejected_grades=frozenset({1, 3}))
+    assert resolve(base, 30.0).rejected_grades == frozenset({1, 3})
+    with pytest.raises(ValueError, match='subset of'):
+        BaseAnnotatorConfig(rejected_grades=frozenset({0}))
+    with pytest.raises(ValueError, match='subset of'):
+        BaseAnnotatorConfig(rejected_grades=frozenset({True}))
+    with pytest.raises(ValueError, match='subset of'):
+        BaseAnnotatorConfig(rejected_grades=frozenset({1, False}))
+    with pytest.raises(ValueError, match='frozenset'):
+        BaseAnnotatorConfig(rejected_grades={1})
+
+
 def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve(BaseAnnotatorConfig(), 30.0).span_open is SpanOpen.BACK_FILL
     config = type('Config', (), {'close': object(), 'threshold': 0.1, 'mode': None,

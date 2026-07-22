@@ -117,8 +117,19 @@ class BaseAnnotatorConfig:
     reentry_guard_variant: ReentryGuardVariant | None = None
     reentry_guard_buffer: float | None = None
     quiet_start_window: float | None = None
+    # Shipping default from the three-arm remeasure (2026-07-22): rejecting all three
+    # inpaint grades scored best on every fixture; record in the campaign docs at
+    # records/commit12_default_pick.md. frozenset() disables event rejection entirely.
+    rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
     def __post_init__(self) -> None:
+        if not isinstance(self.rejected_grades, frozenset):
+            raise ValueError('rejected_grades must be a frozenset')
+        if any(
+            isinstance(code, bool) or not isinstance(code, int) or code not in {1, 2, 3}
+            for code in self.rejected_grades
+        ):
+            raise ValueError('rejected_grades must be a subset of {1, 2, 3}')
         guard_specified = self.reentry_guard_variant is not None or self.reentry_guard_buffer is not None
         if guard_specified and self.gap_state_demotion_bound is None:
             raise ValueError('reentry guard requires gap_state_demotion_bound')
@@ -145,3 +156,4 @@ class ResolvedAnnotatorConfig:
     reentry_guard_variant: ReentryGuardVariant | None = None
     reentry_guard_buffer: float | None = None
     quiet_start_window: int | None = None
+    rejected_grades: frozenset[int] = frozenset({1, 2, 3})

@@ -22,6 +22,51 @@ def scoring_filter(contacts):
             if c.wrist_near is not False and c.suppressed is not True]
 
 
+def _build_event_non_evidence_mask(
+    n_frames: int, rejected_grades: frozenset[int],
+    inpaint_codes: np.ndarray | None, supplied_mask: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Adapt source grades into the one boolean mask read by event rules."""
+    if inpaint_codes is not None and supplied_mask is not None:
+        raise ValueError('inpaint_codes and event_non_evidence_mask are mutually exclusive')
+    if inpaint_codes is not None:
+        if inpaint_codes.ndim != 1 or len(inpaint_codes) != n_frames:
+            raise ValueError('inpaint_codes must be a frame-aligned one-dimensional array')
+        return np.isin(inpaint_codes, tuple(rejected_grades)), inpaint_codes
+    if supplied_mask is not None:
+        if supplied_mask.ndim != 1 or len(supplied_mask) != n_frames or supplied_mask.dtype != np.bool_:
+            raise ValueError('event_non_evidence_mask must be a frame-aligned boolean array')
+        return supplied_mask, None
+    return np.zeros(n_frames, dtype=bool), None
+
+
+def _record_rejection(
+    rows: list[dict[str, object]] | None, rule: str, rally_id: int,
+    start_frame: int, end_frame: int, event_mask: np.ndarray,
+    codes: np.ndarray | None, candidate_frames: list[int] | None = None,
+) -> None:
+    """Record one event interval when it contains an event-mask frame."""
+    if rows is None:
+        return
+    if candidate_frames is None:
+        masked_frames = np.flatnonzero(event_mask[start_frame:end_frame]) + start_frame
+    else:
+        masked_frames = np.array(
+            [frame for frame in candidate_frames if event_mask[frame]], dtype=int,
+        )
+    if len(masked_frames) == 0:
+        return
+    trigger_frame = int(masked_frames[0])
+    rows.append({
+        'rule': rule,
+        'rally_id': rally_id,
+        'start_frame': start_frame,
+        'end_frame': end_frame,
+        'trigger_frame': trigger_frame,
+        'trigger_code': int(codes[trigger_frame]) if codes is not None else '',
+    })
+
+
 def build_serve_options(
     config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,
 ) -> stage8_seg.ServeStartOptions:
@@ -113,6 +158,9 @@ def run_video(
     serve_start: ServeStartConfig | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
+    inpaint_codes: np.ndarray | None = None,
+    event_non_evidence_mask: np.ndarray | None = None,
+    rejection_diagnostics: list[dict[str, object]] | None = None,
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
@@ -130,6 +178,9 @@ def run_video(
         raise ValueError('quiet_start_window cannot be combined with serve_start')
     if homography_rows is None or court_present is None:
         raise ValueError('scene-gated sticky needs homography_rows and court_present')
+    event_mask, source_codes = _build_event_non_evidence_mask(
+        len(track), resolved.rejected_grades, inpaint_codes, event_non_evidence_mask,
+    )
     segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
     sticky = stage8_seg.build_sticky_result(
         track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
@@ -221,12 +272,55 @@ def run_video(
         if striker is None:
             continue
         frames = filtered_by_rally[rally_id]
-        final_contact = frames[-1]
+        usable_final_contacts = [frame for frame in frames if not event_mask[frame]]
+        skipped_trailing: list[int] = []
+        for frame in reversed(frames):
+            if not event_mask[frame]:
+                break
+            skipped_trailing.append(frame)
+        if skipped_trailing:
+            _record_rejection(
+                rejection_diagnostics, 'final_contact', rally_id, skipped_trailing[-1], frames[-1] + 1,
+                event_mask, source_codes, candidate_frames=skipped_trailing[::-1],
+            )
+        if not usable_final_contacts:
+            landing = None
+            verdict = point_winner.rally_verdict(
+                rally_id, striker, next_servers[rally_id], landing, band_m,
+            )
+            verdict_rows[rally_id] = verdict
+            geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
+            geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
+                rally_id, geometric, geometric_winner, None,
+            )
+            landings[rally_id] = landing
+            continue
+        final_contact = usable_final_contacts[-1]
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
+        if rejection_diagnostics is not None:
+            masked_window_end = point_winner.window_end(
+                final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
+                event_mask,
+            )
+            unmasked_window_end = point_winner.window_end(
+                final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
+            )
+            if masked_window_end < unmasked_window_end:
+                _record_rejection(
+                    rejection_diagnostics, 'lost_shuttle_guard', rally_id, final_contact + 1,
+                    unmasked_window_end, event_mask, source_codes,
+                )
+        landing_rejections: list[tuple[int, int]] = []
         landing = point_winner.pick_landing(
             final_contact, next_start, track, mask, kin, landing_options, striker, net_band,
             resolution, court_info, resolved.constants, fps,
+            event_non_evidence_mask=event_mask, rejected_intervals=landing_rejections,
         )
+        for start_frame, end_frame in landing_rejections:
+            _record_rejection(
+                rejection_diagnostics, 'landing_descent', rally_id, start_frame, end_frame,
+                event_mask, source_codes,
+            )
         verdict = point_winner.rally_verdict(
             rally_id, striker, next_servers[rally_id], landing, band_m,
         )

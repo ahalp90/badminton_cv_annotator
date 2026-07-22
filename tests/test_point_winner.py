@@ -162,6 +162,31 @@ def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
     assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 3
 
 
+def test_window_end_event_mask_removes_top_exit_exemption() -> None:
+    rows = [(0.5, 0.01, 1)] + [(0.0, 0.0, 0)] * 10 + [(0.5, 0.5, 1)] * 5
+    track = np.array(rows, dtype=float)
+    dead = np.zeros(len(track), dtype=bool)
+    event_mask = np.zeros(len(track), dtype=bool)
+    event_mask[0] = True
+
+    assert window_end(
+        0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames, event_mask,
+    ) == 1
+
+
+def test_window_end_masked_visible_frame_extends_sustained_loss_run() -> None:
+    track = np.zeros((22, 3), dtype=float)
+    track[:, 2] = 1
+    track[:, 1] = 0.5
+    track[11:, 2] = 0
+    event_mask = np.zeros(len(track), dtype=bool)
+    event_mask[10] = True
+    dead = np.zeros(len(track), dtype=bool)
+
+    assert window_end(0, len(track), track, dead, 10) == 11
+    assert window_end(0, len(track), track, dead, 10, event_mask) == 10
+
+
 # ---------------------------------------------------------------------------
 # Fail-loud invariants ported from the harness (_body_unit_gaps)
 # ---------------------------------------------------------------------------
@@ -294,6 +319,51 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
 
     strict_opts = opts._replace(null_if_all_carried=True)
     assert filtered_descending_landing(0, 3, track, kin, strict_opts) is None
+
+
+def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later_run():
+    track = np.array([
+        [0.5, 0.10, 1], [0.5, 0.20, 1], [0.5, 0.00, 0],
+        [0.5, 0.30, 1], [0.5, 0.20, 1], [0.5, 0.40, 1], [0.5, 0.60, 1],
+    ])
+    kin = LandingKinematics(
+        carry_ratio=np.full(7, np.nan), ankle_ratio=np.full(7, np.nan), speed=np.zeros(7),
+    )
+    opts = LandingFilterOptions(
+        settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
+        carry_thr=0.5, use_settle=False, use_carry=False,
+    )
+    event_mask = np.zeros(7, dtype=bool)
+    event_mask[2] = True
+    rejected_intervals: list[tuple[int, int]] = []
+
+    landing = filtered_descending_landing(
+        0, 7, track, kin, opts, event_non_evidence_mask=event_mask,
+        rejected_intervals=rejected_intervals,
+    )
+
+    assert landing is not None
+    assert landing[0] == 6
+    assert rejected_intervals == [(0, 4)]
+
+
+def test_landing_returns_none_when_every_candidate_interval_is_masked():
+    track = np.array([
+        [0.5, 0.10, 1], [0.5, 0.20, 1], [0.5, 0.30, 1], [0.5, 0.20, 1],
+        [0.5, 0.40, 1], [0.5, 0.60, 1],
+    ])
+    kin = LandingKinematics(
+        carry_ratio=np.full(6, np.nan), ankle_ratio=np.full(6, np.nan), speed=np.zeros(6),
+    )
+    opts = LandingFilterOptions(
+        settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
+        carry_thr=0.5, use_settle=False, use_carry=False,
+    )
+    event_mask = np.ones(len(track), dtype=bool)
+
+    assert filtered_descending_landing(
+        0, len(track), track, kin, opts, event_non_evidence_mask=event_mask,
+    ) is None
 
 
 # ---------------------------------------------------------------------------
