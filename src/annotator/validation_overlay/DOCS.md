@@ -157,6 +157,27 @@ The assembler test asserts on the frame stream **before** encoding. At crf 18
 the encode is lossy, so a pixel check on the finished mp4 would be fragile. The
 identity gate is marked `slow`; run it with `-m slow`.
 
+## Known gaps
+
+Three things this tool does not do, each a deliberate stopping point rather
+than an oversight.
+
+**No 29.97 fps fixture.** Every test runs at exactly 25 fps, so a defect
+specific to `30000/1001` would pass the whole suite. The timestamp arithmetic
+uses `Fraction` precisely to survive that rate, and nothing proves it does.
+Closing this means a second generated fixture.
+
+**Track provenance is unchecked.** A `(n_frames, 3)` array from a different
+video of the same length passes every guard, including `--verify`, and draws
+confident nonsense. Verification covers video decoding rather than whether the
+array belongs to the video. Detecting it would need a source hash the arrays do
+not carry.
+
+**The decoder reads stderr after `wait()`.** If ffmpeg ever filled its stderr
+pipe it would block, and the stdout read loop would never see the pipe close.
+With `-v error` that needs a pathological failure, so it is left as is. Drain
+both pipes concurrently if you ever raise the log level.
+
 ## Extending the core
 
 Three changes would need real thought rather than a new overlay file:
