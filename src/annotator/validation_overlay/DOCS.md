@@ -120,6 +120,30 @@ that silently stops early.
 ready, so one read is not one frame. `_iter_decoded_frames` buffers to the exact
 frame size and rejects a partial tail.
 
+**Pixel shape decides the output's shape, never a mark's position.** A mark is
+a fraction of the coded frame, so non-square pixels cannot move it. They only
+decide what shape the render is written at, which is why `make_render_plan`
+uses the sample aspect ratio for sizing rather than rejecting it.
+
+Two details there are load-bearing. The output widens to at least
+`coded_width * SAR` before the height is derived, because sizing off the coded
+width alone would satisfy the ratio by *shrinking* the other axis and throwing
+away real detail on a wide-pixel source. And three spellings all mean
+unspecified and all become 1:1: the key absent, `"N/A"`, and ffmpeg's `"0:1"`.
+Absent is the common case, since a plain encode records nothing, this tool's
+own output included. Treating absent as an error refuses ordinary files.
+
+**Frame rate must be constant, and `--verify` will not save you here.** The
+whole timestamp model assumes frame `n` sits at `n/fps`. On variable-frame-rate
+input that stops being true, and the identity gate rests on the same assumption,
+so it can miss the resulting misalignment rather than catching it. `probe_video`
+rejects VFR by comparing `r_frame_rate` against `avg_frame_rate` as exact
+fractions. That test is conservative rather than a proof of constant rate: it
+catches real VFR (a measured sample reports `25/1` against `150/11`) but a file
+could in principle pass it and still drift. Supporting VFR properly means
+indexing by presentation timestamp instead of by ordinal, which rawvideo does
+not carry through the pipe. Worth knowing before this meets phone footage.
+
 **The identity gate compares pixels, not indices.** `--verify` hashes each
 planned frame and compares against a decode-from-zero reference. Any shift onto
 visibly different pixels fails, which is every shift that could mislead a
@@ -162,11 +186,6 @@ identity gate is marked `slow`; run it with `-m slow`.
 Three things this tool does not do, each a deliberate stopping point rather
 than an oversight.
 
-**No 29.97 fps fixture.** Every test runs at exactly 25 fps, so a defect
-specific to `30000/1001` would pass the whole suite. The timestamp arithmetic
-uses `Fraction` precisely to survive that rate, and nothing proves it does.
-Closing this means a second generated fixture.
-
 **Track provenance is unchecked.** A `(n_frames, 3)` array from a different
 video of the same length passes every guard, including `--verify`, and draws
 confident nonsense. Verification covers video decoding rather than whether the
@@ -184,9 +203,9 @@ Three changes would need real thought rather than a new overlay file:
 
 - **variable frame rate.** `probe_video` rejects it, because the whole
   timestamp mapping assumes one regular interval per frame
-- **sources with a non-zero start time, rotation metadata, or non-square
-  pixels.** All rejected for the same reason: they break the assumption that
-  frame `n` sits at time `n/fps` in the coded frame as stored
+- **sources with a non-zero start time or rotation metadata.** Both rejected
+  for the same reason: they break the assumption that frame `n` sits at time
+  `n/fps` in the coded frame as stored
 - **drawing two algorithms at once.** Write a third overlay that imports both
   draw functions and calls them in turn. Deliberately explicit rather than
   configurable

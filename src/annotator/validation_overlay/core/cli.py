@@ -30,6 +30,10 @@ from annotator.validation_overlay.core.timeline import (
 
 DrawFn = Callable[[np.ndarray, int, bool], list[str] | None]
 
+# x264's own ceiling. A corrupt or absurd sample aspect ratio can derive a
+# gigantic canvas, and this catches it before anything allocates a frame.
+_MAX_DIMENSION = 16384
+
 
 def _positive_int(value: str) -> int:
     try:
@@ -172,13 +176,24 @@ def make_render_plan(
     if output.parent.exists() and not output.parent.is_dir():
         raise ValueError(f"output parent is not a directory: {output.parent}")
 
-    output_width = max(info.width, render_width)
+    # Anamorphic sources are written at their true display shape rather than
+    # refused. Widening to at least coded_width * SAR first matters: sizing off
+    # the coded width alone would satisfy the ratio by SHRINKING the other axis,
+    # throwing away real detail on a wide-pixel source.
+    aspect = info.sample_aspect_ratio
+    square_width = -((-info.width * aspect.numerator) // aspect.denominator)  # ceil
+    output_width = max(info.width, render_width, int(square_width))
     if output_width % 2:
         output_width += 1
-    output_height = _round_fraction(Fraction(info.height * output_width, info.width))
+    output_height = _round_fraction(Fraction(info.height * output_width, info.width) / aspect)
     if output_height % 2:
         output_height += 1
     output_height = max(2, output_height)
+    if output_width > _MAX_DIMENSION or output_height > _MAX_DIMENSION:
+        raise ValueError(
+            f"output {output_width}x{output_height} exceeds the {_MAX_DIMENSION} px limit; "
+            f"check the source's sample aspect ratio ({aspect}) and --render-width"
+        )
     timeline = build_timeline(segments, info.nb_frames, info.fps, lead_in, lead_out, spacer)
     hud_style = make_hud_style(output_width, output_height, hud_height)
     return RenderPlan(

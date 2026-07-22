@@ -23,6 +23,9 @@ class VideoInfo:
     nb_frames: int
     width: int
     height: int
+    # Pixel width over pixel height. 1 for every ordinary file; anything else is
+    # anamorphic footage whose coded frame is stored at the wrong shape.
+    sample_aspect_ratio: Fraction = Fraction(1)
 
 
 def _parse_fraction(value: object, field_name: str) -> Fraction:
@@ -59,8 +62,18 @@ def _parse_positive_int(value: object, field_name: str) -> int:
 
 
 def _parse_sample_aspect_ratio(value: object) -> Fraction:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError("video metadata sample_aspect_ratio is missing")
+    """Read a sample aspect ratio, treating "unspecified" as square.
+
+    Three spellings all mean unspecified and all become 1:1: the key absent
+    entirely, the string "N/A", and ffmpeg's own "0:1". Absent is the common
+    case, since a plain libx264 encode with no ``-aspect`` records nothing and
+    neither does this tool's output. A malformed or negative ratio still fails,
+    because that is a corrupt file rather than a silent one.
+    """
+    if value is None or (isinstance(value, str) and value.strip().upper() in {"", "N/A"}):
+        return Fraction(1)
+    if not isinstance(value, str):
+        raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
     parts = value.strip().split(":")
     if len(parts) != 2:
         raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
@@ -69,7 +82,9 @@ def _parse_sample_aspect_ratio(value: object) -> Fraction:
         result = Fraction(numerator, denominator)
     except (TypeError, ValueError, ZeroDivisionError) as exc:
         raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}") from exc
-    if result <= 0:
+    if result == 0:
+        return Fraction(1)
+    if result < 0:
         raise ValueError(f"video metadata sample_aspect_ratio must be positive: {value!r}")
     return result
 
@@ -156,11 +171,12 @@ def probe_video(video: Path) -> VideoInfo:
         )
     if _has_rotation_metadata(stream):
         raise ValueError(f"video has rotation metadata: {video}")
+    # Non-square pixels are carried, not rejected. Marks are fractions of the
+    # coded frame, so their placement is unaffected; the ratio only decides the
+    # shape the output is written at. See make_render_plan.
     sample_aspect_ratio = _parse_sample_aspect_ratio(stream.get("sample_aspect_ratio"))
-    if sample_aspect_ratio != 1:
-        raise ValueError(f"video has a non-square sample aspect ratio: {sample_aspect_ratio}")
 
-    return VideoInfo(video, rate, nb_frames, width, height)
+    return VideoInfo(video, rate, nb_frames, width, height, sample_aspect_ratio)
 
 
 def _decode_command(
