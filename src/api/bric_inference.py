@@ -430,6 +430,8 @@ def classify(
             save_dir=str(tracknet_save_dir),
             eval_mode=_EVAL_MODE_BY_STRIDE[TRACKNET_STRIDE],
             large_video=TRACKNET_LARGE_VIDEO,
+            tracknet_ckpt=TRACKNET_WEIGHTS.name,
+            inpaintnet_ckpt=INPAINTNET_WEIGHTS.name,
         )
 
         # TrackNet writes {video_stem}_ball.csv with columns: Frame, Visibility, X, Y

@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from inference_utils import predict_location, get_ensemble_weight, generate_inpaint_mask
+from write_inpaint_metadata import write_inpaint_metadata
 from dataset import Shuttlecock_Trajectory_Dataset, Video_IterableDataset
 from utils.general import *
 
@@ -115,7 +116,8 @@ def predict_video(video_file, tracknet, inpaintnet,
                   tracknet_seq_len, inpaintnet_seq_len, bg_mode,
                   save_dir, eval_mode='weight', batch_size=16,
                   large_video=False, max_sample_num=1800, video_range=None,
-                  output_video=False, traj_len=8, dry_run=False):
+                  output_video=False, traj_len=8, dry_run=False,
+                  *, tracknet_ckpt=None, inpaintnet_ckpt=None):
     """Run TrackNet (+ InpaintNet) inference on one video and write CSV.
 
     This is the per-video inference loop extracted from __main__.
@@ -138,6 +140,8 @@ def predict_video(video_file, tracknet, inpaintnet,
         output_video (bool): Write annotated output video (default False).
         traj_len (int): Trajectory length for video annotation (default 8).
         dry_run (bool): Run inference but skip writing CSV/video (default False).
+        tracknet_ckpt (str or None): TrackNet checkpoint basename, if known.
+        inpaintnet_ckpt (str or None): InpaintNet checkpoint basename, if known.
     """
     # Workers=0: frames are already in a NumPy array in RAM, so spawning
     # subprocesses just to index into it adds overhead for short clips.
@@ -354,6 +358,18 @@ def predict_video(video_file, tracknet, inpaintnet,
         print(f'DRY_RUN {video_name}: {n_frames} frames, {n_visible} detections')
         return
 
+    write_inpaint_metadata(
+        out_csv_file,
+        tracknet_pred_dict=tracknet_pred_dict,
+        pred_dict=pred_dict,
+        video_file=video_file,
+        eval_mode=eval_mode,
+        tracknet_seq_len=tracknet_seq_len,
+        h=h,
+        inpaintnet=inpaintnet,
+        tracknet_ckpt=tracknet_ckpt,
+        inpaintnet_ckpt=inpaintnet_ckpt if inpaintnet is not None else None,
+    )
     write_pred_csv(pred_dict, save_file=out_csv_file)
 
     # Write video with predicted coordinates
@@ -387,4 +403,6 @@ if __name__ == '__main__':
         large_video=args.large_video, max_sample_num=args.max_sample_num,
         video_range=args.video_range if args.video_range else None,
         output_video=args.output_video, traj_len=args.traj_len,
+        tracknet_ckpt=os.path.basename(args.tracknet_file),
+        inpaintnet_ckpt=(os.path.basename(args.inpaintnet_file) if args.inpaintnet_file else None),
     )
