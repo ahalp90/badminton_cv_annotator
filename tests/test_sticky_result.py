@@ -136,3 +136,30 @@ def test_segment_video_sticky_distance_exclusions_are_mutual():
         segment_video(track, sticky_distances=distances, body_unit_dist=np.zeros(3))
     with pytest.raises(ValueError, match='combined'):
         segment_video(track, sticky_distances=distances, pose_bboxes=np.zeros((3, 1, 4)))
+
+
+def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
+    n_frames = 6
+    bboxes = np.full((n_frames, 1, 4), np.nan, dtype=np.float32)
+    scores = np.ones((n_frames, 1), dtype=np.float32)
+    kps = np.full((n_frames, 1, 17, 2), np.nan, dtype=np.float32)
+    for frame in range(n_frames):
+        height = 100.0 if frame < 3 else 300.0
+        box = _bbox(640.0, 360.0, height)
+        bboxes[frame, 0] = box
+        kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
+    track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
+    court_box = CourtBox(
+        x_range=(0.0, 1280.0), y_range=(0.0, 720.0),
+        height_band=(1.0, 1000.0), mid_band=(640.0, 640.0),
+    )
+    court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
+    resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
+    result = build_sticky_result(
+        track, [(0, 3), (3, 6)], bboxes, scores, kps, np.ones(n_frames, dtype=np.int64), '1',
+        {'1': court_info}, resolution_table, court_box, (1280.0, 720.0), half_window=1,
+    )
+
+    numerator = np.hypot(600.0 - 600.0, 360.0 - 170.0)
+    picked_half = int(np.flatnonzero(result.picks[2] >= 0)[0])
+    assert result.distances_per_slot[2, picked_half] == pytest.approx(numerator / 100.0)

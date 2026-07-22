@@ -48,6 +48,7 @@ from .rally_segmentation import (
     WRIST_L,
     WRIST_R,
     CourtBox,
+    StickyResult,
     compute_speed,
     court_scale_boxes,
     rolling_nanmedian,
@@ -189,37 +190,24 @@ def body_unit_gaps(
 
 
 def attribute_half(
-    frame: int, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, net_band: tuple[float, float], resolution: tuple[float, float],
-    body_unit_half_window: int,
+    frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, net_band: tuple[float, float],
 ) -> Half | None:
-    """Court half of the nearest court-scale detection to the shuttle at `frame`, or None.
+    """Court half of the sticky pick nearest to the shuttle at `frame`, or None.
 
-    None (ambiguous) when the shuttle is invisible, no court-scale detection is present, or the
-    nearest detection's foot sits inside the net band. Shuttle-to-candidate distance is the
-    shipped wrist_boxh arm: the nearer-wrist pixel gap divided by that candidate's mean windowed
-    box height (body units), not image-fraction — see `_body_unit_gaps`. The foot point is that
-    nearest candidate's bbox bottom-centre y (pixels) tested against the band.
-
-    :param resolution: (width, height) the shuttle xy and the wrist pixels normalise by.
+    The pick and its cached nearest-wrist body-unit distance come from the sticky tracker. The
+    wrist measurement point is unchanged. The picked bbox's bottom y (pixels) is tested against
+    the net band.
     """
     if track[frame, 2] != 1:
         return None
-    x1, y1, x2, y2, cand_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
-    if len(x1) == 0:
+    distances = sticky.distances_per_slot[frame]
+    if not np.isfinite(distances).any():
         return None
-    # court_scale_boxes drops padding and reorders to the court-scale subset without slot ids; its
-    # 5th element is those detections' scores, an exact slice of scores[frame], so match them back
-    # to recover each candidate's original slot (kps aligns with scores/bboxes by slot; finite
-    # detection scores are unique within a frame).
-    frame_scores = scores[frame]
-    cand_slots = [int(np.flatnonzero(frame_scores == s)[0]) for s in cand_scores]
-    width, height = resolution
-
-    gaps = body_unit_gaps(frame, x1, y1, x2, y2, cand_slots, bboxes, scores, kps, court_box,
-                           track, width, height, body_unit_half_window)
-
-    foot_y = float(y2[int(np.argmin(gaps))])  # bbox bottom-centre y, pixels
+    # A finite value beats +inf/NaN sentinels; an exact two-half tie resolves to Top
+    # (nanargmin takes the first index).
+    half = int(np.nanargmin(distances))
+    slot = sticky.picks[frame, half]
+    foot_y = float(bboxes[frame, slot][3])
     band_lo, band_hi = net_band
     if foot_y < band_lo:
         return Half.TOP
@@ -415,15 +403,13 @@ def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFi
 
 
 def build_landing_kinematics(
-    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, resolution: tuple[float, float],
+    track: np.ndarray, sticky: StickyResult, kps: np.ndarray, resolution: tuple[float, float],
 ) -> LandingKinematics:
     """Per-frame carry proximity (wrist / box-height) and shuttle self-speed for the landing filter.
 
-    Mirrors a single nearest-court-scale-player loop, but reads the nearer WRIST (COCO 9/10)
-    rather than the bbox centre for the numerator, so the proximity signal is in the same
-    body-height units the attribution arm uses. NaN where the shuttle is invisible or no
-    court-scale detection is present.
+    Reads the sticky pick for each court half, then uses its nearer WRIST (COCO 9/10) rather than
+    the bbox centre for the numerator. NaN where the shuttle is invisible or no sticky pick has a
+    finite current-frame height.
 
     :param resolution: (width, height) the shuttle xy and the wrist/ankle pixels normalise by.
     """
@@ -432,23 +418,31 @@ def build_landing_kinematics(
     carry_ratio = np.full(n_frames, np.nan)
     ankle_ratio = np.full(n_frames, np.nan)  # nearer-ANKLE / box-height; mirrors carry_ratio exactly
     for frame in np.flatnonzero(track[:, 2] == 1):
-        x1, y1, x2, y2, cand_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
-        if len(x1) == 0:
-            continue
-        frame_scores = scores[frame]
-        slots = [int(np.flatnonzero(frame_scores == s)[0]) for s in cand_scores]
         shuttle_x, shuttle_y = track[frame, 0] * width, track[frame, 1] * height
-        wrists = kps[frame, slots][:, (WRIST_L, WRIST_R), :]  # (k candidates, 2 wrists, xy) px
-        wrist_px = np.hypot(wrists[..., 0] - shuttle_x, wrists[..., 1] - shuttle_y).min(axis=1)
-        ratios = wrist_px / (y2 - y1)  # body-height units, one per candidate
-        carry_ratio[frame] = float(ratios.min())
+        wrist_ratios = []
+        ankle_ratios = []
+        for half in range(2):
+            slot = sticky.picks[frame, half]
+            box_height = sticky.bbox_height[frame, half]
+            if slot < 0 or not np.isfinite(box_height):
+                continue
+            wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]
+            wrist_px = np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min()
+            # NaN unreachable in practice (pose model always emits 17 keypoints); the 0-substitute
+            # keeps the min() reductions below deterministic if that ever changes.
+            wrist_ratio = wrist_px / box_height
+            wrist_ratios.append(0.0 if np.isnan(wrist_ratio) else wrist_ratio)
         # Same machinery on the nearer ANKLE. The two minima are taken independently, so the
         # nearest ankle and nearest wrist may in principle come from different players; at a
         # terminal or a ground settle the shuttle is beside one player, so both minima are that
         # player's and the per-candidate box-height normaliser cancels in the ankle-vs-wrist test.
-        ankles = kps[frame, slots][:, (ANKLE_L, ANKLE_R), :]  # (k candidates, 2 ankles, xy) px
-        ankle_px = np.hypot(ankles[..., 0] - shuttle_x, ankles[..., 1] - shuttle_y).min(axis=1)
-        ankle_ratio[frame] = float((ankle_px / (y2 - y1)).min())
+            ankles = kps[frame, slot, (ANKLE_L, ANKLE_R), :]
+            ankle_px = np.hypot(ankles[:, 0] - shuttle_x, ankles[:, 1] - shuttle_y).min()
+            ankle_ratio_val = ankle_px / box_height
+            ankle_ratios.append(0.0 if np.isnan(ankle_ratio_val) else ankle_ratio_val)
+        if wrist_ratios:
+            carry_ratio[frame] = float(min(wrist_ratios))
+            ankle_ratio[frame] = float(min(ankle_ratios))
     return LandingKinematics(carry_ratio=carry_ratio, ankle_ratio=ankle_ratio, speed=compute_speed(track))
 
 

@@ -116,9 +116,44 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     assert result.spans == injected
 
 
-def test_run_video_requires_scene_inputs_for_non_injected_sticky():
+@pytest.mark.parametrize('kwargs', [{}, {'spans': [(10, 20)]}, {'spans': [(10, 20)], 'contacts': {0: [14]}}])
+def test_run_video_requires_scene_inputs_for_every_sticky_consumer(kwargs):
     with pytest.raises(ValueError, match='^scene-gated sticky needs homography_rows and court_present$'):
-        run_video(**_synthetic_inputs())
+        run_video(**_synthetic_inputs(), **kwargs)
+
+
+def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
+    """The sticky builder must receive exactly the list tracker_segments produced.
+
+    The handoff is internal to run_video, so a wrong list (rally spans, say) would
+    only show up as plausible end-number movement. The spy records the argument and
+    calls the real builder through, so the real path still runs.
+    """
+    inputs = _synthetic_inputs()
+    n_frames = len(inputs['track'])
+    court_present = np.ones(n_frames, dtype=bool)
+    court_present[40:60] = False
+    scene_row = _default_scene_inputs(n_frames)['homography_rows'][0]
+    homography_rows = [
+        {**scene_row, 'start_frame': '0', 'end_frame': '150'},
+        {**scene_row, 'start_frame': '150', 'end_frame': str(n_frames)},
+    ]
+    expected = stage8_seg.tracker_segments(homography_rows, court_present, n_frames)
+    # Dropout splits the first scene row: the fixture must stay non-trivial.
+    assert expected == [(0, 40), (60, 150), (150, 300)]
+
+    real_builder = stage8_seg.build_sticky_result
+    received = []
+
+    def spy(track, segments, *args, **kwargs):
+        received.append(segments)
+        return real_builder(track, segments, *args, **kwargs)
+
+    monkeypatch.setattr(stage8_seg, 'build_sticky_result', spy)
+
+    run_video(**inputs, court_present=court_present, homography_rows=homography_rows)
+
+    assert received == [expected]
 
 
 def test_run_video_rejects_serve_start_with_injected_spans() -> None:
@@ -136,7 +171,7 @@ def test_run_video_injected_contacts_are_unmeasured_and_scored():
     frames = [14, 16]
     expected = [ContactCandidate(0, frame, None, None, None) for frame in frames]
 
-    result = run_video(**inputs, spans=spans, contacts={0: frames})
+    result = run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=spans, contacts={0: frames})
 
     assert result.contacts == expected
     assert result.filtered_contacts == expected
@@ -151,7 +186,9 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
         lambda *args, **kwargs: Half.TOP,
     )
 
-    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
 
     assert result.striker_halves == [Half.TOP]
     assert 0 in result.verdict_rows
@@ -169,7 +206,9 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
 
     diagnostic = result.geometric_verdict_rows[0]
     assert diagnostic.geometric_verdict is None
@@ -188,7 +227,9 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
         lambda *args, **kwargs: Landing(15, (0.5, 0.75), Half.BOT, False, False, False),
     )
 
-    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
 
     diagnostic = result.geometric_verdict_rows[0]
     assert diagnostic.geometric_verdict.value == 'won'
@@ -203,29 +244,41 @@ def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypa
         lambda *args, **kwargs: None,
     )
 
-    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
 
     assert result.verdict_rows == {}
     assert result.geometric_verdict_rows == {}
 
 
-def test_run_video_injected_contacts_skip_discarded_evidence_builders(monkeypatch):
+def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
     inputs = _synthetic_inputs()
+    real_build_sticky_result = stage8_seg.build_sticky_result
+    build_calls = 0
+
+    def count_builds(*args, **kwargs):
+        nonlocal build_calls
+        build_calls += 1
+        return real_build_sticky_result(*args, **kwargs)
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError('discarded evidence builder must be bypassed')
+        raise AssertionError('dead-mask builder must be bypassed')
 
     monkeypatch.setattr(
-        stage8_seg, 'build_sticky_result', fail_if_called,
+        stage8_seg, 'build_sticky_result', count_builds,
     )
     monkeypatch.setattr(
         run_video_module, 'build_dead_mask', fail_if_called,
     )
 
-    result = run_video(**inputs, spans=[(10, 20)], contacts={0: [14]})
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
 
     assert result.spans == [(10, 20)]
     assert result.contacts == [ContactCandidate(0, 14, None, None, None)]
+    assert build_calls == 1
 
 
 def _synthetic_inputs():

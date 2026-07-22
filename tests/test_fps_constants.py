@@ -21,7 +21,7 @@ from annotator.point_winner import (
     pick_landing,
     window_end,
 )
-from annotator.rally_segmentation import scale_thresholds, segment_video
+from annotator.rally_segmentation import build_sticky_result, scale_thresholds, segment_video
 from annotator.replay_mask import combine_mask, court_absence_signal
 
 
@@ -242,8 +242,8 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     assert (short_contact.wrist_near, short_contact.suppressed) == (True, False)
     assert (full_contact.wrist_near, full_contact.suppressed) == (False, False)
 
-    # The final resolved contact uses the same track, real pose gate, and resolved constants for
-    # both attribution and landing.
+    # The final resolved contact uses the same track, sticky cache, and resolved constants for
+    # attribution and landing.
     resolved_full_contacts = segment_video(
         track, body_unit_half_window=resolved.constants.body_unit_half_window, **gate_kwargs,
     )[1]
@@ -251,21 +251,25 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         contact.contact_frame for contact in resolved_full_contacts
         if contact.wrist_near is not False and contact.suppressed is not True
     ][-1]
-    assert attribute_half(
-        final_contact, track, bboxes, scores, kps, court_box, (520.0, 560.0), (1920.0, 1080.0),
+    sticky = build_sticky_result(
+        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
+        {'v': court_info.copy()},
+        gate_kwargs['gate_resolution_table'], court_box, (1920.0, 1080.0),
         resolved.constants.body_unit_half_window,
-    ) is Half.TOP
+    )
+    assert attribute_half(final_contact, track, sticky, bboxes, (520.0, 560.0)) is Half.TOP
     # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the resolved 20.
     # It exposes two post-contact descents: five samples (base 3 accepts; resolved 6 rejects),
     # then eight samples (resolved 6 accepts; double-scaled 12 rejects).
     landing_track = track.copy()
-    landing_track[112:117, 1] = np.linspace(0.20, 0.24, 5)
-    landing_track[117:120, 1] = (0.20, 0.80, 0.80)
-    landing_track[120:135, 2] = 0
-    landing_track[135:143, 1] = np.linspace(0.20, 0.27, 8)
-    landing_track[143:, 1] = 0.20
-    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 20) > 135
-    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 10) == 120
+    landing_track[final_contact:135, 1] = 0.20
+    landing_track[135:140, 1] = np.linspace(0.20, 0.24, 5)
+    landing_track[140:143, 1] = (0.20, 0.80, 0.80)
+    landing_track[143:158, 2] = 0
+    landing_track[158:166, 1] = np.linspace(0.20, 0.27, 8)
+    landing_track[166:, 1] = 0.20
+    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 20) > 158
+    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 10) == 143
 
     kin = LandingKinematics(np.full(n_frames, np.nan), np.full(n_frames, np.nan), np.zeros(n_frames))
     opts = LandingFilterOptions(1, 0.0, 1, 1, 0.0, use_settle=False, use_carry=False)
@@ -284,7 +288,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         replace(resolved.constants, min_descend_samples=12), resolved.fps,
     )
     assert unscaled_landing is not None
-    assert unscaled_landing.frame == 116
+    assert unscaled_landing.frame == 139
     assert landing is not None
-    assert landing.frame == 142
+    assert landing.frame == 165
     assert double_scaled_landing is None

@@ -128,10 +128,16 @@ def run_video(
         raise ValueError('serve_start cannot be combined with injected spans')
     if serve_start is not None and resolved.quiet_start_window is not None:
         raise ValueError('quiet_start_window cannot be combined with serve_start')
+    if homography_rows is None or court_present is None:
+        raise ValueError('scene-gated sticky needs homography_rows and court_present')
+    segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
+    sticky = stage8_seg.build_sticky_result(
+        track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
+        gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
+    )
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Only the preliminary
-        # span pass is needed when callers did not inject spans; the sticky builder is
-        # irrelevant because segmentation is bypassed below.
+        # span pass is needed when callers did not inject spans.
         final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
@@ -148,8 +154,6 @@ def run_video(
             cut_frames=cut_frames, keep_vote=keep_vote,
         )
     else:
-        if homography_rows is None or court_present is None:
-            raise ValueError('scene-gated sticky needs homography_rows and court_present')
         # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
         bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
@@ -157,11 +161,6 @@ def run_video(
             reentry_guard_variant=resolved.reentry_guard_variant,
             reentry_guard_buffer=resolved.reentry_guard_buffer,
             quiet_start_window=resolved.quiet_start_window,
-        )
-        segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
-        sticky = stage8_seg.build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
-            gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
         )
         mask = dead_mask if dead_mask is not None else build_dead_mask(
             resolved.dead_mask_mode, len(track), fps, court_present=court_present,
@@ -197,8 +196,7 @@ def run_video(
         frames = filtered_by_rally.get(rally_id, [])
         guesses = [
             point_winner.attribute_half(
-                frame, track, bboxes, scores, kps, court_box, net_band, resolution,
-                resolved.constants.body_unit_half_window,
+                frame, track, sticky, bboxes, net_band,
             )
             for frame in frames
         ]
@@ -211,7 +209,7 @@ def run_video(
     ]
 
     kin = point_winner.build_landing_kinematics(
-        track, bboxes, scores, kps, court_box, resolution,
+        track, sticky, kps, resolution,
     )
     band_m = point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
 

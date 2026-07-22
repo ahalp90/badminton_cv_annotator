@@ -34,7 +34,7 @@ from annotator.point_winner import (
     rally_verdict,
     window_end,
 )
-from annotator.rally_segmentation import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtBox
+from annotator.rally_segmentation import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtBox, StickyResult
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40
@@ -66,6 +66,16 @@ def _mk_pose_arrays(
             kps[frame, slot, ANKLE_L] = ankle_xy
             kps[frame, slot, ANKLE_R] = ankle_xy
     return bboxes, scores, kps
+
+
+def _sticky(n_frames: int, *, picks: np.ndarray, heights: np.ndarray, distances: np.ndarray) -> StickyResult:
+    collapsed = np.min(np.where(np.isfinite(distances), distances, np.inf), axis=1)
+    collapsed[np.isposinf(collapsed)] = np.nan
+    return StickyResult(
+        distances=collapsed, picks=picks,
+        standing_count=np.zeros(n_frames, dtype=int), ankle_pos=np.full((n_frames, 2, 2), np.nan),
+        bbox_height=heights, distances_per_slot=distances, analysed=np.ones(n_frames, dtype=bool),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -193,9 +203,8 @@ def test_body_unit_gaps_raises_on_non_positive_denominator():
 # ---------------------------------------------------------------------------
 # attribute_half (the wrist_boxh arm, end to end)
 # ---------------------------------------------------------------------------
-def test_attribute_half_reads_the_wrist_boxh_nearest_candidates_half():
-    # One court-scale player, foot below the net band (Bot half), wrist right at the shuttle.
-    # Present at every frame in the window so the box-height denominator self-matches throughout.
+def test_attribute_half_reads_the_sticky_nearest_pick_half():
+    # The bottom sticky pick owns the nearest cached wrist distance and its foot is below the band.
     resolution = (1920.0, 1080.0)
     n_frames = 30
     contact = 15
@@ -203,23 +212,30 @@ def test_attribute_half_reads_the_wrist_boxh_nearest_candidates_half():
     track = np.zeros((n_frames, 3))
     track[contact] = (shuttle_px[0] / resolution[0], shuttle_px[1] / resolution[1], 1.0)
     player_frame = [(500.0, 600.0, 100.0, shuttle_px, (500.0, 600.0))]
-    bboxes, scores, kps = _mk_pose_arrays(n_frames, [player_frame] * n_frames)
+    bboxes, _, _ = _mk_pose_arrays(n_frames, [player_frame] * n_frames)
+    picks = np.full((n_frames, 2), -1, dtype=int)
+    picks[contact, 1] = 0
+    heights = np.full((n_frames, 2), np.nan)
+    heights[contact, 1] = 100.0
+    distances = np.full((n_frames, 2), np.nan)
+    distances[contact, 1] = 0.0
+    sticky = _sticky(n_frames, picks=picks, heights=heights, distances=distances)
 
-    half = attribute_half(contact, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12)
+    half = attribute_half(contact, track, sticky, bboxes, (400.0, 500.0))
     assert half == Half.BOT
 
 
 def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
     track = np.zeros((5, 3))
     bboxes = np.full((5, 16, 4), np.nan)
-    scores = np.full((5, 16), np.nan)
-    kps = np.full((5, 16, 17, 2), np.nan)
-    resolution = (1920.0, 1080.0)
+    sticky = _sticky(
+        5, picks=np.full((5, 2), -1), heights=np.full((5, 2), np.nan), distances=np.full((5, 2), np.nan),
+    )
 
-    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12) is None
+    assert attribute_half(2, track, sticky, bboxes, (400.0, 500.0)) is None
 
-    track[2, 2] = 1  # visible now, but still no court-scale detection anywhere
-    assert attribute_half(2, track, bboxes, scores, kps, TEST_COURT_BOX, (400.0, 500.0), resolution, 12) is None
+    track[2, 2] = 1
+    assert attribute_half(2, track, sticky, bboxes, (400.0, 500.0)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -476,12 +492,30 @@ def test_build_landing_kinematics_reads_nearer_wrist_and_ankle_in_body_heights()
     resolution = (1920.0, 1080.0)
     track = np.array([[100.0 / resolution[0], 150.0 / resolution[1], 1.0]])
     # foot (100, 200), box height 100; wrist right on the shuttle, ankle 50px away.
-    bboxes, scores, kps = _mk_pose_arrays(1, [[(100.0, 200.0, 100.0, (100.0, 150.0), (100.0, 200.0))]])
+    _, _, kps = _mk_pose_arrays(1, [[(100.0, 200.0, 100.0, (100.0, 150.0), (100.0, 200.0))]])
+    sticky = _sticky(
+        1, picks=np.array([[0, -1]]), heights=np.array([[100.0, np.nan]]), distances=np.array([[0.0, np.nan]]),
+    )
 
-    kin = build_landing_kinematics(track, bboxes, scores, kps, TEST_COURT_BOX, resolution)
+    kin = build_landing_kinematics(track, sticky, kps, resolution)
 
     assert kin.carry_ratio[0] == pytest.approx(0.0)  # wrist sits exactly on the shuttle
     assert kin.ankle_ratio[0] == pytest.approx(0.5)  # ankle 50px away / 100px box height
+
+
+def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
+    resolution = (1920.0, 1080.0)
+    track = np.array([[0.5, 0.5, 1.0]])
+    bboxes = np.full((1, 1, 4), np.nan)
+    kps = np.full((1, 1, 17, 2), np.nan)
+    sticky = _sticky(
+        1, picks=np.array([[-1, -1]]), heights=np.full((1, 2), np.nan), distances=np.full((1, 2), np.nan),
+    )
+
+    assert attribute_half(0, track, sticky, bboxes, (400.0, 500.0)) is None
+    kin = build_landing_kinematics(track, sticky, kps, resolution)
+    assert np.isnan(kin.carry_ratio[0])
+    assert np.isnan(kin.ankle_ratio[0])
 
 
 def test_court_scale_boxes_is_importable_as_the_public_name():

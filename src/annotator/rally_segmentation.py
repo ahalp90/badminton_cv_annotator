@@ -1586,8 +1586,6 @@ def build_sticky_result(
     on every frame, including non-contact frames, because skipped frames change
     the picker's EMA state and therefore later candidate choices.
     """
-    from . import point_winner
-
     params = sticky_anchor.StickyAnchorParams()
     raw = RawClip(
         kps=pose_kps,
@@ -1601,7 +1599,6 @@ def build_sticky_result(
     court_info = ctx.all_court_info[ctx.vid]
     halfcourt_centre = sticky_anchor.compute_halfcourt_centres(court_info)
     n_frames = len(track)
-    gaps = np.full(n_frames, np.inf)
     picks_out = np.full((n_frames, 2), -1, dtype=int)
     standing_count = np.zeros(n_frames, dtype=int)
     ankle_pos = np.full((n_frames, 2, 2), np.nan)
@@ -1619,19 +1616,14 @@ def build_sticky_result(
             analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)
             standing_count[frame] = analysis.standing_in_court_count
             if analysis.picks is None:
-                gaps[frame] = np.nan
                 ema[:] = halfcourt_centre
                 continue
             assert analysis.court_base_pos is not None
             assert analysis.bboxes is not None
             assert analysis.filtered_to_raw is not None
-            frame_has_zero = False
-            picked_raw_slots: list[int] = []
-            picked_slots: list[Slot] = []
             for slot in Slot:
                 pick = analysis.picks[slot]
                 if pick < 0:
-                    frame_has_zero = True
                     ema[slot] = halfcourt_centre[slot]
                     continue
                 candidate_position = analysis.court_base_pos[pick]
@@ -1644,37 +1636,31 @@ def build_sticky_result(
                     )
                 raw_slot = int(analysis.filtered_to_raw[pick])
                 picks_out[frame, slot] = raw_slot
-                picked_raw_slots.append(raw_slot)
-                picked_slots.append(slot)
                 box = analysis.bboxes[pick]
                 bbox_height[frame, slot] = box[3] - box[1]
                 ankles = pose_kps[frame, raw_slot, (ANKLE_L, ANKLE_R), :]
                 ankle_pos[frame, slot] = ankles.mean(axis=0) / np.asarray(resolution)
 
-            # A partial pick is valid. Only the retained raw slots enter the
-            # body-unit denominator association; no doubles/count machinery is
-            # part of this contact gate.
-            if frame_has_zero and not picked_raw_slots:
-                gaps[frame] = np.nan
-                continue
-            picked_boxes = pose_bboxes[frame, picked_raw_slots].astype(np.float64)
-            x1, y1, x2, y2 = picked_boxes.T
-            try:
-                candidate_gaps = point_winner.body_unit_gaps(
-                    frame, x1, y1, x2, y2, picked_raw_slots,
-                    pose_bboxes, pose_scores, pose_kps, court_box,
-                    track, resolution[0], resolution[1], half_window,
-                )
-            except ValueError as exc:
-                if not str(exc).startswith('body-unit gap:'):
-                    raise
-                gaps[frame] = np.nan
-                continue
-            for slot, gap in zip(picked_slots, candidate_gaps):
-                if np.isfinite(gap):
-                    distances_per_slot[frame, slot] = gap
-            finite_gaps = candidate_gaps[np.isfinite(candidate_gaps)]
-            gaps[frame] = float(np.min(finite_gaps)) if len(finite_gaps) else float('nan')
+    width, height = resolution
+    for start, end in segments:
+        for frame in range(start, end):
+            shuttle_x = track[frame, 0] * width
+            shuttle_y = track[frame, 1] * height
+            for half in Slot:
+                pick = picks_out[frame, half]
+                if pick < 0:
+                    continue
+                wrists = pose_kps[frame, pick, (WRIST_L, WRIST_R), :]
+                numerator = float(np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min())
+                window = bbox_height[max(start, frame - half_window):min(end, frame + half_window + 1), half]
+                divisor = float(np.nanmean(window)) if np.isfinite(window).any() else float('nan')
+                if np.isfinite(divisor) and divisor > 0.0:
+                    distances_per_slot[frame, half] = numerator / divisor
+
+    gaps = np.full(n_frames, np.inf)
+    for frame in np.flatnonzero(analysed):
+        finite_distances = distances_per_slot[frame][np.isfinite(distances_per_slot[frame])]
+        gaps[frame] = float(finite_distances.min()) if len(finite_distances) else float('nan')
 
     return StickyResult(
         gaps, picks_out, standing_count, ankle_pos, bbox_height, distances_per_slot, analysed,
