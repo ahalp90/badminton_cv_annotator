@@ -19,7 +19,7 @@ def _inputs(
     shape = (n, 2)
     return ServeSetupInputs(
         count=np.ones(n, dtype=int),
-        distances=np.ones(shape, dtype=float),
+        wrist_dist=np.ones(shape, dtype=float),
         analysed=np.ones(n, dtype=bool),
         top_ankles=np.full(shape, (0.2, 0.3), dtype=float) if top_ankles is None else top_ankles,
         bot_ankles=np.full(shape, (0.7, 0.3), dtype=float) if bot_ankles is None else bot_ankles,
@@ -138,7 +138,7 @@ def test_serve_setup_inputs_validate_rejects_bad_dtypes_and_counts(field: str, v
 
 def test_serve_setup_inputs_validate_rejects_wrong_shapes_and_lengths() -> None:
     values = _inputs()._asdict()
-    values['distances'] = np.ones(4, dtype=float)
+    values['wrist_dist'] = np.ones(4, dtype=float)
     with pytest.raises(ValueError):
         ServeSetupInputs(**values).validate()
     values = _inputs()._asdict()

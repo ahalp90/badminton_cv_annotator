@@ -74,7 +74,8 @@ def _sticky(n_frames: int, *, picks: np.ndarray, heights: np.ndarray, distances:
     return StickyResult(
         distances=collapsed, picks=picks,
         standing_count=np.zeros(n_frames, dtype=int), ankle_pos=np.full((n_frames, 2, 2), np.nan),
-        bbox_height=heights, distances_per_slot=distances, analysed=np.ones(n_frames, dtype=bool),
+        bbox_height=heights, distances_per_slot=distances,
+        wrist_dist_px=np.full((n_frames, 2), np.nan), analysed=np.ones(n_frames, dtype=bool),
     )
 
 

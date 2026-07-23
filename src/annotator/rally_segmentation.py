@@ -246,13 +246,15 @@ class ServeSetupInputs(NamedTuple):
     """Per-frame evidence for the body-height-unit serve-setup gate.
 
     Ankles are image-fraction centroids and heights are image-HEIGHT fractions.
-    Distances are body-height-unit gaps, with ``+inf`` outside analysed
-    coverage. The next batch supplies the builder that fills these fields from
-    the sticky cache.
+    ``wrist_dist`` is the raw wrist-to-shuttle distance as an image-height
+    fraction, with ``+inf`` outside analysed coverage and NaN when a frame or
+    slot has no measured distance. Dividing the raw pixel distance by the same
+    image height used for ``top_height`` and ``bot_height`` makes the gate's
+    ratio cancel exactly to body heights, with no hidden normalisation step.
     """
 
     count: np.ndarray
-    distances: np.ndarray
+    wrist_dist: np.ndarray
     analysed: np.ndarray
     top_ankles: np.ndarray
     bot_ankles: np.ndarray
@@ -263,7 +265,7 @@ class ServeSetupInputs(NamedTuple):
         """Validate shapes, dtypes, and the count contract."""
         arrays = {name: np.asarray(value) for name, value in self._asdict().items()}
         trailing_shapes = {
-            'count': (), 'distances': (2,), 'analysed': (),
+            'count': (), 'wrist_dist': (2,), 'analysed': (),
             'top_ankles': (2,), 'bot_ankles': (2,),
             'top_height': (), 'bot_height': (),
         }
@@ -283,7 +285,7 @@ class ServeSetupInputs(NamedTuple):
             raise ValueError('count must be finite, nonnegative, integer-valued reals')
         if not np.issubdtype(arrays['analysed'].dtype, np.bool_):
             raise ValueError('analysed must have boolean dtype')
-        for name in ('distances', 'top_ankles', 'bot_ankles', 'top_height', 'bot_height'):
+        for name in ('wrist_dist', 'top_ankles', 'bot_ankles', 'top_height', 'bot_height'):
             if not np.issubdtype(arrays[name].dtype, np.floating):
                 raise ValueError(f'{name} must have floating-point dtype')
 
@@ -370,7 +372,7 @@ def build_serve_setup_inputs(
 
     height = float(resolution[1])
     count = np.asarray(sticky.standing_count).copy()
-    distances = np.asarray(sticky.distances_per_slot, dtype=np.float64).copy()
+    wrist_dist = np.asarray(sticky.wrist_dist_px, dtype=np.float64).copy() / height
     analysed = np.asarray(sticky.analysed, dtype=bool).copy()
     top_ankles = np.full_like(sticky.ankle_pos[:, Slot.TOP], np.nan, dtype=float)
     bot_ankles = np.full_like(sticky.ankle_pos[:, Slot.BOTTOM], np.nan, dtype=float)
@@ -382,14 +384,13 @@ def build_serve_setup_inputs(
     ):
         ankles = sticky.ankle_pos[:, slot]
         box_height = sticky.bbox_height[:, slot]
-        valid = np.all(np.isfinite(ankles), axis=1)
-        valid &= np.any(ankles != 0, axis=1)
-        valid &= np.isfinite(box_height) & (box_height > 0)
-        ankles_out[valid] = ankles[valid]
-        heights_out[valid] = box_height[valid] / height
+        ankle_valid = np.all(np.isfinite(ankles), axis=1) & np.any(ankles != 0, axis=1)
+        height_valid = np.isfinite(box_height) & (box_height > 0)
+        ankles_out[ankle_valid] = ankles[ankle_valid]
+        heights_out[height_valid] = box_height[height_valid] / height
 
     inputs = ServeSetupInputs(
-        count=count, distances=distances, analysed=analysed,
+        count=count, wrist_dist=wrist_dist, analysed=analysed,
         top_ankles=top_ankles, bot_ankles=bot_ankles,
         top_height=top_height, bot_height=bot_height,
     )
@@ -432,15 +433,10 @@ class ServeStartOptions(NamedTuple):
     committed measurement convention: the arrays are built before any replay mask
     is applied, and serve-start was only ever measured with masking off).
 
-    The serve-setup gate has two forms, chosen by whether `height` is supplied:
-      - `height=None` (the default): `threshold` is a raw image-fraction and the gate passes a
-        burst when the median lookback distance is `<= threshold`. Bit-for-bit today's gate.
-      - `height` supplied: `threshold` is a MULTIPLE of the nearest player's body height, and the
-        gate passes when the median lookback distance divided by the mean lookback bbox height is
-        `<= threshold`. Expressing the same rule in body-height units makes its DEFINITION robust
-        to camera framing, which a raw image-fraction is not: the same serve setup reads a median
-        0.031 image-fraction on the pilot but 0.117 on vid-15 (a different zoom), so a fixed
-        image-fraction does not travel between videos.
+    The serve-setup gate has three unit forms: `threshold` is a raw image-fraction only on the
+    dist path without `height`; it is a multiple of body height on the dist path with `height` and
+    on the sticky setup path. The body-height form divides the median distance by the matching
+    mean bbox height, which makes the definition robust to camera framing.
 
     Off by default: leave `height` None and nothing changes. The body-height form still needs a
     per-video number (the portable part is the definition, not one shared constant): reading the
@@ -450,8 +446,8 @@ class ServeStartOptions(NamedTuple):
     in body-height units, so no single constant separates them on both videos.
 
     :param dist: `(t,)` nearest court-scale player bbox-centre distance (build_serve_start_dist).
-    :param threshold: serve-setup gate distance; a raw image-fraction when `height` is None, else a
-        multiple of body height (see the class docstring).
+    :param threshold: serve-setup gate distance; a raw image-fraction only on the dist path without
+        `height`, else a multiple of body height (see the class docstring).
     :param mode: fallback for a region with no qualifying burst (TRIM / REJECT).
     :param wideshot: optional wide-shot refinement inputs; None leaves it off (the default).
     :param close: optional split placement; None opens one span per region (the default).
@@ -877,6 +873,22 @@ def _serve_setup_before(dist: np.ndarray, burst_start: int, threshold: float) ->
     return bool(np.median(finite) <= threshold)
 
 
+def _serve_distance_ratio_passes(
+    window_dist: np.ndarray, window_height: np.ndarray, threshold_bh: float,
+) -> bool:
+    """Return whether paired distance evidence passes the body-height threshold.
+
+    The finite-distance mask selects the matching heights. That is safe because a finite
+    distance implies a finite same-slot height: the legacy builder writes both values in one
+    loop, and the sticky builder writes both values for a picked slot.
+    """
+    mask = np.isfinite(window_dist)
+    if not mask.any():
+        return False
+    ratio = np.median(window_dist[mask]) / np.mean(window_height[mask])
+    return bool(ratio <= threshold_bh)
+
+
 def _serve_setup_before_boxheight(
     dist: np.ndarray, height: np.ndarray, burst_start: int, threshold_bh: float,
 ) -> bool:
@@ -903,12 +915,7 @@ def _serve_setup_before_boxheight(
     lookback = slice(max(0, burst_start - SERVE_START_LOOKBACK_FRAMES), burst_start)
     window_dist = dist[lookback]
     window_height = height[lookback]
-    finite = np.isfinite(window_dist)
-    if not finite.any():
-        return False
-    raw = np.median(window_dist[finite])
-    denom = np.mean(window_height[finite])
-    return bool(raw / denom <= threshold_bh)
+    return _serve_distance_ratio_passes(window_dist, window_height, threshold_bh)
 
 
 # Dies at Stage 7 with the frozen sweep.
@@ -1050,23 +1057,26 @@ def _sticky_serve_setup_before(
     """Apply the sticky coverage gate and its three serve-setup lanes."""
     if not 0 <= burst < len(setup.count):
         raise ValueError('claimed_serve_frame must be in range [0, t)')
-    end = burst + 1
-    setup_window = slice(max(0, end - lookback_frames), end)
-    stillness_window = slice(max(0, end - stillness_window_frames), end) if stillness_window_frames is not None else setup_window
-    if not np.all(setup.analysed[min(setup_window.start, stillness_window.start):end]):
+    setup_window = slice(max(0, burst - lookback_frames), burst)
+    if setup_window.start == setup_window.stop:
+        return False
+    if stillness_threshold_bh is None:
+        stillness_window = setup_window
+    else:
+        assert stillness_window_frames is not None
+        stillness_window = slice(max(0, burst + 1 - stillness_window_frames), burst + 1)
+    coverage_start = min(setup_window.start, stillness_window.start)
+    coverage_stop = max(setup_window.stop, stillness_window.stop)
+    if not np.all(setup.analysed[coverage_start:coverage_stop]):
         return False
 
     count = setup.count[setup_window]
     median_count = float(np.median(count))
-    distances = setup.distances[setup_window]
-    ankles = (setup.top_ankles[setup_window], setup.bot_ankles[setup_window])
+    distances = setup.wrist_dist[setup_window]
     heights = (setup.top_height[setup_window], setup.bot_height[setup_window])
     valid = np.empty(distances.shape, dtype=bool)
     for slot in Slot:
-        valid[:, slot] = (
-            np.isfinite(distances[:, slot]) & np.all(np.isfinite(ankles[slot]), axis=1) &
-            np.isfinite(heights[slot])
-        )
+        valid[:, slot] = np.isfinite(distances[:, slot]) & np.isfinite(heights[slot])
 
     if median_count >= 2:
         # Presence floor AND the primitive's minimum detections: below two valid
@@ -1075,13 +1085,10 @@ def _sticky_serve_setup_before(
         if any(np.mean(valid[:, slot]) < PLAYER_PRESENT_MIN_FRAC or
                np.count_nonzero(valid[:, slot]) < 2 for slot in Slot):
             return False
-        nearest = np.full(len(distances), np.nan)
-        for frame in range(len(distances)):
-            finite = distances[frame, np.isfinite(distances[frame])]
-            if len(finite):
-                nearest[frame] = np.min(finite)
-        finite_nearest = nearest[np.isfinite(nearest)]
-        if not len(finite_nearest) or np.median(finite_nearest) > threshold:
+        if not any(
+            _serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold)
+            for slot in Slot
+        ):
             return False
         return stillness_threshold_bh is None or serve_setup_still(
             setup, burst, stillness_window_frames, stillness_threshold_bh, (Slot.TOP, Slot.BOTTOM),
@@ -1092,8 +1099,7 @@ def _sticky_serve_setup_before(
             slot_valid = valid[:, slot]
             if np.mean(slot_valid) < PLAYER_PRESENT_MIN_FRAC or np.count_nonzero(slot_valid) < 2:
                 continue
-            finite_distances = distances[:, slot][slot_valid]
-            if not len(finite_distances) or np.median(finite_distances) > threshold:
+            if not _serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold):
                 continue
             if stillness_threshold_bh is None:
                 return True
@@ -1103,7 +1109,7 @@ def _sticky_serve_setup_before(
             )
             ankles_out = masked.top_ankles if slot is Slot.TOP else masked.bot_ankles
             heights_out = masked.top_height if slot is Slot.TOP else masked.bot_height
-            stillness_distances = setup.distances[stillness_window, slot]
+            stillness_distances = setup.wrist_dist[stillness_window, slot]
             stillness_ankles = ankles_out[stillness_window]
             stillness_heights = heights_out[stillness_window]
             stillness_valid = (
@@ -1521,6 +1527,7 @@ class StickyResult(NamedTuple):
     ankle_pos: np.ndarray
     bbox_height: np.ndarray
     distances_per_slot: np.ndarray
+    wrist_dist_px: np.ndarray
     analysed: np.ndarray
 
 
@@ -1606,6 +1613,7 @@ def build_sticky_result(
     # Same fail-closed sentinel as the collapsed series: +inf outside the spans,
     # NaN once a frame is visited but a slot carries no finite gap.
     distances_per_slot = np.full((n_frames, 2), np.inf, dtype=np.float64)
+    wrist_dist_px = np.full((n_frames, 2), np.inf, dtype=np.float64)
     analysed = np.zeros(n_frames, dtype=bool)
 
     for start, end in segments:
@@ -1613,6 +1621,7 @@ def build_sticky_result(
         for frame in range(start, end):
             analysed[frame] = True
             distances_per_slot[frame] = np.nan
+            wrist_dist_px[frame] = np.nan
             analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)
             standing_count[frame] = analysis.standing_in_court_count
             if analysis.picks is None:
@@ -1656,6 +1665,8 @@ def build_sticky_result(
                 divisor = float(np.nanmean(window)) if np.isfinite(window).any() else float('nan')
                 if np.isfinite(divisor) and divisor > 0.0:
                     distances_per_slot[frame, half] = numerator / divisor
+                if track[frame, 2] == 1:
+                    wrist_dist_px[frame, half] = numerator
 
     gaps = np.full(n_frames, np.inf)
     for frame in np.flatnonzero(analysed):
@@ -1663,7 +1674,8 @@ def build_sticky_result(
         gaps[frame] = float(finite_distances.min()) if len(finite_distances) else float('nan')
 
     return StickyResult(
-        gaps, picks_out, standing_count, ankle_pos, bbox_height, distances_per_slot, analysed,
+        gaps, picks_out, standing_count, ankle_pos, bbox_height, distances_per_slot, wrist_dist_px,
+        analysed,
     )
 
 

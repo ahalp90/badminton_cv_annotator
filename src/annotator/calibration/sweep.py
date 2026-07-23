@@ -52,7 +52,7 @@ TOLERANCES = (1, 2, 5, 10)
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
 DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound", "quiet_start_window"})
-SERVE_NUMERIC_KEYS = frozenset({"threshold", "stillness_threshold_bh", "serve_stillness_window_frames"})
+SERVE_NUMERIC_KEYS = frozenset({"threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames"})
 
 BOUNDARY_VALUES = {
     "rest_speed": (1 / 600, 1 / 400, 1 / 240, 1 / 120, 1 / 60),
@@ -250,10 +250,10 @@ def _base_and_serve(spec: CandidateSpec) -> tuple[BaseAnnotatorConfig, ServeStar
     base = BaseAnnotatorConfig(**base_kwargs)
     if not serve and "mode" not in spec.strategies and "close" not in spec.strategies:
         return base, None
-    if "threshold" not in serve or "mode" not in spec.strategies:
-        raise ValueError("serve request requires threshold and mode")
+    if "threshold_bh" not in serve or "mode" not in spec.strategies:
+        raise ValueError("serve request requires threshold_bh and mode")
     close = ServeStartClose[spec.strategies["close"]] if "close" in spec.strategies else None
-    return base, ServeStartConfig(serve["threshold"], ServeStartMode[spec.strategies["mode"]], close, serve.get("stillness_threshold_bh"))
+    return base, ServeStartConfig(serve["threshold_bh"], ServeStartMode[spec.strategies["mode"]], close, serve.get("stillness_threshold_bh"))
 
 
 def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
@@ -263,7 +263,7 @@ def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
 
 
 def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
-    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "quiet_start_window", "threshold", "stillness_threshold_bh", "serve_stillness_window_frames", "span_open", "mode", "close")
+    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "quiet_start_window", "threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames", "span_open", "mode", "close")
     ranks = {"span_open": {None: 0, "REGION_START": 1, "BACK_FILL": 2}, "mode": {None: 0, "TRIM": 1, "REJECT": 2}, "close": {None: 0, "BURST": 1, "LAST_REST": 2}}
     values: list[tuple[int, object]] = []
     for key in keys:

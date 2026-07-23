@@ -27,6 +27,7 @@ from annotator.rally_segmentation import (
     _last_rest_close,
     _nan_rolling_mean,
     _rolling_mean,
+    _serve_distance_ratio_passes,
     _serve_setup_before,
     _serve_setup_before_boxheight,
     _serve_start_find_rally_spans,
@@ -898,6 +899,15 @@ def test_serve_setup_before_boxheight_fails_closed():
     height = np.full(40, 0.30)
     all_nan = np.full(40, np.nan)
     assert not _serve_setup_before_boxheight(all_nan, height, 30, 1.0)
+
+
+def test_serve_distance_ratio_helper_uses_distance_mask_and_boundary() -> None:
+    window_dist = np.array([0.2, 0.4, np.nan])
+    window_height = np.array([1.0, 1.0, 100.0])
+    boundary = float(np.median(window_dist[:2]) / np.mean(window_height[:2]))
+    assert _serve_distance_ratio_passes(window_dist, window_height, boundary)
+    assert not _serve_distance_ratio_passes(window_dist, window_height, np.nextafter(boundary, 0.0))
+    assert not _serve_distance_ratio_passes(np.full(3, np.nan), window_height, 1.0)
 
 
 def test_serve_start_boxheight_gate_dispatch_and_none_is_raw():

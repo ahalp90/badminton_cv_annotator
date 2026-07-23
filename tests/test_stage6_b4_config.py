@@ -54,7 +54,7 @@ def test_rejected_grades_are_validated_and_copied_to_resolved_config() -> None:
 
 def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve(BaseAnnotatorConfig(), 30.0).span_open is SpanOpen.BACK_FILL
-    config = type('Config', (), {'close': object(), 'threshold': 0.1, 'mode': None,
+    config = type('Config', (), {'close': object(), 'threshold_bh': 0.1, 'mode': None,
                                   'stillness_threshold_bh': None})()
     with pytest.raises(ValueError, match='unsupported with BACK_FILL'):
         build_serve_options(config, None, scale_for_fps(30.0), (1.0, 1.0))

@@ -83,9 +83,9 @@ class ContactCandidate(NamedTuple):
 
 
 class ServeStartConfig(NamedTuple):
-    """Policy-only serve-start request; run_video builds its evidence arrays."""
+    """Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit."""
 
-    threshold: float
+    threshold_bh: float
     mode: 'ServeStartMode'
     close: 'ServeStartClose | None' = None
     stillness_threshold_bh: float | None = None

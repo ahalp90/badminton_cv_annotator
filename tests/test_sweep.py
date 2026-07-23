@@ -51,7 +51,7 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     spec = sweep.CandidateSpec(
         "grid",
         {**boundary, "smooth_window": 4, "gap_state_demotion_bound": 2,
-         "quiet_start_window": 3, "threshold": 0.1,
+         "quiet_start_window": 3, "threshold_bh": 0.1,
          "stillness_threshold_bh": 0.2, "serve_stillness_window_frames": 4},
         {"span_open": "BACK_FILL", "mode": "TRIM", "close": "BURST"},
     )
@@ -59,8 +59,8 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     assert base.overrides_base30 is not None
     assert base.overrides_base30["smooth_window"] == 4
     assert base.gap_state_demotion_bound == 2
-    assert serve is not None and serve.threshold == 0.1
-    assert sweep.serialise_spec(spec)["overrides_base30"]["threshold"] == 0.1
+    assert serve is not None and serve.threshold_bh == 0.1
+    assert sweep.serialise_spec(spec)["overrides_base30"]["threshold_bh"] == 0.1
 
 
 def test_quality_floor_uses_greatest_coverage(tmp_path, monkeypatch, capsys) -> None:
@@ -229,7 +229,7 @@ def test_alignment_split_log_and_csv_serialisation_rules(tmp_path) -> None:
 def test_routing_depth_enums_and_changed_defaults() -> None:
     spec = sweep.CandidateSpec("grid", {
         "gap_state_demotion_bound": 2, "quiet_start_window": 3,
-        "threshold": 0.1, "stillness_threshold_bh": 0.2,
+        "threshold_bh": 0.1, "stillness_threshold_bh": 0.2,
         "serve_stillness_window_frames": 4,
     }, {"span_open": "BACK_FILL", "mode": "TRIM", "close": "BURST"})
     base, serve = sweep._base_and_serve(spec)
@@ -249,6 +249,17 @@ def test_routing_depth_enums_and_changed_defaults() -> None:
     for key, values in sweep.CONTACT_VALUES.items():
         for value in values:
             sweep._base_and_serve(sweep.CandidateSpec("grid", {key: value}, {}))
+
+
+def test_serve_threshold_bh_routes_and_old_threshold_is_closed() -> None:
+    old_spec = sweep.CandidateSpec("named", {"threshold": 0.8}, {"mode": "TRIM"})
+    with pytest.raises(ValueError, match="cannot route numeric sweep key 'threshold'"):
+        sweep._base_and_serve(old_spec)
+
+    new_spec = sweep.CandidateSpec("named", {"threshold_bh": 0.8}, {"mode": "TRIM"})
+    _base, serve = sweep._base_and_serve(new_spec)
+    assert serve is not None and serve.threshold_bh == 0.8
+    assert sweep.ServeStartConfig(threshold_bh=0.8, mode=ServeStartMode.TRIM).threshold_bh == 0.8
 
 
 def _valid_winner() -> dict[str, object]:

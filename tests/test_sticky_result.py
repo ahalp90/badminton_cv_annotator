@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.rally_segmentation import CourtBox, build_sticky_result, segment_video
+from annotator.rally_segmentation import WRIST_L, WRIST_R, CourtBox, build_sticky_result, segment_video
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -124,6 +124,35 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
     assert np.isfinite(result.distances[3]) == bool(np.isfinite(top_gap))
     if np.isfinite(top_gap):
         assert result.distances[3] == top_gap
+
+
+def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
+    (track, segments, bboxes, scores, kps, ndet, court_box,
+     court_info, resolution_table) = _sticky_inputs()
+    track = track.copy()
+    track[2, :2] = 0.0
+    track[2, 2] = 0.0
+    kps[3, 0, WRIST_L] = (640.0, 300.0)
+    kps[3, 0, WRIST_R] = (600.0, 180.0)
+
+    result = build_sticky_result(
+        track, segments, bboxes, scores, kps, ndet, '1', court_info,
+        resolution_table, court_box, (1280.0, 720.0), half_window=1,
+    )
+
+    assert result.wrist_dist_px.shape == (len(track), 2)
+    assert result.wrist_dist_px.dtype == np.float64
+    assert np.isposinf(result.wrist_dist_px[0]).all()
+    assert np.isposinf(result.wrist_dist_px[4]).all()
+    assert np.isnan(result.wrist_dist_px[2]).all()
+    assert np.isnan(result.wrist_dist_px[3, 1])
+    assert result.wrist_dist_px[3, 0] == pytest.approx(10.0)
+
+    # The invisible frame keeps the old corner-derived contact-distance cache and collapse,
+    # while the serve-only raw wrist cache refuses to measure it.
+    assert np.isfinite(result.distances_per_slot[2]).all()
+    assert np.isfinite(result.distances[2])
+    assert result.distances[2] == pytest.approx(np.min(result.distances_per_slot[2]))
 
 
 def test_segment_video_sticky_distance_exclusions_are_mutual():

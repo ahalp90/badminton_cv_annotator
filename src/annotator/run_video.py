@@ -70,11 +70,17 @@ def _record_rejection(
 def build_serve_options(
     config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,
 ) -> stage8_seg.ServeStartOptions:
-    """Build sticky-sourced serve-start evidence from the unmasked cache."""
+    """Build sticky-sourced serve-start evidence from the unmasked cache.
+
+    Serve evidence deliberately comes from the sticky cache built before any masking; the
+    committed mask demonstrably eats live serves on sset21, and masking policy belongs to the
+    decontamination commit and parked redesign, not this lane.
+    """
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
     return stage8_seg.ServeStartOptions(
-        dist=None, threshold=config.threshold, mode=config.mode, close=config.close,
+        # ServeStartOptions keeps its legacy threshold carrier; this sticky path supplies body heights.
+        dist=None, threshold=config.threshold_bh, mode=config.mode, close=config.close,
         setup=stage8_seg.build_serve_setup_inputs(sticky, resolution),
         stillness_threshold_bh=config.stillness_threshold_bh,
         lookback_frames=constants.serve_start_lookback_frames,
