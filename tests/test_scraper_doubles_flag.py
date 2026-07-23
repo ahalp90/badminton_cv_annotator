@@ -153,8 +153,9 @@ def test_read_whole_video_flags_rejects_non_literal_booleans(tmp_path, value):
 def _run_segmentation_cli(tmp_path, monkeypatch, *, doubles_csv: Path | None, processed: list[str]) -> None:
     shuttle_dir = tmp_path / 'tracks'
     shuttle_dir.mkdir()
-    for video_id in ('vid_a', 'vid_b', 'vid_c'):
-        np.save(shuttle_dir / f'{video_id}.npy', np.zeros((4, 3)))
+    # Distinct lengths so `processed` identifies WHICH video ran, not just how many.
+    for video_id, n_frames in (('vid_a', 4), ('vid_b', 5), ('vid_c', 6)):
+        np.save(shuttle_dir / f'{video_id}.npy', np.zeros((n_frames, 3)))
 
     from annotator import rally_segmentation as segmentation
 
@@ -184,7 +185,7 @@ def test_runner_excludes_doubles_and_missing_rows(tmp_path, monkeypatch, caplog)
     with caplog.at_level(logging.WARNING):
         _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=flags_csv, processed=processed)
 
-    assert processed == ['4']
+    assert processed == ['5']  # vid_b's length: the one unflagged video, and only it
     assert 'excluding vid_a: flagged doubles' in caplog.text
     assert 'excluding vid_c: no doubles row; not assuming singles' in caplog.text
 
@@ -194,4 +195,17 @@ def test_runner_without_doubles_csv_processes_all(tmp_path, monkeypatch):
 
     _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=None, processed=processed)
 
-    assert processed == ['4', '4', '4']
+    assert processed == ['4', '5', '6']
+
+
+def test_runner_raises_when_doubles_filter_excludes_every_video(tmp_path, monkeypatch):
+    # Per-rally rows only (this module's own CLI output form): no video has a
+    # whole-video row, so all are excluded and the batch must refuse to run.
+    flags_csv = tmp_path / 'doubles_flags.csv'
+    _write_flags(flags_csv, [('vid_a', '0', 'False'), ('vid_b', '1', 'True')])
+    processed: list[str] = []
+
+    with pytest.raises(ValueError, match='excluded every video'):
+        _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=flags_csv, processed=processed)
+
+    assert processed == []

@@ -2101,6 +2101,14 @@ def main() -> None:
                 log.warning('excluding %s: flagged doubles', video_id)
             else:
                 filtered_track_paths.append(track_path)
+        # One excluded clip is a log line; the whole batch excluded must block. A flags
+        # CSV with no whole-video rows (e.g. this module's own per-rally CLI output)
+        # would otherwise empty the batch and exit 0.
+        if track_paths and not filtered_track_paths:
+            raise ValueError(
+                f'{args.doubles_csv}: the doubles filter excluded every video in the batch; '
+                'refusing to write empty outputs'
+            )
         track_paths = filtered_track_paths
 
     for track_path in track_paths:

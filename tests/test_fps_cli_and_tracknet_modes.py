@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
+
 def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
     import annotator.composition_mask as stage9
 
@@ -249,9 +251,11 @@ def test_batch_shuttle_extractor_builds_tracknet_command(
     ('cli_args', 'expected_stride', 'expected_large_video'),
     [
         ([], 1, False),
-        (['--profile', 'scrape'], 8, True),
-        (['--profile', 'scrape', '--tracknet-stride', '1'], 1, True),
-        (['--profile', 'scrape', '--no-large-video'], 8, False),
+        # The scrape profile's expectations come from scraper.config, so a deliberate
+        # profile change moves the test with it; explicit CLI overrides stay literal.
+        (['--profile', 'scrape'], SCRAPE_TRACKNET_STRIDE, SCRAPE_TRACKNET_LARGE_VIDEO),
+        (['--profile', 'scrape', '--tracknet-stride', '1'], 1, SCRAPE_TRACKNET_LARGE_VIDEO),
+        (['--profile', 'scrape', '--no-large-video'], SCRAPE_TRACKNET_STRIDE, False),
         (['--large-video'], 1, True),
     ],
 )

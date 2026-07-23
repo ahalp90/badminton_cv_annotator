@@ -45,7 +45,7 @@ Recall is unrecoverable downstream while precision is recovered there (wrist
 filter, then the featurised verifier), so a miss costs more than a false hit.
 
 Usage:
-    python -m scripts.stage8_sweep \\
+    python -m scripts.archive.stage8_sweep \\
         --track-npy /scratch/.../1.npy --vid 1 \\
         --out-dir /scratch/.../stage8_sweep [--phase both] [--workers N] \\
         [--mask-npy /scratch/.../1_replay.npy] [--nan-smoothing] \\
