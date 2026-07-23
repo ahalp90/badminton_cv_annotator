@@ -13,6 +13,7 @@ Usage:
 """
 import argparse
 import gc
+import os
 import sys
 from pathlib import Path
 
@@ -49,6 +50,8 @@ def main():
     tracknet, inpaintnet, t_seq, i_seq, bg_mode = load_models(
         args.tracknet_file, args.inpaintnet_file or None
     )
+    tracknet_ckpt = os.path.basename(args.tracknet_file)
+    inpaintnet_ckpt = os.path.basename(args.inpaintnet_file) if args.inpaintnet_file else None
     print('Models loaded.', flush=True)
 
     # Read clip list
@@ -77,6 +80,7 @@ def main():
                 args.save_dir, eval_mode=args.eval_mode,
                 batch_size=args.batch_size, dry_run=args.dry_run,
                 large_video=args.large_video,
+                tracknet_ckpt=tracknet_ckpt, inpaintnet_ckpt=inpaintnet_ckpt,
             )
             successes += 1
         except Exception as e:
