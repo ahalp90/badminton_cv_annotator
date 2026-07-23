@@ -21,9 +21,10 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import PERSPECTIVE_SHIFT_THRESHOLD, SLOWMO_SPEED_FRAC
+from .config import BaseAnnotatorConfig, PERSPECTIVE_SHIFT_THRESHOLD, SLOWMO_SPEED_FRAC
 from scraper.config import MASKS_DIR, RALLY_SPANS_CSV
 from .fps_constants import scale_for_fps
+from .inpaint_guard import code_counts, grade_track
 from .rally_segmentation import compute_speed, rolling_nanmedian, true_runs
 
 log = logging.getLogger(__name__)
@@ -141,8 +142,20 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
 # ---------------------------------------------------------------------------
 # Signal 3: velocity drop (slow motion)
 # ---------------------------------------------------------------------------
+def _validate_optional_frame_mask(name: str, values: np.ndarray | None, n_frames: int) -> None:
+    """Validate one optional frame-aligned boolean mask."""
+    if values is not None and (
+        not isinstance(values, np.ndarray)
+        or values.ndim != 1
+        or values.dtype != np.bool_
+        or len(values) != n_frames
+    ):
+        raise ValueError(f'{name} must be a one-dimensional np.bool_ array of length {n_frames}')
+
+
 def velocity_drop_signal(
     track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float,
+    *, non_evidence: np.ndarray | None = None, baseline_exclude: np.ndarray | None = None,
 ) -> np.ndarray:
     """Fire where visible shuttle speed drops well below the rally norm (slow-mo).
 
@@ -155,6 +168,8 @@ def velocity_drop_signal(
     commentary stage 11 pairs with lives; masking rest would hold every
     post-rally chunk out of pairing. Slow motion means moving, slowly.
 
+    Speed steps touching a non_evidence frame are unmeasured: they feed neither the baseline nor the rolling median; edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.
+
     :param track: `(t, 3)` whole-video shuttle track, or None.
     :param rally_spans: `[(start, end), ...]` rally spans for this video, or None/empty.
     :param n_frames: video frame count (the mask length).
@@ -166,11 +181,18 @@ def velocity_drop_signal(
         return mask
     if len(track) != n_frames:
         raise ValueError(f'shuttle track length {len(track)} != n_frames {n_frames}')
+    _validate_optional_frame_mask('non_evidence', non_evidence, len(track))
+    _validate_optional_frame_mask('baseline_exclude', baseline_exclude, len(track))
 
     speed = compute_speed(track)  # (t,) per-frame, NaN on non-visible steps
+    if non_evidence is not None:
+        unmeasured_steps = non_evidence[1:] | non_evidence[:-1]  # (t-1,) either endpoint is graded
+        speed[1:][unmeasured_steps] = np.nan
     in_rally = np.zeros(len(track), dtype=bool)  # (t,) frames inside any rally span
     for start, end in rally_spans:
         in_rally[start:end] = True
+    if baseline_exclude is not None:
+        in_rally &= ~baseline_exclude
 
     rally_speed = speed[in_rally]
     if not np.any(~np.isnan(rally_speed)):
@@ -200,6 +222,7 @@ def combine_mask(
     rally_spans: list[tuple[int, int]] | None,
     n_frames: int,
     fps: float,
+    *, non_evidence: np.ndarray | None = None,
 ) -> np.ndarray:
     """Union the three replay/off-rally signals (any-of, the spec's default).
 
@@ -207,7 +230,10 @@ def combine_mask(
     """
     court = court_absence_signal(court_present, n_frames, fps)
     perspective = perspective_shift_signal(homography_rows, n_frames)
-    velocity = velocity_drop_signal(track, rally_spans, n_frames, fps)
+    velocity = velocity_drop_signal(
+        track, rally_spans, n_frames, fps,
+        non_evidence=non_evidence, baseline_exclude=court | perspective,
+    )
     return court | perspective | velocity
 
 
@@ -233,6 +259,15 @@ def _read_rally_spans(csv_path: Path, video_id: str) -> list[tuple[int, int]]:
             for row in csv.DictReader(handle)
             if row.get('video_id') == video_id
         ]
+
+
+def _cli_non_evidence(track: np.ndarray | None) -> np.ndarray | None:
+    """Grade a CLI track and return frames rejected by the resolved policy."""
+    if track is None:
+        return None
+    codes, _guard_info = grade_track(track)
+    log.info('inpaint grade counts: %s', code_counts(codes))
+    return np.isin(codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
 
 
 def main() -> None:
@@ -265,7 +300,10 @@ def main() -> None:
     else:
         raise FileNotFoundError('need a court-present mask or a shuttle track to size the frame mask')
 
-    mask = combine_mask(court_present, homography_rows, track, rally_spans, n_frames, args.fps)
+    mask = combine_mask(
+        court_present, homography_rows, track, rally_spans, n_frames, args.fps,
+        non_evidence=_cli_non_evidence(track),
+    )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.out_dir / f'{args.video_id}_replay.npy'

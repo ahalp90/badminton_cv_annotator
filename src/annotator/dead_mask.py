@@ -54,6 +54,7 @@ def build_dead_mask(
     cut_frames: Sequence[int] | np.ndarray | None = None,
     keep_vote: np.ndarray | None = None,
     vote: float | None = None,
+    non_evidence: np.ndarray | None = None,
 ) -> np.ndarray:
     """Build a boolean dead-time mask using the selected producer policy.
 
@@ -65,7 +66,10 @@ def build_dead_mask(
     # string fails loudly in the cast.
     mode = DeadMaskMode(mode)
     if mode is DeadMaskMode.REPLAY:
-        return combine_mask(court_present, homography_rows, track, rally_spans, n_frames, fps)
+        return combine_mask(
+            court_present, homography_rows, track, rally_spans, n_frames, fps,
+            non_evidence=non_evidence,
+        )
 
     cuts, votes = _validate_composition_inputs(n_frames, keep_vote, cut_frames)
     composition_vote = COMPOSITION_KEEP_VOTE if vote is None else vote
@@ -73,5 +77,8 @@ def build_dead_mask(
     if mode is DeadMaskMode.COMPOSITION:
         return composition
 
-    replay = combine_mask(court_present, homography_rows, track, rally_spans, n_frames, fps)
+    replay = combine_mask(
+        court_present, homography_rows, track, rally_spans, n_frames, fps,
+        non_evidence=non_evidence,
+    )
     return composition | replay

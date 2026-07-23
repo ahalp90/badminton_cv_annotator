@@ -551,3 +551,36 @@ def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
         '0,won,Top,True',
         '2,,,',
     ]
+
+
+@pytest.mark.parametrize('contacts_mode', ['injected', 'natural'])
+@pytest.mark.parametrize('mask_source', ['inpaint_codes', 'event_non_evidence_mask'])
+def test_run_video_threads_event_mask_to_dead_mask_builder(
+    monkeypatch, contacts_mode, mask_source,
+) -> None:
+    inputs = _synthetic_inputs()
+    del inputs['dead_mask']
+    n_frames = len(inputs['track'])
+    if mask_source == 'inpaint_codes':
+        codes = np.zeros(n_frames, dtype=np.uint8)
+        codes[[40, 80]] = 3
+        inputs['inpaint_codes'] = codes
+        expected_mask = codes == 3
+    else:
+        expected_mask = np.zeros(n_frames, dtype=bool)
+        expected_mask[[40, 80]] = True
+        inputs['event_non_evidence_mask'] = expected_mask
+
+    received = []
+
+    def fake_dead_mask(*_args, **kwargs):
+        received.append(kwargs['non_evidence'].copy())
+        return np.zeros(n_frames, dtype=bool)
+
+    monkeypatch.setattr(run_video_module, 'build_dead_mask', fake_dead_mask)
+    kwargs = {'spans': [(10, 20)], 'contacts': {0: [14]}} if contacts_mode == 'injected' else {}
+
+    run_video(**inputs, **_default_scene_inputs(n_frames), **kwargs)
+
+    assert len(received) == 1
+    np.testing.assert_array_equal(received[0], expected_mask)

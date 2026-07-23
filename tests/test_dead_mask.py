@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import annotator.dead_mask as dead_mask_module
 from annotator.config import COMPOSITION_KEEP_VOTE
 from annotator.dead_mask import build_dead_mask
 from annotator.replay_mask import combine_mask
@@ -91,3 +92,40 @@ def test_composition_rejects_non_vector_keep_vote() -> None:
             DeadMaskMode.COMPOSITION, 3, 30.0,
             cut_frames=[], keep_vote=np.ones((1, 3), dtype=bool),
         )
+
+
+@pytest.mark.parametrize('mode', [DeadMaskMode.REPLAY, DeadMaskMode.UNION])
+def test_replay_modes_forward_non_evidence(monkeypatch, mode) -> None:
+    n_frames = 6
+    non_evidence = np.array([False, True, False, False, True, False], dtype=bool)
+    received = []
+
+    def fake_combine(*_args, **kwargs):
+        received.append(kwargs['non_evidence'])
+        return np.zeros(n_frames, dtype=bool)
+
+    monkeypatch.setattr(dead_mask_module, 'combine_mask', fake_combine)
+    kwargs = {'non_evidence': non_evidence}
+    if mode is DeadMaskMode.UNION:
+        kwargs.update(cut_frames=np.array([3]), keep_vote=np.ones(n_frames, dtype=bool))
+
+    build_dead_mask(mode, n_frames, 30.0, **kwargs)
+
+    assert len(received) == 1
+    np.testing.assert_array_equal(received[0], non_evidence)
+
+
+def test_composition_ignores_non_evidence_without_calling_replay(monkeypatch) -> None:
+    def fail_combine(*_args, **_kwargs):
+        pytest.fail('composition mode must not call combine_mask')
+
+    monkeypatch.setattr(dead_mask_module, 'combine_mask', fail_combine)
+    non_evidence = np.array([False, True, False, False, True, False], dtype=bool)
+
+    result = build_dead_mask(
+        DeadMaskMode.COMPOSITION, 6, 30.0,
+        cut_frames=np.array([3, 5]), keep_vote=np.array([True, True, True, False, False, True]),
+        non_evidence=non_evidence,
+    )
+
+    np.testing.assert_array_equal(result, [False, False, False, True, True, False])

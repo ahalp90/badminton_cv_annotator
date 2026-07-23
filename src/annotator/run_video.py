@@ -208,7 +208,7 @@ def run_video(
         mask = dead_mask if dead_mask is not None else build_dead_mask(
             resolved.dead_mask_mode, len(track), fps, court_present=court_present,
             homography_rows=homography_rows, track=track, rally_spans=final_spans,
-            cut_frames=cut_frames, keep_vote=keep_vote,
+            cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
         )
     else:
         # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
@@ -222,7 +222,7 @@ def run_video(
         mask = dead_mask if dead_mask is not None else build_dead_mask(
             resolved.dead_mask_mode, len(track), fps, court_present=court_present,
             homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
-            cut_frames=cut_frames, keep_vote=keep_vote,
+            cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
         )
         serve_options = None
         if serve_start is not None:
