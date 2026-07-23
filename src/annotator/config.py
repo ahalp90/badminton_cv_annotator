@@ -77,7 +77,11 @@ COURT_ABSENT_WINDOW = _AT_25FPS.court_absent_window  # frames of court-present F
 # fraction of frame size. Spec names the constant without a default; 0.05 is
 # the build's starting value, tuned at B5.
 PERSPECTIVE_SHIFT_THRESHOLD = 0.05
-SLOWMO_SPEED_FRAC = 0.3  # median speed under this fraction of rally median = slow-mo
+# Median speed under this fraction of rally median = slow-mo. 0.15 is swept
+# against the decontaminated baseline (records/decontam_frac_sweep, autograder
+# docs); the old 0.3 was tuned against the pre-decontamination norm and read
+# rally-tail deceleration as slow motion.
+SLOWMO_SPEED_FRAC = 0.15
 
 # Composition dead-mask (stage9_composition_mask), the per-segment alternative to
 # the replay mask. A PySceneDetect content pass cuts the timeline; each segment is

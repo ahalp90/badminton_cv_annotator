@@ -73,13 +73,13 @@ def _speed_track(step: float, n_frames: int) -> np.ndarray:
 
 def test_velocity_drop_fires_on_slow_span_not_normal_play():
     n_frames = 90
-    normal_step, slow_step = 0.1, 0.015
+    normal_step, slow_step = 0.1, 0.012
     track = _speed_track(normal_step, n_frames)
     track[40:80, 1] = 0.4 + slow_step * (np.arange(40, 80) % 2)  # slow replay span
     rally_spans = [(0, 31)]                                       # normal play defines the norm
 
     mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
-    # slow_step (0.015) < SLOWMO_SPEED_FRAC * normal_step (0.03); normal play stays above.
+    # slow_step (0.012) < SLOWMO_SPEED_FRAC * normal_step (0.015); normal play stays above.
     assert slow_step < SLOWMO_SPEED_FRAC * normal_step
     assert mask[45:78].all()
     assert not mask[3:28].any()
@@ -131,7 +131,7 @@ def test_missing_inputs_contribute_all_false():
 def test_non_evidence_measures_steps_not_output_frames():
     n_frames = 100
     track = _speed_track(0.1, n_frames)
-    track[40:80, 1] = 0.4 + 0.015 * (np.arange(40, 80) % 2)
+    track[40:80, 1] = 0.4 + 0.012 * (np.arange(40, 80) % 2)
     rally_spans = [(0, 31)]
 
     long_graded = np.zeros(n_frames, dtype=bool)
