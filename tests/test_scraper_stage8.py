@@ -460,9 +460,7 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
 
 
 def test_segment_video_replay_mask_freezes_masked_region_to_rest():
-    # A track that forms one span; masking the whole rally region freezes it to rest, so the
-    # masked pass finds no span where the unmasked one did (the mask is applied inside
-    # segment_video, before speed).
+    # A whole sustained raw run freezes the complete rally region to rest.
     track, rally_start, rally_end, _contacts = _build_rally_track()
     assert len(segment_video(track)[0]) == 1
     mask = np.zeros(len(track), dtype=bool)

@@ -26,6 +26,7 @@ def test_parser_has_only_manifest_and_output_controls():
     args = run_cli.build_parser().parse_args([])
     assert args.fixtures is None
     assert args.out is None
+    assert args.no_replay_mask is False
     with pytest.raises(SystemExit) as excinfo:
         run_cli.build_parser().parse_args(["--fps", "25"])
     assert excinfo.value.code == 2
@@ -41,6 +42,23 @@ def test_selected_fixture_writes_flat_metrics_row(tmp_path, capsys):
         ) == 0
     assert (tmp_path / "out" / "pilot_metrics.csv").read_text() == "covered,f1\n2,0.5\n"
     assert "TABLE ['pilot']" in capsys.readouterr().out
+
+
+def test_maskless_switch_reaches_fixture_runner(tmp_path):
+    received = []
+
+    def runner(fixture, *, no_replay_mask=False):
+        received.append((fixture.name, no_replay_mask))
+        return object()
+
+    with fixture_root(tmp_path):
+        assert run_cli.run_manifest(
+            ['pilot'], registry=(PILOT,), runner=runner,
+            flattener=lambda _: {'covered': 1}, renderer=lambda scores: 'TABLE',
+            no_replay_mask=True,
+        ) == 0
+
+    assert received == [('pilot', True)]
 
 
 def test_fixture_failure_is_skipped_and_next_fixture_runs(tmp_path, capsys):

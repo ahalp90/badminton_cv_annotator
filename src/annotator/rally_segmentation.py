@@ -2126,6 +2126,13 @@ def main() -> None:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
+            if replay_mask is not None:
+                # Local import: replay_mask imports true_runs from this module.
+                from .replay_mask import believe_raw_mask
+
+                if replay_mask.all():
+                    raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+                replay_mask = believe_raw_mask(replay_mask, scale_for_fps(fps).replay_mask_min_frames)
             gate_arrays = None if args.gate_dir is None else _load_gate_arrays(
                 args.gate_dir, video_id, len(track),
             )

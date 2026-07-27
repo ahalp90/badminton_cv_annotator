@@ -78,6 +78,8 @@ if HERE.parents[1] != harness.WORKTREE_ROOT:
 
 point_winner = importlib.import_module("annotator.point_winner")
 rally_segmentation = importlib.import_module("annotator.rally_segmentation")
+replay_mask = importlib.import_module("annotator.replay_mask")
+fps_constants = importlib.import_module("annotator.fps_constants")
 LANDING_OPTS = point_winner.LandingFilterOptions(
     settle_win=7, settle_thr=0.004, settle_min=5, carry_win=7, carry_thr=0.75
 )
@@ -121,7 +123,11 @@ def _build_chain(cfg, track, bboxes, scores, kps, ndet, dead, homo_df, all_court
     )
     filtered_contacts = [
         contact for contact in contacts
-        if contact.wrist_near is not False and contact.suppressed is not True
+        if (
+            contact.wrist_near is not False
+            and contact.suppressed is not True
+            and not dead[contact.contact_frame]
+        )
     ]
     filtered_by_rally: dict[int, list[int]] = {}
     for contact in filtered_contacts:
@@ -191,6 +197,11 @@ def run_video(cfg, radius: int, output_root: Path = OUTPUT_DIR, score_output: bo
     kps = np.load(cfg.pose_dir / f"{cfg.pose_prefix}_kps.npy")
     ndet = np.load(cfg.pose_dir / f"{cfg.pose_prefix}_ndet.npy")
     dead = np.load(cfg.mask_path)
+    if dead.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+    dead = replay_mask.believe_raw_mask(
+        dead, fps_constants.scale_for_fps(harness.CHAIN_FPS).replay_mask_min_frames,
+    )
     chain = _build_chain(
         cfg, track, bboxes, scores, kps, ndet, dead, homo_df, all_court_info,
         gate_info, gate_res, radius,

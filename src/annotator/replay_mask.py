@@ -237,6 +237,29 @@ def combine_mask(
     return court | perspective | velocity
 
 
+def believe_raw_mask(mask: np.ndarray, min_frames: int) -> np.ndarray:
+    """Believe each raw detector run in full when it is long enough.
+
+    The input contains raw detector flags. For each raw run ``[start, end)``,
+    belief covers the whole run when ``end - start >= min_frames``. Applying
+    this function to an already believed mask therefore leaves it unchanged.
+
+    :param mask: one-dimensional boolean raw detector flags.
+    :param min_frames: positive number of consecutive flags needed for belief.
+    :return: one-dimensional boolean mask of believed whole runs.
+    """
+    if not isinstance(mask, np.ndarray) or mask.ndim != 1 or mask.dtype != np.bool_:
+        raise ValueError('mask must be a one-dimensional boolean array')
+    if isinstance(min_frames, bool) or not isinstance(min_frames, (int, np.integer)) or min_frames < 1:
+        raise ValueError(f'min_frames must be a positive integer, got {min_frames!r}')
+
+    believed = np.zeros_like(mask)
+    for start, end in true_runs(mask):
+        if end - start >= min_frames:
+            believed[start:end] = True
+    return believed
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -282,9 +305,12 @@ def main() -> None:
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
     parser.add_argument('--fps', type=float, required=True)
+    parser.add_argument('--no-replay-mask', action='store_true',
+                        help='skip detector computation and write an all-False mask')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
+    log.info('config: no_replay_mask=%s', args.no_replay_mask)
 
     track = np.load(args.shuttle) if args.shuttle and args.shuttle.exists() else None
     court_present = np.load(args.court_mask) if args.court_mask and args.court_mask.exists() else None
@@ -300,10 +326,13 @@ def main() -> None:
     else:
         raise FileNotFoundError('need a court-present mask or a shuttle track to size the frame mask')
 
-    mask = combine_mask(
-        court_present, homography_rows, track, rally_spans, n_frames, args.fps,
-        non_evidence=_cli_non_evidence(track),
-    )
+    if args.no_replay_mask:
+        mask = np.zeros(n_frames, dtype=bool)
+    else:
+        mask = combine_mask(
+            court_present, homography_rows, track, rally_spans, n_frames, args.fps,
+            non_evidence=_cli_non_evidence(track),
+        )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.out_dir / f'{args.video_id}_replay.npy'

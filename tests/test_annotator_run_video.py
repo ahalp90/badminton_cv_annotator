@@ -202,7 +202,7 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
     assert len(option_stickies) == 1
     assert len(segment_tracks) == 1
     np.testing.assert_array_equal(segment_tracks[0][0], original_track)
-    assert segment_tracks[0][1][0]
+    assert not segment_tracks[0][1][0]  # the one-frame raw flag is cleared by believe_raw_mask
 
 
 def test_run_video_rejects_serve_start_with_injected_spans() -> None:
@@ -290,6 +290,31 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
 
     assert result.verdict_rows[0].verdict is None
     assert result.landings[0] is None
+
+
+def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeypatch):
+    inputs = _synthetic_inputs()
+    dead_mask = np.zeros(len(inputs['track']), dtype=bool)
+    dead_mask[:23] = True  # contacts 12, 14, and 16 are all past belief onset at 25 fps
+    inputs['dead_mask'] = dead_mask
+    rows = []
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: pytest.fail('trusted-dead contacts must not be attributed'),
+    )
+
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
+        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows,
+    )
+
+    assert result.filtered_contacts == []
+    assert result.striker_halves == [None]
+    assert result.geometric_verdict_rows == {}
+    assert rows == [{
+        'rule': 'all_contacts_on_believed_mask', 'rally_id': 0,
+        'start_frame': 10, 'end_frame': 20, 'trigger_frame': 12, 'trigger_code': '',
+    }]
 
 
 def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
@@ -423,6 +448,7 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
     assert diagnostic.geometric_verdict is None
     assert diagnostic.geometric_winner is None
     assert diagnostic.agreement is None
+    assert diagnostic.window_closed_by_mask is False
 
 
 def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
@@ -433,7 +459,7 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing',
-        lambda *args, **kwargs: Landing(15, (0.5, 0.75), Half.BOT, False, False, False),
+        lambda *args, **kwargs: Landing(15, (0.5, 0.75), Half.BOT, False, False),
     )
 
     result = run_video(
@@ -444,6 +470,28 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     assert diagnostic.geometric_verdict.value == 'won'
     assert diagnostic.geometric_winner is Half.TOP
     assert diagnostic.agreement is True
+    assert diagnostic.window_closed_by_mask is False
+
+
+def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkeypatch):
+    inputs = _synthetic_inputs()
+    dead_mask = np.zeros(len(inputs['track']), dtype=bool)
+    dead_mask[15:28] = True  # belief starts at frame 27 at 25 fps
+    inputs['dead_mask'] = dead_mask
+    inputs['track'][14:, 2] = 1.0
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'attribute_half',
+        lambda *args, **kwargs: Half.TOP,
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing', lambda *args, **kwargs: None,
+    )
+
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]},
+    )
+
+    assert result.geometric_verdict_rows[0].window_closed_by_mask is True
 
 
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
@@ -541,15 +589,15 @@ def _default_scene_inputs(n_frames: int):
 
 def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
     rows = [
-        GeometricVerdictRow(0, Verdict.WON, Half.TOP, True),
-        GeometricVerdictRow(2, None, None, None),
+        GeometricVerdictRow(0, Verdict.WON, Half.TOP, True, False),
+        GeometricVerdictRow(2, None, None, None, False),
     ]
     path = tmp_path / 'pilot_geometric_verdicts.csv'
     write_geometric_verdicts_csv(rows, path)
     assert path.read_text(encoding='utf-8').splitlines() == [
-        'rally_id,geometric_verdict,geometric_winner,agreement',
-        '0,won,Top,True',
-        '2,,,',
+        'rally_id,geometric_verdict,geometric_winner,agreement,window_closed_by_mask',
+        '0,won,Top,True,False',
+        '2,,,,False',
     ]
 
 

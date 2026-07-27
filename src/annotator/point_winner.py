@@ -491,7 +491,9 @@ def _settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
     return win_end
 
 
-def _carried_terminal(terminal: int, kin: LandingKinematics, opts: LandingFilterOptions) -> bool:
+def _carried_terminal(
+    final_contact: int, terminal: int, kin: LandingKinematics, opts: LandingFilterOptions,
+) -> bool:
     """Did the shuttle sit sustained-close to a wrist over the carry_win frames ending at terminal?
 
     With use_ankle_rule set, a carried verdict is overturned when the terminal sample itself sits
@@ -499,7 +501,7 @@ def _carried_terminal(terminal: int, kin: LandingKinematics, opts: LandingFilter
     landing rather than a lowering-by-hand. Association mirrors carry_ratio (nearest ankle vs nearest
     wrist over the court-scale players, body-height units); see build_landing_kinematics.
     """
-    lo = max(0, terminal - opts.carry_win + 1)
+    lo = max(final_contact, terminal - opts.carry_win + 1)
     window = kin.carry_ratio[lo:terminal + 1]
     finite = window[np.isfinite(window)]
     carried = len(finite) > 0 and bool(np.median(finite) <= opts.carry_thr)
@@ -561,7 +563,9 @@ def filtered_descending_landing(
 
     terminals = [terminal_frame for _start_frame, terminal_frame, _end_frame in candidates]
     if opts.use_carry:
-        survivors = [t for t in terminals if not _carried_terminal(t, kin, opts)]
+        survivors = [
+            t for t in terminals if not _carried_terminal(final_contact, t, kin, opts)
+        ]
         if not survivors:
             if opts.null_if_all_carried:
                 return None
@@ -709,7 +713,6 @@ class Landing(NamedTuple):
         part in it.
     :param at_border: True when the picked terminal sat within 2% of any image edge (the shuttle
         left frame mid-fall, not a seen landing).
-    :param masked: True when a replay-masked frame sits between contact and the landing.
     :param net_ender: True when the rally's flight never crossed the net and died in the net band.
     """
 
@@ -717,7 +720,6 @@ class Landing(NamedTuple):
     norm: tuple[float, float]
     half: Half
     at_border: bool
-    masked: bool
     net_ender: bool
 
 
@@ -753,7 +755,6 @@ def pick_landing(
     return Landing(
         frame=landing_frame, norm=norm, half=half,
         at_border=_at_frame_border(landing_xy),
-        masked=bool(dead[final_contact:landing_frame + 1].any()),
         net_ender=is_net_ender(final_contact, win_end, track, striker_half, net_band, resolution),
     )
 
@@ -764,7 +765,7 @@ def geometric_verdict(
     """(verdict, winner_half, source) from the landing geometry at M=0: net rule, else in/out.
 
     best_guess=False (the confident path): None where no confident call is available (off-frame /
-    masked / exactly on a line). best_guess=True (the shipped next-server fallback, for a rally
+    exactly on a line). best_guess=True (the shipped next-server fallback, for a rally
     with no attributable next serve): the raw landing's side membership always yields won/lost, so
     the only blank is a rally with no landing at all.
     """
@@ -780,8 +781,8 @@ def geometric_verdict(
         inside = (SINGLES_X_LO <= x <= SINGLES_X_HI) and (y_lo <= y <= y_hi)
         winner = striker_half if inside else receiver
         return (Verdict.WON if inside else Verdict.LOST), winner, VerdictSource.LANDING_GEOMETRY
-    # Confident path: off-frame / masked / on-line => no call.
-    if landing.at_border or landing.masked:
+    # Confident path: off-frame or on-line => no call.
+    if landing.at_border:
         return None, None, VerdictSource.LANDING_GEOMETRY
     verdict = inout_verdict(np.array(landing.norm), receiver, 0.0)
     if verdict is None:
@@ -815,6 +816,7 @@ class GeometricVerdictRow(NamedTuple):
     geometric_verdict: Verdict | None
     geometric_winner: Half | None
     agreement: bool | None
+    window_closed_by_mask: bool
 
 
 def rally_verdict(

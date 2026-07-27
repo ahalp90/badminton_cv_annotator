@@ -705,10 +705,18 @@ def assert_floors(fixture: Fixture, metrics: dict[str, int | float | None]) -> N
                 f"{fixture.name} {metric}: {current!r} < floor {FLOOR_MULTIPLIER * reference!r}")
 
 
-def run_fixture(fixture: Fixture, diagnostics_dir: Path | None = None) -> VideoScoring:
+def run_fixture(
+    fixture: Fixture, diagnostics_dir: Path | None = None, *, no_replay_mask: bool = False,
+) -> VideoScoring:
+    log.info('config: no_replay_mask=%s', no_replay_mask)
     inputs = build_run_video_inputs(fixture)
     rejection_rows: list[dict[str, object]] = []
     keyword = dict(inputs.keyword)
+    if no_replay_mask:
+        track = inputs.positional[0]
+        if not isinstance(track, np.ndarray):
+            raise TypeError('fixture track must be a numpy array')
+        keyword['dead_mask'] = np.zeros(len(track), dtype=bool)
     keyword["rejection_diagnostics"] = rejection_rows
     result = run_video(*inputs.positional, **keyword)
     if diagnostics_dir is not None:
@@ -727,13 +735,17 @@ def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:
     """Write the additive per-rally geometric winner diagnostics."""
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(("rally_id", "geometric_verdict", "geometric_winner", "agreement"))
+        writer.writerow((
+            "rally_id", "geometric_verdict", "geometric_winner", "agreement",
+            "window_closed_by_mask",
+        ))
         for row in rows:
             writer.writerow((
                 row.rally_id,
                 row.geometric_verdict.value if row.geometric_verdict is not None else "",
                 row.geometric_winner.value if row.geometric_winner is not None else "",
                 row.agreement if row.agreement is not None else "",
+                row.window_closed_by_mask,
             ))
 
 
@@ -774,13 +786,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--capture", action="store_true")
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--no-replay-mask", action="store_true")
     args = parser.parse_args()
     if not args.capture:
         parser.error("--capture is required")
     out = args.out.resolve() if args.out else None
     if out is not None and (out == REPO_ROOT or REPO_ROOT in out.parents):
         parser.error("--out must be outside the repo")
-    scorings = {fixture.name: run_fixture(fixture, out) for fixture in FIXTURES}
+    scorings = {
+        fixture.name: run_fixture(fixture, out, no_replay_mask=args.no_replay_mask)
+        for fixture in FIXTURES
+    }
     scores = {name: flatten_metrics(scoring) for name, scoring in scorings.items()}
     print(render_table(scores, None))
     print(_literal(scores))

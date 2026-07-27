@@ -9,6 +9,7 @@ import annotator.point_winner as point_winner
 import annotator.rally_segmentation as stage8_seg
 from annotator.config import BaseAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
+from annotator.replay_mask import believe_raw_mask
 from annotator.resolve import resolve
 from annotator.types import ContactCandidate, ServeStartConfig
 
@@ -64,6 +65,23 @@ def _record_rejection(
         'end_frame': end_frame,
         'trigger_frame': trigger_frame,
         'trigger_code': int(codes[trigger_frame]) if codes is not None else '',
+    })
+
+
+def _record_trusted_mask_contact_rejection(
+    rows: list[dict[str, object]] | None, rally_id: int,
+    span: tuple[int, int], contact_frames: list[int],
+) -> None:
+    """Record a rally whose scoring contacts all fell on trusted-dead frames."""
+    if rows is None:
+        return
+    rows.append({
+        'rule': 'all_contacts_on_believed_mask',
+        'rally_id': rally_id,
+        'start_frame': span[0],
+        'end_frame': span[1],
+        'trigger_frame': contact_frames[0],
+        'trigger_code': '',
     })
 
 
@@ -192,6 +210,7 @@ def run_video(
         track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
         gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
     )
+    serve_options = None
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Only the preliminary
         # span pass is needed when callers did not inject spans.
@@ -224,12 +243,19 @@ def run_video(
             homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
             cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
         )
-        serve_options = None
+        final_spans = spans
         if serve_start is not None:
             serve_options = build_serve_options(
                 serve_start, sticky, resolved.constants, resolution, resolved.span_open,
             )
-        final_spans = spans
+
+    if len(mask) != len(track):
+        raise ValueError(f'dead mask length {len(mask)} != track length {len(track)}')
+    if mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+    mask = believe_raw_mask(mask, resolved.constants.replay_mask_min_frames)
+
+    if contacts is None:
         final_spans, raw_contacts = stage8_seg.segment_video(
             track, positions=None, thresholds=resolved.thresholds,
             body_unit_half_window=resolved.constants.body_unit_half_window,
@@ -243,7 +269,13 @@ def run_video(
         )
     spans, contacts = final_spans, raw_contacts
 
-    filtered_contacts = scoring_filter(contacts)
+    scored_contacts = scoring_filter(contacts)
+    filtered_contacts = [
+        contact for contact in scored_contacts if not mask[contact.contact_frame]
+    ]
+    scored_by_rally: dict[int, list[int]] = {}
+    for contact in scored_contacts:
+        scored_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
     filtered_by_rally: dict[int, list[int]] = {}
     for contact in filtered_contacts:
         filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
@@ -276,6 +308,11 @@ def run_video(
     for rally_id in range(len(spans)):
         striker = striker_halves[rally_id]
         if striker is None:
+            scored_frames = scored_by_rally.get(rally_id, [])
+            if scored_frames and not filtered_by_rally.get(rally_id):
+                _record_trusted_mask_contact_rejection(
+                    rejection_diagnostics, rally_id, spans[rally_id], scored_frames,
+                )
             continue
         frames = filtered_by_rally[rally_id]
         usable_final_contacts = [frame for frame in frames if not event_mask[frame]]
@@ -297,25 +334,31 @@ def run_video(
             verdict_rows[rally_id] = verdict
             geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
             geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
-                rally_id, geometric, geometric_winner, None,
+                rally_id, geometric, geometric_winner, None, False,
             )
             landings[rally_id] = landing
             continue
         final_contact = usable_final_contacts[-1]
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
+        event_aware_window_end = point_winner.window_end(
+            final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
+            event_mask,
+        )
         if rejection_diagnostics is not None:
-            masked_window_end = point_winner.window_end(
-                final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
-                event_mask,
-            )
-            unmasked_window_end = point_winner.window_end(
+            window_end_without_events = point_winner.window_end(
                 final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
             )
-            if masked_window_end < unmasked_window_end:
+            if event_aware_window_end < window_end_without_events:
                 _record_rejection(
                     rejection_diagnostics, 'lost_shuttle_guard', rally_id, final_contact + 1,
-                    unmasked_window_end, event_mask, source_codes,
+                    window_end_without_events, event_mask, source_codes,
                 )
+        all_false_dead_mask = np.zeros_like(mask)
+        window_end_without_dead_mask = point_winner.window_end(
+            final_contact, next_start, track, all_false_dead_mask, resolved.constants.sustained_loss_frames,
+            event_mask,
+        )
+        window_closed_by_mask = event_aware_window_end < window_end_without_dead_mask
         landing_rejections: list[tuple[int, int]] = []
         landing = point_winner.pick_landing(
             final_contact, next_start, track, mask, kin, landing_options, striker, net_band,
@@ -343,7 +386,7 @@ def run_video(
         if shipped_winner is not None and geometric_winner is not None:
             agreement = shipped_winner == geometric_winner
         geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
-            rally_id, geometric, geometric_winner, agreement,
+            rally_id, geometric, geometric_winner, agreement, window_closed_by_mask,
         )
         landings[rally_id] = landing
 

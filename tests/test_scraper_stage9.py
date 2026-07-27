@@ -4,6 +4,7 @@ Synthetic inputs are shaped so each signal has one obvious firing region and one
 obvious quiet region.
 """
 import logging
+import sys
 import warnings
 
 import numpy as np
@@ -22,6 +23,7 @@ from annotator.replay_mask import (
     combine_mask,
     court_absence_signal,
     perspective_shift_signal,
+    believe_raw_mask,
     velocity_drop_signal,
 )
 
@@ -126,6 +128,36 @@ def test_missing_inputs_contribute_all_false():
     assert not velocity_drop_signal(None, [(0, 10)], n_frames, 25.0).any()
     assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames, 25.0).any()
     assert not combine_mask(None, None, None, None, n_frames, 25.0).any()
+
+
+def test_believe_raw_mask_believes_whole_runs_and_is_idempotent():
+    raw = np.array([False, True, True, False, True, True, True, False], dtype=bool)
+
+    believed = believe_raw_mask(raw, min_frames=3)
+
+    np.testing.assert_array_equal(
+        believed, [False, False, False, False, True, True, True, False],
+    )
+    np.testing.assert_array_equal(
+        believe_raw_mask(np.array([True, True, True], dtype=bool), 3),
+        [True, True, True],
+    )
+    np.testing.assert_array_equal(
+        believe_raw_mask(np.array([True, True], dtype=bool), 3),
+        [False, False],
+    )
+    np.testing.assert_array_equal(believe_raw_mask(np.zeros(0, dtype=bool), 3), np.zeros(0, dtype=bool))
+    np.testing.assert_array_equal(believe_raw_mask(np.zeros(4, dtype=bool), 3), np.zeros(4, dtype=bool))
+    np.testing.assert_array_equal(believe_raw_mask(np.ones(4, dtype=bool), 3), [True, True, True, True])
+    np.testing.assert_array_equal(believe_raw_mask(believed, 3), believed)
+
+
+@pytest.mark.parametrize(
+    'mask', [np.zeros((2, 2), dtype=bool), np.zeros(3, dtype=np.uint8), [True, False]],
+)
+def test_believe_raw_mask_rejects_non_boolean_vectors(mask):
+    with pytest.raises(ValueError, match='one-dimensional boolean'):
+        believe_raw_mask(mask, min_frames=3)
 
 
 def test_non_evidence_measures_steps_not_output_frames():
@@ -450,3 +482,37 @@ def test_cli_non_evidence_propagates_grade_track_errors(monkeypatch):
     monkeypatch.setattr(replay_mask_module, 'grade_track', fail)
     with pytest.raises(RuntimeError, match='grading failed'):
         _cli_non_evidence(track)
+
+
+def test_stage9_writer_trusts_detector_output_and_supports_maskless_mode(
+    monkeypatch, tmp_path, caplog,
+):
+    court_path = tmp_path / 'court.npy'
+    out_dir = tmp_path / 'masks'
+    np.save(court_path, np.zeros(40, dtype=bool))
+    raw = np.zeros(40, dtype=bool)
+    raw[:14] = True
+    raw[20:] = True
+    monkeypatch.setattr(replay_mask_module, 'combine_mask', lambda *args, **kwargs: raw.copy())
+    caplog.set_level(logging.INFO, logger='annotator.replay_mask')
+
+    monkeypatch.setattr(sys, 'argv', [
+        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
+        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30',
+    ])
+    replay_mask_module.main()
+    np.testing.assert_array_equal(
+        np.load(out_dir / 'v_replay.npy'), raw,
+    )
+
+    monkeypatch.setattr(
+        replay_mask_module, 'combine_mask',
+        lambda *args, **kwargs: pytest.fail('maskless mode must skip detector computation'),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
+        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30', '--no-replay-mask',
+    ])
+    replay_mask_module.main()
+    assert not np.load(out_dir / 'v_replay.npy').any()
+    assert 'config: no_replay_mask=True' in caplog.text

@@ -23,6 +23,7 @@ import cv2
 import numpy as np
 
 from annotator.fps_constants import scale_for_fps
+from annotator.replay_mask import believe_raw_mask
 from .config import CHUNKS_DIR, MASKS_DIR, PAIRS_CSV, PAIR_WINDOW_S, RALLY_SPANS_CSV, SCRAPE_DIR
 
 log = logging.getLogger(__name__)
@@ -77,31 +78,26 @@ def build_video_fps_csv(video_dir: Path, out_csv: Path = VIDEO_FPS_CSV) -> Path:
 # ---------------------------------------------------------------------------
 # Pairing
 # ---------------------------------------------------------------------------
-def _span_has_sustained_mask_run(
-    start_frame: int, end_frame: int, replay_mask: np.ndarray, minimum_run: int,
-) -> bool:
-    """True when the half-open span contains a trusted sustained masked run.
-
-    The run must reach ``minimum_run`` consecutive frames (the fps-scaled
-    ``replay_mask_min_frames`` constant, resolved once by the caller). A single
-    masked frame is ignored because the mask can contain stray flags.
-    """
-    if start_frame < 0 or end_frame < start_frame or end_frame > len(replay_mask):
-        raise ValueError(
-            f'rally span [{start_frame}, {end_frame}) is outside replay mask of length {len(replay_mask)}'
-        )
-    run_length = 0
-    for is_masked in replay_mask[start_frame:end_frame]:
-        run_length = run_length + 1 if is_masked else 0
-        if run_length >= minimum_run:
-            return True
-    return False
-
-
 def _chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) -> bool:
     """True if the chunk's start time lands on a masked frame (so it is unpairable)."""
     frame = int(start_s * fps)
     return 0 <= frame < len(replay_mask) and bool(replay_mask[frame])
+
+
+def _believed_replay_in_rally_interior(
+    believed_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,
+) -> bool:
+    """Return whether believed replay lies in a rally's interior after boundary grace.
+
+    A rally's asserted start and end get ``grace`` frames for measurement error.
+    Only believed replay deeper than that grace from either asserted boundary
+    disqualifies the rally. An empty interior never disqualifies it.
+    """
+    if start_frame < 0 or end_frame < start_frame or end_frame > len(believed_mask):
+        raise ValueError(
+            f'rally span [{start_frame}, {end_frame}) is outside replay mask of length {len(believed_mask)}'
+        )
+    return bool(believed_mask[start_frame + grace : max(start_frame + grace, end_frame - grace)].any())
 
 
 def pair_video(
@@ -136,6 +132,7 @@ def pair_video(
     claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
     minimum_run = scale_for_fps(fps).replay_mask_min_frames
+    believed_mask = None if replay_mask is None else believe_raw_mask(replay_mask, minimum_run)
 
     for rally_id, start_frame, end_frame in sorted(rally_spans):
         row = {
@@ -143,8 +140,8 @@ def pair_video(
             'rally_start': start_frame, 'rally_end': end_frame,
             'chunk_id': '', 'commentary_start': '', 'commentary_end': '',
         }
-        rally_masked = replay_mask is not None and _span_has_sustained_mask_run(
-            start_frame, end_frame, replay_mask, minimum_run,
+        rally_masked = believed_mask is not None and _believed_replay_in_rally_interior(
+            believed_mask, start_frame, end_frame, minimum_run,
         )
         if rally_masked:
             rows.append(row)  # kept, held out of pairing
@@ -161,7 +158,7 @@ def pair_video(
                 continue
             if start_s > window_hi:
                 break  # sorted ascending: nothing later can land in window
-            if replay_mask is not None and _chunk_start_on_mask(start_s, fps, replay_mask):
+            if believed_mask is not None and _chunk_start_on_mask(start_s, fps, believed_mask):
                 continue  # chunk start on a replay frame is unpairable
             claimed.add(chunk_id)
             row['chunk_id'] = chunk_id

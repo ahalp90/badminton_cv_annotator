@@ -27,7 +27,7 @@ from annotator.calibration.gt_scoring import (  # noqa: E402
 )
 
 
-FixtureRunner = Callable[[Fixture], object]
+FixtureRunner = Callable[..., object]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--fixtures", nargs="+", metavar="NAME", help="fixture names (default: all)"
     )
     parser.add_argument("--out", type=Path, metavar="DIR", help="write one metrics CSV per fixture")
+    parser.add_argument(
+        "--no-replay-mask", action="store_true",
+        help="replace committed replay masks with all-False masks",
+    )
     return parser
 
 
@@ -76,6 +80,7 @@ def run_manifest(
     runner: FixtureRunner = run_fixture,
     flattener: Callable[[object], dict[str, int | float | None]] = flatten_metrics,
     renderer: Callable[[dict[str, dict[str, int | float | None]]], str] = render_table,
+    no_replay_mask: bool = False,
 ) -> int:
     """Run selected manifest entries, skipping failures local to one fixture.
 
@@ -85,6 +90,7 @@ def run_manifest(
 
     Registry and fixture-root validation happen before the loop.  The runner includes
     digest verification, array loading, the committed-mask ``dead_mask=`` call, and scoring.
+    ``no_replay_mask`` replaces that fixture mask with the all-False domain identity.
     """
     _validate_environment()
     entries = _validate_registry(registry)
@@ -98,7 +104,10 @@ def run_manifest(
     failed: list[str] = []
     for name in selected:
         try:
-            scores[name] = flattener(runner(by_name[name]))
+            if no_replay_mask:
+                scores[name] = flattener(runner(by_name[name], no_replay_mask=True))
+            else:
+                scores[name] = flattener(runner(by_name[name]))
         except Exception as exc:  # noqa: BLE001 - one bad fixture must not abort the batch
             failed.append(name)
             print(f"{name}: SKIP: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -117,7 +126,8 @@ def main(argv: Sequence[str] | None = None, *, registry: Iterable[Fixture] = FIX
          renderer: Callable[[dict[str, dict[str, int | float | None]]], str] = render_table) -> int:
     args = build_parser().parse_args(argv)
     return run_manifest(args.fixtures, args.out, registry=registry, runner=runner,
-                        flattener=flattener, renderer=renderer)
+                        flattener=flattener, renderer=renderer,
+                        no_replay_mask=args.no_replay_mask)
 
 
 if __name__ == "__main__":

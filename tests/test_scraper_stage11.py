@@ -37,13 +37,13 @@ def test_chunk_outside_window_leaves_unpaired_blanks():
     assert rows[0]['commentary_end'] == ''
 
 
-def test_chunk_starting_on_replay_frame_is_unpairable():
+def test_chunk_start_stray_flag_is_cleared_so_the_chunk_pairs():
     rally_spans = [(0, 0, 100)]                          # span frames 0..100, kept clear of the mask
     chunks = [_chunk('c0', 11.0, 15.0)]                  # start frame = int(11.0 * 10) = 110
     replay_mask = np.zeros(400, dtype=bool)
     replay_mask[110] = True
     rows = stage11.pair_video('v', rally_spans, chunks, replay_mask, FPS)
-    assert rows[0]['chunk_id'] == ''                     # rally kept, but its only candidate is masked
+    assert rows[0]['chunk_id'] == 'c0'                    # the one-frame stray is not believed
 
 
 def test_rally_overlapping_replay_is_held_out():
@@ -72,11 +72,23 @@ def test_two_short_mask_runs_do_not_accumulate():
     assert rows[0]['chunk_id'] == 'c0'
 
 
-def test_mask_run_at_span_edge_counts_only_in_span():
+def test_mask_run_at_span_edge_is_trusted_from_the_full_video_run():
     replay_mask = np.zeros(20, dtype=bool)
     replay_mask[0:5] = True
-    assert not stage11._span_has_sustained_mask_run(2, 5, replay_mask, minimum_run=5)
-    assert stage11._span_has_sustained_mask_run(0, 5, replay_mask, minimum_run=5)
+    rows = stage11.pair_video(
+        'v', [(0, 2, 5)], [_chunk('c0', 1.0, 2.0)], replay_mask, FPS,
+    )
+    assert rows[0]['chunk_id'] == 'c0'  # the believed run sits wholly in boundary grace
+
+
+def test_believed_replay_only_disqualifies_a_rally_interior():
+    believed_mask = np.zeros(30, dtype=bool)
+    believed_mask[0:5] = True
+    believed_mask[6] = True
+
+    assert not stage11._believed_replay_in_rally_interior(believed_mask, 0, 5, grace=5)
+    assert stage11._believed_replay_in_rally_interior(believed_mask, 0, 20, grace=5)
+    assert not stage11._believed_replay_in_rally_interior(believed_mask, 0, 10, grace=5)
 
 
 def test_none_empty_and_all_false_masks_do_not_hold_out():

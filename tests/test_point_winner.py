@@ -280,8 +280,8 @@ def test_ankle_rule_flips_a_carried_terminal_to_a_landing():
     with_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
                                       carry_thr=0.5)  # use_ankle_rule=True is the shipped default
 
-    assert _carried_terminal(2, kin, no_ankle) is True
-    assert _carried_terminal(2, kin, with_ankle) is False
+    assert _carried_terminal(0, 2, kin, no_ankle) is True
+    assert _carried_terminal(0, 2, kin, with_ankle) is False
 
 
 def test_ankle_rule_does_not_overturn_when_the_wrist_is_nearer():
@@ -291,7 +291,20 @@ def test_ankle_rule_does_not_overturn_when_the_wrist_is_nearer():
         speed=np.zeros(3),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3, carry_thr=0.5)
-    assert _carried_terminal(2, kin, opts) is True
+    assert _carried_terminal(0, 2, kin, opts) is True
+
+
+def test_carried_terminal_does_not_read_before_final_contact():
+    # Unclamped, the window [0:5] has median 0.1 and calls this carried; clamping
+    # to final_contact=2 leaves [0.1, 0.9, 0.9], median 0.9, not carried.
+    kin = LandingKinematics(
+        carry_ratio=np.array([0.1, 0.1, 0.1, 0.9, 0.9]),
+        ankle_ratio=np.full(5, np.nan),
+        speed=np.zeros(5),
+    )
+    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=5, carry_thr=0.5)
+
+    assert _carried_terminal(2, 4, kin, opts) is False
 
 
 # ---------------------------------------------------------------------------
@@ -467,10 +480,9 @@ def test_build_hit_height_rows_maps_a_flat_contact_list():
 # ---------------------------------------------------------------------------
 # Verdict assembly
 # ---------------------------------------------------------------------------
-def _landing(norm, net_ender=False, at_border=False, masked=False, frame=5):
+def _landing(norm, net_ender=False, at_border=False, frame=5):
     half = Half.TOP if norm[1] < 0.5 else Half.BOT
-    return Landing(frame=frame, norm=norm, half=half, at_border=at_border, masked=masked,
-                   net_ender=net_ender)
+    return Landing(frame=frame, norm=norm, half=half, at_border=at_border, net_ender=net_ender)
 
 
 def test_geometric_verdict_net_rule_overrides_everything():
@@ -486,7 +498,7 @@ def test_geometric_verdict_best_guess_always_fills_while_a_landing_exists():
         Verdict.LOST, Half.BOT, VerdictSource.LANDING_GEOMETRY)
 
 
-def test_geometric_verdict_confident_path_blanks_on_border_or_mask():
+def test_geometric_verdict_confident_path_blanks_on_border():
     landing = _landing((0.5, 0.9), at_border=True)
     assert geometric_verdict(Half.TOP, landing, best_guess=False) == (
         None, None, VerdictSource.LANDING_GEOMETRY)
@@ -555,7 +567,6 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
     assert landing.norm == pytest.approx((0.5, 0.9))
     assert landing.half == Half.BOT  # y=0.9 >= NET_COURT_Y(0.5)
     assert landing.at_border is False
-    assert landing.masked is False
     assert landing.net_ender is False
 
 
