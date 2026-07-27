@@ -25,6 +25,18 @@ WRITER_MODULE = importlib.util.module_from_spec(WRITER_SPEC)
 WRITER_SPEC.loader.exec_module(WRITER_MODULE)
 write_inpaint_metadata = WRITER_MODULE.write_inpaint_metadata
 
+VENDORED_WRITER_PATH = (
+    REPO_ROOT / 'src' / 'bric' / 'perception' / '_vendor' / 'tracknetv3'
+    / 'write_inpaint_metadata.py'
+)
+VENDORED_WRITER_SPEC = importlib.util.spec_from_file_location(
+    'vendored_inpaint_metadata', VENDORED_WRITER_PATH,
+)
+if VENDORED_WRITER_SPEC is None or VENDORED_WRITER_SPEC.loader is None:
+    raise RuntimeError(f'Could not load {VENDORED_WRITER_PATH}')
+VENDORED_WRITER_MODULE = importlib.util.module_from_spec(VENDORED_WRITER_SPEC)
+VENDORED_WRITER_SPEC.loader.exec_module(VENDORED_WRITER_MODULE)
+
 
 def _write_sidecar(
     tmp_path: Path,
@@ -358,6 +370,31 @@ def test_manifest_partial_entry_copies_only_present_fields(tmp_path: Path, monke
     assert payload['dataset'] == 'ShuttleSet'
     assert payload['title'] == 'Partial'
     assert not {'video_id', 'url', 'fps'} & payload.keys()
+
+
+def test_scraped_manifest_extra_eligibility_is_tolerated_by_both_readers(tmp_path: Path) -> None:
+    video_path = tmp_path / 'clip.mp4'
+    video_path.write_bytes(b'video')
+    video_path.parent.joinpath('sources.toml').write_text(
+        '''dataset = "scraped"\n\n[videos."clip.mp4"]\nvideo_id = "clip"\ntitle = "A title"\nurl = "https://example.test/clip"\ncommentary_eligible = true\n''',
+        encoding='utf-8',
+    )
+    expected = {
+        'dataset': 'scraped',
+        'video_id': 'clip',
+        'title': 'A title',
+        'url': 'https://example.test/clip',
+    }
+
+    for writer_module in (WRITER_MODULE, VENDORED_WRITER_MODULE):
+        assert writer_module._read_source_provenance(str(video_path)) == expected
+
+    video_path.parent.joinpath('sources.toml').write_text(
+        'dataset = "scraped"\n\n[videos]\n',
+        encoding='utf-8',
+    )
+    for writer_module in (WRITER_MODULE, VENDORED_WRITER_MODULE):
+        assert writer_module._read_source_provenance(str(video_path)) == {}
 
 
 def test_malformed_manifest_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

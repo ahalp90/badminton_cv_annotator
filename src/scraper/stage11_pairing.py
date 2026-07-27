@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import logging
+import tomllib
 from collections import defaultdict
 from pathlib import Path
 
@@ -24,7 +25,16 @@ import numpy as np
 
 from annotator.fps_constants import scale_for_fps
 from annotator.replay_mask import believe_raw_mask
-from .config import CHUNKS_DIR, MASKS_DIR, PAIRS_CSV, PAIR_WINDOW_S, RALLY_SPANS_CSV, SCRAPE_DIR
+from .config import (
+    CHUNKS_DIR,
+    MASKS_DIR,
+    PAIRS_CSV,
+    PAIR_WINDOW_S,
+    RALLY_SPANS_CSV,
+    SCRAPE_DIR,
+    SOURCES_MANIFEST_NAME,
+    VIDEOS_DIR,
+)
 
 log = logging.getLogger(__name__)
 
@@ -213,6 +223,68 @@ def _load_replay_mask(masks_dir: Path, video_id: str) -> np.ndarray | None:
     return replay_mask
 
 
+def _read_sources_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:
+    """Read the validated scraper manifest used by the pairing boundary."""
+    if not manifest_path.exists():
+        raise FileNotFoundError(f'{manifest_path} not found')
+    with manifest_path.open('rb') as handle:
+        manifest = tomllib.load(handle)
+    if manifest.get('dataset') != 'scraped':
+        raise ValueError("sources.toml 'dataset' must be 'scraped'")
+    videos = manifest.get('videos')
+    if not isinstance(videos, dict):
+        raise TypeError("sources.toml 'videos' must be a table")
+    for basename, entry in videos.items():
+        if not isinstance(entry, dict):
+            raise TypeError(f"sources.toml entry for {basename!r} must be a table")
+    return videos
+
+
+def _manifest_pairing_index(
+    videos: dict[str, dict[str, object]],
+    video_dir: Path,
+    video_ids: set[str],
+) -> dict[str, tuple[str, dict[str, object]]]:
+    """Map fps-bearing rally ids to exactly one existing manifest entry."""
+    index: dict[str, list[tuple[str, dict[str, object]]]] = defaultdict(list)
+    for basename, entry in videos.items():
+        if 'video_id' not in entry:
+            continue
+        video_id = entry['video_id']
+        if isinstance(video_id, bool) or not isinstance(video_id, (str, int)):
+            if Path(basename).stem in video_ids and (video_dir / basename).is_file():
+                raise TypeError(f'manifest entry for video {Path(basename).stem!r} has invalid video_id')
+            continue
+        if str(Path(basename).stem) != str(video_id):
+            if str(video_id) in video_ids and (video_dir / basename).is_file():
+                raise ValueError(
+                    f'manifest basename {basename!r} does not match video_id {video_id!r}'
+                )
+            continue
+        video_path = video_dir / basename
+        if not video_path.is_file():
+            continue
+        index[str(video_id)].append((basename, entry))
+
+    pairing_index: dict[str, tuple[str, dict[str, object]]] = {}
+    for video_id in video_ids:
+        matches = index.get(video_id, [])
+        if not matches:
+            raise ValueError(f'no existing manifest entry for video {video_id!r}')
+        if len(matches) != 1:
+            names = ', '.join(basename for basename, _entry in matches)
+            raise ValueError(f'multiple manifest entries for video {video_id!r}: {names}')
+        basename, entry = matches[0]
+        if 'commentary_eligible' not in entry:
+            raise ValueError(f'manifest entry for video {video_id!r} lacks commentary_eligible')
+        if not isinstance(entry['commentary_eligible'], bool):
+            raise TypeError(
+                f'manifest entry for video {video_id!r} has non-boolean commentary_eligible'
+            )
+        pairing_index[video_id] = (basename, entry)
+    return pairing_index
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 11: pair rallies to commentary chunks.')
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
@@ -220,24 +292,49 @@ def main() -> None:
     parser.add_argument('--masks-dir', type=Path, default=MASKS_DIR)
     parser.add_argument('--fps-csv', type=Path, default=VIDEO_FPS_CSV)
     parser.add_argument('--pairs-csv', type=Path, default=PAIRS_CSV)
+    parser.add_argument('--video-dir', type=Path, default=None)
     parser.add_argument('--build-fps-from', type=Path, default=None,
                         help='If given, (re)build the fps CSV from this video dir before pairing')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
+    if args.video_dir is not None and args.build_fps_from is not None:
+        video_dir = args.video_dir.resolve()
+        build_video_dir = args.build_fps_from.resolve()
+        if video_dir != build_video_dir:
+            raise ValueError('--video-dir and --build-fps-from must resolve to the same path')
+    elif args.video_dir is not None:
+        video_dir = args.video_dir
+    elif args.build_fps_from is not None:
+        video_dir = args.build_fps_from
+    else:
+        video_dir = VIDEOS_DIR
+
     if args.build_fps_from is not None:
         build_video_fps_csv(args.build_fps_from, args.fps_csv)
 
     fps_map = _read_fps_map(args.fps_csv)
     spans_by_video = _read_rally_spans_by_video(args.rally_spans)
+    fps_video_ids = {video_id for video_id in spans_by_video if video_id in fps_map}
+    pairing_index: dict[str, tuple[str, dict[str, object]]] = {}
+    if fps_video_ids:
+        manifest_videos = _read_sources_manifest(video_dir / SOURCES_MANIFEST_NAME)
+        pairing_index = _manifest_pairing_index(manifest_videos, video_dir, fps_video_ids)
 
     all_rows: list[dict] = []
     for video_id, rally_spans in spans_by_video.items():
         if video_id not in fps_map:
             log.warning('no fps for %s; skipping its rallies', video_id)  # log-and-skip per video
             continue
-        chunks = _load_chunks(args.chunks_dir, video_id)
-        replay_mask = _load_replay_mask(args.masks_dir, video_id)
+        _basename, manifest_entry = pairing_index[video_id]
+        commentary_eligible = manifest_entry['commentary_eligible']
+        if commentary_eligible:
+            chunks = _load_chunks(args.chunks_dir, video_id)
+            replay_mask = _load_replay_mask(args.masks_dir, video_id)
+        else:
+            log.info('%s: commentary-ineligible; rallies kept, commentary left blank', video_id)
+            chunks = []
+            replay_mask = None
         rows = pair_video(video_id, rally_spans, chunks, replay_mask, fps_map[video_id])
         all_rows.extend(rows)
         paired = sum(1 for row in rows if row['chunk_id'])

@@ -4,6 +4,7 @@ fps is fixed at 10 so frame/second arithmetic is easy to read: end_frame 100 is
 10.0 s, and the pairing window is `(10.0, 10.0 + PAIR_WINDOW_S]`.
 """
 import csv
+import json
 
 import numpy as np
 import pytest
@@ -16,6 +17,40 @@ FPS = 10.0
 
 def _chunk(chunk_id: str, start: float, end: float) -> dict:
     return {'chunk_id': chunk_id, 'start': start, 'end': end, 'text': 'commentary'}
+
+
+def _invoke_stage11(
+    monkeypatch,
+    *,
+    video_dir,
+    fps_csv,
+    spans_csv,
+    pairs_csv,
+    chunks_dir=None,
+    masks_dir=None,
+    build_fps_from=None,
+) -> None:
+    argv = [
+        'stage11_pairing',
+        '--fps-csv', str(fps_csv),
+        '--rally-spans', str(spans_csv),
+        '--pairs-csv', str(pairs_csv),
+    ]
+    if chunks_dir is not None:
+        argv.extend(['--chunks-dir', str(chunks_dir)])
+    if masks_dir is not None:
+        argv.extend(['--masks-dir', str(masks_dir)])
+    if video_dir is not None:
+        argv.extend(['--video-dir', str(video_dir)])
+    if build_fps_from is not None:
+        argv.extend(['--build-fps-from', str(build_fps_from)])
+    monkeypatch.setattr('sys.argv', argv)
+    stage11.main()
+
+
+def _pair_rows(path) -> list[dict[str, str]]:
+    with path.open(newline='', encoding='utf-8') as handle:
+        return list(csv.DictReader(handle))
 
 
 def test_chunk_within_window_pairs():
@@ -161,3 +196,499 @@ def test_build_video_fps_csv(tmp_path, monkeypatch):
         rows = list(csv.DictReader(handle))
     fps_by_id = {row['video_id']: float(row['fps']) for row in rows}
     assert fps_by_id == {'vid1': 30.0, 'vid2': 30.0}
+
+
+def test_commentary_ineligible_video_pairs_with_blank_commentary(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    chunks_dir = tmp_path / 'chunks'
+    chunks_dir.mkdir()
+    (chunks_dir / 'v.json').write_text(
+        json.dumps([{'chunk_id': 'c0', 'start': 11.0, 'end': 15.0, 'text': 'spoken'}]),
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    monkeypatch.setattr(
+        'sys.argv',
+        [
+            'stage11_pairing',
+            '--video-dir', str(video_dir),
+            '--fps-csv', str(fps_csv),
+            '--rally-spans', str(spans_csv),
+            '--chunks-dir', str(chunks_dir),
+            '--masks-dir', str(tmp_path / 'masks'),
+            '--pairs-csv', str(pairs_csv),
+        ],
+    )
+
+    stage11.main()
+
+    with pairs_csv.open(newline='', encoding='utf-8') as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]['chunk_id'] == ''
+    assert rows[0]['commentary_start'] == ''
+    assert rows[0]['commentary_end'] == ''
+
+
+def test_commentary_eligible_video_pairs_normally(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = true\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    chunks_dir = tmp_path / 'chunks'
+    chunks_dir.mkdir()
+    (chunks_dir / 'v.json').write_text(
+        json.dumps([_chunk('c0', 11.0, 15.0)]),
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+        chunks_dir=chunks_dir,
+        masks_dir=tmp_path / 'masks',
+    )
+
+    assert _pair_rows(pairs_csv)[0]['chunk_id'] == 'c0'
+
+
+def test_commentary_ineligible_video_leaves_every_rally_blank(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n'
+        'v,1,200,300\n',
+        encoding='utf-8',
+    )
+    chunks_dir = tmp_path / 'chunks'
+    chunks_dir.mkdir()
+    (chunks_dir / 'v.json').write_text(
+        json.dumps([_chunk('c0', 11.0, 15.0), _chunk('c1', 31.0, 35.0)]),
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+        chunks_dir=chunks_dir,
+        masks_dir=tmp_path / 'masks',
+    )
+
+    rows = _pair_rows(pairs_csv)
+    assert len(rows) == 2
+    assert all(row['chunk_id'] == '' for row in rows)
+    assert all(row['commentary_start'] == '' for row in rows)
+    assert all(row['commentary_end'] == '' for row in rows)
+
+
+def test_ineligible_video_does_not_load_malformed_replay_mask(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    masks_dir = tmp_path / 'masks'
+    masks_dir.mkdir()
+    np.save(masks_dir / 'v_replay.npy', np.zeros((2, 2), dtype=np.uint8))
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    def fail_load(_masks_dir, _video_id):
+        raise AssertionError('ineligible video must not load replay mask')
+
+    monkeypatch.setattr(stage11, '_load_replay_mask', fail_load)
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+        masks_dir=masks_dir,
+    )
+
+    assert _pair_rows(pairs_csv)[0]['chunk_id'] == ''
+
+
+def test_missing_manifest_fails_for_video_with_fps(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    with pytest.raises(FileNotFoundError, match='sources.toml'):
+        _invoke_stage11(
+            monkeypatch,
+            video_dir=video_dir,
+            fps_csv=fps_csv,
+            spans_csv=spans_csv,
+            pairs_csv=pairs_csv,
+        )
+    assert not pairs_csv.exists()
+
+
+@pytest.mark.parametrize(
+    ('manifest_text', 'video_names', 'error_type'),
+    [
+        (
+            'dataset = "scraped"\n\n'
+            '[videos."other.mp4"]\n'
+            'video_id = "other"\n'
+            'commentary_eligible = true\n',
+            ['v.mp4'],
+            ValueError,
+        ),
+        (
+            'dataset = "scraped"\n\n'
+            '[videos."v.mp4"]\n'
+            'video_id = "v"\n'
+            'commentary_eligible = true\n\n'
+            '[videos."v.mkv"]\n'
+            'video_id = "v"\n'
+            'commentary_eligible = true\n',
+            ['v.mp4', 'v.mkv'],
+            ValueError,
+        ),
+        (
+            'dataset = "scraped"\n\n'
+            '[videos."v.mp4"]\n'
+            'video_id = "v"\n',
+            ['v.mp4'],
+            ValueError,
+        ),
+        (
+            'dataset = "scraped"\n\n'
+            '[videos."v.mp4"]\n'
+            'video_id = "v"\n'
+            'commentary_eligible = "true"\n',
+            ['v.mp4'],
+            TypeError,
+        ),
+    ],
+)
+def test_strict_manifest_errors_happen_before_pairs_csv_write(
+    tmp_path,
+    monkeypatch,
+    manifest_text,
+    video_names,
+    error_type,
+):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    for video_name in video_names:
+        (video_dir / video_name).write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(manifest_text, encoding='utf-8')
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+    pairs_csv.write_text('sentinel\n', encoding='utf-8')
+
+    with pytest.raises(error_type):
+        _invoke_stage11(
+            monkeypatch,
+            video_dir=video_dir,
+            fps_csv=fps_csv,
+            spans_csv=spans_csv,
+            pairs_csv=pairs_csv,
+        )
+    assert pairs_csv.read_text(encoding='utf-8') == 'sentinel\n'
+
+
+def test_manifest_extra_keys_and_entry_without_video_id_are_tolerated(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."notes.toml"]\n'
+        'description = "not a video"\n'
+        'future_flag = true\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = true\n'
+        'future_flag = true\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    chunks_dir = tmp_path / 'chunks'
+    chunks_dir.mkdir()
+    (chunks_dir / 'v.json').write_text(
+        json.dumps([_chunk('c0', 11.0, 15.0)]),
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+        chunks_dir=chunks_dir,
+    )
+
+    assert _pair_rows(pairs_csv)[0]['chunk_id'] == 'c0'
+
+
+def test_stale_missing_manifest_basename_is_ignored(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."stale.mp4"]\n'
+        'video_id = "stale"\n'
+        'commentary_eligible = true\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = true\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+    )
+
+    assert _pair_rows(pairs_csv)[0]['chunk_id'] == ''
+
+
+def test_manifest_mapping_requires_existing_video_file(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = true\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    with pytest.raises(ValueError, match='no existing manifest entry'):
+        _invoke_stage11(
+            monkeypatch,
+            video_dir=video_dir,
+            fps_csv=fps_csv,
+            spans_csv=spans_csv,
+            pairs_csv=pairs_csv,
+        )
+
+
+def test_different_video_and_fps_build_directories_fail_loudly(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    build_dir = tmp_path / 'other-videos'
+    video_dir.mkdir()
+    build_dir.mkdir()
+    fps_csv = tmp_path / 'fps.csv'
+    spans_csv = tmp_path / 'spans.csv'
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    with pytest.raises(ValueError, match='must resolve to the same path'):
+        _invoke_stage11(
+            monkeypatch,
+            video_dir=video_dir,
+            build_fps_from=build_dir,
+            fps_csv=fps_csv,
+            spans_csv=spans_csv,
+            pairs_csv=pairs_csv,
+        )
+
+
+def test_video_dir_argument_alone_selects_manifest_directory(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+    )
+
+    assert len(_pair_rows(pairs_csv)) == 1
+
+
+def test_build_fps_from_argument_alone_selects_manifest_directory(tmp_path, monkeypatch):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    pairs_csv = tmp_path / 'pairs.csv'
+    monkeypatch.setattr(stage11.cv2, 'VideoCapture', _FakeCapture)
+
+    _invoke_stage11(
+        monkeypatch,
+        video_dir=None,
+        build_fps_from=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+    )
+
+    assert _pair_rows(pairs_csv)[0]['video_id'] == 'v'
+
+
+def test_missing_fps_skips_without_reading_manifest(tmp_path, monkeypatch, caplog):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'unlisted,0,0,100\n',
+        encoding='utf-8',
+    )
+    pairs_csv = tmp_path / 'pairs.csv'
+
+    monkeypatch.setattr(
+        'sys.argv',
+        [
+            'stage11_pairing',
+            '--video-dir', str(video_dir),
+            '--fps-csv', str(fps_csv),
+            '--rally-spans', str(spans_csv),
+            '--pairs-csv', str(pairs_csv),
+        ],
+    )
+
+    stage11.main()
+
+    assert 'no fps for unlisted; skipping its rallies' in caplog.text
+    with pairs_csv.open(newline='', encoding='utf-8') as handle:
+        assert list(csv.DictReader(handle)) == []

@@ -27,6 +27,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
 
 CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'  # spec s2 (stages 1, 3)
+VIDEOS_DIR = SCRAPE_DIR / 'videos'
+SOURCES_MANIFEST_NAME = 'sources.toml'
 TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'  # spec s3 (stage 2)
 CHUNKS_DIR = SCRAPE_DIR / 'chunks'  # spec s4 (stages 3, 10)
 MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (stage 9)
@@ -235,7 +237,7 @@ def check_ytdlp() -> None:
 
 def ensure_dirs() -> None:
     """Create the scrape root and its sidecar dirs if absent."""
-    for directory in (SCRAPE_DIR, TRANSCRIPTS_DIR, CHUNKS_DIR, MASKS_DIR):
+    for directory in (SCRAPE_DIR, VIDEOS_DIR, TRANSCRIPTS_DIR, CHUNKS_DIR, MASKS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -263,14 +265,16 @@ def ytdlp_throttle_args(include_subtitles: bool = False) -> list[str]:
     return flags
 
 
-def read_candidates() -> list[dict]:
+def read_candidates(input_path: Path | None = None) -> list[dict]:
     """Read candidates.csv into a list of row dicts (stages 2, 3 consume it).
 
+    :param input_path: Optional candidates file override for isolated stages.
     :return: one dict per row, keys per CANDIDATES_COLUMNS.
     """
-    if not CANDIDATES_CSV.exists():
-        raise FileNotFoundError(f'{CANDIDATES_CSV} not found. Run stage 1 first.')
-    with CANDIDATES_CSV.open(newline='', encoding='utf-8') as handle:
+    candidates_path = CANDIDATES_CSV if input_path is None else input_path
+    if not candidates_path.exists():
+        raise FileNotFoundError(f'{candidates_path} not found. Run stage 1 first.')
+    with candidates_path.open(newline='', encoding='utf-8') as handle:
         return list(csv.DictReader(handle))
 
 
