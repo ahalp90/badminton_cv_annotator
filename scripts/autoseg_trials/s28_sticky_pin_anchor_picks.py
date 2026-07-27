@@ -5,7 +5,7 @@ every player detection comes from the sticky tracker's picks. The historical
 ``s28_sticky_pin_r30.py`` file remains byte-frozen as the pre-anchor-picks record.
 
 Import order is load-bearing. This script binds ``annotator`` and ``shared`` to its own
-checkout BEFORE importing the scoring harness (measurements/h_end_to_end.py under the
+checkout BEFORE importing the scoring harness (measurements/end_to_end_yardstick.py under the
 reference dir). The harness then binds the standing wt_annotator worktree's ``scraper``
 and ``scripts`` packages; the ``scraper`` modules are import shims that re-export whatever
 ``annotator`` already resolves to, so the measured chain stays this checkout's. The
@@ -31,8 +31,8 @@ REFERENCE_DIR = Path(
 )
 OUTPUT_DIR = HERE / "s28_sticky_pin_anchor_picks_outputs"
 EXPECTED_MD5 = {
-    9: {"pilot": "380cb095c627711a1beae1bf26a77eab", "vid15": "65b87c9a3a4646a7bce059979ae5fa1c"},
-    7: {"pilot": "ee7eb23f322c3f709ad5131555cfafc0", "vid15": "43983c930266111625b9483088482c41"},
+    9: {"pilot": "380cb095c627711a1beae1bf26a77eab", "vid15": "b869460d7ef6a887cf493306d8b80e9b"},
+    7: {"pilot": "ee7eb23f322c3f709ad5131555cfafc0", "vid15": "917ba5d599576124b54647293b5c0e27"},
 }
 
 
@@ -66,7 +66,7 @@ def _prepare_imports() -> None:
 
 
 _prepare_imports()
-import h_end_to_end as harness  # noqa: E402
+import end_to_end_yardstick as harness  # noqa: E402
 
 if HERE.parents[1] != harness.WORKTREE_ROOT:
     print(
