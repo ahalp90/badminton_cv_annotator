@@ -185,7 +185,13 @@ def test_runner_excludes_doubles_and_missing_rows(tmp_path, monkeypatch, caplog)
     with caplog.at_level(logging.WARNING):
         _run_segmentation_cli(tmp_path, monkeypatch, doubles_csv=flags_csv, processed=processed)
 
-    assert processed == ['5']  # vid_b's length: the one unflagged video, and only it
+    assert processed == ['5']  # exactly one segment_video call reached the fake
+    # The batch report names the videos directly, so the outcome check no
+    # longer leans on the track-length proxy alone.
+    report_text = (tmp_path / 'spans_batch_report.txt').read_text(encoding='utf-8')
+    assert '- vid_b: processed; 0 rallies; 0 contacts' in report_text
+    assert '- vid_a: excluded; flagged doubles' in report_text
+    assert '- vid_c: excluded; no doubles row; not assuming singles' in report_text
     assert 'excluding vid_a: flagged doubles' in caplog.text
     assert 'excluding vid_c: no doubles row; not assuming singles' in caplog.text
 

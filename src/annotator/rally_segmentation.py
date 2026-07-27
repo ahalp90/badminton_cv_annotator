@@ -1866,6 +1866,12 @@ def segment_video(
     distances = sticky_distances
     if body_unit_dist is None:
         if distances is None:
+            # TODO: this fallback builds sticky over rally spans, not
+            # scene-gated tracker segments, so a scene whose court
+            # corners cannot be recovered is not excluded. Fix by
+            # deriving homography-row/court-present segments here, or
+            # require callers to pass scene-gated sticky_distances.
+            # Evidence: records/homography_fail_verification_sol_20260727.txt
             distances = build_sticky_result(
                 gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
                 gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
