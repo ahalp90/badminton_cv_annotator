@@ -29,8 +29,8 @@ from shared.court import load_all_court_info
 log = logging.getLogger(__name__)
 
 
-# Re-pinned from the commit-11 capture (sticky-sourced consumers, 3f78797),
-# byte-equal to records/c11_capture_repro_20260722.txt. Floors read from here.
+# Re-pinned from the trust-coordinator capture (c0b6889), byte-equal to
+# records/trust_coordinator_capture_repin_20260727.txt. Floors read from here.
 REFERENCE_SCORES = {
     'pilot': {
         'covered_fraction': 0.9734513274336283,
@@ -118,17 +118,17 @@ REFERENCE_SCORES = {
         'end_offset_mean': 88.41666666666667,
         'end_offset_median': 62.0,
         'end_offset_n': 84,
-        'ball_round_absdiff_mean': 2.4642857142857144,
+        'ball_round_absdiff_mean': 2.4404761904761907,
         'ball_round_absdiff_median': 2.0,
         'ball_round_absdiff_n': 84,
         'timing_abserr_mean': 1.447098976109215,
         'timing_abserr_median': 1.0,
         'timing_abserr_n': 586,
-        'ball_round_primary': 0.10576923076923077,
-        'ball_round_primary_correct': 11,
+        'ball_round_primary': 0.11538461538461539,
+        'ball_round_primary_correct': 12,
         'ball_round_primary_total': 104,
-        'ball_round_covered': 0.13095238095238096,
-        'ball_round_covered_correct': 11,
+        'ball_round_covered': 0.14285714285714285,
+        'ball_round_covered_correct': 12,
         'ball_round_covered_total': 84,
         'timing_primary_recall': 0.7111650485436893,
         'timing_primary_matched': 586,
@@ -166,14 +166,14 @@ REFERENCE_SCORES = {
         'getpoint_covered': 0.4875,
         'getpoint_covered_correct': 39,
         'getpoint_covered_total': 80,
-        'contact_f1': 0.5599617773530817,
-        'contact_precision': 0.46178092986603625,
+        'contact_f1': 0.5604973696795792,
+        'contact_precision': 0.46250986582478293,
         'contact_recall': 0.7111650485436893,
         'contact_matches': 586,
-        'contact_filtered_total': 1269,
+        'contact_filtered_total': 1267,
         'contact_gt_total': 824,
         'n_raw_contacts': 2322,
-        'n_filtered_contacts': 1269,
+        'n_filtered_contacts': 1267,
         'hit_height_failures': 0,
     },
     'sset21': {
