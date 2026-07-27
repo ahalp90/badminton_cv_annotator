@@ -5,10 +5,26 @@ WhisperX/torch imports inside refine_timestamps are function-local, so importing
 the module here (the test venv has no whisperx) must not fail.
 """
 import json
+import sys
+from types import SimpleNamespace
 
 import pytest
 
 from src.scraper import stage10_clean as stage10
+
+
+@pytest.fixture(autouse=True)
+def fake_bert_score(monkeypatch):
+    """Keep stage-10 tests independent of the optional scorer model."""
+    class FakeBERTScorer:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def score(self, candidates, references, batch_size):
+            del references, batch_size
+            return ([0.9] * len(candidates), [0.9] * len(candidates), [0.9] * len(candidates))
+
+    monkeypatch.setitem(sys.modules, 'bert_score', SimpleNamespace(BERTScorer=FakeBERTScorer))
 
 
 def _phrasings():
@@ -74,6 +90,75 @@ def test_run_clean_idempotent_skip_and_force_override(tmp_path, monkeypatch):
     stage10.run_clean(rows=rows, force=True)
     assert calls == ['raw']
     assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['text_clean'] == 'NEW'
+
+
+@pytest.mark.parametrize(('f1', 'expected'), [(0.79, False), (0.80, True)])
+def test_run_clean_clean_pass_threshold_boundary(tmp_path, monkeypatch, f1, expected):
+    """The stored score controls the flag at the configured inclusive boundary."""
+    monkeypatch.setattr(
+        stage10, '_score_chunks', lambda chunks: {index: f1 for index in range(len(chunks))},
+    )
+    sidecar = _write_sidecar(tmp_path, 'v1', [{
+        'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw', 'text_clean': 'clean',
+    }])
+    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+
+    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+
+    assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['clean_pass'] is expected
+    assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['bert_f1'] == f1
+
+
+def test_run_clean_scores_existing_clean_without_calling_llm(tmp_path, monkeypatch):
+    """A sidecar with text_clean but no score takes the score-only path."""
+    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(stage10, 'call_clean_llm', lambda _text: pytest.fail('LLM must not run'))
+    monkeypatch.setattr(stage10, '_score_chunks', lambda chunks: {0: 0.81})
+    sidecar = _write_sidecar(tmp_path, 'v1', [{
+        'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw', 'text_clean': 'clean',
+    }])
+
+    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+
+    out = json.loads(sidecar.read_text(encoding='utf-8'))[0]
+    assert out['bert_f1'] == 0.81
+    assert out['clean_pass'] is True
+
+
+def test_run_clean_blank_model_output_is_kept_and_fails(tmp_path, monkeypatch):
+    """Blank model output is recorded without sending it to BERTScore."""
+    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(stage10, 'call_clean_llm', lambda _text: {
+        'text_clean': '', 'alt_phrasings': _phrasings(),
+    })
+    monkeypatch.setattr(stage10, '_score_chunks', lambda _chunks: pytest.fail('blank text must not score'))
+    sidecar = _write_sidecar(tmp_path, 'v1', [{
+        'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw',
+    }])
+
+    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+
+    out = json.loads(sidecar.read_text(encoding='utf-8'))[0]
+    assert out['text_clean'] == ''
+    assert out['bert_f1'] == 0.0
+    assert out['clean_pass'] is False
+
+
+@pytest.mark.parametrize(('cuda_available', 'arch_list', 'expected'), [
+    (False, [], 'cpu'),
+    (True, ['sm_75'], 'cpu'),
+    (True, ['sm_80'], 'cuda'),
+])
+def test_bert_score_device_checks_torch_architecture(monkeypatch, cuda_available, arch_list, expected):
+    """CUDA is selected only when torch advertises the device architecture."""
+    fake_cuda = SimpleNamespace(
+        is_available=lambda: cuda_available,
+        get_device_capability=lambda: (8, 0),
+        get_arch_list=lambda: arch_list,
+    )
+    monkeypatch.setitem(sys.modules, 'torch', SimpleNamespace(cuda=fake_cuda))
+
+    assert stage10._bert_score_device() == expected
 
 
 def test_run_clean_keep_filter_parses_not_truth_tests(tmp_path, monkeypatch):

@@ -163,8 +163,10 @@ API_KEY_ENV = 'GEMINI_API_KEY'  # referenced by name only; never a value
 # ---------------------------------------------------------------------------
 # The clean and paraphrase share one call budget (schema s5); the clean lane
 # earns the stronger tier while the triage filter stays on flash (spec s4).
-CLEAN_MODEL = 'gemini-2.5-flash'  # OPEN: tier for the clean pass; flash until B5 data argues otherwise
+CLEAN_MODEL = 'gemma-4-31b-it'
 ALT_PHRASINGS_K = 3  # schema s5: 2 to 4, default 3
+# Provisional sanity baseline; Curtis tunes this later, not a measured optimum.
+CLEAN_BERTSCORE_MIN = 0.80
 WHISPERX_FINE_MODEL = 'large-v2'  # D23: fine-timestamp pass, remote GPU only
 
 # Stage 11 pairing (spec s9): a rally pairs with the first commentary chunk

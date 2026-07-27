@@ -53,6 +53,7 @@ dependencies = [
     "jaxtyping",
     "beartype",
     "frozendict>=2.4,<3",
+    "pyrefly>=0.60.0",
 ]
 
 [project.optional-dependencies]
@@ -75,6 +76,12 @@ bric-train = [
     "torcheval",      # multiclass_f1_score for per-epoch val metrics
     "matplotlib",     # evaluations
     "scikit-learn",   # evaluations
+]
+
+# Commentary clean-pass scoring; kept out of the base install because it pulls
+# in the transformers stack.
+scraper = [
+    "bert-score",
 ]
 
 # Convenience meta-extras: install both bric-runtime and bric-train.

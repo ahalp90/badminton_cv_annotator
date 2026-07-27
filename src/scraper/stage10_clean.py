@@ -23,6 +23,7 @@ retry/backoff wrapper and the Gemini call shape are ported from there.
 """
 import argparse
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -33,6 +34,7 @@ from .config import (
     ALT_PHRASINGS_K,
     API_KEY_ENV,
     CHUNKS_DIR,
+    CLEAN_BERTSCORE_MIN,
     CLEAN_MODEL,
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
@@ -129,6 +131,45 @@ def call_clean_llm(text: str) -> dict:
     raise CleanError(f'clean call failed after {LLM_MAX_RETRIES} retries: {last_error}')
 
 
+def _bert_score_device() -> str:
+    """Choose CUDA only when the installed torch build supports the GPU arch."""
+    import torch
+
+    capability = 'unavailable'
+    device = 'cpu'
+    if torch.cuda.is_available():
+        capability_tuple = torch.cuda.get_device_capability()
+        capability = capability_tuple
+        arch = f'sm_{capability_tuple[0]}{capability_tuple[1]}'
+        if arch in torch.cuda.get_arch_list():
+            device = 'cuda'
+    logging.warning('BERTScore device=%s capability=%s', device, capability)
+    if device == 'cpu' and capability != 'unavailable':
+        logging.warning('BERTScore CUDA architecture is unsupported by this torch build; using CPU')
+    return device
+
+
+def _score_chunks(chunks: list[dict]) -> dict[int, float]:
+    """Score each text_clean against its raw text in one batched BERTScorer call.
+
+    The caller passes only chunks needing scores, text and text_clean non-blank.
+    """
+    if not chunks:
+        return {}
+
+    from bert_score import BERTScorer
+
+    scorer = BERTScorer(
+        lang='en',
+        rescale_with_baseline=False,
+        device=_bert_score_device(),
+    )
+    candidates = [chunk['text_clean'] for chunk in chunks]
+    references = [chunk['text'] for chunk in chunks]
+    _, _, f1_scores = scorer.score(candidates, references, batch_size=16)
+    return {index: float(score) for index, score in enumerate(f1_scores)}
+
+
 def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, int]:
     """Run the clean+paraphrase pass over every kept video's chunk sidecar.
 
@@ -148,6 +189,7 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
     attempted = 0  # LLM calls started this run
     failed = 0  # LLM calls that died after retries
     cleaned_by_id: dict[str, int] = {}
+    loaded_sidecars: list[tuple[str, Path, list[dict], str]] = []
 
     for row in kept:
         video_id = row['video_id']
@@ -157,26 +199,35 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
             continue
 
         chunks = json.loads(sidecar.read_text(encoding='utf-8'))
+        for chunk in chunks:
+            if 'text' not in chunk:
+                raise KeyError(f"{video_id} chunk {chunk.get('chunk_id')}: no raw text field")
         to_clean = sum(1 for chunk in chunks if 'text_clean' not in chunk or force)
         cleaned = 0
         try:
             for chunk in chunks:
+                if not chunk['text'].strip():
+                    continue
                 if 'text_clean' in chunk and not force:
                     continue
                 attempted += 1
                 result = call_clean_llm(chunk['text'])
                 chunk['text_clean'] = result['text_clean']
                 chunk['alt_phrasings'] = result['alt_phrasings']
+                chunk['_score_pending'] = True
                 cleaned += 1
         except CleanError as error:
             failed += 1
             print(f'  CLEAN FAILED {video_id}: {error}')
             if cleaned:  # persist the chunks cleaned before the failure
+                for chunk in chunks:
+                    chunk.pop('_score_pending', None)
                 sidecar.write_text(json.dumps(chunks, indent=2), encoding='utf-8')
             continue
 
+        original = json.dumps(chunks, indent=2)
+        loaded_sidecars.append((video_id, sidecar, chunks, original))
         if cleaned:
-            sidecar.write_text(json.dumps(chunks, indent=2), encoding='utf-8')
             cleaned_by_id[video_id] = cleaned
         print(f'  {video_id}: cleaned {cleaned}/{to_clean} chunks')
 
@@ -188,6 +239,34 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
         raise RuntimeError(
             f'Stage 10 clean: all {attempted} LLM calls failed. Check the endpoint.'
         )
+
+    pending_chunks: list[dict] = []
+    for _, _, chunks, _ in loaded_sidecars:
+        for chunk in chunks:
+            if 'text_clean' not in chunk:
+                continue
+            score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)
+            chunk['_score_pending'] = score_pending
+            if score_pending and chunk['text_clean'].strip() and chunk['text'].strip():
+                pending_chunks.append(chunk)
+
+    scored = _score_chunks(pending_chunks) if pending_chunks else {}
+    for index, chunk in enumerate(pending_chunks):
+        chunk['bert_f1'] = scored[index]
+    for _, _, chunks, _ in loaded_sidecars:
+        for chunk in chunks:
+            if 'text_clean' not in chunk:
+                continue
+            if not chunk['text_clean'].strip() and ('bert_f1' not in chunk or chunk.get('_score_pending')):
+                chunk['bert_f1'] = 0.0
+            if 'bert_f1' in chunk:
+                chunk['clean_pass'] = chunk['bert_f1'] >= CLEAN_BERTSCORE_MIN
+            chunk.pop('_score_pending', None)
+
+    for _, sidecar, chunks, original in loaded_sidecars:
+        updated = json.dumps(chunks, indent=2)
+        if updated != original:
+            sidecar.write_text(updated, encoding='utf-8')
     return cleaned_by_id
 
 
