@@ -29,6 +29,10 @@ class FpsConstants:
     smooth_window: int
     end_rest_frames: int
     court_absent_window: int
+    # Same value as court_absent_window today; distinct concept (the minimum
+    # masked run a mask consumer trusts enough to act on), so tuning one never
+    # silently moves the other.
+    replay_mask_min_frames: int
     impulse_floor_half_window_frames: int
     contact_dedup_radius_frames: int
     contact_suppression_radius_frames: int
@@ -68,6 +72,7 @@ def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) 
         rest_window=frame_count('rest_window', 5.0), start_speed=speed('start_speed', START_SPEED_BASE30),
         start_min_frames=frame_count('start_min_frames', 3.0), smooth_window=frame_count('smooth_window', 3.0),
         end_rest_frames=frame_count('end_rest_frames', 90.0), court_absent_window=frame_count('court_absent_window', 15.0),
+        replay_mask_min_frames=frame_count('replay_mask_min_frames', 15.0),
         impulse_floor_half_window_frames=frame_count('impulse_floor_half_window_frames', 12.0), contact_dedup_radius_frames=frame_count('contact_dedup_radius_frames', 3.0),
         contact_suppression_radius_frames=frame_count('contact_suppression_radius_frames', 9.0), serve_start_lookback_frames=frame_count('serve_start_lookback_frames', 25.0),
         serve_stillness_window_frames=frame_count('serve_stillness_window_frames', 15.0),

@@ -32,28 +32,28 @@ def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
     assert values.start_speed == 0.014999999999999998
     assert (
         values.rest_window, values.start_min_frames, values.smooth_window,
-        values.end_rest_frames, values.court_absent_window,
+        values.end_rest_frames, values.court_absent_window, values.replay_mask_min_frames,
         values.impulse_floor_half_window_frames, values.contact_dedup_radius_frames,
         values.contact_suppression_radius_frames, values.serve_start_lookback_frames,
         values.serve_stillness_window_frames,
         values.sustained_loss_frames,
         values.min_descend_samples, values.body_unit_half_window,
         values.composition_min_scene_len,
-    ) == (5, 3, 3, 90, 15, 12, 3, 9, 25, 15, 10, 3, 12, 15)
+    ) == (5, 3, 3, 90, 15, 15, 12, 3, 9, 25, 15, 10, 3, 12, 15)
 
     values25 = scale_for_fps(25.0)
     assert values25.rest_speed == 0.0024
     assert values25.start_speed == 0.018
     assert (
         values25.rest_window, values25.start_min_frames, values25.smooth_window,
-        values25.end_rest_frames, values25.court_absent_window,
+        values25.end_rest_frames, values25.court_absent_window, values25.replay_mask_min_frames,
         values25.impulse_floor_half_window_frames, values25.contact_dedup_radius_frames,
         values25.contact_suppression_radius_frames, values25.serve_start_lookback_frames,
         values25.serve_stillness_window_frames,
         values25.sustained_loss_frames,
         values25.min_descend_samples, values25.body_unit_half_window,
         values25.composition_min_scene_len,
-    ) == (4, 3, 3, 75, 13, 10, 3, 8, 21, 13, 8, 3, 10, 13)
+    ) == (4, 3, 3, 75, 13, 13, 10, 3, 8, 21, 13, 8, 3, 10, 13)
 
 
 def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
@@ -64,8 +64,10 @@ def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
     assert values60.contact_suppression_radius_frames == 18
     assert values60.composition_min_scene_len == 30
     assert values60.court_absent_window == 30
+    assert values60.replay_mask_min_frames == 30
     assert scale_for_fps(25.0).contact_suppression_radius_frames == 8
     assert scale_for_fps(25.0).court_absent_window == 13
+    assert scale_for_fps(25.0).replay_mask_min_frames == 13
     assert scale_for_fps(25.0).composition_min_scene_len == 13
     assert scale_for_fps(1.0).start_min_frames == 1
 
@@ -84,6 +86,12 @@ def test_scale_for_fps_composition_scene_length_is_distinct_but_currently_equal(
     values25 = scale_for_fps(25.0)
     assert values60.composition_min_scene_len == values60.court_absent_window
     assert values25.composition_min_scene_len == values25.court_absent_window
+
+
+def test_replay_mask_min_frames_is_distinct_and_overridable() -> None:
+    values = scale_for_fps(30.0, {'court_absent_window': 20, 'replay_mask_min_frames': 7})
+    assert values.court_absent_window == 20
+    assert values.replay_mask_min_frames == 7
 
 
 def test_scale_for_fps_visible_sample_rows_floor_at_two_frames() -> None:

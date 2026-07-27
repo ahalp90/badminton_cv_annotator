@@ -22,6 +22,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from annotator.fps_constants import scale_for_fps
 from .config import CHUNKS_DIR, MASKS_DIR, PAIRS_CSV, PAIR_WINDOW_S, RALLY_SPANS_CSV, SCRAPE_DIR
 
 log = logging.getLogger(__name__)
@@ -76,9 +77,25 @@ def build_video_fps_csv(video_dir: Path, out_csv: Path = VIDEO_FPS_CSV) -> Path:
 # ---------------------------------------------------------------------------
 # Pairing
 # ---------------------------------------------------------------------------
-def _span_overlaps_mask(start_frame: int, end_frame: int, replay_mask: np.ndarray) -> bool:
-    """True if any frame in the half-open rally span is masked replay/off-rally."""
-    return bool(replay_mask[start_frame:end_frame].any())
+def _span_has_sustained_mask_run(
+    start_frame: int, end_frame: int, replay_mask: np.ndarray, minimum_run: int,
+) -> bool:
+    """True when the half-open span contains a trusted sustained masked run.
+
+    The run must reach ``minimum_run`` consecutive frames (the fps-scaled
+    ``replay_mask_min_frames`` constant, resolved once by the caller). A single
+    masked frame is ignored because the mask can contain stray flags.
+    """
+    if start_frame < 0 or end_frame < start_frame or end_frame > len(replay_mask):
+        raise ValueError(
+            f'rally span [{start_frame}, {end_frame}) is outside replay mask of length {len(replay_mask)}'
+        )
+    run_length = 0
+    for is_masked in replay_mask[start_frame:end_frame]:
+        run_length = run_length + 1 if is_masked else 0
+        if run_length >= minimum_run:
+            return True
+    return False
 
 
 def _chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) -> bool:
@@ -118,6 +135,7 @@ def pair_video(
     sorted_chunks = sorted(chunks, key=lambda chunk: float(chunk['start']))
     claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
+    minimum_run = scale_for_fps(fps).replay_mask_min_frames
 
     for rally_id, start_frame, end_frame in sorted(rally_spans):
         row = {
@@ -125,7 +143,9 @@ def pair_video(
             'rally_start': start_frame, 'rally_end': end_frame,
             'chunk_id': '', 'commentary_start': '', 'commentary_end': '',
         }
-        rally_masked = replay_mask is not None and _span_overlaps_mask(start_frame, end_frame, replay_mask)
+        rally_masked = replay_mask is not None and _span_has_sustained_mask_run(
+            start_frame, end_frame, replay_mask, minimum_run,
+        )
         if rally_masked:
             rows.append(row)  # kept, held out of pairing
             continue
@@ -186,9 +206,14 @@ def _load_chunks(chunks_dir: Path, video_id: str) -> list[dict]:
 
 
 def _load_replay_mask(masks_dir: Path, video_id: str) -> np.ndarray | None:
-    """Load `<video_id>_replay.npy`, or None if absent."""
+    """Load a one-dimensional boolean `<video_id>_replay.npy`, or None if absent."""
     mask_path = masks_dir / f'{video_id}_replay.npy'
-    return np.load(mask_path) if mask_path.exists() else None
+    if not mask_path.exists():
+        return None
+    replay_mask = np.load(mask_path)
+    if replay_mask.ndim != 1 or replay_mask.dtype != np.bool_:
+        raise ValueError(f'{mask_path} must be a one-dimensional boolean array')
+    return replay_mask
 
 
 def main() -> None:

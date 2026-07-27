@@ -6,6 +6,7 @@ fps is fixed at 10 so frame/second arithmetic is easy to read: end_frame 100 is
 import csv
 
 import numpy as np
+import pytest
 
 from src.scraper import stage11_pairing as stage11
 from src.scraper.config import PAIR_WINDOW_S
@@ -49,9 +50,66 @@ def test_rally_overlapping_replay_is_held_out():
     rally_spans = [(0, 0, 100)]
     chunks = [_chunk('c0', 11.0, 15.0)]                  # a valid chunk exists
     replay_mask = np.zeros(400, dtype=bool)
-    replay_mask[50] = True                               # inside the rally span
+    replay_mask[50:55] = True                            # sustained at 10 fps (window = 5)
     rows = stage11.pair_video('v', rally_spans, chunks, replay_mask, FPS)
     assert rows[0]['chunk_id'] == ''                     # held out despite the available chunk
+
+
+def test_rally_with_short_mask_run_remains_pairable():
+    rally_spans = [(0, 0, 100)]
+    replay_mask = np.zeros(400, dtype=bool)
+    replay_mask[50:54] = True                            # one below the 5-frame window
+    rows = stage11.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    assert rows[0]['chunk_id'] == 'c0'
+
+
+def test_two_short_mask_runs_do_not_accumulate():
+    rally_spans = [(0, 0, 100)]
+    replay_mask = np.zeros(400, dtype=bool)
+    replay_mask[40:43] = True
+    replay_mask[60:63] = True
+    rows = stage11.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    assert rows[0]['chunk_id'] == 'c0'
+
+
+def test_mask_run_at_span_edge_counts_only_in_span():
+    replay_mask = np.zeros(20, dtype=bool)
+    replay_mask[0:5] = True
+    assert not stage11._span_has_sustained_mask_run(2, 5, replay_mask, minimum_run=5)
+    assert stage11._span_has_sustained_mask_run(0, 5, replay_mask, minimum_run=5)
+
+
+def test_none_empty_and_all_false_masks_do_not_hold_out():
+    rally_spans = [(0, 0, 100)]
+    chunks = [_chunk('c0', 11.0, 15.0)]
+    rows = stage11.pair_video('v', rally_spans, chunks, None, FPS)
+    assert rows[0]['chunk_id'] == 'c0'
+    rows = stage11.pair_video('v', [(0, 0, 0)], [_chunk('c0', 1.0, 2.0)], np.zeros(0, dtype=bool), FPS)
+    assert rows[0]['chunk_id'] == 'c0'
+    rows = stage11.pair_video('v', rally_spans, chunks, np.zeros(400, dtype=bool), FPS)
+    assert rows[0]['chunk_id'] == 'c0'
+
+
+def test_all_true_mask_holds_out():
+    replay_mask = np.ones(400, dtype=bool)
+    rows = stage11.pair_video('v', [(0, 0, 100)], [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    assert rows[0]['chunk_id'] == ''
+
+
+def test_rally_endpoint_beyond_mask_fails_loudly():
+    with pytest.raises(ValueError, match='outside replay mask'):
+        stage11.pair_video('v', [(0, 0, 101)], [], np.zeros(100, dtype=bool), FPS)
+
+
+def test_load_replay_mask_requires_one_dimensional_boolean_array(tmp_path):
+    masks_dir = tmp_path / 'masks'
+    masks_dir.mkdir()
+    np.save(masks_dir / 'bad_shape_replay.npy', np.zeros((2, 2), dtype=bool))
+    np.save(masks_dir / 'bad_type_replay.npy', np.zeros(4, dtype=np.uint8))
+    with pytest.raises(ValueError, match='one-dimensional boolean'):
+        stage11._load_replay_mask(masks_dir, 'bad_shape')
+    with pytest.raises(ValueError, match='one-dimensional boolean'):
+        stage11._load_replay_mask(masks_dir, 'bad_type')
 
 
 def test_chunk_claimed_by_earlier_of_two_rallies():

@@ -13,7 +13,7 @@ from .types import ScalingKind
 
 _OVERRIDABLE_BASE30_ROWS = frozenset({
     'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',
-    'end_rest_frames', 'court_absent_window', 'impulse_floor_half_window_frames',
+    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',
     'contact_dedup_radius_frames', 'contact_suppression_radius_frames',
     'serve_start_lookback_frames', 'serve_stillness_window_frames', 'sustained_loss_frames',
     'min_descend_samples', 'body_unit_half_window', 'composition_min_scene_len',
