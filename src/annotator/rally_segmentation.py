@@ -2090,14 +2090,25 @@ def main() -> None:
     span_rows: list[tuple[str, int, int, int]] = []
     contact_rows: list[tuple[str, int, int, str, str, str]] = []
     track_paths = sorted(args.shuttle_dir.glob('*.npy'))
+    input_track_paths = track_paths
+    from .batch_report import VideoOutcome, publish_batch_report
+
+    outcomes_by_path: dict[Path, VideoOutcome] = {}
+    all_excluded_error = None
     if args.doubles_csv is not None:
         whole_video_flags = read_whole_video_flags(args.doubles_csv)
         filtered_track_paths = []
         for track_path in track_paths:
             video_id = track_path.stem
             if video_id not in whole_video_flags:
+                outcomes_by_path[track_path] = VideoOutcome(
+                    video_id, 'excluded', reason='no doubles row; not assuming singles',
+                )
                 log.warning('excluding %s: no doubles row; not assuming singles', video_id)
             elif whole_video_flags[video_id]:
+                outcomes_by_path[track_path] = VideoOutcome(
+                    video_id, 'excluded', reason='flagged doubles',
+                )
                 log.warning('excluding %s: flagged doubles', video_id)
             else:
                 filtered_track_paths.append(track_path)
@@ -2105,7 +2116,7 @@ def main() -> None:
         # CSV with no whole-video rows (e.g. this module's own per-rally CLI output)
         # would otherwise empty the batch and exit 0.
         if track_paths and not filtered_track_paths:
-            raise ValueError(
+            all_excluded_error = ValueError(
                 f'{args.doubles_csv}: the doubles filter excluded every video in the batch; '
                 'refusing to write empty outputs'
             )
@@ -2114,6 +2125,9 @@ def main() -> None:
     for track_path in track_paths:
         video_id = track_path.stem
         if args.fps is None and video_id not in fps_by_id:
+            outcomes_by_path[track_path] = VideoOutcome(
+                video_id, 'skipped', reason='absent from fps CSV',
+            )
             log.warning('skipping %s: absent from fps CSV', video_id)
             continue
         try:
@@ -2159,8 +2173,15 @@ def main() -> None:
                     body_unit_half_window=body_unit_half_window,
                 )
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
+            exception_text = ' '.join(str(exc).split()) or type(exc).__name__
+            outcomes_by_path[track_path] = VideoOutcome(
+                video_id, 'skipped', reason=exception_text,
+            )
             log.warning('skipping %s: %s', video_id, exc)
             continue
+        outcomes_by_path[track_path] = VideoOutcome(
+            video_id, 'processed', rallies=len(spans), contacts=len(contacts),
+        )
         for rally_id, (start, end) in enumerate(spans):
             span_rows.append((video_id, rally_id, start, end))
         for contact in contacts:
@@ -2171,21 +2192,34 @@ def main() -> None:
             ))
         log.info('%s: %d rallies, %d contacts', video_id, len(spans), len(contacts))
 
-    with args.rally_spans_csv.open('w', newline='', encoding='utf-8') as handle:
-        writer = csv.writer(handle)
-        writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
-        writer.writerows(span_rows)
-    # wrist_near is the pure body-unit gate verdict; suppressed is true only for a gate-passing
-    # candidate that lost the suppression contest. Both are blank when a video ran without gate
-    # inputs (the gate never ran), so its raw candidates stand. Every detected candidate is
-    # written (the RAW set), so nothing recall-first loses its input.
-    with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
-        writer = csv.writer(handle)
-        writer.writerow([
-            'video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near', 'suppressed',
-        ])
-        writer.writerows(contact_rows)
-    log.info('wrote %d rally spans, %d contacts', len(span_rows), len(contact_rows))
+    outcomes = [outcomes_by_path[track_path] for track_path in input_track_paths]
+    if all_excluded_error is None:
+        with args.rally_spans_csv.open('w', newline='', encoding='utf-8') as handle:
+            writer = csv.writer(handle)
+            writer.writerow(['video_id', 'rally_id', 'start_frame', 'end_frame'])
+            writer.writerows(span_rows)
+        # wrist_near is the pure body-unit gate verdict; suppressed is true only for a gate-passing
+        # candidate that lost the suppression contest. Both are blank when a video ran without gate
+        # inputs (the gate never ran), so its raw candidates stand. Every detected candidate is
+        # written (the RAW set), so nothing recall-first loses its input.
+        with args.contact_frames_csv.open('w', newline='', encoding='utf-8') as handle:
+            writer = csv.writer(handle)
+            writer.writerow([
+                'video_id', 'rally_id', 'contact_frame', 'proximity_ok', 'wrist_near', 'suppressed',
+            ])
+            writer.writerows(contact_rows)
+        log.info('wrote %d rally spans, %d contacts', len(span_rows), len(contact_rows))
+
+    try:
+        publish_batch_report(
+            outcomes, args.rally_spans_csv, all_excluded=all_excluded_error is not None,
+        )
+    except Exception as publication_error:
+        if all_excluded_error is not None:
+            raise all_excluded_error from publication_error
+        raise
+    if all_excluded_error is not None:
+        raise all_excluded_error
 
 
 if __name__ == '__main__':
