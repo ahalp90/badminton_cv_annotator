@@ -72,11 +72,8 @@ def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
     assert scale_for_fps(1.0).start_min_frames == 1
 
 
-def test_resolution_keeps_inert_contact_fields_dimensionless() -> None:
+def test_resolution_scales_body_unit_window() -> None:
     base = BaseAnnotatorConfig()
-    for fps in (25.0, 50.0, 60.0):
-        resolved = resolve(base, fps)
-        assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
     assert resolve(base, 25.0).constants.body_unit_half_window == 10
     assert resolve(base, 50.0).constants.body_unit_half_window == 20
 
@@ -158,8 +155,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     assert resolved.constants.sustained_loss_frames == 20
     assert resolved.constants.min_descend_samples == 6
     assert resolved.constants.body_unit_half_window == 24
-    assert resolved.thresholds.min_dir_change_deg == base.thresholds.min_dir_change_deg
-
     # 29 is below the correct 30-frame replay threshold; 40 brackets correct 30 and double 60.
     present = np.ones(500, dtype=bool)
     present[10:39] = False

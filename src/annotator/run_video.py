@@ -212,8 +212,8 @@ def run_video(
     )
     serve_options = None
     if contacts is not None:
-        # Injected contacts already carry the selected rally IDs. Only the preliminary
-        # span pass is needed when callers did not inject spans.
+        # Injected contacts already carry the selected rally IDs. Span finding still runs when
+        # callers did not inject spans; sticky already ran over tracker segments above.
         final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
@@ -230,7 +230,8 @@ def run_video(
             cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
         )
     else:
-        # First pass is span-only and unmasked: it supplies the single sticky EMA pass.
+        # The sticky cache above already runs over scene-gated tracker segments. This span-only,
+        # unmasked pass supplies rally spans to the mask builder.
         bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
             track, resolved.thresholds, span_open=resolved.span_open,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,

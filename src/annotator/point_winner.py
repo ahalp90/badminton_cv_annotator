@@ -347,19 +347,19 @@ def _at_frame_border(xy: np.ndarray) -> bool:
 #     carve-out, proxied kinematically by wrist-proximity in body-height units). A ground settle =
 #     the shuttle has fallen and come to rest, so later motion is out-of-play: the search window is
 #     CAPPED at the first settle onset.
-#   - CARRY: a descending run whose terminal sat sustained-close to the nearest court-scale player's
-#     wrist (median wrist/box-height distance over the trailing carry_win frames <= carry_thr) is a
-#     lowering-by-hand, not a fall; it is dropped from the run set.
+#   - CARRY: a descending run whose terminal sat sustained-close to the nearest sticky-selected
+#     player's wrist (median wrist/box-height distance over the trailing carry_win frames <=
+#     carry_thr) is a lowering-by-hand, not a fall; it is dropped from the run set.
 # The last SURVIVING run wins, exactly as a naive search keeps the last run. NO geometric clamp
 # lives anywhere here: every decision reads shuttle speed and shuttle-to-wrist body-height distance
 # only.
 class LandingKinematics(NamedTuple):
     """Per-frame kinematic signals for the landing filter, built once per video.
 
-    :param carry_ratio: (t,) shuttle-to-nearest-court-scale-player nearer-WRIST distance divided by
-        that player's bbox height (body-height units); NaN where the shuttle is invisible or no
-        court-scale detection is present. The body-height form of the serve gate's proximity signal,
-        with the wrist numerator matching the shipped wrists-per-box-height attribution.
+    :param carry_ratio: (t,) shuttle-to-nearest sticky-selected player's nearer-WRIST distance
+        divided by that player's bbox height (body-height units); NaN where the shuttle is invisible
+        or no sticky pick has a finite height. The body-height form of the serve gate's proximity
+        signal, with the wrist numerator matching the shipped wrists-per-box-height attribution.
     :param ankle_ratio: (t,) the same signal built from the nearer ANKLE (COCO 15/16) instead of the
         wrist, in the same body-height units. A terminal (or a settle frame) nearer an ankle than a
         wrist is the shuttle grounded by the feet, not held.
@@ -499,7 +499,7 @@ def _carried_terminal(
     With use_ankle_rule set, a carried verdict is overturned when the terminal sample itself sits
     nearer a player's ANKLE than any player's wrist: that is the shuttle grounded by the feet, a
     landing rather than a lowering-by-hand. Association mirrors carry_ratio (nearest ankle vs nearest
-    wrist over the court-scale players, body-height units); see build_landing_kinematics.
+    wrist over the sticky-selected players, body-height units); see build_landing_kinematics.
     """
     lo = max(final_contact, terminal - opts.carry_win + 1)
     window = kin.carry_ratio[lo:terminal + 1]
@@ -515,15 +515,16 @@ def _carried_terminal(
 
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
-    kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int = MIN_DESCEND_SAMPLES,
+    kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
     event_non_evidence_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
     """The landing: the last descending run surviving the settle cap and carry filter.
 
-    Descending = the shuttle physically falling = image-y INCREASING. Runs are >= MIN_DESCEND_SAMPLES
-    consecutive VISIBLE samples, strictly image-y-increasing. The search window is first capped at
-    the settle onset, then carried runs are dropped. Returns (landing_frame, [x, y]) (frame,
+    Descending = the shuttle physically falling = image-y INCREASING. Runs are
+    at least ``min_descend_samples`` consecutive VISIBLE samples, strictly
+    image-y-increasing. The search window is first capped at the settle onset,
+    then carried runs are dropped. Returns (landing_frame, [x, y]) (frame,
     normalised xy) or None when nothing survives.
     """
     cap = _settle_cap(final_contact, win_end, kin, opts) if opts.use_settle else win_end

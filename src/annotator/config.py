@@ -21,13 +21,12 @@ REST_WINDOW = _AT_25FPS.rest_window  # frames (~0.16 s at 25 fps)
 START_SPEED = _AT_25FPS.start_speed  # rally start: speed above this...
 START_MIN_FRAMES = _AT_25FPS.start_min_frames  # ...for this many consecutive frames out of rest
 SMOOTH_WINDOW = _AT_25FPS.smooth_window  # moving-average window over (x, y) to survive TrackNetV3 jitter
-MIN_DIR_CHANGE_DEG = 30  # contact: smoothed-velocity direction change beyond this
 END_REST_FRAMES = _AT_25FPS.end_rest_frames  # rally end: extended rest of at least this (~3.0 s)
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
 
 
 class Stage8Thresholds(NamedTuple):
-    """The twelve stage-8 trajectory-rule thresholds bundled as one value.
+    """The ten stage-8 trajectory-rule thresholds bundled as one value.
 
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
@@ -44,7 +43,6 @@ class Stage8Thresholds(NamedTuple):
     start_speed: float
     start_min_frames: int
     smooth_window: int
-    min_dir_change_deg: float
     impulse_floor_half_window_frames: int = _AT_25FPS.impulse_floor_half_window_frames
     contact_dedup_radius_frames: int = _AT_25FPS.contact_dedup_radius_frames
     contact_suppression_radius_frames: int = _AT_25FPS.contact_suppression_radius_frames
@@ -61,7 +59,6 @@ SHIPPED_THRESHOLDS = Stage8Thresholds(
     start_speed=START_SPEED,
     start_min_frames=START_MIN_FRAMES,
     smooth_window=SMOOTH_WINDOW,
-    min_dir_change_deg=MIN_DIR_CHANGE_DEG,
 )
 
 # The block-2 widened-sweep pick under the merge-penalised selection key is now
@@ -105,11 +102,11 @@ DOUBLES_SPAN_FRACTION = 0.5
 class BaseAnnotatorConfig:
     """Preset carrying the non-fps knobs for an annotator run.
 
-    The preset carries ``min_dir_change_deg`` plus legacy 25fps-surface values
-    for fps-sensitive fields. Resolution overwrites
-    every fps-sensitive field from the shipped base-30 table. ``overrides_base30``
-    may replace named rows before their final per-fps values are built. Strategy
-    fields (dead-mask producer, smoothing, and serve lanes) arrive with their stages.
+    The preset carries legacy 25fps-surface values for fps-sensitive fields.
+    Resolution overwrites every fps-sensitive field from the shipped base-30 table.
+    ``overrides_base30`` may replace named rows before their final per-fps
+    values are built. Strategy fields (dead-mask producer, smoothing, and
+    serve lanes) arrive with their stages.
     """
 
     thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS

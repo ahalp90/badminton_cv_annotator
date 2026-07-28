@@ -14,6 +14,7 @@ from annotator.point_winner import (
     Landing,
     LandingFilterOptions,
     LandingKinematics,
+    MIN_DESCEND_SAMPLES,
     Verdict,
     VerdictSource,
     _body_unit_gaps,
@@ -327,12 +328,12 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
                                 carry_thr=0.5, use_settle=False)
 
-    landing = filtered_descending_landing(0, 3, track, kin, opts)
+    landing = filtered_descending_landing(0, 3, track, kin, opts, MIN_DESCEND_SAMPLES)
     assert landing is not None
     assert landing[0] == 2  # the only run's terminal, kept despite being carried
 
     strict_opts = opts._replace(null_if_all_carried=True)
-    assert filtered_descending_landing(0, 3, track, kin, strict_opts) is None
+    assert filtered_descending_landing(0, 3, track, kin, strict_opts, MIN_DESCEND_SAMPLES) is None
 
 
 def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later_run():
@@ -352,7 +353,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, event_non_evidence_mask=event_mask,
+        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
         rejected_intervals=rejected_intervals,
     )
 
@@ -376,7 +377,7 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, event_non_evidence_mask=event_mask,
+        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
     ) is None
 
 

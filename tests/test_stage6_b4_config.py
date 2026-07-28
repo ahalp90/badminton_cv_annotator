@@ -39,6 +39,11 @@ def test_unknown_base30_override_fails_loudly() -> None:
         resolve(BaseAnnotatorConfig(overrides_base30={'not_a_row': 1.0}), 30.0)
 
 
+def test_removed_direction_change_override_fails_loudly() -> None:
+    with pytest.raises(ValueError, match='unknown base-30'):
+        resolve(BaseAnnotatorConfig(overrides_base30={'min_dir_change_deg': 30.0}), 30.0)
+
+
 def test_rejected_grades_are_validated_and_copied_to_resolved_config() -> None:
     base = BaseAnnotatorConfig(rejected_grades=frozenset({1, 3}))
     assert resolve(base, 30.0).rejected_grades == frozenset({1, 3})

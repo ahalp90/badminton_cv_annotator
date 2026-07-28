@@ -19,7 +19,6 @@ FROZEN_ROW_COLUMNS = (
     "start_speed",
     "start_min_frames",
     "smooth_window",
-    "min_dir_change_deg",
     "min_contact_speed",
     "n_spans",
     "covered",

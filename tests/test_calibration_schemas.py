@@ -22,7 +22,7 @@ from annotator.calibration.schemas import (
 
 EXPECTED_FROZEN_ROW_COLUMNS = (
     "label", "rest_speed", "rest_window", "end_rest_frames", "start_speed",
-    "start_min_frames", "smooth_window", "min_dir_change_deg", "min_contact_speed",
+    "start_min_frames", "smooth_window", "min_contact_speed",
     "n_spans", "covered", "covered_fraction", "split", "missed", "merged_spans",
     "spurious_spans", "start_alignment_mean", "start_alignment_median",
     "count_gate_covered_fraction", "count_gate_unmerged_fraction", "recall_1",

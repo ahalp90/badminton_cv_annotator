@@ -19,7 +19,7 @@ _OVERRIDABLE_BASE30_ROWS = frozenset({
     'min_descend_samples', 'body_unit_half_window', 'composition_min_scene_len',
     'blip_max_frames', 'high_shot_oob_lookback_frames', 'high_shot_oob_min_visible_frames',
     'high_shot_oob_extrap_frames', 'reentry_lookahead_frames', 'reentry_min_visible_frames',
-    'contact_impulse_multiple', 'min_dir_change_deg',
+    'contact_impulse_multiple',
 })
 
 

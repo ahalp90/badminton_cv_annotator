@@ -107,7 +107,6 @@ def scale_thresholds(
         contact_dedup_radius_frames=values.contact_dedup_radius_frames,
         contact_suppression_radius_frames=values.contact_suppression_radius_frames,
         contact_impulse_multiple=overrides.get('contact_impulse_multiple', thresholds.contact_impulse_multiple),
-        min_dir_change_deg=overrides.get('min_dir_change_deg', thresholds.min_dir_change_deg),
     )
 
 
@@ -302,7 +301,7 @@ def series_drift(points: np.ndarray) -> tuple[float, int]:
     return float(np.linalg.norm(second - first)), detected_count
 
 
-# Presence floor per required player; consumed by the next batch.
+# Presence floor per required player in the serve-setup gate.
 PLAYER_PRESENT_MIN_FRAC = 0.5
 
 
@@ -673,7 +672,8 @@ def court_scale_boxes(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """One frame's court-scale person boxes.
 
-    Public: stage 10's point-winner attribution and landing filter use the same candidate set.
+    Public: direct court-scale consumers use this shared candidate filter. The landing path
+    uses the sticky-selected players instead.
 
     Keeps the detections whose foot point (bottom-centre) sits inside the court region AND
     whose pixel height is court-player scale; all callers filter through here so the rule lives
@@ -1285,9 +1285,9 @@ def build_sticky_result(
     gate_court_info: dict[str, dict], gate_resolution_table: object,
     court_box: CourtBox, resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
 ) -> StickyResult:
-    """Run one sticky analysis loop over the supplied segments.
+    """Run one sticky analysis loop over the supplied tracker segments.
 
-    A segment is one EMA lifetime. The sequential loop deliberately runs
+    A tracker segment is one EMA lifetime. The sequential loop deliberately runs
     on every frame, including non-contact frames, because skipped frames change
     the picker's EMA state and therefore later candidate choices.
     """
@@ -1308,8 +1308,8 @@ def build_sticky_result(
     standing_count = np.zeros(n_frames, dtype=int)
     ankle_pos = np.full((n_frames, 2, 2), np.nan)
     bbox_height = np.full((n_frames, 2), np.nan)
-    # Same fail-closed sentinel as the collapsed series: +inf outside the spans,
-    # NaN once a frame is visited but a slot carries no finite gap.
+    # Per-slot fail-closed sentinel: +inf outside tracker segments, NaN once a tracker
+    # segment is analysed but a slot carries no finite gap.
     distances_per_slot = np.full((n_frames, 2), np.inf, dtype=np.float64)
     wrist_dist_px = np.full((n_frames, 2), np.inf, dtype=np.float64)
     analysed = np.zeros(n_frames, dtype=bool)

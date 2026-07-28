@@ -341,7 +341,7 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     tolerances = {band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps) for band in TOLERANCES}
     contacts = [(contact.rally_id, contact.contact_frame, contact.proximity_ok, contact.wrist_near) for contact in result.filtered_contacts]
     contact = score_contacts(spans, contacts, gt, tuple(tolerances.values()))
-    row: dict[str, Any] = {"label": spec.label, **_display_config(spec), "min_dir_change_deg": 30, "min_contact_speed": 0.005,
+    row: dict[str, Any] = {"label": spec.label, **_display_config(spec), "min_contact_speed": 0.005,
         "n_spans": len(spans), **boundary, "clean_covered": len(clean), "swallowed_rallies": sum(max(0, count - 1) for count in contained), "max_rallies_in_one_span": max(contained, default=0),
         "strict_align_median": float(np.median(offsets)) if offsets else None, "strict_align_p90": float(np.percentile(offsets, 90)) if offsets else None,
         "total_candidates": len(result.filtered_contacts), "changed_from_defaults": _changed_from_defaults(spec), "settings": _settings(spec)}

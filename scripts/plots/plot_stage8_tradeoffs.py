@@ -6,7 +6,7 @@ Three .png files come out of a run:
   2. boundary_start_earliness.png -- how early each config opens its spans
      (start_alignment_median), against coverage, with the crowns marked.
   3. contact_tradeoff.png    -- contact-time precision vs recall for every
-     contact config, the Pareto frontier joined and labelled, provisional crown flagged.
+     contact config, the Pareto frontier joined and shipped row flagged.
 
 Charts 1 and 2 gain a second side-by-side panel (unmasked | masked) when a
 --masked-dir is supplied, so the replay-mask variant reads against the stock one.
@@ -15,7 +15,7 @@ Palette follows ~/Documents/protan_colour_scheme.md (mild protanopia, no red or
 red/green encodings). On the white figure background the doc calls for the darker
 accent variants: navy #1e40af for the frontier line, orange #e88806 / pink-dark
 #be185d / green #1a8c3c for the three crowns, light-mode lavender #7c3aed for the
-contact crown, and grey #888a85 for the de-emphasised config cloud. Crowns are told
+    contact shipped row, and grey #888a85 for the de-emphasised config cloud. Crowns are told
 apart by marker SHAPE plus a text label, so hue never carries the distinction alone.
 
 Basic and re-runnable: point --unmasked-dir / --masked-dir at any later sweep output.
@@ -43,7 +43,8 @@ DEFAULT_OUT = Path(
 # Protan-safe accents on a white background (see module docstring for provenance).
 GREY_CLOUD = "#888a85"  # de-emphasised scatter of every config
 NAVY = "#1e40af"  # frontier line (structural cool, holds on white)
-LAVENDER = "#7c3aed"  # contact provisional crown (light-mode lavender)
+LAVENDER = "#7c3aed"  # shipped contact row (light-mode lavender)
+SHIPPED_LABEL = "shipped_defaults"
 
 # Each candidate boundary crown gets its own SHAPE so it reads without relying on hue.
 # (colour, matplotlib marker, plain-language label).
@@ -228,9 +229,8 @@ def plot_boundary_earliness(unmasked: tuple[pd.DataFrame, pd.DataFrame],
 def plot_contact_tradeoff(sweep_dir: Path, out_path: Path) -> None:
     """Render contact_tradeoff.png: contact-time precision vs recall.
 
-    Every config is a grey dot; the Pareto frontier is joined and each of its points
-    labelled with its direction-change threshold (min_dir_change_deg). The provisional
-    crown (min_dir_change_deg 30, smooth_window 3, min_contact_speed 0.005) is starred.
+    Every config is a grey dot; the Pareto frontier is joined. The shipped row
+    (smooth_window 3) is starred.
     """
     sweep = pd.read_csv(sweep_dir / "contact_sweep.csv")
     frontier = pd.read_csv(sweep_dir / "contact_frontier.csv")
@@ -242,24 +242,15 @@ def plot_contact_tradeoff(sweep_dir: Path, out_path: Path) -> None:
     front = frontier.sort_values("precision_5")
     ax.plot(front["precision_5"], front["recall_5"], color=NAVY, lw=1.6, marker="o",
             markersize=6, zorder=3, label="Pareto frontier")
-    for _, row in front.iterrows():
-        ax.annotate(f"{row['min_dir_change_deg']:g}deg", (row["precision_5"], row["recall_5"]),
-                    textcoords="offset points", xytext=(6, 6), fontsize=8, color=NAVY)
-
-    # isclose, not ==: the speed column round-trips through CSV as a float. A
-    # missing crown fails loud; this chart is ruling input, so a silently absent
-    # marker is worse than a crash.
-    crown = sweep[(sweep["min_dir_change_deg"] == 30) & (sweep["smooth_window"] == 3)
-                  & np.isclose(sweep["min_contact_speed"], 0.005)]
-    if crown.empty:
+    shipped = sweep[sweep["label"] == SHIPPED_LABEL]
+    if len(shipped) != 1:
         raise ValueError(
-            "provisional crown (30deg / smooth 3 / speed 0.005) not found in "
-            "contact_sweep.csv; update the crown constants here if the ruling has moved"
+            f"expected one shipped contact row in contact_sweep.csv, found {len(shipped)}"
         )
-    crown_row = crown.iloc[0]
-    ax.scatter(crown_row["precision_5"], crown_row["recall_5"], s=260, color=LAVENDER,
+    shipped_row = shipped.iloc[0]
+    ax.scatter(shipped_row["precision_5"], shipped_row["recall_5"], s=260, color=LAVENDER,
                marker="*", edgecolors="black", linewidths=0.8, zorder=5,
-               label="provisional crown (30deg / smooth 3 / speed 0.005)")
+               label="shipped contact row (smooth 3)")
 
     ax.set_title("Contact-time detection trade-off: precision vs recall", fontsize=12,
                  fontweight="bold")

@@ -86,13 +86,13 @@ Slot; the Half spelling survives only until its consumers migrate).
 Ordering has two hard dependencies. The dead-time mask (the per-frame "this frame is
 replays or other non-play" mask) needs rally spans, because one of its signals
 compares in-rally shuttle speed against the rest of the video. The serve gate needs
-the sticky analysis (the player-picking pass defined in step 2), and sticky itself
-needs spans to run over. The resolution is two segmentation passes and one sticky
-analysis:
+the sticky analysis (the player-picking pass defined in step 2). Sticky runs over
+scene-gated tracker segments. The resolution is one tracker-segment sticky analysis,
+one preliminary span pass for the mask, and one final segmentation pass:
 
 1. preliminary segmentation, run unmasked and serve-ungated, finds bootstrap spans
-   (a first cut of "when is play happening", used only to feed steps 2 and 3)
-2. one sticky analysis runs over the bootstrap spans
+   (a first cut of "when is play happening", used only to feed step 3)
+2. one sticky analysis runs over the scene-gated tracker segments
 3. the dead-time mask builds
 4. final segmentation (masked, serve-gated) produces the rally spans and contacts
 5. attribution, server fit, landing, winner, hit height, and the doubles screen
@@ -101,10 +101,10 @@ analysis:
 
 ### Step 1: preliminary segmentation (bootstrap spans)
 
-Purpose: give the sticky analysis and the mask builder a first cut of play time,
-before any mask or serve gate exists. It is the same span-finding logic as step 4 run
-with no dead-time mask and no serve gate (today: the span logic inside
-stage8_rally_segmentation.segment_video).
+Purpose: give the mask builder a first cut of play time before any mask or serve gate
+exists. It is the same span-finding logic as step 4 run with no dead-time mask and no
+serve gate (today: the span logic inside
+annotator.rally_segmentation.segment_video).
 
 Span-finding contract (shared with step 4), with the equality rules pinned:
 
@@ -135,9 +135,9 @@ bst_x preparing_data/heuristics/sticky_anchor.py, reached through a sys.path hac
 dies in this migration; the annotator imports it as a real package with public
 names).
 
-It runs ONCE per video, sequentially over the bootstrap spans, resetting its moving
-average at each bootstrap boundary and on picker failure (reset details below). The
-result is immutable and every consumer named in the table reads from it. Its fields,
+It runs ONCE per video, sequentially over the scene-gated tracker segments, resetting
+its moving average at each tracker-segment boundary and on picker failure (reset details
+below). The result is immutable and every consumer named in the table reads from it. Its fields,
 coordinate systems, and owners:
 
 | Field | What it is | Who consumes it |
@@ -163,8 +163,8 @@ Failure semantics, per slot (a deliberate tightening of today's whole-frame bund
   fields and the count; only the failed slot is no-evidence, and its moving average
   resets to the half-court prior
 - a whole-frame pick failure fails both slots and resets both averages
-- frames outside every bootstrap span carry no-evidence values for every field; the
-  result covers span frames only
+- frames outside every tracker segment carry no-evidence values for every field; the
+  result covers tracker-segment frames only
 
 Today's contract, for contrast: the count exists only inside a success-only return
 (every failure path discards it, and even stage8 discards it on success), an unpicked
@@ -213,7 +213,7 @@ serve gate on. Output: the rally spans (rally_id is list position) and the RAW
 contact candidates.
 
 Contact detection contract (today: the impulse path inside
-stage8_rally_segmentation): within each span, on the masked track,
+annotator.rally_segmentation): within each span, on the masked track,
 
 - each junction (the boundary between adjacent frames) gets an impulse: the change
   in smoothed shuttle velocity across it. A span too short to smooth yields no
@@ -301,18 +301,13 @@ coordinates are exactly zero (the paired-zero missing sentinel sticky, BST-X, an
 TrackNet share). (0, y) and (x, 0) stay detected. The helper accepts sentinel-coded
 point series, not arbitrary geometry where the origin is meaningful.
 
-Today's gate, for contrast: two AND-composed checks built from court_scale_boxes
-detections (not sticky), a distance gate over a lookback strictly before the burst,
-then a wide-shot check (median count at least 2, both halves present in half the
-window, endpoint-means foot drift under a fixed image-fraction). The wide-shot naming
-and the endpoint-means arithmetic die in this migration; the sticky-sourced
-three-lane gate above replaces them.
+The historical court-scale distance and wide-shot gate was removed in W2.4. The
+sticky-sourced three-lane gate above is the current serve gate.
 
 ### Step 5: striker attribution
 
 Per filtered contact: attribute the stroke to Top or Bottom by which sticky-picked
-player is nearer the shuttle at the contact frame (today: attribute_half re-detects
-candidates from raw boxes; it moves onto the sticky picks). A contact yields no guess
+player is nearer the shuttle at the contact frame. A contact yields no guess
 (None) when the shuttle is invisible at that frame, no candidate exists, or the
 nearer player's foot sits in the net band (ambiguous).
 
@@ -409,7 +404,7 @@ The target result bundle, one per video:
 - per filtered contact: hit height; plus the hit-height failure rows
 - per rally: the doubles flag
 
-Today's nearest shape is smaller (h_end_to_end's DetectedChain): it carries the
+Today's nearest shape is smaller (`scripts/archive/h_end_to_end.py`'s DetectedChain): it carries the
 spans, contacts, per-rally halves, verdict rows, landings, and hit heights, while
 the winner half is derived downstream by the scorer and the doubles flag lives in a
 separate CLI. The target bundle folds both in.
