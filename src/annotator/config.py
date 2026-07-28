@@ -129,12 +129,14 @@ class BaseAnnotatorConfig:
 
     thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
-    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL
+    # Measured together in W2.9: ignore invisible coordinates during smoothing,
+    # then classify sustained gaps with the ruled two-sided re-entry guard.
+    smoothing_mode: SmoothingMode = SmoothingMode.IGNORE_INVISIBLE
     overrides_base30: Mapping[str, float] | None = None
     span_open: SpanOpen | None = SpanOpen.BACK_FILL
-    gap_state_demotion_bound: float | None = None
-    reentry_guard_variant: ReentryGuardVariant | None = None
-    reentry_guard_buffer: float | None = None
+    gap_state_demotion_bound: float | None = 75.0
+    reentry_guard_variant: ReentryGuardVariant | None = ReentryGuardVariant.TWO_SIDED
+    reentry_guard_buffer: float | None = 0.05
     quiet_start_window: float | None = None
     # Shipping default from the three-arm remeasure (2026-07-22): rejecting all three
     # inpaint grades scored best on every fixture; record in the campaign docs at

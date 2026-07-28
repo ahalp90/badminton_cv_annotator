@@ -1,6 +1,8 @@
 """Stage 6 B4 config plumbing and opt-in span strategy tests."""
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -9,11 +11,12 @@ from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import (
     _find_rally_spans_quiet_start,
     _gap_state_rest_mask,
+    segment_video,
 )
 import annotator.run_video as run_video_module
 from annotator.resolve import resolve
 from annotator.run_video import build_serve_options, run_video
-from annotator.types import ReentryGuardVariant, SpanOpen
+from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 
 
 def test_base30_overrides_resolve_all_scaling_kinds() -> None:
@@ -32,6 +35,24 @@ def test_no_base30_overrides_is_bit_identical() -> None:
     assert resolve(BaseAnnotatorConfig(), 25.0) == resolve(
         BaseAnnotatorConfig(overrides_base30=None), 25.0,
     )
+
+
+def test_shipped_tracking_strategies_resolve_at_video_fps() -> None:
+    resolved25 = resolve(BaseAnnotatorConfig(), 25.0)
+    resolved30 = resolve(BaseAnnotatorConfig(), 30.0)
+    assert resolved25.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
+    assert resolved25.gap_state_demotion_bound == 63
+    assert resolved30.gap_state_demotion_bound == 75
+    assert resolved30.reentry_guard_variant is ReentryGuardVariant.TWO_SIDED
+    assert resolved30.reentry_guard_buffer == 0.05
+
+
+def test_low_level_segment_strategies_remain_opt_in() -> None:
+    parameters = inspect.signature(segment_video).parameters
+    assert parameters['smoothing_mode'].default is SmoothingMode.ZERO_FILL
+    assert parameters['gap_state_demotion_bound'].default is None
+    assert parameters['reentry_guard_variant'].default is None
+    assert parameters['reentry_guard_buffer'].default is None
 
 
 def test_unknown_base30_override_fails_loudly() -> None:
@@ -69,14 +90,42 @@ def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest
 
 
 @pytest.mark.parametrize('kwargs', [
-    {'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY},
-    {'reentry_guard_buffer': 0.1},
-    {'gap_state_demotion_bound': 10.0, 'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY},
-    {'gap_state_demotion_bound': 10.0, 'reentry_guard_buffer': 0.1},
+    {
+        'gap_state_demotion_bound': None,
+        'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY,
+        'reentry_guard_buffer': None,
+    },
+    {
+        'gap_state_demotion_bound': None,
+        'reentry_guard_variant': None,
+        'reentry_guard_buffer': 0.1,
+    },
+    {
+        'gap_state_demotion_bound': 10.0,
+        'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY,
+        'reentry_guard_buffer': None,
+    },
+    {
+        'gap_state_demotion_bound': 10.0,
+        'reentry_guard_variant': None,
+        'reentry_guard_buffer': 0.1,
+    },
 ])
 def test_invalid_gap_guard_configurations_fail_loudly(kwargs: dict) -> None:
     with pytest.raises(ValueError, match='reentry guard'):
         BaseAnnotatorConfig(**kwargs)
+
+
+def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
+    base = BaseAnnotatorConfig(
+        gap_state_demotion_bound=None,
+        reentry_guard_variant=None,
+        reentry_guard_buffer=None,
+    )
+    resolved = resolve(base, 25.0)
+    assert resolved.gap_state_demotion_bound is None
+    assert resolved.reentry_guard_variant is None
+    assert resolved.reentry_guard_buffer is None
 
 
 def test_quiet_start_and_serve_start_fail_in_run_video() -> None:

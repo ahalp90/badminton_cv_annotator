@@ -1,8 +1,10 @@
-"""Library-only acceptance pins for the sticky-anchor contact gate.
+"""Historical library-only pins for the sticky-anchor contact gate.
 
-This successor re-earns the four suppression-radius pins against the current chain, where
-every player detection comes from the sticky tracker's picks. The historical
-``s28_sticky_pin_r30.py`` file remains byte-frozen as the pre-anchor-picks record.
+The four standing suppression-radius outputs record the pre-cleanup chain.
+Their external scoring harness depends on compatibility surfaces deliberately
+removed in the cleanup, so they are retained as evidence rather than a live
+regression gate. Ongoing regression checks use the three-fixture calibration
+capture.
 
 Import order is load-bearing. This script binds ``annotator`` and ``shared`` to its own
 checkout BEFORE importing the scoring harness (measurements/end_to_end_yardstick.py under the
