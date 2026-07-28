@@ -119,14 +119,8 @@ def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:
     track[:, 2] = 1
     track[20:40, 0] = np.arange(20) * 0.01
     track[40:, 0] = track[39, 0]
-    unaware, _ = segment_video(
-        track, thresholds=SHIPPED_THRESHOLDS,
-        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
-    )
-    aware, _ = segment_video(
-        track, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 50.0),
-        body_unit_half_window=scale_for_fps(50.0).body_unit_half_window,
-    )
+    unaware, _ = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
+    aware, _ = segment_video(track, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 50.0))
     assert unaware == []
     assert aware == [(21, 41)]
 
@@ -180,14 +174,8 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     present = np.ones(n_frames, dtype=bool)
     present[45:75] = False
     replay = combine_mask(present, None, None, None, n_frames, resolved.fps)
-    plain_spans, _ = segment_video(
-        track, thresholds=resolved.thresholds,
-        body_unit_half_window=resolved.constants.body_unit_half_window,
-    )
-    masked_spans, _ = segment_video(
-        track, thresholds=resolved.thresholds, replay_mask=replay,
-        body_unit_half_window=resolved.constants.body_unit_half_window,
-    )
+    plain_spans, _ = segment_video(track, thresholds=resolved.thresholds)
+    masked_spans, _ = segment_video(track, thresholds=resolved.thresholds, replay_mask=replay)
     assert plain_spans[0][0] == 45
     assert masked_spans[0][0] == 75
 
@@ -210,18 +198,25 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     court_box = CourtBox((0.0, 1920.0), (0.0, 1080.0), (1.0, 1000.0), (0.0, 1080.0))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
                   'border_U': 0.0, 'border_D': 1080.0}
-    gate_kwargs = dict(
-        thresholds=resolved.thresholds, pose_bboxes=bboxes, pose_scores=scores, pose_kps=kps,
-        pose_ndet=ndet, court_box=court_box, gate_video_id='v', gate_court_info={'v': court_info},
-        gate_resolution_table=pd.DataFrame({'width': [1920.0], 'height': [1080.0]}, index=['v']),
+    resolution_table = pd.DataFrame(
+        {'width': [1920.0], 'height': [1080.0]}, index=['v'],
     )
-
+    short_sticky = build_sticky_result(
+        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
+        {'v': court_info.copy()},
+        resolution_table, court_box, (1920.0, 1080.0), 12,
+    )
+    full_sticky = build_sticky_result(
+        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
+        {'v': court_info.copy()}, resolution_table, court_box, (1920.0, 1080.0),
+        resolved.constants.body_unit_half_window,
+    )
+    base_radius_thresholds = resolved.thresholds._replace(contact_suppression_radius_frames=9)
     base_radius_contacts = segment_video(
-        track, body_unit_half_window=12,
-        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
+        track, thresholds=base_radius_thresholds, sticky_distances=short_sticky.distances,
     )[1]
     resolved_contacts = segment_video(
-        track, body_unit_half_window=12, **gate_kwargs,
+        track, thresholds=resolved.thresholds, sticky_distances=short_sticky.distances,
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
@@ -232,13 +227,9 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         for contact in resolved_contacts if contact.contact_frame in (73, 82)
     ) == 1
 
-    short_window_contacts = segment_video(
-        track, body_unit_half_window=12,
-        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
-    )[1]
+    short_window_contacts = base_radius_contacts
     full_contacts = segment_video(
-        track, body_unit_half_window=resolved.constants.body_unit_half_window,
-        **(gate_kwargs | {'thresholds': resolved.thresholds._replace(contact_suppression_radius_frames=9)}),
+        track, thresholds=base_radius_thresholds, sticky_distances=full_sticky.distances,
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
     full_contact = next(contact for contact in full_contacts if contact.contact_frame == 82)
@@ -248,18 +239,13 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     # The final resolved contact uses the same track, sticky cache, and resolved constants for
     # attribution and landing.
     resolved_full_contacts = segment_video(
-        track, body_unit_half_window=resolved.constants.body_unit_half_window, **gate_kwargs,
+        track, thresholds=resolved.thresholds, sticky_distances=full_sticky.distances,
     )[1]
     final_contact = [
         contact.contact_frame for contact in resolved_full_contacts
         if contact.wrist_near is not False and contact.suppressed is not True
     ][-1]
-    sticky = build_sticky_result(
-        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
-        {'v': court_info.copy()},
-        gate_kwargs['gate_resolution_table'], court_box, (1920.0, 1080.0),
-        resolved.constants.body_unit_half_window,
-    )
+    sticky = full_sticky
     assert attribute_half(final_contact, track, sticky, bboxes, (520.0, 560.0)) is Half.TOP
     # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the resolved 20.
     # It exposes two post-contact descents: five samples (base 3 accepts; resolved 6 rejects),

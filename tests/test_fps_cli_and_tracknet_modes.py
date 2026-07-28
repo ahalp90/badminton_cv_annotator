@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 
 from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
+from annotator.resolve import resolve
+from annotator.run_video import AnnotatorResult
 
 def test_stage9_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
     import annotator.composition_mask as stage9
@@ -49,6 +51,7 @@ def test_stage8_main_resolves_fps_thresholds(
     fps_args: list[str],
     expected_impulse: int,
 ) -> None:
+    import annotator.run_video as run_video_module
     import annotator.rally_segmentation as stage8
 
     shuttle_dir = tmp_path / 'shuttles'
@@ -57,12 +60,14 @@ def test_stage8_main_resolves_fps_thresholds(
     fps_csv = tmp_path / 'fps.csv'
     fps_csv.write_text('id,fps\nvideo-1,50\n', encoding='utf-8')
     captured = []
+    calls = []
 
-    def fake_segment_video(track, positions=None, **kwargs):
-        captured.append(kwargs['thresholds'])
-        return [], []
+    def fake_run_video(track, **kwargs):
+        calls.append((track, kwargs))
+        captured.append(resolve(kwargs['base'], kwargs['fps']).thresholds)
+        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
 
-    monkeypatch.setattr(stage8, 'segment_video', fake_segment_video)
+    monkeypatch.setattr(run_video_module, 'run_video', fake_run_video)
     args = [
         '--shuttle-dir', str(shuttle_dir), '--rally-spans-csv', str(tmp_path / 'spans.csv'),
         '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
@@ -78,6 +83,10 @@ def test_stage8_main_resolves_fps_thresholds(
 
     if expected_impulse is not None:
         assert captured[0].impulse_floor_half_window_frames == expected_impulse
+        assert calls[0][1]['base'].span_open is None
+        assert calls[0][1]['court_optional'] is True
+        assert calls[0][1]['stop_after_segmentation'] is True
+        np.testing.assert_array_equal(calls[0][1]['dead_mask'], np.zeros(4, dtype=bool))
     if '--missing-id' in fps_args:
         assert not captured
         assert 'skipping missing-id: absent from fps CSV' in caplog.text
@@ -87,6 +96,7 @@ def test_stage8_main_serialises_split_verdicts_to_csv(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     """The contacts CSV carries both verdict columns, blank on the no-gate path."""
+    import annotator.run_video as run_video_module
     import annotator.rally_segmentation as stage8
     from annotator.types import ContactCandidate
 
@@ -95,15 +105,15 @@ def test_stage8_main_serialises_split_verdicts_to_csv(
     np.save(shuttle_dir / 'video-1.npy', np.zeros((4, 3)))
     contacts_csv = tmp_path / 'contacts.csv'
 
-    def fake_segment_video(track, positions=None, **kwargs):
-        return [(0, 20)], [
+    def fake_run_video(track, **kwargs):
+        return AnnotatorResult([(0, 20)], [
             ContactCandidate(0, 1, True, True, False),    # gate winner
             ContactCandidate(0, 5, True, True, True),     # suppression loser
             ContactCandidate(0, 9, False, False, False),  # gate failure
             ContactCandidate(0, 13, None, None, None),    # no-gate path
-        ]
+        ], [], {}, [], [], [], [], {}, {}, {}, {}, [])
 
-    monkeypatch.setattr(stage8, 'segment_video', fake_segment_video)
+    monkeypatch.setattr(run_video_module, 'run_video', fake_run_video)
     monkeypatch.setattr(sys, 'argv', [
         'stage8', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
         '--rally-spans-csv', str(tmp_path / 'spans.csv'),
@@ -118,6 +128,26 @@ def test_stage8_main_serialises_split_verdicts_to_csv(
         'video-1,0,9,False,False,False',
         'video-1,0,13,,,',
     ]
+
+
+@pytest.mark.parametrize(
+    'retired_option',
+    ['--gate-dir', '--pose-dir', '--homography-csv', '--resolution-csv',
+     '--court-box-csv', '--thresholds'],
+)
+def test_stage8_main_rejects_retired_options(monkeypatch, tmp_path, retired_option):
+    import annotator.rally_segmentation as stage8
+
+    shuttle_dir = tmp_path / 'shuttles'
+    shuttle_dir.mkdir()
+    option_value = 'shipped' if retired_option == '--thresholds' else str(tmp_path / 'retired')
+    monkeypatch.setattr(sys, 'argv', [
+        'stage8', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
+        retired_option, option_value,
+    ])
+
+    with pytest.raises(SystemExit, match='2'):
+        stage8.main()
 
 
 def test_stage8_main_requires_an_fps_source(

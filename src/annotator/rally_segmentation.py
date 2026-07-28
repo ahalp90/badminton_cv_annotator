@@ -46,12 +46,11 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 from .config import (
-    BEST_CONFIG_THRESHOLDS,
+    BaseAnnotatorConfig,
     END_REST_FRAMES,
     PROXIMITY_MAX,
     REST_SPEED,
     REST_WINDOW,
-    SHIPPED_THRESHOLDS,
     SMOOTH_WINDOW,
     START_MIN_FRAMES,
     START_SPEED,
@@ -1442,17 +1441,7 @@ def segment_video(
     body_unit_dist: np.ndarray | None = None,
     sticky_distances: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
-    pose_bboxes: np.ndarray | None = None,
-    pose_scores: np.ndarray | None = None,
-    pose_kps: np.ndarray | None = None,
-    pose_ndet: np.ndarray | None = None,
-    court_box: CourtBox | None = None,
-    gate_video_id: str | None = None,
-    gate_court_info: dict[str, dict] | None = None,
-    gate_resolution_table: object | None = None,
     suppression_radius: int | None = None,
-    body_unit_half_window: int | None = None,
-    resolution: tuple[float, float] = (1920.0, 1080.0),
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
     constants: FpsConstants | None = None,
     gap_state_demotion_bound: int | None = None,
@@ -1480,19 +1469,8 @@ def segment_video(
     :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
         `apply_replay_mask` before speed is computed, or None.
     :param body_unit_dist: optional `(t,)` body-unit shuttle-to-nearest-wrist gaps. NaN fails
-        closed. If absent, all four pose inputs must be supplied for the gate to run.
-    :param pose_bboxes: `(t, n, 4)` pose boxes for the body-unit gate.
-    :param pose_scores: `(t, n)` pose scores aligned to `pose_bboxes`.
-    :param pose_kps: `(t, n, 17, 2)` pose keypoints aligned to `pose_bboxes`.
-    :param pose_ndet: `(t,)` raw detection counts consumed by sticky_anchor.
-    :param court_box: per-video CourtBox used by point-winner's body-unit denominator association.
-    :param gate_video_id: string video ID used by sticky_anchor's homography context.
-    :param gate_court_info: `{video_id: court_info}` from the homography table.
-    :param gate_resolution_table: resolution DataFrame indexed by string video ID.
+        closed. Production callers supply the externally computed sticky distances instead.
     :param suppression_radius: optional contact suppression radius; None keeps the shipped 9-frame default.
-    :param body_unit_half_window: resolved body-height window. Required with explicit
-        thresholds; bare callers retain the Stage 6 bridge's legacy 12-frame default.
-    :param resolution: `(width, height)` of the track and pose pixels.
     :param smoothing_mode: span coordinate smoothing policy; ZERO_FILL preserves
         the shipped rule and IGNORE_INVISIBLE drops invisible xy from each mean.
     :return: `(spans, contacts)` where spans is `[(start_frame, end_frame), ...]`
@@ -1503,11 +1481,6 @@ def segment_video(
         candidate that lost the suppression-radius contest. Both are blank when no gate inputs
         are supplied, so every raw candidate stands.
     """
-    # Stage 6 bridge: bare calls preserve the frozen sweep/pilot's module-dispatched globals.
-    if body_unit_half_window is None:
-        if thresholds is not None:
-            raise ValueError('explicit thresholds require body_unit_half_window')
-        body_unit_half_window = BODY_UNIT_HALF_WINDOW
     if serve_start is not None and span_open is SpanOpen.REGION_START:
         raise ValueError(
             'serve_start with span_open=REGION_START is contradictory: REGION_START drops the '
@@ -1522,25 +1495,11 @@ def segment_video(
         )
     # Argument validation precedes any span work so bad combinations fail loudly
     # here, never as a numpy error from deep inside span finding.
-    gate_inputs = (
-        pose_bboxes, pose_scores, pose_kps, pose_ndet, court_box,
-        gate_video_id, gate_court_info, gate_resolution_table,
-    )
     if sticky_distances is not None:
         if sticky_distances.shape != (len(track),):
             raise ValueError('sticky_distances must have shape (len(track),)')
-        if body_unit_dist is not None or any(value is not None for value in gate_inputs):
+        if body_unit_dist is not None:
             raise ValueError('sticky_distances cannot be combined with other gate inputs')
-    if body_unit_dist is not None and any(value is not None for value in gate_inputs):
-        raise ValueError('body_unit_dist cannot be combined with pose gate inputs')
-    if body_unit_dist is None and any(value is not None for value in gate_inputs):
-        if not all(value is not None for value in gate_inputs):
-            raise ValueError(
-                'sticky gate requires pose_bboxes, pose_scores, pose_kps, pose_ndet, '
-                'court_box, gate_video_id, gate_court_info, and gate_resolution_table'
-            )
-
-    gate_track = track
     if replay_mask is not None:
         track = apply_replay_mask(track, replay_mask)
 
@@ -1552,7 +1511,7 @@ def segment_video(
             quiet_start_window=quiet_start_window,
         )
 
-    gate_ran = sticky_distances is not None or body_unit_dist is not None or all(value is not None for value in gate_inputs)
+    gate_ran = sticky_distances is not None or body_unit_dist is not None
     if not gate_ran:
         return spans, assemble_contacts(
             track, positions, spans, thresholds, None, suppression_radius,
@@ -1561,18 +1520,6 @@ def segment_video(
 
     distances = sticky_distances
     if body_unit_dist is None:
-        if distances is None:
-            # TODO: this fallback builds sticky over rally spans, not
-            # scene-gated tracker segments, so a scene whose court
-            # corners cannot be recovered is not excluded. Fix by
-            # deriving homography-row/court-present segments here, or
-            # require callers to pass scene-gated sticky_distances.
-            # Evidence: records/homography_fail_verification_sol_20260727.txt
-            distances = build_sticky_result(
-                gate_track, spans, pose_bboxes, pose_scores, pose_kps, pose_ndet,
-                gate_video_id, gate_court_info, gate_resolution_table, court_box, resolution,
-                body_unit_half_window,
-            ).distances
         return spans, assemble_contacts(
             track, positions, spans, thresholds, distances, suppression_radius,
             smoothing_mode=smoothing_mode,
@@ -1586,9 +1533,6 @@ def segment_video(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-# CLI preset names -> the shipped threshold sets. Library callers pass a Stage8Thresholds
-# directly; the CLI only exposes the two committed presets (spec: library-first).
-_THRESHOLD_PRESETS = {'shipped': SHIPPED_THRESHOLDS, 'best': BEST_CONFIG_THRESHOLDS}
 _SPAN_OPEN_CHOICES = {'region-start': SpanOpen.REGION_START, 'back-fill': SpanOpen.BACK_FILL}
 
 
@@ -1617,8 +1561,7 @@ def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None
     """Load `<video_id>_dead_mask.npy` from mask_dir if present, else None.
 
     A missing file means the video runs unmasked. A present-but-invalid mask hits
-    `apply_replay_mask`'s fail-loud checks inside segment_video, which the per-video
-    log-and-skip in `main` catches.
+    `run_video`'s fail-loud checks, which the per-video log-and-skip in `main` catches.
     """
     if mask_dir is None:
         return None
@@ -1627,51 +1570,6 @@ def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None
         log.info('no dead mask for %s, running unmasked', video_id)
         return None
     return np.load(mask_path)
-
-
-def _gate_array_path(gate_dir: Path, video_id: str, kind: str) -> Path:
-    """Find one per-video raw pose array under the batch gate directory."""
-    candidates = (
-        gate_dir / f'{video_id}_{kind}.npy',
-        gate_dir / f'{video_id}_raw_{kind}.npy',
-    )
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
-
-
-def _load_gate_arrays(
-    gate_dir: Path, video_id: str, track_length: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
-    """Load and validate all four raw arrays, or None when none are present."""
-    paths = {
-        kind: _gate_array_path(gate_dir, video_id, kind)
-        for kind in ('bboxes', 'scores', 'kps', 'ndet')
-    }
-    present = [path.exists() for path in paths.values()]
-    if not any(present):
-        return None
-    if not all(present):
-        missing = ', '.join(kind for kind, path in paths.items() if not path.exists())
-        raise ValueError(f'{video_id}: gate arrays are incomplete; missing {missing}')
-
-    bboxes = np.load(paths['bboxes'])
-    scores = np.load(paths['scores'])
-    kps = np.load(paths['kps'])
-    ndet = np.load(paths['ndet'])
-    if len(bboxes) != track_length or len(scores) != track_length or len(kps) != track_length \
-            or len(ndet) != track_length:
-        raise ValueError(f'{video_id}: gate arrays do not match track length {track_length}')
-    if bboxes.ndim != 3 or bboxes.shape[-1] != 4:
-        raise ValueError(f'{video_id}: bboxes shape {bboxes.shape} is not (frames, detections, 4)')
-    if scores.shape != bboxes.shape[:2] or kps.shape[:2] != bboxes.shape[:2]:
-        raise ValueError(f'{video_id}: gate array detection axes disagree')
-    if kps.ndim != 4 or kps.shape[2:] != (17, 2):
-        raise ValueError(f'{video_id}: kps shape {kps.shape} is not (frames, detections, 17, 2)')
-    if ndet.ndim != 1:
-        raise ValueError(f'{video_id}: ndet shape {ndet.shape} is not (frames,)')
-    return bboxes, scores, kps, ndet
 
 
 def _read_string_id_table(path: Path, label: str):
@@ -1697,37 +1595,6 @@ def _read_fps_table(path: Path):
     return {str(video_id): float(row.fps) for video_id, row in table.iterrows()}
 
 
-def _load_gate_context(
-    homography_csv: Path, resolution_csv: Path, court_box_csv: Path,
-) -> tuple[dict[str, dict], object, dict[str, CourtBox]]:
-    """Load the three batch gate tables with string-keyed joins."""
-    from pipeline.court_utils import get_court_info
-
-    homography = _read_string_id_table(homography_csv, 'homography CSV')
-    resolution = _read_string_id_table(resolution_csv, 'resolution table')
-    court_rows = _read_string_id_table(court_box_csv, 'CourtBox table')
-    required = {
-        'x_lo', 'x_hi', 'y_lo', 'y_hi', 'height_lo', 'height_hi', 'mid_lo', 'mid_hi',
-    }
-    missing = sorted(required - set(court_rows.columns))
-    if missing:
-        raise ValueError(f'CourtBox table: missing columns {missing}')
-    all_court_info = {
-        str(video_id): get_court_info(homography, str(video_id))
-        for video_id in homography.index
-    }
-    court_boxes = {
-        str(video_id): CourtBox(
-            x_range=(float(row.x_lo), float(row.x_hi)),
-            y_range=(float(row.y_lo), float(row.y_hi)),
-            height_band=(float(row.height_lo), float(row.height_hi)),
-            mid_band=(float(row.mid_lo), float(row.mid_hi)),
-        )
-        for video_id, row in court_rows.iterrows()
-    }
-    return all_court_info, resolution, court_boxes
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
@@ -1737,20 +1604,8 @@ def main() -> None:
     parser.add_argument('--mask-dir', type=Path, default=None,
                         help='Optional directory of <video_id>_dead_mask.npy dead-time masks '
                              '(True = dead); a missing file runs that video unmasked')
-    parser.add_argument('--gate-dir', '--pose-dir', dest='gate_dir', type=Path, default=None,
-                        help='Optional directory of per-video gate arrays: '
-                             '<video_id>_{bboxes,scores,kps,ndet}.npy')
-    parser.add_argument('--homography-csv', type=Path, default=None,
-                        help='Homography table for sticky-anchor projection')
-    parser.add_argument('--resolution-csv', type=Path, default=None,
-                        help='Per-video resolution table for sticky-anchor projection')
-    parser.add_argument('--court-box-csv', type=Path, default=None,
-                        help='Per-video CourtBox table with id/video_id and '
-                             'x_lo,x_hi,y_lo,y_hi,height_lo,height_hi,mid_lo,mid_hi')
     parser.add_argument('--doubles-csv', type=Path, default=None,
                         help='Optional doubles flags CSV; only whole-video False rows are processed')
-    parser.add_argument('--thresholds', choices=tuple(_THRESHOLD_PRESETS), default='shipped',
-                        help='which threshold preset to segment with (default: shipped)')
     fps_group = parser.add_mutually_exclusive_group()
     fps_group.add_argument('--fps-csv', type=Path, default=None,
                            help='per-video id,fps table written by stage 11')
@@ -1770,22 +1625,8 @@ def main() -> None:
     if args.fps is None and args.fps_csv is None:
         parser.error('one of --fps or --fps-csv is required before processing videos')
 
-    declared_thresholds = _THRESHOLD_PRESETS[args.thresholds]
     fps_by_id = _read_fps_table(args.fps_csv) if args.fps_csv is not None else {}
     span_open = _SPAN_OPEN_CHOICES[args.span_open] if args.span_open is not None else None
-    gate_options = (args.gate_dir, args.homography_csv, args.resolution_csv, args.court_box_csv)
-    if any(option is not None for option in gate_options) and not all(
-        option is not None for option in gate_options
-    ):
-        raise ValueError(
-            '--gate-dir, --homography-csv, --resolution-csv, and --court-box-csv '
-            'must be supplied together'
-        )
-    gate_context = None
-    if all(option is not None for option in gate_options):
-        gate_context = _load_gate_context(
-            args.homography_csv, args.resolution_csv, args.court_box_csv,
-        )
     args.rally_spans_csv.parent.mkdir(parents=True, exist_ok=True)
     args.contact_frames_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1794,6 +1635,7 @@ def main() -> None:
     track_paths = sorted(args.shuttle_dir.glob('*.npy'))
     input_track_paths = track_paths
     from .batch_report import VideoOutcome, publish_batch_report
+    from .run_video import run_video
 
     outcomes_by_path: dict[Path, VideoOutcome] = {}
     all_excluded_error = None
@@ -1837,43 +1679,22 @@ def main() -> None:
                 fps = args.fps
             else:
                 fps = fps_by_id[video_id]
-            thresholds = scale_thresholds(declared_thresholds, fps)
-            body_unit_half_window = scale_for_fps(fps).body_unit_half_window
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             replay_mask = _load_replay_mask(args.mask_dir, video_id)
-            if replay_mask is not None:
-                # Local import: replay_mask imports true_runs from this module.
-                from .replay_mask import believe_raw_mask
-
-                if replay_mask.all():
-                    raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-                replay_mask = believe_raw_mask(replay_mask, scale_for_fps(fps).replay_mask_min_frames)
-            gate_arrays = None if args.gate_dir is None else _load_gate_arrays(
-                args.gate_dir, video_id, len(track),
+            result = run_video(
+                track,
+                fps=fps,
+                base=BaseAnnotatorConfig(span_open=span_open),
+                positions=positions,
+                dead_mask=(
+                    replay_mask if replay_mask is not None
+                    else np.zeros(len(track), dtype=bool)
+                ),
+                court_optional=True,
+                stop_after_segmentation=True,
             )
-            if gate_arrays is None:
-                log.warning('%s: gate inputs absent; running without contact gate', video_id)
-                spans, contacts = segment_video(
-                    track, positions, thresholds=thresholds, span_open=span_open,
-                    replay_mask=replay_mask, body_unit_half_window=body_unit_half_window,
-                )
-            else:
-                all_court_info, resolution_table, court_boxes = gate_context
-                if video_id not in all_court_info or video_id not in resolution_table.index \
-                        or video_id not in court_boxes:
-                    raise ValueError(f'{video_id}: missing gate-table row')
-                row = resolution_table.loc[video_id]
-                resolution = (float(row['width']), float(row['height']))
-                spans, contacts = segment_video(
-                    track, positions, thresholds=thresholds, span_open=span_open,
-                    replay_mask=replay_mask, pose_bboxes=gate_arrays[0],
-                    pose_scores=gate_arrays[1], pose_kps=gate_arrays[2],
-                    pose_ndet=gate_arrays[3], court_box=court_boxes[video_id],
-                    gate_video_id=video_id, gate_court_info=all_court_info,
-                    gate_resolution_table=resolution_table, resolution=resolution,
-                    body_unit_half_window=body_unit_half_window,
-                )
+            spans, contacts = result.spans, result.contacts
         except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
             exception_text = ' '.join(str(exc).split()) or type(exc).__name__
             outcomes_by_path[track_path] = VideoOutcome(

@@ -118,6 +118,79 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     assert result.spans == injected
 
 
+def test_run_video_court_optional_stop_early_preserves_positions_and_raw_contacts(monkeypatch):
+    track = np.zeros((20, 3), dtype=np.float64)
+    positions = np.zeros((20, 2, 2), dtype=np.float64)
+    expected_contacts = [ContactCandidate(0, 7, True, None, None)]
+    received = {}
+
+    def fake_segment_video(track_arg, **kwargs):
+        received.update(kwargs)
+        return [(3, 12)], expected_contacts
+
+    monkeypatch.setattr(stage8_seg, 'segment_video', fake_segment_video)
+    monkeypatch.setattr(
+        stage8_seg, 'tracker_segments',
+        lambda *args, **kwargs: pytest.fail('court-optional mode must not build tracker segments'),
+    )
+    monkeypatch.setattr(
+        stage8_seg, 'build_sticky_result',
+        lambda *args, **kwargs: pytest.fail('court-optional mode must not build sticky'),
+    )
+    monkeypatch.setattr(
+        run_video_module.point_winner, 'pick_landing',
+        lambda *args, **kwargs: pytest.fail('stop-early mode must not enter landing'),
+    )
+
+    result = run_video(
+        track, fps=25.0, positions=positions, dead_mask=np.zeros(len(track), dtype=bool),
+        court_optional=True, stop_after_segmentation=True,
+    )
+
+    assert received['positions'] is positions
+    assert received['sticky_distances'] is None
+    assert result.spans == [(3, 12)]
+    assert result.contacts == expected_contacts
+    assert result.filtered_contacts == []
+    assert result.filtered_by_rally == {}
+    assert result.striker_halves == []
+    assert result.verdict_rows == {}
+    assert result.landings == {}
+    assert result.hit_height_by_frame == {}
+
+
+def test_run_video_court_optional_rejects_contradictory_court_evidence():
+    with pytest.raises(ValueError, match='court_optional rejects supplied inputs: homography_rows'):
+        run_video(
+            np.zeros((10, 3)), fps=25.0, homography_rows=[],
+            court_optional=True, stop_after_segmentation=True,
+        )
+
+
+def test_run_video_court_optional_requires_stop_early():
+    with pytest.raises(ValueError, match='court_optional requires stop_after_segmentation'):
+        run_video(np.zeros((10, 3)), fps=25.0, court_optional=True)
+
+
+@pytest.mark.parametrize('field', ['bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id',
+                                   'gate_court_info', 'gate_resolution_table'])
+def test_run_video_normal_mode_requires_sticky_inputs(field):
+    inputs = _synthetic_inputs()
+    del inputs['dead_mask']
+    inputs[field] = None
+    with pytest.raises(ValueError, match=rf'normal mode requires .*\b{field}\b'):
+        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), stop_after_segmentation=True)
+
+
+@pytest.mark.parametrize('field', ['landing_options', 'court_box', 'net_band', 'court_info', 'homo_df'])
+def test_run_video_full_chain_requires_downstream_inputs(field):
+    inputs = _synthetic_inputs()
+    del inputs['dead_mask']
+    inputs[field] = None
+    with pytest.raises(ValueError, match=rf'full-chain mode requires .*\b{field}\b'):
+        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])))
+
+
 @pytest.mark.parametrize('kwargs', [{}, {'spans': [(10, 20)]}, {'spans': [(10, 20)], 'contacts': {0: [14]}}])
 def test_run_video_requires_scene_inputs_for_every_sticky_consumer(kwargs):
     with pytest.raises(ValueError, match='^scene-gated sticky needs homography_rows and court_present$'):

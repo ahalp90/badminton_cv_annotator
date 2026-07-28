@@ -279,20 +279,6 @@ def test_segment_video_wrist_near_paths():
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts_far)
 
 
-def test_sticky_gate_requires_the_complete_library_context():
-    track, _, _, _ = _build_rally_track()
-    arrays = {
-        'pose_bboxes': np.zeros((len(track), 1, 4)),
-        'pose_scores': np.zeros((len(track), 1)),
-        'pose_kps': np.zeros((len(track), 1, 17, 2)),
-        'pose_ndet': np.zeros(len(track), dtype=int),
-    }
-    with pytest.raises(ValueError, match='sticky gate requires'):
-        segment_video(track, pose_bboxes=arrays['pose_bboxes'])
-    with pytest.raises(ValueError, match='sticky gate requires'):
-        segment_video(track, **arrays, court_box=PILOT_COURT_BOX)
-
-
 @pytest.mark.parametrize('failure_distance', [np.nan, np.inf])
 def test_sticky_gate_failure_rows_fail_closed(failure_distance):
     """A no-evidence distance row (NaN inside spans, +inf outside) fails the gate closed.
@@ -349,10 +335,7 @@ def test_thresholds_none_matches_explicit_shipped_preset():
     # the two must agree bit-for-bit on the rally track (spans and contacts).
     track, _rally_start, _rally_end, _contacts = _build_rally_track()
     spans_globals, contacts_globals = segment_video(track)
-    spans_shipped, contacts_shipped = segment_video(
-        track, thresholds=SHIPPED_THRESHOLDS,
-        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
-    )
+    spans_shipped, contacts_shipped = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
     assert spans_globals == spans_shipped
     assert contacts_globals == contacts_shipped
 
@@ -362,15 +345,9 @@ def test_thresholds_preset_changes_behaviour():
     # preset raising start_speed to 0.03 rejects the same burst -> no span, proving the preset
     # flows all the way through segmentation.
     track = _burst_track()
-    assert len(segment_video(
-        track, thresholds=SHIPPED_THRESHOLDS,
-        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
-    )[0]) >= 1
+    assert len(segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0]) >= 1
     stricter = SHIPPED_THRESHOLDS._replace(start_speed=0.03)
-    assert segment_video(
-        track, thresholds=stricter,
-        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
-    )[0] == []
+    assert segment_video(track, thresholds=stricter)[0] == []
 
 
 def test_thresholds_best_config_is_the_shipped_default():
@@ -378,10 +355,7 @@ def test_thresholds_best_config_is_the_shipped_default():
     # preset, and the default globals path agrees with it bit-for-bit.
     assert BEST_CONFIG_THRESHOLDS == SHIPPED_THRESHOLDS
     track = _burst_track()
-    assert segment_video(track) == segment_video(
-        track, thresholds=BEST_CONFIG_THRESHOLDS,
-        body_unit_half_window=scale_for_fps(30.0).body_unit_half_window,
-    )
+    assert segment_video(track) == segment_video(track, thresholds=BEST_CONFIG_THRESHOLDS)
 
 
 # ---------------------------------------------------------------------------

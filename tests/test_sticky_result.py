@@ -163,8 +163,6 @@ def test_segment_video_sticky_distance_exclusions_are_mutual():
         segment_video(track, sticky_distances=np.zeros(2))
     with pytest.raises(ValueError, match='combined'):
         segment_video(track, sticky_distances=distances, body_unit_dist=np.zeros(3))
-    with pytest.raises(ValueError, match='combined'):
-        segment_video(track, sticky_distances=distances, pose_bboxes=np.zeros((3, 1, 4)))
 
 
 def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():

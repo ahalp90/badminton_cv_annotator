@@ -160,21 +160,22 @@ def _first_stroke_half(final_half, n_strokes: int):
 
 
 def run_video(
-    track, bboxes, scores, kps, ndet,
+    track, bboxes=None, scores=None, kps=None, ndet=None,
     *,
     fps: float,
     base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
-    landing_options,
-    court_box,
-    net_band: tuple[float, float],
-    resolution: tuple[float, float],
-    video_id: int,
-    court_info: dict,
-    homo_df,
-    gate_court_info: dict,
-    gate_resolution_table,
+    landing_options=None,
+    court_box=None,
+    net_band: tuple[float, float] | None = None,
+    resolution: tuple[float, float] | None = None,
+    video_id: int | None = None,
+    court_info: dict | None = None,
+    homo_df=None,
+    gate_court_info: dict | None = None,
+    gate_resolution_table=None,
     ref_err_px: float = 3.5,
     dead_mask: np.ndarray | None = None,
+    positions: np.ndarray | None = None,
     court_present=None,
     homography_rows=None,
     cut_frames=None,
@@ -185,14 +186,14 @@ def run_video(
     inpaint_codes: np.ndarray | None = None,
     event_non_evidence_mask: np.ndarray | None = None,
     rejection_diagnostics: list[dict[str, object]] | None = None,
+    court_optional: bool = False,
+    stop_after_segmentation: bool = False,
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
-    Caller preconditions (intentionally not validated here): arrays are frame-aligned;
-    `fps` is positive and finite; `court_info` is
-    semantically `gate_court_info[str(video_id)]`; `gate_resolution_table` contains this video
-    under a string index with width and height columns; and `homo_df` contains the video's full
-    corner-column row.
+    `court_optional` is only valid with `stop_after_segmentation`. That mode does not build
+    sticky or enter any downstream court-dependent stage, so it accepts only the track, fps,
+    positions, and optional dead mask.
     """
     resolved = resolve(base, fps)
     # Injected spans skip span finding, so serve-start would otherwise silently never run.
@@ -200,17 +201,103 @@ def run_video(
         raise ValueError('serve_start cannot be combined with injected spans')
     if serve_start is not None and resolved.quiet_start_window is not None:
         raise ValueError('quiet_start_window cannot be combined with serve_start')
-    if homography_rows is None or court_present is None:
-        raise ValueError('scene-gated sticky needs homography_rows and court_present')
+    if court_optional and not stop_after_segmentation:
+        raise ValueError('court_optional requires stop_after_segmentation')
+    if court_optional:
+        supplied_optional_inputs = {
+            'homography_rows': homography_rows,
+            'court_present': court_present,
+            'bboxes': bboxes,
+            'scores': scores,
+            'kps': kps,
+            'ndet': ndet,
+            'resolution': resolution,
+            'video_id': video_id,
+            'gate_court_info': gate_court_info,
+            'gate_resolution_table': gate_resolution_table,
+            'serve_start': serve_start,
+        }
+        supplied = [name for name, value in supplied_optional_inputs.items() if value is not None]
+        if supplied:
+            raise ValueError(f'court_optional rejects supplied inputs: {", ".join(supplied)}')
+    else:
+        if homography_rows is None or court_present is None:
+            raise ValueError('scene-gated sticky needs homography_rows and court_present')
+        required_sticky_inputs = {
+            'bboxes': bboxes,
+            'scores': scores,
+            'kps': kps,
+            'ndet': ndet,
+            'resolution': resolution,
+            'video_id': video_id,
+            'gate_court_info': gate_court_info,
+            'gate_resolution_table': gate_resolution_table,
+        }
+        missing_sticky_inputs = [name for name, value in required_sticky_inputs.items() if value is None]
+        if missing_sticky_inputs:
+            raise ValueError(f'normal mode requires {", ".join(missing_sticky_inputs)}')
+        if not stop_after_segmentation:
+            required_downstream_inputs = {
+                'landing_options': landing_options,
+                'court_box': court_box,
+                'net_band': net_band,
+                'court_info': court_info,
+                'homo_df': homo_df,
+            }
+            missing_downstream_inputs = [
+                name for name, value in required_downstream_inputs.items() if value is None
+            ]
+            if missing_downstream_inputs:
+                raise ValueError(f'full-chain mode requires {", ".join(missing_downstream_inputs)}')
+
     event_mask, source_codes = _build_event_non_evidence_mask(
         len(track), resolved.rejected_grades, inpaint_codes, event_non_evidence_mask,
     )
-    segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
-    sticky = stage8_seg.build_sticky_result(
-        track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
-        gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
-    )
+    sticky = None
+    if not court_optional:
+        segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
+        sticky = stage8_seg.build_sticky_result(
+            track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
+            gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
+        )
     serve_options = None
+    if court_optional:
+        mask = dead_mask if dead_mask is not None else np.zeros(len(track), dtype=bool)
+        if len(mask) != len(track):
+            raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
+        if mask.all():
+            raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+        mask = believe_raw_mask(mask, resolved.constants.replay_mask_min_frames)
+        if contacts is None:
+            final_spans, raw_contacts = stage8_seg.segment_video(
+                track, positions=positions, thresholds=resolved.thresholds,
+                span_open=resolved.span_open, replay_mask=mask, sticky_distances=None,
+                spans=spans, smoothing_mode=resolved.smoothing_mode,
+                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+                reentry_guard_variant=resolved.reentry_guard_variant,
+                reentry_guard_buffer=resolved.reentry_guard_buffer,
+                quiet_start_window=resolved.quiet_start_window,
+            )
+        else:
+            final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+                track, resolved.thresholds, span_open=resolved.span_open,
+                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+                reentry_guard_variant=resolved.reentry_guard_variant,
+                reentry_guard_buffer=resolved.reentry_guard_buffer,
+                quiet_start_window=resolved.quiet_start_window,
+            )
+            raw_contacts = [
+                ContactCandidate(rally_id, frame, None, None, None)
+                for rally_id, frames in contacts.items() for frame in frames
+            ]
+        return AnnotatorResult(
+            spans=final_spans, contacts=raw_contacts, filtered_contacts=[], filtered_by_rally={},
+            striker_halves=[], n_strokes_list=[], next_servers=[], fitted_first_all=[],
+            verdict_rows={}, landings={}, geometric_verdict_rows={}, hit_height_by_frame={},
+            hit_height_failures=[],
+        )
+
+    assert sticky is not None
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Span finding still runs when
         # callers did not inject spans; sticky already ran over tracker segments above.
@@ -224,26 +311,31 @@ def run_video(
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
         # Replay mask baselines slow-motion detection against each rally's normal speed.
-        mask = dead_mask if dead_mask is not None else build_dead_mask(
-            resolved.dead_mask_mode, len(track), fps, court_present=court_present,
-            homography_rows=homography_rows, track=track, rally_spans=final_spans,
-            cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
-        )
+        mask = dead_mask
+        if mask is None:
+            mask = build_dead_mask(
+                resolved.dead_mask_mode, len(track), fps, court_present=court_present,
+                homography_rows=homography_rows, track=track, rally_spans=final_spans,
+                cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
+            )
     else:
         # The sticky cache above already runs over scene-gated tracker segments. This span-only,
         # unmasked pass supplies rally spans to the mask builder.
-        bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-            track, resolved.thresholds, span_open=resolved.span_open,
-            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-            reentry_guard_variant=resolved.reentry_guard_variant,
-            reentry_guard_buffer=resolved.reentry_guard_buffer,
-            quiet_start_window=resolved.quiet_start_window,
-        )
-        mask = dead_mask if dead_mask is not None else build_dead_mask(
-            resolved.dead_mask_mode, len(track), fps, court_present=court_present,
-            homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
-            cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
-        )
+        if dead_mask is None:
+            bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+                track, resolved.thresholds, span_open=resolved.span_open,
+                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
+                reentry_guard_variant=resolved.reentry_guard_variant,
+                reentry_guard_buffer=resolved.reentry_guard_buffer,
+                quiet_start_window=resolved.quiet_start_window,
+            )
+            mask = build_dead_mask(
+                resolved.dead_mask_mode, len(track), fps, court_present=court_present,
+                homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
+                cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
+            )
+        else:
+            mask = dead_mask
         final_spans = spans
         if serve_start is not None:
             serve_options = build_serve_options(
@@ -251,24 +343,31 @@ def run_video(
             )
 
     if len(mask) != len(track):
-        raise ValueError(f'dead mask length {len(mask)} != track length {len(track)}')
+        raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
     if mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
     mask = believe_raw_mask(mask, resolved.constants.replay_mask_min_frames)
 
     if contacts is None:
         final_spans, raw_contacts = stage8_seg.segment_video(
-            track, positions=None, thresholds=resolved.thresholds,
-            body_unit_half_window=resolved.constants.body_unit_half_window,
+            track, positions=positions, thresholds=resolved.thresholds,
             span_open=resolved.span_open,
             replay_mask=mask, sticky_distances=sticky.distances, serve_start=serve_options,
-            spans=final_spans, resolution=resolution, smoothing_mode=resolved.smoothing_mode,
+            spans=final_spans, smoothing_mode=resolved.smoothing_mode,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
             reentry_guard_variant=resolved.reentry_guard_variant,
             reentry_guard_buffer=resolved.reentry_guard_buffer,
             quiet_start_window=resolved.quiet_start_window,
         )
     spans, contacts = final_spans, raw_contacts
+
+    if stop_after_segmentation:
+        return AnnotatorResult(
+            spans=spans, contacts=contacts, filtered_contacts=[], filtered_by_rally={},
+            striker_halves=[], n_strokes_list=[], next_servers=[], fitted_first_all=[],
+            verdict_rows={}, landings={}, geometric_verdict_rows={}, hit_height_by_frame={},
+            hit_height_failures=[],
+        )
 
     scored_contacts = scoring_filter(contacts)
     filtered_contacts = [

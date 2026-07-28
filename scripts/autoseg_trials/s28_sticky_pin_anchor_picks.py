@@ -119,7 +119,6 @@ def _build_chain(cfg, track, bboxes, scores, kps, ndet, dead, homo_df, all_court
     spans, contacts = rally_segmentation.segment_video(
         track, positions=None, thresholds=None, span_open=rally_segmentation.SpanOpen.BACK_FILL,
         replay_mask=dead, sticky_distances=sticky.distances, suppression_radius=radius,
-        resolution=harness.RESOLUTION,
     )
     filtered_contacts = [
         contact for contact in contacts
