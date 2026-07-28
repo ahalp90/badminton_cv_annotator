@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 # Re-pinned after the measured W2.9 default flip (eee3e29). The reviewed
 # pre/post record is in the W2.9 Opus-checkpoint artefact. Floors read from here.
 REFERENCE_SCORES = {
-    'pilot': {
+    'sset_01': {
         'covered_fraction': 0.9734513274336283,
         'covered': 110,
         'n_gt_rallies': 113,
@@ -103,7 +103,7 @@ REFERENCE_SCORES = {
         'n_filtered_contacts': 1749,
         'hit_height_failures': 0,
     },
-    'vid15': {
+    'sset_15': {
         'covered_fraction': 0.8076923076923077,
         'covered': 84,
         'n_gt_rallies': 104,
@@ -175,7 +175,7 @@ REFERENCE_SCORES = {
         'n_filtered_contacts': 1233,
         'hit_height_failures': 0,
     },
-    'sset21': {
+    'sset_21': {
         'covered_fraction': 0.72,
         'covered': 54,
         'n_gt_rallies': 75,
@@ -380,11 +380,10 @@ def _norm_half(side: str) -> str:
 def load_fixture_arrays(fixture: Fixture) -> tuple[np.ndarray, ...]:
     verify_fixture(fixture)
     root = fixtures_root()
-    prefix = fixture.pose_dir / fixture.pose_prefix
     return (
-        np.load(root / fixture.track_path), np.load(root / Path(f"{prefix}_bboxes.npy")),
-        np.load(root / Path(f"{prefix}_scores.npy")), np.load(root / Path(f"{prefix}_kps.npy")),
-        np.load(root / Path(f"{prefix}_ndet.npy")), np.load(root / fixture.mask_path),
+        np.load(root / fixture.track_path), np.load(root / fixture.pose_path("bboxes")),
+        np.load(root / fixture.pose_path("scores")), np.load(root / fixture.pose_path("kps")),
+        np.load(root / fixture.pose_path("ndet")), np.load(root / fixture.mask_path),
     )
 
 

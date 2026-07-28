@@ -13,7 +13,7 @@ up. A segment is LIVE when at least `vote` of its frames read as court view, els
 DEAD, and every frame of a dead segment joins the mask.
 
 The scoping pass picked content threshold 27 with vote 0.5 (comp_content27_v0p5)
-as the best config on the pilot; those are the config defaults.
+as the best config on sset_01; those are the config defaults.
 
 The cut detector needs scenedetect (and its cv2 backend), which lives only in the
 dedicated detect venv. Its import is function-local so the model/test venv, which

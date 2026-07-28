@@ -612,7 +612,7 @@ def _find_rally_spans_quiet_start(
 # ---------------------------------------------------------------------------
 # Court-scale filtering shared by contact and point-winner paths
 # ---------------------------------------------------------------------------
-# The court geometry is caller-supplied, so no pilot-scoped geometry lives here.
+# The court geometry is caller-supplied, so no sset_01-scoped geometry lives here.
 def court_scale_boxes(
     frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -1028,7 +1028,7 @@ def impulse_cell_candidates(
     candidate_impulses = impulses[is_contact]
     kept: list[tuple[int, float]] = []
     # Stable sort: equal impulses keep the earlier frame, matching suppression's
-    # (-impulse, frame) ordering. Exact ties occur in real data (the pilot has one),
+    # (-impulse, frame) ordering. Exact ties occur in real data (sset_01 has one),
     # so an unstable sort here is a platform-dependent output.
     for candidate_index in np.argsort(-candidate_impulses, kind='stable'):
         local_frame = int(candidate_local[candidate_index])

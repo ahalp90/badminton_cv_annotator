@@ -91,7 +91,7 @@ def build_serve_options(
     """Build sticky-sourced serve-start evidence from the unmasked cache.
 
     Serve evidence deliberately comes from the sticky cache built before any masking; the
-    committed mask demonstrably eats live serves on sset21, and masking policy belongs to the
+    committed mask demonstrably eats live serves on sset_21, and masking policy belongs to the
     decontamination commit and parked redesign, not this lane.
     """
     if config.close is not None and span_open is not None:

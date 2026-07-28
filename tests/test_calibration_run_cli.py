@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import pytest
 
 from annotator.calibration import run_cli
-from annotator.calibration.fixtures import PILOT
+from annotator.calibration.fixtures import SSET_01
 
 
 @contextmanager
@@ -36,12 +36,12 @@ def test_selected_fixture_writes_flat_metrics_row(tmp_path, capsys):
     scoring = object()
     with fixture_root(tmp_path):
         assert run_cli.run_manifest(
-            ["pilot"], tmp_path / "out", registry=(PILOT,), runner=lambda _: scoring,
+            ["sset_01"], tmp_path / "out", registry=(SSET_01,), runner=lambda _: scoring,
             flattener=lambda _: {"covered": 2, "f1": 0.5},
             renderer=lambda scores: f"TABLE {sorted(scores)}",
         ) == 0
-    assert (tmp_path / "out" / "pilot_metrics.csv").read_text() == "covered,f1\n2,0.5\n"
-    assert "TABLE ['pilot']" in capsys.readouterr().out
+    assert (tmp_path / "out" / "sset_01_metrics.csv").read_text() == "covered,f1\n2,0.5\n"
+    assert "TABLE ['sset_01']" in capsys.readouterr().out
 
 
 def test_maskless_switch_reaches_fixture_runner(tmp_path):
@@ -53,58 +53,58 @@ def test_maskless_switch_reaches_fixture_runner(tmp_path):
 
     with fixture_root(tmp_path):
         assert run_cli.run_manifest(
-            ['pilot'], registry=(PILOT,), runner=runner,
+            ['sset_01'], registry=(SSET_01,), runner=runner,
             flattener=lambda _: {'covered': 1}, renderer=lambda scores: 'TABLE',
             no_replay_mask=True,
         ) == 0
 
-    assert received == [('pilot', True)]
+    assert received == [('sset_01', True)]
 
 
 def test_fixture_failure_is_skipped_and_next_fixture_runs(tmp_path, capsys):
-    second = PILOT.__class__(**{**PILOT.__dict__, "name": "second"})
+    second = SSET_01.__class__(**{**SSET_01.__dict__, "name": "second"})
     calls = []
 
     def runner(fixture):
         calls.append(fixture.name)
-        if fixture.name == "pilot":
+        if fixture.name == "sset_01":
             raise ValueError("bad digest")
         return object()
 
     with fixture_root(tmp_path):
         assert run_cli.run_manifest(
-            registry=(PILOT, second), runner=runner,
+            registry=(SSET_01, second), runner=runner,
             flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
         ) == 3
-    assert calls == ["pilot", "second"]
-    assert "pilot: SKIP" in capsys.readouterr().err
+    assert calls == ["sset_01", "second"]
+    assert "sset_01: SKIP" in capsys.readouterr().err
 
 
 def test_one_fixture_failure_in_three_returns_usable_output(tmp_path):
-    second = PILOT.__class__(**{**PILOT.__dict__, "name": "second"})
-    third = PILOT.__class__(**{**PILOT.__dict__, "name": "third"})
+    second = SSET_01.__class__(**{**SSET_01.__dict__, "name": "second"})
+    third = SSET_01.__class__(**{**SSET_01.__dict__, "name": "third"})
 
     def runner(fixture):
-        if fixture.name == "pilot":
+        if fixture.name == "sset_01":
             raise ValueError("bad digest")
         return object()
 
     with fixture_root(tmp_path):
         assert run_cli.run_manifest(
-            registry=(PILOT, second, third), runner=runner,
+            registry=(SSET_01, second, third), runner=runner,
             flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
         ) == 0
 
 
 def test_every_fixture_failure_returns_three(tmp_path):
-    second = PILOT.__class__(**{**PILOT.__dict__, "name": "second"})
+    second = SSET_01.__class__(**{**SSET_01.__dict__, "name": "second"})
 
     def runner(_):
         raise ValueError("bad fixture")
 
     with fixture_root(tmp_path):
         assert run_cli.run_manifest(
-            registry=(PILOT, second), runner=runner,
+            registry=(SSET_01, second), runner=runner,
             flattener=lambda _: {"covered": 1}, renderer=lambda scores: "TABLE",
         ) == 3
 
@@ -113,7 +113,7 @@ def test_environment_and_registry_fail_before_runner(tmp_path):
     prior = os.environ.pop("ANNOTATOR_FIXTURES_ROOT", None)
     try:
         with pytest.raises(RuntimeError, match="ANNOTATOR_FIXTURES_ROOT"):
-            run_cli.run_manifest(registry=(PILOT,), runner=lambda _: pytest.fail("not called"))
+            run_cli.run_manifest(registry=(SSET_01,), runner=lambda _: pytest.fail("not called"))
 
         with fixture_root(tmp_path):
             with pytest.raises(ValueError, match="malformed"):

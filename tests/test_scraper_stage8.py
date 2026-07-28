@@ -7,7 +7,7 @@ pin the measured impulse rule and its largest-impulse de-duplication.
 import numpy as np
 import pytest
 
-from annotator.calibration.fixtures import PILOT
+from annotator.calibration.fixtures import SSET_01
 from annotator.config import (
     BEST_CONFIG_THRESHOLDS,
     END_REST_FRAMES,
@@ -43,7 +43,7 @@ from annotator.rally_segmentation import (
 from annotator.fps_constants import scale_for_fps
 from annotator.types import SmoothingMode
 
-PILOT_COURT_GEO = CourtGeo(*PILOT.court_geo)
+SSET_01_COURT_GEO = CourtGeo(*SSET_01.court_geo)
 
 # A per-frame step that keeps raw speed above START_SPEED.
 RALLY_STEP = 0.14
@@ -742,9 +742,9 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
 # ---------------------------------------------------------------------------
 # Court geometry filtering uses tracked fixture geometry
 # ---------------------------------------------------------------------------
-def test_court_geo_filter_uses_tracked_pilot_geometry():
-    x_lo, x_hi = PILOT_COURT_GEO.x_range
-    y_lo, y_hi = PILOT_COURT_GEO.y_range
+def test_court_geo_filter_uses_tracked_sset_01_geometry():
+    x_lo, x_hi = SSET_01_COURT_GEO.x_range
+    y_lo, y_hi = SSET_01_COURT_GEO.y_range
     foot_x = (x_lo + x_hi) / 2.0
     foot_y = (y_lo + y_hi) / 2.0
     bboxes = np.full((16, 4), np.nan)
@@ -752,7 +752,7 @@ def test_court_geo_filter_uses_tracked_pilot_geometry():
     bboxes[0] = (foot_x - 30.0, foot_y - 1.0, foot_x + 30.0, foot_y)
     bboxes[1] = (x_lo - 61.0, foot_y - 10000.0, x_lo - 1.0, foot_y)
     scores[:2] = 0.9
-    assert len(court_scale_boxes(bboxes, scores, PILOT_COURT_GEO)[0]) == 1
+    assert len(court_scale_boxes(bboxes, scores, SSET_01_COURT_GEO)[0]) == 1
 
 
 def test_serve_distance_ratio_helper_uses_distance_mask_and_boundary() -> None:

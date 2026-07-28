@@ -11,11 +11,11 @@ import pandas as pd
 
 DEFAULT_TOLERANCES = (1, 2, 5, 10)
 
-# Stage 9 replay masking is not applied in the pilot, so replay spans (which
+# Stage 9 replay masking is not applied in sset_01, so replay spans (which
 # carry no GT strokes) count as spurious by design. Surfaced in the output so a
 # reader does not misread the spurious count as pure false positives.
 SPURIOUS_NOTE = (
-    'stage 9 replay masking not applied in the pilot; replays inflate the '
+    'stage 9 replay masking not applied in sset_01; replays inflate the '
     'spurious-span count by design'
 )
 

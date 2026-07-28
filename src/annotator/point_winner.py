@@ -5,7 +5,7 @@ final-contact half, a kinematic landing filter (a settle cap plus a carry filter
 an ankle rule), and a next-server winner call with a landing-geometry best-guess fallback. Promoted
 from the D5 point-winner detector proven out in
 local_scratch/autograder_architecture/d5_winner_retest.py and d5_landing_arms.py (measured on the
-ShuttleSet pilot and trial videos, GT-anchored against the per-set winner labels). Only the SHIPPED
+ShuttleSet sset_01 and trial videos, GT-anchored against the per-set winner labels). Only the SHIPPED
 chain lands here: the box-height attribution arm, the window fix (a lob that leaves the frame top
 waits for re-entry), the combined landing filter with the ankle rule on, and the next-server
 verdict. The three attribution ablation arms, the parameter sweeps, and the GT reconciliation that
@@ -324,7 +324,7 @@ class LandingFilterOptions(NamedTuple):
         grounded, not hand-held. Refines both the carry filter (keeps such a terminal as a landing)
         and the settle cap's held carve-out (does not veto such a frame). True is the shipped
         default: without it, a standing player over a genuinely fallen shuttle never lets the
-        settle cap fire (measured on the pilot's rally 90).
+        settle cap fire (measured on sset_01's rally 90).
     """
 
     settle_win: int
