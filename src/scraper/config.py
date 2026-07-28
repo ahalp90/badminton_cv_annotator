@@ -175,25 +175,6 @@ WHISPERX_FINE_MODEL = 'large-v2'  # D23: fine-timestamp pass, remote GPU only
 # whose start falls within this many seconds after the rally's end.
 PAIR_WINDOW_S = 8
 
-# Old-path re-exports for the chain block that moved to annotator.config (Stage 2); they die at Stage 7 with their last callers.
-from annotator.config import REST_SPEED as REST_SPEED  # noqa: E402
-from annotator.config import REST_WINDOW as REST_WINDOW  # noqa: E402
-from annotator.config import START_SPEED as START_SPEED  # noqa: E402
-from annotator.config import START_MIN_FRAMES as START_MIN_FRAMES  # noqa: E402
-from annotator.config import SMOOTH_WINDOW as SMOOTH_WINDOW  # noqa: E402
-from annotator.config import MIN_DIR_CHANGE_DEG as MIN_DIR_CHANGE_DEG  # noqa: E402
-from annotator.config import END_REST_FRAMES as END_REST_FRAMES  # noqa: E402
-from annotator.config import PROXIMITY_MAX as PROXIMITY_MAX  # noqa: E402
-from annotator.config import Stage8Thresholds as Stage8Thresholds  # noqa: E402
-from annotator.config import SHIPPED_THRESHOLDS as SHIPPED_THRESHOLDS  # noqa: E402
-from annotator.config import BEST_CONFIG_THRESHOLDS as BEST_CONFIG_THRESHOLDS  # noqa: E402
-from annotator.config import COURT_ABSENT_WINDOW as COURT_ABSENT_WINDOW  # noqa: E402
-from annotator.config import PERSPECTIVE_SHIFT_THRESHOLD as PERSPECTIVE_SHIFT_THRESHOLD  # noqa: E402
-from annotator.config import SLOWMO_SPEED_FRAC as SLOWMO_SPEED_FRAC  # noqa: E402
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD as COMPOSITION_CONTENT_THRESHOLD  # noqa: E402
-from annotator.config import COMPOSITION_KEEP_VOTE as COMPOSITION_KEEP_VOTE  # noqa: E402
-from annotator.config import DOUBLES_SPAN_FRACTION as DOUBLES_SPAN_FRACTION  # noqa: E402
-
 # ---------------------------------------------------------------------------
 # Rate limiting / IP-ban mitigation (D22, spec s5)
 # ---------------------------------------------------------------------------

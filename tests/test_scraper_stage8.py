@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from annotator.calibration.pilot_geometry import HOMOGRAPHY_COURT_BOX, PILOT_RESOLUTION, STANDIN_COURT_BOX
-from src.scraper.config import (
+from annotator.config import (
     BEST_CONFIG_THRESHOLDS,
     END_REST_FRAMES,
     SHIPPED_THRESHOLDS,
