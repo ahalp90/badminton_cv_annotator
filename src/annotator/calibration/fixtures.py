@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
+import pandas as pd
+
+from shared.court import REF_COURT_M, convert_homogeneous, get_H, get_corner_camera, project
+
 RootKind = Literal["fixtures", "repo"]
 
 
@@ -18,6 +23,15 @@ class FilePin:
     path: Path
     md5: str
     root: RootKind
+
+
+@dataclass(frozen=True)
+class CalibrationGeometry:
+    """Derived camera geometry and the tracked source resolution for one fixture."""
+
+    court_box: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]
+    net_band: tuple[float, float]
+    resolution: tuple[float, float]
 
 
 @dataclass(frozen=True)
@@ -58,6 +72,151 @@ def fixtures_root() -> Path:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+_HOMOGRAPHY_SOURCE = REPO_ROOT / "training/data/shuttleset/annotations/set/homography.csv"
+_RESOLUTION_SOURCE = REPO_ROOT / "training/data/shuttleset/annotations/my_raw_video_resolution.csv"
+# Homography camera coordinates are on 1280x720; fixture coordinates are 1920x1080.
+# Worked arithmetic: local_scratch/autograder_architecture/records/s6_b7a_mapping_report.txt.
+_HOMOGRAPHY_TO_FIXTURE_MULTIPLIER = 1.5
+# The centre band spans one metre along the 13.4 m court-length axis.
+_NET_BAND_HALF_WIDTH_M = 0.5
+_COMPATIBILITY_HEIGHT = (84.0, 336.0)
+_CALIBRATION_VIDEO_IDS = (1, 15, 21)
+_CORNER_COLUMNS = (
+    "upleft_x", "upright_x", "downleft_x", "downright_x",
+    "upleft_y", "upright_y", "downleft_y", "downright_y",
+)
+
+
+def _read_source_frame(path: Path, source_name: str) -> pd.DataFrame:
+    """Read and validate the id column in one tracked calibration source."""
+    if not path.is_file():
+        raise ValueError(f"{source_name} source file missing: {path}")
+
+    frame = pd.read_csv(path)
+    if "id" not in frame.columns:
+        raise ValueError(f"{source_name} source is missing the id column: {path}")
+
+    numeric_ids = pd.to_numeric(frame["id"], errors="coerce")
+    if not np.isfinite(numeric_ids.to_numpy()).all():
+        raise ValueError(f"{source_name} source has malformed id values: {path}")
+    if not (numeric_ids == numeric_ids.astype(int)).all():
+        raise ValueError(f"{source_name} source has non-integer id values: {path}")
+
+    frame = frame.copy()
+    frame["id"] = numeric_ids.astype(int)
+    duplicate_ids = frame.loc[frame["id"].duplicated(keep=False), "id"].unique()
+    if duplicate_ids.size:
+        duplicate_text = ", ".join(str(int(video_id)) for video_id in duplicate_ids)
+        raise ValueError(f"{source_name} source has duplicate rows for id {duplicate_text}: {path}")
+    return frame
+
+
+def _source_row(frame: pd.DataFrame, video_id: int, source_name: str, path: Path) -> pd.Series:
+    """Return exactly one source row for a requested video id."""
+    matching_rows = frame.loc[frame["id"] == video_id]
+    if matching_rows.empty:
+        raise ValueError(f"{source_name} source row missing for id {video_id}: {path}")
+    return matching_rows.iloc[0]
+
+
+def _finite_float(value: object, field: str, video_id: int, source_name: str) -> float:
+    """Parse one finite source value with an error that names its input."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{source_name} value {field!r} is malformed for id {video_id}") from error
+    if not np.isfinite(parsed):
+        raise ValueError(f"{source_name} value {field!r} is not finite for id {video_id}")
+    return parsed
+
+
+def _derive_calibration_geometry(
+    homography_row: pd.Series,
+    resolution_row: pd.Series,
+    video_id: int,
+) -> CalibrationGeometry:
+    """Derive one fixture's camera bounds and net band from its tracked rows."""
+    for column in _CORNER_COLUMNS:
+        _finite_float(homography_row[column], column, video_id, "homography")
+
+    try:
+        homography = get_H(homography_row)
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError(f"homography matrix is malformed for id {video_id}") from error
+    if not np.isfinite(homography).all():
+        raise ValueError(f"homography matrix is malformed for id {video_id}")
+
+    corner_camera = get_corner_camera(homography_row)
+    corner_camera_fixture = corner_camera * _HOMOGRAPHY_TO_FIXTURE_MULTIPLIER
+    x_bounds = _rounded_bounds(corner_camera_fixture[0])
+    y_bounds = _rounded_bounds(corner_camera_fixture[1])
+
+    try:
+        corner_court = project(homography, convert_homogeneous(corner_camera))
+        inverse_homography = np.linalg.inv(homography)
+    except (ValueError, np.linalg.LinAlgError) as error:
+        raise ValueError(f"homography matrix cannot project id {video_id}") from error
+    if not np.isfinite(corner_court).all():
+        raise ValueError(f"homography matrix cannot project id {video_id}")
+
+    court_x_min, court_x_max = float(corner_court[0].min()), float(corner_court[0].max())
+    court_y_min, court_y_max = float(corner_court[1].min()), float(corner_court[1].max())
+    x_centre = (court_x_min + court_x_max) / 2.0
+    y_centre = (court_y_min + court_y_max) / 2.0
+    court_units_per_metre = (court_y_max - court_y_min) / REF_COURT_M[0]
+    net_half_band = court_units_per_metre * _NET_BAND_HALF_WIDTH_M
+    court_band_points = np.array(
+        [[x_centre, x_centre], [y_centre - net_half_band, y_centre + net_half_band]],
+        dtype=float,
+    )
+    camera_band = project(inverse_homography, convert_homogeneous(court_band_points))
+    if not np.isfinite(camera_band).all():
+        raise ValueError(f"homography matrix cannot project net band for id {video_id}")
+    net_band = _rounded_bounds(camera_band[1] * _HOMOGRAPHY_TO_FIXTURE_MULTIPLIER)
+
+    width = _finite_float(resolution_row["width"], "width", video_id, "resolution")
+    height = _finite_float(resolution_row["height"], "height", video_id, "resolution")
+    if width <= 0 or height <= 0:
+        raise ValueError(f"resolution values must be positive for id {video_id}")
+
+    resolution = (width, height)
+    court_box = (x_bounds, y_bounds, _COMPATIBILITY_HEIGHT, net_band)
+    return CalibrationGeometry(court_box=court_box, net_band=net_band, resolution=resolution)
+
+
+def _rounded_bounds(values: np.ndarray) -> tuple[float, float]:
+    """Return the minimum and maximum values rounded to one decimal place."""
+    return round(float(values.min()), 1), round(float(values.max()), 1)
+
+
+def _load_calibration_geometry(
+    homography_path: Path = _HOMOGRAPHY_SOURCE,
+    resolution_path: Path = _RESOLUTION_SOURCE,
+) -> dict[int, CalibrationGeometry]:
+    """Load and derive calibration geometry for every Wave 1 fixture."""
+    homography_frame = _read_source_frame(homography_path, "homography")
+    resolution_frame = _read_source_frame(resolution_path, "resolution")
+    required_homography_columns = {"homography_matrix", *_CORNER_COLUMNS}
+    missing_homography_columns = required_homography_columns.difference(homography_frame.columns)
+    if missing_homography_columns:
+        missing = ", ".join(sorted(missing_homography_columns))
+        raise ValueError(f"homography source is missing columns: {missing}")
+    required_resolution_columns = {"width", "height"}
+    missing_resolution_columns = required_resolution_columns.difference(resolution_frame.columns)
+    if missing_resolution_columns:
+        missing = ", ".join(sorted(missing_resolution_columns))
+        raise ValueError(f"resolution source is missing columns: {missing}")
+
+    geometry: dict[int, CalibrationGeometry] = {}
+    for video_id in _CALIBRATION_VIDEO_IDS:
+        homography_row = _source_row(homography_frame, video_id, "homography", homography_path)
+        resolution_row = _source_row(resolution_frame, video_id, "resolution", resolution_path)
+        geometry[video_id] = _derive_calibration_geometry(homography_row, resolution_row, video_id)
+    return geometry
+
+
+_CALIBRATION_GEOMETRY = _load_calibration_geometry()
 
 
 def _pose_files(directory: Path, prefix: str, *, kp_scores: bool = False) -> tuple[Path, ...]:
@@ -115,9 +274,9 @@ PILOT = Fixture(
     court_present_path=Path("pilot_results/homography_smoothing/raw_keep_hard_any_m0p10.npy"),
     scene_rows_path=Path("pilot_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals"),
-    court_box=((635.0, 1316.0), (254.0, 1030.0), (84.0, 336.0), (642.0, 642.0)),
-    net_band=(664.6, 703.7),
-    resolution=(1920.0, 1080.0),
+    court_box=_CALIBRATION_GEOMETRY[1].court_box,
+    net_band=_CALIBRATION_GEOMETRY[1].net_band,
+    resolution=_CALIBRATION_GEOMETRY[1].resolution,
     n_rallies=113,
     n_strokes=1641,
     files=_fixture_files(
@@ -149,9 +308,9 @@ VID15 = Fixture(
     court_present_path=Path("vid15_results/composition_mask/vid15_keep_hard_any_m0p10.npy"),
     scene_rows_path=Path("vid15_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Anthony_Sinisuka_GINTING_Anders_ANTONSEN_Indonesia_Masters_2020_Final"),
-    court_box=((439.5, 1472.1), (378.0, 994.2), (84.0, 336.0), (583.9, 626.6)),
-    net_band=(583.9, 626.6),
-    resolution=(1920.0, 1080.0),
+    court_box=_CALIBRATION_GEOMETRY[15].court_box,
+    net_band=_CALIBRATION_GEOMETRY[15].net_band,
+    resolution=_CALIBRATION_GEOMETRY[15].resolution,
     n_rallies=104,
     n_strokes=824,
     files=_fixture_files(
@@ -183,9 +342,9 @@ SSET21 = Fixture(
     court_present_path=Path("sset21_results/keep_vote_hard_any_m0p10.npy"),
     scene_rows_path=Path("sset21_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals"),
-    court_box=((434.1, 1480.2), (453.3, 988.5), (84.0, 336.0), (644.6, 682.5)),
-    net_band=(644.6, 682.5),
-    resolution=(1920.0, 1080.0),
+    court_box=_CALIBRATION_GEOMETRY[21].court_box,
+    net_band=_CALIBRATION_GEOMETRY[21].net_band,
+    resolution=_CALIBRATION_GEOMETRY[21].resolution,
     n_rallies=75,
     n_strokes=663,
     files=_fixture_files(
