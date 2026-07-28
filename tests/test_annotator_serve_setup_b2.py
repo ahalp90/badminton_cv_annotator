@@ -177,9 +177,9 @@ def test_dispatch_validates_options_cross_fields() -> None:
         fields.update(overrides)
         return ServeStartOptions(**fields)  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match='exactly one'):
+    with pytest.raises(ValueError, match='setup must be supplied'):
         find_rally_spans(track, serve_start=options(setup=None))
-    with pytest.raises(ValueError, match='exactly one'):
+    with pytest.raises(ValueError, match='legacy serve-start dist'):
         find_rally_spans(track, serve_start=options(dist=np.zeros(6)))
     with pytest.raises(ValueError, match='lookback_frames'):
         find_rally_spans(track, serve_start=options(lookback_frames=None))

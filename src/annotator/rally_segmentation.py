@@ -211,12 +211,10 @@ def _nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 # Selectable-option types (off by default; see segment_video)
 # ---------------------------------------------------------------------------
 class CourtBox(NamedTuple):
-    """The pilot court geometry the serve-start builders filter against.
+    """A court geometry used to filter court-scale person detections.
 
-    Pilot-scoped: the caller constructs it (the stand-in occupancy box or the
-    homography quad bounding box) and passes it to the builders, so no pilot
-    geometry lives in this module. Feet inside `mid_band` claim NEITHER court
-    half (the net line carries 3D model error); the stand-in band is zero-width.
+    The caller constructs it from tracked calibration geometry. Feet inside `mid_band` claim
+    NEITHER court half because the net line carries 3D model error.
 
     :param x_range: foot-point x bounds, pixels.
     :param y_range: foot-point y bounds, pixels.
@@ -228,18 +226,6 @@ class CourtBox(NamedTuple):
     y_range: tuple[float, float]
     height_band: tuple[float, float]
     mid_band: tuple[float, float]
-
-
-class WideshotInputs(NamedTuple):
-    """Per-frame wide-shot gate inputs, precomputed once by the caller.
-
-    Built by `build_serve_start_wideshot_inputs` from the same raw pose boxes the
-    serve-start distance array uses, so the gate never recomputes per burst.
-    """
-
-    count: np.ndarray  # (t,) court-scale detection count per frame
-    top_foot: np.ndarray  # (t, 2) best top-half court-scale foot, image-fraction; NaN when absent
-    bot_foot: np.ndarray  # (t, 2) same for the bottom half
 
 
 class ServeSetupInputs(NamedTuple):
@@ -428,39 +414,18 @@ class ServeStartClose(StrEnum):
 class ServeStartOptions(NamedTuple):
     """Serve-start gating for segment_video(serve_start=...).
 
-    Carries everything the serve-start span rule reads. The distance and wide-shot
-    inputs are precomputed by the builders below from the UNMASKED track (the
-    committed measurement convention: the arrays are built before any replay mask
-    is applied, and serve-start was only ever measured with masking off).
+    The sticky setup evidence is built by the caller from the unmasked track. The committed
+    measurement convention builds serve-start evidence before any replay mask is applied.
 
-    The serve-setup gate has three unit forms: `threshold` is a raw image-fraction only on the
-    dist path without `height`; it is a multiple of body height on the dist path with `height` and
-    on the sticky setup path. The body-height form divides the median distance by the matching
-    mean bbox height, which makes the definition robust to camera framing.
-
-    Off by default: leave `height` None and nothing changes. The body-height form still needs a
-    per-video number (the portable part is the definition, not one shared constant): reading the
-    pilot box-height sweep, a threshold of ~0.75 body heights keeps 105/113 pilot serves, the
-    closest swept row to the raw 0.10 gate's 103/113 keep (the 0.70 row's 101/113 ties it from
-    below). Vid-15 needs its own value: there its serve-setup and dead-time populations overlap
-    in body-height units, so no single constant separates them on both videos.
-
-    :param dist: `(t,)` nearest court-scale player bbox-centre distance (build_serve_start_dist).
-    :param threshold: serve-setup gate distance; a raw image-fraction only on the dist path without
-        `height`, else a multiple of body height (see the class docstring).
+    :param dist: retired raw-distance carrier. It must remain None.
+    :param threshold: serve-setup gate distance as a multiple of body height.
     :param mode: fallback for a region with no qualifying burst (TRIM / REJECT).
-    :param wideshot: optional wide-shot refinement inputs; None leaves it off (the default).
     :param close: optional split placement; None opens one span per region (the default).
     :param diagnostics: optional caller-supplied dict; when given, the span rule fills it in
         place with the per-call region counts / spacings (single writer, valid to read straight
         after the call IN THE SAME PROCESS: the in-place fill does not cross a multiprocessing
         worker boundary, so the pooled sweep runner leaves it None). None (the default) collects nothing.
-    :param height: optional `(t,)` nearest-player bbox height, image-fraction
-        (build_serve_start_box_height), sharing dist's finite frames. None (the default) keeps the
-        raw-fraction gate; supplying it switches the gate to the body-height form above.
-    :param setup: optional sticky-sourced evidence (build_serve_setup_inputs). Supplying it
-        dispatches the three-lane sticky gate; exactly one of dist and setup is required, and
-        the legacy wideshot/height fields belong to the dist path only.
+    :param setup: sticky-sourced evidence (build_serve_setup_inputs).
     :param stillness_threshold_bh: optional stillness bound in body heights for the sticky
         gate; None (the default) leaves the stillness check off. Sticky path only.
     :param lookback_frames: resolved setup-window length in frames (the fps table's
@@ -473,28 +438,14 @@ class ServeStartOptions(NamedTuple):
     dist: np.ndarray | None
     threshold: float
     mode: ServeStartMode
-    wideshot: WideshotInputs | None = None
     close: ServeStartClose | None = None
     diagnostics: dict | None = None
-    height: np.ndarray | None = None
     setup: ServeSetupInputs | None = None
     stillness_threshold_bh: float | None = None
     lookback_frames: int | None = None
     stillness_window_frames: int | None = None
 
 
-# The last second before a burst (25 fps): the serve-setup lookback window.
-SERVE_START_LOOKBACK_FRAMES = 25
-
-# Wide-shot refinement gate constants (off unless ServeStartOptions.wideshot is set). Over the
-# same lookback the burst must also look like the serve WIDE SHOT (both players standing in
-# position): median court-scale detection count >= 2, BOTH court halves occupied (a court-scale
-# box present in >= half the lookback frames per half), and per-half total foot drift <= 0.05
-# image-fraction.
-WIDESHOT_COUNT_MED_MIN = 2.0      # median court-scale detections over the lookback
-WIDESHOT_SLOT_PRESENT_FRAC = 0.5  # a half counts as occupied when present >= this fraction
-WIDESHOT_DRIFT_MAX = 0.05         # max per-half total foot drift, image-fraction
-WIDESHOT_DRIFT_END_FRAMES = 10    # drift = gap between head/tail means over up-to-10 present feet
 # Stage 6 bridge fixed body-height window. The resolved path supplies this explicitly.
 BODY_UNIT_HALF_WINDOW = 12
 
@@ -714,24 +665,19 @@ def _find_rally_spans_quiet_start(
 
 
 # ---------------------------------------------------------------------------
-# Serve-start gating (opens a span only at a serve-setup-preceded burst)
+# Court-scale filtering shared by contact and point-winner paths
 # ---------------------------------------------------------------------------
-# The dead time between rallies is saturated with fast bursts (tracker jitter, carry, replays),
-# so the stock first-burst rule opens spans a long way before the real serve. Serve-start opens a
-# span only at a burst whose last second reads like SERVE SETUP: the shuttle sits close to a
-# court-scale player (held for the toss). The court geometry is a caller-supplied CourtBox, so no
-# pilot-scoped geometry lives here.
+# The court geometry is a caller-supplied CourtBox, so no pilot-scoped geometry lives here.
 def court_scale_boxes(
     frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """One frame's court-scale person boxes; the serve-start builders' shared filter.
+    """One frame's court-scale person boxes.
 
-    Public: stage 10's point-winner attribution and landing filter (the same court-scale
-    candidate set, re-detected per window frame) import this too.
+    Public: stage 10's point-winner attribution and landing filter use the same candidate set.
 
     Keeps the detections whose foot point (bottom-centre) sits inside the court region AND
-    whose pixel height is court-player scale; both builders filter through here so the rule
-    lives once. Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
+    whose pixel height is court-player scale; all callers filter through here so the rule lives
+    once. Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
     extraction already floored scores at 0.30, so `isfinite` equals the scoping's ndet.
     Padding slots carry NaN scores and drop out.
 
@@ -771,251 +717,19 @@ def court_scale_slots(
     return np.flatnonzero(valid)[in_court & in_scale]
 
 
-# Dies at Stage 7 with the frozen sweep.
-def _build_serve_start_metrics(
-    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
-    court_box: CourtBox, resolution: tuple[float, float],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Per-frame nearest court-scale detection: bbox-centre distance AND that box's height.
-
-    The single source of truth for "the nearest court-scale player" behind both serve-start
-    builders: one loop picks the nearest detection per visible-shuttle frame and reads off its
-    distance and its bbox height, so the two arrays share their finite frame set and their
-    nearest detection by construction (the body-height gate divides one by the other and
-    relies on exactly that pairing).
-
-    :return: `(dist, box_height)`, each `(t,)` image-fraction; NaN where the shuttle is
-        invisible or no court-scale detection is present.
-    """
-    n_frames = len(track)
-    width, height = resolution
-
-    dist = np.full(n_frames, np.nan)
-    box_height = np.full(n_frames, np.nan)
-    for frame in np.flatnonzero(track[:, 2] == 1):
-        x1, y1, x2, y2, _ = court_scale_boxes(bboxes[frame], scores[frame], court_box)
-        if len(x1) == 0:
-            continue
-        centre_x = (x1 + x2) / 2.0 / width
-        centre_y = (y1 + y2) / 2.0 / height
-        gaps = np.hypot(centre_x - track[frame, 0], centre_y - track[frame, 1])  # image-fraction
-        nearest = int(np.argmin(gaps))
-        dist[frame] = gaps[nearest]
-        box_height[frame] = (y2[nearest] - y1[nearest]) / height  # image-fraction
-    return dist, box_height
-
-
-# Dies at Stage 7 with the frozen sweep.
-def build_serve_start_dist(
-    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
-    court_box: CourtBox, resolution: tuple[float, float],
-) -> np.ndarray:
-    """Per-frame nearest court-scale player bbox-centre distance; the serve-start gate input.
-
-    For every frame where the shuttle is visible, take the frame's court-scale detections
-    (the rule lives in `court_scale_boxes`) and return the smallest normalised
-    (image-fraction) distance from the shuttle to any of their bbox centres. NaN where the
-    shuttle is invisible or no court-scale detection is present.
-
-    :param track: (t, 3) [x_norm, y_norm, visibility] whole-video track (built UNMASKED).
-    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
-    :param scores: (t, 16) detection scores, NaN on padding slots.
-    :param court_box: the court geometry the foot-point filter uses.
-    :param resolution: (width, height) the shuttle xy and bbox centres normalise by.
-    :return: (t,) float; NaN where the shuttle is invisible or no court-scale player is present.
-    """
-    return _build_serve_start_metrics(track, bboxes, scores, court_box, resolution)[0]
-
-
-# Dies at Stage 7 with the frozen sweep.
-def build_serve_start_box_height(
-    track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,
-    court_box: CourtBox, resolution: tuple[float, float],
-) -> np.ndarray:
-    """Per-frame bbox height of the SAME nearest court-scale player build_serve_start_dist measures.
-
-    The body-height yardstick the body-height serve-setup gate divides by: the nearest court-scale
-    box's pixel height as an image-fraction, NaN where build_serve_start_dist is NaN (shuttle
-    invisible or no court-scale detection present). Both builders read
-    `_build_serve_start_metrics`'s single loop, so the two arrays share their finite frame set and
-    their nearest detection frame-for-frame, which the body-height gate relies on to median
-    distance and mean height over the same lookback.
-
-    :param track: (t, 3) [x_norm, y_norm, visibility] whole-video track (built UNMASKED).
-    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
-    :param scores: (t, 16) detection scores, NaN on padding slots.
-    :param court_box: the court geometry the foot-point filter uses.
-    :param resolution: (width, height) the bbox centres and heights normalise by.
-    :return: (t,) float; the nearest court-scale box height as an image-fraction, NaN where
-        build_serve_start_dist is NaN.
-    """
-    return _build_serve_start_metrics(track, bboxes, scores, court_box, resolution)[1]
-
-
-def _serve_setup_before(dist: np.ndarray, burst_start: int, threshold: float) -> bool:
-    """Does the lookback before a burst look like serve setup?
-
-    True when the median of the finite nearest-court-scale-centre distances over the
-    SERVE_START_LOOKBACK_FRAMES frames immediately before burst_start is <= threshold. A
-    lookback with no finite frame (the shuttle never visible near a court-scale player in that
-    second) can't evidence setup, so it reads False (NaN fails). Near the video start the
-    lookback truncates to the frames that exist.
-
-    :param dist: (t,) per-frame nearest-court-scale-centre distance, NaN where undefined.
-    :param burst_start: first frame of the candidate burst.
-    :param threshold: the gate distance (image-fraction).
-    :return: True when the pre-burst second reads as serve setup.
-    """
-    lookback = dist[max(0, burst_start - SERVE_START_LOOKBACK_FRAMES):burst_start]
-    finite = lookback[np.isfinite(lookback)]
-    if len(finite) == 0:
-        return False
-    return bool(np.median(finite) <= threshold)
-
-
 def _serve_distance_ratio_passes(
     window_dist: np.ndarray, window_height: np.ndarray, threshold_bh: float,
 ) -> bool:
     """Return whether paired distance evidence passes the body-height threshold.
 
-    The finite-distance mask selects the matching heights. That is safe because a finite
-    distance implies a finite same-slot height: the legacy builder writes both values in one
-    loop, and the sticky builder writes both values for a picked slot.
+    The finite-distance mask selects the matching heights. Sticky setup construction writes both
+    values for a picked slot on the same frame.
     """
     mask = np.isfinite(window_dist)
     if not mask.any():
         return False
     ratio = np.median(window_dist[mask]) / np.mean(window_height[mask])
     return bool(ratio <= threshold_bh)
-
-
-def _serve_setup_before_boxheight(
-    dist: np.ndarray, height: np.ndarray, burst_start: int, threshold_bh: float,
-) -> bool:
-    """Body-height-normalised form of the serve-setup gate.
-
-    The portable version of `_serve_setup_before`: rather than comparing the raw lookback median
-    distance against a fixed image-fraction, it divides that median by the mean nearest-player bbox
-    height over the same lookback and tests the ratio against `threshold_bh`, a multiple of a body
-    height. The measured definition from the pilot box-height sweep (raw = median finite lookback
-    distances, denom = mean of the finite lookback nearest-box heights), so a burst passes when
-    `median(distances) / mean(heights) <= threshold_bh`.
-
-    `dist` and `height` come off `_build_serve_start_metrics`'s single loop, so the median and the
-    mean run over the same lookback frames: `finite` is dist's mask, and the heights it selects
-    are the matching ones. Fails closed like `_serve_setup_before`: an all-NaN lookback carries
-    no evidence of setup.
-
-    :param dist: (t,) per-frame nearest-court-scale-centre distance, NaN where undefined.
-    :param height: (t,) that same detection's bbox height, image-fraction, NaN on the same frames.
-    :param burst_start: first frame of the candidate burst.
-    :param threshold_bh: the gate distance as a multiple of body height.
-    :return: True when the pre-burst second reads as serve setup in body-height units.
-    """
-    lookback = slice(max(0, burst_start - SERVE_START_LOOKBACK_FRAMES), burst_start)
-    window_dist = dist[lookback]
-    window_height = height[lookback]
-    return _serve_distance_ratio_passes(window_dist, window_height, threshold_bh)
-
-
-# Dies at Stage 7 with the frozen sweep.
-def build_serve_start_wideshot_inputs(
-    bboxes: np.ndarray, scores: np.ndarray, court_box: CourtBox, resolution: tuple[float, float],
-) -> WideshotInputs:
-    """Per-frame court-scale count and per-half best feet; the wide-shot gate input.
-
-    For EVERY frame (shuttle visibility is irrelevant to the wide shot), count the frame's
-    court-scale detections (the rule lives in `court_scale_boxes`, shared with
-    build_serve_start_dist) and keep the highest-score court-scale foot per court half
-    (top: foot y < the court mid-band low edge; bottom: foot y >= the high edge; feet inside
-    the band claim neither half), normalised to image-fraction.
-
-    :param bboxes: (t, 16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
-    :param scores: (t, 16) detection scores, NaN on padding slots.
-    :param court_box: the court geometry (foot-point filter plus the half-split mid band).
-    :param resolution: (width, height) the feet normalise by.
-    :return: WideshotInputs of (t,) counts and (t, 2) per-half feet (NaN when a half is empty).
-    """
-    n_frames = len(bboxes)
-    width, height = resolution
-
-    count = np.zeros(n_frames, dtype=int)
-    top_foot = np.full((n_frames, 2), np.nan)
-    bot_foot = np.full((n_frames, 2), np.nan)
-    for frame in range(n_frames):
-        x1, _, x2, y2, cs_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
-        count[frame] = len(x1)
-        if len(x1) == 0:
-            continue
-        foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
-        # Feet inside the mid band claim NEITHER half (net-line 3D model error); a zero-width
-        # band makes y2 >= band_hi exactly the (y2 < mid) split.
-        band_lo, band_hi = court_box.mid_band
-        in_top_half = y2 < band_lo
-        in_bot_half = y2 >= band_hi
-        for half_idx, foot_out in ((np.flatnonzero(in_top_half), top_foot),
-                                   (np.flatnonzero(in_bot_half), bot_foot)):
-            if len(half_idx):
-                best = half_idx[np.argmax(cs_scores[half_idx])]
-                foot_out[frame] = (foot_x[best] / width, y2[best] / height)
-    return WideshotInputs(count=count, top_foot=top_foot, bot_foot=bot_foot)
-
-
-def _slot_total_drift(foot_series: np.ndarray) -> tuple[float, int]:
-    """Total foot drift and present-count for one court half over a lookback.
-
-    Drift is the gap between the means of the first and last WIDESHOT_DRIFT_END_FRAMES
-    present feet (net relocation, robust to end jitter), NaN when the series has no more
-    feet than one window. Between 11 and 19 present feet the two windows partially overlap
-    and damp the reading; that is the measured arithmetic and stays.
-
-    :param foot_series: (n, 2) image-fraction feet, NaN rows where the half is empty.
-    :return: (total_drift, present_count).
-    """
-    present = np.flatnonzero(np.isfinite(foot_series[:, 0]))
-    if len(present) <= WIDESHOT_DRIFT_END_FRAMES:
-        # One window's worth of feet or fewer: head and tail would fully overlap and read
-        # exactly 0.0, silently passing the drift bound even for a sprinting player. Abstain
-        # to NaN, which the gate fails closed. Only a truncated lookback near the video start
-        # can get here past the presence gate (a full 25-frame lookback guarantees >= 13
-        # present per half), so the audited keep rates, all full-lookback windows, cannot move.
-        return float('nan'), len(present)
-    head = foot_series[present[:WIDESHOT_DRIFT_END_FRAMES]].mean(axis=0)
-    tail = foot_series[present[-WIDESHOT_DRIFT_END_FRAMES:]].mean(axis=0)
-    return float(np.linalg.norm(tail - head)), len(present)
-
-
-def _wide_shot_before(inputs: WideshotInputs, burst_start: int) -> bool:
-    """Does the lookback before a burst look like the serve wide shot?
-
-    Three conditions over the SERVE_START_LOOKBACK_FRAMES frames immediately before
-    burst_start: median court-scale detection count >= WIDESHOT_COUNT_MED_MIN, both court
-    halves occupied (each half's best box present in >= WIDESHOT_SLOT_PRESENT_FRAC of the
-    lookback), and every occupied half's total foot drift <= WIDESHOT_DRIFT_MAX. A NaN drift
-    (under two present feet) fails. Near the video start the lookback truncates.
-
-    :param inputs: the precomputed per-frame gate inputs.
-    :param burst_start: first frame of the candidate burst.
-    :return: True when the pre-burst second reads as the serve wide shot.
-    """
-    lookback = slice(max(0, burst_start - SERVE_START_LOOKBACK_FRAMES), burst_start)
-    count = inputs.count[lookback]
-    if len(count) == 0 or np.median(count) < WIDESHOT_COUNT_MED_MIN:
-        return False
-
-    top_drift, top_present = _slot_total_drift(inputs.top_foot[lookback])
-    bot_drift, bot_present = _slot_total_drift(inputs.bot_foot[lookback])
-    present_min = WIDESHOT_SLOT_PRESENT_FRAC * len(count)
-    if top_present < present_min or bot_present < present_min:
-        return False
-
-    # Max over the two halves: both players must be still, so the noisier half binds. NaN
-    # halves drop out and no finite drift at all fails (only a truncated lookback near the
-    # video start can reach the no-finite branch).
-    finite_drifts = [drift for drift in (top_drift, bot_drift) if np.isfinite(drift)]
-    if not finite_drifts:
-        return False
-    return bool(max(finite_drifts) <= WIDESHOT_DRIFT_MAX)
 
 
 def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
@@ -1136,11 +850,9 @@ def _serve_start_find_rally_spans(
     """Span finder that opens only at a serve-setup-preceded burst.
 
     Same region / long-rest / fast-run structure as the stock finder. The change: a rally
-    opens at a fast burst whose lookback passes the serve-setup gate (the raw-fraction
-    `_serve_setup_before`, or the body-height `_serve_setup_before_boxheight` when
-    `options.height` is supplied), and, with the optional wide-shot refinement installed, the
-    wide-shot gate too (`_wide_shot_before`). A region with no qualifying burst is handled by the
-    mode: TRIM falls back to the first burst (span survives at the stock start), REJECT drops it.
+    opens at a fast burst whose sticky setup lookback passes the serve-setup gate. A region with
+    no qualifying burst is handled by the mode: TRIM falls back to the first burst (span survives
+    at the stock start), REJECT drops it.
 
     `options.close` controls what a QUALIFYING region does when span_open is None (the default):
     None opens one span at the FIRST qualifying burst running to region end; BURST / LAST_REST
@@ -1155,48 +867,34 @@ def _serve_start_find_rally_spans(
     :param span_open: None (burst-open) or BACK_FILL (open qualifying regions at region_start).
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    if (options.dist is None) == (options.setup is None):
-        raise ValueError('exactly one of dist and setup must be supplied')
+    if options.dist is not None:
+        raise ValueError('legacy serve-start dist is no longer supported; supply setup')
+    if options.setup is None:
+        raise ValueError('serve-start setup must be supplied')
     threshold = _valid_serve_threshold(options.threshold, 'threshold')
-    if options.setup is not None:
-        lookback_frames = _valid_serve_window(options.lookback_frames, 'lookback_frames')
-        if options.stillness_threshold_bh is not None:
-            stillness_threshold_bh = _valid_serve_threshold(
-                options.stillness_threshold_bh, 'stillness_threshold_bh',
-            )
-            stillness_window_frames = _valid_serve_window(
-                options.stillness_window_frames, 'stillness_window_frames',
-            )
-        else:
-            stillness_threshold_bh = None
-            # Still validated when supplied: a bad window would silently wrap the
-            # coverage-gate slice even with the stillness gate off.
-            stillness_window_frames = (
-                None if options.stillness_window_frames is None
-                else _valid_serve_window(options.stillness_window_frames, 'stillness_window_frames')
-            )
-        options.setup.validate()
-
-        def qualifies(burst: int) -> bool:
-            return _sticky_serve_setup_before(
-                options.setup, burst, threshold, lookback_frames,
-                stillness_threshold_bh, stillness_window_frames,
-            )
+    lookback_frames = _valid_serve_window(options.lookback_frames, 'lookback_frames')
+    if options.stillness_threshold_bh is not None:
+        stillness_threshold_bh = _valid_serve_threshold(
+            options.stillness_threshold_bh, 'stillness_threshold_bh',
+        )
+        stillness_window_frames = _valid_serve_window(
+            options.stillness_window_frames, 'stillness_window_frames',
+        )
     else:
-        dist = options.dist
-        wideshot = options.wideshot
-        height = options.height
+        stillness_threshold_bh = None
+        # Still validated when supplied: a bad window would silently wrap the
+        # coverage-gate slice even with the stillness gate off.
+        stillness_window_frames = (
+            None if options.stillness_window_frames is None
+            else _valid_serve_window(options.stillness_window_frames, 'stillness_window_frames')
+        )
+    options.setup.validate()
 
-        def qualifies(burst: int) -> bool:
-            """Serve-setup gate (raw-fraction, or body-height-normalised when options.height is set),
-            AND the wide-shot gate when the refinement is on."""
-            if height is None:
-                setup = _serve_setup_before(dist, burst, threshold)
-            else:
-                setup = _serve_setup_before_boxheight(dist, height, burst, threshold)
-            if not setup:
-                return False
-            return wideshot is None or _wide_shot_before(wideshot, burst)
+    def qualifies(burst: int) -> bool:
+        return _sticky_serve_setup_before(
+            options.setup, burst, threshold, lookback_frames,
+            stillness_threshold_bh, stillness_window_frames,
+        )
 
     mode = options.mode
     close = options.close
@@ -1772,12 +1470,10 @@ def segment_video(
     :param track: `(t, 3)` whole-video track.
     :param positions: optional `(t, 2, 2)` court positions for the proximity guardrail.
     :param thresholds: a `Stage8Thresholds` preset used instead of the globals, or None.
-    :param serve_start: `ServeStartOptions` gating rally openings on a serve-setup lookback, or
-        None. The gate reads distance as a raw image-fraction unless `serve_start.height` is
-        supplied, which switches it to the framing-robust body-height form (see ServeStartOptions).
-        Its distance / height / wide-shot inputs are built from the UNMASKED track by the caller
-        (the committed measurement convention); serve-start was only ever measured with masking
-        off, so combining it with `replay_mask` is unmeasured territory.
+    :param serve_start: `ServeStartOptions` gating rally openings on sticky serve-setup evidence,
+        or None. Its setup inputs are built from the UNMASKED track by the caller (the committed
+        measurement convention); serve-start was only ever measured with masking off, so combining
+        it with `replay_mask` is unmeasured territory.
     :param span_open: a `SpanOpen` rule (REGION_START / BACK_FILL) changing where a span opens,
         or None (today's burst-open rule). `serve_start` with REGION_START raises ValueError, and
         `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).

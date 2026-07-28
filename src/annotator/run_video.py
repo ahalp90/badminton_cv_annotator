@@ -97,7 +97,7 @@ def build_serve_options(
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
     return stage8_seg.ServeStartOptions(
-        # ServeStartOptions keeps its legacy threshold carrier; this sticky path supplies body heights.
+        # The sticky path supplies body-height-normalised serve-setup evidence.
         dist=None, threshold=config.threshold_bh, mode=config.mode, close=config.close,
         setup=stage8_seg.build_serve_setup_inputs(sticky, resolution),
         stillness_threshold_bh=config.stillness_threshold_bh,
