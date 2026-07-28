@@ -17,12 +17,10 @@ from annotator.point_winner import (
     MIN_DESCEND_SAMPLES,
     Verdict,
     VerdictSource,
-    _body_unit_gaps,
     _carried_terminal,
     attribute_half,
     build_hit_height_rows,
     build_landing_kinematics,
-    court_scale_boxes,
     filtered_descending_landing,
     fit_alternation,
     geometric_verdict,
@@ -35,13 +33,14 @@ from annotator.point_winner import (
     rally_verdict,
     window_end,
 )
-from annotator.rally_segmentation import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtBox, StickyResult
+from annotator.rally_segmentation import (
+    ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtGeo, StickyResult, court_scale_boxes,
+)
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40
 
-TEST_COURT_BOX = CourtBox(x_range=(0.0, 2000.0), y_range=(0.0, 2000.0),
-                          height_band=(50.0, 400.0), mid_band=(660.0, 700.0))
+TEST_COURT_GEO = CourtGeo(x_range=(0.0, 2000.0), y_range=(0.0, 2000.0), net_band=(660.0, 700.0))
 
 
 def _mk_pose_arrays(
@@ -187,44 +186,6 @@ def test_window_end_masked_visible_frame_extends_sustained_loss_run() -> None:
 
     assert window_end(0, len(track), track, dead, 10) == 11
     assert window_end(0, len(track), track, dead, 10, event_mask) == 10
-
-
-# ---------------------------------------------------------------------------
-# Fail-loud invariants ported from the harness (_body_unit_gaps)
-# ---------------------------------------------------------------------------
-def test_body_unit_gaps_raises_when_no_window_frame_associates():
-    # No detections anywhere (all NaN): court_scale_boxes returns empty for every window frame,
-    # including the contact frame itself, so the one candidate's denominator never accumulates.
-    n_frames = 30
-    bboxes = np.full((n_frames, 16, 4), np.nan)
-    scores = np.full((n_frames, 16), np.nan)
-    kps = np.full((n_frames, 16, 17, 2), np.nan)
-    track = np.zeros((n_frames, 3))
-    with pytest.raises(ValueError, match='no accepted window frame'):
-        _body_unit_gaps(
-            15, np.array([100.0]), np.array([0.0]), np.array([160.0]), np.array([100.0]),
-            [0], bboxes, scores, kps, TEST_COURT_BOX, track, 1920.0, 1080.0, 12,
-        )
-
-
-def test_body_unit_gaps_raises_on_non_positive_denominator():
-    # A degenerate zero-height box (y1 == y2) registers as court-scale under a height band that
-    # starts at 0.0, and self-matches at every window frame, so the denominator is exactly 0.
-    n_frames = 30
-    bboxes = np.full((n_frames, 16, 4), np.nan)
-    scores = np.full((n_frames, 16), np.nan)
-    kps = np.full((n_frames, 16, 17, 2), np.nan)
-    for frame in range(n_frames):
-        bboxes[frame, 0] = (70.0, 100.0, 130.0, 100.0)  # foot centre (100, 100), height 0
-        scores[frame, 0] = 0.9
-    track = np.zeros((n_frames, 3))
-    zero_height_court_box = CourtBox(x_range=(0.0, 2000.0), y_range=(0.0, 2000.0),
-                                     height_band=(0.0, 400.0), mid_band=(660.0, 700.0))
-    with pytest.raises(ValueError, match='non-finite or non-positive'):
-        _body_unit_gaps(
-            15, np.array([100.0]), np.array([100.0]), np.array([100.0]), np.array([100.0]),
-            [0], bboxes, scores, kps, zero_height_court_box, track, 1920.0, 1080.0, 12,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -608,4 +569,4 @@ def test_court_scale_boxes_is_importable_as_the_public_name():
     scores = np.full(16, np.nan)
     bboxes[0] = (970.0, 150.0, 1030.0, 300.0)
     scores[0] = 0.9
-    assert len(court_scale_boxes(bboxes, scores, TEST_COURT_BOX)[0]) == 1
+    assert len(court_scale_boxes(bboxes, scores, TEST_COURT_GEO)[0]) == 1

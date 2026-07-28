@@ -20,7 +20,6 @@ from annotator.inpaint_guard import code_counts, grade_track
 from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
 from annotator.replay_mask import _read_homography_rows
-from annotator.rally_segmentation import CourtBox
 from annotator.calibration.scoring import (
     RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
 )
@@ -435,7 +434,6 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     keyword: dict[str, object] = {
         "fps": fixture.fps,
         "landing_options": LandingFilterOptions(7, 0.004, 5, 7, 0.75),
-        "court_box": CourtBox(*fixture.court_box),
         "net_band": fixture.net_band,
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,

@@ -180,10 +180,8 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     assert masked_spans[0][0] == 75
 
     # This is the smallest real sticky-gate context: one in-court standing pose and identity
-    # camera-to-court mapping.  The two short boxes sit just outside the base-12 association
+    # camera-to-court mapping. The short box-height observations sit outside the base-12
     # window around contact 82, but inside the resolved-24 window.
-    from annotator.rally_segmentation import CourtBox
-
     bboxes = np.zeros((n_frames, 1, 4))
     bboxes[:, 0] = (900.0, 250.0, 1020.0, 350.0)
     bboxes[58:70, 0, 1] = 330.0
@@ -195,7 +193,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     kps[:, 0, 9, 1] = track[:, 1] * 1080.0
     kps[:, 0, 10, 1] = track[:, 1] * 1080.0
     ndet = np.ones(n_frames, dtype=int)
-    court_box = CourtBox((0.0, 1920.0), (0.0, 1080.0), (1.0, 1000.0), (0.0, 1080.0))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
                   'border_U': 0.0, 'border_D': 1080.0}
     resolution_table = pd.DataFrame(
@@ -204,11 +201,11 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     short_sticky = build_sticky_result(
         track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
         {'v': court_info.copy()},
-        resolution_table, court_box, (1920.0, 1080.0), 12,
+        resolution_table, (1920.0, 1080.0), 12,
     )
     full_sticky = build_sticky_result(
         track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
-        {'v': court_info.copy()}, resolution_table, court_box, (1920.0, 1080.0),
+        {'v': court_info.copy()}, resolution_table, (1920.0, 1080.0),
         resolved.constants.body_unit_half_window,
     )
     base_radius_thresholds = resolved.thresholds._replace(contact_suppression_radius_frames=9)

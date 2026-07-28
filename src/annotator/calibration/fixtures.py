@@ -29,7 +29,7 @@ class FilePin:
 class CalibrationGeometry:
     """Derived camera geometry and the tracked source resolution for one fixture."""
 
-    court_box: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]
+    court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
 
@@ -53,7 +53,7 @@ class Fixture:
     court_present_path: Path
     scene_rows_path: Path
     gt_set_dir: Path
-    court_box: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]
+    court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
     n_rallies: int
@@ -80,7 +80,6 @@ _RESOLUTION_SOURCE = REPO_ROOT / "training/data/shuttleset/annotations/my_raw_vi
 _HOMOGRAPHY_TO_FIXTURE_MULTIPLIER = 1.5
 # The centre band spans one metre along the 13.4 m court-length axis.
 _NET_BAND_HALF_WIDTH_M = 0.5
-_COMPATIBILITY_HEIGHT = (84.0, 336.0)
 _CALIBRATION_VIDEO_IDS = (1, 15, 21)
 _CORNER_COLUMNS = (
     "upleft_x", "upright_x", "downleft_x", "downright_x",
@@ -181,8 +180,8 @@ def _derive_calibration_geometry(
         raise ValueError(f"resolution values must be positive for id {video_id}")
 
     resolution = (width, height)
-    court_box = (x_bounds, y_bounds, _COMPATIBILITY_HEIGHT, net_band)
-    return CalibrationGeometry(court_box=court_box, net_band=net_band, resolution=resolution)
+    court_geo = (x_bounds, y_bounds, net_band)
+    return CalibrationGeometry(court_geo=court_geo, net_band=net_band, resolution=resolution)
 
 
 def _rounded_bounds(values: np.ndarray) -> tuple[float, float]:
@@ -274,7 +273,7 @@ PILOT = Fixture(
     court_present_path=Path("pilot_results/homography_smoothing/raw_keep_hard_any_m0p10.npy"),
     scene_rows_path=Path("pilot_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals"),
-    court_box=_CALIBRATION_GEOMETRY[1].court_box,
+    court_geo=_CALIBRATION_GEOMETRY[1].court_geo,
     net_band=_CALIBRATION_GEOMETRY[1].net_band,
     resolution=_CALIBRATION_GEOMETRY[1].resolution,
     n_rallies=113,
@@ -308,7 +307,7 @@ VID15 = Fixture(
     court_present_path=Path("vid15_results/composition_mask/vid15_keep_hard_any_m0p10.npy"),
     scene_rows_path=Path("vid15_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/Anthony_Sinisuka_GINTING_Anders_ANTONSEN_Indonesia_Masters_2020_Final"),
-    court_box=_CALIBRATION_GEOMETRY[15].court_box,
+    court_geo=_CALIBRATION_GEOMETRY[15].court_geo,
     net_band=_CALIBRATION_GEOMETRY[15].net_band,
     resolution=_CALIBRATION_GEOMETRY[15].resolution,
     n_rallies=104,
@@ -342,7 +341,7 @@ SSET21 = Fixture(
     court_present_path=Path("sset21_results/keep_vote_hard_any_m0p10.npy"),
     scene_rows_path=Path("sset21_results/scene_rows_content27_refcorners.csv"),
     gt_set_dir=Path("training/data/shuttleset/annotations/set/An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals"),
-    court_box=_CALIBRATION_GEOMETRY[21].court_box,
+    court_geo=_CALIBRATION_GEOMETRY[21].court_geo,
     net_band=_CALIBRATION_GEOMETRY[21].net_band,
     resolution=_CALIBRATION_GEOMETRY[21].resolution,
     n_rallies=75,

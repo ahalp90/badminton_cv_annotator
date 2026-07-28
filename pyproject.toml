@@ -168,7 +168,11 @@ ignore = [
 # needs jaxtyping importable to resolve the shape annotations (not torch), so the CI install is light.
 [tool.pyrefly]
 project-includes = ["src", "scripts", "tests"]
-project-excludes = ["**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**"]
+project-excludes = [
+    "**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**",
+    "scripts/archive/m_miss_junk_census.py", "scripts/archive/m_sticky_gate_arm.py",
+    "scripts/archive/m_sticky_gate_arm_r7.py",
+]
 search-path = ["src", "src/bst_x"]
 preset = "off"
 

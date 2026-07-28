@@ -48,9 +48,8 @@ Each input is a contract; the concrete current source sits beside it.
    court border lines for this video (today: a court_info dict with H and
    border_L/R/U/D), plus the resolution table keyed by video id (per-video frame
    width and height).
-5. Court geometry in image space: the court box (x/y pixel ranges, a plausible player
-   height band, and a net band in image y). The net band is where a foot counts to
-   neither court half.
+5. Court geometry in image space: the court geometry (x/y pixel ranges and a net
+   band in image y). The net band is where a foot counts to neither court half.
 6. Doubles evidence: a per-frame bool array, True where more than two people project
    inside the court (today: the vision lane's <video_id>_overcount.npy, produced on
    the compute cluster beside the pose output). Step 10 carries its limits and its
@@ -227,10 +226,9 @@ annotator.rally_segmentation): within each span, on the masked track,
   least radius frames apart); equal impulses keep the earlier frame (a pinned tie
   rule; exact ties occur in real data)
 - the wrist gate then scores each surviving candidate: the wrist-to-shuttle gap in
-  body-height units (the candidate player's bbox height), measured on the sticky
-  picks at the candidate frame (today: stage8's sticky gate reaching into
-  point_winner._body_unit_gaps, which promotes to a public name). A finite gap at or
-  below the wrist threshold passes; a NaN gap fails closed
+  body-height units (the picked player's bbox height), read from the sticky cached
+  distance at the candidate frame. A finite gap at or below the wrist threshold
+  passes; a NaN gap fails closed
 - gate survivors then pass ONE suppression pass over the whole video (not per span):
   candidates are accepted best-first (descending impulse, then ascending frame), and
   a candidate within the suppression radius of an already-accepted one is dropped;

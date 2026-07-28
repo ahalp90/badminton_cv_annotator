@@ -47,10 +47,8 @@ from .rally_segmentation import (
     ANKLE_R,
     WRIST_L,
     WRIST_R,
-    CourtBox,
     StickyResult,
     compute_speed,
-    court_scale_boxes,
     rolling_nanmedian,
     true_runs,
 )
@@ -104,10 +102,6 @@ MIN_DESCEND_SAMPLES = 3
 # (2% of any edge): matches the harness's single source of truth for "at the top edge".
 TOP_EDGE_FRAC = 0.02
 
-# +/- frames around a contact frame for the box-height attribution's body-scale denominator.
-BODY_UNIT_HALF_WINDOW = 12
-
-
 # ---------------------------------------------------------------------------
 # Court projection
 # ---------------------------------------------------------------------------
@@ -135,60 +129,6 @@ def project_pixels_to_court(
 # ---------------------------------------------------------------------------
 # Striker attribution (the shipped wrist_boxh arm: nearer-wrist px / mean windowed box height)
 # ---------------------------------------------------------------------------
-def body_unit_gaps(
-    frame: int, x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.ndarray,
-    cand_slots: list[int], bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, track: np.ndarray, width: float, height: float, half_window: int,
-) -> np.ndarray:
-    """Body-unit (box-height) shuttle-to-candidate distance, the shipped attribution arm.
-
-    Numerator: the contact-frame candidate's nearer-wrist distance to the shuttle in working-res
-    pixels. Denominator: that candidate's mean box-pixel-height over a +/-12-frame window. Per
-    window frame we re-detect the court-scale boxes and associate the one whose centre is nearest
-    this candidate's contact-frame bbox centre, accepting only within one contact-frame box
-    height. The contact frame always self-matches at distance 0, so every candidate's denominator
-    has at least that sample.
-
-    :param x1..y2: the contact-frame candidates' court-scale boxes (px), from court_scale_boxes.
-    :param cand_slots: each contact-frame candidate's kps/scores slot id.
-    :return: gaps (k,), one per contact-frame candidate; argmin picks the nearest as elsewhere.
-    """
-    shuttle_x_px = track[frame, 0] * width
-    shuttle_y_px = track[frame, 1] * height
-    wrists = kps[frame, cand_slots][:, (WRIST_L, WRIST_R), :]  # (k candidates, 2 wrists, xy) px
-    wrist_px = np.hypot(wrists[..., 0] - shuttle_x_px, wrists[..., 1] - shuttle_y_px).min(axis=1)
-
-    cand_cx = (x1 + x2) / 2.0  # contact-frame candidate bbox centres (px)
-    cand_cy = (y1 + y2) / 2.0
-    cand_h = y2 - y1           # contact-frame box heights (px); the association threshold
-
-    n_cand = len(x1)
-    n_frames = len(bboxes)
-    lo = max(0, frame - half_window)
-    hi = min(n_frames - 1, frame + half_window)
-    denom_sum = np.zeros(n_cand)
-    denom_count = np.zeros(n_cand, dtype=int)
-    for g in range(lo, hi + 1):
-        gx1, gy1, gx2, gy2, _ = court_scale_boxes(bboxes[g], scores[g], court_box)
-        if len(gx1) == 0:
-            continue
-        g_cx = (gx1 + gx2) / 2.0
-        g_cy = (gy1 + gy2) / 2.0
-        for cand in range(n_cand):
-            dists = np.hypot(g_cx - cand_cx[cand], g_cy - cand_cy[cand])
-            nearest = int(np.argmin(dists))
-            if dists[nearest] > cand_h[cand]:  # association beyond one contact-frame box height
-                continue
-            denom_sum[cand] += float(gy2[nearest] - gy1[nearest])
-            denom_count[cand] += 1
-    if (denom_count == 0).any():  # the contact frame should always self-match; empty => a bug
-        raise ValueError(f'body-unit gap: a candidate had no accepted window frame at contact {frame}')
-    denom_px = denom_sum / denom_count
-    if not np.all(np.isfinite(denom_px)) or (denom_px <= 0.0).any():
-        raise ValueError(f'body-unit gap: non-finite or non-positive body-scale denominator at contact {frame}')
-    return wrist_px / denom_px
-
-
 def attribute_half(
     frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, net_band: tuple[float, float],
 ) -> Half | None:
@@ -214,10 +154,6 @@ def attribute_half(
     if foot_y > band_hi:
         return Half.BOT
     return None  # inside the net band
-
-
-# Compatibility alias for frozen callers; remove when the old sticky seam retires.
-_body_unit_gaps = body_unit_gaps
 
 
 # ---------------------------------------------------------------------------

@@ -165,7 +165,6 @@ def run_video(
     fps: float,
     base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
     landing_options=None,
-    court_box=None,
     net_band: tuple[float, float] | None = None,
     resolution: tuple[float, float] | None = None,
     video_id: int | None = None,
@@ -239,7 +238,6 @@ def run_video(
         if not stop_after_segmentation:
             required_downstream_inputs = {
                 'landing_options': landing_options,
-                'court_box': court_box,
                 'net_band': net_band,
                 'court_info': court_info,
                 'homo_df': homo_df,
@@ -258,7 +256,7 @@ def run_video(
         segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
         sticky = stage8_seg.build_sticky_result(
             track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
-            gate_resolution_table, court_box, resolution, resolved.constants.body_unit_half_window,
+            gate_resolution_table, resolution, resolved.constants.body_unit_half_window,
         )
     serve_options = None
     if court_optional:

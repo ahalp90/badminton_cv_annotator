@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.rally_segmentation import WRIST_L, WRIST_R, CourtBox, build_sticky_result, segment_video
+from annotator.rally_segmentation import WRIST_L, WRIST_R, build_sticky_result, segment_video
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -68,25 +68,19 @@ def _sticky_inputs():
         [600 / 1280, 170 / 720, 1.0],
         [0.5, 0.5, 0.0],
     ])
-    court_box = CourtBox(
-        x_range=(0.0, 1280.0), y_range=(0.0, 720.0),
-        height_band=(1.0, 1000.0), mid_band=(640.0, 640.0),
-    )
     court_info = {
         'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0,
         'border_U': 0.0, 'border_D': 720.0,
     }
     resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
-    return (track, [(1, 4)], bboxes, scores, kps, ndet, court_box,
-            {'1': court_info}, resolution_table)
+    return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info}, resolution_table)
 
 
 def test_build_sticky_result_pins_failure_defaults_and_success_contract():
-    (track, segments, bboxes, scores, kps, ndet, court_box,
-     court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
     result = build_sticky_result(
         track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, court_box, (1280.0, 720.0), half_window=1,
+        resolution_table, (1280.0, 720.0), half_window=1,
     )
 
     assert np.isposinf(result.distances[0])
@@ -127,8 +121,7 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
 
 
 def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
-    (track, segments, bboxes, scores, kps, ndet, court_box,
-     court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
     track = track.copy()
     track[2, :2] = 0.0
     track[2, 2] = 0.0
@@ -137,7 +130,7 @@ def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
 
     result = build_sticky_result(
         track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, court_box, (1280.0, 720.0), half_window=1,
+        resolution_table, (1280.0, 720.0), half_window=1,
     )
 
     assert result.wrist_dist_px.shape == (len(track), 2)
@@ -155,14 +148,11 @@ def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
     assert result.distances[2] == pytest.approx(np.min(result.distances_per_slot[2]))
 
 
-def test_segment_video_sticky_distance_exclusions_are_mutual():
+def test_segment_video_sticky_distance_shape_is_checked():
     track = np.zeros((3, 3), dtype=np.float64)
-    distances = np.zeros(3)
 
     with pytest.raises(ValueError, match='shape'):
         segment_video(track, sticky_distances=np.zeros(2))
-    with pytest.raises(ValueError, match='combined'):
-        segment_video(track, sticky_distances=distances, body_unit_dist=np.zeros(3))
 
 
 def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
@@ -176,17 +166,39 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
         bboxes[frame, 0] = box
         kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
     track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
-    court_box = CourtBox(
-        x_range=(0.0, 1280.0), y_range=(0.0, 720.0),
-        height_band=(1.0, 1000.0), mid_band=(640.0, 640.0),
-    )
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
     resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
     result = build_sticky_result(
         track, [(0, 3), (3, 6)], bboxes, scores, kps, np.ones(n_frames, dtype=np.int64), '1',
-        {'1': court_info}, resolution_table, court_box, (1280.0, 720.0), half_window=1,
+        {'1': court_info}, resolution_table, (1280.0, 720.0), half_window=1,
     )
 
     numerator = np.hypot(600.0 - 600.0, 360.0 - 170.0)
     picked_half = int(np.flatnonzero(result.picks[2] >= 0)[0])
     assert result.distances_per_slot[2, picked_half] == pytest.approx(numerator / 100.0)
+
+
+def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None:
+    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    bboxes[1, 1, 1] = np.nan
+    bboxes[2, 1, 1] = np.nan
+    bboxes[3, 0, 1] = np.nan
+
+    with pytest.raises(ValueError, match='no accepted finite height'):
+        build_sticky_result(
+            track, segments, bboxes, scores, kps, ndet, '1', court_info,
+            resolution_table, (1280.0, 720.0), half_window=1,
+        )
+
+
+def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
+    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    bboxes[1, 1, 1] = bboxes[1, 1, 3]
+    bboxes[2, 1, 1] = bboxes[2, 1, 3]
+    bboxes[3, 0, 1] = bboxes[3, 0, 3]
+
+    with pytest.raises(ValueError, match='non-finite or non-positive body-scale denominator'):
+        build_sticky_result(
+            track, segments, bboxes, scores, kps, ndet, '1', court_info,
+            resolution_table, (1280.0, 720.0), half_window=1,
+        )

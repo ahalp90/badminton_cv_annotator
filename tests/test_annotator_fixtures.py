@@ -50,31 +50,31 @@ def test_fixture_manifest_includes_calibration_inputs_once(fixture):
 
 
 @pytest.mark.parametrize(
-    ("fixture", "expected_court_box", "expected_net_band"),
+    ("fixture", "expected_court_geo", "expected_net_band"),
     [
         (
             "pilot",
-            ((460.8, 1459.5), (461.1, 1006.8), (84.0, 336.0), (664.6, 703.7)),
+            ((460.8, 1459.5), (461.1, 1006.8), (664.6, 703.7)),
             (664.6, 703.7),
         ),
         (
             "vid15",
-            ((439.5, 1472.1), (378.0, 994.2), (84.0, 336.0), (583.9, 626.6)),
+            ((439.5, 1472.1), (378.0, 994.2), (583.9, 626.6)),
             (583.9, 626.6),
         ),
         (
             "sset21",
-            ((434.1, 1480.2), (453.3, 988.5), (84.0, 336.0), (644.6, 682.5)),
+            ((434.1, 1480.2), (453.3, 988.5), (644.6, 682.5)),
             (644.6, 682.5),
         ),
     ],
 )
-def test_calibration_geometry_matches_tracked_sources(fixture, expected_court_box, expected_net_band):
+def test_calibration_geometry_matches_tracked_sources(fixture, expected_court_geo, expected_net_band):
     selected_fixture = next(item for item in FIXTURES if item.name == fixture)
 
-    assert selected_fixture.court_box == expected_court_box
+    assert selected_fixture.court_geo == expected_court_geo
     assert selected_fixture.net_band == expected_net_band
-    assert selected_fixture.court_box[3] is selected_fixture.net_band
+    assert selected_fixture.court_geo[2] is selected_fixture.net_band
     assert selected_fixture.resolution == (1920.0, 1080.0)
 
 

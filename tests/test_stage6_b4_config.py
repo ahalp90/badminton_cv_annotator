@@ -84,7 +84,7 @@ def test_quiet_start_and_serve_start_fail_in_run_video() -> None:
         run_video(
             None, None, None, None, None, fps=30.0,
             base=BaseAnnotatorConfig(quiet_start_window=10.0), landing_options=None,
-            court_box=None, net_band=(0.0, 1.0), resolution=(1.0, 1.0), video_id=1,
+            net_band=(0.0, 1.0), resolution=(1.0, 1.0), video_id=1,
             court_info={}, homo_df=None, gate_court_info={}, gate_resolution_table=None,
             serve_start=object(),
         )

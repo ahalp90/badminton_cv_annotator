@@ -9,7 +9,7 @@ from annotator.calibration.gt_scoring import write_geometric_verdicts_csv
 from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import GeometricVerdictRow, Half, Landing, LandingFilterOptions, Verdict
 from annotator.fps_constants import scale_for_fps
-from annotator.rally_segmentation import CourtBox, ServeStartClose, ServeStartMode, StickyResult
+from annotator.rally_segmentation import ServeStartClose, ServeStartMode, StickyResult
 from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
 from annotator.types import ContactCandidate, ServeStartConfig
 
@@ -47,10 +47,6 @@ def test_run_video_no_play_returns_empty_result():
         track, bboxes, scores, kps, ndet,
         fps=25.0,
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75),
-        court_box=CourtBox(
-            x_range=(635.0, 1316.0), y_range=(254.0, 1030.0),
-            height_band=(84.0, 336.0), mid_band=(642.0, 642.0),
-        ),
         net_band=(664.6, 703.7),
         resolution=resolution,
         video_id=video_id,
@@ -182,7 +178,7 @@ def test_run_video_normal_mode_requires_sticky_inputs(field):
         run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), stop_after_segmentation=True)
 
 
-@pytest.mark.parametrize('field', ['landing_options', 'court_box', 'net_band', 'court_info', 'homo_df'])
+@pytest.mark.parametrize('field', ['landing_options', 'net_band', 'court_info', 'homo_df'])
 def test_run_video_full_chain_requires_downstream_inputs(field):
     inputs = _synthetic_inputs()
     del inputs['dead_mask']
@@ -627,10 +623,6 @@ def _synthetic_inputs():
         'ndet': np.zeros(n_frames, dtype=np.int64),
         'fps': 25.0,
         'landing_options': LandingFilterOptions(7, 0.004, 5, 7, 0.75),
-        'court_box': CourtBox(
-            x_range=(635.0, 1316.0), y_range=(254.0, 1030.0),
-            height_band=(84.0, 336.0), mid_band=(642.0, 642.0),
-        ),
         'net_band': (664.6, 703.7), 'resolution': resolution,
         'video_id': video_id, 'court_info': court_info,
         'homo_df': pd.DataFrame({

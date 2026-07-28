@@ -208,22 +208,20 @@ def _nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Selectable-option types (off by default; see segment_video)
 # ---------------------------------------------------------------------------
-class CourtBox(NamedTuple):
-    """A court geometry used to filter court-scale person detections.
+class CourtGeo(NamedTuple):
+    """A court geometry used to filter person detections.
 
-    The caller constructs it from tracked calibration geometry. Feet inside `mid_band` claim
+    The caller constructs it from tracked calibration geometry. Feet inside `net_band` claim
     NEITHER court half because the net line carries 3D model error.
 
     :param x_range: foot-point x bounds, pixels.
     :param y_range: foot-point y bounds, pixels.
-    :param height_band: court-player bbox pixel-height band.
-    :param mid_band: top/bottom half-split band (low, high), pixels.
+    :param net_band: top/bottom half-split band (low, high), pixels.
     """
 
     x_range: tuple[float, float]
     y_range: tuple[float, float]
-    height_band: tuple[float, float]
-    mid_band: tuple[float, float]
+    net_band: tuple[float, float]
 
 
 class ServeSetupInputs(NamedTuple):
@@ -665,55 +663,50 @@ def _find_rally_spans_quiet_start(
 # ---------------------------------------------------------------------------
 # Court-scale filtering shared by contact and point-winner paths
 # ---------------------------------------------------------------------------
-# The court geometry is a caller-supplied CourtBox, so no pilot-scoped geometry lives here.
+# The court geometry is caller-supplied, so no pilot-scoped geometry lives here.
 def court_scale_boxes(
-    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
+    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """One frame's court-scale person boxes.
 
-    Public: direct court-scale consumers use this shared candidate filter. The landing path
-    uses the sticky-selected players instead.
+    Public helper retained for direct court-geometry consumers. The current sticky and landing
+    paths use sticky-selected players instead.
 
-    Keeps the detections whose foot point (bottom-centre) sits inside the court region AND
-    whose pixel height is court-player scale; all callers filter through here so the rule lives
-    once. Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
+    Keeps the detections whose foot point (bottom-centre) sits inside the court region.
+    Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
     extraction already floored scores at 0.30, so `isfinite` equals the scoping's ndet.
     Padding slots carry NaN scores and drop out.
 
     :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
     :param frame_scores: (16,) detection scores, NaN on padding slots.
-    :param court_box: the court geometry to filter against.
+    :param court_geo: the court geometry to filter against.
     :return: (x1, y1, x2, y2, scores) filtered to the court-scale detections, each (k,).
     """
-    slots = court_scale_slots(frame_bboxes, frame_scores, court_box)
+    slots = court_scale_slots(frame_bboxes, frame_scores, court_geo)
     x1, y1, x2, y2 = frame_bboxes[slots].T  # each (k,) pixels
     return x1, y1, x2, y2, frame_scores[slots]
 
 
 def court_scale_slots(
-    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_box: CourtBox,
+    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
 ) -> np.ndarray:
     """Original pose-slot indices of the court-scale detections, ascending.
 
-    The filter's mask logic lives here once. Callers that need the detections'
-    identities (the contact gate) take slots directly; a score-equality lookup
-    can alias two detections that share a score.
+    The filter returns original pose-slot identities rather than recovering
+    them through score equality, which can alias detections with tied scores.
 
     :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
     :param frame_scores: (16,) detection scores, NaN on padding slots.
-    :param court_box: the court geometry to filter against.
+    :param court_geo: the court geometry to filter against.
     :return: (k,) int slot indices into the frame's pose arrays.
     """
     valid = np.isfinite(frame_scores)
     x1, y1, x2, y2 = frame_bboxes[valid].T  # each (m,) pixels
     foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
-    box_height = y2 - y1
-    x_lo, x_hi = court_box.x_range
-    y_lo, y_hi = court_box.y_range
-    height_lo, height_hi = court_box.height_band
+    x_lo, x_hi = court_geo.x_range
+    y_lo, y_hi = court_geo.y_range
     in_court = (x_lo <= foot_x) & (foot_x <= x_hi) & (y_lo <= y2) & (y2 <= y_hi)
-    in_scale = (height_lo <= box_height) & (box_height <= height_hi)
-    return np.flatnonzero(valid)[in_court & in_scale]
+    return np.flatnonzero(valid)[in_court]
 
 
 def _serve_distance_ratio_passes(
@@ -1156,34 +1149,7 @@ WRIST_L, WRIST_R = 9, 10
 ANKLE_L, ANKLE_R = 15, 16
 
 
-def body_unit_dist_at_frame(
-    frame: int, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
-    court_box: CourtBox, width: float, height: float, half_window: int = BODY_UNIT_HALF_WINDOW,
-) -> float:
-    """Body-unit shuttle-to-nearest-wrist gap at one frame, or NaN.
-
-    This is the gate wrapper around point-winner's own body-unit machinery.
-    Keeping the wrapper here lets the contact chain invoke the measured stage
-    without copying its box-window association or slot recovery.
-    """
-    if track[frame, 2] != 1:
-        return float('nan')
-    candidate_slots = court_scale_slots(bboxes[frame], scores[frame], court_box)
-    if len(candidate_slots) == 0:
-        return float('nan')
-
-    from . import point_winner
-
-    x1, y1, x2, y2 = bboxes[frame, candidate_slots].T
-    gaps = point_winner.body_unit_gaps(
-        frame, x1, y1, x2, y2, [int(slot) for slot in candidate_slots], bboxes, scores, kps,
-        court_box, track, width, height, half_window,
-    )
-    finite_gaps = gaps[np.isfinite(gaps)]
-    return float(finite_gaps.min()) if len(finite_gaps) else float('nan')
-
-
-def wrist_contact_near(body_unit_dist: np.ndarray | None, contact_frame: int) -> bool | None:
+def wrist_contact_near(sticky_distances: np.ndarray | None, contact_frame: int) -> bool | None:
     """The single-frame body-unit wrist gate on one contact, in player-box-height units.
 
     Mirrors `contact_proximity_ok`'s three-way verdict. None distances mean the gate never
@@ -1191,9 +1157,9 @@ def wrist_contact_near(body_unit_dist: np.ndarray | None, contact_frame: int) ->
     downstream): raw candidates stand, per the recall-first convention. A NaN frame is
     measured-but-unconfirmed and fails closed to False, the measured arm's behaviour.
     """
-    if body_unit_dist is None:
+    if sticky_distances is None:
         return None
-    distance = body_unit_dist[contact_frame]
+    distance = sticky_distances[contact_frame]
     return bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
 
 
@@ -1282,7 +1248,7 @@ def build_sticky_result(
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
-    court_box: CourtBox, resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
+    resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
 ) -> StickyResult:
     """Run one sticky analysis loop over the supplied tracker segments.
 
@@ -1359,9 +1325,18 @@ def build_sticky_result(
                 wrists = pose_kps[frame, pick, (WRIST_L, WRIST_R), :]
                 numerator = float(np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min())
                 window = bbox_height[max(start, frame - half_window):min(end, frame + half_window + 1), half]
-                divisor = float(np.nanmean(window)) if np.isfinite(window).any() else float('nan')
-                if np.isfinite(divisor) and divisor > 0.0:
-                    distances_per_slot[frame, half] = numerator / divisor
+                if not np.isfinite(window).any():
+                    raise ValueError(
+                        f'sticky body-unit distance: no accepted finite height for slot {half} '
+                        f'at frame {frame}'
+                    )
+                divisor = float(np.nanmean(window))
+                if not np.isfinite(divisor) or divisor <= 0.0:
+                    raise ValueError(
+                        f'sticky body-unit distance: non-finite or non-positive body-scale '
+                        f'denominator for slot {half} at frame {frame}'
+                    )
+                distances_per_slot[frame, half] = numerator / divisor
                 if track[frame, 2] == 1:
                     wrist_dist_px[frame, half] = numerator
 
@@ -1410,7 +1385,7 @@ def find_rally_spans(
 
 def assemble_contacts(
     track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
-    thresholds: Stage8Thresholds | None, body_unit_dist: np.ndarray | None,
+    thresholds: Stage8Thresholds | None, sticky_distances: np.ndarray | None,
     suppression_radius: int | None,
     *, smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[ContactCandidate]:
@@ -1419,10 +1394,10 @@ def assemble_contacts(
                  for frame, impulse in detect_contact_flags(
                      track, start, end, thresholds, smoothing_mode=smoothing_mode,
                  )]
-    if body_unit_dist is None:
+    if sticky_distances is None:
         return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)
                 for r, f, _ in raw_flags]
-    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(body_unit_dist, f)]
+    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(sticky_distances, f)]
     radius = ((CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
               if suppression_radius is None else suppression_radius)
     accepted = set(suppress_contact_flags(gated, radius=radius))
@@ -1438,7 +1413,6 @@ def segment_video(
     serve_start: ServeStartOptions | None = None,
     span_open: SpanOpen | None = None,
     replay_mask: np.ndarray | None = None,
-    body_unit_dist: np.ndarray | None = None,
     sticky_distances: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
     suppression_radius: int | None = None,
@@ -1468,8 +1442,8 @@ def segment_video(
         `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).
     :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
         `apply_replay_mask` before speed is computed, or None.
-    :param body_unit_dist: optional `(t,)` body-unit shuttle-to-nearest-wrist gaps. NaN fails
-        closed. Production callers supply the externally computed sticky distances instead.
+    :param sticky_distances: optional `(t,)` body-unit shuttle-to-nearest-wrist gaps. NaN fails
+        closed. Production callers supply the cached sticky distances.
     :param suppression_radius: optional contact suppression radius; None keeps the shipped 9-frame default.
     :param smoothing_mode: span coordinate smoothing policy; ZERO_FILL preserves
         the shipped rule and IGNORE_INVISIBLE drops invisible xy from each mean.
@@ -1498,8 +1472,6 @@ def segment_video(
     if sticky_distances is not None:
         if sticky_distances.shape != (len(track),):
             raise ValueError('sticky_distances must have shape (len(track),)')
-        if body_unit_dist is not None:
-            raise ValueError('sticky_distances cannot be combined with other gate inputs')
     if replay_mask is not None:
         track = apply_replay_mask(track, replay_mask)
 
@@ -1511,21 +1483,15 @@ def segment_video(
             quiet_start_window=quiet_start_window,
         )
 
-    gate_ran = sticky_distances is not None or body_unit_dist is not None
+    gate_ran = sticky_distances is not None
     if not gate_ran:
         return spans, assemble_contacts(
             track, positions, spans, thresholds, None, suppression_radius,
             smoothing_mode=smoothing_mode,
         )
 
-    distances = sticky_distances
-    if body_unit_dist is None:
-        return spans, assemble_contacts(
-            track, positions, spans, thresholds, distances, suppression_radius,
-            smoothing_mode=smoothing_mode,
-        )
     return spans, assemble_contacts(
-        track, positions, spans, thresholds, body_unit_dist, suppression_radius,
+        track, positions, spans, thresholds, sticky_distances, suppression_radius,
         smoothing_mode=smoothing_mode,
     )
 

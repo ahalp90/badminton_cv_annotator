@@ -15,7 +15,7 @@ from annotator.config import (
     SMOOTH_WINDOW,
 )
 from annotator.rally_segmentation import (
-    CourtBox,
+    CourtGeo,
     ServeSetupInputs,
     ServeStartClose,
     ServeStartMode,
@@ -43,7 +43,7 @@ from annotator.rally_segmentation import (
 from annotator.fps_constants import scale_for_fps
 from annotator.types import SmoothingMode
 
-PILOT_COURT_BOX = CourtBox(*PILOT.court_box)
+PILOT_COURT_GEO = CourtGeo(*PILOT.court_geo)
 
 # A per-frame step that keeps raw speed above START_SPEED.
 RALLY_STEP = 0.14
@@ -220,30 +220,28 @@ def test_segment_video_proximity_paths():
 # Contact wrist check: court_scale_slots, wrist_contact_near, segment_video
 # ---------------------------------------------------------------------------
 def test_court_scale_slots_keeps_identities_on_tied_scores():
-    # Two detections share a score and only the second sits inside the court bands.
-    # The old score-equality lookup returned the first's slot for the survivor, so
-    # the gate measured the wrong detection's wrists.
-    court_box = CourtBox(x_range=(0.0, 100.0), y_range=(0.0, 100.0),
-                         height_band=(10.0, 50.0), mid_band=(50.0, 50.0))
+    # Two detections share a score and only the second sits inside the court bounds.
+    # The slot identity remains exact even when detections tie on score.
+    court_geo = CourtGeo(x_range=(0.0, 100.0), y_range=(0.0, 100.0), net_band=(50.0, 50.0))
     frame_bboxes = np.array([
         [500.0, 500.0, 520.0, 540.0],  # slot 0: tied score, foot point far off court
-        [40.0, 40.0, 60.0, 80.0],  # slot 1: in court, court-scale height
+        [40.0, 79.0, 60.0, 80.0],  # slot 1: in court, arbitrary box height
         [np.nan, np.nan, np.nan, np.nan],  # padding slot
     ])
     frame_scores = np.array([0.9, 0.9, np.nan])
-    assert court_scale_slots(frame_bboxes, frame_scores, court_box).tolist() == [1]
+    assert court_scale_slots(frame_bboxes, frame_scores, court_geo).tolist() == [1]
 
 
 def test_wrist_contact_near_verdicts():
     # None distances (gate never ran): unmeasured -> None, never a pass.
     assert wrist_contact_near(None, 0) is None
 
-    # Below / at / above the body-unit gate, plus NaN.
-    body_unit_dist = np.array([1.39, 1.4, 1.41, np.nan])
-    assert wrist_contact_near(body_unit_dist, 0) is True
-    assert wrist_contact_near(body_unit_dist, 1) is True   # equality passes (<=)
-    assert wrist_contact_near(body_unit_dist, 2) is False
-    assert wrist_contact_near(body_unit_dist, 3) is False
+    # Below / at / above the sticky body-unit gate, plus NaN.
+    sticky_distances = np.array([1.39, 1.4, 1.41, np.nan])
+    assert wrist_contact_near(sticky_distances, 0) is True
+    assert wrist_contact_near(sticky_distances, 1) is True   # equality passes (<=)
+    assert wrist_contact_near(sticky_distances, 2) is False
+    assert wrist_contact_near(sticky_distances, 3) is False
 
 
 def test_segment_video_wrist_near_paths():
@@ -262,7 +260,7 @@ def test_segment_video_wrist_near_paths():
     # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and
     # suppression records only its losers.
     near = np.zeros(len(track))
-    _, contacts_near = segment_video(track, body_unit_dist=near)
+    _, contacts_near = segment_video(track, sticky_distances=near)
     assert [contact.wrist_near for contact in contacts_near] == [True] * len(contacts_near)
     assert [contact.suppressed for contact in contacts_near] == [True, False, True, False, True]
     filtered = [
@@ -275,7 +273,7 @@ def test_segment_video_wrist_near_paths():
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
     far = np.full(len(track), 2.0)
-    _, contacts_far = segment_video(track, body_unit_dist=far)
+    _, contacts_far = segment_video(track, sticky_distances=far)
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts_far)
 
 
@@ -742,21 +740,19 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
 
 
 # ---------------------------------------------------------------------------
-# Court box filtering uses tracked fixture geometry
+# Court geometry filtering uses tracked fixture geometry
 # ---------------------------------------------------------------------------
-def test_court_box_filter_uses_tracked_pilot_geometry():
-    x_lo, x_hi = PILOT_COURT_BOX.x_range
-    y_lo, y_hi = PILOT_COURT_BOX.y_range
-    height_lo, height_hi = PILOT_COURT_BOX.height_band
+def test_court_geo_filter_uses_tracked_pilot_geometry():
+    x_lo, x_hi = PILOT_COURT_GEO.x_range
+    y_lo, y_hi = PILOT_COURT_GEO.y_range
     foot_x = (x_lo + x_hi) / 2.0
     foot_y = (y_lo + y_hi) / 2.0
-    box_height = (height_lo + height_hi) / 2.0
     bboxes = np.full((16, 4), np.nan)
     scores = np.full(16, np.nan)
-    bboxes[0] = (foot_x - 30.0, foot_y - box_height, foot_x + 30.0, foot_y)
-    bboxes[1] = (x_lo - 61.0, foot_y - box_height, x_lo - 1.0, foot_y)
+    bboxes[0] = (foot_x - 30.0, foot_y - 1.0, foot_x + 30.0, foot_y)
+    bboxes[1] = (x_lo - 61.0, foot_y - 10000.0, x_lo - 1.0, foot_y)
     scores[:2] = 0.9
-    assert len(court_scale_boxes(bboxes, scores, PILOT_COURT_BOX)[0]) == 1
+    assert len(court_scale_boxes(bboxes, scores, PILOT_COURT_GEO)[0]) == 1
 
 
 def test_serve_distance_ratio_helper_uses_distance_mask_and_boundary() -> None:

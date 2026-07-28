@@ -114,7 +114,7 @@ def _build_chain(cfg, track, bboxes, scores, kps, ndet, dead, homo_df, all_court
     sticky = rally_segmentation.build_sticky_result(
         track, segments, bboxes, scores, kps, ndet, str(cfg.vid),
         {str(cfg.vid): all_court_info[cfg.vid]}, gate_res.loc[[str(cfg.vid)]],
-        cfg.court_box, harness.RESOLUTION, half_window=harness.ATTRIBUTION_HALF_WINDOW,
+        harness.RESOLUTION, half_window=harness.ATTRIBUTION_HALF_WINDOW,
     )
     spans, contacts = rally_segmentation.segment_video(
         track, positions=None, thresholds=None, span_open=rally_segmentation.SpanOpen.BACK_FILL,
