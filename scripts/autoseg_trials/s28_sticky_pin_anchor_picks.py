@@ -6,14 +6,10 @@ removed in the cleanup, so they are retained as evidence rather than a live
 regression gate. Ongoing regression checks use the three-fixture calibration
 capture.
 
-Import order is load-bearing. This script binds ``annotator`` and ``shared`` to its own
-checkout BEFORE importing the scoring harness (measurements/end_to_end_yardstick.py under the
-reference dir). The harness then binds the standing wt_annotator worktree's ``scraper``
-and ``scripts`` packages; the ``scraper`` modules are import shims that re-export whatever
-``annotator`` already resolves to, so the measured chain stays this checkout's. The
-``scripts`` scoring helpers still execute from the standing worktree. Run from the standing
-worktree itself, the two trees are the same tree; run from any other checkout, the script
-prints a loud warning so nobody trusts digests earned across silently diverged trees.
+The import-routing code below records how the historical run bound its checkout. The
+external scoring harness now imports compatibility modules removed during cleanup, so this
+file is no longer runnable without rebuilding retired paths. Do not use it to earn current
+pins.
 """
 from __future__ import annotations
 

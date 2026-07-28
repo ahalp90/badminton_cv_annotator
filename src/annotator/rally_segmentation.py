@@ -16,8 +16,7 @@ and masks line up downstream.
 `segment_video` takes four off-by-default keyword options that each preserve
 today's behaviour exactly when left at their default:
   - `thresholds`: a `Stage8Thresholds` preset used instead of the module globals;
-    None reads the globals through the same code path as today (so the sweep
-    runner's `_patch_stage8` global-patching keeps working unchanged).
+    None reads the globals through the low-level opt-out path.
   - `serve_start`: `ServeStartOptions` gating rally openings on a serve-setup
     lookback (the shuttle sitting near a court-scale player through the last
     second before the burst).
@@ -468,7 +467,7 @@ def _rest_mask(
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param track: `(t, 3)` track, for the visibility column.
     :param thresholds: a preset to read rest_window / rest_speed from; None reads the
-        module globals (the default path, so the sweep's global patching still binds).
+        module globals through the low-level opt-out path.
     :return: `(t,)` bool, True where the frame reads as rest.
     """
     if gap_state_demotion_bound is not None:
@@ -533,8 +532,7 @@ def _find_rally_spans(
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param at_rest: `(t,)` per-frame rest flag.
     :param thresholds: a preset to read the boundary thresholds from; None reads the
-        module globals (the default path; the sweep monkey-patches this whole function
-        under quiet-start, so its two-arg call stays intact).
+        module globals through the low-level opt-out path.
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
     start_speed = START_SPEED if thresholds is None else thresholds.start_speed
@@ -1301,8 +1299,7 @@ def find_rally_spans(
             reentry_guard_variant=reentry_guard_variant, reentry_guard_buffer=reentry_guard_buffer,
         )
     else:
-        # The frozen sweep rebinds _rest_mask to a (speed, track) replacement, so
-        # the OFF path must keep the legacy call shapes until Stage 7 retires it.
+        # The low-level opt-out retains the original module-global call path.
         at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
     if serve_start is not None:
         return _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
@@ -1357,9 +1354,7 @@ def segment_video(
     """Full stage-8 pass over one video's shuttle track.
 
     Every keyword option is off by default and each default preserves today's behaviour
-    exactly. `thresholds=None` reads the module globals through the same code path as today,
-    so the sweep runner's `_patch_stage8` global-patching (and its gap-state / quiet-start /
-    nan-smoothing monkey-patches) keeps working unchanged.
+    exactly. `thresholds=None` reads the module globals through the low-level opt-out path.
 
     :param track: `(t, 3)` whole-video track.
     :param positions: optional `(t, 2, 2)` court positions for the proximity guardrail.
