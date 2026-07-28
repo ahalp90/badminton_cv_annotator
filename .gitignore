@@ -156,5 +156,5 @@ runtime/deployed/**/*.pt
 *_selfvariance.json
 phase_a_stems.txt
 
-# Commentary-scraper output root (scraper/config.py default; BADMINTON_SCRAPE_DIR overrides)
+# Commentary-scraper output root (annotator/config.py default; BADMINTON_SCRAPE_DIR overrides)
 data/scrape_output/

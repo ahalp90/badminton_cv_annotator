@@ -31,8 +31,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from .config import COMPOSITION_CONTENT_THRESHOLD, COMPOSITION_KEEP_VOTE
-from scraper.config import MASKS_DIR
+from .config import COMPOSITION_CONTENT_THRESHOLD, COMPOSITION_KEEP_VOTE, MASKS_DIR
 from .fps_constants import probe_fps, scale_for_fps
 
 log = logging.getLogger(__name__)

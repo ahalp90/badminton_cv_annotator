@@ -26,8 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import DOUBLES_SPAN_FRACTION
-from scraper.config import SCRAPE_DIR
+from .config import DOUBLES_SPAN_FRACTION, SCRAPE_DIR
 
 # Per-video over-count file naming and the CLI's output contract.
 OVERCOUNT_SUFFIX = '_overcount.npy'

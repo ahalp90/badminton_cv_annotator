@@ -42,7 +42,7 @@ from shared.court import (
     scale_pos_by_resolution,
 )
 
-from .rally_segmentation import (
+from .types import (
     ANKLE_L,
     ANKLE_R,
     WRIST_L,

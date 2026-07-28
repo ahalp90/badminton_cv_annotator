@@ -15,25 +15,23 @@ reconciled to the spec's decided values: D22 throttle stack, D23 WhisperX
 models, D24 instructional sub-stream, D9 keep rule, D8 metadata screens.
 """
 import csv
-import os
 import shutil
 from pathlib import Path
+
+from annotator.config import CONTACT_FRAMES_CSV, MASKS_DIR, RALLY_SPANS_CSV, SCRAPE_DIR  # noqa: F401
+
 # ---------------------------------------------------------------------------
 # Output layout (dataset_schema.md section 2 tree)
 # ---------------------------------------------------------------------------
-# One scrape root holds the flat CSVs plus the per-video sidecar dirs. Default
-# sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
-
+# One scrape root holds the flat CSVs plus the per-video sidecar dirs.
+# SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are
+# annotator-owned (annotator.config); imported inward here so this module's
+# own consumers keep the same names and values.
 CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'  # spec s2 (stages 1, 3)
 VIDEOS_DIR = SCRAPE_DIR / 'videos'
 SOURCES_MANIFEST_NAME = 'sources.toml'
 TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'  # spec s3 (stage 2)
 CHUNKS_DIR = SCRAPE_DIR / 'chunks'  # spec s4 (stages 3, 10)
-MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (stage 9)
-RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (stage 8)
-CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (stage 8)
 PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'  # spec s9 (stage 11)
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,16 @@
-"""Shared annotator declarations for fps scaling and storage slots."""
+"""Shared annotator declarations: fps scaling, storage slots, and the stage
+8/point-winner shuttle-track primitives and pose-array conventions shared
+across stages.
+"""
 from __future__ import annotations
 
 import math
+import warnings
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, NamedTuple
+
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from .fps_constants import BASE_FPS
 
@@ -102,3 +109,87 @@ class Slot(IntEnum):
 
     TOP = 0
     BOTTOM = 1
+
+
+# ---------------------------------------------------------------------------
+# Shared shuttle-track primitives (stage 8 and stage 9 both import these)
+# ---------------------------------------------------------------------------
+def compute_speed(track: np.ndarray) -> np.ndarray:
+    """Per-frame shuttle speed, NaN where the step is not fully visible.
+
+    Speed at frame i is the L2 displacement of `(x, y)` from frame i-1 to i.
+    Frame 0 has no predecessor and both endpoint frames must have visibility 1,
+    else the step is unmeasured and reads NaN (so nan-aware stats skip it).
+
+    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track.
+    :return: `(t,)` speed in norm-units/frame; NaN on frame 0 and on any step
+        touching a non-visible frame.
+    """
+    xy = track[:, :2]  # (t, 2) normalised position
+    visibility = track[:, 2]  # (t,)
+    step = np.diff(xy, axis=0)  # (t-1, 2) frame i-1 -> i
+    step_speed = np.linalg.norm(step, axis=1)  # (t-1,)
+    both_visible = (visibility[:-1] == 1) & (visibility[1:] == 1)  # (t-1,) both ends of the step
+
+    speed = np.full(len(track), np.nan)  # (t,) frame-indexed; frame 0 stays NaN
+    speed[1:] = np.where(both_visible, step_speed, np.nan)
+    return speed
+
+
+def true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """Maximal runs of True in a boolean mask, as half-open `[start, end)` ranges.
+
+    Vectorised via edge detection on the zero-padded int mask: +1 marks a run
+    start, -1 marks one-past a run end. Shared with stage 9's court-absence
+    signal, which masks whole absent runs.
+
+    :param mask: `(t,)` boolean.
+    :return: list of `(start, end)` with `mask[start:end]` all True.
+    """
+    padded = np.concatenate([[0], mask.astype(np.int8), [0]])  # sentinels force edges at the ends
+    edges = np.diff(padded)
+    starts = np.flatnonzero(edges == 1)
+    ends = np.flatnonzero(edges == -1)
+    return [(int(start), int(end)) for start, end in zip(starts, ends)]
+
+
+def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred rolling median that ignores NaN, one value per input frame.
+
+    Pads both ends with NaN so every frame gets a full-width window and the
+    output keeps length t; nanmedian drops the pad and any NaN steps. Shared
+    with stage 9's slow-motion signal.
+
+    :param values: `(t,)` values, may contain NaN.
+    :param window: window width in frames.
+    :return: `(t,)` centred rolling median; NaN only where a whole window is NaN.
+    """
+    left = window // 2
+    right = window - 1 - left
+    padded = np.concatenate([np.full(left, np.nan), values, np.full(right, np.nan)])
+    windows = sliding_window_view(padded, window)  # (t, window)
+    with warnings.catch_warnings():
+        # An all-NaN window (e.g. a fully untracked span) is expected and yields
+        # NaN by design; silence the RuntimeWarning rather than let it spam logs.
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        return np.nanmedian(windows, axis=1)
+
+
+# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Stage 8
+# (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution
+# and landing kinematics.
+WRIST_L, WRIST_R = 9, 10
+ANKLE_L, ANKLE_R = 15, 16
+
+
+class StickyResult(NamedTuple):
+    """Cached sticky evidence. ``bbox_height`` is in pixels."""
+
+    distances: np.ndarray
+    picks: np.ndarray
+    standing_count: np.ndarray
+    ankle_pos: np.ndarray
+    bbox_height: np.ndarray
+    distances_per_slot: np.ndarray
+    wrist_dist_px: np.ndarray
+    analysed: np.ndarray

@@ -2,12 +2,30 @@
 
 Constant provenance is cited inline as "spec sN" against the section of
 local_scratch/autograder_architecture/scraper_spec.md it came from.
+
+SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are also defined
+here (annotator-owned) because the annotator package consumes them directly;
+scraper.config imports them inward so its own consumers keep the same names
+and values.
 """
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, NamedTuple
 
 from .fps_constants import FpsConstants, scale_for_fps
 from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+
+# ---------------------------------------------------------------------------
+# Scrape-output paths (dataset_schema.md section 2 tree)
+# ---------------------------------------------------------------------------
+# One scrape root holds the flat CSVs plus the per-video sidecar dirs. Default
+# sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
+MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (stage 9)
+RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (stage 8)
+CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (stage 8)
 
 # ---------------------------------------------------------------------------
 # Stage 8: rally segmentation and contact rules (spec s6)

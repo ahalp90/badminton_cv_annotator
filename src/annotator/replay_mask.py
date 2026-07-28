@@ -9,8 +9,9 @@ The three signals are independent producers (court, homography, shuttle), so a
 missing input contributes an all-False mask with a log line rather than killing
 the union: an absent court mask must not veto a real perspective-shift replay.
 
-Speed and its helpers come from stage 8 so the slow-motion signal reads the same
-per-frame speed the rally rules use, not a second definition of it.
+Speed and its helpers come from the shared annotator declarations, re-exported
+by stage 8. The slow-motion signal therefore reads the same per-frame speed as
+the rally rules, not a second definition.
 
 Run as `python -m annotator.replay_mask --video-id ...` with PYTHONPATH=src.
 """
@@ -21,8 +22,13 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import BaseAnnotatorConfig, PERSPECTIVE_SHIFT_THRESHOLD, SLOWMO_SPEED_FRAC
-from scraper.config import MASKS_DIR, RALLY_SPANS_CSV
+from .config import (
+    BaseAnnotatorConfig,
+    MASKS_DIR,
+    PERSPECTIVE_SHIFT_THRESHOLD,
+    RALLY_SPANS_CSV,
+    SLOWMO_SPEED_FRAC,
+)
 from .fps_constants import scale_for_fps
 from .inpaint_guard import code_counts, grade_track
 from .rally_segmentation import compute_speed, rolling_nanmedian, true_runs
