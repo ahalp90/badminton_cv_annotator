@@ -1,0 +1,19 @@
+flipped rallies: 38
+
+--- OLD track, at the exact final-contact frame ---
+  not in a fake loop: 30/38
+  in a fake loop: 8/38
+
+--- NEW track, at the exact final-contact frame ---
+  other: 28/38
+  ON THE CONSTANT: 9/38
+  blank: 1/38
+
+fabricated in BOTH tracks (old loop -> new constant): 2/38
+on the constant within +/-2 frames: 14/38
+
+--- could the constant be a real resting shuttle? ---
+constant sits at y=0.2465 of frame height, x=0.4746 of width
+that is row 71 of 288, i.e. the upper middle of the picture: mid-air, not the floor
+it holds 55267 frames = 0.3580 of the video (36.8 minutes at 25 fps)
+a shuttle cannot hover at one mid-air pixel for that long, so the constant is invented, not rest

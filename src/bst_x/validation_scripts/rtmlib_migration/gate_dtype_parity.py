@@ -69,7 +69,9 @@ def main() -> int:
         return 1
     res_df, court = _court_setup()
     ext = RtmlibPoseExtractor(device="cpu")
-    failed_ls, positions, joints = detect_players_2d(ext, mp4, court, res_df)
+    # detect_players_2d now returns a 4th element (per-frame doubles over-count);
+    # this gate only checks the pose dtypes, so it discards it.
+    failed_ls, positions, joints, _overcount = detect_players_2d(ext, mp4, court, res_df)
 
     failed = np.asarray(failed_ls, dtype=bool)
     n_success = int((~failed).sum())

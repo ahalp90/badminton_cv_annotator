@@ -42,13 +42,22 @@ variants: ``docs/architecture_notes/mmpose_heuristic/historical_mmpose_heuristic
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 
 from pipeline.config import COCO_N_JOINTS
 from pipeline.court_utils import normalize_position, to_court_coordinate
 
-from .base import ClipContext, HeuristicOutput, RawClip
+from .base import (
+    DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
+    ClipContext,
+    HeuristicOutput,
+    RawClip,
+    count_standing_in_court,
+    is_sitting,
+)
 
 
 @dataclass(frozen=True)
@@ -59,14 +68,16 @@ class StickyAnchorParams:
     ``--<field>`` block from these fields, and ``apply`` constructs an
     instance from any keyword overrides at the registry boundary.
     """
+    # Tested at 25/30 fps. No vid fps scaling. At 60fps anchor drifts faster, but also snaps back faster.
     prior_weight: float = 0.75
     ema_alpha: float = 0.1
     sanity_ceiling: float = 0.6
     generous_margin: float = 0.15
     score_filter: float = 0.2
     tiebreaker_tol: float = 0.05
-    sitting_threshold: float = -0.3
+    sitting_threshold: float = SITTING_THRESHOLD
     update_gate_eps: float = 0.01
+    count_margin: float = DOUBLES_COUNT_MARGIN
 
 
 SLOT_TOP = 0
@@ -74,13 +85,8 @@ SLOT_BOTTOM = 1
 SLOT_ORDER = (SLOT_BOTTOM, SLOT_TOP)  # pick order: Bottom first, Top second
 OTHER_SLOT = {SLOT_TOP: SLOT_BOTTOM, SLOT_BOTTOM: SLOT_TOP}
 
-# COCO keypoint indices used by the sitting test.
-SHOULDER_L, SHOULDER_R = 5, 6
-HIP_L, HIP_R = 11, 12
-KNEE_L, KNEE_R = 13, 14
 
-
-def _compute_halfcourt_centres(court_info: dict) -> np.ndarray:
+def compute_halfcourt_centres(court_info: dict) -> np.ndarray:
     """Halfcourt centres in normalised [0, 1] coords, returned as (2, 2).
 
     Row 0 = Top (y = 0.25 for ShuttleSet), row 1 = Bottom (y = 0.75).
@@ -103,7 +109,7 @@ def _compute_halfcourt_centres(court_info: dict) -> np.ndarray:
     return normalize_position(raw, court_info).T  # (slot, axis)
 
 
-def _project_bbox_bottom_centre(
+def project_bbox_bottom_centre(
     bboxes: np.ndarray, ctx: ClipContext,
 ) -> np.ndarray:
     """Project (n, 4) pixel-space bboxes to (n, 2) normalised court coords.
@@ -119,79 +125,74 @@ def _project_bbox_bottom_centre(
     return normalised.T  # (n, 2)
 
 
-def _is_sitting(kp: np.ndarray, sitting_threshold: float) -> bool:
-    """Body-frame sitting test.
-
-    Projects the knee-offset-from-hip onto the hip-to-shoulder axis. A
-    standing / airborne player has knees in the body-down direction
-    (ratio around -0.7 to -0.9); a sitting person has knees roughly
-    perpendicular to the body axis (ratio near 0). Returns True when the
-    ratio exceeds ``sitting_threshold`` (default -0.3).
-    """
-    sh = (kp[SHOULDER_L] + kp[SHOULDER_R]) / 2
-    hp = (kp[HIP_L] + kp[HIP_R]) / 2
-    kn = (kp[KNEE_L] + kp[KNEE_R]) / 2
-    body_up = sh - hp
-    torso_len_sq = float(body_up @ body_up)
-    if torso_len_sq < 1e-6:
-        return False  # Degenerate pose; defer to anchor distance.
-    knee_vec = kn - hp
-    ratio = float((knee_vec @ body_up) / torso_len_sq)
-    return ratio > sitting_threshold
-
-
-def _in_generous_court(pos: np.ndarray, margin: float) -> bool:
+def in_generous_court(pos: np.ndarray, margin: float) -> bool:
     return bool(
         -margin <= pos[0] <= 1 + margin and -margin <= pos[1] <= 1 + margin
     )
 
 
-def _pick_one_frame(
+class FrameAnalysis(NamedTuple):
+    """Observable sticky-anchor state and picks for one frame.
+
+    ``picks`` uses filtered-candidate indices and is ``None`` only on a
+    whole-frame picker failure. ``filtered_to_raw`` maps that index space back
+    to raw pose slots. Candidate arrays and the mapping are retained whenever
+    the score-filtered, NaN-filtered projection population is non-empty.
+    """
+
+    standing_in_court_count: int
+    picks: list[int] | None
+    court_base_pos: np.ndarray | None
+    kps: np.ndarray | None
+    bboxes: np.ndarray | None
+    filtered_to_raw: np.ndarray | None
+
+
+# Compatibility aliases for frozen callers; remove at Stage 7.
+_compute_halfcourt_centres = compute_halfcourt_centres
+_project_bbox_bottom_centre = project_bbox_bottom_centre
+_in_generous_court = in_generous_court
+
+
+def analyse_frame(
     raw: RawClip,
     f: int,
     ema: np.ndarray,
     halfcourt_centre: np.ndarray,
     ctx: ClipContext,
     params: StickyAnchorParams,
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray] | None:
-    """Pick (Bottom, Top) detections for a single frame.
+) -> FrameAnalysis:
+    """Analyse and pick one frame without discarding observable evidence.
 
-    Returns ``None`` for a full-frame failure: no detections, score
-    filter empties, all projections NaN, rally-presence rejects both
-    picks, or no slot ended up with a winner. The caller treats ``None``
-    as ``failed[f] = True`` plus a full EMA reset.
-
-    Otherwise returns ``(picks, court_base_pos, kps_f, bboxes_f)``,
-    where ``picks`` is a length-2 list (``-1`` in any unpicked slot)
-    and the three arrays are per-candidate after the score + NaN
-    filters. The caller writes outputs and updates the per-slot EMA
-    based on the picks.
+    The picker candidate pipeline is deliberately score filter followed by a
+    NaN-only projection filter. In particular, infinite projections remain in
+    the filtered candidate space exactly as they do for ``pick_one_frame``.
     """
     n = int(raw.ndet[f])
     if n == 0:
-        return None
+        return FrameAnalysis(0, None, None, None, None, None)
 
     # Step A: score filter on real detections.
     scores_f = raw.scores[f, :n]
     pass_score = scores_f > params.score_filter
     if not pass_score.any():
-        return None
+        return FrameAnalysis(0, None, None, None, None, None)
 
     keep_idx = np.nonzero(pass_score)[0]
     bboxes_f = raw.bboxes[f, keep_idx].astype(np.float64)  # (k, 4)
     kps_f = raw.kps[f, keep_idx].astype(np.float64)  # (k, J, 2)
 
-    court_base_pos = _project_bbox_bottom_centre(bboxes_f, ctx)  # (k, 2)
+    court_base_pos = project_bbox_bottom_centre(bboxes_f, ctx)  # (k, 2)
     valid = ~np.isnan(court_base_pos).any(axis=1)
     if not valid.any():
-        return None
+        return FrameAnalysis(0, None, None, None, None, None)
 
+    filtered_to_raw = keep_idx[valid]
     bboxes_f = bboxes_f[valid]
     kps_f = kps_f[valid]
     court_base_pos = court_base_pos[valid]
-    k = court_base_pos.shape[0]
     # Per-candidate invariant from here: bboxes_f, kps_f, court_base_pos,
-    # is_sitting, bbox_areas all share the same [0, k) index space, and
+    # sitting, bbox_areas all share the same [0, k) index space, and
     # the eligible/tied boolean masks below operate on it.
 
     # Step B: effective anchors + full distance matrix.
@@ -209,12 +210,16 @@ def _pick_one_frame(
     # Eager rather than lazy: k is small (~2-6 after filtering) and the
     # vectorised per-candidate cost is trivial. Eager removes one more
     # place to get an off-by-one wrong when slicing into the tiebreaker.
-    is_sitting = np.array(
-        [_is_sitting(kps_f[i], params.sitting_threshold) for i in range(k)],
-        dtype=bool,
-    )
+    sitting = is_sitting(kps_f, params.sitting_threshold)  # (k,) bool
     x1, y1, x2, y2 = bboxes_f.T
     bbox_areas = (x2 - x1) * (y2 - y1)
+
+    # Head-count for the doubles guard, not the pick: counted over the full
+    # candidate set because doubles evidence is the crowd of in-court feet, not
+    # who wins the two slots. Margin narrower than generous_margin and
+    # sitting-exempt so persistent seated officials behind the lines never count
+    # (D26).
+    n_counted = count_standing_in_court(court_base_pos, sitting, params.count_margin)
 
     # Step C: process slots Bottom first, then Top.
     picks: list[int] = [-1, -1]
@@ -245,7 +250,7 @@ def _pick_one_frame(
             np.abs(distances[:, s] - winner_d) < params.tiebreaker_tol
         )
         if tied.sum() > 1:
-            standing_tied = tied & ~is_sitting
+            standing_tied = tied & ~sitting
             if standing_tied.any():
                 st_idx = np.nonzero(standing_tied)[0]
                 winner = int(st_idx[np.argmax(bbox_areas[st_idx])])
@@ -257,15 +262,63 @@ def _pick_one_frame(
     if picks[SLOT_TOP] >= 0 and picks[SLOT_BOTTOM] >= 0:
         top_p = court_base_pos[picks[SLOT_TOP]]
         bot_p = court_base_pos[picks[SLOT_BOTTOM]]
-        if not _in_generous_court(top_p, params.generous_margin) and not _in_generous_court(
+        if not in_generous_court(top_p, params.generous_margin) and not in_generous_court(
             bot_p, params.generous_margin
         ):
-            return None
+            return FrameAnalysis(
+                n_counted, None, court_base_pos, kps_f, bboxes_f, filtered_to_raw,
+            )
 
     if picks == [-1, -1]:
-        return None
+        return FrameAnalysis(
+            n_counted, None, court_base_pos, kps_f, bboxes_f, filtered_to_raw,
+        )
 
-    return picks, court_base_pos, kps_f, bboxes_f
+    return FrameAnalysis(
+        n_counted, picks, court_base_pos, kps_f, bboxes_f, filtered_to_raw,
+    )
+
+
+def pick_one_frame(
+    raw: RawClip,
+    f: int,
+    ema: np.ndarray,
+    halfcourt_centre: np.ndarray,
+    ctx: ClipContext,
+    params: StickyAnchorParams,
+) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, int] | None:
+    """Pick (Bottom, Top) detections for a single frame.
+
+    Returns ``None`` for a full-frame failure: no detections, score
+    filter empties, all projections NaN, rally-presence rejects both
+    picks, or no slot ended up with a winner. The caller treats ``None``
+    as ``failed[f] = True`` plus a full EMA reset.
+
+    Otherwise returns ``(picks, court_base_pos, kps_f, bboxes_f, n_counted)``,
+    where ``picks`` is a length-2 list (``-1`` in any unpicked slot),
+    the three arrays are per-candidate after the score + NaN filters, and
+    ``n_counted`` is the doubles-guard head count over the full candidate set:
+    > 2 standing candidates within ``count_margin`` is doubles evidence, even
+    though only two are ever picked. The caller writes outputs and updates the
+    per-slot EMA based on the picks.
+    """
+    analysis = analyse_frame(raw, f, ema, halfcourt_centre, ctx, params)
+    if analysis.picks is None:
+        return None
+    assert analysis.court_base_pos is not None
+    assert analysis.kps is not None
+    assert analysis.bboxes is not None
+    return (
+        analysis.picks,
+        analysis.court_base_pos,
+        analysis.kps,
+        analysis.bboxes,
+        analysis.standing_in_court_count,
+    )
+
+
+# Compatibility alias for frozen callers; remove at Stage 7.
+_pick_one_frame = pick_one_frame
 
 
 def _run_clip(
@@ -279,26 +332,31 @@ def _run_clip(
     discards it, tests use it.
     """
     court_info = ctx.all_court_info[ctx.vid]
-    halfcourt_centre = _compute_halfcourt_centres(court_info)  # (2, 2)
+    halfcourt_centre = compute_halfcourt_centres(court_info)  # (2, 2)
 
     num_frames = raw.kps.shape[0]
     failed = np.zeros(num_frames, dtype=bool)
     pos = np.zeros((num_frames, 2, 2), dtype=np.float64)
     joints = np.zeros((num_frames, 2, COCO_N_JOINTS, 2), dtype=np.float64)
     ema_history = np.zeros((num_frames, 2, 2), dtype=np.float64)
+    # (F,) doubles evidence: True where > 2 standing candidates projected within
+    # count_margin on a success frame. Left False on failure frames (init default):
+    # a fully-failed frame contributes no doubles evidence.
+    overcount = np.zeros(num_frames, dtype=bool)
 
     # Per-slot EMA, initialised to halfcourt_centre.
     ema = halfcourt_centre.copy()
 
     for f in range(num_frames):
-        result = _pick_one_frame(raw, f, ema, halfcourt_centre, ctx, params)
+        result = pick_one_frame(raw, f, ema, halfcourt_centre, ctx, params)
         if not result:
             failed[f] = True
             ema[:] = halfcourt_centre
             ema_history[f] = ema
             continue
 
-        picks, court_base_pos, kps_f, bboxes_f = result
+        picks, court_base_pos, kps_f, bboxes_f, n_counted = result
+        overcount[f] = n_counted > 2
 
         # Step E: write outputs + update EMAs. Mixed result (one slot
         # picked, one not) still resets the unpicked slot's EMA below.
@@ -316,13 +374,16 @@ def _run_clip(
                 v_height=None,
                 center_align=True,
             )[0]
-            if _in_generous_court(cbp, params.update_gate_eps):
+            if in_generous_court(cbp, params.update_gate_eps):
                 ema[s] = params.ema_alpha * cbp + (1 - params.ema_alpha) * ema[s]
 
         failed[f] = frame_has_zero
         ema_history[f] = ema
 
-    return HeuristicOutput(pos=pos, joints=joints, failed=failed), ema_history
+    return (
+        HeuristicOutput(pos=pos, joints=joints, failed=failed, overcount=overcount),
+        ema_history,
+    )
 
 
 def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:

@@ -64,6 +64,14 @@ from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 # Court helpers live in pipeline.court_utils; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from pipeline.court_utils import build_all_court_info, check_pos_in_court  # noqa: F401
+# Shared doubles-guard head count. No import cycle: base.py pulls in no pipeline
+# code, and the heuristics modules import this module only lazily inside functions.
+from preparing_data.heuristics.base import (
+    DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
+    count_standing_in_court,
+    is_sitting,
+)
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
     from preparing_data.rtmlib_pose import RtmlibPoseExtractor
@@ -116,7 +124,7 @@ def _order_two_on_court(
     vid: int,
     all_court_info: dict,
     res_df: pd.DataFrame,
-) -> tuple[np.ndarray, np.ndarray] | None:
+) -> tuple[tuple[np.ndarray, np.ndarray] | None, int]:
     """Decide whether a frame has exactly two on-court players, ordered Top-before-Bottom.
 
     The ``< 2`` short-circuit precedes ``check_pos_in_court`` because the latter slices
@@ -129,26 +137,40 @@ def _order_two_on_court(
     :param vid: clip's source video id, used to look up homography + resolution.
     :param all_court_info: dict from get_court_info.
     :param res_df: resolution DataFrame indexed by video id.
-    :return: ``(in_court_pid, pos_normalized)`` on success (exactly 2 on court,
-        ordered Top-before-Bottom); ``None`` on either failure path. ``pos_normalized``
-        is the full ``(m, 2)`` array, not the 2-row slice -- the caller does its own
-        ``pos_normalized[in_court_pid]`` (helper returns the full array so the
-        caller's existing index expression stays correct).
+    :return: ``(result, n_counted)``. ``result`` is ``(in_court_pid, pos_normalized)``
+        on success (exactly 2 on court, ordered Top-before-Bottom), or ``None`` on
+        either failure path. ``n_counted`` is the doubles-guard head count: standing
+        detections within ``DOUBLES_COUNT_MARGIN`` of the court, where ``> 2`` is
+        doubles evidence. That is a separate signal from the pick gate, which still
+        keys on ``check_pos_in_court``'s eps-0.01 in-court count being exactly two.
+        ``pos_normalized`` is the full ``(m, 2)`` array, not the 2-row slice -- the
+        caller does its own ``pos_normalized[in_court_pid]`` (helper returns the full
+        array so the caller's existing index expression stays correct).
     """
     if len(keypoints_2d) < 2:
-        return None
+        # Court check never ran (check_pos_in_court would slice an empty detection),
+        # so report the detection count as the head count: it upper-bounds the real
+        # count, and < 2 can never be a doubles over-count, so the guard stays sound
+        # without projecting.
+        return None, len(keypoints_2d)
     in_court, pos_normalized = check_pos_in_court(
         keypoints_2d, vid, all_court_info, res_df
     )
     # in_court: (m), pos_normalized: (m, xy), xy=2
     in_court_pid = np.nonzero(in_court)[0]
+    # Head count and pick gate are deliberately separate signals: the gate keys on
+    # the eps-0.01 in-court count being exactly two (pick logic untouched), while
+    # n_counted is the wider DOUBLES_COUNT_MARGIN, sitting-exempt count the caller
+    # reads doubles evidence (> 2) off (D26).
+    sitting = is_sitting(keypoints_2d, SITTING_THRESHOLD)
+    n_counted = count_standing_in_court(pos_normalized, sitting, DOUBLES_COUNT_MARGIN)
     if len(in_court_pid) != 2:
-        return None
+        return None, n_counted
     # Make sure Top player before Bottom player (comparing y-dim).
     # Strict > so a y-tie keeps the np.nonzero ascending order.
     if pos_normalized[in_court_pid[0], 1] > pos_normalized[in_court_pid[1], 1]:
         in_court_pid = np.flip(in_court_pid)
-    return in_court_pid, pos_normalized
+    return (in_court_pid, pos_normalized), n_counted
 
 
 def detect_players_2d(
@@ -159,22 +181,27 @@ def detect_players_2d(
     J=COCO_N_JOINTS,
     normalized_by_v_height=False,
     center_align=False,
-) -> tuple[list[bool], np.ndarray, np.ndarray] | None:
+) -> tuple[list[bool], np.ndarray, np.ndarray, list[bool]] | None:
     """Detect the two on-court players' 2D pose and court positions per frame.
 
-    :return: ``(failed_ls, players_positions, players_joints)`` on success, or
-        ``None`` if the clip decoded zero frames (unreadable, truncated, or
-        empty mp4) -- the house "helper returns None on failure" signal, which
+    :return: ``(failed_ls, players_positions, players_joints, overcount_ls)`` on
+        success, or ``None`` if the clip decoded zero frames (unreadable, truncated,
+        or empty mp4) -- the house "helper returns None on failure" signal, which
         the caller logs + skips. ``failed_ls`` is a per-frame bool list (True
         where no valid two-player pair was found; that frame is zero-filled).
         ``players_positions`` is ``(t, m, xy)`` with ``m=xy=2``;
-        ``players_joints`` is ``(t, m, J, xy)``.
+        ``players_joints`` is ``(t, m, J, xy)``. ``overcount_ls`` is a per-frame bool
+        list: True where more than two standing people projected within the doubles
+        count margin on that frame (doubles evidence). A doubles rally puts four feet
+        in court and so fails the exactly-two test; overcount rides beside failed_ls
+        to tell that apart from an ordinary miss.
     """
     vid = int(video_path.name.split("_", 1)[0])
 
     failed_ls = []
     players_positions = []
     players_joints = []
+    overcount_ls = []
 
     for det in extractor.iter_video(video_path):
         # float64 to match the old mmpose np.array(list-of-lists) dtype: rtmlib
@@ -185,7 +212,10 @@ def detect_players_2d(
 
         # Failed frames are kept as zeros (not dropped) so the clip stays intact.
         # Shuttle coords for these frames are zeroed at collation (Step 2).
-        ordered = _order_two_on_court(keypoints, vid, all_court_info, res_df)
+        ordered, n_counted = _order_two_on_court(keypoints, vid, all_court_info, res_df)
+        # Recorded on every frame, including the failed ones: a doubles frame fails
+        # the exactly-two test but is exactly where the over-count evidence lives.
+        overcount_ls.append(n_counted > 2)
         if not ordered:
             failed_ls.append(True)
             players_positions.append(np.zeros((2, 2), dtype=float))
@@ -217,7 +247,7 @@ def detect_players_2d(
     players_joints = np.stack(players_joints)
     # players_joints: (t, m, J, xy)
 
-    return failed_ls, players_positions, players_joints
+    return failed_ls, players_positions, players_joints, overcount_ls
 
 
 def get_shuttle_result(npy_path: Path) -> np.ndarray:
@@ -248,10 +278,11 @@ def prepare_dataset_npy_from_raw_video(
 
     For each clip, detects player keypoints (COCO 17-joint), extracts court
     positions via homography, and normalizes joints. Saves _joints.npy
-    ((F, P, J, xy)), _pos.npy ((F, P, xy)), _failed.npy ((F,)) per clip.
+    ((F, P, J, xy)), _pos.npy ((F, P, xy)), _overcount.npy ((F,) bool),
+    _failed.npy ((F,)) per clip.
 
     The resume marker is `_failed.npy` because it is saved last; its presence
-    means all three outputs are complete for the clip. Shuttle data is read
+    means all four outputs are complete for the clip. Shuttle data is read
     from the canonical shuttle-npy dir at collation (Step 2); this expensive
     GPU step stays focused solely on pose estimation.
 
@@ -314,10 +345,13 @@ def prepare_dataset_npy_from_raw_video(
                     f"for the failed stems."
                 )
             continue
-        failed_ls, players_positions, joints = result
+        failed_ls, players_positions, joints, overcount_ls = result
 
         np.save(save_branch + "_pos.npy", players_positions)
         np.save(save_branch + "_joints.npy", joints)
+        np.save(save_branch + "_overcount.npy", np.array(overcount_ls, dtype=bool))
+        # _failed.npy stays the last write: it is the resume marker, so its presence
+        # must guarantee _pos / _joints / _overcount are already on disk for the clip.
         np.save(save_branch + "_failed.npy", np.array(failed_ls, dtype=bool))
 
         # Free Python-side buffers between clips over ~33k iterations;

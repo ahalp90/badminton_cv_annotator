@@ -1,0 +1,144 @@
+{
+  "source_video": {
+    "shuttleset_vid": 1,
+    "match": "Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals",
+    "note": "ShuttleSet video 1. No YouTube id recorded in local records; videos_full/pull_ledger.csv covers sset_21 only",
+    "tracked_file": "pilot_288p.mp4 (512x288, 25 fps, 154393 frames)",
+    "tracked_file_md5": "20b7b2cf29ccfd853e542575d8031af3",
+    "source_1080p_on_node": "/scratch/comp320a/ShuttleSet/raw_video/1 Kento_...Finals.mp4"
+  },
+  "checkpoints": {
+    "tracknet_md5": "6540c256b1237cacdea3d05c16de8353",
+    "inpaintnet_md5": "25aecc665050480a9bfb2fe2df275d14",
+    "note": "a different checkpoint changes the cycle; re-derive before use"
+  },
+  "codes": {
+    "0": "clean",
+    "1": "invented",
+    "2": "no_detection",
+    "3": "blended"
+  },
+  "tracks": {
+    "pilot_nonoverlap": {
+      "eval_mode": "nonoverlap",
+      "frames": 154393,
+      "sidecar": "pilot_nonoverlap_fillmask.npy",
+      "counts": {
+        "clean": 86140,
+        "invented": 52624,
+        "no_detection": 15629,
+        "blended": 0
+      },
+      "shares": {
+        "clean": 0.5579,
+        "invented": 0.3408,
+        "no_detection": 0.1012,
+        "blended": 0.0
+      },
+      "rule": ">=14 of 16 y rows match the cycle, per tiled window"
+    },
+    "pilot_weight": {
+      "eval_mode": "weight",
+      "frames": 154393,
+      "sidecar": "pilot_weight_fillmask.npy",
+      "counts": {
+        "clean": 59243,
+        "invented": 55267,
+        "no_detection": 24084,
+        "blended": 15799
+      },
+      "shares": {
+        "clean": 0.3837,
+        "invented": 0.358,
+        "no_detection": 0.156,
+        "blended": 0.1023
+      },
+      "constant_px": [
+        243,
+        71
+      ],
+      "predicted_mean_px": [
+        243.3889,
+        70.9444
+      ],
+      "predicted_interval_px": {
+        "x": [
+          243,
+          244
+        ],
+        "y": [
+          70,
+          71
+        ]
+      },
+      "held_frames": 55267,
+      "rule": "exact equality with the tent-blended cycle constant"
+    }
+  },
+  "cycle_px": [
+    [
+      240,
+      81
+    ],
+    [
+      244,
+      73
+    ],
+    [
+      244,
+      70
+    ],
+    [
+      245,
+      69
+    ],
+    [
+      242,
+      67
+    ],
+    [
+      244,
+      68
+    ],
+    [
+      244,
+      69
+    ],
+    [
+      244,
+      70
+    ],
+    [
+      245,
+      68
+    ],
+    [
+      246,
+      68
+    ],
+    [
+      242,
+      71
+    ],
+    [
+      240,
+      73
+    ],
+    [
+      241,
+      77
+    ],
+    [
+      241,
+      80
+    ],
+    [
+      241,
+      83
+    ],
+    [
+      247,
+      84
+    ]
+  ]
+}

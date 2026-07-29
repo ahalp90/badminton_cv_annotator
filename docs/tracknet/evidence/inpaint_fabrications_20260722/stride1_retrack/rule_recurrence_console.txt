@@ -1,0 +1,45 @@
+
+=== OLD track, nonoverlap (loop shape) (W=16, K=8) ===
+  clean           66206  0.4288
+  invented        53880  0.3490
+  no_detection    15629  0.1012
+  degraded        18678  0.1210
+  distinct patterns: 89018   attractors: 16
+  episode counts, top 8: [528, 525, 523, 523, 523, 523, 518, 518]
+  highest NON-attractor episode count: 4
+  lowest attractor episode count      : 488
+  SAFETY MARGIN: 122.0x between the quietest fabrication and the loudest real pattern
+
+=== NEW track, weight (constant shape) (W=16, K=8) ===
+  clean           64773  0.4195
+  invented        54224  0.3512
+  no_detection    24084  0.1560
+  degraded        11312  0.0733
+  distinct patterns: 74841   attractors: 7
+  episode counts, top 8: [418, 14, 13, 10, 10, 9, 8, 7]
+  highest NON-attractor episode count: 7
+  lowest attractor episode count      : 8
+  SAFETY MARGIN: 1.1x between the quietest fabrication and the loudest real pattern
+
+=== threshold sensitivity: invented share vs K ===
+  K=  2: old 0.3504   new 0.3641
+  K=  4: old 0.3497   new 0.3539
+  K=  8: old 0.3490   new 0.3512
+  K= 16: old 0.3490   new 0.3508
+  K= 32: old 0.3490   new 0.3508
+  K= 64: old 0.3490   new 0.3508
+
+=== window-length sensitivity (K=8) ===
+  W=  8: old 0.3505   new 0.3571
+  W= 12: old 0.3491   new 0.3544
+  W= 16: old 0.3490   new 0.3512
+  W= 24: old 0.3152   new 0.3448
+  W= 32: old 0.3150   new 0.3384
+
+=== agreement with the hardcoded-coordinate sidecar ===
+  pilot_nonoverlap: coordinate rule 52624, recurrence rule 53880, agree 52624
+    recurrence-only 1256, coordinate-only 0
+  pilot_weight: coordinate rule 55267, recurrence rule 54224, agree 54160
+    recurrence-only 64, coordinate-only 1107
+
+wrote recurrence masks

@@ -1,0 +1,429 @@
+fixture metric reference current
+sset_01 covered_fraction None 0.9734513274336283
+sset_01 covered None 110
+sset_01 n_gt_rallies None 113
+sset_01 split None 2
+sset_01 missed None 1
+sset_01 merged_spans None 4
+sset_01 spurious_spans None 5
+sset_01 start_offset_mean None -88.57272727272728
+sset_01 start_offset_median None -28.0
+sset_01 start_offset_n None 110
+sset_01 end_offset_mean None 105.02727272727273
+sset_01 end_offset_median None 56.0
+sset_01 end_offset_n None 110
+sset_01 ball_round_absdiff_mean None 3.890909090909091
+sset_01 ball_round_absdiff_median None 2.0
+sset_01 ball_round_absdiff_n None 110
+sset_01 timing_abserr_mean None 2.1149012567324954
+sset_01 timing_abserr_median None 2.0
+sset_01 timing_abserr_n None 1114
+sset_01 ball_round_primary None 0.18584070796460178
+sset_01 ball_round_primary_correct None 21
+sset_01 ball_round_primary_total None 113
+sset_01 ball_round_covered None 0.19090909090909092
+sset_01 ball_round_covered_correct None 21
+sset_01 ball_round_covered_total None 110
+sset_01 timing_primary_recall None 0.6788543570993297
+sset_01 timing_primary_matched None 1114
+sset_01 timing_primary_total None 1641
+sset_01 timing_covered_recall None 0.6919254658385093
+sset_01 timing_covered_matched None 1114
+sset_01 timing_covered_total None 1610
+sset_01 player_primary None 0.5486725663716814
+sset_01 player_primary_correct None 62
+sset_01 player_primary_total None 113
+sset_01 player_covered None 0.5636363636363636
+sset_01 player_covered_correct None 62
+sset_01 player_covered_total None 110
+sset_01 server_primary None 0.504424778761062
+sset_01 server_primary_correct None 57
+sset_01 server_primary_total None 113
+sset_01 server_covered None 0.5181818181818182
+sset_01 server_covered_correct None 57
+sset_01 server_covered_total None 110
+sset_01 hit_height_primary None 0.30956733698964045
+sset_01 hit_height_primary_correct None 508
+sset_01 hit_height_primary_total None 1641
+sset_01 hit_height_covered None 0.315527950310559
+sset_01 hit_height_covered_correct None 508
+sset_01 hit_height_covered_total None 1610
+sset_01 landing_primary None 0.3008849557522124
+sset_01 landing_primary_correct None 34
+sset_01 landing_primary_total None 113
+sset_01 landing_covered None 0.3090909090909091
+sset_01 landing_covered_correct None 34
+sset_01 landing_covered_total None 110
+sset_01 getpoint_primary None 0.41964285714285715
+sset_01 getpoint_primary_correct None 47
+sset_01 getpoint_primary_total None 112
+sset_01 getpoint_covered None 0.43119266055045874
+sset_01 getpoint_covered_correct None 47
+sset_01 getpoint_covered_total None 109
+sset_01 contact_f1 None 0.6572271386430679
+sset_01 contact_precision None 0.6369353916523728
+sset_01 contact_recall None 0.6788543570993297
+sset_01 contact_matches None 1114
+sset_01 contact_filtered_total None 1749
+sset_01 contact_gt_total None 1641
+sset_01 n_raw_contacts None 3096
+sset_01 n_filtered_contacts None 1749
+sset_01 hit_height_failures None 0
+sset_15 covered_fraction None 0.8076923076923077
+sset_15 covered None 84
+sset_15 n_gt_rallies None 104
+sset_15 split None 4
+sset_15 missed None 16
+sset_15 merged_spans None 0
+sset_15 spurious_spans None 54
+sset_15 start_offset_mean None -50.61904761904762
+sset_15 start_offset_median None -32.0
+sset_15 start_offset_n None 84
+sset_15 end_offset_mean None 91.4047619047619
+sset_15 end_offset_median None 62.0
+sset_15 end_offset_n None 84
+sset_15 ball_round_absdiff_mean None 2.3095238095238093
+sset_15 ball_round_absdiff_median None 2.0
+sset_15 ball_round_absdiff_n None 84
+sset_15 timing_abserr_mean None 1.425894378194208
+sset_15 timing_abserr_median None 1.0
+sset_15 timing_abserr_n None 587
+sset_15 ball_round_primary None 0.09615384615384616
+sset_15 ball_round_primary_correct None 10
+sset_15 ball_round_primary_total None 104
+sset_15 ball_round_covered None 0.11904761904761904
+sset_15 ball_round_covered_correct None 10
+sset_15 ball_round_covered_total None 84
+sset_15 timing_primary_recall None 0.712378640776699
+sset_15 timing_primary_matched None 587
+sset_15 timing_primary_total None 824
+sset_15 timing_covered_recall None 0.7496807151979565
+sset_15 timing_covered_matched None 587
+sset_15 timing_covered_total None 783
+sset_15 player_primary None 0.375
+sset_15 player_primary_correct None 39
+sset_15 player_primary_total None 104
+sset_15 player_covered None 0.4642857142857143
+sset_15 player_covered_correct None 39
+sset_15 player_covered_total None 84
+sset_15 server_primary None 0.41346153846153844
+sset_15 server_primary_correct None 43
+sset_15 server_primary_total None 104
+sset_15 server_covered None 0.5119047619047619
+sset_15 server_covered_correct None 43
+sset_15 server_covered_total None 84
+sset_15 hit_height_primary None 0.33495145631067963
+sset_15 hit_height_primary_correct None 276
+sset_15 hit_height_primary_total None 824
+sset_15 hit_height_covered None 0.3524904214559387
+sset_15 hit_height_covered_correct None 276
+sset_15 hit_height_covered_total None 783
+sset_15 landing_primary None 0.25
+sset_15 landing_primary_correct None 25
+sset_15 landing_primary_total None 100
+sset_15 landing_covered None 0.30120481927710846
+sset_15 landing_covered_correct None 25
+sset_15 landing_covered_total None 83
+sset_15 getpoint_primary None 0.49411764705882355
+sset_15 getpoint_primary_correct None 42
+sset_15 getpoint_primary_total None 85
+sset_15 getpoint_covered None 0.525
+sset_15 getpoint_covered_correct None 42
+sset_15 getpoint_covered_total None 80
+sset_15 contact_f1 None 0.5707340787554691
+sset_15 contact_precision None 0.47607461476074614
+sset_15 contact_recall None 0.712378640776699
+sset_15 contact_matches None 587
+sset_15 contact_filtered_total None 1233
+sset_15 contact_gt_total None 824
+sset_15 n_raw_contacts None 2210
+sset_15 n_filtered_contacts None 1233
+sset_15 hit_height_failures None 0
+sset_21 covered_fraction None 0.72
+sset_21 covered None 54
+sset_21 n_gt_rallies None 75
+sset_21 split None 20
+sset_21 missed None 1
+sset_21 merged_spans None 2
+sset_21 spurious_spans None 26
+sset_21 start_offset_mean None -148.0
+sset_21 start_offset_median None -97.5
+sset_21 start_offset_n None 54
+sset_21 end_offset_mean None 127.64814814814815
+sset_21 end_offset_median None 90.5
+sset_21 end_offset_n None 54
+sset_21 ball_round_absdiff_mean None 5.351851851851852
+sset_21 ball_round_absdiff_median None 3.5
+sset_21 ball_round_absdiff_n None 54
+sset_21 timing_abserr_mean None 2.1050119331742243
+sset_21 timing_abserr_median None 2.0
+sset_21 timing_abserr_n None 419
+sset_21 ball_round_primary None 0.04
+sset_21 ball_round_primary_correct None 3
+sset_21 ball_round_primary_total None 75
+sset_21 ball_round_covered None 0.05555555555555555
+sset_21 ball_round_covered_correct None 3
+sset_21 ball_round_covered_total None 54
+sset_21 timing_primary_recall None 0.6319758672699849
+sset_21 timing_primary_matched None 419
+sset_21 timing_primary_total None 663
+sset_21 timing_covered_recall None 0.8073217726396917
+sset_21 timing_covered_matched None 419
+sset_21 timing_covered_total None 519
+sset_21 player_primary None 0.37333333333333335
+sset_21 player_primary_correct None 28
+sset_21 player_primary_total None 75
+sset_21 player_covered None 0.5185185185185185
+sset_21 player_covered_correct None 28
+sset_21 player_covered_total None 54
+sset_21 server_primary None 0.4
+sset_21 server_primary_correct None 30
+sset_21 server_primary_total None 75
+sset_21 server_covered None 0.5555555555555556
+sset_21 server_covered_correct None 30
+sset_21 server_covered_total None 54
+sset_21 hit_height_primary None 0.2854984894259819
+sset_21 hit_height_primary_correct None 189
+sset_21 hit_height_primary_total None 662
+sset_21 hit_height_covered None 0.36486486486486486
+sset_21 hit_height_covered_correct None 189
+sset_21 hit_height_covered_total None 518
+sset_21 landing_primary None 0.24324324324324326
+sset_21 landing_primary_correct None 18
+sset_21 landing_primary_total None 74
+sset_21 landing_covered None 0.33962264150943394
+sset_21 landing_covered_correct None 18
+sset_21 landing_covered_total None 53
+sset_21 getpoint_primary None 0.33783783783783783
+sset_21 getpoint_primary_correct None 25
+sset_21 getpoint_primary_total None 74
+sset_21 getpoint_covered None 0.4716981132075472
+sset_21 getpoint_covered_correct None 25
+sset_21 getpoint_covered_total None 53
+sset_21 contact_f1 None 0.4780376497432972
+sset_21 contact_precision None 0.38440366972477064
+sset_21 contact_recall None 0.6319758672699849
+sset_21 contact_matches None 419
+sset_21 contact_filtered_total None 1090
+sset_21 contact_gt_total None 663
+sset_21 n_raw_contacts None 2246
+sset_21 n_filtered_contacts None 1090
+sset_21 hit_height_failures None 0
+REFERENCE_SCORES = {
+    'sset_01': {
+        'covered_fraction': 0.9734513274336283,
+        'covered': 110,
+        'n_gt_rallies': 113,
+        'split': 2,
+        'missed': 1,
+        'merged_spans': 4,
+        'spurious_spans': 5,
+        'start_offset_mean': -88.57272727272728,
+        'start_offset_median': -28.0,
+        'start_offset_n': 110,
+        'end_offset_mean': 105.02727272727273,
+        'end_offset_median': 56.0,
+        'end_offset_n': 110,
+        'ball_round_absdiff_mean': 3.890909090909091,
+        'ball_round_absdiff_median': 2.0,
+        'ball_round_absdiff_n': 110,
+        'timing_abserr_mean': 2.1149012567324954,
+        'timing_abserr_median': 2.0,
+        'timing_abserr_n': 1114,
+        'ball_round_primary': 0.18584070796460178,
+        'ball_round_primary_correct': 21,
+        'ball_round_primary_total': 113,
+        'ball_round_covered': 0.19090909090909092,
+        'ball_round_covered_correct': 21,
+        'ball_round_covered_total': 110,
+        'timing_primary_recall': 0.6788543570993297,
+        'timing_primary_matched': 1114,
+        'timing_primary_total': 1641,
+        'timing_covered_recall': 0.6919254658385093,
+        'timing_covered_matched': 1114,
+        'timing_covered_total': 1610,
+        'player_primary': 0.5486725663716814,
+        'player_primary_correct': 62,
+        'player_primary_total': 113,
+        'player_covered': 0.5636363636363636,
+        'player_covered_correct': 62,
+        'player_covered_total': 110,
+        'server_primary': 0.504424778761062,
+        'server_primary_correct': 57,
+        'server_primary_total': 113,
+        'server_covered': 0.5181818181818182,
+        'server_covered_correct': 57,
+        'server_covered_total': 110,
+        'hit_height_primary': 0.30956733698964045,
+        'hit_height_primary_correct': 508,
+        'hit_height_primary_total': 1641,
+        'hit_height_covered': 0.315527950310559,
+        'hit_height_covered_correct': 508,
+        'hit_height_covered_total': 1610,
+        'landing_primary': 0.3008849557522124,
+        'landing_primary_correct': 34,
+        'landing_primary_total': 113,
+        'landing_covered': 0.3090909090909091,
+        'landing_covered_correct': 34,
+        'landing_covered_total': 110,
+        'getpoint_primary': 0.41964285714285715,
+        'getpoint_primary_correct': 47,
+        'getpoint_primary_total': 112,
+        'getpoint_covered': 0.43119266055045874,
+        'getpoint_covered_correct': 47,
+        'getpoint_covered_total': 109,
+        'contact_f1': 0.6572271386430679,
+        'contact_precision': 0.6369353916523728,
+        'contact_recall': 0.6788543570993297,
+        'contact_matches': 1114,
+        'contact_filtered_total': 1749,
+        'contact_gt_total': 1641,
+        'n_raw_contacts': 3096,
+        'n_filtered_contacts': 1749,
+        'hit_height_failures': 0,
+    },
+    'sset_15': {
+        'covered_fraction': 0.8076923076923077,
+        'covered': 84,
+        'n_gt_rallies': 104,
+        'split': 4,
+        'missed': 16,
+        'merged_spans': 0,
+        'spurious_spans': 54,
+        'start_offset_mean': -50.61904761904762,
+        'start_offset_median': -32.0,
+        'start_offset_n': 84,
+        'end_offset_mean': 91.4047619047619,
+        'end_offset_median': 62.0,
+        'end_offset_n': 84,
+        'ball_round_absdiff_mean': 2.3095238095238093,
+        'ball_round_absdiff_median': 2.0,
+        'ball_round_absdiff_n': 84,
+        'timing_abserr_mean': 1.425894378194208,
+        'timing_abserr_median': 1.0,
+        'timing_abserr_n': 587,
+        'ball_round_primary': 0.09615384615384616,
+        'ball_round_primary_correct': 10,
+        'ball_round_primary_total': 104,
+        'ball_round_covered': 0.11904761904761904,
+        'ball_round_covered_correct': 10,
+        'ball_round_covered_total': 84,
+        'timing_primary_recall': 0.712378640776699,
+        'timing_primary_matched': 587,
+        'timing_primary_total': 824,
+        'timing_covered_recall': 0.7496807151979565,
+        'timing_covered_matched': 587,
+        'timing_covered_total': 783,
+        'player_primary': 0.375,
+        'player_primary_correct': 39,
+        'player_primary_total': 104,
+        'player_covered': 0.4642857142857143,
+        'player_covered_correct': 39,
+        'player_covered_total': 84,
+        'server_primary': 0.41346153846153844,
+        'server_primary_correct': 43,
+        'server_primary_total': 104,
+        'server_covered': 0.5119047619047619,
+        'server_covered_correct': 43,
+        'server_covered_total': 84,
+        'hit_height_primary': 0.33495145631067963,
+        'hit_height_primary_correct': 276,
+        'hit_height_primary_total': 824,
+        'hit_height_covered': 0.3524904214559387,
+        'hit_height_covered_correct': 276,
+        'hit_height_covered_total': 783,
+        'landing_primary': 0.25,
+        'landing_primary_correct': 25,
+        'landing_primary_total': 100,
+        'landing_covered': 0.30120481927710846,
+        'landing_covered_correct': 25,
+        'landing_covered_total': 83,
+        'getpoint_primary': 0.49411764705882355,
+        'getpoint_primary_correct': 42,
+        'getpoint_primary_total': 85,
+        'getpoint_covered': 0.525,
+        'getpoint_covered_correct': 42,
+        'getpoint_covered_total': 80,
+        'contact_f1': 0.5707340787554691,
+        'contact_precision': 0.47607461476074614,
+        'contact_recall': 0.712378640776699,
+        'contact_matches': 587,
+        'contact_filtered_total': 1233,
+        'contact_gt_total': 824,
+        'n_raw_contacts': 2210,
+        'n_filtered_contacts': 1233,
+        'hit_height_failures': 0,
+    },
+    'sset_21': {
+        'covered_fraction': 0.72,
+        'covered': 54,
+        'n_gt_rallies': 75,
+        'split': 20,
+        'missed': 1,
+        'merged_spans': 2,
+        'spurious_spans': 26,
+        'start_offset_mean': -148.0,
+        'start_offset_median': -97.5,
+        'start_offset_n': 54,
+        'end_offset_mean': 127.64814814814815,
+        'end_offset_median': 90.5,
+        'end_offset_n': 54,
+        'ball_round_absdiff_mean': 5.351851851851852,
+        'ball_round_absdiff_median': 3.5,
+        'ball_round_absdiff_n': 54,
+        'timing_abserr_mean': 2.1050119331742243,
+        'timing_abserr_median': 2.0,
+        'timing_abserr_n': 419,
+        'ball_round_primary': 0.04,
+        'ball_round_primary_correct': 3,
+        'ball_round_primary_total': 75,
+        'ball_round_covered': 0.05555555555555555,
+        'ball_round_covered_correct': 3,
+        'ball_round_covered_total': 54,
+        'timing_primary_recall': 0.6319758672699849,
+        'timing_primary_matched': 419,
+        'timing_primary_total': 663,
+        'timing_covered_recall': 0.8073217726396917,
+        'timing_covered_matched': 419,
+        'timing_covered_total': 519,
+        'player_primary': 0.37333333333333335,
+        'player_primary_correct': 28,
+        'player_primary_total': 75,
+        'player_covered': 0.5185185185185185,
+        'player_covered_correct': 28,
+        'player_covered_total': 54,
+        'server_primary': 0.4,
+        'server_primary_correct': 30,
+        'server_primary_total': 75,
+        'server_covered': 0.5555555555555556,
+        'server_covered_correct': 30,
+        'server_covered_total': 54,
+        'hit_height_primary': 0.2854984894259819,
+        'hit_height_primary_correct': 189,
+        'hit_height_primary_total': 662,
+        'hit_height_covered': 0.36486486486486486,
+        'hit_height_covered_correct': 189,
+        'hit_height_covered_total': 518,
+        'landing_primary': 0.24324324324324326,
+        'landing_primary_correct': 18,
+        'landing_primary_total': 74,
+        'landing_covered': 0.33962264150943394,
+        'landing_covered_correct': 18,
+        'landing_covered_total': 53,
+        'getpoint_primary': 0.33783783783783783,
+        'getpoint_primary_correct': 25,
+        'getpoint_primary_total': 74,
+        'getpoint_covered': 0.4716981132075472,
+        'getpoint_covered_correct': 25,
+        'getpoint_covered_total': 53,
+        'contact_f1': 0.4780376497432972,
+        'contact_precision': 0.38440366972477064,
+        'contact_recall': 0.6319758672699849,
+        'contact_matches': 419,
+        'contact_filtered_total': 1090,
+        'contact_gt_total': 663,
+        'n_raw_contacts': 2246,
+        'n_filtered_contacts': 1090,
+        'hit_height_failures': 0,
+    },
+}

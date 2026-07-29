@@ -1,0 +1,203 @@
+Commit 11 landing regression: verified causal chain
+Session 2026-07-22 (day session, post-overnight-build). All numbers
+measured this session unless attributed otherwise. Artefacts in this
+directory and records/c11_capture_repro_20260722.txt.
+
+VERIFICATION LADDER (what was checked, by whom)
+
+1. Capture reproduction (first-hand). The c11 patch applied to a
+   detached scratch worktree at d04a789; gt_scoring --capture rerun.
+   Every number in the overnight park note reproduces exactly:
+   pilot landing 0.398 -> 0.195 (45 -> 22 of 113), vid15 0.20 -> 0.17,
+   sset21 0.284 -> 0.270; contact precision 0.647 -> 0.623 /
+   0.497 -> 0.462 / 0.424 -> 0.378; filtered contacts +65/+91/+119.
+   Artefact: records/c11_capture_repro_20260722.txt.
+   Two park-note slips: pilot getpoint moved -4 (62 -> 58), not -2;
+   sset21 server -3 and getpoint -1 went unmentioned.
+
+2. Instrumented bisect, spot-checked first-hand.
+   Pilot only, patched chain, both runs identical except
+   build_landing_kinematics (pool vs sticky); final_contact and
+   window_end lists match bit for bit between runs. Results:
+   - landings returning None: 26 (pool) -> 64 (sticky) of 102
+     striker-resolved rallies; 38 flipped, 0 recovered
+   - the regression is 100% settle-cap-driven: all 38 flipped rallies
+     have the sticky cap firing 4-7 frames after the final contact,
+     collapsing the search window; no rally lost a landing to the
+     carry filter (null_if_all_carried=False makes that path inert)
+   - mean held frames per window: pool 14.85 vs sticky 3.74; under
+     pool the settle cap almost never fired at all (2 of 26 pool-None
+     rallies): the held veto kept it dormant
+   - kinematics coverage fell 2.21 points (0.4554 -> 0.4333), not the
+     park note's "5 percent"; coverage is not the driver, the held
+     count is
+   Files: summary.txt, bisect_per_rally.csv, instrument_bisect.py.
+
+3. Track-substrate check (first-hand; the new finding). The pilot
+   track cache (pilot_track_npy/1.npy, TrackNetV3 + InpaintNet) holds
+   long spans where the "shuttle" is a fabricated 16-frame loop:
+   bit-identical rows recur across unrelated video regions, x pinned
+   near 0.477, y oscillating 0.233-0.292, visibility flag 1
+   throughout. These are InpaintNet gap-fills that converged to a
+   repeating cycle, not detections.
+   - census criterion: y[i] == y[i+16] runs of >= 32 frames, split
+     into oscillating (fabricated loop) vs constant (possibly a real
+     resting shuttle; excluded from the fabrication claim)
+   - oscillating zones: pilot 375 zones = 24.4% of comparison
+     indices (28.3% of physical rows once each zone's trailing 16
+     periodic rows are counted; Sol's recount); vid15 446 zones,
+     25.1% (29.8% physical); sset21 250 zones, 24.2% (28.2%
+     physical). Constant zones are a further 4.7% / 12.1% / 8.8%
+   - within each video, every oscillating zone repeats the same
+     16-value y cycle modulo phase rotation (pilot 375/375, vid15
+     446/446, sset21 250/250; literal phase-aligned equality at the
+     zone start is 303/375, 380/446, 206/250): one fixed limit cycle
+     per video, recurring at hundreds of separate places. A real
+     shuttle cannot do that
+   - coordinate space and cross-video identity (measured this
+     session, as a follow-up check): the loop lives in normalised
+     image coordinates on the 256x288 tracking grid, not court
+     space. x sits near 0.475 of frame width and wanders up to
+     0.017 between zones (that wander produces the three projected
+     court points); the sorted 16-value y cycle (0.2326 to 0.2917
+     of frame height, rows 67-84 of the 288 grid) is bit-identical
+     across ALL zones of ALL THREE videos. The cycle is therefore
+     the InpaintNet model's own fingerprint, independent of video
+     content
+   - 25 of the 38 flipped rallies have their final contact within
+     [-2, +1] frames of an oscillating zone's start, and in all 25
+     the pool-era landing frame sits inside the zone: the recorded
+     landing was the fabricated loop, not a shuttle
+   - those 25 landings project through the homography to three
+     distinct points (court y -0.447 for 21 of them, -0.460 and
+     -0.540 for two each; Sol's recount), all 6.0 to 7.3 metres
+     beyond the top baseline, all called TOP. The landing metric is
+     a half call (predicted TOP/BOT vs GT), so an impossible
+     top-side point scores "correct" exactly when GT landed
+     top-side. The GT-half mix over these 25 rallies is unmeasured;
+     coin-flip correctness is the expectation, not a count
+
+THE CAUSAL CHAIN, ASSEMBLED
+
+At many rally ends the real shuttle becomes untrackable and the track
+jumps into a fabricated loop. That jump often registers as the
+rally's final contact. The fabricated bobbing reads as static under
+the settle test. Under the old pool, "is the shuttle held at a
+wrist" scanned EVERY court-scale detection, and someone's wrist was
+usually near the fabricated mid-frame point, so the settle cap was
+vetoed and stayed dormant; the search window ran on, and the loop's
+own y-oscillation supplied a "descending run" whose terminal (the
+fixed impossible point) became the landing and coin-flipped into
+correctness. Under commit 11's sticky evidence, only the two tracked
+players can say "held"; at these post-rally frames they cannot (the
+tracker has legitimately reset at the scene cut, or the picks stand
+far from the fabricated point), so the cap fires within 4-7 frames
+of the fake contact and the landing honestly returns no answer.
+
+The contact-precision fall is the same shape on the other side: the
+pool-era divisor (a per-frame pool re-search) failed on many frames
+and each failure silently blocked that contact at the wrist gate.
+The sticky divisor is defined wherever the pick has a height in the
+window, so 65/91/119 more contacts per fixture reach the fixed 1.4
+threshold, and the extra passers are disproportionately junk. Both
+regressions are the removal of accidental filters, not new defects.
+
+4. GT join (second instrumented run, same day session; commissioned
+   to close Sol's claim-5 and claim-7 holes). Both bisect arms
+   scored per rally with the production matcher
+   (gt_scoring.score_video). Validation: the sticky arm scored
+   exactly 22/113, bit-equal to the capture, so the join is sound.
+   Results, spot-checked first-hand from gt_join_per_rally.csv:
+   - pool hybrid (patched chain, landing kinematics on the pool):
+     42/113. The residual 3 vs the baseline's 45 is the patch's
+     other consumer changes
+   - every one of the 38 flipped rallies' pool landings called TOP.
+     The pool arm does not discriminate on these rallies; it always
+     guesses the far half
+   - loop-zone 25: GT halves 15 TOP / 10 BOT; pool correct 15 of 25,
+     exactly the GT-TOP tally. The coin flip is now a count
+   - non-loop 13: GT halves 6 TOP / 6 BOT / 1 unmatched; pool
+     correct 6 of 13. Same non-discriminating pattern
+   - lattice lock: every flipped final contact sits at frame mod 16
+     in {1, 14} relative to the fabricated cycle, so ALL 38 flipped
+     contacts are phase-locked to the fabrication lattice. The
+     25-vs-13 split only reflects whether the pool landing fell
+     inside a zone of 32+ frames, not a different contact nature
+
+WHAT THIS MEANS FOR THE READING OF THE NUMBERS
+
+The landing regression is now counted, not estimated. Within the
+patched chain, pool kinematics scores 42/113 and sticky scores
+22/113. Of that 20-count gap, 21 pool-correct calls sit on the 38
+flipped rallies, and every one of them was an always-TOP guess
+whose correctness equals the GT-happened-to-be-TOP tally. The
+settle cap's documented purpose is suppressing exactly this
+terminal class (the elevated post-rally carry that projects past
+the far baseline). Commit 11 therefore does not lose discriminating
+landing calls; it stops shipping a non-discriminating guess that
+lucked into about 21 points.
+
+The earlier "13 co-tuning residue" hypothesis is largely dissolved
+by the lattice lock and the 6-of-13 always-TOP pattern: the 13
+behave like the 25, differing only in the zone-length cut used by
+the census. A settle/carry resweep may still be worth running after
+landing, but it should not be expected to recover genuine calls
+from the flipped set; there is no evidence any existed.
+
+BOUNDS AND UNKNOWNS (tightened after Sol's red-team, sol_redteam.txt
+in this directory)
+
+- The bisect isolates build_landing_kinematics INSIDE the patched
+  chain (contact gate and attribution stay patched in both arms).
+  The GT join closes most of the decomposition gap: pool-vs-sticky
+  inside the patched chain is 42 vs 22, and the residual 3 (45 vs
+  42) belongs to the patch's other consumer changes. A full
+  factorial would still be needed to attribute that residual 3
+- vid15/sset21 were not bisected per rally; their zone shares and
+  capture movement are consistent with the same mechanism at smaller
+  magnitude
+- how many of the 26 always-None rallies are recoverable at all is
+  unmeasured (10 fail the window minimum immediately)
+- whether the sticky held-collapse comes from "tracker legitimately
+  reset at the boundary" vs "picked player genuinely far" is
+  unmeasured per flip (no per-flip segment/pick trace was saved)
+
+THE TWO OFF-SCREEN GUARDS (measured as a follow-up check,
+2026-07-22)
+
+window_end carries two designed guards, both untouched by the c11
+patch (the patch edits only test fixtures around window_end):
+sustained loss (an 8+ frame invisibility run at 25 fps closes the
+window) and the top-exit exception (a loss run whose last visible
+sample sat within 2% of the frame top keeps the window open for the
+lob's re-entry). Pilot measurements over the 102 bisect windows:
+
+- 61 of 102 windows contain a real (unfilled) sustained-loss run;
+  the loss guard still fires on this substrate
+- 16 of those follow a top-edge sample: the lob exception is primed
+  and consulted on real footage
+- BUT in 78 of 102 windows a fabricated fill run of 8+ frames
+  appears BEFORE any real loss run. There the filler holds the
+  track "visible" through what should have been the loss, and the
+  loss guard is pre-empted. Post-c11 the settle cap closes these
+  windows instead (fill reads static and not-held); pre-c11 nothing
+  closed them, which is exactly where the fabricated landings lived
+- the lob-loss check: 0 of the 64 sticky-None rallies contain a
+  top re-entry descent after the sticky cap. On pilot, the early
+  cap cost no genuine lob landings
+- unmeasurable from this cache: windows where the filler destroyed
+  the invisibility signal entirely; only a raw no-inpaint retrack
+  (~22 min at 288p per the track README) could reconstruct the
+  counterfactual
+
+PATCH DEFECTS SOL CONFIRMED (fix or measure at landing time)
+
+- build_landing_kinematics reduces wrist/ankle ratio lists with
+  Python min(), which is order-dependent under NaN: a NaN Top ratio
+  can erase finite Bot evidence (halves iterate Top then Bot).
+  Likely unreachable while picks are real detections and the pose
+  model emits all 17 keypoints, but the reduction should select
+  finite values explicitly. Patch hunk point_winner.py lines 97-119
+- attribute_half's nanargmin tie rule silently prefers the Top slot
+  on an exact two-half distance tie; make it an explicit policy or
+  return None (Sol claim-8 note)

@@ -90,6 +90,19 @@ def _frame_to_time(frame_number: int, fps: float) -> str:
     # stays canonical near minute boundaries). Rounding to the printed 6 dp
     # happens before the split too: a float a hair under a minute boundary
     # would otherwise format as seconds=60.000000 instead of carrying.
+    #
+    # TODO(unverified): the same +0.5 offset in bric/preprocessing/slice_rallies.py
+    # is off by one. Measured 2026-07-22 on ffmpeg 6.1.1: with raw `-ss`, seeking to
+    # (n + 0.5)/fps selects source frame n+1, while n/fps selects n. The offset was
+    # documented as a guard against landing on the PREVIOUS frame, so it overshoots
+    # rather than protects. This path is not that path: the string below goes to
+    # MoviePy's subclipped(), which fetches frames its own way, and nobody has
+    # measured whether the same slip happens here. If it does, every generated
+    # training clip starts one frame late.
+    # To settle it: generate one clip, then compare its first frame byte-for-byte
+    # against the source frame at start_f, decoded from zero with
+    # `select='between(n,start_f,start_f)'`. Equal means this is fine.
+    # Background: local_scratch/autograder_architecture/briefs/visual_verifier_build_brief.md
     total_seconds = round((frame_number + 0.5) / fps, 6)
     hours = int(total_seconds // 3600)
     minutes = int(total_seconds % 3600 // 60)

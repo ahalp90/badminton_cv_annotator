@@ -1,0 +1,24 @@
+
+=== OLD nonoverlap (loop) ===
+  derived K = 488 episodes, chosen at a 122.0x gap   attractors: 16
+  clean           65236  0.4225
+  invented        53880  0.3490
+  no_detection    15629  0.1012
+  degraded        19648  0.1273
+  vs coordinate rule: it flags 52624, I flag 53880 hard
+    missed by me at hard confidence: 0
+    of those, recovered as degraded: 0
+    still missed entirely          : 0
+
+=== NEW weight (constant) ===
+  derived K = 418 episodes, chosen at a 29.9x gap   attractors: 1
+  clean           63730  0.4128
+  invented        54160  0.3508
+  no_detection    24084  0.1560
+  degraded        12419  0.0804
+  vs coordinate rule: it flags 55267, I flag 54160 hard
+    missed by me at hard confidence: 1107
+    of those, recovered as degraded: 1107
+    still missed entirely          : 0
+
+wrote v2 masks

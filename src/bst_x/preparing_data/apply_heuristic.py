@@ -44,7 +44,9 @@ from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 load_repo_dotenv()
 
 
-OUT_SUFFIXES = ("_pos.npy", "_joints.npy", "_failed.npy")
+# _failed.npy stays last so its presence still means the whole set is complete
+# (the resume marker convention shared with prepare_train_on_shuttleset).
+OUT_SUFFIXES = ("_pos.npy", "_joints.npy", "_overcount.npy", "_failed.npy")
 
 DEFAULT_SPLITS = ("train", "val", "test")
 
@@ -109,10 +111,12 @@ def _load_raw_clip(raw_dir: Path, stem: str) -> RawClip:
     )
 
 
-def _save_output(output_dir: Path, stem: str, pos, joints, failed) -> None:
+def _save_output(output_dir: Path, stem: str, pos, joints, failed, overcount) -> None:
     branch = str(output_dir / stem)
     np.save(branch + "_pos.npy", pos)
     np.save(branch + "_joints.npy", joints)
+    np.save(branch + "_overcount.npy", overcount)
+    # _failed.npy last: resume marker, its presence implies the siblings are written.
     np.save(branch + "_failed.npy", failed)
 
 
@@ -228,7 +232,7 @@ def run(
         raw = _load_raw_clip(raw_dir, stem)
         ctx = ClipContext(vid=vid, all_court_info=all_court_info, res_df=res_df)
         out = heuristic_fn(raw, ctx, **hyperparams)
-        _save_output(output_dir, stem, out.pos, out.joints, out.failed)
+        _save_output(output_dir, stem, out.pos, out.joints, out.failed, out.overcount)
         stats.processed += 1
 
     print(

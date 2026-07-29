@@ -1,0 +1,54 @@
+old fake zones: 375
+frames inside old fake zones: 43681 (0.2829 of video)
+
+cycle x (by phase): [0.4688 0.4766 0.4766 0.4785 0.4727 0.4766 0.4766 0.4766 0.4785 0.4805
+ 0.4727 0.4688 0.4707 0.4707 0.4707 0.4824]
+cycle y (by phase): [0.2812 0.2535 0.2431 0.2396 0.2326 0.2361 0.2396 0.2431 0.2361 0.2361
+ 0.2465 0.2535 0.2674 0.2778 0.2882 0.2917]
+
+tent weights: [1 2 3 4 5 6 7 8 8 7 6 5 4 3 2 1] / 72
+predicted blend      : x=0.47537  y=0.24633
+predicted saved value: x=0.47461 (243px)  y=0.24306 (70px)
+
+--- most common exact (x,y) in OLD track (nonoverlap) ---
+  x=0.00000 y=0.00000  count= 15629 (0.1012)  <- blank (no detection)
+  x=0.47656 y=0.24306  count=  6837 (0.0443)
+  x=0.46875 y=0.28125  count=  3644 (0.0236)
+  x=0.47656 y=0.25347  count=  3597 (0.0233)
+  x=0.48242 y=0.29167  count=  3579 (0.0232)
+  x=0.47070 y=0.28819  count=  3532 (0.0229)
+  x=0.47852 y=0.23958  count=  3499 (0.0227)
+  x=0.47070 y=0.27778  count=  3492 (0.0226)
+
+--- most common exact (x,y) in NEW track (weight) ---
+  x=0.47461 y=0.24653  count= 55267 (0.3580)
+  x=0.00000 y=0.00000  count= 24084 (0.1560)  <- blank (no detection)
+  x=0.47852 y=0.43750  count=   230 (0.0015)
+  x=0.47852 y=0.43403  count=   128 (0.0008)
+  x=0.47656 y=0.43750  count=    88 (0.0006)
+  x=0.55469 y=0.75347  count=    32 (0.0002)
+  x=0.36328 y=0.42361  count=    25 (0.0002)
+  x=0.11914 y=0.15625  count=    24 (0.0002)
+
+--- does the predicted blend appear in the NEW track? ---
+busiest non-blank NEW position: x=0.47461 y=0.24653  count=55267 (0.3580)
+predicted                     : x=0.47461 y=0.24306
+difference: 0.00 px in x, 1.00 px in y
+busiest non-blank OLD position: x=0.47656 y=0.24306 count=6837 (0.0443)
+
+--- NEW track values at frames that were fabricated in the OLD track ---
+  blank (0,0)              :   6744 (0.1544)
+  at the constant position :  35618 (0.8154)
+  something else           :   1319 (0.0302)
+  constant outside old zones:  19649 (0.1775 of non-zone frames)
+
+--- is the constant on a straight line between the real detections? ---
+old zones whose NEW frames hold the constant: 324/375
+median distance from the straight line joining the bracketing real detections: 35.2 px
+  quartiles: 19.6 / 65.5 px   max 229.5 px
+  (a genuine bridge would sit near 0 px; a fixed model output ignores the endpoints)
+
+--- the flipped-rally final contacts that sat on a constant span ---
+flipped rallies with a flat span at the final contact: 9/38
+  x=0.47461 y=0.24653  8 rallies  <- THE CONSTANT
+  x=0.00000 y=0.00000  1 rallies  <- blank

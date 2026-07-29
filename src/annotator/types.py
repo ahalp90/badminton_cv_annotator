@@ -1,0 +1,195 @@
+"""Shared annotator declarations: fps scaling, storage slots, and the stage
+8/point-winner shuttle-track primitives and pose-array conventions shared
+across stages.
+"""
+from __future__ import annotations
+
+import math
+import warnings
+from enum import IntEnum, StrEnum
+from typing import TYPE_CHECKING, NamedTuple
+
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
+
+from .fps_constants import BASE_FPS
+
+if TYPE_CHECKING:
+    from .rally_segmentation import ServeStartClose, ServeStartMode
+
+
+class ScalingKind(StrEnum):
+    """Describe how a base-30 value scales with the video's frame rate.
+
+    Per-frame speeds shrink as fps rises, frame counts grow, dimensionless
+    values never scale; arithmetic must stay identical to ``scale_for_fps``
+    until the threading stage rewires the table onto these declarations.
+    """
+
+    PER_FRAME_SPEED = 'per_frame_speed'
+    FRAME_COUNT = 'frame_count'
+    DIMENSIONLESS = 'dimensionless'
+
+    def scale(self, value: float, fps: float) -> float | int:
+        """Scale one base-30 value, requiring a positive finite frame rate."""
+        if not math.isfinite(fps) or fps <= 0:
+            raise ValueError(f'fps must be positive and finite, got {fps!r}')
+        if self is ScalingKind.PER_FRAME_SPEED:
+            return value * BASE_FPS / fps
+        if self is ScalingKind.FRAME_COUNT:
+            return max(1, math.floor(value * fps / BASE_FPS + 0.5))
+        return value
+
+
+class DeadMaskMode(StrEnum):
+    """Select the producer policy for the per-frame dead-time mask."""
+
+    REPLAY = 'replay'
+    COMPOSITION = 'composition'
+    UNION = 'union'
+
+
+class SmoothingMode(StrEnum):
+    """Select how invisible frames contribute to span smoothing."""
+
+    ZERO_FILL = 'zero_fill'
+    IGNORE_INVISIBLE = 'ignore_invisible'
+
+
+class SpanOpen(StrEnum):
+    """Where a rally span opens; segment_video(span_open=...), default None.
+
+    None keeps today's burst-open rule bit-for-bit: a span opens at the first
+    qualifying fast burst in its active region. The two named rules trade that:
+      REGION_START drops the qualifying-burst gate entirely and opens a span at
+      every active region's start (each maximal run of non-long-rest frames).
+      BACK_FILL keeps the qualifying-burst gate unchanged (a region with no
+      qualifying fast run yields no rally) but moves the emitted span's start
+      back from the burst to the region start.
+    """
+
+    REGION_START = 'region_start'
+    BACK_FILL = 'back_fill'
+
+
+class ReentryGuardVariant(StrEnum):
+    """Which sides of a high-shot gap the re-entry buffer tests."""
+
+    TWO_SIDED = 'two-sided'
+    REENTRY_ONLY = 'reentry-only'
+
+
+class ContactCandidate(NamedTuple):
+    """One raw contact candidate and its independent gate/suppression verdicts."""
+
+    rally_id: int
+    contact_frame: int
+    proximity_ok: bool | None
+    wrist_near: bool | None
+    suppressed: bool | None
+
+
+class ServeStartConfig(NamedTuple):
+    """Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit."""
+
+    threshold_bh: float
+    mode: 'ServeStartMode'
+    close: 'ServeStartClose | None' = None
+    stillness_threshold_bh: float | None = None
+
+
+class Slot(IntEnum):
+    """Storage-row indices pinned to sticky_anchor's public constants.
+
+    ``SLOT_TOP = 0`` and ``SLOT_BOTTOM = 1`` let annotator code index sticky's
+    per-slot arrays directly.
+    Sticky's pick order is bottom-first and is deliberately not modelled here;
+    enum definition and iteration order must never be read as pick order.
+    """
+
+    TOP = 0
+    BOTTOM = 1
+
+
+# ---------------------------------------------------------------------------
+# Shared shuttle-track primitives (stage 8 and stage 9 both import these)
+# ---------------------------------------------------------------------------
+def compute_speed(track: np.ndarray) -> np.ndarray:
+    """Per-frame shuttle speed, NaN where the step is not fully visible.
+
+    Speed at frame i is the L2 displacement of `(x, y)` from frame i-1 to i.
+    Frame 0 has no predecessor and both endpoint frames must have visibility 1,
+    else the step is unmeasured and reads NaN (so nan-aware stats skip it).
+
+    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track.
+    :return: `(t,)` speed in norm-units/frame; NaN on frame 0 and on any step
+        touching a non-visible frame.
+    """
+    xy = track[:, :2]  # (t, 2) normalised position
+    visibility = track[:, 2]  # (t,)
+    step = np.diff(xy, axis=0)  # (t-1, 2) frame i-1 -> i
+    step_speed = np.linalg.norm(step, axis=1)  # (t-1,)
+    both_visible = (visibility[:-1] == 1) & (visibility[1:] == 1)  # (t-1,) both ends of the step
+
+    speed = np.full(len(track), np.nan)  # (t,) frame-indexed; frame 0 stays NaN
+    speed[1:] = np.where(both_visible, step_speed, np.nan)
+    return speed
+
+
+def true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """Maximal runs of True in a boolean mask, as half-open `[start, end)` ranges.
+
+    Vectorised via edge detection on the zero-padded int mask: +1 marks a run
+    start, -1 marks one-past a run end. Shared with stage 9's court-absence
+    signal, which masks whole absent runs.
+
+    :param mask: `(t,)` boolean.
+    :return: list of `(start, end)` with `mask[start:end]` all True.
+    """
+    padded = np.concatenate([[0], mask.astype(np.int8), [0]])  # sentinels force edges at the ends
+    edges = np.diff(padded)
+    starts = np.flatnonzero(edges == 1)
+    ends = np.flatnonzero(edges == -1)
+    return [(int(start), int(end)) for start, end in zip(starts, ends)]
+
+
+def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred rolling median that ignores NaN, one value per input frame.
+
+    Pads both ends with NaN so every frame gets a full-width window and the
+    output keeps length t; nanmedian drops the pad and any NaN steps. Shared
+    with stage 9's slow-motion signal.
+
+    :param values: `(t,)` values, may contain NaN.
+    :param window: window width in frames.
+    :return: `(t,)` centred rolling median; NaN only where a whole window is NaN.
+    """
+    left = window // 2
+    right = window - 1 - left
+    padded = np.concatenate([np.full(left, np.nan), values, np.full(right, np.nan)])
+    windows = sliding_window_view(padded, window)  # (t, window)
+    with warnings.catch_warnings():
+        # An all-NaN window (e.g. a fully untracked span) is expected and yields
+        # NaN by design; silence the RuntimeWarning rather than let it spam logs.
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        return np.nanmedian(windows, axis=1)
+
+
+# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Stage 8
+# (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution
+# and landing kinematics.
+WRIST_L, WRIST_R = 9, 10
+ANKLE_L, ANKLE_R = 15, 16
+
+
+class StickyResult(NamedTuple):
+    """Cached sticky evidence. ``bbox_height`` is in pixels."""
+
+    distances: np.ndarray
+    picks: np.ndarray
+    standing_count: np.ndarray
+    ankle_pos: np.ndarray
+    bbox_height: np.ndarray
+    distances_per_slot: np.ndarray
+    wrist_dist_px: np.ndarray
+    analysed: np.ndarray

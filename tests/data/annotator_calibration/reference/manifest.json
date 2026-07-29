@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "capture_date": "2026-07-29",
+  "source_commit": "93477bdada8e368b5eda4d647cc751fa2067e8e2",
+  "source_commit_short": "93477bd",
+  "provenance_note": "The source commit is provenance only, not an equality gate. The current branch tip (9f8b59f1acf5a11c8ebe91c38ca122b2c92e0235) only archives unrelated frozen S28/S29 autoseg trial records after this capture; it makes no change to the annotator, the calibration fixtures, or the scoring code that produced these files.",
+  "reproduction_command": "ANNOTATOR_FIXTURES_ROOT=<external-fixture-root> PYTHONPATH=src python -m annotator.calibration.gt_scoring --capture --out <output-dir>",
+  "reproduction_command_note": "Writes <output-dir>/<fixture>.csv (per-rally rows), <output-dir>/<fixture>_geometric_verdicts.csv, and <output-dir>/<fixture>/rejections.csv (plus <output-dir>/<fixture>/codes.npy, which this reference set excludes) for every fixture in FIXTURES. Stdout carries the same aggregate table and REFERENCE_SCORES literal captured in aggregate_stdout.txt; redirect it to a file separately.",
+  "comparison_policy": "SHA-256 values below are for byte-identity spot checks against this reference set, not a pass/fail gate. A calibration change is expected to change these bytes; compare the semantic per-rally fields and the structured aggregate metrics instead. See docs/scraper_pipeline/annotator_regression_harness.md for the causal-isolation design that names tolerances per metric.",
+  "row_layers": {
+    "semantic": {
+      "files": ["per_rally/sset_01.csv", "per_rally/sset_15.csv", "per_rally/sset_21.csv"],
+      "description": "One row per GT rally (RallyRow fields: classification, ball_round, timing, player, server, hit_height, landing, getpoint). This is the primary reference for a regression comparison."
+    },
+    "diagnostic": {
+      "files": [
+        "diagnostics/geometric_verdicts/sset_01.csv",
+        "diagnostics/geometric_verdicts/sset_15.csv",
+        "diagnostics/geometric_verdicts/sset_21.csv",
+        "diagnostics/rejections/sset_01.csv",
+        "diagnostics/rejections/sset_15.csv",
+        "diagnostics/rejections/sset_21.csv"
+      ],
+      "description": "Supplementary internal-mechanism rows (geometric point-winner verdicts; contact-rejection reasons). Useful for explaining a semantic-row change, not a comparison target on their own."
+    },
+    "convenience": {
+      "files": ["aggregate_stdout.txt"],
+      "description": "The full stdout of a --capture run: the render_table comparison text followed by the printed REFERENCE_SCORES literal. A convenience record of full-run metrics, including values that the per-rally and diagnostic CSVs do not contain; not a machine comparison target."
+    }
+  },
+  "files": [
+    {
+      "path": "aggregate_stdout.txt",
+      "fixture": null,
+      "layer": "convenience",
+      "sha256": "a7782d5ae1c524891ec9682d31118087bd06df93cfe8f1eded24e5d53e4a18b6",
+      "bytes": 16958,
+      "line_count": 429
+    },
+    {
+      "path": "per_rally/sset_01.csv",
+      "fixture": "sset_01",
+      "layer": "semantic",
+      "sha256": "300345410aa7135bbea48633343c86d0a2c981a0e8e68eb354a368f3533b4e3b",
+      "bytes": 13312,
+      "line_count": 114
+    },
+    {
+      "path": "per_rally/sset_15.csv",
+      "fixture": "sset_15",
+      "layer": "semantic",
+      "sha256": "af754eedb7f78aba55bd616e0d717edf5cbfdc8e4efd541de347a6e15e7926b4",
+      "bytes": 11617,
+      "line_count": 105
+    },
+    {
+      "path": "per_rally/sset_21.csv",
+      "fixture": "sset_21",
+      "layer": "semantic",
+      "sha256": "69c79e9acd899a6ed895648cf91df6c07c78aeecab18842945cde0d3e4130c5a",
+      "bytes": 8474,
+      "line_count": 76
+    },
+    {
+      "path": "diagnostics/geometric_verdicts/sset_01.csv",
+      "fixture": "sset_01",
+      "layer": "diagnostic",
+      "sha256": "a9a9174aa3935843ef55cc23bed6ad6012707fc4bc7027b56e019bb038db5bdd",
+      "bytes": 1884,
+      "line_count": 101
+    },
+    {
+      "path": "diagnostics/geometric_verdicts/sset_15.csv",
+      "fixture": "sset_15",
+      "layer": "diagnostic",
+      "sha256": "78fccc6675af0d26bc82c68dd851375c03b417108941cda00d500c0b37729caa",
+      "bytes": 2206,
+      "line_count": 117
+    },
+    {
+      "path": "diagnostics/geometric_verdicts/sset_21.csv",
+      "fixture": "sset_21",
+      "layer": "diagnostic",
+      "sha256": "cf11f88876dbeac6169eedf393f7bd057184ccc8da67a69ad7ccddde70931b69",
+      "bytes": 1572,
+      "line_count": 85
+    },
+    {
+      "path": "diagnostics/rejections/sset_01.csv",
+      "fixture": "sset_01",
+      "layer": "diagnostic",
+      "sha256": "d862a5fcf302b3baeb99d0e1d48719a161c4ce9b9446ebb1b66d90ef3407a85e",
+      "bytes": 6845,
+      "line_count": 165
+    },
+    {
+      "path": "diagnostics/rejections/sset_15.csv",
+      "fixture": "sset_15",
+      "layer": "diagnostic",
+      "sha256": "0b9be420ff7d4ea8d240cee72efdac50ced2e485ea3b8018cc7b6c41b49c12ae",
+      "bytes": 5318,
+      "line_count": 128
+    },
+    {
+      "path": "diagnostics/rejections/sset_21.csv",
+      "fixture": "sset_21",
+      "layer": "diagnostic",
+      "sha256": "41716600b14f9e503feac3fdd6444023788ac00db3770ab19a3815bd98e6dc69",
+      "bytes": 4884,
+      "line_count": 120
+    }
+  ],
+  "fixture_input_digests": {
+    "sset_01": {
+      "track": "08c5afced66b561517a43571df567b2f",
+      "bboxes": "4c9525949d1c79f0161f81b2bb63d5ef",
+      "scores": "03e655b3429f9482c5a3f4df766a3534",
+      "kps": "621427713fc617d81d4081db15613b06",
+      "kp_scores": "deb1ab46efcbe34a19bd4590b2f1b384",
+      "ndet": "5cc366f2cd459ea9be44876bc07e74ea",
+      "dead_mask": "a5043d329752a4e202c8566515b37231",
+      "court_present": "095f6ee3a3a3042c06f42e6e4467e88d",
+      "scene_rows": "378cfeb29a44e90ef9f9694344cca649"
+    },
+    "sset_15": {
+      "track": "0b9c0966ffc58a36c65f97a5a9a78deb",
+      "bboxes": "031d4f61f71f7e3f2e18a0af5e52b138",
+      "scores": "5c3c7895312abbd28045968426fc21c4",
+      "kps": "1d74ceef0fdd53dab60e3afd64e4a6fc",
+      "kp_scores": "088d65a108d3be668dc71c93f4b9beb0",
+      "ndet": "71f7f8a9e7f270fc0ffea868da437e08",
+      "dead_mask": "c01914b9788afef3bca6e0b5bd88dc7f",
+      "court_present": "8268eeed2c48914d165c31899ce9417b",
+      "scene_rows": "a893afaf12920658338586e4b9b0d6d6"
+    },
+    "sset_21": {
+      "track": "ad00846dc78b08de728cf59ea773ad61",
+      "bboxes": "3ee48b9637a49157ed494cbc0fbfab9a",
+      "scores": "86ba65b4e902067853a51308db864a69",
+      "kps": "6f5b60e0b2ae04ead4a3523aad744fa4",
+      "kp_scores": "014561d30e74bd6811933d68dfd19525",
+      "ndet": "1844e00ffd6cddfa1dd52e26442fef14",
+      "dead_mask": "9a6b43bc14f795d8c5e4d62e86005798",
+      "court_present": "93f5cbea19f8b7e65e272df9a5d0b252",
+      "scene_rows": "f9fb06285637076c5817301ae7a7b41b"
+    }
+  },
+  "fixture_input_digests_note": "Nine MD5 pins per fixture (FixtureDigests, src/annotator/calibration/fixtures.py), reproduced verbatim from the current tracked source. These identify the external pose/track/mask arrays a fixture reads, not the CSV files in this reference set."
+}

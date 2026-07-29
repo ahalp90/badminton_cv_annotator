@@ -1,9 +1,18 @@
 import io
+import os
+import tempfile
 import time
 
-from fastapi.testclient import TestClient
+# Local runs point the API at a temporary folder through its existing variable.
+# CI sets its own value, setdefault respects it, and the missing subfolder lets app startup create it.
+# This must precede the app import because the API reads the environment at import time.
+os.environ.setdefault(
+    "UPLOAD_DIR", os.path.join(tempfile.mkdtemp(prefix="api_uploads_"), "uploads")
+)
 
-from src.api.main import app
+from fastapi.testclient import TestClient  # noqa: E402
+
+from src.api.main import app  # noqa: E402
 
 # TODO(coverage): this suite only exercises the upload flow (which always
 # routes to the smart stub in inference.py) plus the validation/404 paths.
@@ -12,10 +21,7 @@ from src.api.main import app
 #   - GET  /api/registry[/...]   -> registry/manifest/sidecar JSON serving
 #   - GET  /api/clips/{stem}/video -> FileResponse with Range support
 # The stub-fallback paths for these are testable without the heavy
-# checkpoint/tensors. Also note: test_upload_returns_queued and
-# test_full_job_lifecycle currently fail unless UPLOAD_DIR exists — it
-# defaults to the Docker path /app/uploads and the module-level TestClient
-# doesn't trigger the lifespan startup that mkdir's it.
+# checkpoint/tensors.
 
 client = TestClient(app)
 
@@ -23,11 +29,12 @@ _DUMMY_VIDEO = ("test_video.mp4", io.BytesIO(b"fake video content"), "video/mp4"
 
 
 def test_upload_returns_queued():
-    response = client.post("/api/upload", files={"file": _DUMMY_VIDEO})
-    assert response.status_code == 200
-    body = response.json()
-    assert "job_id" in body
-    assert body["status"] == "queued"
+    with TestClient(app) as client:
+        response = client.post("/api/upload", files={"file": _DUMMY_VIDEO})
+        assert response.status_code == 200
+        body = response.json()
+        assert "job_id" in body
+        assert body["status"] == "queued"
 
 
 def test_upload_rejects_bad_extension():
@@ -75,34 +82,35 @@ def test_delete_unknown_job_returns_404():
 
 def test_full_job_lifecycle():
     dummy = ("clip.mp4", io.BytesIO(b"fake video content"), "video/mp4")
-    upload = client.post("/api/upload", files={"file": dummy})
-    assert upload.status_code == 200
-    job_id = upload.json()["job_id"]
+    with TestClient(app) as client:
+        upload = client.post("/api/upload", files={"file": dummy})
+        assert upload.status_code == 200
+        job_id = upload.json()["job_id"]
 
-    # Poll until complete (inference stub sleeps 3s, timeout after 15s)
-    deadline = time.time() + 15
-    while time.time() < deadline:
-        status_resp = client.get(f"/api/status/{job_id}")
-        assert status_resp.status_code == 200
-        if status_resp.json()["status"] == "complete":
-            break
-        time.sleep(0.5)
-    else:
-        raise AssertionError("Job did not complete within timeout")
+        # Poll until complete (inference stub sleeps 3s, timeout after 15s)
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            status_resp = client.get(f"/api/status/{job_id}")
+            assert status_resp.status_code == 200
+            if status_resp.json()["status"] == "complete":
+                break
+            time.sleep(0.5)
+        else:
+            raise AssertionError("Job did not complete within timeout")
 
-    results = client.get(f"/api/results/{job_id}")
-    assert results.status_code == 200
-    body = results.json()
-    assert body["status"] == "complete"
-    assert "strokes" in body
-    assert "rally_summary" in body
-    assert len(body["strokes"]) > 0
+        results = client.get(f"/api/results/{job_id}")
+        assert results.status_code == 200
+        body = results.json()
+        assert body["status"] == "complete"
+        assert "strokes" in body
+        assert "rally_summary" in body
+        assert len(body["strokes"]) > 0
 
-    deleted = client.delete(f"/api/jobs/{job_id}")
-    assert deleted.status_code == 200
-    assert deleted.json()["deleted"] is True
+        deleted = client.delete(f"/api/jobs/{job_id}")
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted"] is True
 
-    assert client.get(f"/api/status/{job_id}").status_code == 404
+        assert client.get(f"/api/status/{job_id}").status_code == 404
 
 
 def test_get_models_returns_list():

@@ -1,0 +1,28 @@
+csv header: Frame,Visibility,X,Y
+converted -> /home/ariel/Documents/COSC594/badminton_stroke_classification/local_scratch/autograder_architecture/records/stride1_retrack/pilot_weight.npy  shape (154393, 3)  frames 154393
+
+--- census: nonoverlap baseline (1.npy) ---
+oscillating zones: 375
+comparison-index share: 0.24405899231182762
+physical share: 0.28292085781091114
+vis fraction: 0.8987713173524706
+cycle range: 0.2326388888888889 0.2916666666666667 | zones sharing it: 375 / 375
+
+--- census: weight mode (new) ---
+oscillating zones: 0
+comparison-index share: 0.0
+physical share: 0.0
+vis fraction: 0.8440084718866788
+
+--- flipped-contact check: nonoverlap baseline ---
+flipped rallies still at a fill edge: 25 / 38
+
+--- flipped-contact check: weight mode ---
+flipped rallies still at a fill edge: 9 / 38
+
+=== COMPARISON (nonoverlap -> weight) ===
+oscillating zones     : 375 -> 0
+comparison-index share: 0.2441 -> 0.0000
+physical share        : 0.2829 -> 0.0000
+visibility fraction   : 0.8988 -> 0.8440
+flipped at fill edge  : 25/38 -> 9/38
