@@ -127,7 +127,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 _HOMOGRAPHY_SOURCE = REPO_ROOT / "training/data/shuttleset/annotations/set/homography.csv"
 _RESOLUTION_SOURCE = REPO_ROOT / "training/data/shuttleset/annotations/my_raw_video_resolution.csv"
 # Homography camera coordinates are on 1280x720; fixture coordinates are 1920x1080.
-# Worked arithmetic: local_scratch/autograder_architecture/records/s6_b7a_mapping_report.txt.
+# Worked arithmetic: docs/scraper_pipeline/annotator_fixture_geometry.md.
 _HOMOGRAPHY_TO_FIXTURE_MULTIPLIER = 1.5
 # The centre band spans one metre along the 13.4 m court-length axis.
 _NET_BAND_HALF_WIDTH_M = 0.5
