@@ -1,0 +1,650 @@
+--- /home/ariel/Documents/COSC594/badminton_stroke_classification/local_scratch/autograder_architecture/records/s5_post_stage5_scores.txt	2026-07-27 14:42:58.204444443 +1000
++++ /tmp/capture_w2_9.txt	2026-07-28 21:24:21.333212519 +1000
+@@ -4,70 +4,70 @@
+ pilot n_gt_rallies None 113
+ pilot split None 2
+ pilot missed None 1
+-pilot merged_spans None 3
++pilot merged_spans None 4
+ pilot spurious_spans None 5
+-pilot start_offset_mean None -83.37272727272727
++pilot start_offset_mean None -88.57272727272728
+ pilot start_offset_median None -28.0
+ pilot start_offset_n None 110
+-pilot end_offset_mean None 82.75454545454545
++pilot end_offset_mean None 105.02727272727273
+ pilot end_offset_median None 56.0
+ pilot end_offset_n None 110
+-pilot ball_round_absdiff_mean None 3.2545454545454544
++pilot ball_round_absdiff_mean None 3.890909090909091
+ pilot ball_round_absdiff_median None 2.0
+ pilot ball_round_absdiff_n None 110
+-pilot timing_abserr_mean None 2.12082957619477
++pilot timing_abserr_mean None 2.1149012567324954
+ pilot timing_abserr_median None 2.0
+-pilot timing_abserr_n None 1109
+-pilot ball_round_primary None 0.1592920353982301
+-pilot ball_round_primary_correct None 18
++pilot timing_abserr_n None 1114
++pilot ball_round_primary None 0.18584070796460178
++pilot ball_round_primary_correct None 21
+ pilot ball_round_primary_total None 113
+-pilot ball_round_covered None 0.16363636363636364
+-pilot ball_round_covered_correct None 18
++pilot ball_round_covered None 0.19090909090909092
++pilot ball_round_covered_correct None 21
+ pilot ball_round_covered_total None 110
+-pilot timing_primary_recall None 0.6758074344911639
+-pilot timing_primary_matched None 1109
++pilot timing_primary_recall None 0.6788543570993297
++pilot timing_primary_matched None 1114
+ pilot timing_primary_total None 1641
+-pilot timing_covered_recall None 0.6888198757763975
+-pilot timing_covered_matched None 1109
++pilot timing_covered_recall None 0.6919254658385093
++pilot timing_covered_matched None 1114
+ pilot timing_covered_total None 1610
+-pilot player_primary None 0.5221238938053098
+-pilot player_primary_correct None 59
++pilot player_primary None 0.5486725663716814
++pilot player_primary_correct None 62
+ pilot player_primary_total None 113
+-pilot player_covered None 0.5363636363636364
+-pilot player_covered_correct None 59
++pilot player_covered None 0.5636363636363636
++pilot player_covered_correct None 62
+ pilot player_covered_total None 110
+-pilot server_primary None 0.5663716814159292
+-pilot server_primary_correct None 64
++pilot server_primary None 0.504424778761062
++pilot server_primary_correct None 57
+ pilot server_primary_total None 113
+-pilot server_covered None 0.5818181818181818
+-pilot server_covered_correct None 64
++pilot server_covered None 0.5181818181818182
++pilot server_covered_correct None 57
+ pilot server_covered_total None 110
+-pilot hit_height_primary None 0.30834856794637416
+-pilot hit_height_primary_correct None 506
++pilot hit_height_primary None 0.30956733698964045
++pilot hit_height_primary_correct None 508
+ pilot hit_height_primary_total None 1641
+-pilot hit_height_covered None 0.3142857142857143
+-pilot hit_height_covered_correct None 506
++pilot hit_height_covered None 0.315527950310559
++pilot hit_height_covered_correct None 508
+ pilot hit_height_covered_total None 1610
+-pilot landing_primary None 0.2743362831858407
+-pilot landing_primary_correct None 31
++pilot landing_primary None 0.3008849557522124
++pilot landing_primary_correct None 34
+ pilot landing_primary_total None 113
+-pilot landing_covered None 0.2818181818181818
+-pilot landing_covered_correct None 31
++pilot landing_covered None 0.3090909090909091
++pilot landing_covered_correct None 34
+ pilot landing_covered_total None 110
+-pilot getpoint_primary None 0.5089285714285714
+-pilot getpoint_primary_correct None 57
++pilot getpoint_primary None 0.41964285714285715
++pilot getpoint_primary_correct None 47
+ pilot getpoint_primary_total None 112
+-pilot getpoint_covered None 0.5229357798165137
+-pilot getpoint_covered_correct None 57
++pilot getpoint_covered None 0.43119266055045874
++pilot getpoint_covered_correct None 47
+ pilot getpoint_covered_total None 109
+-pilot contact_f1 None 0.6483484361297865
+-pilot contact_precision None 0.6230337078651685
+-pilot contact_recall None 0.6758074344911639
+-pilot contact_matches None 1109
+-pilot contact_filtered_total None 1780
++pilot contact_f1 None 0.6572271386430679
++pilot contact_precision None 0.6369353916523728
++pilot contact_recall None 0.6788543570993297
++pilot contact_matches None 1114
++pilot contact_filtered_total None 1749
+ pilot contact_gt_total None 1641
+-pilot n_raw_contacts None 3266
+-pilot n_filtered_contacts None 1780
++pilot n_raw_contacts None 3096
++pilot n_filtered_contacts None 1749
+ pilot hit_height_failures None 0
+ vid15 covered_fraction None 0.8076923076923077
+ vid15 covered None 84
+@@ -75,36 +75,36 @@
+ vid15 split None 4
+ vid15 missed None 16
+ vid15 merged_spans None 0
+-vid15 spurious_spans None 55
+-vid15 start_offset_mean None -50.36904761904762
+-vid15 start_offset_median None -31.5
++vid15 spurious_spans None 54
++vid15 start_offset_mean None -50.61904761904762
++vid15 start_offset_median None -32.0
+ vid15 start_offset_n None 84
+-vid15 end_offset_mean None 88.41666666666667
++vid15 end_offset_mean None 91.4047619047619
+ vid15 end_offset_median None 62.0
+ vid15 end_offset_n None 84
+-vid15 ball_round_absdiff_mean None 2.4404761904761907
++vid15 ball_round_absdiff_mean None 2.3095238095238093
+ vid15 ball_round_absdiff_median None 2.0
+ vid15 ball_round_absdiff_n None 84
+-vid15 timing_abserr_mean None 1.447098976109215
++vid15 timing_abserr_mean None 1.425894378194208
+ vid15 timing_abserr_median None 1.0
+-vid15 timing_abserr_n None 586
+-vid15 ball_round_primary None 0.11538461538461539
+-vid15 ball_round_primary_correct None 12
++vid15 timing_abserr_n None 587
++vid15 ball_round_primary None 0.09615384615384616
++vid15 ball_round_primary_correct None 10
+ vid15 ball_round_primary_total None 104
+-vid15 ball_round_covered None 0.14285714285714285
+-vid15 ball_round_covered_correct None 12
++vid15 ball_round_covered None 0.11904761904761904
++vid15 ball_round_covered_correct None 10
+ vid15 ball_round_covered_total None 84
+-vid15 timing_primary_recall None 0.7111650485436893
+-vid15 timing_primary_matched None 586
++vid15 timing_primary_recall None 0.712378640776699
++vid15 timing_primary_matched None 587
+ vid15 timing_primary_total None 824
+-vid15 timing_covered_recall None 0.7464968152866241
+-vid15 timing_covered_matched None 586
+-vid15 timing_covered_total None 785
+-vid15 player_primary None 0.3557692307692308
+-vid15 player_primary_correct None 37
++vid15 timing_covered_recall None 0.7496807151979565
++vid15 timing_covered_matched None 587
++vid15 timing_covered_total None 783
++vid15 player_primary None 0.375
++vid15 player_primary_correct None 39
+ vid15 player_primary_total None 104
+-vid15 player_covered None 0.44047619047619047
+-vid15 player_covered_correct None 37
++vid15 player_covered None 0.4642857142857143
++vid15 player_covered_correct None 39
+ vid15 player_covered_total None 84
+ vid15 server_primary None 0.41346153846153844
+ vid15 server_primary_correct None 43
+@@ -112,32 +112,32 @@
+ vid15 server_covered None 0.5119047619047619
+ vid15 server_covered_correct None 43
+ vid15 server_covered_total None 84
+-vid15 hit_height_primary None 0.3313106796116505
+-vid15 hit_height_primary_correct None 273
++vid15 hit_height_primary None 0.33495145631067963
++vid15 hit_height_primary_correct None 276
+ vid15 hit_height_primary_total None 824
+-vid15 hit_height_covered None 0.34777070063694265
+-vid15 hit_height_covered_correct None 273
+-vid15 hit_height_covered_total None 785
+-vid15 landing_primary None 0.23
+-vid15 landing_primary_correct None 23
++vid15 hit_height_covered None 0.3524904214559387
++vid15 hit_height_covered_correct None 276
++vid15 hit_height_covered_total None 783
++vid15 landing_primary None 0.25
++vid15 landing_primary_correct None 25
+ vid15 landing_primary_total None 100
+-vid15 landing_covered None 0.27710843373493976
+-vid15 landing_covered_correct None 23
++vid15 landing_covered None 0.30120481927710846
++vid15 landing_covered_correct None 25
+ vid15 landing_covered_total None 83
+-vid15 getpoint_primary None 0.4588235294117647
+-vid15 getpoint_primary_correct None 39
++vid15 getpoint_primary None 0.49411764705882355
++vid15 getpoint_primary_correct None 42
+ vid15 getpoint_primary_total None 85
+-vid15 getpoint_covered None 0.4875
+-vid15 getpoint_covered_correct None 39
++vid15 getpoint_covered None 0.525
++vid15 getpoint_covered_correct None 42
+ vid15 getpoint_covered_total None 80
+-vid15 contact_f1 None 0.5604973696795792
+-vid15 contact_precision None 0.46250986582478293
+-vid15 contact_recall None 0.7111650485436893
+-vid15 contact_matches None 586
+-vid15 contact_filtered_total None 1267
++vid15 contact_f1 None 0.5707340787554691
++vid15 contact_precision None 0.47607461476074614
++vid15 contact_recall None 0.712378640776699
++vid15 contact_matches None 587
++vid15 contact_filtered_total None 1233
+ vid15 contact_gt_total None 824
+-vid15 n_raw_contacts None 2322
+-vid15 n_filtered_contacts None 1267
++vid15 n_raw_contacts None 2210
++vid15 n_filtered_contacts None 1233
+ vid15 hit_height_failures None 0
+ sset21 covered_fraction None 0.72
+ sset21 covered None 54
+@@ -146,47 +146,47 @@
+ sset21 missed None 1
+ sset21 merged_spans None 2
+ sset21 spurious_spans None 26
+-sset21 start_offset_mean None -147.40740740740742
++sset21 start_offset_mean None -148.0
+ sset21 start_offset_median None -97.5
+ sset21 start_offset_n None 54
+-sset21 end_offset_mean None 127.05555555555556
++sset21 end_offset_mean None 127.64814814814815
+ sset21 end_offset_median None 90.5
+ sset21 end_offset_n None 54
+-sset21 ball_round_absdiff_mean None 5.481481481481482
+-sset21 ball_round_absdiff_median None 4.0
++sset21 ball_round_absdiff_mean None 5.351851851851852
++sset21 ball_round_absdiff_median None 3.5
+ sset21 ball_round_absdiff_n None 54
+-sset21 timing_abserr_mean None 2.146282973621103
++sset21 timing_abserr_mean None 2.1050119331742243
+ sset21 timing_abserr_median None 2.0
+-sset21 timing_abserr_n None 417
++sset21 timing_abserr_n None 419
+ sset21 ball_round_primary None 0.04
+ sset21 ball_round_primary_correct None 3
+ sset21 ball_round_primary_total None 75
+ sset21 ball_round_covered None 0.05555555555555555
+ sset21 ball_round_covered_correct None 3
+ sset21 ball_round_covered_total None 54
+-sset21 timing_primary_recall None 0.6289592760180995
+-sset21 timing_primary_matched None 417
++sset21 timing_primary_recall None 0.6319758672699849
++sset21 timing_primary_matched None 419
+ sset21 timing_primary_total None 663
+-sset21 timing_covered_recall None 0.8034682080924855
+-sset21 timing_covered_matched None 417
++sset21 timing_covered_recall None 0.8073217726396917
++sset21 timing_covered_matched None 419
+ sset21 timing_covered_total None 519
+-sset21 player_primary None 0.38666666666666666
+-sset21 player_primary_correct None 29
++sset21 player_primary None 0.37333333333333335
++sset21 player_primary_correct None 28
+ sset21 player_primary_total None 75
+-sset21 player_covered None 0.5370370370370371
+-sset21 player_covered_correct None 29
++sset21 player_covered None 0.5185185185185185
++sset21 player_covered_correct None 28
+ sset21 player_covered_total None 54
+-sset21 server_primary None 0.37333333333333335
+-sset21 server_primary_correct None 28
++sset21 server_primary None 0.4
++sset21 server_primary_correct None 30
+ sset21 server_primary_total None 75
+-sset21 server_covered None 0.5185185185185185
+-sset21 server_covered_correct None 28
++sset21 server_covered None 0.5555555555555556
++sset21 server_covered_correct None 30
+ sset21 server_covered_total None 54
+-sset21 hit_height_primary None 0.2824773413897281
+-sset21 hit_height_primary_correct None 187
++sset21 hit_height_primary None 0.2854984894259819
++sset21 hit_height_primary_correct None 189
+ sset21 hit_height_primary_total None 662
+-sset21 hit_height_covered None 0.361003861003861
+-sset21 hit_height_covered_correct None 187
++sset21 hit_height_covered None 0.36486486486486486
++sset21 hit_height_covered_correct None 189
+ sset21 hit_height_covered_total None 518
+ sset21 landing_primary None 0.24324324324324326
+ sset21 landing_primary_correct None 18
+@@ -194,20 +194,20 @@
+ sset21 landing_covered None 0.33962264150943394
+ sset21 landing_covered_correct None 18
+ sset21 landing_covered_total None 53
+-sset21 getpoint_primary None 0.3108108108108108
+-sset21 getpoint_primary_correct None 23
++sset21 getpoint_primary None 0.33783783783783783
++sset21 getpoint_primary_correct None 25
+ sset21 getpoint_primary_total None 74
+-sset21 getpoint_covered None 0.4339622641509434
+-sset21 getpoint_covered_correct None 23
++sset21 getpoint_covered None 0.4716981132075472
++sset21 getpoint_covered_correct None 25
+ sset21 getpoint_covered_total None 53
+-sset21 contact_f1 None 0.47225368063420153
+-sset21 contact_precision None 0.37805983680870353
+-sset21 contact_recall None 0.6289592760180995
+-sset21 contact_matches None 417
+-sset21 contact_filtered_total None 1103
++sset21 contact_f1 None 0.4780376497432972
++sset21 contact_precision None 0.38440366972477064
++sset21 contact_recall None 0.6319758672699849
++sset21 contact_matches None 419
++sset21 contact_filtered_total None 1090
+ sset21 contact_gt_total None 663
+-sset21 n_raw_contacts None 2370
+-sset21 n_filtered_contacts None 1103
++sset21 n_raw_contacts None 2246
++sset21 n_filtered_contacts None 1090
+ sset21 hit_height_failures None 0
+ REFERENCE_SCORES = {
+     'pilot': {
+@@ -216,70 +216,70 @@
+         'n_gt_rallies': 113,
+         'split': 2,
+         'missed': 1,
+-        'merged_spans': 3,
++        'merged_spans': 4,
+         'spurious_spans': 5,
+-        'start_offset_mean': -83.37272727272727,
++        'start_offset_mean': -88.57272727272728,
+         'start_offset_median': -28.0,
+         'start_offset_n': 110,
+-        'end_offset_mean': 82.75454545454545,
++        'end_offset_mean': 105.02727272727273,
+         'end_offset_median': 56.0,
+         'end_offset_n': 110,
+-        'ball_round_absdiff_mean': 3.2545454545454544,
++        'ball_round_absdiff_mean': 3.890909090909091,
+         'ball_round_absdiff_median': 2.0,
+         'ball_round_absdiff_n': 110,
+-        'timing_abserr_mean': 2.12082957619477,
++        'timing_abserr_mean': 2.1149012567324954,
+         'timing_abserr_median': 2.0,
+-        'timing_abserr_n': 1109,
+-        'ball_round_primary': 0.1592920353982301,
+-        'ball_round_primary_correct': 18,
++        'timing_abserr_n': 1114,
++        'ball_round_primary': 0.18584070796460178,
++        'ball_round_primary_correct': 21,
+         'ball_round_primary_total': 113,
+-        'ball_round_covered': 0.16363636363636364,
+-        'ball_round_covered_correct': 18,
++        'ball_round_covered': 0.19090909090909092,
++        'ball_round_covered_correct': 21,
+         'ball_round_covered_total': 110,
+-        'timing_primary_recall': 0.6758074344911639,
+-        'timing_primary_matched': 1109,
++        'timing_primary_recall': 0.6788543570993297,
++        'timing_primary_matched': 1114,
+         'timing_primary_total': 1641,
+-        'timing_covered_recall': 0.6888198757763975,
+-        'timing_covered_matched': 1109,
++        'timing_covered_recall': 0.6919254658385093,
++        'timing_covered_matched': 1114,
+         'timing_covered_total': 1610,
+-        'player_primary': 0.5221238938053098,
+-        'player_primary_correct': 59,
++        'player_primary': 0.5486725663716814,
++        'player_primary_correct': 62,
+         'player_primary_total': 113,
+-        'player_covered': 0.5363636363636364,
+-        'player_covered_correct': 59,
++        'player_covered': 0.5636363636363636,
++        'player_covered_correct': 62,
+         'player_covered_total': 110,
+-        'server_primary': 0.5663716814159292,
+-        'server_primary_correct': 64,
++        'server_primary': 0.504424778761062,
++        'server_primary_correct': 57,
+         'server_primary_total': 113,
+-        'server_covered': 0.5818181818181818,
+-        'server_covered_correct': 64,
++        'server_covered': 0.5181818181818182,
++        'server_covered_correct': 57,
+         'server_covered_total': 110,
+-        'hit_height_primary': 0.30834856794637416,
+-        'hit_height_primary_correct': 506,
++        'hit_height_primary': 0.30956733698964045,
++        'hit_height_primary_correct': 508,
+         'hit_height_primary_total': 1641,
+-        'hit_height_covered': 0.3142857142857143,
+-        'hit_height_covered_correct': 506,
++        'hit_height_covered': 0.315527950310559,
++        'hit_height_covered_correct': 508,
+         'hit_height_covered_total': 1610,
+-        'landing_primary': 0.2743362831858407,
+-        'landing_primary_correct': 31,
++        'landing_primary': 0.3008849557522124,
++        'landing_primary_correct': 34,
+         'landing_primary_total': 113,
+-        'landing_covered': 0.2818181818181818,
+-        'landing_covered_correct': 31,
++        'landing_covered': 0.3090909090909091,
++        'landing_covered_correct': 34,
+         'landing_covered_total': 110,
+-        'getpoint_primary': 0.5089285714285714,
+-        'getpoint_primary_correct': 57,
++        'getpoint_primary': 0.41964285714285715,
++        'getpoint_primary_correct': 47,
+         'getpoint_primary_total': 112,
+-        'getpoint_covered': 0.5229357798165137,
+-        'getpoint_covered_correct': 57,
++        'getpoint_covered': 0.43119266055045874,
++        'getpoint_covered_correct': 47,
+         'getpoint_covered_total': 109,
+-        'contact_f1': 0.6483484361297865,
+-        'contact_precision': 0.6230337078651685,
+-        'contact_recall': 0.6758074344911639,
+-        'contact_matches': 1109,
+-        'contact_filtered_total': 1780,
++        'contact_f1': 0.6572271386430679,
++        'contact_precision': 0.6369353916523728,
++        'contact_recall': 0.6788543570993297,
++        'contact_matches': 1114,
++        'contact_filtered_total': 1749,
+         'contact_gt_total': 1641,
+-        'n_raw_contacts': 3266,
+-        'n_filtered_contacts': 1780,
++        'n_raw_contacts': 3096,
++        'n_filtered_contacts': 1749,
+         'hit_height_failures': 0,
+     },
+     'vid15': {
+@@ -289,36 +289,36 @@
+         'split': 4,
+         'missed': 16,
+         'merged_spans': 0,
+-        'spurious_spans': 55,
+-        'start_offset_mean': -50.36904761904762,
+-        'start_offset_median': -31.5,
++        'spurious_spans': 54,
++        'start_offset_mean': -50.61904761904762,
++        'start_offset_median': -32.0,
+         'start_offset_n': 84,
+-        'end_offset_mean': 88.41666666666667,
++        'end_offset_mean': 91.4047619047619,
+         'end_offset_median': 62.0,
+         'end_offset_n': 84,
+-        'ball_round_absdiff_mean': 2.4404761904761907,
++        'ball_round_absdiff_mean': 2.3095238095238093,
+         'ball_round_absdiff_median': 2.0,
+         'ball_round_absdiff_n': 84,
+-        'timing_abserr_mean': 1.447098976109215,
++        'timing_abserr_mean': 1.425894378194208,
+         'timing_abserr_median': 1.0,
+-        'timing_abserr_n': 586,
+-        'ball_round_primary': 0.11538461538461539,
+-        'ball_round_primary_correct': 12,
++        'timing_abserr_n': 587,
++        'ball_round_primary': 0.09615384615384616,
++        'ball_round_primary_correct': 10,
+         'ball_round_primary_total': 104,
+-        'ball_round_covered': 0.14285714285714285,
+-        'ball_round_covered_correct': 12,
++        'ball_round_covered': 0.11904761904761904,
++        'ball_round_covered_correct': 10,
+         'ball_round_covered_total': 84,
+-        'timing_primary_recall': 0.7111650485436893,
+-        'timing_primary_matched': 586,
++        'timing_primary_recall': 0.712378640776699,
++        'timing_primary_matched': 587,
+         'timing_primary_total': 824,
+-        'timing_covered_recall': 0.7464968152866241,
+-        'timing_covered_matched': 586,
+-        'timing_covered_total': 785,
+-        'player_primary': 0.3557692307692308,
+-        'player_primary_correct': 37,
++        'timing_covered_recall': 0.7496807151979565,
++        'timing_covered_matched': 587,
++        'timing_covered_total': 783,
++        'player_primary': 0.375,
++        'player_primary_correct': 39,
+         'player_primary_total': 104,
+-        'player_covered': 0.44047619047619047,
+-        'player_covered_correct': 37,
++        'player_covered': 0.4642857142857143,
++        'player_covered_correct': 39,
+         'player_covered_total': 84,
+         'server_primary': 0.41346153846153844,
+         'server_primary_correct': 43,
+@@ -326,32 +326,32 @@
+         'server_covered': 0.5119047619047619,
+         'server_covered_correct': 43,
+         'server_covered_total': 84,
+-        'hit_height_primary': 0.3313106796116505,
+-        'hit_height_primary_correct': 273,
++        'hit_height_primary': 0.33495145631067963,
++        'hit_height_primary_correct': 276,
+         'hit_height_primary_total': 824,
+-        'hit_height_covered': 0.34777070063694265,
+-        'hit_height_covered_correct': 273,
+-        'hit_height_covered_total': 785,
+-        'landing_primary': 0.23,
+-        'landing_primary_correct': 23,
++        'hit_height_covered': 0.3524904214559387,
++        'hit_height_covered_correct': 276,
++        'hit_height_covered_total': 783,
++        'landing_primary': 0.25,
++        'landing_primary_correct': 25,
+         'landing_primary_total': 100,
+-        'landing_covered': 0.27710843373493976,
+-        'landing_covered_correct': 23,
++        'landing_covered': 0.30120481927710846,
++        'landing_covered_correct': 25,
+         'landing_covered_total': 83,
+-        'getpoint_primary': 0.4588235294117647,
+-        'getpoint_primary_correct': 39,
++        'getpoint_primary': 0.49411764705882355,
++        'getpoint_primary_correct': 42,
+         'getpoint_primary_total': 85,
+-        'getpoint_covered': 0.4875,
+-        'getpoint_covered_correct': 39,
++        'getpoint_covered': 0.525,
++        'getpoint_covered_correct': 42,
+         'getpoint_covered_total': 80,
+-        'contact_f1': 0.5604973696795792,
+-        'contact_precision': 0.46250986582478293,
+-        'contact_recall': 0.7111650485436893,
+-        'contact_matches': 586,
+-        'contact_filtered_total': 1267,
++        'contact_f1': 0.5707340787554691,
++        'contact_precision': 0.47607461476074614,
++        'contact_recall': 0.712378640776699,
++        'contact_matches': 587,
++        'contact_filtered_total': 1233,
+         'contact_gt_total': 824,
+-        'n_raw_contacts': 2322,
+-        'n_filtered_contacts': 1267,
++        'n_raw_contacts': 2210,
++        'n_filtered_contacts': 1233,
+         'hit_height_failures': 0,
+     },
+     'sset21': {
+@@ -362,47 +362,47 @@
+         'missed': 1,
+         'merged_spans': 2,
+         'spurious_spans': 26,
+-        'start_offset_mean': -147.40740740740742,
++        'start_offset_mean': -148.0,
+         'start_offset_median': -97.5,
+         'start_offset_n': 54,
+-        'end_offset_mean': 127.05555555555556,
++        'end_offset_mean': 127.64814814814815,
+         'end_offset_median': 90.5,
+         'end_offset_n': 54,
+-        'ball_round_absdiff_mean': 5.481481481481482,
+-        'ball_round_absdiff_median': 4.0,
++        'ball_round_absdiff_mean': 5.351851851851852,
++        'ball_round_absdiff_median': 3.5,
+         'ball_round_absdiff_n': 54,
+-        'timing_abserr_mean': 2.146282973621103,
++        'timing_abserr_mean': 2.1050119331742243,
+         'timing_abserr_median': 2.0,
+-        'timing_abserr_n': 417,
++        'timing_abserr_n': 419,
+         'ball_round_primary': 0.04,
+         'ball_round_primary_correct': 3,
+         'ball_round_primary_total': 75,
+         'ball_round_covered': 0.05555555555555555,
+         'ball_round_covered_correct': 3,
+         'ball_round_covered_total': 54,
+-        'timing_primary_recall': 0.6289592760180995,
+-        'timing_primary_matched': 417,
++        'timing_primary_recall': 0.6319758672699849,
++        'timing_primary_matched': 419,
+         'timing_primary_total': 663,
+-        'timing_covered_recall': 0.8034682080924855,
+-        'timing_covered_matched': 417,
++        'timing_covered_recall': 0.8073217726396917,
++        'timing_covered_matched': 419,
+         'timing_covered_total': 519,
+-        'player_primary': 0.38666666666666666,
+-        'player_primary_correct': 29,
++        'player_primary': 0.37333333333333335,
++        'player_primary_correct': 28,
+         'player_primary_total': 75,
+-        'player_covered': 0.5370370370370371,
+-        'player_covered_correct': 29,
++        'player_covered': 0.5185185185185185,
++        'player_covered_correct': 28,
+         'player_covered_total': 54,
+-        'server_primary': 0.37333333333333335,
+-        'server_primary_correct': 28,
++        'server_primary': 0.4,
++        'server_primary_correct': 30,
+         'server_primary_total': 75,
+-        'server_covered': 0.5185185185185185,
+-        'server_covered_correct': 28,
++        'server_covered': 0.5555555555555556,
++        'server_covered_correct': 30,
+         'server_covered_total': 54,
+-        'hit_height_primary': 0.2824773413897281,
+-        'hit_height_primary_correct': 187,
++        'hit_height_primary': 0.2854984894259819,
++        'hit_height_primary_correct': 189,
+         'hit_height_primary_total': 662,
+-        'hit_height_covered': 0.361003861003861,
+-        'hit_height_covered_correct': 187,
++        'hit_height_covered': 0.36486486486486486,
++        'hit_height_covered_correct': 189,
+         'hit_height_covered_total': 518,
+         'landing_primary': 0.24324324324324326,
+         'landing_primary_correct': 18,
+@@ -410,20 +410,20 @@
+         'landing_covered': 0.33962264150943394,
+         'landing_covered_correct': 18,
+         'landing_covered_total': 53,
+-        'getpoint_primary': 0.3108108108108108,
+-        'getpoint_primary_correct': 23,
++        'getpoint_primary': 0.33783783783783783,
++        'getpoint_primary_correct': 25,
+         'getpoint_primary_total': 74,
+-        'getpoint_covered': 0.4339622641509434,
+-        'getpoint_covered_correct': 23,
++        'getpoint_covered': 0.4716981132075472,
++        'getpoint_covered_correct': 25,
+         'getpoint_covered_total': 53,
+-        'contact_f1': 0.47225368063420153,
+-        'contact_precision': 0.37805983680870353,
+-        'contact_recall': 0.6289592760180995,
+-        'contact_matches': 417,
+-        'contact_filtered_total': 1103,
++        'contact_f1': 0.4780376497432972,
++        'contact_precision': 0.38440366972477064,
++        'contact_recall': 0.6319758672699849,
++        'contact_matches': 419,
++        'contact_filtered_total': 1090,
+         'contact_gt_total': 663,
+-        'n_raw_contacts': 2370,
+-        'n_filtered_contacts': 1103,
++        'n_raw_contacts': 2246,
++        'n_filtered_contacts': 1090,
+         'hit_height_failures': 0,
+     },
+ }

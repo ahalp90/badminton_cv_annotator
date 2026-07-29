@@ -1,0 +1,380 @@
+WEIGHT-MODE PILOT RETRACK: RESULT
+=================================
+Run and measured 2026-07-22 on bourbaki. Every number was computed
+first-hand here, including the old-track figures, which were recomputed
+rather than copied. An earlier version of this file claimed the invented
+positions were gone. That was wrong, and the correction is the main
+finding below.
+
+
+THE RESULT IN ONE SENTENCE
+--------------------------
+Switching the tracker to its slow, thorough mode did not remove the
+invented shuttle positions. It collapsed them from a 16-frame bobbing
+pattern into a single fixed point that occupies about a third of the
+video.
+
+
+WHAT THE PIECES ARE
+-------------------
+The rest of this document uses these terms. Read this block first.
+
+- pilot: a badminton broadcast used as the test video. 154,393 frames,
+  512x288, 25 fps
+- TrackNet: the model that locates the shuttle in each frame
+- InpaintNet: a second model, run after TrackNet, that invents a
+  position for any frame where TrackNet found nothing. Its inventions
+  are called fills
+- fast mode (nonoverlap): windows tile the video edge to edge, so each
+  frame is handled once. This produced the old track
+- thorough mode (weight): windows advance one frame at a time. Every frame therefore sits inside
+  16 overlapping windows, and the 16 answers are blended. Roughly 8 times the work
+- the bobbing loop: given an entirely empty window, InpaintNet returns
+  the same 16 positions every time. A real shuttle cannot revisit
+  identical pixels on a fixed rhythm, so a stretch repeating on that
+  16-frame cycle is invented
+- zone: one such repeating stretch, at least 32 frames long
+- the constant: a single fixed position, 243 x 71 pixels, that dominates
+  the new track. It is the subject of this report
+- legacy contact frames: the final-hit frame numbers for 38 rallies,
+  detected from the OLD track in earlier work. Contact detection was
+  never re-run on the new track, which matters for how the per-rally
+  numbers can be read
+
+
+WHAT CHANGED
+------------
+                                        old track     new track
+  bobbing zones                               375             0
+  share of video in bobbing zones           28.3%          0.0%
+  frames on the constant                    0.0006%        35.8%
+  frames carrying no position               10.1%         15.6%
+
+The bobbing pattern is genuinely gone. Lowering the minimum length a
+repeating stretch must reach does not bring it back, so it was removed
+rather than blurred past the detector:
+
+  minimum length      32     16      8      4
+  old track          375    524    591    864
+  new track            0      0     61    122
+
+But a single position took its place. It holds 55,267 frames, 35.8% of
+the video. The old track landed on that exact coordinate once.
+
+
+THE CONSTANT IS THE SAME FABRICATION, FLATTENED
+-----------------------------------------------
+This was predicted before it was measured. The project's fabrications investigation reasoned it out. Deep inside a
+gap all 16 overlapping windows are empty, so each emits the fixed cycle.
+The saved value then becomes a blend of that cycle: one constant
+position, no rhythm.
+
+Three lines of evidence support that reading.
+
+Predicted value. The blending weights are a symmetric tent,
+[1,2,...,8,8,...,2,1]/72. Applied to the 16 cycle values recovered from
+the old track, the weighted mean is x=243.39, y=70.94 pixels. Those stored values were already truncated to whole pixels, so each true
+value sits up to a pixel higher. The pipeline truncates only once, at
+the end. The prediction is therefore an interval: x is 243 or 244, y is 70 or
+71. The observed constant is 243 x 71, inside that set. This is a
+four-pixel prediction, not an exact one.
+
+The buffer ramp. While the blending buffer fills, the code averages over
+however many windows have arrived rather than applying the full tent
+(predict.py:312-315). The video's opening frames show exactly that: 81,
+77, 75, 73, 72, 71 pixels in y, wobbling as the divisor changes, then
+locking onto the constant from frame 15 and never leaving. Frame 15 is
+where the code switches to the full blend. This is the strongest evidence
+here, and it is mechanical rather than statistical.
+
+Overlap with proven fabrication. Of the frames proven invented in the old
+track, 81.5% now hold the constant and only 15.4% became honest blanks.
+Read the other way, 64.4% of constant frames sit inside old proven
+zones. And 81.9% belong to constant runs that touch one.
+
+
+WEIGHT MODE TURNED PROOF INTO SUSPICION
+---------------------------------------
+This is the most useful finding here, and it is about detectability rather
+than volume.
+
+A detector was built that discovers the fabricated patterns from each track
+rather than being told their coordinates (rule_recurrence_v3.py). It looks for position sequences that repeat exactly at many unrelated
+moments. That is what a fixed model given no evidence produces, and what
+footage cannot.
+
+Run on both tracks it splits the attractors by whether they move:
+
+                              fast mode    thorough mode
+  attractors that VARY               16                0
+  attractors that are FLAT            0                1
+  frames provable as invented     34.9%             0.0%
+  frames merely suspect            0.0%            35.1%
+
+A varying 16-position motif recurring hundreds of times is proof: footage
+cannot reproduce 16 exact moving positions on many separate occasions. A flat constant is not proof, because a stationary object can hold one
+pixel. There is a second route to the same rows. The detector may lock
+onto a static image feature. That frame is then a real detection, and
+the filler passes the coordinate through untouched (predict.py:301).
+Provenance was discarded, so no rule reading x, y and visibility can
+separate those two cases.
+
+So the fast mode's invented content can be proven and removed. The thorough
+mode's cannot. Same volume, weaker evidence. That is a regression in
+detectability, and it is the concrete form of the warning in the
+fabrications investigation that a constant would be ambiguous with a
+resting shuttle.
+
+Both tracks pass a split-half check: attractors derived from either half of
+the video agree exactly with the other half.
+
+
+THE INVENTED SHARE BARELY MOVED
+-------------------------------
+Two mode-specific rules, packaged in one script (make_fill_sidecar.py),
+give the shares below. They are two rules rather than one calibrated
+instrument, so read this as comparing detected artefact shapes, not proven
+invented shares. The fast mode's loop is caught by the whole-window rule
+the fabrications investigation proposed, 14 or more of 16 y rows matching
+the cycle. The thorough mode's constant is caught by exact equality.
+
+                        fast mode    thorough mode
+  invented                 34.1%            35.8%
+  no detection             10.1%            15.6%
+  blend-contaminated        n/a             10.2%
+  clean                    55.8%            38.4%
+
+The fast-mode figure independently reproduces the investigation's own
+estimate of 34% of frames, which was derived by a different route.
+
+So the invented share did not fall. The earlier 28.3% figure was never
+comparable: it came from a stricter detector that only counted stretches
+of at least 32 frames, and the investigation always described it as a
+floor. Measured the same way on both tracks, invention went from 34.1% to
+35.8%.
+
+Blend-contaminated frames are new to the thorough mode and have no
+counterpart in the fast mode. They sit within 15 frames of an invented
+run, where the 16-frame blend mixes real evidence with the fixed cycle.
+They carry some evidence, so they are flagged separately rather than
+condemned.
+
+
+WHAT IS NOT PROVEN
+------------------
+That all 35.8% is InpaintNet's work cannot be shown from the saved track,
+and the reason is worth stating.
+
+The saved file keeps only frame, visibility, x and y. The mask recording
+which frames were filled is built and discarded one line later
+(predict.py:260-261). So provenance is absent by construction.
+
+That leaves a benign alternative that the array cannot rule out. The
+thorough mode changes TrackNet as well as InpaintNet. Say TrackNet locks onto a static image feature, a logo or a line or a
+compression artefact. That frame is a detection rather than a gap, and
+InpaintNet passes the coordinate straight through (predict.py:301). Every overlapping window
+would carry the same coordinate, so the blend would also be exactly that
+coordinate. The result is indistinguishable in the saved file.
+
+The evidence above makes "all of it is a static feature" untenable. It
+does not establish that every one of the 55,267 frames is a fill. The
+honest position: the constant is dominated by fills, and its exact
+composition needs the fill mask, not more inference from this array.
+
+Two related cautions:
+
+- the 55,267 frames are 591 separate runs, median 42 frames and longest
+  1,032, not one continuous stretch. An earlier draft described it as 37
+  minutes of hovering, which misleads
+- the constant sits at row 71 of 288, the upper middle of the picture.
+  That is mid-air in the main court view. But a broadcast cuts to replays
+  and close-ups, so a fixed image row is not a fixed real height
+
+
+THE PER-RALLY NUMBERS, READ CAREFULLY
+-------------------------------------
+The 38 rallies of interest lost their landing call under a separate code
+change, and the old track put many of their final hits on invented
+frames.
+
+Comparing like with like, using the same tolerance of two frames:
+
+  legacy contact frames within 2 frames of invented content
+    old track (near a bobbing zone)   25 of 38
+    new track (near the constant)     14 of 38
+
+At the exact contact frame it is 8 of 38 old against 9 of 38 new.
+
+An earlier version of this file reported 25 of 38 falling to 0 of 38.
+That was wrong twice over. It compared a strict repeating-pattern test
+against a looser one, and it treated the constant as a real motionless
+shuttle rather than as invented content.
+
+One limit on all of these. The 38 frame numbers were detected from the
+OLD track and reused here. Nobody has re-run contact detection on the new
+track. So the correct reading is "this many legacy contact frames land on the
+new constant". It is not "the thorough mode produces this many invented
+contacts". Answering the second needs a fresh contact-detection pass.
+
+
+A TEST THAT DID NOT WORK
+------------------------
+Checking whether the constant sits off a straight line drawn between the
+real detections either side of each gap looked promising, and it is not
+sound. It is recorded here so nobody rebuilds it.
+
+The measurement itself reproduces: a median 35.2 pixels from that line.
+Three problems sink it:
+
+- it defines "real" as "not the constant", which assumes the answer
+- a flying shuttle follows a curve rather than a line, so distance from
+  a chord proves nothing
+- camera cuts break any single image-space line The quoted maximum was also a
+maximum of per-zone medians rather than of frame deviations.
+
+
+A BUG IN THE COMMISSION'S SCRIPT
+--------------------------------
+The commission brief supplies a script for re-checking the 38 rallies. It omits the requirement that a stretch actually vary. So it accepts any
+stretch that repeats. The zone census does require it. So the script
+counts a motionless position, and blank track, as though they were
+bobbing loops.
+
+On the old track the flaw was invisible, since real loops matched first.
+On the new track it reports 9 hits that are 8 constant spans and 1 blank
+span. Fix the check before reusing it.
+
+
+WHAT THIS MEANS
+---------------
+The thorough mode is not a fix for invented positions. It changes their
+shape from a moving pattern to a fixed point.
+
+Whether that helps depends on what happens next. A single fixed coordinate is easier to detect than a 16-value signature,
+since one equality test finds it. The value is also derivable from the
+checkpoint.
+Against that, the earlier investigation's proposed repair already
+handles the fast mode's loop. The real repair it proposes is the fill
+mask sidecar. That makes both shapes moot, by recording provenance
+directly.
+
+Nothing here argues for changing production mode. It does argue that a
+mode change cannot substitute for the sidecar.
+
+
+THE OTHER TRADE
+---------------
+Frames carrying a position fell from 89.9% to 84.4%, so 8,455 more frames
+now hold nothing.
+
+For the landing logic that direction is welcome, because invented
+positions overwrite a genuine "not visible" with a confident answer.
+Anything downstream expecting a position on roughly 90% of frames now
+gets 84.4%, in fewer but longer blanks. The median blank run goes from 6
+frames to 9, and blanks of 48 frames or more from 74 to 121.
+
+
+HOW THIS WAS CHECKED
+--------------------
+The reading above was red-teamed by an external model (Codex Sol, high
+effort, read-only, single turn) tasked to refute it. It found five
+genuine faults: the exact-pixel over-claim, the unprovable attribution of
+all 35.8%, the confounded straight-line test, the mismatched per-rally
+comparison, and the legacy-contact framing. All five are folded in above.
+It also found the buffer-ramp evidence, which is stronger than anything
+in the original case.
+
+Every number it reported was then re-derived first-hand rather than taken
+on trust (verify_redteam.py, verify_redteam_console.txt). All matched.
+
+
+ONE THING NOT DONE
+------------------
+There is no measurement of the track before fills are added. With
+InpaintNet supplied, the tool writes only the finished track. Getting the
+raw gaps needs a second pass of about 2h40m with the InpaintNet argument
+left empty. That pass would also settle the attribution question above,
+since frames blank without InpaintNet and constant with it are fills by
+construction.
+
+
+RUN DETAILS
+-----------
+wall clock      2h40m36s (start 11:43:22, done 14:23:58 AEST, exit code 0)
+node            bourbaki.une.edu.au, A100-PCIE-40GB, idle at launch
+tmux            stride1, exited by itself at completion
+video           /scratch/comp320a/ahalperi/pilot_288p.mp4, reused not pushed
+                md5 20b7b2cf29ccfd853e542575d8031af3
+TrackNet ckpt   ~/badminton_stroke_classification/runtime/checkpoints/tracknetv3/TrackNet_best.pt
+                md5 6540c256b1237cacdea3d05c16de8353
+InpaintNet ckpt ~/badminton_stroke_classification/runtime/checkpoints/tracknetv3/InpaintNet_best.pt
+                md5 25aecc665050480a9bfb2fe2df275d14
+
+Both checkpoints are byte-identical to the copies under
+src/bst_x/TrackNetV3/ckpts/, so there was no ambiguity about which
+weights the original run used.
+
+The code came from the BRIC-vendored tracknetv3 folder. Its predict.py,
+dataset.py, model.py, inference_utils.py and utils/general.py are
+byte-identical to the src/bst_x/TrackNetV3 copies that produced the old
+track. Old and new therefore differ only by the mode setting. The run
+used predict.py, which accepts --large_video and reads the video as a
+stream. It did not use batch_predict.py. That lacks the flag, and would have
+tried to load all 154,393 frames into memory.
+
+exact invocation:
+  cd ~/stride1_retrack_20260722/tracknetv3
+  ~/.venvs/venv-bst-x/bin/python -u predict.py \
+    --video_file /scratch/comp320a/ahalperi/pilot_288p.mp4 \
+    --tracknet_file ~/badminton_stroke_classification/runtime/checkpoints/tracknetv3/TrackNet_best.pt \
+    --inpaintnet_file ~/badminton_stroke_classification/runtime/checkpoints/tracknetv3/InpaintNet_best.pt \
+    --eval_mode weight --large_video --batch_size 16 \
+    --save_dir ~/stride1_retrack_20260722/save_dir \
+    2>&1 | tee ~/stride1_retrack_20260722/logs/predict.log
+
+The output CSV has columns Frame, Visibility, X, Y, contiguous from 0 to
+154392. Converting it to the stored array format divides X by 512 and Y
+by 288 and keeps Visibility, which is the same recipe that reproduced the
+old track exactly.
+
+
+WHY THE 21-HOUR PREDICTION WAS WRONG
+------------------------------------
+The older notes put whole-video thorough mode at about 21 hours. That
+figure was measured on a full-resolution video, where the tool shrinks
+every frame itself, one frame at a time. That shrinking dominated the
+cost.
+
+The pilot file used here is already 512x288, which is TrackNet's native
+size. So the shrink is a cheap decode. What remains is the extra work of
+the sliding window, about 8 times the fast mode. The fast mode takes 22
+minutes, and 8 times that matches the 2h40m measured.
+
+Corrected in pilot_track_npy/README.md, autonomous_decisions.md section
+7, and archive/stage8_sweep_plan.md.
+
+
+REMOTE PATHS CREATED, ALL ON /home, NONE ON /scratch
+----------------------------------------------------
+~/stride1_retrack_20260722/  (3.0M, kept)
+  run_predict.sh
+  exit_code.txt
+  save_dir/pilot_288p_ball.csv  (2,318,439 bytes)
+  logs/predict.log, logs/tmux_console.log
+  tracknetv3/  (the rsynced code, 296K)
+
+Nothing was removed. The tmux session ended on its own, so no kill was
+needed. The work directory stays, per the standing rule against deleting
+node artefacts.
+
+
+LOCAL FILES (inpaint_fabrications_investigation/stride1_retrack/)
+--------------------------------------
+  summary.txt (this file), launch_state.md
+  save_dir/pilot_288p_ball.csv, pilot_weight.npy (154393 x 3)
+  logs/predict.log, logs/tmux_console.log, exit_code.txt
+  run_predict.sh, run_predict_remote_copy.sh, launch.sh,
+  setup_and_dryrun.sh, watcher.sh, poll.sh, pull.sh
+  analyse.py, diagnose.py, condensed_fabrication.py,
+  contacts_on_constant.py, verify_redteam.py, and a console
+  transcript beside each

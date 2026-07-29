@@ -1,0 +1,22 @@
+
+=== OLD nonoverlap (loop) ===
+  derived K=488 at a 122.0x gap; 16 varying, 0 flat attractors
+  no flag                  80865  0.5238
+  fabricated (proof)       53880  0.3490
+  suspect_flat (keep)          0  0.0000
+  degraded                 19648  0.1273
+  split-half: varying 16 vs 16, shared 16
+              flat    0 vs 0, shared 0
+              halves agree exactly: True
+
+=== NEW weight (constant) ===
+  derived K=418 at a 29.9x gap; 0 varying, 1 flat attractors
+  no flag                  87814  0.5688
+  fabricated (proof)           0  0.0000
+  suspect_flat (keep)      54160  0.3508
+  degraded                 12419  0.0804
+  split-half: varying 0 vs 0, shared 0
+              flat    1 vs 1, shared 1
+              halves agree exactly: True
+
+wrote v3 masks

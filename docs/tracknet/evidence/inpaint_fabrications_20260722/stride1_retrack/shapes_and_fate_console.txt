@@ -1,0 +1,42 @@
+=== Q1a. how many flat attractors are there? ===
+positions held in any run of >=16 frames, by total frames held:
+  x= 243.0px y=  71.0px  frames= 54160  <- THE CONSTANT
+  x=   0.0px y=   0.0px  frames= 22217  <- blank
+  x= 245.0px y= 126.0px  frames=   125
+  x= 245.0px y= 125.0px  frames=    46
+  x= 244.0px y= 126.0px  frames=    40
+
+=== Q1b. residual periodicity inside constant runs ===
+constant runs: 591
+by construction a run holds ONE value, so there is no motion inside it.
+checking the frames BETWEEN/AROUND runs for a repeating transient.
+long runs sampled: entries 329, exits 331
+  distinct entry transients (y px, 6 frames): 322
+    [np.int64(184), np.int64(167), np.int64(153), np.int64(143), np.int64(130), np.int64(103)]  x3
+    [np.int64(248), np.int64(232), np.int64(210), np.int64(187), np.int64(162), np.int64(133)]  x2
+    [np.int64(117), np.int64(114), np.int64(107), np.int64(97), np.int64(88), np.int64(77)]  x2
+  distinct exit transients (y px, 6 frames): 320
+    [np.int64(86), np.int64(91), np.int64(102), np.int64(112), np.int64(116), np.int64(121)]  x5
+    [np.int64(90), np.int64(98), np.int64(111), np.int64(124), np.int64(132), np.int64(135)]  x3
+    [np.int64(91), np.int64(99), np.int64(112), np.int64(125), np.int64(133), np.int64(136)]  x2
+many distinct transients means they are shaped by the surrounding real
+evidence, not a fixed pattern: no second periodic signature to exploit.
+
+=== Q1c. is the OLD 16-frame period detectable anywhere in NEW? ===
+  period  8: matching non-constant comparison indices = 22811 (0.1478)
+  period 16: matching non-constant comparison indices = 20318 (0.1316)
+  period 32: matching non-constant comparison indices = 17314 (0.1122)
+
+=== Q2. where did the old fabricated frames go? ===
+old fabricated frames: 43681
+  -> literally (0,0) blank :   6744 (0.1544)
+  -> the constant          :  35618 (0.8154)
+  -> some other value      :   1319 (0.0302)
+
+are those "other" values smooth, or jumpy?
+  old-zone "other" frames: n=  1316  median step  11.66px  p90  31.01px
+  clearly-real frames: n= 31234  median step   4.47px  p90  27.50px
+a smoothed bridge shows small steps; a jump shows large ones.
+
+and where do the blanked ones sit relative to the constant runs?
+  of 6744 blanked old-fab frames, 0 touch a constant run

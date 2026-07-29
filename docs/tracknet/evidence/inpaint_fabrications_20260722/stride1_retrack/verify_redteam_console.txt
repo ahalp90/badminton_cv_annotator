@@ -1,0 +1,51 @@
+=== A. quantisation interval, not a single pixel ===
+weighted mean of STORED cycle: x=243.3889px  y=70.9444px
+stored values are truncated, so each true value is up to 1px higher.
+  x prediction set: 243 or 244
+  y prediction set: 70 or 71
+observed constant  : x=243px  y=71px
+Sol claimed x in {243,244}, y in {70,71}. Observed (243,71).
+
+=== B. the incomplete-buffer ramp in the first frames ===
+predict.py:312-315 divides by (sample_count+1) while the buffer fills,
+so frames 0..14 should ramp and frame 15 onward should hold the blend.
+  frame  0: x= 240.0px y=  81.0px
+  frame  1: x= 242.0px y=  77.0px
+  frame  2: x= 243.0px y=  75.0px
+  frame  3: x= 243.0px y=  73.0px
+  frame  4: x= 243.0px y=  72.0px
+  frame  5: x= 243.0px y=  71.0px  <- CONSTANT
+  frame  6: x= 243.0px y=  71.0px  <- CONSTANT
+  frame  7: x= 244.0px y=  71.0px
+  frame  8: x= 244.0px y=  71.0px
+  frame  9: x= 244.0px y=  70.0px
+  frame 10: x= 244.0px y=  70.0px
+  frame 11: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 12: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 13: x= 243.0px y=  72.0px
+  frame 14: x= 243.0px y=  73.0px
+  frame 15: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 16: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 17: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 18: x= 243.0px y=  71.0px  <- CONSTANT
+  frame 19: x= 243.0px y=  71.0px  <- CONSTANT
+first frame exactly on the constant: 5
+
+=== C. run structure of the constant ===
+constant frames: 55267 in 591 separate runs
+  median run 42  longest 1032  shortest 1
+  share of constant frames in runs >=32: 0.945
+So it is NOT one continuous 36.8-minute hover. Sol is right.
+
+=== D. overlap of the constant with old proven zones ===
+constant frames inside old proven loop zones: 35618 (0.644)
+constant frames in runs that intersect an old zone: 45257 (0.819)
+
+=== E. does the new constant coordinate occur in the OLD track? ===
+exact (x,y) of the new constant, occurrences in OLD track: 1
+
+=== F. old-track contacts within +/-2 of a proven loop zone ===
+old: 25/38 legacy contacts within +/-2 of a proven loop zone
+new: 14/38 legacy contacts within +/-2 of the constant
+(these are LEGACY contact frames from the old-track detector; contact
+ detection was never re-run on the weight-mode track)

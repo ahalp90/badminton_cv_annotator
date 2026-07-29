@@ -1,0 +1,35 @@
+
+--- zero structure: nonoverlap baseline ---
+frames exactly (0,0): 15629 (0.1012)
+zero runs: 850  longest 701  median 6  >=48-long 74
+
+--- zero structure: weight mode ---
+frames exactly (0,0): 24084 (0.1560)
+zero runs: 663  longest 801  median 9  >=48-long 121
+
+--- relaxed census on weight mode (vary the run floor) ---
+  baseline  floor>=32: varying-periodic zones = 375
+  baseline  floor>=16: varying-periodic zones = 524
+  baseline  floor>= 8: varying-periodic zones = 591
+  baseline  floor>= 4: varying-periodic zones = 864
+  weight    floor>=32: varying-periodic zones = 0
+  weight    floor>=16: varying-periodic zones = 0
+  weight    floor>= 8: varying-periodic zones = 61
+  weight    floor>= 4: varying-periodic zones = 122
+
+--- InpaintNet prior fingerprint (11 distinct y values) ---
+values: [0.2326 0.2361 0.2396 0.2431 0.2465 0.2535 0.2674 0.2778 0.2812 0.2882
+ 0.2917]
+  baseline : frames whose y is one of the fingerprint values = 59818 (0.3874)
+  weight   : frames whose y is one of the fingerprint values = 60421 (0.3913)
+
+--- what the flipped-contact hits actually are: nonoverlap baseline ---
+  flipped rallies: 38
+  varying (true fill loop): 25
+  no periodic span: 13
+
+--- what the flipped-contact hits actually are: weight mode ---
+  flipped rallies: 38
+  constant-nonzero: 8
+  constant-zero: 1
+  no periodic span: 29

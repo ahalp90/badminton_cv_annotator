@@ -1,0 +1,12 @@
+--- pilot_nonoverlap (nonoverlap) ---
+  clean           86140  0.5579
+  invented        52624  0.3408
+  no_detection    15629  0.1012
+  blended             0  0.0000
+--- pilot_weight (weight) ---
+  clean           59243  0.3837
+  invented        55267  0.3580
+  no_detection    24084  0.1560
+  blended         15799  0.1023
+
+wrote sidecars + fill_sidecar_manifest.json to /home/ariel/Documents/COSC594/badminton_stroke_classification/local_scratch/autograder_architecture/records/stride1_retrack

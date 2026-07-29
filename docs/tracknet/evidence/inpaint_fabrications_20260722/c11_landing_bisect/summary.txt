@@ -1,0 +1,61 @@
+LANDING-REGRESSION BISECT: pool vs sticky build_landing_kinematics (pilot fixture)
+
+total rallies traced (resolved striker): 102
+None-landing count  POOL kinematics:   26
+None-landing count  STICKY kinematics: 64
+  (prior-session claim: ~26 pool vs ~64 sticky)
+
+upstream identity: final_contact lists match A vs B: True
+upstream identity: window_end lists match A vs B:    True
+trace soundness: sticky traced landings == run_video landings: True
+trace soundness: pool   traced landings == run_video landings: True
+
+rallies that flipped landing->None going pool->sticky: 38
+  rally ids: [0, 8, 9, 10, 11, 12, 13, 16, 18, 23, 28, 33, 35, 40, 41, 44, 47, 52, 54, 58, 59, 60, 62, 64, 66, 67, 69, 71, 74, 77, 78, 79, 85, 92, 100, 102, 104, 109]
+rallies that flipped None->landing going pool->sticky: 0
+  rally ids: []
+
+MECHANISM CHECK (does the sticky cap fire earlier?):
+  sticky-None rallies where the sticky settle cap actually fired (cap < window_end): 40 of 64
+  pool-None rallies where the pool settle cap actually fired:                       2 of 26
+  mean settle-cap position, pool minus sticky (frames earlier under sticky): 11.01
+  mean held frames in window: pool 14.85 vs sticky 3.74 (mean static frames 5.97)
+
+STICKY-None cause breakdown (all 64):
+  window held < min_descend visible frames (immediate gate fail): 10
+  window cleared the gate but was too short for any descend run:  54
+  descend runs existed but none survived the carry filter:        0
+  (min_descend_samples at pilot 25fps = 3)
+  Both classes 1 and 2 share one root cause: the settle cap fired within a few frames of
+  contact, shrinking the search window before the shuttle could reach apex and fall.
+
+THE 38-RALLY REGRESSION:
+  sticky-None (64) = pool-None (26) + newly-broken (38). None recovered (0 went the other way).
+  The 26 shared-None rallies are None under both kinematics (unrelated to the pool->sticky swap).
+  The 38 flipped rallies ARE the regression this bisect isolates.
+  ALL 38 of 38 flipped rallies have the sticky settle cap firing (cap_sticky < window_end): the regression is 100% cap-driven.
+  Their post-cap visible-sample counts are all 4 or 7 (>= min_descend gate of 3), yet none
+  contain a strictly-descending run: the cap fires 4-7 frames after contact, while the
+  shuttle is still rising, so no fall is ever seen. (counts: [4, 4, 4, 4, 4, 4, 4, 4, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7])
+  The 10 immediate-gate-fail rallies (visible < 3) sit entirely in the shared-None 26,
+  not in the regression set.
+
+KINEMATICS COVERAGE (fraction of shuttle-visible frames with finite carry_ratio):
+  shuttle-visible frames: 138764
+  POOL:   0.4554
+  STICKY: 0.4333
+  drop (pp): 2.21
+  (prior-session claimed ~5 pp; measured 2.21 pp. Coverage is not
+   the driver anyway: the swap mainly moves the VALUE of carry_ratio, not finite-vs-NaN.
+   Pool scans every court-scale detection and picks the nearest player, so carry_ratio is
+   smaller and reads as held far more often (mean held 14.85 vs 3.74), vetoing static frames
+   from the settle cap. Sticky reads only the tracker pick per half, farther on average, so
+   static frames convert to ground-static and the cap fires.)
+
+THREE MOST ILLUSTRATIVE RALLIES (largest cap regression among pool-landing -> sticky-None):
+  rally 102: contact 125217, window_end 125270. Pool holds the shuttle at a wrist for 47 of the window frames so its settle cap never fires (cap 125270), keeping 53 visible samples and landing frame 125263.
+    Sticky holds only 0 frames, so ground-static frames appear and the cap fires at 125221 (4 frames after contact); the window collapses to 4 visible samples with no strictly-descending run of 3, so the landing is None.
+  rally 54: contact 66257, window_end 66309. Pool holds the shuttle at a wrist for 48 of the window frames so its settle cap never fires (cap 66309), keeping 52 visible samples and landing frame 66303.
+    Sticky holds only 12 frames, so ground-static frames appear and the cap fires at 66261 (4 frames after contact); the window collapses to 4 visible samples with no strictly-descending run of 3, so the landing is None.
+  rally 79: contact 98433, window_end 98485. Pool holds the shuttle at a wrist for 49 of the window frames so its settle cap never fires (cap 98485), keeping 52 visible samples and landing frame 98479.
+    Sticky holds only 10 frames, so ground-static frames appear and the cap fires at 98437 (4 frames after contact); the window collapses to 4 visible samples with no strictly-descending run of 3, so the landing is None.
