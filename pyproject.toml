@@ -146,7 +146,7 @@ exclude = [
     "src/bst_x/TrackNetV3/",
     "src/bric/perception/_vendor/",   # All vendored upstream code (currently TrackNetV3)
     "src/courtkeynet/_vendor/",       # Vendored CourtKeyNet (see src/courtkeynet/PROVENANCE.md)
-    "scripts/autoseg_trials/",        # Frozen s27-s29 trial-harness records, committed byte-identical, not restyled
+    "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
 ]
 
 [tool.ruff.lint]
