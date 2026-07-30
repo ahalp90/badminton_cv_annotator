@@ -264,11 +264,9 @@ def test_setup_failure_returns_one_and_writes_only_terminal_run_manifest(
     assert not list(output_root.glob("*/**/manifest.json"))
 
 
-def test_output_path_usage_error_has_argparse_exit_two(tmp_path: Path) -> None:
-    existing = tmp_path / "already_exists"
-    existing.mkdir()
+def test_cli_does_not_accept_an_external_output_path(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as error:
-        runner.main(["--manifest", str(tmp_path / "missing.json"), "--output-root", str(existing)])
+        runner.main(["--manifest", str(tmp_path / "missing.json"), "--output-root", str(tmp_path / "run")])
     assert error.value.code == 2
 
 
@@ -564,6 +562,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     assert (output_root / "manifest.json").is_file()
     payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     assert payload["status"] == "succeeded"
+    assert "--output-root" not in payload["command"]
     assert len(payload["configurations"]) == 8
     assert all(item["status"] == "succeeded" for item in payload["configurations"])
     assert payload["environment"]["packages"]["opencv"] == runner.cv2.__version__

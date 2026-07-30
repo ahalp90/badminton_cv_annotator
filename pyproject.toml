@@ -58,6 +58,11 @@ dependencies = [
 
 [project.optional-dependencies]
 
+annotator-experiments = [
+    "pybetterleaks==0.6.2",
+    "ripgrep==15.1.0",
+]
+
 # BRIC handler runtime deps for inference (R(2+1)D-18 load + YOLO11 player
 # tracking + per-stroke prediction). R(2+1)D-18 ships in torchvision
 # (already a base dep) so no extra ML lib is needed beyond ultralytics.

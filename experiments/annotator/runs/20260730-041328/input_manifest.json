@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "videos": {
+    "sset_01": {
+      "path": "videos_288p/pilot_288p.mp4",
+      "md5": "20b7b2cf29ccfd853e542575d8031af3",
+      "root": "fixtures"
+    },
+    "sset_15": {
+      "path": "videos_288p/vid15_288p.mp4",
+      "md5": "d6ac6392c167796d80d7cba5ebf09818",
+      "root": "fixtures"
+    },
+    "sset_21": {
+      "path": "videos_288p/sset_21_288p.mp4",
+      "md5": "a07863d2acae6353ef158cf3576a1a9d",
+      "root": "fixtures"
+    }
+  },
+  "track_overrides": {
+    "sset_01/tracknet-stride-1": {
+      "path": "track_overrides/sset_01_tracknet_stride1_weight.npy",
+      "md5": "dee5ec729b2f56b63d7e74c1d6123d90",
+      "root": "fixtures"
+    }
+  },
+  "courtkeynet_config": {
+    "path": "src/courtkeynet/_vendor/configs/courtkeynet.yaml",
+    "md5": "96df958fa23acd8a66ef90964c39811d",
+    "root": "repo"
+  },
+  "courtkeynet_weights": {
+    "path": "weights/courtkeynet_finetuned.safetensors",
+    "md5": "94fb21c26a12f0e9aa20df5a443d8bb2",
+    "root": "fixtures"
+  },
+  "producers": {
+    "video:sset_01": "Stage 8 frame-preserving 512x288 downsample; source command unrecorded; bytes pinned here",
+    "video:sset_15": "Stage 8 frame-preserving 512x288 downsample; source command unrecorded; bytes pinned here",
+    "video:sset_21": "Frame-preserving 512x288 downsample; bytes pinned here",
+    "pose:sset_01": "Existing pinned RTMLib whole-video arrays with the 0.30 score floor applied by the producer",
+    "pose:sset_15": "Existing pinned RTMLib whole-video arrays with the 0.30 score floor applied by the producer",
+    "pose:sset_21": "Existing pinned RTMLib whole-video arrays with the 0.30 score floor applied by the producer",
+    "track:sset_01/tracknet-stride-8": "Existing pinned TrackNetV3 nonoverlap result with temporal stride 8",
+    "track:sset_01/tracknet-stride-1": "Retained 2026-07-22 TrackNetV3 weight-mode result with temporal stride 1",
+    "track:sset_15/tracknet-stride-8": "Existing pinned TrackNetV3 nonoverlap result with temporal stride 8",
+    "track:sset_21/tracknet-stride-8": "Existing pinned TrackNetV3 nonoverlap result with temporal stride 8",
+    "courtkeynet_config": "Repository CourtKeyNet configuration at source commit 189c5af58e45d23ae827dde516924194eb238e18",
+    "courtkeynet_weights": "Tracked CourtKeyNet safetensors copied byte-for-byte into the external fixture root"
+  }
+}

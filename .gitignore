@@ -123,6 +123,7 @@ yolo*.pt
 
 # Ultralytics training/predict default output dir
 runs/
+!/experiments/annotator/runs/
 
 # Claude Code local workspace settings
 .claude/

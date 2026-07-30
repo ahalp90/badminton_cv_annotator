@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "run_id": "current_annotator_8config_288p",
+  "status": "succeeded",
+  "source_commit": "189c5af58e45d23ae827dde516924194eb238e18",
+  "command": [
+    "<repo>/src/annotator/e2e_court_annotator.py",
+    "--manifest",
+    "<scratch>/<measurement-staging>/control/input_manifest.json",
+    "--output-root",
+    "<scratch>/<measurement-staging>/output/current_annotator_8config_288p",
+    "--device",
+    "cuda"
+  ],
+  "started_at_utc": "2026-07-30T04:13:28.596924Z",
+  "finished_at_utc": "2026-07-30T04:37:38.890922Z",
+  "elapsed_seconds": 1450.2939832049888,
+  "input_manifest_source": "<scratch>/<measurement-staging>/control/input_manifest.json",
+  "input_manifest": {
+    "bytes": 2360,
+    "md5": "d02e43439352478d8f5a31c333315487",
+    "path": "input_manifest.json"
+  },
+  "run_log": {
+    "bytes": 43,
+    "md5": "eb284663cde0ae50b1a2038e0ccc7d1e",
+    "path": "run.log"
+  },
+  "configuration": {
+    "base_annotator_config": "BaseAnnotatorConfig()",
+    "court_invalid_is_excluded": true,
+    "court_samples": 10,
+    "dead_mask_mode": "replay",
+    "injected_contacts": false,
+    "injected_positions": false,
+    "injected_spans": false,
+    "landing_filter_options": {
+      "carry_thr": 0.75,
+      "carry_win": 7,
+      "settle_min": 5,
+      "settle_thr": 0.004,
+      "settle_win": 7
+    },
+    "landing_horizons_s": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "person_margin": 0.1,
+    "ref_err_px": 3.5,
+    "scene_threshold": 0.5,
+    "serve_start": null
+  },
+  "environment": {
+    "cuda_available": true,
+    "packages": {
+      "numpy": "2.5.1",
+      "opencv": "5.0.0",
+      "pandas": "3.0.3",
+      "safetensors": "0.8.0",
+      "scenedetect": "0.7",
+      "torch": "2.11.0+cu128"
+    },
+    "platform": "Linux-5.14.0-687.30.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.12.13",
+    "requested_device": "cuda",
+    "resolved_device": "cuda"
+  },
+  "cases": [
+    {
+      "case_id": "sset_01/tracknet-stride-8",
+      "failure": null,
+      "raw_cuts": {
+        "bytes": 6849,
+        "md5": "fca3165d238a4720c17d663267186be5",
+        "path": "shared/sset_01/tracknet-stride-8/raw_cuts.csv"
+      },
+      "status": "succeeded"
+    },
+    {
+      "case_id": "sset_01/tracknet-stride-1",
+      "failure": null,
+      "raw_cuts": {
+        "bytes": 6849,
+        "md5": "fca3165d238a4720c17d663267186be5",
+        "path": "shared/sset_01/tracknet-stride-1/raw_cuts.csv"
+      },
+      "status": "succeeded"
+    },
+    {
+      "case_id": "sset_15/tracknet-stride-8",
+      "failure": null,
+      "raw_cuts": {
+        "bytes": 12401,
+        "md5": "dd14a63dd20b670745f9addc4d25dd56",
+        "path": "shared/sset_15/tracknet-stride-8/raw_cuts.csv"
+      },
+      "status": "succeeded"
+    },
+    {
+      "case_id": "sset_21/tracknet-stride-8",
+      "failure": null,
+      "raw_cuts": {
+        "bytes": 7151,
+        "md5": "5ac5193d36b8a5fdb84bd7ebd2bca460",
+        "path": "shared/sset_21/tracknet-stride-8/raw_cuts.csv"
+      },
+      "status": "succeeded"
+    }
+  ],
+  "configurations": [
+    {
+      "configuration_id": "static_shuttleset_homography/sset_01/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 9056,
+        "md5": "0efc76f9cbe65a73cde279570bc760ad",
+        "path": "static_shuttleset_homography/sset_01/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "static_shuttleset_homography/sset_01/tracknet-stride-1",
+      "failure": null,
+      "manifest": {
+        "bytes": 9074,
+        "md5": "97d0c53cefdd9088d0224a1393b8c622",
+        "path": "static_shuttleset_homography/sset_01/tracknet-stride-1/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "static_shuttleset_homography/sset_15/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 9165,
+        "md5": "c82293ac788df16c6264fa2c8f682777",
+        "path": "static_shuttleset_homography/sset_15/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "static_shuttleset_homography/sset_21/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 8733,
+        "md5": "c74a9121b6f3e0e743a54e04b4201463",
+        "path": "static_shuttleset_homography/sset_21/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "detected_ckn_opencv_consensus/sset_01/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 9694,
+        "md5": "04eff39ce4ba032e0b72e06d98b32080",
+        "path": "detected_ckn_opencv_consensus/sset_01/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "detected_ckn_opencv_consensus/sset_01/tracknet-stride-1",
+      "failure": null,
+      "manifest": {
+        "bytes": 9711,
+        "md5": "fb6408c87d3824f5a087daaa3182008e",
+        "path": "detected_ckn_opencv_consensus/sset_01/tracknet-stride-1/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "detected_ckn_opencv_consensus/sset_15/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 9803,
+        "md5": "a766744f025d6d1e18901adb5cfd9d61",
+        "path": "detected_ckn_opencv_consensus/sset_15/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    },
+    {
+      "configuration_id": "detected_ckn_opencv_consensus/sset_21/tracknet-stride-8",
+      "failure": null,
+      "manifest": {
+        "bytes": 9373,
+        "md5": "f07db075bdc93b7b2c6c718f5ae16506",
+        "path": "detected_ckn_opencv_consensus/sset_21/tracknet-stride-8/manifest.json"
+      },
+      "status": "succeeded"
+    }
+  ],
+  "setup_failure": null,
+  "scoring_failure": null,
+  "exit_code": 0
+}

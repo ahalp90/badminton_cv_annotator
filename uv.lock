@@ -88,6 +88,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+annotator-experiments = [
+    { name = "pybetterleaks" },
+    { name = "ripgrep" },
+]
 bric = [
     { name = "lap" },
     { name = "matplotlib" },
@@ -145,11 +149,13 @@ requires-dist = [
     { name = "parse" },
     { name = "pillow" },
     { name = "positional-encodings", marker = "extra == 'bst-x-runtime'" },
+    { name = "pybetterleaks", marker = "extra == 'annotator-experiments'", specifier = "==0.6.2" },
     { name = "pycocotools" },
     { name = "pyrefly", specifier = ">=0.60.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "python-multipart" },
     { name = "pyyaml" },
+    { name = "ripgrep", marker = "extra == 'annotator-experiments'", specifier = "==15.1.0" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-learn", marker = "extra == 'bric-train'" },
     { name = "scikit-learn", marker = "extra == 'bst-x-runtime'" },
@@ -168,7 +174,7 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'bric-runtime'", specifier = ">=8.3" },
     { name = "uvicorn" },
 ]
-provides-extras = ["bric-runtime", "bric-train", "scraper", "bric", "bst-x-runtime", "dev"]
+provides-extras = ["annotator-experiments", "bric-runtime", "bric-train", "scraper", "bric", "bst-x-runtime", "dev"]
 
 [[package]]
 name = "beartype"
@@ -1749,6 +1755,33 @@ wheels = [
 ]
 
 [[package]]
+name = "pybetterleaks"
+version = "0.6.2"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/66/106b9db7dda7e45298068023798e8d33e8a0f9ddc31b9da9b748221afa29/pybetterleaks-0.6.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8d59dbc649cbefa9678b18889f86faf036c2651969e3d72af77fa8746a7f3ddb", size = 6909472, upload-time = "2026-07-13T18:45:36.382Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/21/25cb99a4111eddcb45e053eb99f78b48fce3e632de91f6a2d205dabe5b53/pybetterleaks-0.6.2-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:f17f8122238ba37755787825d1492493dd80e11496ebe699629542edbb4179e8", size = 7395870, upload-time = "2026-07-13T18:45:38.026Z" },
+    { url = "https://files.pythonhosted.org/packages/28/48/6b3eea4c22a127b833128297dfe2f24769a84cd91a0fe4e5d1740b695cdf/pybetterleaks-0.6.2-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:dc5325903a97376900492e0e71327dc7f28ab3486ae1d7cc53da6982db970f6b", size = 12484458, upload-time = "2026-07-13T18:45:40.189Z" },
+    { url = "https://files.pythonhosted.org/packages/41/58/722d806540b6ec7372461f32150b4783c76ffac24333d20ada10d54233d8/pybetterleaks-0.6.2-cp311-cp311-win_amd64.whl", hash = "sha256:008d984fa527b2e6116fd7ed9b504108a02d601144d0ce077170bae88bae2508", size = 12360411, upload-time = "2026-07-13T18:45:42.877Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/8b/f68de9e2f776aae73613b83b8171bbc8400d2a16829cc66aecc702b7b12c/pybetterleaks-0.6.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:78ddeb96cc0e9e1059992ce8212b3c4af56e5cf687a19b816efaee2a826acfb7", size = 6909475, upload-time = "2026-07-13T18:45:45.003Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/3a/ec249cd7df56c1ec9cc7ef7ad6de7e8874a057993dd32ad99d40aa23be35/pybetterleaks-0.6.2-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:827caa6d94beb76c0fead9d1c9273bdf1bd10421f7c53018b7ccde130b5f573b", size = 7395873, upload-time = "2026-07-13T18:45:46.601Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/7e/01dec555a9941f6a8b9b062226a3371f3b8024d17898707e1b7a4917ce2b/pybetterleaks-0.6.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:cb29b9fb646751865ccc630520db1df87176fd5eb45bd13d0d1260664766e70f", size = 12484457, upload-time = "2026-07-13T18:45:48.392Z" },
+    { url = "https://files.pythonhosted.org/packages/80/cd/e5a59a9eb678d7b6cf6c03418869928273fa53a98c1219404df577787bfc/pybetterleaks-0.6.2-cp312-cp312-win_amd64.whl", hash = "sha256:821ed35d9f873ae001e188a5342e7ec2140dbf00a02a2a0cc7e82b8ea1b64e66", size = 12360411, upload-time = "2026-07-13T18:45:50.623Z" },
+    { url = "https://files.pythonhosted.org/packages/49/17/2a0fa5399ccbd089f1bcf9426d5e1d32b37807b8963bf1f5aa50b271b95d/pybetterleaks-0.6.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:04957a962ed0f1eabc0bd6e160d1a0346bf76450f1f9f58831eaa30be5f7641c", size = 6909472, upload-time = "2026-07-13T18:45:53.224Z" },
+    { url = "https://files.pythonhosted.org/packages/32/da/881f2aaad3c8279b3ffe289b3e89d6a7ea4d45ff94b11174fd1d45a00827/pybetterleaks-0.6.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:0b60b3b9732402f1811daa9dc5cf3ff8c9177aa163a3e4eb9c6cc4ebb5b14f54", size = 7395872, upload-time = "2026-07-13T18:45:55.537Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/d1/81da013a3de9c8d962203fba51c591f154989973a50f1c1ebc4355ba66a6/pybetterleaks-0.6.2-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:c8cbb8045e0c6b7e95b4a62679d9478ce82671fe53c8341c76830a154bfc096f", size = 12484458, upload-time = "2026-07-13T18:45:57.287Z" },
+    { url = "https://files.pythonhosted.org/packages/30/d2/4ea8cd391e6059f2bf85a67dac051843d39828032da9283ad53956e7c452/pybetterleaks-0.6.2-cp313-cp313-win_amd64.whl", hash = "sha256:406ca96caad01e8e995b936f066b278baf787368f2c7b62c46aa06ccf36c9d0f", size = 12360412, upload-time = "2026-07-13T18:45:59.28Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/1f/35772b6e5d57b56842ed6cbe2c9b090d53f6e501bfd604bc9350c7b93cef/pybetterleaks-0.6.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:eb82a0acad84b6a842c4e67d34cef2e5ba2e48931fc1764fc8381871ac6fd62b", size = 6909473, upload-time = "2026-07-13T18:46:01.667Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/99/2422c372c4f872996ac6a55c1f356b5c5fbe795c91894233e25a98626f2e/pybetterleaks-0.6.2-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:da17134929209102eb5a9c0bee235f79cacd88dad3f04dd66bc14a5e6e8a4708", size = 7395871, upload-time = "2026-07-13T18:46:03.27Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/da/9b404098e4906bbbca7fdeb33cb00b21b0340931602a6e914e013b015d16/pybetterleaks-0.6.2-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:ca9a48885655bddecab176bae860c5c08d54eacc7f29271a3fe80d68140fb2c1", size = 12484459, upload-time = "2026-07-13T18:46:08.217Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/39/9b5e6739dfaed460eee24bba16c09eb05b49db703a9828cb9ae7bf4f660c/pybetterleaks-0.6.2-cp314-cp314-win_amd64.whl", hash = "sha256:b0fa51b6a6dc37bbcad37f2e5f31921d6f92ffbb077772fb161826cd5770e379", size = 12589801, upload-time = "2026-07-13T18:46:11.794Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/40/e9a7c78a40dff697bcc03e652565af4e3e96706736d3961e870277edddfa/pybetterleaks-0.6.2-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:02215d3a937369fe27f1c5e5b2722a8c98846399557b99a81dfb1ca2e2d11c22", size = 6909474, upload-time = "2026-07-13T18:46:13.995Z" },
+    { url = "https://files.pythonhosted.org/packages/56/2f/bb583bd4ea236ff0f8e53546e0e53b60933e85136f116404e58cd7e91075/pybetterleaks-0.6.2-cp315-cp315-macosx_11_0_x86_64.whl", hash = "sha256:f7012f24c9bad5a69ec2582a7161178e8d25d55b758b3be2a92908d48b06db3b", size = 7395869, upload-time = "2026-07-13T18:46:15.472Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/09/96308eb420095a307fc3698bae1602f83b73dd877233893410e7f0b00beb/pybetterleaks-0.6.2-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:984ac3e2ec9f8a013bff050e33003da887444b9b8f06803681ef7aad4c7caec3", size = 12484458, upload-time = "2026-07-13T18:46:17.361Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/02/54ccc2ce4e9d16c39188487d68c6d72d607eb529a3b729937935bc893451/pybetterleaks-0.6.2-cp315-cp315-win_amd64.whl", hash = "sha256:b9836e5873ecd9b8fb911f99b1f180f7c20d02cce5de13e934c0c5bcb9d61f15", size = 12589801, upload-time = "2026-07-13T18:46:19.354Z" },
+]
+
+[[package]]
 name = "pycocotools"
 version = "2.0.11"
 source = { registry = "https://pypi.org/simple" }
@@ -2172,6 +2205,16 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
+]
+
+[[package]]
+name = "ripgrep"
+version = "15.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/18/0740869cfcee3b9671d601aec90541cc68e342794cecf02c6eec7ee12f19/ripgrep-15.1.0.tar.gz", hash = "sha256:3b4793859cd25c57ffd894b59ba9155636616b4084a1c12d0b9e819c16931ebf", size = 488918, upload-time = "2026-05-24T04:02:30.224Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/42/994bb17dc45399f60bc850c9ea295b9638eb7abee9ec26cc386a2ebc264d/ripgrep-15.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:3f99a068cea48d10ffc6b3c43bef37b684e1ba449d4ae57b0f96c4521f8d923f", size = 2072593, upload-time = "2026-05-24T04:02:26.66Z" },
+    { url = "https://files.pythonhosted.org/packages/29/5c/951baee5033a25e9b79df51b378276fd0b3a88c7aba9665d50178e9738c1/ripgrep-15.1.0-py3-none-manylinux_2_39_x86_64.whl", hash = "sha256:9b9bbd02a7f2c3e88882f9a9df416da8e272957071ba8ab59a7a7f06813643cf", size = 7817112, upload-time = "2026-05-24T04:02:28.625Z" },
 ]
 
 [[package]]

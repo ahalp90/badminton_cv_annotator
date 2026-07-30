@@ -46,6 +46,7 @@ from annotator.calibration.gt_scoring import (
 )
 from annotator.calibration.scoring import GtRally, strict_contact_rows, wide_edge_contact_rows
 from annotator.config import BaseAnnotatorConfig
+from annotator.experiment_records import clean_run, human_bytes, utc_run_directory, write_summary_and_report
 from annotator.court_evidence import (
     CourtConsensusError,
     CourtEvidenceResult,
@@ -666,11 +667,8 @@ def _require_clean_source_tree() -> None:
 
 def validate_output_root(output_root: Path) -> Path:
     resolved = output_root.expanduser().resolve()
-    repo = REPO_ROOT.resolve()
     if resolved.exists():
         raise ValueError("output root already exists")
-    if resolved == repo or repo in resolved.parents:
-        raise ValueError("output root must be outside the repository")
     return resolved
 
 
@@ -1266,8 +1264,6 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
             "annotator.e2e_court_annotator",
             "--manifest",
             str(manifest_path),
-            "--output-root",
-            str(output_root),
             "--device",
             device,
         )),
@@ -1299,18 +1295,43 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
     return exit_code
 
 
+def _run_cli_measurement(manifest_path: Path, device: str, command: Sequence[str]) -> int:
+    """Run the real CLI into its one timestamped in-repository directory."""
+    output_root = utc_run_directory()
+    if output_root.exists():
+        raise ValueError(f"annotator run directory already exists: {output_root}")
+    print(f"Annotator run directory: {output_root}")
+    exit_code = run_annotator_measurement(manifest_path, output_root, device, command=command)
+    if exit_code != 0:
+        return exit_code
+    try:
+        _summary_path, _report_path, ignored = write_summary_and_report(output_root)
+        archive = clean_run(output_root)
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
+        print(f"measurement completed in {output_root}, but reporting or cleaning failed: {error}", file=sys.stderr)
+        return 1
+    print(f"Annotator run directory: {output_root}")
+    if archive is not None:
+        print(f"Pre-clean backup: {archive}")
+    print(
+        f"Ignored masks and arrays: {ignored['file_count']} NPY files ({human_bytes(ignored['total_bytes'])}). "
+        "Git will not preserve them; copy or archive them if wanted."
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the fixed eight-configuration court annotator measurement")
     parser.add_argument("--manifest", type=Path, required=True, metavar="INPUT_MANIFEST")
-    parser.add_argument("--output-root", type=Path, required=True, metavar="NEW_EXTERNAL_DIRECTORY")
     parser.add_argument("--device", default="cpu", metavar="DEVICE")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    command = sys.argv if argv is None else (sys.argv[0], *argv)
     try:
-        return run_annotator_measurement(args.manifest, args.output_root, args.device, command=sys.argv)
+        return _run_cli_measurement(args.manifest, args.device, command)
     except (OSError, ValueError) as error:
         build_parser().error(str(error))
 
