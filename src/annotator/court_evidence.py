@@ -15,10 +15,11 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from courtkeynet.court_corners import ConsensusRepair, CourtQuad, FallbackDiagnostics
+from courtkeynet.court_corners import ConsensusRepair, CourtQuad, FallbackDiagnostics, pick_scene_corners
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
 
 from .composition_mask import detect_cuts
+from .config import COMPOSITION_CONTENT_THRESHOLD
 from .fps_constants import scale_for_fps
 from .point_winner import (
     COURT_LENGTH_M,
@@ -172,7 +173,7 @@ def build_raw_cut_intervals(video_path: Path, n_frames: int, fps: float) -> list
     cut_frames = detect_cuts(
         video_path,
         expected_frames=n_frames,
-        threshold=27.0,
+        threshold=COMPOSITION_CONTENT_THRESHOLD,
         min_scene_len=scale_for_fps(fps).composition_min_scene_len,
     )
     cut_frames = np.asarray(cut_frames, dtype=int)
@@ -199,55 +200,40 @@ def scene_sample_indices(start_frame: int, end_frame: int) -> list[int]:
     ]
 
 
-def _decode_sampled_frames(video_path: Path, frame_indices: Sequence[int]) -> dict[int, np.ndarray]:
-    """Decode requested frames in ascending order from a fixed video."""
-    ordered_indices = list(frame_indices)
-    if ordered_indices != sorted(ordered_indices) or len(set(ordered_indices)) != len(ordered_indices):
-        raise ValueError('sampled frame indices must be unique and ascending')
-    capture = cv2.VideoCapture(str(video_path))
-    if not capture.isOpened():
-        raise ValueError(f'could not open video {video_path}')
-    frames: dict[int, np.ndarray] = {}
-    wanted = iter(ordered_indices)
-    next_index = next(wanted, None)
-    frame_index = 0
-    try:
-        while next_index is not None:
-            ok, frame = capture.read()
-            if not ok:
-                raise ValueError(f'video ended before sampled frame {next_index}')
-            if frame_index == next_index:
-                frames[next_index] = frame
-                next_index = next(wanted, None)
-            frame_index += 1
-    finally:
-        capture.release()
-    return frames
-
-
 def detect_scene_evidence(
     video_path: Path,
     raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
     detector: object,
 ) -> list[SceneEvidence]:
     """Sample each raw scene and preserve CourtKeyNet provenance."""
-    from courtkeynet.court_corners import pick_scene_corners
-
     intervals = _normalise_intervals(raw_cuts)
     samples_by_scene = [scene_sample_indices(start, end) for start, end in intervals]
-    all_samples = [frame for samples in samples_by_scene for frame in samples]
-    frames = _decode_sampled_frames(video_path, all_samples)
     corner_floor = float(getattr(detector, 'corner_min_peak_conf'))
     evidence: list[SceneEvidence] = []
-    for (start_frame, end_frame), sample_indices in zip(intervals, samples_by_scene):
-        sampled_frames = [frames[index] for index in sample_indices]
-        detections = detector.detect_batch(sampled_frames)
-        quad = pick_scene_corners(
-            sampled_frames,
-            detections,
-            corner_min_peak_conf=corner_floor,
-        )
-        evidence.append(SceneEvidence(start_frame, end_frame, tuple(sample_indices), quad))
+    capture = cv2.VideoCapture(str(video_path))
+    frame_index = 0
+    try:
+        if not capture.isOpened():
+            raise ValueError(f'could not open video {video_path}')
+        for (start_frame, end_frame), sample_indices in zip(intervals, samples_by_scene):
+            sampled_frames: list[np.ndarray] = []
+            for sample_index in sample_indices:
+                while frame_index <= sample_index:
+                    ok, frame = capture.read()
+                    if not ok:
+                        raise ValueError(f'video ended before sampled frame {sample_index}')
+                    if frame_index == sample_index:
+                        sampled_frames.append(frame)
+                    frame_index += 1
+            detections = detector.detect_batch(sampled_frames)
+            quad = pick_scene_corners(
+                sampled_frames,
+                detections,
+                corner_min_peak_conf=corner_floor,
+            )
+            evidence.append(SceneEvidence(start_frame, end_frame, tuple(sample_indices), quad))
+    finally:
+        capture.release()
     return evidence
 
 

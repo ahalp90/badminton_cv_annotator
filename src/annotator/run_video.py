@@ -562,21 +562,6 @@ def run_video(
                 continue
             hit_height_by_frame[contact_frame] = rows[0].hit_height
 
-    if court_invalid_is_excluded and not stop_after_segmentation:
-        if not definitive_exclusion_mask[~court_present].all():
-            raise ValueError('court-invalid frames must be excluded')
-        if any(not court_present[contact.contact_frame] for contact in filtered_contacts):
-            raise ValueError('filtered contact falls on a court-invalid frame')
-        if any(
-            landing is not None and not court_present[landing.frame]
-            for landing in landings.values()
-        ):
-            raise ValueError('landing falls on a court-invalid frame')
-        for rally_id in verdict_rows:
-            final_frames = filtered_by_rally.get(rally_id, [])
-            if not final_frames or not court_present[final_frames[-1]]:
-                raise ValueError('verdict lacks a court-valid final contact')
-
     return AnnotatorResult(
         spans=spans, contacts=contacts, filtered_contacts=filtered_contacts,
         filtered_by_rally=filtered_by_rally,

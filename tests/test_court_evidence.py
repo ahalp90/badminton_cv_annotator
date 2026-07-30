@@ -7,6 +7,7 @@ import pytest
 
 import annotator.court_evidence as evidence
 from annotator.calibration.fixtures import FIXTURES
+from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.point_winner import corner_error_band_from_corners, project_pixels_to_court
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
 
@@ -60,7 +61,11 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
     assert intervals == [(0, 13), (13, 28), (28, 40)]
     assert calls == [(
         'video.mp4',
-        {'expected_frames': 40, 'threshold': 27.0, 'min_scene_len': minimum},
+        {
+            'expected_frames': 40,
+            'threshold': COMPOSITION_CONTENT_THRESHOLD,
+            'min_scene_len': minimum,
+        },
     )]
 
 
@@ -70,6 +75,69 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
 )
 def test_centred_bin_samples(start, end, expected) -> None:
     assert evidence.scene_sample_indices(start, end) == expected
+
+
+def test_detect_scene_evidence_decodes_once_in_scene_order(monkeypatch) -> None:
+    class FakeCapture:
+        def __init__(self) -> None:
+            self.read_indices = []
+            self.released = False
+            self.next_frame = 0
+
+        def isOpened(self) -> bool:
+            return True
+
+        def read(self):
+            frame_index = self.next_frame
+            self.next_frame += 1
+            self.read_indices.append(frame_index)
+            return True, np.full((1, 1, 3), frame_index, dtype=np.uint8)
+
+        def release(self) -> None:
+            self.released = True
+
+    class FakeDetector:
+        corner_min_peak_conf = 0.75
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def detect_batch(self, frames):
+            frame_indices = [int(frame[0, 0, 0]) for frame in frames]
+            self.calls.append(frame_indices)
+            return [f'detection-{len(self.calls)}']
+
+    capture = FakeCapture()
+    detector = FakeDetector()
+    model = _quad(np.array([[0, 0], [512, 0], [512, 288], [0, 288]]), 'model')
+    fallback = _quad(np.array([[1, 2], [511, 1], [510, 287], [0, 286]]), 'fallback')
+    picked = [model, fallback, None]
+    pick_calls = []
+
+    def fake_pick(frames, detections, *, corner_min_peak_conf):
+        pick_calls.append((
+            [int(frame[0, 0, 0]) for frame in frames], detections, corner_min_peak_conf,
+        ))
+        return picked[len(pick_calls) - 1]
+
+    monkeypatch.setattr(evidence.cv2, 'VideoCapture', lambda _path: capture)
+    monkeypatch.setattr(evidence, 'pick_scene_corners', fake_pick)
+
+    result = evidence.detect_scene_evidence(
+        'video.mp4', [(0, 3), (3, 8), (8, 10)], detector,
+    )
+
+    assert capture.read_indices == list(range(10))
+    assert detector.calls == [[0, 1, 2], [3, 4, 5, 6, 7], [8, 9]]
+    assert [call[0] for call in pick_calls] == detector.calls
+    assert [call[1] for call in pick_calls] == [
+        ['detection-1'], ['detection-2'], ['detection-3'],
+    ]
+    assert result[0].quad is model
+    assert result[1].quad is fallback
+    assert result[2].quad is None
+    assert [scene.sampled_frame_indices for scene in result] == [(0, 1, 2), (3, 4, 5, 6, 7), (8, 9)]
+    assert capture.released
 
 
 def test_court_quad_provenance_is_preserved() -> None:
