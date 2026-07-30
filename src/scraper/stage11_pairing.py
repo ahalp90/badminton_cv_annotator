@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 
 from annotator.fps_constants import scale_for_fps
-from annotator.replay_mask import believe_raw_mask
+from annotator.replay_mask import filter_short_exclusion_runs
 from .config import (
     CHUNKS_DIR,
     MASKS_DIR,
@@ -95,19 +95,25 @@ def _chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) ->
 
 
 def _believed_replay_in_rally_interior(
-    believed_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,
+    duration_filtered_replay_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,
 ) -> bool:
-    """Return whether believed replay lies in a rally's interior after boundary grace.
+    """Return whether duration-filtered replay lies in a rally's interior after boundary grace.
 
     A rally's asserted start and end get ``grace`` frames for measurement error.
     Only believed replay deeper than that grace from either asserted boundary
     disqualifies the rally. An empty interior never disqualifies it.
     """
-    if start_frame < 0 or end_frame < start_frame or end_frame > len(believed_mask):
+    if (start_frame < 0 or end_frame < start_frame
+            or end_frame > len(duration_filtered_replay_mask)):
         raise ValueError(
-            f'rally span [{start_frame}, {end_frame}) is outside replay mask of length {len(believed_mask)}'
+            f'rally span [{start_frame}, {end_frame}) is outside replay mask '
+            f'of length {len(duration_filtered_replay_mask)}'
         )
-    return bool(believed_mask[start_frame + grace : max(start_frame + grace, end_frame - grace)].any())
+    return bool(
+        duration_filtered_replay_mask[
+            start_frame + grace : max(start_frame + grace, end_frame - grace)
+        ].any()
+    )
 
 
 def pair_video(
@@ -142,7 +148,10 @@ def pair_video(
     claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
     minimum_run = scale_for_fps(fps).replay_mask_min_frames
-    believed_mask = None if replay_mask is None else believe_raw_mask(replay_mask, minimum_run)
+    duration_filtered_replay_mask = (
+        None if replay_mask is None
+        else filter_short_exclusion_runs(replay_mask, minimum_run)
+    )
 
     for rally_id, start_frame, end_frame in sorted(rally_spans):
         row = {
@@ -150,8 +159,11 @@ def pair_video(
             'rally_start': start_frame, 'rally_end': end_frame,
             'chunk_id': '', 'commentary_start': '', 'commentary_end': '',
         }
-        rally_masked = believed_mask is not None and _believed_replay_in_rally_interior(
-            believed_mask, start_frame, end_frame, minimum_run,
+        rally_masked = (
+            duration_filtered_replay_mask is not None
+            and _believed_replay_in_rally_interior(
+                duration_filtered_replay_mask, start_frame, end_frame, minimum_run,
+            )
         )
         if rally_masked:
             rows.append(row)  # kept, held out of pairing
@@ -168,7 +180,8 @@ def pair_video(
                 continue
             if start_s > window_hi:
                 break  # sorted ascending: nothing later can land in window
-            if believed_mask is not None and _chunk_start_on_mask(start_s, fps, believed_mask):
+            if (duration_filtered_replay_mask is not None
+                    and _chunk_start_on_mask(start_s, fps, duration_filtered_replay_mask)):
                 continue  # chunk start on a replay frame is unpairable
             claimed.add(chunk_id)
             row['chunk_id'] = chunk_id

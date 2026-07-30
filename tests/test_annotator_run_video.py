@@ -54,7 +54,7 @@ def test_run_video_no_play_returns_empty_result():
         homo_df=homo_df,
         gate_court_info={str(video_id): court_info},
         gate_resolution_table=gate_resolution_table,
-        dead_mask=dead,
+        raw_exclusion_mask=dead,
         **_default_scene_inputs(len(track)),
     )
 
@@ -139,7 +139,8 @@ def test_run_video_court_optional_stop_early_preserves_positions_and_raw_contact
     )
 
     result = run_video(
-        track, fps=25.0, positions=positions, dead_mask=np.zeros(len(track), dtype=bool),
+        track, fps=25.0, positions=positions,
+        raw_exclusion_mask=np.zeros(len(track), dtype=bool),
         court_optional=True, stop_after_segmentation=True,
     )
 
@@ -172,7 +173,7 @@ def test_run_video_court_optional_requires_stop_early():
                                    'gate_court_info', 'gate_resolution_table'])
 def test_run_video_normal_mode_requires_sticky_inputs(field):
     inputs = _synthetic_inputs()
-    del inputs['dead_mask']
+    del inputs['raw_exclusion_mask']
     inputs[field] = None
     with pytest.raises(ValueError, match=rf'normal mode requires .*\b{field}\b'):
         run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), stop_after_segmentation=True)
@@ -181,7 +182,7 @@ def test_run_video_normal_mode_requires_sticky_inputs(field):
 @pytest.mark.parametrize('field', ['landing_options', 'net_band', 'court_info', 'homo_df'])
 def test_run_video_full_chain_requires_downstream_inputs(field):
     inputs = _synthetic_inputs()
-    del inputs['dead_mask']
+    del inputs['raw_exclusion_mask']
     inputs[field] = None
     with pytest.raises(ValueError, match=rf'full-chain mode requires .*\b{field}\b'):
         run_video(**inputs, **_default_scene_inputs(len(inputs['track'])))
@@ -230,7 +231,7 @@ def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
 def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(monkeypatch):
     inputs = _synthetic_inputs()
     original_track = inputs['track'].copy()
-    del inputs['dead_mask']
+    del inputs['raw_exclusion_mask']
     real_build_sticky = stage8_seg.build_sticky_result
     real_build_options = run_video_module.build_serve_options
     sticky_tracks = []
@@ -271,7 +272,7 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
     assert len(option_stickies) == 1
     assert len(segment_tracks) == 1
     np.testing.assert_array_equal(segment_tracks[0][0], original_track)
-    assert not segment_tracks[0][1][0]  # the one-frame raw flag is cleared by believe_raw_mask
+    assert not segment_tracks[0][1][0]  # the one-frame raw flag is cleared by duration filtering
 
 
 def test_run_video_rejects_serve_start_with_injected_spans() -> None:
@@ -298,7 +299,7 @@ def test_run_video_injected_contacts_are_unmeasured_and_scored():
 
 def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     inputs = _synthetic_inputs()
-    del inputs['dead_mask']
+    del inputs['raw_exclusion_mask']
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
         lambda *args, **kwargs: Half.TOP,
@@ -363,9 +364,9 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
 
 def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeypatch):
     inputs = _synthetic_inputs()
-    dead_mask = np.zeros(len(inputs['track']), dtype=bool)
-    dead_mask[:23] = True  # contacts 12, 14, and 16 are all past belief onset at 25 fps
-    inputs['dead_mask'] = dead_mask
+    raw_exclusion_mask = np.zeros(len(inputs['track']), dtype=bool)
+    raw_exclusion_mask[:23] = True  # contacts 12, 14, and 16 are all past the filter threshold at 25 fps
+    inputs['raw_exclusion_mask'] = raw_exclusion_mask
     rows = []
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
@@ -475,9 +476,9 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     )
 
     def fake_pick(_final_contact, _next_start, _track, _dead, _kin, _opts, _striker, _net_band,
-                  _resolution, _court_info, _constants, _fps, *, event_non_evidence_mask,
+                  _resolution, _court_info, _constants, _fps, *, shuttle_hallucination_mask,
                   rejected_intervals):
-        assert event_non_evidence_mask[40]
+        assert shuttle_hallucination_mask[40]
         rejected_intervals.append((39, 41))
         return None
 
@@ -544,9 +545,9 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
 
 def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkeypatch):
     inputs = _synthetic_inputs()
-    dead_mask = np.zeros(len(inputs['track']), dtype=bool)
-    dead_mask[15:28] = True  # belief starts at frame 27 at 25 fps
-    inputs['dead_mask'] = dead_mask
+    raw_exclusion_mask = np.zeros(len(inputs['track']), dtype=bool)
+    raw_exclusion_mask[15:28] = True  # filtering starts at frame 27 at 25 fps
+    inputs['raw_exclusion_mask'] = raw_exclusion_mask
     inputs['track'][14:, 2] = 1.0
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
@@ -635,7 +636,7 @@ def _synthetic_inputs():
         'gate_resolution_table': pd.DataFrame(
             {'width': [1920.0], 'height': [1080.0]}, index=[str(video_id)],
         ),
-        'dead_mask': np.zeros(n_frames, dtype=bool),
+        'raw_exclusion_mask': np.zeros(n_frames, dtype=bool),
     }
 
 
@@ -667,12 +668,12 @@ def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
 
 
 @pytest.mark.parametrize('contacts_mode', ['injected', 'natural'])
-@pytest.mark.parametrize('mask_source', ['inpaint_codes', 'event_non_evidence_mask'])
+@pytest.mark.parametrize('mask_source', ['inpaint_codes', 'shuttle_hallucination_mask'])
 def test_run_video_threads_event_mask_to_dead_mask_builder(
     monkeypatch, contacts_mode, mask_source,
 ) -> None:
     inputs = _synthetic_inputs()
-    del inputs['dead_mask']
+    del inputs['raw_exclusion_mask']
     n_frames = len(inputs['track'])
     if mask_source == 'inpaint_codes':
         codes = np.zeros(n_frames, dtype=np.uint8)
@@ -682,12 +683,12 @@ def test_run_video_threads_event_mask_to_dead_mask_builder(
     else:
         expected_mask = np.zeros(n_frames, dtype=bool)
         expected_mask[[40, 80]] = True
-        inputs['event_non_evidence_mask'] = expected_mask
+        inputs['shuttle_hallucination_mask'] = expected_mask
 
     received = []
 
     def fake_dead_mask(*_args, **kwargs):
-        received.append(kwargs['non_evidence'].copy())
+        received.append(kwargs['shuttle_hallucination_mask'].copy())
         return np.zeros(n_frames, dtype=bool)
 
     monkeypatch.setattr(run_video_module, 'build_dead_mask', fake_dead_mask)

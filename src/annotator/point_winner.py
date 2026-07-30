@@ -207,7 +207,7 @@ def next_server_half(striker_halves: list[Half | None], n_strokes: list[int]) ->
 # ---------------------------------------------------------------------------
 def _gap_after_top_exit(
     final_contact: int, run_start: int, track: np.ndarray,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
 ) -> bool:
     """Did the last visible sample before an invisible run sit at the frame's TOP edge?
 
@@ -218,14 +218,14 @@ def _gap_after_top_exit(
     """
     last_vis = final_contact + run_start
     visible = track[last_vis, 2] == 1
-    if event_non_evidence_mask is not None:
-        visible = visible and not event_non_evidence_mask[last_vis]
+    if shuttle_hallucination_mask is not None:
+        visible = visible and not shuttle_hallucination_mask[last_vis]
     return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
 def window_end(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    sustained_loss_frames: int, event_non_evidence_mask: np.ndarray | None = None,
+    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
 ) -> int:
     """Earliest of the next rally's GT start, a sustained track loss, or replay-mask onset.
 
@@ -238,21 +238,21 @@ def window_end(
     window-fix behaviour (the harness's ``--window-fix``); there is no toggle here, it always
     applies.
     """
-    if event_non_evidence_mask is not None and len(event_non_evidence_mask) != len(track):
-        raise ValueError('event_non_evidence_mask length must match track length')
+    if shuttle_hallucination_mask is not None and len(shuttle_hallucination_mask) != len(track):
+        raise ValueError('shuttle_hallucination_mask length must match track length')
     cap = min(next_start, len(track))
     end = cap
     seg_dead = dead[final_contact + 1:cap]  # first masked frame after contact
     if seg_dead.any():
         end = min(end, final_contact + 1 + int(np.argmax(seg_dead)))
     effective_visibility = track[:, 2] == 1
-    if event_non_evidence_mask is not None:
-        effective_visibility &= ~event_non_evidence_mask
+    if shuttle_hallucination_mask is not None:
+        effective_visibility &= ~shuttle_hallucination_mask
     invisible = ~effective_visibility[final_contact + 1:cap]  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
         if run_end - run_start >= sustained_loss_frames:
             if _gap_after_top_exit(
-                final_contact, run_start, track, event_non_evidence_mask,
+                final_contact, run_start, track, shuttle_hallucination_mask,
             ):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
             end = min(end, final_contact + 1 + run_start)
@@ -452,7 +452,7 @@ def _carried_terminal(
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
     """The landing: the last descending run surviving the settle cap and carry filter.
@@ -483,13 +483,13 @@ def filtered_descending_landing(
     if not candidates:
         return None
 
-    if event_non_evidence_mask is not None:
-        if len(event_non_evidence_mask) != len(track):
-            raise ValueError('event_non_evidence_mask length must match track length')
+    if shuttle_hallucination_mask is not None:
+        if len(shuttle_hallucination_mask) != len(track):
+            raise ValueError('shuttle_hallucination_mask length must match track length')
         surviving_candidates: list[tuple[int, int, int]] = []
         for candidate in candidates:
             start_frame, _terminal_frame, end_frame = candidate
-            if event_non_evidence_mask[start_frame:end_frame].any():
+            if shuttle_hallucination_mask[start_frame:end_frame].any():
                 if rejected_intervals is not None:
                     rejected_intervals.append((start_frame, end_frame))
             else:
@@ -665,7 +665,7 @@ def pick_landing(
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
     constants: FpsConstants, fps: float,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> Landing | None:
     """The picked landing for one rally: the filtered terminal, projected to court space, with
@@ -676,11 +676,11 @@ def pick_landing(
     """
     win_end = window_end(
         final_contact, next_start, track, dead, constants.sustained_loss_frames,
-        event_non_evidence_mask,
+        shuttle_hallucination_mask,
     )
     landing = filtered_descending_landing(
         final_contact, win_end, track, kin, convert_landing_options(opts, fps),
-        constants.min_descend_samples, event_non_evidence_mask, rejected_intervals,
+        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
     )
     if landing is None:
         return None

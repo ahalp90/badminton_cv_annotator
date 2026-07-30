@@ -723,7 +723,7 @@ def _replace_mask(inputs: RunVideoInputs, path: Path) -> RunVideoInputs:
     if mask.ndim != 1 or mask.dtype != np.bool_ or len(mask) != frame_count or mask.all():
         raise ValueError("--mask-npy must be a frame-aligned, non-all-True boolean vector")
     keyword = dict(inputs.keyword)
-    keyword["dead_mask"] = mask
+    keyword["raw_exclusion_mask"] = mask
     return inputs._replace(keyword=keyword)
 
 

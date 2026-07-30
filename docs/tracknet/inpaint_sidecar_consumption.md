@@ -43,7 +43,7 @@ does so today through an in-memory recurrence detector, not the sidecar.
 `annotator.inpaint_guard.grade_track` on the loaded shuttle track and
 passes the resulting per-frame codes into `run_video` as `inpaint_codes`
 (`src/annotator/calibration/gt_scoring.py:409`,
-`src/annotator/run_video.py:185`). `run_video._build_event_non_evidence_mask`
+`src/annotator/run_video.py:189`). `run_video._build_shuttle_hallucination_mask`
 adapts those grades into a single boolean mask read by the downstream event
 rules and enforces that `inpaint_codes` and an externally supplied mask
 are mutually exclusive (`src/annotator/run_video.py:26-41`). The grades are
@@ -57,14 +57,14 @@ production scraper and stroke-classifier pipelines do not, so their
 landing / lost-shuttle rules cannot distinguish invented frames. This is
 the seam a future sidecar consumer plugs into: build a boolean mask from
 the sidecar's `inpaint_selected` spans and pass it as the mutually
-exclusive `event_non_evidence_mask` argument to `run_video`.
+exclusive `shuttle_hallucination_mask` argument to `run_video`.
 
 ## Open consumer work
 
 - **Wire the sidecar to production `run_video`.** Read
   `{video_stem}_stride{N}_inpaint_mask.json.gz`, expand
   `inpaint_selected` to a `(n_frames,) bool` array, pass it in as the
-  `event_non_evidence_mask` (never together with `inpaint_codes`). Decide
+  `shuttle_hallucination_mask` (never together with `inpaint_codes`). Decide
   per lane whether the sidecar or the inpaint-guard codes are
   authoritative and document the choice.
 - **Old-cache regenerate versus adapt.** Existing whole-video reference

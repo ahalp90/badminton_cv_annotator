@@ -314,7 +314,8 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
+        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES,
+        shuttle_hallucination_mask=event_mask,
         rejected_intervals=rejected_intervals,
     )
 
@@ -338,7 +339,8 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
+        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES,
+        shuttle_hallucination_mask=event_mask,
     ) is None
 
 

@@ -89,7 +89,7 @@ def run_manifest(
     reserved for argparse's bad-command-line handling.
 
     Registry and fixture-root validation happen before the loop.  The runner includes
-    digest verification, array loading, the committed-mask ``dead_mask=`` call, and scoring.
+    digest verification, array loading, the committed-mask ``raw_exclusion_mask=`` call, and scoring.
     ``no_replay_mask`` replaces that fixture mask with the all-False domain identity.
     """
     _validate_environment()
