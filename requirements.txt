@@ -30,6 +30,7 @@ parse==1.22.0                # TrackNetV3 vendor dep (src/bric/perception/_vendo
 
 # --- Backend API ---
 fastapi==0.136.1
+starlette==0.52.1            # FastAPI dependency; pinned so CI matches uv.lock
 uvicorn==0.46.0              # The server that runs FastAPI
 python-multipart==0.0.28     # Required for file upload endpoints
 
