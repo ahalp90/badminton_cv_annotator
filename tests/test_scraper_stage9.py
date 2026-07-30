@@ -23,7 +23,7 @@ from annotator.replay_mask import (
     combine_mask,
     court_absence_signal,
     perspective_shift_signal,
-    believe_raw_mask,
+    filter_short_exclusion_runs,
     velocity_drop_signal,
 )
 
@@ -130,34 +130,40 @@ def test_missing_inputs_contribute_all_false():
     assert not combine_mask(None, None, None, None, n_frames, 25.0).any()
 
 
-def test_believe_raw_mask_believes_whole_runs_and_is_idempotent():
+def test_filter_short_exclusion_runs_preserves_whole_runs_and_is_idempotent():
     raw = np.array([False, True, True, False, True, True, True, False], dtype=bool)
 
-    believed = believe_raw_mask(raw, min_frames=3)
+    filtered = filter_short_exclusion_runs(raw, min_frames=3)
 
     np.testing.assert_array_equal(
-        believed, [False, False, False, False, True, True, True, False],
+        filtered, [False, False, False, False, True, True, True, False],
     )
     np.testing.assert_array_equal(
-        believe_raw_mask(np.array([True, True, True], dtype=bool), 3),
+        filter_short_exclusion_runs(np.array([True, True, True], dtype=bool), 3),
         [True, True, True],
     )
     np.testing.assert_array_equal(
-        believe_raw_mask(np.array([True, True], dtype=bool), 3),
+        filter_short_exclusion_runs(np.array([True, True], dtype=bool), 3),
         [False, False],
     )
-    np.testing.assert_array_equal(believe_raw_mask(np.zeros(0, dtype=bool), 3), np.zeros(0, dtype=bool))
-    np.testing.assert_array_equal(believe_raw_mask(np.zeros(4, dtype=bool), 3), np.zeros(4, dtype=bool))
-    np.testing.assert_array_equal(believe_raw_mask(np.ones(4, dtype=bool), 3), [True, True, True, True])
-    np.testing.assert_array_equal(believe_raw_mask(believed, 3), believed)
+    np.testing.assert_array_equal(
+        filter_short_exclusion_runs(np.zeros(0, dtype=bool), 3), np.zeros(0, dtype=bool),
+    )
+    np.testing.assert_array_equal(
+        filter_short_exclusion_runs(np.zeros(4, dtype=bool), 3), np.zeros(4, dtype=bool),
+    )
+    np.testing.assert_array_equal(
+        filter_short_exclusion_runs(np.ones(4, dtype=bool), 3), [True, True, True, True],
+    )
+    np.testing.assert_array_equal(filter_short_exclusion_runs(filtered, 3), filtered)
 
 
 @pytest.mark.parametrize(
     'mask', [np.zeros((2, 2), dtype=bool), np.zeros(3, dtype=np.uint8), [True, False]],
 )
-def test_believe_raw_mask_rejects_non_boolean_vectors(mask):
+def test_filter_short_exclusion_runs_rejects_non_boolean_vectors(mask):
     with pytest.raises(ValueError, match='one-dimensional boolean'):
-        believe_raw_mask(mask, min_frames=3)
+        filter_short_exclusion_runs(mask, min_frames=3)
 
 
 def test_non_evidence_measures_steps_not_output_frames():

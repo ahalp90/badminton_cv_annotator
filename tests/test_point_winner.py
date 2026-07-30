@@ -14,6 +14,7 @@ from annotator.point_winner import (
     Landing,
     LandingFilterOptions,
     LandingKinematics,
+    LandingWindow,
     MIN_DESCEND_SAMPLES,
     Verdict,
     VerdictSource,
@@ -27,9 +28,11 @@ from annotator.point_winner import (
     hit_height,
     inout_verdict,
     is_net_ender,
+    landing_window,
     landing_margins,
     next_server_half,
     pick_landing,
+    pick_landing_to_end,
     rally_verdict,
     window_end,
 )
@@ -188,6 +191,54 @@ def test_window_end_masked_visible_frame_extends_sustained_loss_run() -> None:
     assert window_end(0, len(track), track, dead, 10, event_mask) == 10
 
 
+def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
+    track = np.ones((12, 3), dtype=float)
+    dead = np.zeros(len(track), dtype=bool)
+    dead[5] = True
+
+    window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
+
+    assert window == LandingWindow(5, ('next_rally',))
+
+
+def test_landing_window_labels_final_rally_video_end():
+    track = np.ones((12, 3), dtype=float)
+    dead = np.zeros(len(track), dtype=bool)
+
+    assert landing_window(0, len(track), track, dead, 10).closure_reasons == ('video_end',)
+
+
+def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
+    track = np.ones((20, 3), dtype=float)
+    track[1:14, 2] = 0
+    dead = np.zeros(len(track), dtype=bool)
+
+    window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
+
+    assert window == LandingWindow(5, ('next_rally',))
+
+
+def test_landing_window_reports_sustained_loss_and_exclusion_tie():
+    track = np.ones((20, 3), dtype=float)
+    track[5:, 2] = 0
+    dead = np.zeros(len(track), dtype=bool)
+    dead[5] = True
+
+    window = landing_window(0, len(track), track, dead, sustained_loss_frames=3)
+
+    assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'))
+
+
+def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
+    track = np.ones((8, 3), dtype=float)
+    dead = np.zeros(len(track), dtype=bool)
+    dead[5] = True
+
+    window = landing_window(4, len(track), track, dead, sustained_loss_frames=10)
+
+    assert window == LandingWindow(5, ('definitive_exclusion',))
+
+
 # ---------------------------------------------------------------------------
 # attribute_half (the wrist_boxh arm, end to end)
 # ---------------------------------------------------------------------------
@@ -314,7 +365,8 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
+        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES,
+        shuttle_hallucination_mask=event_mask,
         rejected_intervals=rejected_intervals,
     )
 
@@ -338,7 +390,8 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES, event_non_evidence_mask=event_mask,
+        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES,
+        shuttle_hallucination_mask=event_mask,
     ) is None
 
 
@@ -530,6 +583,36 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
     assert landing.half == Half.BOT  # y=0.9 >= NET_COURT_Y(0.5)
     assert landing.at_border is False
     assert landing.net_ender is False
+
+
+def test_explicit_end_landing_matches_safe_wrapper():
+    n_frames = 10
+    track = np.zeros((n_frames, 3))
+    track[:, 2] = 1
+    track[2:5, 1] = (0.5, 0.7, 0.9)
+    dead = np.zeros(n_frames, dtype=bool)
+    kin = LandingKinematics(
+        carry_ratio=np.full(n_frames, np.nan), ankle_ratio=np.full(n_frames, np.nan),
+        speed=np.zeros(n_frames),
+    )
+    opts = LandingFilterOptions(7, 0.004, 5, 7, 0.75, use_settle=False, use_carry=False)
+    resolution = (1280.0, 720.0)
+    court_info = {
+        'H': np.eye(3), 'border_L': 0.0, 'border_R': resolution[0],
+        'border_U': 0.0, 'border_D': resolution[1],
+    }
+    constants = scale_for_fps(25.0)
+    safe_end = window_end(2, n_frames, track, dead, constants.sustained_loss_frames)
+
+    wrapped = pick_landing(
+        2, n_frames, track, dead, kin, opts, Half.TOP, (100.0, 200.0), resolution,
+        court_info, constants, 25.0,
+    )
+    explicit = pick_landing_to_end(
+        2, safe_end, track, kin, opts, Half.TOP, (100.0, 200.0), resolution,
+        court_info, constants, 25.0,
+    )
+    assert explicit == wrapped
 
 
 def test_build_landing_kinematics_reads_nearer_wrist_and_ankle_in_body_heights():

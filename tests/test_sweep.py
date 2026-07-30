@@ -300,7 +300,10 @@ def test_loader_rejects_duplicate_keys_and_masks(tmp_path) -> None:
             sweep._replace_mask(inputs, mask_path)
     mask_path = tmp_path / "valid.npy"
     np.save(mask_path, np.array([True, False, True, False], dtype=bool))
-    assert np.array_equal(sweep._replace_mask(inputs, mask_path).keyword["dead_mask"], [True, False, True, False])
+    assert np.array_equal(
+        sweep._replace_mask(inputs, mask_path).keyword["raw_exclusion_mask"],
+        [True, False, True, False],
+    )
 
 
 def test_load_winner_config_returns_contact_or_boundary_spec(tmp_path, monkeypatch) -> None:

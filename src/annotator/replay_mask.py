@@ -243,16 +243,16 @@ def combine_mask(
     return court | perspective | velocity
 
 
-def believe_raw_mask(mask: np.ndarray, min_frames: int) -> np.ndarray:
-    """Believe each raw detector run in full when it is long enough.
+def filter_short_exclusion_runs(mask: np.ndarray, min_frames: int) -> np.ndarray:
+    """Keep each raw detector run in full when it is long enough.
 
     The input contains raw detector flags. For each raw run ``[start, end)``,
-    belief covers the whole run when ``end - start >= min_frames``. Applying
-    this function to an already believed mask therefore leaves it unchanged.
+    filtering keeps the whole run when ``end - start >= min_frames``. Applying
+    this function to an already filtered mask therefore leaves it unchanged.
 
     :param mask: one-dimensional boolean raw detector flags.
-    :param min_frames: positive number of consecutive flags needed for belief.
-    :return: one-dimensional boolean mask of believed whole runs.
+    :param min_frames: positive number of consecutive flags needed to keep a run.
+    :return: one-dimensional boolean mask of duration-filtered whole runs.
     """
     if not isinstance(mask, np.ndarray) or mask.ndim != 1 or mask.dtype != np.bool_:
         raise ValueError('mask must be a one-dimensional boolean array')

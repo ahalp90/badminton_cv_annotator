@@ -440,7 +440,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "homo_df": homo,
         "gate_court_info": gate_courts,
         "gate_resolution_table": gate_resolution,
-        "dead_mask": committed_mask,
+        "raw_exclusion_mask": committed_mask,
         "court_present": court_present,
         "homography_rows": homography_rows,
     }
@@ -713,7 +713,7 @@ def run_fixture(
         track = inputs.positional[0]
         if not isinstance(track, np.ndarray):
             raise TypeError('fixture track must be a numpy array')
-        keyword['dead_mask'] = np.zeros(len(track), dtype=bool)
+        keyword['raw_exclusion_mask'] = np.zeros(len(track), dtype=bool)
     keyword["rejection_diagnostics"] = rejection_rows
     result = run_video(*inputs.positional, **keyword)
     if diagnostics_dir is not None:

@@ -1,6 +1,8 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+import math
 from typing import NamedTuple
 
 import numpy as np
@@ -9,7 +11,7 @@ import annotator.point_winner as point_winner
 import annotator.rally_segmentation as stage8_seg
 from annotator.config import BaseAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
-from annotator.replay_mask import believe_raw_mask
+from annotator.replay_mask import filter_short_exclusion_runs
 from annotator.resolve import resolve
 from annotator.types import ContactCandidate, ServeStartConfig
 
@@ -23,37 +25,41 @@ def scoring_filter(contacts):
             if c.wrist_near is not False and c.suppressed is not True]
 
 
-def _build_event_non_evidence_mask(
+def _build_shuttle_hallucination_mask(
     n_frames: int, rejected_grades: frozenset[int],
-    inpaint_codes: np.ndarray | None, supplied_mask: np.ndarray | None,
+    inpaint_codes: np.ndarray | None, shuttle_hallucination_mask: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Adapt source grades into the one boolean mask read by event rules."""
-    if inpaint_codes is not None and supplied_mask is not None:
-        raise ValueError('inpaint_codes and event_non_evidence_mask are mutually exclusive')
+    if inpaint_codes is not None and shuttle_hallucination_mask is not None:
+        raise ValueError('inpaint_codes and shuttle_hallucination_mask are mutually exclusive')
     if inpaint_codes is not None:
         if inpaint_codes.ndim != 1 or len(inpaint_codes) != n_frames:
             raise ValueError('inpaint_codes must be a frame-aligned one-dimensional array')
         return np.isin(inpaint_codes, tuple(rejected_grades)), inpaint_codes
-    if supplied_mask is not None:
-        if supplied_mask.ndim != 1 or len(supplied_mask) != n_frames or supplied_mask.dtype != np.bool_:
-            raise ValueError('event_non_evidence_mask must be a frame-aligned boolean array')
-        return supplied_mask, None
+    if shuttle_hallucination_mask is not None:
+        if (shuttle_hallucination_mask.ndim != 1
+                or len(shuttle_hallucination_mask) != n_frames
+                or shuttle_hallucination_mask.dtype != np.bool_):
+            raise ValueError('shuttle_hallucination_mask must be a frame-aligned boolean array')
+        return shuttle_hallucination_mask, None
     return np.zeros(n_frames, dtype=bool), None
 
 
 def _record_rejection(
     rows: list[dict[str, object]] | None, rule: str, rally_id: int,
-    start_frame: int, end_frame: int, event_mask: np.ndarray,
+    start_frame: int, end_frame: int, shuttle_hallucination_mask: np.ndarray,
     codes: np.ndarray | None, candidate_frames: list[int] | None = None,
 ) -> None:
     """Record one event interval when it contains an event-mask frame."""
     if rows is None:
         return
     if candidate_frames is None:
-        masked_frames = np.flatnonzero(event_mask[start_frame:end_frame]) + start_frame
+        masked_frames = (
+            np.flatnonzero(shuttle_hallucination_mask[start_frame:end_frame]) + start_frame
+        )
     else:
         masked_frames = np.array(
-            [frame for frame in candidate_frames if event_mask[frame]], dtype=int,
+            [frame for frame in candidate_frames if shuttle_hallucination_mask[frame]], dtype=int,
         )
     if len(masked_frames) == 0:
         return
@@ -147,6 +153,37 @@ class AnnotatorResult(NamedTuple):
     hit_height_failures: list[tuple[int, int, int, str]]
 
 
+@dataclass
+class RunCapture:
+    """Caller-owned copies of the masks and landing diagnostics from one run."""
+
+    raw_exclusion_mask: np.ndarray | None = None
+    definitive_exclusion_mask: np.ndarray | None = None
+    landing_horizon_rows: list['LandingHorizonRow'] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class LandingHorizonRow:
+    """One GT-free comparison between the safe and a shorter landing endpoint."""
+
+    rally_id: int
+    horizon_seconds: float
+    horizon_frames: int
+    final_contact_frame: int
+    requested_end_frame: int
+    safe_end_frame: int
+    effective_end_frame: int
+    closure_reasons: tuple[str, ...]
+    strict_landing: point_winner.Landing | None
+    capped_landing: point_winner.Landing | None
+    strict_verdict: point_winner.VerdictRow
+    capped_verdict: point_winner.VerdictRow
+    strict_winner: point_winner.Half | None
+    capped_winner: point_winner.Half | None
+    landing_changed: bool
+    winner_changed: bool
+
+
 def _first_stroke_half(final_half, n_strokes: int):
     """The rally's own fitted first-stroke half, from its fitted final-contact half.
 
@@ -173,7 +210,7 @@ def run_video(
     gate_court_info: dict | None = None,
     gate_resolution_table=None,
     ref_err_px: float = 3.5,
-    dead_mask: np.ndarray | None = None,
+    raw_exclusion_mask: np.ndarray | None = None,
     positions: np.ndarray | None = None,
     court_present=None,
     homography_rows=None,
@@ -183,17 +220,46 @@ def run_video(
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
     rejection_diagnostics: list[dict[str, object]] | None = None,
     court_optional: bool = False,
     stop_after_segmentation: bool = False,
+    capture: RunCapture | None = None,
+    court_invalid_is_excluded: bool = False,
+    landing_error_band_m: float | None = None,
+    landing_horizons_s: tuple[float, ...] = (),
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
     `court_optional` is only valid with `stop_after_segmentation`. That mode does not build
     sticky or enter any downstream court-dependent stage, so it accepts only the track, fps,
-    positions, and optional dead mask.
+    positions, and optional raw exclusion mask.
+
+    ``court_invalid_is_excluded`` is opt-in so existing calibration callers keep
+    their supplied mask semantics. ``landing_error_band_m`` lets a parent pass
+    its active geometry's uncertainty without opening a static homography table.
     """
+    if capture is not None:
+        capture.raw_exclusion_mask = None
+        capture.definitive_exclusion_mask = None
+        capture.landing_horizon_rows.clear()
+    if landing_horizons_s:
+        if capture is None:
+            raise ValueError('landing_horizons_s requires capture')
+        if any(
+            not math.isfinite(horizon) or horizon <= 0
+            for horizon in landing_horizons_s
+        ):
+            raise ValueError('landing_horizons_s must contain finite positive values')
+        if any(
+            later <= earlier
+            for earlier, later in zip(landing_horizons_s, landing_horizons_s[1:])
+        ):
+            raise ValueError('landing_horizons_s must be strictly increasing')
+    if capture is not None:
+        if raw_exclusion_mask is not None:
+            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+
     resolved = resolve(base, fps)
     # Injected spans skip span finding, so serve-start would otherwise silently never run.
     if serve_start is not None and spans is not None:
@@ -240,16 +306,20 @@ def run_video(
                 'landing_options': landing_options,
                 'net_band': net_band,
                 'court_info': court_info,
-                'homo_df': homo_df,
             }
             missing_downstream_inputs = [
                 name for name, value in required_downstream_inputs.items() if value is None
             ]
+            if landing_error_band_m is None and homo_df is None:
+                missing_downstream_inputs.append('homo_df or landing_error_band_m')
             if missing_downstream_inputs:
                 raise ValueError(f'full-chain mode requires {", ".join(missing_downstream_inputs)}')
 
-    event_mask, source_codes = _build_event_non_evidence_mask(
-        len(track), resolved.rejected_grades, inpaint_codes, event_non_evidence_mask,
+        if hasattr(homography_rows, 'to_dict'):
+            homography_rows = homography_rows.to_dict('records')
+
+    shuttle_hallucination_mask, source_codes = _build_shuttle_hallucination_mask(
+        len(track), resolved.rejected_grades, inpaint_codes, shuttle_hallucination_mask,
     )
     sticky = None
     if not court_optional:
@@ -260,16 +330,26 @@ def run_video(
         )
     serve_options = None
     if court_optional:
-        mask = dead_mask if dead_mask is not None else np.zeros(len(track), dtype=bool)
-        if len(mask) != len(track):
-            raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
-        if mask.all():
+        raw_exclusion_mask = (
+            raw_exclusion_mask
+            if raw_exclusion_mask is not None
+            else np.zeros(len(track), dtype=bool)
+        )
+        if len(raw_exclusion_mask) != len(track):
+            raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
+        if capture is not None:
+            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+        if raw_exclusion_mask.all():
             raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-        mask = believe_raw_mask(mask, resolved.constants.replay_mask_min_frames)
+        definitive_exclusion_mask = filter_short_exclusion_runs(
+            raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
+        )
+        if capture is not None:
+            capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
         if contacts is None:
             final_spans, raw_contacts = stage8_seg.segment_video(
                 track, positions=positions, thresholds=resolved.thresholds,
-                span_open=resolved.span_open, replay_mask=mask, sticky_distances=None,
+                span_open=resolved.span_open, replay_mask=definitive_exclusion_mask, sticky_distances=None,
                 spans=spans, smoothing_mode=resolved.smoothing_mode,
                 constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
                 reentry_guard_variant=resolved.reentry_guard_variant,
@@ -309,17 +389,18 @@ def run_video(
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
         # Replay mask baselines slow-motion detection against each rally's normal speed.
-        mask = dead_mask
-        if mask is None:
-            mask = build_dead_mask(
+        if raw_exclusion_mask is None:
+            raw_replay_mask = build_dead_mask(
                 resolved.dead_mask_mode, len(track), fps, court_present=court_present,
                 homography_rows=homography_rows, track=track, rally_spans=final_spans,
-                cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
+                cut_frames=cut_frames, keep_vote=keep_vote,
+                shuttle_hallucination_mask=shuttle_hallucination_mask,
             )
+            raw_exclusion_mask = raw_replay_mask
     else:
         # The sticky cache above already runs over scene-gated tracker segments. This span-only,
         # unmasked pass supplies rally spans to the mask builder.
-        if dead_mask is None:
+        if raw_exclusion_mask is None:
             bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
                 track, resolved.thresholds, span_open=resolved.span_open,
                 constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
@@ -327,30 +408,41 @@ def run_video(
                 reentry_guard_buffer=resolved.reentry_guard_buffer,
                 quiet_start_window=resolved.quiet_start_window,
             )
-            mask = build_dead_mask(
+            raw_replay_mask = build_dead_mask(
                 resolved.dead_mask_mode, len(track), fps, court_present=court_present,
                 homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
-                cut_frames=cut_frames, keep_vote=keep_vote, non_evidence=event_mask,
+                cut_frames=cut_frames, keep_vote=keep_vote,
+                shuttle_hallucination_mask=shuttle_hallucination_mask,
             )
-        else:
-            mask = dead_mask
+            raw_exclusion_mask = raw_replay_mask
         final_spans = spans
         if serve_start is not None:
             serve_options = build_serve_options(
                 serve_start, sticky, resolved.constants, resolution, resolved.span_open,
             )
 
-    if len(mask) != len(track):
-        raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
-    if mask.all():
+    if len(raw_exclusion_mask) != len(track):
+        raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
+    if capture is not None:
+        capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+    if raw_exclusion_mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-    mask = believe_raw_mask(mask, resolved.constants.replay_mask_min_frames)
+    definitive_exclusion_mask = filter_short_exclusion_runs(
+        raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
+    )
+    if court_invalid_is_excluded and not stop_after_segmentation:
+        definitive_exclusion_mask = definitive_exclusion_mask | ~court_present
+    if capture is not None:
+        capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
+    if definitive_exclusion_mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
 
     if contacts is None:
         final_spans, raw_contacts = stage8_seg.segment_video(
             track, positions=positions, thresholds=resolved.thresholds,
             span_open=resolved.span_open,
-            replay_mask=mask, sticky_distances=sticky.distances, serve_start=serve_options,
+            replay_mask=definitive_exclusion_mask, sticky_distances=sticky.distances,
+            serve_start=serve_options,
             spans=final_spans, smoothing_mode=resolved.smoothing_mode,
             constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
             reentry_guard_variant=resolved.reentry_guard_variant,
@@ -369,7 +461,7 @@ def run_video(
 
     scored_contacts = scoring_filter(contacts)
     filtered_contacts = [
-        contact for contact in scored_contacts if not mask[contact.contact_frame]
+        contact for contact in scored_contacts if not definitive_exclusion_mask[contact.contact_frame]
     ]
     scored_by_rally: dict[int, list[int]] = {}
     for contact in scored_contacts:
@@ -398,7 +490,11 @@ def run_video(
     kin = point_winner.build_landing_kinematics(
         track, sticky, kps, resolution,
     )
-    band_m = point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
+    band_m = (
+        landing_error_band_m
+        if landing_error_band_m is not None
+        else point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
+    )
 
     verdict_rows: dict[int, object] = {}
     landings: dict[int, object | None] = {}
@@ -413,16 +509,18 @@ def run_video(
                 )
             continue
         frames = filtered_by_rally[rally_id]
-        usable_final_contacts = [frame for frame in frames if not event_mask[frame]]
+        usable_final_contacts = [
+            frame for frame in frames if not shuttle_hallucination_mask[frame]
+        ]
         skipped_trailing: list[int] = []
         for frame in reversed(frames):
-            if not event_mask[frame]:
+            if not shuttle_hallucination_mask[frame]:
                 break
             skipped_trailing.append(frame)
         if skipped_trailing:
             _record_rejection(
                 rejection_diagnostics, 'final_contact', rally_id, skipped_trailing[-1], frames[-1] + 1,
-                event_mask, source_codes, candidate_frames=skipped_trailing[::-1],
+                shuttle_hallucination_mask, source_codes, candidate_frames=skipped_trailing[::-1],
             )
         if not usable_final_contacts:
             landing = None
@@ -438,35 +536,39 @@ def run_video(
             continue
         final_contact = usable_final_contacts[-1]
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
-        event_aware_window_end = point_winner.window_end(
-            final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
-            event_mask,
+        safe_window = point_winner.landing_window(
+            final_contact, next_start, track, definitive_exclusion_mask,
+            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
         )
+        event_aware_window_end = safe_window.end_frame
         if rejection_diagnostics is not None:
             window_end_without_events = point_winner.window_end(
-                final_contact, next_start, track, mask, resolved.constants.sustained_loss_frames,
+                final_contact, next_start, track, definitive_exclusion_mask,
+                resolved.constants.sustained_loss_frames,
             )
             if event_aware_window_end < window_end_without_events:
                 _record_rejection(
                     rejection_diagnostics, 'lost_shuttle_guard', rally_id, final_contact + 1,
-                    window_end_without_events, event_mask, source_codes,
+                    window_end_without_events, shuttle_hallucination_mask, source_codes,
                 )
-        all_false_dead_mask = np.zeros_like(mask)
-        window_end_without_dead_mask = point_winner.window_end(
-            final_contact, next_start, track, all_false_dead_mask, resolved.constants.sustained_loss_frames,
-            event_mask,
+        all_false_exclusion_mask = np.zeros_like(definitive_exclusion_mask)
+        window_end_without_exclusion_mask = point_winner.window_end(
+            final_contact, next_start, track, all_false_exclusion_mask,
+            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
         )
-        window_closed_by_mask = event_aware_window_end < window_end_without_dead_mask
+        window_closed_by_mask = event_aware_window_end < window_end_without_exclusion_mask
         landing_rejections: list[tuple[int, int]] = []
-        landing = point_winner.pick_landing(
-            final_contact, next_start, track, mask, kin, landing_options, striker, net_band,
+        landing = point_winner.pick_landing_to_end(
+            final_contact, event_aware_window_end, track,
+            kin, landing_options, striker, net_band,
             resolution, court_info, resolved.constants, fps,
-            event_non_evidence_mask=event_mask, rejected_intervals=landing_rejections,
+            shuttle_hallucination_mask=shuttle_hallucination_mask,
+            rejected_intervals=landing_rejections,
         )
         for start_frame, end_frame in landing_rejections:
             _record_rejection(
                 rejection_diagnostics, 'landing_descent', rally_id, start_frame, end_frame,
-                event_mask, source_codes,
+                shuttle_hallucination_mask, source_codes,
             )
         verdict = point_winner.rally_verdict(
             rally_id, striker, next_servers[rally_id], landing, band_m,
@@ -487,6 +589,52 @@ def run_video(
             rally_id, geometric, geometric_winner, agreement, window_closed_by_mask,
         )
         landings[rally_id] = landing
+
+        if landing_horizons_s:
+            strict_winner = shipped_winner
+            for horizon_seconds in landing_horizons_s:
+                horizon_frames = max(1, math.floor(horizon_seconds * fps + 0.5))
+                requested_end_frame = final_contact + horizon_frames
+                effective_end_frame = max(
+                    final_contact + 1,
+                    min(requested_end_frame, safe_window.end_frame),
+                )
+                closure_reasons: list[str] = []
+                if requested_end_frame == effective_end_frame:
+                    closure_reasons.append('horizon_cap')
+                if effective_end_frame == safe_window.end_frame:
+                    closure_reasons.extend(safe_window.closure_reasons)
+                capped_landing = point_winner.pick_landing_to_end(
+                    final_contact, effective_end_frame, track, kin, landing_options,
+                    striker, net_band, resolution, court_info, resolved.constants, fps,
+                    shuttle_hallucination_mask=shuttle_hallucination_mask,
+                )
+                capped_verdict = point_winner.rally_verdict(
+                    rally_id, striker, next_servers[rally_id], capped_landing, band_m,
+                )
+                capped_winner = None
+                if capped_verdict.verdict is point_winner.Verdict.WON:
+                    capped_winner = striker
+                elif capped_verdict.verdict is point_winner.Verdict.LOST:
+                    capped_winner = OTHER_HALF[striker]
+                capture.landing_horizon_rows.append(LandingHorizonRow(
+                    rally_id=rally_id,
+                    horizon_seconds=horizon_seconds,
+                    horizon_frames=horizon_frames,
+                    final_contact_frame=final_contact,
+                    requested_end_frame=requested_end_frame,
+                    safe_end_frame=safe_window.end_frame,
+                    effective_end_frame=effective_end_frame,
+                    closure_reasons=tuple(closure_reasons),
+                    strict_landing=landing,
+                    capped_landing=capped_landing,
+                    strict_verdict=verdict,
+                    capped_verdict=capped_verdict,
+                    strict_winner=strict_winner,
+                    capped_winner=capped_winner,
+                    landing_changed=landing != capped_landing,
+                    winner_changed=strict_winner != capped_winner,
+                ))
 
     hit_height_by_frame: dict[int, int] = {}
     hit_height_failures: list[tuple[int, int, int, str]] = []

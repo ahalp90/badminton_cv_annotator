@@ -21,7 +21,7 @@ labelled sections say so.
   applies belief at load: only a flagged run at least
   `replay_mask_min_frames` long (13 at 25 fps, fps-scaled) is believed,
   and believed frames produce no contact events (shipped 2026-07-27).
-  `annotator.replay_mask.believe_raw_mask` is the only belief
+  `annotator.replay_mask.filter_short_exclusion_runs` is the only belief
   implementation.
 - "the external review" is the 2026-07-23 design red-team; its record is
   `records/sol_redteam_round2_20260723.txt` (gitignored). Its constraints
@@ -226,7 +226,7 @@ track on believed replay frames before segmentation, so detection never
 sees motion there. Second, `run_video` filters any surviving contact on a
 believed frame after the scoring gate
 (`src/annotator/run_video.py::run_video`, using
-`annotator.replay_mask.believe_raw_mask`). Applied strictly to lookback
+`annotator.replay_mask.filter_short_exclusion_runs`). Applied strictly to lookback
 triggers, the 17 sset_21 misses inside the believed mask stay
 unrecoverable.
 
@@ -300,7 +300,7 @@ or `git grep "symbol_name" ebae2b3` to follow anything that moved.
   lives here, after the scoring gate. Serve options are currently derived
   from the unmasked sticky cache; the review flagged that ordering, so
   check it before relying on it.
-- `src/annotator/replay_mask.py`: `believe_raw_mask` is the only belief
+- `src/annotator/replay_mask.py`: `filter_short_exclusion_runs` is the only belief
   implementation. Raw masks on disk, belief at every consuming entrance.
   Do not add a second belief path.
 - `src/annotator/point_winner.py`: `fit_alternation` and

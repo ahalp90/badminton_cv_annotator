@@ -4,10 +4,13 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from enum import StrEnum
+import math
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+
+from annotator.types import ContactCandidate, ScalingKind
 
 DEFAULT_TOLERANCES = (1, 2, 5, 10)
 
@@ -252,6 +255,178 @@ def greedy_match(
         claimed_candidate.add(candidate_index)
         matched.append((gt_index, candidate_index))
     return matched
+
+
+def _scale_base30_frames(base_frames: float, fps: float) -> int:
+    """Scale a base-30 frame count with the annotator's half-up rule."""
+    return int(ScalingKind.FRAME_COUNT.scale(base_frames, fps))
+
+
+def strict_contact_rows(
+    spans: Sequence[tuple[int, int]],
+    filtered_contacts: Sequence[ContactCandidate],
+    gt_rallies: Sequence[GtRally],
+    fps: float,
+    tolerances_base30: Sequence[int] = (5, 10),
+) -> list[dict[str, int | str | None]]:
+    """Build strict GT contact rows for covered rallies only.
+
+    A covered GT rally receives candidates from its one associated predicted span.
+    Split and missed rallies therefore have unmatched GT rows but no candidates.
+    ``greedy_match`` supplies the matched-row order and its deterministic ties.
+    """
+    classifications = classify_all(spans, gt_rallies)
+    candidates_by_span: dict[int, list[int]] = defaultdict(list)
+    for contact in filtered_contacts:
+        candidates_by_span[contact.rally_id].append(contact.contact_frame)
+
+    tolerance_frames = [
+        (base30, _scale_base30_frames(base30, fps))
+        for base30 in tolerances_base30
+    ]
+    rows: list[dict[str, int | str | None]] = []
+    for gt_index, (rally, (boundary, span_idx)) in enumerate(zip(gt_rallies, classifications)):
+        gt_frames = list(rally.stroke_frames)
+        candidate_frames = candidates_by_span.get(span_idx, []) if boundary is RallyBoundary.COVERED else []
+        for tolerance_base30, tolerance in tolerance_frames:
+            matches = greedy_match(gt_frames, candidate_frames, tolerance)
+            matched_gt = {gt_idx for gt_idx, _candidate_idx in matches}
+            matched_candidates = {candidate_idx for _gt_idx, candidate_idx in matches}
+            for gt_idx, candidate_idx in matches:
+                gt_frame = gt_frames[gt_idx]
+                candidate_frame = candidate_frames[candidate_idx]
+                rows.append({
+                    'rally_id': gt_index,
+                    'tolerance_base30': tolerance_base30,
+                    'tolerance_frames': tolerance,
+                    'row_kind': 'matched',
+                    'gt_frame': gt_frame,
+                    'candidate_frame': candidate_frame,
+                    'offset_frames': candidate_frame - gt_frame,
+                })
+            for gt_idx, gt_frame in enumerate(gt_frames):
+                if gt_idx not in matched_gt:
+                    rows.append({
+                        'rally_id': gt_index,
+                        'tolerance_base30': tolerance_base30,
+                        'tolerance_frames': tolerance,
+                        'row_kind': 'unmatched_gt',
+                        'gt_frame': gt_frame,
+                        'candidate_frame': None,
+                        'offset_frames': None,
+                    })
+            for candidate_idx in sorted(
+                (idx for idx in range(len(candidate_frames)) if idx not in matched_candidates),
+                key=lambda idx: candidate_frames[idx],
+            ):
+                candidate_frame = candidate_frames[candidate_idx]
+                rows.append({
+                    'rally_id': gt_index,
+                    'tolerance_base30': tolerance_base30,
+                    'tolerance_frames': tolerance,
+                    'row_kind': 'unmatched_candidate',
+                    'gt_frame': None,
+                    'candidate_frame': candidate_frame,
+                    'offset_frames': None,
+                })
+    return rows
+
+
+def wide_edge_contact_rows(
+    gt_rallies: Sequence[GtRally],
+    filtered_contacts: Sequence[ContactCandidate],
+    fps: float,
+    n_frames: int,
+) -> list[dict[str, int | str | None]]:
+    """Build the diagnostic first/last-GT-contact report with wide edge windows.
+
+    Windows are clipped to the video and split at the deterministic midpoint of
+    adjacent targets. Matching is global and one-to-one, even though final windows
+    are normally disjoint.
+    """
+    half_width = _scale_base30_frames(90, fps)
+    targets: list[tuple[int, int, str, int, int]] = []
+    # (GT frame, source rally order, edge, initial start, initial end)
+    for source_order, rally in enumerate(gt_rallies):
+        edge_frames = [('first', rally.stroke_frames[0])]
+        if len(rally.stroke_frames) > 1:
+            edge_frames.append(('last', rally.stroke_frames[-1]))
+        for edge, gt_frame in edge_frames:
+            start = max(0, gt_frame - half_width)
+            end = min(n_frames, gt_frame + half_width + 1)
+            targets.append((gt_frame, source_order, edge, start, end))
+    targets.sort(key=lambda target: (target[0], target[1], 0 if target[2] == 'first' else 1))
+
+    initial_windows = [(target[3], target[4]) for target in targets]
+    windows = [[start, end] for start, end in initial_windows]
+    for target_idx in range(len(targets) - 1):
+        earlier = targets[target_idx]
+        later = targets[target_idx + 1]
+        if initial_windows[target_idx][1] <= initial_windows[target_idx + 1][0]:
+            continue
+        boundary = math.floor((earlier[0] + later[0]) / 2) + 1
+        windows[target_idx][1] = min(windows[target_idx][1], boundary)
+        windows[target_idx + 1][0] = max(windows[target_idx + 1][0], boundary)
+
+    candidate_frames = sorted({
+        contact.contact_frame for contact in filtered_contacts
+    })
+    ranked_pairs: list[tuple[int, int, int]] = []
+    for target_idx, (target, (window_start, window_end)) in enumerate(zip(targets, windows)):
+        for candidate_idx, candidate_frame in enumerate(candidate_frames):
+            if window_start <= candidate_frame < window_end:
+                ranked_pairs.append((abs(candidate_frame - target[0]), target_idx, candidate_idx))
+    ranked_pairs.sort(key=lambda pair: (pair[0], pair[1], candidate_frames[pair[2]]))
+
+    claimed_targets: set[int] = set()
+    claimed_candidates: set[int] = set()
+    matches: dict[int, int] = {}
+    for _distance, target_idx, candidate_idx in ranked_pairs:
+        if target_idx in claimed_targets or candidate_idx in claimed_candidates:
+            continue
+        claimed_targets.add(target_idx)
+        claimed_candidates.add(candidate_idx)
+        matches[target_idx] = candidate_idx
+
+    rows: list[dict[str, int | str | None]] = []
+    for target_idx, (target, (window_start, window_end)) in enumerate(zip(targets, windows)):
+        _gt_frame, source_order, edge, _start, _end = target
+        common = {
+            'window_id': target_idx,
+            'rally_id': source_order,
+            'edge': edge,
+            'window_start': window_start,
+            'window_end': window_end,
+        }
+        if target_idx in matches:
+            candidate_frame = candidate_frames[matches[target_idx]]
+            rows.append({
+                **common,
+                'row_kind': 'matched',
+                'gt_frame': target[0],
+                'candidate_frame': candidate_frame,
+                'offset_frames': candidate_frame - target[0],
+            })
+        else:
+            rows.append({
+                **common,
+                'row_kind': 'unmatched_gt',
+                'gt_frame': target[0],
+                'candidate_frame': None,
+                'offset_frames': None,
+            })
+        for candidate_idx, candidate_frame in enumerate(candidate_frames):
+            if candidate_idx in claimed_candidates:
+                continue
+            if window_start <= candidate_frame < window_end:
+                rows.append({
+                    **common,
+                    'row_kind': 'unmatched_candidate',
+                    'gt_frame': None,
+                    'candidate_frame': candidate_frame,
+                    'offset_frames': None,
+                })
+    return rows
 
 
 def _prf(matched: int, n_gt: int, n_candidates: int) -> dict:

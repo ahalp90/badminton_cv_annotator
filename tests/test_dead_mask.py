@@ -24,6 +24,32 @@ def test_replay_mode_delegates_existing_union() -> None:
     np.testing.assert_array_equal(result, expected)
 
 
+def test_short_invalid_scene_blip_does_not_enter_dead_masks() -> None:
+    n_frames = 20
+    present = np.ones(n_frames, dtype=bool)
+    present[7] = False
+    replay = build_dead_mask(DeadMaskMode.REPLAY, n_frames, 30.0, court_present=present)
+    composition = build_dead_mask(
+        DeadMaskMode.COMPOSITION,
+        n_frames,
+        30.0,
+        cut_frames=np.array([], dtype=int),
+        keep_vote=np.ones(n_frames, dtype=bool),
+        court_present=present,
+    )
+    union = build_dead_mask(
+        DeadMaskMode.UNION,
+        n_frames,
+        30.0,
+        cut_frames=np.array([], dtype=int),
+        keep_vote=np.ones(n_frames, dtype=bool),
+        court_present=present,
+    )
+    assert not replay.any()
+    assert not composition.any()
+    assert not union.any()
+
+
 def test_composition_mode_uses_existing_default_vote() -> None:
     cuts, keep_vote = _composition_inputs()
     result = build_dead_mask(
@@ -95,9 +121,9 @@ def test_composition_rejects_non_vector_keep_vote() -> None:
 
 
 @pytest.mark.parametrize('mode', [DeadMaskMode.REPLAY, DeadMaskMode.UNION])
-def test_replay_modes_forward_non_evidence(monkeypatch, mode) -> None:
+def test_replay_modes_forward_shuttle_hallucination_mask(monkeypatch, mode) -> None:
     n_frames = 6
-    non_evidence = np.array([False, True, False, False, True, False], dtype=bool)
+    shuttle_hallucination_mask = np.array([False, True, False, False, True, False], dtype=bool)
     received = []
 
     def fake_combine(*_args, **kwargs):
@@ -105,27 +131,27 @@ def test_replay_modes_forward_non_evidence(monkeypatch, mode) -> None:
         return np.zeros(n_frames, dtype=bool)
 
     monkeypatch.setattr(dead_mask_module, 'combine_mask', fake_combine)
-    kwargs = {'non_evidence': non_evidence}
+    kwargs = {'shuttle_hallucination_mask': shuttle_hallucination_mask}
     if mode is DeadMaskMode.UNION:
         kwargs.update(cut_frames=np.array([3]), keep_vote=np.ones(n_frames, dtype=bool))
 
     build_dead_mask(mode, n_frames, 30.0, **kwargs)
 
     assert len(received) == 1
-    np.testing.assert_array_equal(received[0], non_evidence)
+    np.testing.assert_array_equal(received[0], shuttle_hallucination_mask)
 
 
-def test_composition_ignores_non_evidence_without_calling_replay(monkeypatch) -> None:
+def test_composition_ignores_shuttle_hallucination_mask_without_calling_replay(monkeypatch) -> None:
     def fail_combine(*_args, **_kwargs):
         pytest.fail('composition mode must not call combine_mask')
 
     monkeypatch.setattr(dead_mask_module, 'combine_mask', fail_combine)
-    non_evidence = np.array([False, True, False, False, True, False], dtype=bool)
+    shuttle_hallucination_mask = np.array([False, True, False, False, True, False], dtype=bool)
 
     result = build_dead_mask(
         DeadMaskMode.COMPOSITION, 6, 30.0,
         cut_frames=np.array([3, 5]), keep_vote=np.array([True, True, True, False, False, True]),
-        non_evidence=non_evidence,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
     )
 
     np.testing.assert_array_equal(result, [False, False, False, True, True, False])

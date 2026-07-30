@@ -1579,7 +1579,7 @@ def main() -> None:
                 fps=fps,
                 base=BaseAnnotatorConfig(span_open=span_open),
                 positions=positions,
-                dead_mask=(
+                raw_exclusion_mask=(
                     replay_mask if replay_mask is not None
                     else np.zeros(len(track), dtype=bool)
                 ),

@@ -26,6 +26,7 @@ D5 retest's arm-2 verdict CSVs from this module.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 import math
 from typing import NamedTuple
@@ -205,9 +206,17 @@ def next_server_half(striker_halves: list[Half | None], n_strokes: list[int]) ->
 # ---------------------------------------------------------------------------
 # Landing search window
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class LandingWindow:
+    """The safe half-open landing endpoint and the guards that closed it."""
+
+    end_frame: int
+    closure_reasons: tuple[str, ...]
+
+
 def _gap_after_top_exit(
     final_contact: int, run_start: int, track: np.ndarray,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
 ) -> bool:
     """Did the last visible sample before an invisible run sit at the frame's TOP edge?
 
@@ -218,16 +227,16 @@ def _gap_after_top_exit(
     """
     last_vis = final_contact + run_start
     visible = track[last_vis, 2] == 1
-    if event_non_evidence_mask is not None:
-        visible = visible and not event_non_evidence_mask[last_vis]
+    if shuttle_hallucination_mask is not None:
+        visible = visible and not shuttle_hallucination_mask[last_vis]
     return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
-def window_end(
+def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    sustained_loss_frames: int, event_non_evidence_mask: np.ndarray | None = None,
-) -> int:
-    """Earliest of the next rally's GT start, a sustained track loss, or replay-mask onset.
+    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
+) -> LandingWindow:
+    """Find the safe landing endpoint and all guards tied at that endpoint.
 
     Half-open: the window is [final_contact, window_end). Scans forward from final_contact + 1.
 
@@ -238,26 +247,48 @@ def window_end(
     window-fix behaviour (the harness's ``--window-fix``); there is no toggle here, it always
     applies.
     """
-    if event_non_evidence_mask is not None and len(event_non_evidence_mask) != len(track):
-        raise ValueError('event_non_evidence_mask length must match track length')
-    cap = min(next_start, len(track))
-    end = cap
-    seg_dead = dead[final_contact + 1:cap]  # first masked frame after contact
+    if shuttle_hallucination_mask is not None and len(shuttle_hallucination_mask) != len(track):
+        raise ValueError('shuttle_hallucination_mask length must match track length')
+    video_end = len(track)
+    boundaries: dict[str, int] = {'video_end': video_end}
+    if next_start < video_end:
+        boundaries['next_rally'] = next_start
+
+    scan_start = final_contact + 1
+    scan_end = min(next_start, video_end)
+    seg_dead = dead[scan_start:scan_end]  # first masked frame after contact
     if seg_dead.any():
-        end = min(end, final_contact + 1 + int(np.argmax(seg_dead)))
+        boundaries['definitive_exclusion'] = scan_start + int(np.argmax(seg_dead))
     effective_visibility = track[:, 2] == 1
-    if event_non_evidence_mask is not None:
-        effective_visibility &= ~event_non_evidence_mask
-    invisible = ~effective_visibility[final_contact + 1:cap]  # first sustained-loss run start
+    if shuttle_hallucination_mask is not None:
+        effective_visibility &= ~shuttle_hallucination_mask
+    invisible = ~effective_visibility[scan_start:scan_end]  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
         if run_end - run_start >= sustained_loss_frames:
             if _gap_after_top_exit(
-                final_contact, run_start, track, event_non_evidence_mask,
+                final_contact, run_start, track, shuttle_hallucination_mask,
             ):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
-            end = min(end, final_contact + 1 + run_start)
+            boundaries['sustained_loss'] = scan_start + run_start
             break
-    return max(end, final_contact + 1)
+    safe_end = max(final_contact + 1, min(boundaries.values()))
+    reason_order = ('next_rally', 'definitive_exclusion', 'sustained_loss', 'video_end')
+    reasons = tuple(
+        reason for reason in reason_order
+        if boundaries.get(reason) == safe_end
+    )
+    return LandingWindow(end_frame=safe_end, closure_reasons=reasons)
+
+
+def window_end(
+    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
+    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
+) -> int:
+    """Return the existing safe landing endpoint."""
+    return landing_window(
+        final_contact, next_start, track, dead, sustained_loss_frames,
+        shuttle_hallucination_mask,
+    ).end_frame
 
 
 def _at_frame_border(xy: np.ndarray) -> bool:
@@ -452,7 +483,7 @@ def _carried_terminal(
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
     """The landing: the last descending run surviving the settle cap and carry filter.
@@ -483,13 +514,13 @@ def filtered_descending_landing(
     if not candidates:
         return None
 
-    if event_non_evidence_mask is not None:
-        if len(event_non_evidence_mask) != len(track):
-            raise ValueError('event_non_evidence_mask length must match track length')
+    if shuttle_hallucination_mask is not None:
+        if len(shuttle_hallucination_mask) != len(track):
+            raise ValueError('shuttle_hallucination_mask length must match track length')
         surviving_candidates: list[tuple[int, int, int]] = []
         for candidate in candidates:
             start_frame, _terminal_frame, end_frame = candidate
-            if event_non_evidence_mask[start_frame:end_frame].any():
+            if shuttle_hallucination_mask[start_frame:end_frame].any():
                 if rejected_intervals is not None:
                     rejected_intervals.append((start_frame, end_frame))
             else:
@@ -609,6 +640,30 @@ def landing_margins(landing_norm: tuple[float, float], receiver_half: Half) -> L
     return LandingMargins(margin_m=margin_m, net_clear_m=net_clear_m, line_clear_m=line_clear_m)
 
 
+def corner_error_band_from_corners(
+    corners_refpx: np.ndarray, court_info: dict, err_px: float,
+) -> float:
+    """Return the median metre displacement from sixteen corner perturbations.
+
+    ``corners_refpx`` uses the CourtKeyNet TL, TR, BR, BL order at
+    :data:`HOMOGRAPHY_RESOLUTION`. The supplied ``court_info`` owns the active
+    parent homography and court boundaries, so this helper is independent of
+    ShuttleSet's homography table.
+    """
+    corners_refpx = np.asarray(corners_refpx, dtype=float)
+    base = project_pixels_to_court(corners_refpx.T, HOMOGRAPHY_RESOLUTION, court_info)
+    displacements: list[float] = []
+    for corner in range(4):
+        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
+            shifted = corners_refpx.copy()
+            shifted[corner, 0] += dx
+            shifted[corner, 1] += dy
+            projected = project_pixels_to_court(shifted.T, HOMOGRAPHY_RESOLUTION, court_info)
+            move = projected[:, corner] - base[:, corner]
+            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
+    return float(np.median(displacements))
+
+
 def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_px: float) -> float:
     """Corner error (refpx) propagated to court metres at the recorded-corner (line) locations.
 
@@ -623,18 +678,9 @@ def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_p
     :param court_info: this video's court info dict (carries `'H'`).
     :param err_px: assumed corner-marking error, in the recorded homography's own pixel space.
     """
-    corners = get_corner_camera(homo_df.loc[vid])  # (2, 4) refpx, already at HOMOGRAPHY_RESOLUTION
-    base = project_pixels_to_court(corners, HOMOGRAPHY_RESOLUTION, court_info)
-    displacements: list[float] = []
-    for corner in range(4):
-        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
-            shifted = corners.copy()
-            shifted[0, corner] += dx
-            shifted[1, corner] += dy
-            proj = project_pixels_to_court(shifted, HOMOGRAPHY_RESOLUTION, court_info)
-            move = proj[:, corner] - base[:, corner]
-            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
-    return float(np.median(displacements))
+    source_order = get_corner_camera(homo_df.loc[vid]).T
+    corners = source_order[[0, 1, 3, 2]]
+    return corner_error_band_from_corners(corners, court_info, err_px)
 
 
 # ---------------------------------------------------------------------------
@@ -660,27 +706,18 @@ class Landing(NamedTuple):
     net_ender: bool
 
 
-def pick_landing(
-    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
+def pick_landing_to_end(
+    final_contact: int, end_frame: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
     constants: FpsConstants, fps: float,
-    event_non_evidence_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> Landing | None:
-    """The picked landing for one rally: the filtered terminal, projected to court space, with
-    quality flags. None when nothing survives the landing filter within the window.
-
-    ``fps`` must be the rate for which ``constants`` was resolved; it is used only to convert
-    landing options once.
-    """
-    win_end = window_end(
-        final_contact, next_start, track, dead, constants.sustained_loss_frames,
-        event_non_evidence_mask,
-    )
+    """Pick a landing in an explicit half-open window endpoint."""
     landing = filtered_descending_landing(
-        final_contact, win_end, track, kin, convert_landing_options(opts, fps),
-        constants.min_descend_samples, event_non_evidence_mask, rejected_intervals,
+        final_contact, end_frame, track, kin, convert_landing_options(opts, fps),
+        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
     )
     if landing is None:
         return None
@@ -692,7 +729,32 @@ def pick_landing(
     return Landing(
         frame=landing_frame, norm=norm, half=half,
         at_border=_at_frame_border(landing_xy),
-        net_ender=is_net_ender(final_contact, win_end, track, striker_half, net_band, resolution),
+        net_ender=is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
+    )
+
+
+def pick_landing(
+    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
+    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
+    net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
+    constants: FpsConstants, fps: float,
+    shuttle_hallucination_mask: np.ndarray | None = None,
+    rejected_intervals: list[tuple[int, int]] | None = None,
+) -> Landing | None:
+    """The picked landing for one rally: the filtered terminal, projected to court space, with
+    quality flags. None when nothing survives the landing filter within the window.
+
+    ``fps`` must be the rate for which ``constants`` was resolved; it is used only to convert
+    landing options once.
+    """
+    win_end = landing_window(
+        final_contact, next_start, track, dead, constants.sustained_loss_frames,
+        shuttle_hallucination_mask,
+    ).end_frame
+    return pick_landing_to_end(
+        final_contact, win_end, track, kin, opts, striker_half, net_band,
+        resolution, court_info, constants, fps, shuttle_hallucination_mask,
+        rejected_intervals,
     )
 
 

@@ -86,7 +86,7 @@ def test_stage8_main_resolves_fps_thresholds(
         assert calls[0][1]['base'].span_open is None
         assert calls[0][1]['court_optional'] is True
         assert calls[0][1]['stop_after_segmentation'] is True
-        np.testing.assert_array_equal(calls[0][1]['dead_mask'], np.zeros(4, dtype=bool))
+        np.testing.assert_array_equal(calls[0][1]['raw_exclusion_mask'], np.zeros(4, dtype=bool))
     if '--missing-id' in fps_args:
         assert not captured
         assert 'skipping missing-id: absent from fps CSV' in caplog.text

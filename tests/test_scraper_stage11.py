@@ -116,14 +116,20 @@ def test_mask_run_at_span_edge_is_trusted_from_the_full_video_run():
     assert rows[0]['chunk_id'] == 'c0'  # the believed run sits wholly in boundary grace
 
 
-def test_believed_replay_only_disqualifies_a_rally_interior():
-    believed_mask = np.zeros(30, dtype=bool)
-    believed_mask[0:5] = True
-    believed_mask[6] = True
+def test_duration_filtered_replay_only_disqualifies_a_rally_interior():
+    duration_filtered_replay_mask = np.zeros(30, dtype=bool)
+    duration_filtered_replay_mask[0:5] = True
+    duration_filtered_replay_mask[6] = True
 
-    assert not stage11._believed_replay_in_rally_interior(believed_mask, 0, 5, grace=5)
-    assert stage11._believed_replay_in_rally_interior(believed_mask, 0, 20, grace=5)
-    assert not stage11._believed_replay_in_rally_interior(believed_mask, 0, 10, grace=5)
+    assert not stage11._believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 5, grace=5,
+    )
+    assert stage11._believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 20, grace=5,
+    )
+    assert not stage11._believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 10, grace=5,
+    )
 
 
 def test_none_empty_and_all_false_masks_do_not_hold_out():
