@@ -1148,6 +1148,7 @@ def _setup(driver: RunDriver) -> None:
     # The existing helper shares one pin tuple with its old calibration loader. Restrict its
     # verification view for this call so eligible per-set CSVs stay at the post-inference gate.
     original_shared_files = gt_scoring_module.SHARED_FILES
+    # NB NOT THREADSAFE
     gt_scoring_module.SHARED_FILES = tuple(SHARED_FILES[:3])
     try:
         master, homo_df, courts, resolution = load_gt_tables()  # Non-sset runs need a no-GT path.
