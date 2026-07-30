@@ -35,18 +35,13 @@ integrity and arithmetic checks. The compact record is tracked under
 published in the
 [ShuttleSet annotator heuristic reference arrays v1 Release](https://github.com/ahalp90/badminton_stroke_classification/releases/tag/shuttleset-annotator-heuristic-reference-v1).
 
-At the merge boundary, the recorded local checks passed Ruff and Pyrefly.
-Split pytest passed 1,321 tests with 30 skips and one deselected API endpoint.
-The deselection is limited to a reproducible local Starlette/AnyIO
-`TestClient` stall, so the result is not presented as a completely clean
-full-suite run.
+The reviewed branch passed Ruff and Pyrefly. The complete CPU-only pytest
+suite passed 1,339 tests with 29 skips.
 
-The previous refactor and clean-up involved substantial coding-agent-supported
-exploration, implementation, review and rework. The useful outcome is a
-single maintained annotator entry point, a reproducible fixed-fixture runner,
-and a clearer evidence boundary. The churn also means older calibration and
-pre-merge figures must stay labelled as historical rather than treated as
-today's behaviour.
+The refactor left a single maintained annotator entry point, a reproducible
+fixed-fixture runner and a clearer evidence boundary. Older calibration and
+pre-merge figures remain historical rather than measures of today's
+behaviour.
 
 ## What the project does
 
@@ -132,43 +127,24 @@ it is not a `run_video` result and was not part of the fixed measurement.
 ### Contact impulse
 
 The annotator smooths the shuttle's normalised 2D position over three frames.
-At frame \(t\), three consecutive smoothed positions define the shuttle's
+At frame `t`, three consecutive smoothed positions define the shuttle's
 incoming and outgoing movement:
 
-\[
-v_{\mathrm{in}} = p_t - p_{t-1},
-\qquad
-v_{\mathrm{out}} = p_{t+1} - p_t
-\]
+```text
+v_in  = p(t)   - p(t-1)
+v_out = p(t+1) - p(t)
+J     = ||v_out - v_in||₂
+```
 
-The impulse score is the size of the change between those vectors:
-
-\[
-J_t = \lVert v_{\mathrm{out}} - v_{\mathrm{in}} \rVert_2
-\]
+The impulse score `J` is the magnitude of the change between those movement
+vectors.
 
 Steady movement gives a score near zero. A change in speed raises the score,
 and a sharp turn or reversal raises it more. It is called an impulse score
 because a racket hit abruptly changes the shuttle's momentum. Because the
 shuttle's mass does not change, the code can use velocity change as its proxy.
 
-```mermaid
-flowchart LR
-    I1["Three smoothed positions<br/>p(t-1), p(t), p(t+1)"] --> I2["Incoming and outgoing<br/>movement vectors"]
-    I2 --> I3["Motion change<br/>J = length of (v_out - v_in)"]
-    I3 --> I4["Raw contact candidate<br/>J > 4 × local median"]
-    I3 -.-> I5["J also ranks<br/>nearby candidates"]
-
-    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
-    classDef bridge fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
-    classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
-    classDef note fill:#f5ead0,stroke:#8a6a30,color:#1a1a1a,stroke-dasharray:5 5
-
-    class I1,I2 stage
-    class I3 bridge
-    class I4 output
-    class I5 note
-```
+![How the annotator turns three smoothed shuttle positions into an impulse score and contact candidate.](contact_impulse_infographic.png)
 
 The local median is only a comparison baseline; it is not part of the impulse
 score itself. A frame becomes a raw contact candidate when its score is more
