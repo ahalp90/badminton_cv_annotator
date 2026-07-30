@@ -131,22 +131,56 @@ it is not a `run_video` result and was not part of the fixed measurement.
 
 ### Contact impulse
 
-“Impulse” is an engineering label here, not a physical force-time integral.
-The annotator smooths the shuttle's 2D position, takes one frame-to-frame
-difference to estimate velocity, then takes another difference to measure how
-abruptly that velocity changes. The magnitude of this second difference rises
-when the shuttle changes speed or direction sharply, as it often does at
-racket contact. It is acceleration-like rather than a calibrated physical
-impulse because the calculation has no shuttle mass or 3D world scale.
+The annotator smooths the shuttle's normalised 2D position over three frames.
+At frame \(t\), three consecutive smoothed positions define the shuttle's
+incoming and outgoing movement:
 
-The candidate threshold is a local, dimensionless ratio. The shipped
-base-30 settings smooth position over three frames and calculate the median
-velocity-change magnitude over up to 12 visible junctions on either side of
-the current junction. `contact_impulse_multiple=4` means the current change
-must be more than four times that local median. A higher multiple accepts
-fewer candidates; a lower multiple accepts more. Three surrounding shuttle
-observations must also be visible. The later wrist-distance gate and
-nearby-candidate suppression decide which candidates survive.
+\[
+v_{\mathrm{in}} = p_t - p_{t-1},
+\qquad
+v_{\mathrm{out}} = p_{t+1} - p_t
+\]
+
+The impulse score is the size of the change between those vectors:
+
+\[
+J_t = \lVert v_{\mathrm{out}} - v_{\mathrm{in}} \rVert_2
+\]
+
+Steady movement gives a score near zero. A change in speed raises the score,
+and a sharp turn or reversal raises it more. It is called an impulse score
+because a racket hit abruptly changes the shuttle's momentum. Because the
+shuttle's mass does not change, the code can use velocity change as its proxy.
+
+```mermaid
+flowchart LR
+    I1["Three smoothed positions<br/>p(t-1), p(t), p(t+1)"] --> I2["Incoming and outgoing<br/>movement vectors"]
+    I2 --> I3["Motion change<br/>J = length of (v_out - v_in)"]
+    I3 --> I4["Raw contact candidate<br/>J > 4 × local median"]
+    I3 -.-> I5["J also ranks<br/>nearby candidates"]
+
+    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
+    classDef bridge fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
+    classDef note fill:#f5ead0,stroke:#8a6a30,color:#1a1a1a,stroke-dasharray:5 5
+
+    class I1,I2 stage
+    class I3 bridge
+    class I4 output
+    class I5 note
+```
+
+The local median is only a comparison baseline; it is not part of the impulse
+score itself. A frame becomes a raw contact candidate when its score is more
+than four times the median score in the nearby visible frames, and the three
+required shuttle positions are visible.
+
+The score also decides which candidate survives when several occur too close
+together. Within each rally span, the strongest raw candidate is kept. After
+the wrist-distance check, the strongest remaining nearby candidate is kept
+across the video. Ties go to the earlier frame. Downstream attribution,
+landing, winner and hit-height logic use the surviving contact frames rather
+than the impulse score.
 
 The fixed end-to-end measurement derives fresh scene cuts for each fixed case.
 It shares those cuts between court modes, then derives separate court evidence
