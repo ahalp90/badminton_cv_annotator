@@ -10,7 +10,7 @@ with a synthetic two-batch loader and fails loud if it crashes.
 No real data needed. Self-contained: a BST_CG_AP model + two synthetic batches.
 
 Run on bourbaki / engelbart under venv-bst-x:
-    cd ~/badminton_stroke_classification
+    cd ~/badminton_cv_annotator
     source ~/.venvs/venv-bst-x/bin/activate
     python src/bst_x/validation_scripts/refactoring/smoke_b1_validate_gpu.py
 

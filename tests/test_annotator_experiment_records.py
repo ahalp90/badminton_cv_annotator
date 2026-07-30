@@ -43,7 +43,7 @@ def _root(run: Path, leaf_path: Path, command: list[str]) -> dict[str, object]:
         "run_id": "20260730-183124", "status": "succeeded", "source_commit": "a" * 40,
         "started_at_utc": "2026-07-30T00:00:00Z", "finished_at_utc": "2026-07-30T00:01:00Z",
         "elapsed_seconds": 60.0, "command": command,
-        "input_manifest_source": "/home/student-user/badminton_stroke_classification/inputs.json",
+        "input_manifest_source": "/home/student-user/badminton_cv_annotator/inputs.json",
         "environment": {"requested_device": "cpu", "resolved_device": "cpu", "packages": {}},
         "configurations": [{"manifest": {"path": leaf_path.relative_to(run).as_posix(), "bytes": len(data),
                                         "md5": hashlib.md5(data).hexdigest()}}],
@@ -72,6 +72,11 @@ def test_utc_directory_naming_and_collision_rejection(tmp_path: Path, monkeypatc
         import annotator.e2e_court_annotator as runner
         monkeypatch.setattr(runner, "utc_run_directory", lambda: path)
         runner._run_cli_measurement(tmp_path / "missing.json", "cpu", ("runner",))
+
+
+@pytest.mark.parametrize("repository_name", ["badminton_cv_annotator", "badminton_stroke_classification"])
+def test_path_sanitiser_accepts_current_and_historical_repository_names(repository_name: str) -> None:
+    assert records._sanitise_path(f"/home/student-user/{repository_name}/inputs.json") == "<repo>/inputs.json"
 
 
 def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_failure(
@@ -106,7 +111,7 @@ def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_fai
 def test_summary_report_and_actual_npy_totals(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     run = _run(tmp_path, monkeypatch)
     leaf = run / "static_shuttleset_homography" / "sset_01" / "tracknet-stride-8" / "manifest.json"
-    _write_json(leaf, _leaf(["python", "/home/student-user/badminton_stroke_classification/run.py"]))
+    _write_json(leaf, _leaf(["python", "/home/student-user/badminton_cv_annotator/run.py"]))
     _write_json(leaf.parent / "metrics.json", {
         "existing_calibration": {
             "covered_fraction": 1.0,
@@ -147,7 +152,7 @@ def test_cleaner_sanitises_only_manifests_updates_md5_and_preserves_npy(tmp_path
     root = _root(
         run,
         leaf,
-        ["/home/student-user/badminton_stroke_classification/tool", scratch_path],
+        ["/home/student-user/badminton_cv_annotator/tool", scratch_path],
     )
     _write_json(run / "manifest.json", root)
     untouched = run / "other.json"
@@ -231,7 +236,7 @@ def test_cleaner_rejects_scanner_paths_outside_candidates(
 def test_cleaner_rejects_manifest_paths_outside_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     run = _run(tmp_path, monkeypatch)
     outside = tmp_path / "outside.json"
-    _write_json(outside, _leaf(["/home/student-user/badminton_stroke_classification/run.py"]))
+    _write_json(outside, _leaf(["/home/student-user/badminton_cv_annotator/run.py"]))
     _write_json(
         run / "manifest.json",
         {

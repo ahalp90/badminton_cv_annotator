@@ -171,7 +171,7 @@ On the HPC nodes the collation output lives on scratch. Set `BST_X_COLLATED_DATA
 ```bash
 # Fallback (no BST_X_COLLATED_DATA_ROOT); replace taxonomy name as needed:
 mkdir -p /scratch/comp320a/ShuttleSet_data_une_v1_14
-cd ~/badminton_stroke_classification/src/bst_x/preparing_data
+cd ~/badminton_cv_annotator/src/bst_x/preparing_data
 ln -s /scratch/comp320a/ShuttleSet_data_une_v1_14 ShuttleSet_data_une_v1_14
 ```
 

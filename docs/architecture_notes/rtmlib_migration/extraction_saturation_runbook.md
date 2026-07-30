@@ -100,7 +100,7 @@ provider):
 VENVPY=~/.venvs/venv-rtmlib/bin/python
 SP=$($VENVPY -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 export LD_LIBRARY_PATH="$SP/nvidia/cudnn/lib:$SP/nvidia/cublas/lib:$SP/nvidia/cuda_nvrtc/lib:/usr/local/cuda-13.3/lib64"
-cd ~/badminton_stroke_classification
+cd ~/badminton_cv_annotator
 export PYTHONPATH=src/bst_x:src/bst_x/stroke_classification
 ```
 

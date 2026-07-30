@@ -18,7 +18,7 @@ Optional env vars (defaults match the active Hyp on the une_v1_14 baseline):
 
 Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
 
-  cd ~/badminton_stroke_classification
+  cd ~/badminton_cv_annotator
   source /home/ahalperi/.venvs/venv-bst-x/bin/activate
   set -a && source .env && set +a   # exports BST_X_COLLATED_DATA_ROOT etc.
 

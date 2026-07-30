@@ -219,7 +219,7 @@ Canonical paths used in the plan:
 - **busted_whole_clips_phase1.txt**: `/home/ahalperi/badminton_stroke_classifier/docs/architecture_notes/busted_whole_clips_phase1.txt`
 
 On local:
-- **Raw output mirror**: a folder under local scratch (pick a path; not critical). Suggest `/home/ariel/Documents/COSC594/badminton_stroke_classification/scratch/raw_extract_phase1/`.
+- **Raw output mirror**: a folder under local scratch (pick a path; not critical). Suggest `/home/ariel/Documents/COSC594/badminton_cv_annotator/scratch/raw_extract_phase1/`.
 
 ### Venv
 

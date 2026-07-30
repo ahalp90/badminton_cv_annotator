@@ -19,7 +19,8 @@ RUNS_DIRECTORY = REPO_ROOT / "experiments" / "annotator" / "runs"
 BACKUPS_DIRECTORY = REPO_ROOT / "local_scratch" / "annotator_experiment_backups"
 RUN_ID_PATTERN = re.compile(r"\d{8}-\d{6}\Z")
 HOME_REPOSITORY_PATTERN = re.compile(
-    r"/home/(?P<username>[^/\s]+)/(?:[^/\s]+/)*badminton_stroke_classification"
+    r"/home/(?P<username>[^/\s]+)/(?:[^/\s]+/)*"
+    r"badminton_(?:cv_annotator|stroke_classification)"
 )
 SCRATCH_STAGING_PATTERN = re.compile(
     r"/scratch/(?P<allocation>[^/\s]+)/(?P<username>[^/\s]+)/[^/\s]+"
