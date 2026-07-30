@@ -9,6 +9,7 @@ from annotator.calibration.scoring import GtRally, strict_contact_rows, wide_edg
 from annotator.types import ContactCandidate
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("fixture", FIXTURES, ids=lambda fixture: fixture.name)
 def test_annotator_gt_floors(fixture):
     if not os.environ.get("ANNOTATOR_FIXTURES_ROOT"):
