@@ -1249,9 +1249,9 @@ def _write_initial_run_files(driver: RunDriver) -> None:
     driver.run_log_path = run_log_path
 
 
-def run_measurement(manifest_path: Path, output_root: Path, device: str = "cpu",
-                    *, command: Sequence[str] | None = None,
-                    detector_factory: Callable[..., object] = CourtKeyNetDetector) -> int:
+def run_annotator_measurement(manifest_path: Path, output_root: Path, device: str = "cpu",
+                              *, command: Sequence[str] | None = None,
+                              detector_factory: Callable[..., object] = CourtKeyNetDetector) -> int:
     """Run the fixed eight-configuration measurement and return its exit code."""
     resolved_output = validate_output_root(output_root)
     resolved_manifest = manifest_path.expanduser().resolve()
@@ -1262,7 +1262,7 @@ def run_measurement(manifest_path: Path, output_root: Path, device: str = "cpu",
         tuple(command or (
             sys.executable,
             "-m",
-            "scraper.e2e_court_annotator",
+            "annotator.e2e_court_annotator",
             "--manifest",
             str(manifest_path),
             "--output-root",
@@ -1309,7 +1309,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return run_measurement(args.manifest, args.output_root, args.device, command=sys.argv)
+        return run_annotator_measurement(args.manifest, args.output_root, args.device, command=sys.argv)
     except (OSError, ValueError) as error:
         build_parser().error(str(error))
 

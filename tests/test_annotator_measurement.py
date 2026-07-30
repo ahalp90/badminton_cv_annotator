@@ -1,4 +1,4 @@
-"""Focused contract tests for the fixed end-to-end annotator runner."""
+"""Focused contract tests for the fixed annotator measurement."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import scraper.e2e_court_annotator as runner
+import annotator.e2e_court_annotator as runner
 from annotator.court_evidence import CourtEvidenceResult, CourtInputs, CourtSceneRecord
 from annotator.run_video import AnnotatorResult
 
@@ -251,7 +251,7 @@ def test_setup_failure_returns_one_and_writes_only_terminal_run_manifest(
     monkeypatch.setattr(runner, "_source_commit", lambda: "a" * 40)
     monkeypatch.setattr(runner, "_require_clean_source_tree", lambda: (_ for _ in ()).throw(ValueError("dirty")))
     output_root = tmp_path / "run"
-    assert runner.run_measurement(manifest_path, output_root) == 1
+    assert runner.run_annotator_measurement(manifest_path, output_root) == 1
     payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     assert payload["status"] == "failed"
     assert payload["source_commit"] == "a" * 40
@@ -553,7 +553,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
 
     monkeypatch.setattr(runner, "_load_case", capture_case)
     output_root = tmp_path / "run"
-    assert runner.run_measurement(manifest_path, output_root) == 0
+    assert runner.run_annotator_measurement(manifest_path, output_root) == 0
     assert gt_loads == 1
     assert detector_calls == 1
     assert inference_calls == 8
@@ -586,7 +586,7 @@ def test_shared_case_failure_marks_both_parents_failed_and_keeps_independent_cas
         failed_case_id=failed_case,
     )
 
-    assert runner.run_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
     payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{failed_case}"] == "failed"
@@ -613,7 +613,7 @@ def test_parent_inference_failure_does_not_stop_sibling_or_later_configurations(
         ),
     )
 
-    assert runner.run_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
     payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
@@ -636,7 +636,7 @@ def test_local_scoring_failure_does_not_stop_later_scoring(
         scoring_failure_video_id=target_video_id,
     )
 
-    assert runner.run_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
     payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
