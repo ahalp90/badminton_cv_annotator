@@ -26,6 +26,7 @@ D5 retest's arm-2 verdict CSVs from this module.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 import math
 from typing import NamedTuple
@@ -205,6 +206,14 @@ def next_server_half(striker_halves: list[Half | None], n_strokes: list[int]) ->
 # ---------------------------------------------------------------------------
 # Landing search window
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class LandingWindow:
+    """The safe half-open landing endpoint and the guards that closed it."""
+
+    end_frame: int
+    closure_reasons: tuple[str, ...]
+
+
 def _gap_after_top_exit(
     final_contact: int, run_start: int, track: np.ndarray,
     shuttle_hallucination_mask: np.ndarray | None = None,
@@ -223,11 +232,11 @@ def _gap_after_top_exit(
     return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
-def window_end(
+def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
-) -> int:
-    """Earliest of the next rally's GT start, a sustained track loss, or replay-mask onset.
+) -> LandingWindow:
+    """Find the safe landing endpoint and all guards tied at that endpoint.
 
     Half-open: the window is [final_contact, window_end). Scans forward from final_contact + 1.
 
@@ -240,24 +249,46 @@ def window_end(
     """
     if shuttle_hallucination_mask is not None and len(shuttle_hallucination_mask) != len(track):
         raise ValueError('shuttle_hallucination_mask length must match track length')
-    cap = min(next_start, len(track))
-    end = cap
-    seg_dead = dead[final_contact + 1:cap]  # first masked frame after contact
+    video_end = len(track)
+    boundaries: dict[str, int] = {'video_end': video_end}
+    if next_start < video_end:
+        boundaries['next_rally'] = next_start
+
+    scan_start = final_contact + 1
+    scan_end = min(next_start, video_end)
+    seg_dead = dead[scan_start:scan_end]  # first masked frame after contact
     if seg_dead.any():
-        end = min(end, final_contact + 1 + int(np.argmax(seg_dead)))
+        boundaries['definitive_exclusion'] = scan_start + int(np.argmax(seg_dead))
     effective_visibility = track[:, 2] == 1
     if shuttle_hallucination_mask is not None:
         effective_visibility &= ~shuttle_hallucination_mask
-    invisible = ~effective_visibility[final_contact + 1:cap]  # first sustained-loss run start
+    invisible = ~effective_visibility[scan_start:scan_end]  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
         if run_end - run_start >= sustained_loss_frames:
             if _gap_after_top_exit(
                 final_contact, run_start, track, shuttle_hallucination_mask,
             ):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
-            end = min(end, final_contact + 1 + run_start)
+            boundaries['sustained_loss'] = scan_start + run_start
             break
-    return max(end, final_contact + 1)
+    safe_end = max(final_contact + 1, min(boundaries.values()))
+    reason_order = ('next_rally', 'definitive_exclusion', 'sustained_loss', 'video_end')
+    reasons = tuple(
+        reason for reason in reason_order
+        if boundaries.get(reason) == safe_end
+    )
+    return LandingWindow(end_frame=safe_end, closure_reasons=reasons)
+
+
+def window_end(
+    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
+    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
+) -> int:
+    """Return the existing safe landing endpoint."""
+    return landing_window(
+        final_contact, next_start, track, dead, sustained_loss_frames,
+        shuttle_hallucination_mask,
+    ).end_frame
 
 
 def _at_frame_border(xy: np.ndarray) -> bool:
@@ -675,6 +706,33 @@ class Landing(NamedTuple):
     net_ender: bool
 
 
+def pick_landing_to_end(
+    final_contact: int, end_frame: int, track: np.ndarray,
+    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
+    net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
+    constants: FpsConstants, fps: float,
+    shuttle_hallucination_mask: np.ndarray | None = None,
+    rejected_intervals: list[tuple[int, int]] | None = None,
+) -> Landing | None:
+    """Pick a landing in an explicit half-open window endpoint."""
+    landing = filtered_descending_landing(
+        final_contact, end_frame, track, kin, convert_landing_options(opts, fps),
+        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
+    )
+    if landing is None:
+        return None
+    landing_frame, landing_xy = landing
+    px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
+    proj = project_pixels_to_court(px, resolution, court_info)
+    norm = (float(proj[0, 0]), float(proj[1, 0]))
+    half = Half.TOP if norm[1] < NET_COURT_Y else Half.BOT
+    return Landing(
+        frame=landing_frame, norm=norm, half=half,
+        at_border=_at_frame_border(landing_xy),
+        net_ender=is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
+    )
+
+
 def pick_landing(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
@@ -689,25 +747,14 @@ def pick_landing(
     ``fps`` must be the rate for which ``constants`` was resolved; it is used only to convert
     landing options once.
     """
-    win_end = window_end(
+    win_end = landing_window(
         final_contact, next_start, track, dead, constants.sustained_loss_frames,
         shuttle_hallucination_mask,
-    )
-    landing = filtered_descending_landing(
-        final_contact, win_end, track, kin, convert_landing_options(opts, fps),
-        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
-    )
-    if landing is None:
-        return None
-    landing_frame, landing_xy = landing
-    px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
-    proj = project_pixels_to_court(px, resolution, court_info)
-    norm = (float(proj[0, 0]), float(proj[1, 0]))
-    half = Half.TOP if norm[1] < NET_COURT_Y else Half.BOT
-    return Landing(
-        frame=landing_frame, norm=norm, half=half,
-        at_border=_at_frame_border(landing_xy),
-        net_ender=is_net_ender(final_contact, win_end, track, striker_half, net_band, resolution),
+    ).end_frame
+    return pick_landing_to_end(
+        final_contact, win_end, track, kin, opts, striker_half, net_band,
+        resolution, court_info, constants, fps, shuttle_hallucination_mask,
+        rejected_intervals,
     )
 
 

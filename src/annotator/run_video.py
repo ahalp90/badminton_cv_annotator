@@ -1,7 +1,8 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import math
 from typing import NamedTuple
 
 import numpy as np
@@ -154,10 +155,33 @@ class AnnotatorResult(NamedTuple):
 
 @dataclass
 class RunCapture:
-    """Caller-owned copies of the masks produced during one run."""
+    """Caller-owned copies of the masks and landing diagnostics from one run."""
 
     raw_exclusion_mask: np.ndarray | None = None
     definitive_exclusion_mask: np.ndarray | None = None
+    landing_horizon_rows: list['LandingHorizonRow'] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class LandingHorizonRow:
+    """One GT-free comparison between the safe and a shorter landing endpoint."""
+
+    rally_id: int
+    horizon_seconds: float
+    horizon_frames: int
+    final_contact_frame: int
+    requested_end_frame: int
+    safe_end_frame: int
+    effective_end_frame: int
+    closure_reasons: tuple[str, ...]
+    strict_landing: point_winner.Landing | None
+    capped_landing: point_winner.Landing | None
+    strict_verdict: point_winner.VerdictRow
+    capped_verdict: point_winner.VerdictRow
+    strict_winner: point_winner.Half | None
+    capped_winner: point_winner.Half | None
+    landing_changed: bool
+    winner_changed: bool
 
 
 def _first_stroke_half(final_half, n_strokes: int):
@@ -203,6 +227,7 @@ def run_video(
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
     landing_error_band_m: float | None = None,
+    landing_horizons_s: tuple[float, ...] = (),
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
@@ -217,6 +242,21 @@ def run_video(
     if capture is not None:
         capture.raw_exclusion_mask = None
         capture.definitive_exclusion_mask = None
+        capture.landing_horizon_rows.clear()
+    if landing_horizons_s:
+        if capture is None:
+            raise ValueError('landing_horizons_s requires capture')
+        if any(
+            not math.isfinite(horizon) or horizon <= 0
+            for horizon in landing_horizons_s
+        ):
+            raise ValueError('landing_horizons_s must contain finite positive values')
+        if any(
+            later <= earlier
+            for earlier, later in zip(landing_horizons_s, landing_horizons_s[1:])
+        ):
+            raise ValueError('landing_horizons_s must be strictly increasing')
+    if capture is not None:
         if raw_exclusion_mask is not None:
             capture.raw_exclusion_mask = raw_exclusion_mask.copy()
 
@@ -496,10 +536,11 @@ def run_video(
             continue
         final_contact = usable_final_contacts[-1]
         next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
-        event_aware_window_end = point_winner.window_end(
+        safe_window = point_winner.landing_window(
             final_contact, next_start, track, definitive_exclusion_mask,
             resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
         )
+        event_aware_window_end = safe_window.end_frame
         if rejection_diagnostics is not None:
             window_end_without_events = point_winner.window_end(
                 final_contact, next_start, track, definitive_exclusion_mask,
@@ -517,8 +558,8 @@ def run_video(
         )
         window_closed_by_mask = event_aware_window_end < window_end_without_exclusion_mask
         landing_rejections: list[tuple[int, int]] = []
-        landing = point_winner.pick_landing(
-            final_contact, next_start, track, definitive_exclusion_mask,
+        landing = point_winner.pick_landing_to_end(
+            final_contact, event_aware_window_end, track,
             kin, landing_options, striker, net_band,
             resolution, court_info, resolved.constants, fps,
             shuttle_hallucination_mask=shuttle_hallucination_mask,
@@ -548,6 +589,52 @@ def run_video(
             rally_id, geometric, geometric_winner, agreement, window_closed_by_mask,
         )
         landings[rally_id] = landing
+
+        if landing_horizons_s:
+            strict_winner = shipped_winner
+            for horizon_seconds in landing_horizons_s:
+                horizon_frames = max(1, math.floor(horizon_seconds * fps + 0.5))
+                requested_end_frame = final_contact + horizon_frames
+                effective_end_frame = max(
+                    final_contact + 1,
+                    min(requested_end_frame, safe_window.end_frame),
+                )
+                closure_reasons: list[str] = []
+                if requested_end_frame == effective_end_frame:
+                    closure_reasons.append('horizon_cap')
+                if effective_end_frame == safe_window.end_frame:
+                    closure_reasons.extend(safe_window.closure_reasons)
+                capped_landing = point_winner.pick_landing_to_end(
+                    final_contact, effective_end_frame, track, kin, landing_options,
+                    striker, net_band, resolution, court_info, resolved.constants, fps,
+                    shuttle_hallucination_mask=shuttle_hallucination_mask,
+                )
+                capped_verdict = point_winner.rally_verdict(
+                    rally_id, striker, next_servers[rally_id], capped_landing, band_m,
+                )
+                capped_winner = None
+                if capped_verdict.verdict is point_winner.Verdict.WON:
+                    capped_winner = striker
+                elif capped_verdict.verdict is point_winner.Verdict.LOST:
+                    capped_winner = OTHER_HALF[striker]
+                capture.landing_horizon_rows.append(LandingHorizonRow(
+                    rally_id=rally_id,
+                    horizon_seconds=horizon_seconds,
+                    horizon_frames=horizon_frames,
+                    final_contact_frame=final_contact,
+                    requested_end_frame=requested_end_frame,
+                    safe_end_frame=safe_window.end_frame,
+                    effective_end_frame=effective_end_frame,
+                    closure_reasons=tuple(closure_reasons),
+                    strict_landing=landing,
+                    capped_landing=capped_landing,
+                    strict_verdict=verdict,
+                    capped_verdict=capped_verdict,
+                    strict_winner=strict_winner,
+                    capped_winner=capped_winner,
+                    landing_changed=landing != capped_landing,
+                    winner_changed=strict_winner != capped_winner,
+                ))
 
     hit_height_by_frame: dict[int, int] = {}
     hit_height_failures: list[tuple[int, int, int, str]] = []
