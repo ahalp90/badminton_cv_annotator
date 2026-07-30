@@ -12,6 +12,12 @@ Stage one built a stroke-type classifier across two deep learning architectures,
 - **BST-X**, a spatio-temporal CNN/transformer hybrid built on the BST architecture (Chang 2025, [arXiv:2502.21085](https://arxiv.org/abs/2502.21085)). Three streams per clip (pose joints and bones, court position, shuttle xy) fused through BST's cross-attention block. Custom CDB-F1 adaptive focal loss handles class imbalance.
 - **BRIC**, an R(2+1)D-18 backbone (Kinetics-400 pretrained) on 32-frame RGB clips, with optional shuttle and court-position side-streams concatenated at the classifier head.
 - **Web app**: React + FastAPI. Browses precomputed predictions across six BST-X taxonomy/split variants and one BRIC variant over the full 4,202-clip test set, with per-class F1, confusion patterns, match filtering, and inline clip playback. Upload-to-results wizard wired end to end. Live BRIC inference runs on user uploads when a GPU is available; live BST-X inference runs on single-stroke library-clip requests. BST-X live inference on arbitrary user uploads still falls back to a smart stub (Phase 2 carry).
+- **Auto-annotator and downloader**, built for rally-level dataset assembly.
+  ShuttleSet supplies a candidate pool of 3,359 usable rallies across 40
+  matches after four whole-video exclusions. This is the available annotated
+  pool, not a claim that every rally is ready for model training. See the
+  [current project overview](docs/project_overview_20260730-214831.md) and
+  [fixed measurement](experiments/annotator/runs/20260730-041328/measurement_verification.md).
 
 ### Results on the original BST 25-class taxonomy
 
@@ -128,7 +134,7 @@ The pipeline expects clip and pose data inside the repo tree; symlink to `/scrat
 ```bash
 mkdir -p /scratch/comp320a/ShuttleSet/{raw_video,clips,shuttle_csv,shuttle_npy}
 
-cd ~/badminton_stroke_classification/data/shuttleset
+cd ~/badminton_cv_annotator/data/shuttleset
 ln -s /scratch/comp320a/ShuttleSet/raw_video raw_video
 ln -s /scratch/comp320a/ShuttleSet/clips clips
 ln -s /scratch/comp320a/ShuttleSet/shuttle_csv shuttle_csv
@@ -139,7 +145,7 @@ Per-taxonomy pose output dir, same pattern:
 
 ```bash
 mkdir -p /scratch/comp320a/ShuttleSet_data_une_v1_14
-cd ~/badminton_stroke_classification/src/bst_x/preparing_data
+cd ~/badminton_cv_annotator/src/bst_x/preparing_data
 ln -s /scratch/comp320a/ShuttleSet_data_une_v1_14 ShuttleSet_data_une_v1_14
 ```
 

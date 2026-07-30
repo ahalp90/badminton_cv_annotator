@@ -180,7 +180,7 @@ rerun CourtKeyNet, the annotator or the scorer. No threshold changed after the
 run.
 
 The ignored NPY arrays are published in the
-[ShuttleSet annotator heuristic reference arrays v1 Release](https://github.com/ahalp90/badminton_stroke_classification/releases/tag/shuttleset-annotator-heuristic-reference-v1).
+[ShuttleSet annotator heuristic reference arrays v1 Release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/shuttleset-annotator-heuristic-reference-v1).
 The Release contains four shuttle-track arrays with their producer CSVs and
 inpaint sidecars. It also contains, for each of the eight configurations, the
 court-valid, keep-vote, replay and final exclusion masks.

@@ -33,7 +33,7 @@ University of New England's Bourbaki HPC, and the retrieved result passed its
 integrity and arithmetic checks. The compact record is tracked under
 `experiments/annotator/runs/20260730-041328/`. The larger reusable arrays are
 published in the
-[ShuttleSet annotator heuristic reference arrays v1 Release](https://github.com/ahalp90/badminton_stroke_classification/releases/tag/shuttleset-annotator-heuristic-reference-v1).
+[ShuttleSet annotator heuristic reference arrays v1 Release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/shuttleset-annotator-heuristic-reference-v1).
 
 The reviewed branch passed Ruff and Pyrefly. The complete CPU-only pytest
 suite passed 1,339 tests with 29 skips.
