@@ -121,6 +121,20 @@ def test_wide_edge_contact_rows_use_one_candidate_for_duplicate_targets():
     ]
 
 
+def test_wide_edge_contact_rows_keep_duplicate_first_and_last_strokes():
+    rows = wide_edge_contact_rows(
+        [GtRally('set1', 1, (10, 10))],
+        [ContactCandidate(0, 10, None, None, None)],
+        fps=30.0,
+        n_frames=30,
+    )
+
+    assert [(row['edge'], row['row_kind']) for row in rows] == [
+        ('first', 'matched'),
+        ('last', 'unmatched_gt'),
+    ]
+
+
 def test_wide_edge_contact_rows_leave_abutting_windows_unchanged():
     rallies = [GtRally('set1', 1, (90,)), GtRally('set1', 2, (271,))]
     rows = wide_edge_contact_rows(

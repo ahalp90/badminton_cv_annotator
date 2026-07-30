@@ -349,7 +349,7 @@ def wide_edge_contact_rows(
     # (GT frame, source rally order, edge, initial start, initial end)
     for source_order, rally in enumerate(gt_rallies):
         edge_frames = [('first', rally.stroke_frames[0])]
-        if rally.stroke_frames[-1] != rally.stroke_frames[0]:
+        if len(rally.stroke_frames) > 1:
             edge_frames.append(('last', rally.stroke_frames[-1]))
         for edge, gt_frame in edge_frames:
             start = max(0, gt_frame - half_width)
