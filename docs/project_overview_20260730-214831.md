@@ -1,14 +1,11 @@
 # Badminton stroke classification: project overview
 
-**Owner-review candidate, 30 July 2026.** This overview describes the project
+**Current overview, 30 July 2026.** This overview describes the project
 as it stands at repository merge `726b155`. It puts the scraper and
 auto-annotator first because they are now the active route to useful
 video-and-commentary data. The fixed measurement described below ran from the
 earlier source commit `189c5af`. BST-X remains a substantial completed model
 stream, covered in the appendix.
-
-_Review note: relative links are written for the proposed tracked home,
-`docs/project_overview.md`._
 
 ## Contents
 
@@ -134,12 +131,21 @@ it is not a `run_video` result and was not part of the fixed measurement.
 
 ### Contact impulse
 
-For this project, an impulse is the size of the shuttle's change in velocity
-at one frame boundary. The annotator smooths the shuttle's x and y positions,
-calculates the incoming and outgoing velocity vectors, then measures the
-distance between those vectors. A frame becomes a raw contact candidate when
-three surrounding shuttle observations are visible and its impulse is several
-times the local rolling median. The later wrist-distance gate and
+“Impulse” is an engineering label here, not a physical force-time integral.
+The annotator smooths the shuttle's 2D position, takes one frame-to-frame
+difference to estimate velocity, then takes another difference to measure how
+abruptly that velocity changes. The magnitude of this second difference rises
+when the shuttle changes speed or direction sharply, as it often does at
+racket contact. It is acceleration-like rather than a calibrated physical
+impulse because the calculation has no shuttle mass or 3D world scale.
+
+The candidate threshold is a local, dimensionless ratio. The shipped
+base-30 settings smooth position over three frames and calculate the median
+velocity-change magnitude over up to 12 visible junctions on either side of
+the current junction. `contact_impulse_multiple=4` means the current change
+must be more than four times that local median. A higher multiple accepts
+fewer candidates; a lower multiple accepts more. Three surrounding shuttle
+observations must also be visible. The later wrist-distance gate and
 nearby-candidate suppression decide which candidates survive.
 
 The fixed end-to-end measurement derives fresh scene cuts for each fixed case.
@@ -159,56 +165,72 @@ brightness-delta rule.
 
 ### Fixed measurement and core annotator trace
 
-> Read the three bands from top to bottom. The inference and scoring core ran
-> from `189c5af`; at `726b155`, the CLI also makes the tracked summary and
-> report, backs up the small record and cleans its public files.
+The trace is split at the program's three main hand-offs so each part fits in
+one viewport. Together, the charts describe one fixed measurement process.
+The inference and scoring core ran from `189c5af`. At `726b155`, the CLI also
+makes the tracked summary and report, backs up the small record and cleans its
+public files.
+
+> Part 1 of 3: prepare each fixed case and derive its court evidence. The
+> prepared case continues to Part 2. The held GT master skips inference and
+> enters only in Part 3.
 
 ```mermaid
 flowchart TB
-    subgraph M_SETUP["Setup and court evidence"]
-        direction LR
-        M1["CLI and timestamped<br/>run directory"] --> M2["Manifest and<br/>pin checks"]
-        M2 --> M3["Four fixed cases<br/>and fresh raw cuts"]
-        M3 --> M4{"Court mode"}
-        M4 --> M5["Static homography<br/>court evidence"]
-        M4 --> M6["Live CKN/OpenCV<br/>court evidence"]
-        M5 --> M7["Geometry, keep_vote<br/>and court_present"]
-        M6 --> M7
-        M2 -.->|"load and hold"| MG["GT master<br/>for scoring"]
-    end
+    A1["CLI and timestamped<br/>run directory"] --> A2["Manifest and<br/>pin checks"]
+    A2 --> A3["Four fixed cases<br/>and fresh raw cuts"]
+    A3 --> A4{"Court mode"}
+    A4 --> A5["Static homography<br/>court evidence"]
+    A4 --> A6["Live CKN/OpenCV<br/>court evidence"]
+    A5 --> A7["Geometry, keep_vote<br/>and court_present"]
+    A6 --> A7
+    A2 -.->|"hold for Part 3"| AG["GT master<br/>for scoring"]
 
-    subgraph M_CORE["Core run_video operation"]
-        direction LR
-        C1["FPS settings and<br/>sticky player picks"] --> C2["Bootstrap spans<br/>and replay mask"]
-        C2 --> C3["Short-run filter and<br/>court-invalid exclusion"]
-        C3 --> C4["Final segmentation<br/>and impulse candidates"]
-        C4 --> C5["Wrist gate, suppression<br/>and player order"]
-        C5 --> C6["Landing, winner<br/>and hit height"]
-    end
+    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
+    classDef bridge fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef auxiliary fill:#e0e0e0,stroke:#888888,color:#1a1a1a
 
-    subgraph M_SCORE["Scoring and records"]
-        direction LR
-        S1["Post-inference GT<br/>set checks"] --> S2["All-contact and<br/>covered-rally scores"]
-        S2 --> S3["Boundary-buffer and<br/>landing diagnostics"]
-        S3 --> S4["Configuration and<br/>run manifests"]
-        S4 --> S5["Summary, report,<br/>backup and clean"]
-    end
+    class A1,A2,A3,A4 stage
+    class A5,A6,A7 bridge
+    class AG auxiliary
+```
 
-    M7 --> C1
-    C6 --> S2
-    MG --> S1
+> Part 2 of 3: the shared `run_video` path turns a prepared case into rally,
+> contact and derived-label results.
+
+```mermaid
+flowchart LR
+    B1["Prepared case<br/>and court evidence"] --> B2["FPS settings and sticky players,<br/>preliminary rally spans<br/>and replay mask"]
+    B2 --> B3["Short-run and court filter,<br/>final segments and impulses"]
+    B3 --> B4["Wrist gate, suppression,<br/>player order and derived labels"]
+    B4 --> B5["Annotator<br/>result"]
 
     classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
     classDef bridge fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
     classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
+
+    class B1,B2,B3 stage
+    class B4 bridge
+    class B5 output
+```
+
+> Part 3 of 3: scoring combines the annotator result with the held GT master,
+> then writes the measurement record.
+
+```mermaid
+flowchart LR
+    D1["Annotator result<br/>and held GT"] --> D2["Post-inference<br/>set checks"]
+    D2 --> D3["Contact scores, boundary<br/>and landing diagnostics"]
+    D3 --> D4["Configuration and<br/>run manifests"]
+    D4 --> D5["Summary and report,<br/>backup and clean"]
+
+    classDef bridge fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
     classDef auxiliary fill:#e0e0e0,stroke:#888888,color:#1a1a1a
 
-    class M1,M2,M3,M4 stage
-    class M5,M6,M7 bridge
-    class MG auxiliary
-    class C1,C2,C3,C4,C5,C6 stage
-    class S1,S2,S3,S4 bridge
-    class S5 output
+    class D1 auxiliary
+    class D2,D3,D4 bridge
+    class D5 output
 ```
 
 Ground truth is loaded during setup because the existing table loader also
@@ -216,6 +238,10 @@ provides court geometry. The master stroke table is held aside and enters only
 after `run_video` finishes. The detailed
 [measurement verification](../experiments/annotator/runs/20260730-041328/measurement_verification.md)
 maps each arrow to the current source symbols.
+
+The preliminary rally spans are an unmasked first estimate of play time. They
+give the replay-mask builder an in-rally speed baseline. Final segmentation
+then runs with that mask applied.
 
 ### Current execution and evaluation paths
 
@@ -401,27 +427,28 @@ for each of the eight configurations. Iterative work can use these frozen
 arrays until the next formal measurement is needed.
 
 The immediate next steps are:
- - serve lookback to consider potential serves from scenes without a standard
- court view/homography (i.e., side-on/close-up)
- - wire the inpaint sidecar into the event-evidence path, and tune the inpaint
- hallucination detector
- - manually annotate replay and cutaway intervals in one fixture before tuning
- the replay masks or doing any more substantial work
+
+- extend serve lookback to scenes without a standard court view or homography,
+  such as side-on or close-up shots;
+- wire the inpaint sidecar into the event-evidence path and tune the inpaint
+  hallucination detector; and
+- manually annotate replay and cutaway intervals in one fixture before tuning
+  replay masks or doing more substantial work.
 
 A clean GT-injected regression harness is also specified for isolating
 segmentation, contact and downstream attribution when that work begins.
 
-The vision-language-model idea is the pragmatic way forward after that. Trying
-to identify all confounders that incorrectly break up rallies is impractical to
-do just form pure mathematical heuristics. It should preserve the standard-view
-heuristics and use a frozen vision model to detect and help mask these confounders:
-audience shots, side-on shots, replays, etc. The model would receive raw frames and
-return a small visible-state record. A deterministic reconciler would still decide
+The vision-language-model idea is the pragmatic way forward after that.
+Identifying every confounder that incorrectly breaks up rallies is impractical
+using mathematical heuristics alone. The standard-view heuristics should stay.
+A frozen vision model could help detect and mask audience shots, side-on shots,
+replays and similar confounders. The model would receive raw frames and return
+a small visible-state record. A deterministic reconciler would still decide
 rally boundaries.
 
-There are probably also some easy gains in better using PySceneDetect. Currently we
-only use it for basic scene cut detection--but it has several other useful-seeming
-features that have not yet been explored.
+PySceneDetect may also offer some straightforward gains. The current pipeline
+uses it only for basic scene-cut detection; its other relevant features have
+not yet been explored.
 
 ## BST-X appendix
 
