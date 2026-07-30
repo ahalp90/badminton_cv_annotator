@@ -32,11 +32,11 @@ import numpy as np
 import pandas as pd
 
 DEFAULT_UNMASKED = Path(
-    "/home/ariel/Documents/COSC594/badminton_stroke_classification/"
+    "/home/ariel/Documents/COSC594/badminton_cv_annotator/"
     "local_scratch/autograder_architecture/pilot_results/sweep_widened"
 )
 DEFAULT_OUT = Path(
-    "/home/ariel/Documents/COSC594/badminton_stroke_classification/"
+    "/home/ariel/Documents/COSC594/badminton_cv_annotator/"
     "local_scratch/autograder_architecture/pilot_results/plots"
 )
 

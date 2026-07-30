@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-REPO = Path('/home/ariel/Documents/COSC594/badminton_stroke_classification')
+REPO = Path('/home/ariel/Documents/COSC594/badminton_cv_annotator')
 CLIPS_CSV = REPO / 'notebooks' / 'clips_master.csv'
 MATCH_CSV = REPO / 'data/shuttleset/set/match.csv'
 SET_DIR = REPO / 'data/shuttleset/set'

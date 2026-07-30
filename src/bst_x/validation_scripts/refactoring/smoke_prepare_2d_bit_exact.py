@@ -26,7 +26,7 @@ Optional env vars:
 
 Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
 
-  cd ~/badminton_stroke_classification
+  cd ~/badminton_cv_annotator
   source <rtmlib-venv>/bin/activate   # rtmlib + onnxruntime; mmpose not needed
 
   # Pick 5-10 stems and symlink their mp4s. Hit-zone stems are a good default

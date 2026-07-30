@@ -33,7 +33,7 @@ For production deployment see `DEPLOYMENT.md`.
 
 ```bash
 git clone <repo>
-cd badminton_stroke_classification
+cd badminton_cv_annotator
 ./scripts/dev-setup.sh          # creates env files + empty mount dirs
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 # open http://localhost:5173

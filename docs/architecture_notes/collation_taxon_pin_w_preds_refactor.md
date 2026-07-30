@@ -427,7 +427,7 @@ elif not args.keep_unknown:
 Run:
 
 ```bash
-cd /home/ahalperi/badminton_stroke_classification
+cd /home/ahalperi/badminton_cv_annotator
 /home/ahalperi/.venvs/venv-bst-x/bin/python scripts/build_extract_stems.py \
     --only-unknown --keep-busted \
     --output /scratch/comp320a/ShuttleSet_keypoints_raw_unknown/stems_unknown.txt

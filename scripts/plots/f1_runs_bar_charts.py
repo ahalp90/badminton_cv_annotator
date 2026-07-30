@@ -24,11 +24,11 @@ from matplotlib.lines import Line2D
 import yaml
 
 BASE = Path(
-    "/home/ariel/Documents/COSC594/badminton_stroke_classification/"
+    "/home/ariel/Documents/COSC594/badminton_cv_annotator/"
     "experiments/bst_x/shuttleset"
 )
 OUT_DIR = Path(
-    "/home/ariel/Documents/COSC594/badminton_stroke_classification/local_scratch/presentation_prep"
+    "/home/ariel/Documents/COSC594/badminton_cv_annotator/local_scratch/presentation_prep"
 )
 
 FLOOR = 0.40

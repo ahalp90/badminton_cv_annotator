@@ -9,7 +9,7 @@ Maps the invariants a naive split of `collate_npy` would silently break, against
 the live code, so any future refactor can split it behaviour-preserving. Analysis
 only: no `src/` edit is part of this doc.
 
-Repo root: `/home/ariel/Documents/COSC594/badminton_stroke_classification`. All
+Repo root: `/home/ariel/Documents/COSC594/badminton_cv_annotator`. All
 `file:line` refs below are relative to it; the target is
 `src/bst_x/preparing_data/prepare_train_on_shuttleset.py` (abbreviated
 `prepare_train` below) with `collate_npy` defined at line 719.

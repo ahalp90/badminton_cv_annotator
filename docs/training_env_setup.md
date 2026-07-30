@@ -43,8 +43,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ## 3. Clone the repo
 
 ```bash
-git clone <REPO_URL> badminton_stroke_classification
-cd badminton_stroke_classification
+git clone <REPO_URL> badminton_cv_annotator
+cd badminton_cv_annotator
 git checkout <branch>     # e.g. main, or a feature branch
 ```
 

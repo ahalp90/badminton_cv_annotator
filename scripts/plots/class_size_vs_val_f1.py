@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-REPO = Path('/home/ariel/Documents/COSC594/badminton_stroke_classification')
+REPO = Path('/home/ariel/Documents/COSC594/badminton_cv_annotator')
 RUN_DIR = REPO / 'experiments/bst_x/shuttleset/run_20260602_143618_156220'
 SERIAL = 2
 CLIPS_CSV = REPO / 'notebooks/clips_master.csv'
