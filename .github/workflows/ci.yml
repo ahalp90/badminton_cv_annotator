@@ -45,6 +45,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       # Mirror the Dockerfile: CPU torch from the explicit index first, then the pinned
       # requirements (torch left unpinned there, so pip skips the multi-GB CUDA wheels).
       - name: Install dependencies
