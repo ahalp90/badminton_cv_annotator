@@ -1,6 +1,7 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
@@ -151,6 +152,14 @@ class AnnotatorResult(NamedTuple):
     hit_height_failures: list[tuple[int, int, int, str]]
 
 
+@dataclass
+class RunCapture:
+    """Caller-owned copies of the masks produced during one run."""
+
+    raw_exclusion_mask: np.ndarray | None = None
+    definitive_exclusion_mask: np.ndarray | None = None
+
+
 def _first_stroke_half(final_half, n_strokes: int):
     """The rally's own fitted first-stroke half, from its fitted final-contact half.
 
@@ -191,13 +200,26 @@ def run_video(
     rejection_diagnostics: list[dict[str, object]] | None = None,
     court_optional: bool = False,
     stop_after_segmentation: bool = False,
+    capture: RunCapture | None = None,
+    court_invalid_is_excluded: bool = False,
+    landing_error_band_m: float | None = None,
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
     `court_optional` is only valid with `stop_after_segmentation`. That mode does not build
     sticky or enter any downstream court-dependent stage, so it accepts only the track, fps,
     positions, and optional raw exclusion mask.
+
+    ``court_invalid_is_excluded`` is opt-in so existing calibration callers keep
+    their supplied mask semantics. ``landing_error_band_m`` lets a parent pass
+    its active geometry's uncertainty without opening a static homography table.
     """
+    if capture is not None:
+        capture.raw_exclusion_mask = None
+        capture.definitive_exclusion_mask = None
+        if raw_exclusion_mask is not None:
+            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+
     resolved = resolve(base, fps)
     # Injected spans skip span finding, so serve-start would otherwise silently never run.
     if serve_start is not None and spans is not None:
@@ -244,13 +266,17 @@ def run_video(
                 'landing_options': landing_options,
                 'net_band': net_band,
                 'court_info': court_info,
-                'homo_df': homo_df,
             }
             missing_downstream_inputs = [
                 name for name, value in required_downstream_inputs.items() if value is None
             ]
+            if landing_error_band_m is None and homo_df is None:
+                missing_downstream_inputs.append('homo_df or landing_error_band_m')
             if missing_downstream_inputs:
                 raise ValueError(f'full-chain mode requires {", ".join(missing_downstream_inputs)}')
+
+        if hasattr(homography_rows, 'to_dict'):
+            homography_rows = homography_rows.to_dict('records')
 
     shuttle_hallucination_mask, source_codes = _build_shuttle_hallucination_mask(
         len(track), resolved.rejected_grades, inpaint_codes, shuttle_hallucination_mask,
@@ -271,11 +297,15 @@ def run_video(
         )
         if len(raw_exclusion_mask) != len(track):
             raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
+        if capture is not None:
+            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
         if raw_exclusion_mask.all():
             raise ValueError('mask is all True: no live frame to anchor a frozen position to')
         definitive_exclusion_mask = filter_short_exclusion_runs(
             raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
         )
+        if capture is not None:
+            capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
         if contacts is None:
             final_spans, raw_contacts = stage8_seg.segment_video(
                 track, positions=positions, thresholds=resolved.thresholds,
@@ -353,11 +383,19 @@ def run_video(
 
     if len(raw_exclusion_mask) != len(track):
         raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
+    if capture is not None:
+        capture.raw_exclusion_mask = raw_exclusion_mask.copy()
     if raw_exclusion_mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
     definitive_exclusion_mask = filter_short_exclusion_runs(
         raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
     )
+    if court_invalid_is_excluded and not stop_after_segmentation:
+        definitive_exclusion_mask = definitive_exclusion_mask | ~court_present
+    if capture is not None:
+        capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
+    if definitive_exclusion_mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
 
     if contacts is None:
         final_spans, raw_contacts = stage8_seg.segment_video(
@@ -412,7 +450,11 @@ def run_video(
     kin = point_winner.build_landing_kinematics(
         track, sticky, kps, resolution,
     )
-    band_m = point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
+    band_m = (
+        landing_error_band_m
+        if landing_error_band_m is not None
+        else point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
+    )
 
     verdict_rows: dict[int, object] = {}
     landings: dict[int, object | None] = {}
@@ -519,6 +561,21 @@ def run_video(
                 hit_height_failures.append((rally_id, stroke_idx, contact_frame, str(exc)))
                 continue
             hit_height_by_frame[contact_frame] = rows[0].hit_height
+
+    if court_invalid_is_excluded and not stop_after_segmentation:
+        if not definitive_exclusion_mask[~court_present].all():
+            raise ValueError('court-invalid frames must be excluded')
+        if any(not court_present[contact.contact_frame] for contact in filtered_contacts):
+            raise ValueError('filtered contact falls on a court-invalid frame')
+        if any(
+            landing is not None and not court_present[landing.frame]
+            for landing in landings.values()
+        ):
+            raise ValueError('landing falls on a court-invalid frame')
+        for rally_id in verdict_rows:
+            final_frames = filtered_by_rally.get(rally_id, [])
+            if not final_frames or not court_present[final_frames[-1]]:
+                raise ValueError('verdict lacks a court-valid final contact')
 
     return AnnotatorResult(
         spans=spans, contacts=contacts, filtered_contacts=filtered_contacts,

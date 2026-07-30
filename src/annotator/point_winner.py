@@ -609,6 +609,30 @@ def landing_margins(landing_norm: tuple[float, float], receiver_half: Half) -> L
     return LandingMargins(margin_m=margin_m, net_clear_m=net_clear_m, line_clear_m=line_clear_m)
 
 
+def corner_error_band_from_corners(
+    corners_refpx: np.ndarray, court_info: dict, err_px: float,
+) -> float:
+    """Return the median metre displacement from sixteen corner perturbations.
+
+    ``corners_refpx`` uses the CourtKeyNet TL, TR, BR, BL order at
+    :data:`HOMOGRAPHY_RESOLUTION`. The supplied ``court_info`` owns the active
+    parent homography and court boundaries, so this helper is independent of
+    ShuttleSet's homography table.
+    """
+    corners_refpx = np.asarray(corners_refpx, dtype=float)
+    base = project_pixels_to_court(corners_refpx.T, HOMOGRAPHY_RESOLUTION, court_info)
+    displacements: list[float] = []
+    for corner in range(4):
+        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
+            shifted = corners_refpx.copy()
+            shifted[corner, 0] += dx
+            shifted[corner, 1] += dy
+            projected = project_pixels_to_court(shifted.T, HOMOGRAPHY_RESOLUTION, court_info)
+            move = projected[:, corner] - base[:, corner]
+            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
+    return float(np.median(displacements))
+
+
 def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_px: float) -> float:
     """Corner error (refpx) propagated to court metres at the recorded-corner (line) locations.
 
@@ -623,18 +647,9 @@ def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_p
     :param court_info: this video's court info dict (carries `'H'`).
     :param err_px: assumed corner-marking error, in the recorded homography's own pixel space.
     """
-    corners = get_corner_camera(homo_df.loc[vid])  # (2, 4) refpx, already at HOMOGRAPHY_RESOLUTION
-    base = project_pixels_to_court(corners, HOMOGRAPHY_RESOLUTION, court_info)
-    displacements: list[float] = []
-    for corner in range(4):
-        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
-            shifted = corners.copy()
-            shifted[0, corner] += dx
-            shifted[1, corner] += dy
-            proj = project_pixels_to_court(shifted, HOMOGRAPHY_RESOLUTION, court_info)
-            move = proj[:, corner] - base[:, corner]
-            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
-    return float(np.median(displacements))
+    source_order = get_corner_camera(homo_df.loc[vid]).T
+    corners = source_order[[0, 1, 3, 2]]
+    return corner_error_band_from_corners(corners, court_info, err_px)
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,32 @@ def test_replay_mode_delegates_existing_union() -> None:
     np.testing.assert_array_equal(result, expected)
 
 
+def test_short_invalid_scene_blip_does_not_enter_dead_masks() -> None:
+    n_frames = 20
+    present = np.ones(n_frames, dtype=bool)
+    present[7] = False
+    replay = build_dead_mask(DeadMaskMode.REPLAY, n_frames, 30.0, court_present=present)
+    composition = build_dead_mask(
+        DeadMaskMode.COMPOSITION,
+        n_frames,
+        30.0,
+        cut_frames=np.array([], dtype=int),
+        keep_vote=np.ones(n_frames, dtype=bool),
+        court_present=present,
+    )
+    union = build_dead_mask(
+        DeadMaskMode.UNION,
+        n_frames,
+        30.0,
+        cut_frames=np.array([], dtype=int),
+        keep_vote=np.ones(n_frames, dtype=bool),
+        court_present=present,
+    )
+    assert not replay.any()
+    assert not composition.any()
+    assert not union.any()
+
+
 def test_composition_mode_uses_existing_default_vote() -> None:
     cuts, keep_vote = _composition_inputs()
     result = build_dead_mask(

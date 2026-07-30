@@ -10,7 +10,7 @@ from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import GeometricVerdictRow, Half, Landing, LandingFilterOptions, Verdict
 from annotator.fps_constants import scale_for_fps
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode, StickyResult
-from annotator.run_video import AnnotatorResult, build_serve_options, run_video, scoring_filter
+from annotator.run_video import AnnotatorResult, RunCapture, build_serve_options, run_video, scoring_filter
 from annotator.types import ContactCandidate, ServeStartConfig
 
 
@@ -154,6 +154,24 @@ def test_run_video_court_optional_stop_early_preserves_positions_and_raw_contact
     assert result.verdict_rows == {}
     assert result.landings == {}
     assert result.hit_height_by_frame == {}
+
+
+def test_run_video_court_optional_ignores_hard_court_union_flag() -> None:
+    n_frames = 20
+    capture = RunCapture()
+    result = run_video(
+        np.zeros((n_frames, 3)),
+        fps=25.0,
+        positions=np.zeros((n_frames, 2, 2)),
+        raw_exclusion_mask=np.zeros(n_frames, dtype=bool),
+        court_optional=True,
+        stop_after_segmentation=True,
+        court_invalid_is_excluded=True,
+        capture=capture,
+    )
+    assert result.verdict_rows == {}
+    assert capture.definitive_exclusion_mask is not None
+    assert not capture.definitive_exclusion_mask.any()
 
 
 def test_run_video_court_optional_rejects_contradictory_court_evidence():
@@ -606,6 +624,90 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
     assert result.spans == [(10, 20)]
     assert result.contacts == [ContactCandidate(0, 14, None, None, None)]
     assert build_calls == 1
+
+
+def test_run_video_capture_resets_and_copies_masks() -> None:
+    inputs = _synthetic_inputs()
+    raw_mask = inputs['raw_exclusion_mask']
+    capture = RunCapture(
+        raw_exclusion_mask=np.ones(len(raw_mask), dtype=bool),
+        definitive_exclusion_mask=np.ones(len(raw_mask), dtype=bool),
+    )
+
+    run_video(
+        **inputs,
+        **_default_scene_inputs(len(inputs['track'])),
+        capture=capture,
+    )
+
+    np.testing.assert_array_equal(capture.raw_exclusion_mask, raw_mask)
+    np.testing.assert_array_equal(capture.definitive_exclusion_mask, raw_mask)
+    assert capture.raw_exclusion_mask is not raw_mask
+    assert capture.definitive_exclusion_mask is not raw_mask
+    capture.raw_exclusion_mask[0] = True
+    capture.definitive_exclusion_mask[1] = True
+    assert not raw_mask[0]
+    assert not raw_mask[1]
+
+
+def test_run_video_court_invalid_union_is_full_chain_only() -> None:
+    inputs = _synthetic_inputs()
+    court_present = np.ones(len(inputs['track']), dtype=bool)
+    court_present[10] = False
+    capture = RunCapture()
+    scene_inputs = _default_scene_inputs(len(inputs['track']))
+    scene_inputs['court_present'] = court_present
+
+    run_video(
+        **inputs,
+        **scene_inputs,
+        stop_after_segmentation=True,
+        capture=capture,
+        court_invalid_is_excluded=True,
+    )
+    assert not capture.definitive_exclusion_mask[10]
+
+    run_video(
+        **inputs,
+        **scene_inputs,
+        capture=capture,
+        court_invalid_is_excluded=True,
+    )
+    assert capture.definitive_exclusion_mask[10]
+    assert capture.definitive_exclusion_mask[~court_present].all()
+
+
+def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
+    inputs = _synthetic_inputs()
+    capture = RunCapture()
+    scene_inputs = _default_scene_inputs(len(inputs['track']))
+    scene_inputs['court_present'] = np.zeros(len(inputs['track']), dtype=bool)
+    with pytest.raises(ValueError, match='mask is all True'):
+        run_video(
+            **inputs,
+            **scene_inputs,
+            capture=capture,
+            court_invalid_is_excluded=True,
+        )
+    assert capture.raw_exclusion_mask is not None
+    assert capture.definitive_exclusion_mask is not None
+    assert capture.definitive_exclusion_mask.all()
+
+
+def test_run_video_uses_supplied_landing_error_band_without_static_homography(monkeypatch) -> None:
+    inputs = _synthetic_inputs()
+    inputs['homo_df'] = None
+    monkeypatch.setattr(
+        run_video_module.point_winner,
+        'corner_error_band_m',
+        lambda *args, **kwargs: pytest.fail('static homography should not be read'),
+    )
+    result = run_video(
+        **inputs,
+        **_default_scene_inputs(len(inputs['track'])),
+        landing_error_band_m=0.12,
+    )
+    assert result.verdict_rows == {}
 
 
 def _synthetic_inputs():
