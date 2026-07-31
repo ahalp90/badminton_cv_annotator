@@ -116,4 +116,4 @@ Several tracked evidence files still carry pre-cleanup absolute paths:
 - Producer contract: `docs/tracknet/inpaint_sidecar.md`.
 - Consumer state and open work: `docs/tracknet/inpaint_sidecar_consumption.md`.
 - Serve-prepend lookback (a downstream consumer that the sidecar informs):
-  `docs/scraper_pipeline/features/serve_prepend_lookback.md`.
+  `docs/archive/serve_prepend_lookback.md`.

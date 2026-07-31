@@ -1,3 +1,26 @@
+> ## ARCHIVED: superseded serve-prepend handover
+>
+> Archived: **20260731-070505 UTC**.
+>
+> This document is retained only as a record of earlier design reasoning. It is **not authoritative**
+> for current code, current measurements, current processing semantics or implementation decisions.
+> Use the [current build orientation](../scraper_pipeline/serve_prepend_lookback/serve_prepend_lookback_20260731-091227.md)
+> and the measurement pack beside it instead.
+>
+> Its limited ongoing utility is provenance. It records the original problem framing, the earlier
+> design alternatives, the three decisions that shaped the measurement, and the risks identified
+> by the earlier review. It also preserves a few implementation cautions that may still be useful
+> if the feature is revisited: the body-unit wrist-gate semantics, the no-court sticky-evidence
+> sentinels, the parity cost of a false contact, and the fact that GT endpoints are contact frames.
+> These are small facts, not a reason to use this document as an active specification.
+>
+> The current orientation supersedes the old handover's pre-W2.9 figures, earlier prominent-person
+> and serve-setup proposals, `None` half-guess assumptions, old commit anchors, rerun instructions,
+> historical record pointers and definition of done. The current orientation already carries the
+> relevant current call sites, processing order, build decisions and YAGNI constraints.
+>
+> **Do not use this archive to make current build decisions.**
+
 # Serve-prepend lookback: handover
 
 This is the tracked handover for the serve-prepend lookback feature. It
@@ -5,6 +28,13 @@ carries the problem, the recorded design, the build shape, the three
 decisions owed, the binding constraints, and current code seams. Every
 number came from the 2026-07-23 measurement on the pre-W2.9 sticky chain;
 labelled sections say so.
+
+The handover was moved here on 2026-07-31 because replay-event labelling is
+the first dependency in its replay family. The current replay-labelling
+assessment is at
+[`non_play_manual_labelling_20260731-095201.md`](../scraper_pipeline/broadcast_nonstandard_camera_id/non_play_manual_labelling_20260731-095201.md);
+that note supersedes stale claims about current measurements, but preserves
+this handover as historical design context.
 
 ## Conventions
 
@@ -17,10 +47,10 @@ labelled sections say so.
   (formerly `pilot`, 113 GT rallies, 25 fps), `sset_15` (formerly `vid15`,
   104 rallies, 25 fps), `sset_21` (formerly `sset21`, 75 rallies, 30 fps).
 - "the replay mask" is the per-frame boolean saying a frame belongs to a
-  replay or cutaway. Masks on disk are raw detector output. Each consumer
-  applies belief at load: only a flagged run at least
-  `replay_mask_min_frames` long (13 at 25 fps, fps-scaled) is believed,
-  and believed frames produce no contact events (shipped 2026-07-27).
+  replay or cutaway. Masks on disk are raw detector output. Consumers apply
+  belief at their existing consuming boundary: only a flagged run at least
+  `replay_mask_min_frames` long (13 at 25 fps, fps-scaled) is believed, and
+  believed frames produce no contact events (shipped 2026-07-27).
   `annotator.replay_mask.filter_short_exclusion_runs` is the only belief
   implementation.
 - "the external review" is the 2026-07-23 design red-team; its record is
@@ -208,8 +238,10 @@ external review flagged both directions:
 One thing has improved since the review: commentary pairing no longer
 discards a rally for any mask overlap. The shipped rule is interior grace
 (`src/scraper/stage11_pairing.py::_believed_replay_in_rally_interior`): a
-rally's asserted start and end each get `min_frames` of grace, and only
-believed replay deeper than that grace makes it unpairable. So expanding
+rally's asserted start and end each get
+`scale_for_fps(fps).replay_mask_min_frames` of grace, and only believed replay
+deeper than that grace makes it unpairable. The belief threshold and pairing
+grace are the same fps-scaled constant, not two independent knobs. So expanding
 a span slightly into a masked lead-in is no longer the automatic pairing
 death it was. Expansion into believed replay deeper than the grace still
 is.

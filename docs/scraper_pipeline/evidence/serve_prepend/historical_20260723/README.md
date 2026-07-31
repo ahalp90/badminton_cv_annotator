@@ -54,14 +54,14 @@ companion console record (`serve_miss_scope_console.txt`, gitignored).
 
 ## Rerun after W2.9
 
-`docs/scraper_pipeline/features/serve_prepend_lookback.md` § 5 points to
+`docs/archive/serve_prepend_lookback.md` § 5 points to
 the `TODO.md` rerun spec. The rerun uses the current tip, canonical stems,
 and the same schema so the pre/post numbers can be compared directly. Do
 not treat the counts above as current chain behaviour.
 
 ## Related tracked docs
 
-- Feature handover: `docs/scraper_pipeline/features/serve_prepend_lookback.md`
+- Archived design record: `docs/archive/serve_prepend_lookback.md`
 - Measurement history: `docs/scraper_pipeline/annotator_measurement_history.md`
 - Inpaint sidecar (producer contract): `docs/tracknet/inpaint_sidecar.md`
 - Inpaint sidecar (consumer state): `docs/tracknet/inpaint_sidecar_consumption.md`

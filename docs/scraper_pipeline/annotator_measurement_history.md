@@ -160,7 +160,8 @@ re-derive their numbers from the current tip.
   chain across the three fixtures. Historical CSVs and canonical mapping
   live under
   `docs/scraper_pipeline/evidence/serve_prepend/historical_20260723/`; the
-  handover context is `features/serve_prepend_lookback.md`. Superseded by
+  archived handover context is `docs/archive/serve_prepend_lookback.md`.
+  Superseded by
   the future rerun spec in `local_scratch/autograder_architecture/TODO.md`.
 - **Inpaint fabrications, 2026-07-22.** Roughly a third of every reference
   shuttle track is invented fill. Full evidence pack at
