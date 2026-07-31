@@ -1,4 +1,4 @@
-# Replay and cutaway labelling: current build orientation
+# Replay, cutaway and non-standard live labelling: current build orientation
 
 **Decision:** label one current video before changing the replay family.
 
@@ -10,14 +10,14 @@ change production behaviour.
 
 ## TL;DR
 
-Use a VLM to propose replay and cutaway intervals, then have a person review
-every proposal and every gap in the video. The best first one-off pilot is
-Gemini 3.1 Pro in the web interface, if the interface accepts the full 288p
-one-hour upload. For a reproducible API route, use Gemma 4 31B or 26B on
-short, frame-based shards. Use Qwen 3.6 27B through the free Groq route only
-for targeted checks around suspected transitions. These routes have different
-input limits, so Gemini's native video limits must not be transferred to
-Gemma or Qwen.
+Use a VLM to propose replay, cutaway and non-standard live intervals, then have
+a person review every proposal and every gap in the video. The best first
+one-off pilot is Gemini 3.1 Pro in the web interface, if the interface accepts
+the full 288p one-hour upload. For a reproducible API route, use Gemma 4 31B or
+26B on short, frame-based shards. Use Qwen 3.6 27B through the free Groq route
+only for targeted checks around suspected transitions. These routes have
+different input limits, so Gemini's native video limits must not be
+transferred to Gemma or Qwen.
 
 The VLM output is a candidate list. The one human-reviewed, half-open interval
 CSV remains the only truth artefact. A model will not reliably set exact frame
@@ -67,8 +67,15 @@ time saving.
 
 - **GT** means ShuttleSet ground truth. Its first and last stroke frames are
   contact extents, not visual scene boundaries
+- **Live** means standard court-showing live broadcast footage
+- **Live-non-standard** means live broadcast footage from a valid but
+  non-standard camera or view, such as a side-on, close-up or roaming shot. It
+  is still live, not replay or cutaway
 - **Replay mask** means the current per-frame prediction that a frame belongs
   to replay or cutaway footage
+- **Other** means footage outside the four useful scene classes, such as a
+  transition, graphic or genuinely unclassifiable segment. It is not a
+  confidence label and is not automatically a live negative
 - **Believed replay** means a raw replay-mask run that survives
   `filter_short_exclusion_runs`. Consumers treat those frames as replay
 - **Stage 11** is the commentary-pairing stage that consumes replay belief
@@ -86,8 +93,10 @@ time saving.
   frames and return text. In this note it proposes intervals; it does not write
   human truth
 - **Candidate proposal** means a VLM or current-detector interval that a person
-  must review. It is not a `live` label, even when the proposal omits a span
-- **Manual truth** means the final human-reviewed interval CSV described below
+  must review. It is not an accepted manual label, even when the proposal omits
+  a span
+- **Manual truth** means the final human-reviewed interval CSV described below,
+  using `live`, `live-non-standard`, `replay`, `cutaway` and `other`
 - **Annotation tool** means the local OpenCV timeline reviewer used to inspect
   frames and save the manual CSV. It is separate from the production pipeline
 
@@ -107,15 +116,16 @@ Three parts of the TODO need precise wording:
   without changing serve selection
 
 The smallest useful truth artefact is one CSV. It partitions the selected video
-into half-open frame intervals labelled `live`, `replay`, `cutaway`, or
-`uncertain`. The four consumers can expand those intervals to frame-aligned
-arrays in memory. They must not create four competing truth files or a new
-annotation framework.
+into half-open frame intervals labelled `live`, `live-non-standard`, `replay`,
+`cutaway` or `other`. The four consumers can expand those intervals to
+frame-aligned arrays in memory. They must not create four competing truth files
+or a new annotation framework.
 
 An optional VLM pass can reduce the amount of scrubbing. It must produce
-proposals with timestamps and an uncertainty note, not an accepted label file.
-The human reviewer remains responsible for the complete partition and exact
-frame boundaries.
+proposals with timestamps and notes, not an accepted label file. The human
+reviewer remains responsible for the complete partition and exact frame
+boundaries. A boundary note records ambiguity; `other` remains a content class,
+not a substitute for an unclear decision.
 
 ## Source and current status
 
@@ -150,10 +160,12 @@ outside contact frames, and duplicate comparisons need earlier rallies in the
 same video. If review covers only windows around GT rallies, record the exact
 windows and restrict every metric to those frames.
 
-Partition the covered range into contiguous intervals. Mark every replay and
-cutaway, including scene changes inside a GT contact extent and footage before
-or after that extent. Use `uncertain` rather than forcing a boundary that
-cannot be judged reliably. Add a short note for the uncertainty.
+Partition the covered range into contiguous intervals. Mark standard live,
+live-non-standard, replay and cutaway footage, including scene changes inside a
+GT contact extent and footage before or after that extent. Use `other` for a
+genuine residual class such as a transition or graphic. If a boundary is hard
+to place, choose the best-supported frame and explain the ambiguity in `note`;
+do not use `other` as a confidence label.
 
 The GT files provide contact extents through `first_stroke_frame` and
 `last_stroke_frame`. Both values are inclusive. They do not define the visual
@@ -171,8 +183,8 @@ Use a coarse proposal pass followed by local human review:
 2. Generate optional VLM proposals and current-detector proposals
 3. Review the full timeline locally, using proposals as jump targets
 4. Set exact event boundaries by inspecting nearby source frames
-5. Fill every remaining gap as `live` only after viewing it, or mark it
-   `uncertain` when the boundary cannot be judged
+5. Classify every remaining gap as `live` or `live-non-standard` after viewing
+   it. Use `other` only for footage that does not fit the scene classes
 6. Validate the interval partition and freeze the CSV before running readers
 
 The reviewer must inspect gaps as well as proposed positives. A model that
@@ -195,11 +207,11 @@ video hash or stable ID, shard origin, model name and version, prompt version,
 request time, and raw response. Convert timestamps to source frames once, using
 the pinned FPS. Do not feed model confidence into the four measurements.
 
-Prompt the model to identify replay, cutaway, live play, and uncertain spans,
-to return timestamps, and to flag rapid transitions. Ask for a concise JSON
-array rather than a narrative summary. Even with that format, treat malformed,
-overlapping, or ungrounded model intervals as proposals to inspect, not as
-errors in the human CSV.
+Prompt the model to identify `live`, `live-non-standard`, `replay`, `cutaway` and
+`other` spans, to return timestamps, and to flag rapid transitions. Ask for a
+concise JSON array rather than a narrative summary. Even with that format, treat
+malformed, overlapping, or ungrounded model intervals as proposals to inspect,
+not as errors in the human CSV.
 
 The Gemini API's native
 [video-understanding guide](https://ai.google.dev/gemini-api/docs/video-understanding)
@@ -281,8 +293,10 @@ The person reviewing the video owns the truth decision. The reviewer should:
   targets
 - inspect both sides of every proposed boundary
 - inspect the gaps between proposals
-- preserve `replay` and `cutaway` as separate labels
-- use `uncertain` for an unresolved transition instead of guessing
+- preserve `live`, `live-non-standard`, `replay`, `cutaway` and `other` as
+  separate labels
+- use a short note for a difficult boundary. Keep `other` for residual content,
+  not for an unresolved classification
 - save one canonical interval CSV with half-open frame bounds
 
 The first pilot should record elapsed human review time, the number of model
@@ -309,10 +323,10 @@ which is a court-corner GUI. The tool's current code provides useful mechanics:
 
 The tool is not suitable as-is. It records four court corners, uses a
 corner-specific capture state machine, and writes a long-form corner schema.
-It does not represent intervals, replay/cutaway classes, VLM proposals, GT
-rally markers, or a complete-range validation. A small sibling event tool can
-reuse the scrubber and CSV-safety ideas. A broad annotation base class would
-add coupling before the two tools have a stable shared lifecycle.
+It does not represent intervals, the five scene classes, VLM proposals, GT rally
+markers, or a complete-range validation. A small sibling event tool can reuse
+the scrubber and CSV-safety ideas. A broad annotation base class would add
+coupling before the two tools have a stable shared lifecycle.
 
 The reuse seam is concrete. `run_annotation_tool` owns the OpenCV scrub loop,
 `OffframeSession` owns capture state, `load_prefill` implements copy-forward,
@@ -332,8 +346,9 @@ slow. Keep the first version to these behaviours:
    and optional detector/VLM proposal spans
 3. Support single-frame stepping, coarse jumps, jump-to-next-proposal, and
    setting an interval start and end without requiring one click per frame
-4. Commit `live`, `replay`, `cutaway`, or `uncertain` intervals to the existing
-   half-open CSV contract, with resume and replacement of a selected interval
+4. Commit `live`, `live-non-standard`, `replay`, `cutaway` or `other` intervals
+   to the existing half-open CSV contract, with resume and replacement of a
+   selected interval
 5. Validate bounds, allowed labels, ordering, gaps, overlaps, and the declared
    source metadata before the CSV is accepted
 6. Save the CSV atomically and leave raw VLM proposals in a separate scratch
@@ -362,12 +377,15 @@ is excluded.
 | `frame_count` | Full source-frame count |
 | `start_frame` | Inclusive interval start |
 | `end_frame` | Exclusive interval end |
-| `truth` | One of `live`, `replay`, `cutaway`, or `uncertain` |
-| `note` | Short explanation for an uncertain boundary or unusual edit |
+| `truth` | One of `live`, `live-non-standard`, `replay`, `cutaway` or `other` |
+| `note` | Short explanation for `other`, a difficult boundary or an unusual edit |
 
 Rows must cover the declared analysis range without gaps or overlaps. A
-consumer may derive `truth == replay or cutaway` as the non-play mask. It must
-retain the two classes for cutaway-specific analysis.
+consumer may derive `truth == replay or cutaway` as the non-play mask. Treat
+`live` and `live-non-standard` as live negatives for that binary audit. Keep
+`other` separate and exclude it from binary precision and recall unless a
+reader explicitly adjudicates those frames. Retain replay and cutaway as
+separate classes for cutaway-specific analysis.
 
 Each reader joins intervals to the loaded GT rally table when it needs rally
 IDs. Do not copy those derived IDs into the human CSV. This keeps the CSV
@@ -415,9 +433,11 @@ Call the existing component functions on the pinned current inputs. Align each
 output with the manual labels. Report precision and recall for each component,
 their union, the raw mask, and the definitive mask.
 
-Also report separate `replay` and `cutaway` results, live GT-rally frames lost,
-and the frames each detector flags. The production output does not expose the
-three component bits. This is an audit-only read, not a reason to add three
+Also report separate `live`, `live-non-standard`, `replay`, `cutaway` and
+`other` results, live GT-rally frames lost, and the frames each detector flags.
+Exclude `other` from binary precision and recall unless its frames are
+explicitly adjudicated. The production output does not expose the three
+component bits. This is an audit-only read, not a reason to add three
 production sidecar files. Leave replay-duplicate retrieval to the separate
 duplicate-margin study.
 
@@ -433,9 +453,9 @@ construct is `velocity_drop_signal`. It compares a rolling speed median with
 and perspective signals and can exclude non-evidence frames.
 
 Measure the current signal unchanged before proposing a threshold change.
-Stratify by manual class and available inpaint-quality code. This pilot has a
-fixed FPS and no separate camera-view truth label, so those are not useful
-strata here. The current function uses one video-wide in-rally median after
+Stratify by manual class and available inpaint-quality code. The
+`live-non-standard` label supplies the camera-view stratum that this pilot
+previously lacked. The current function uses one video-wide in-rally median after
 excluding the court and perspective signals. Record that baseline and the
 threshold in every result. Treat a leave-one-rally-out baseline as a separate
 follow-up only if the current signal justifies threshold investigation.
@@ -472,9 +492,9 @@ distance to the nearest replay or cutaway interval, raw and gated contacts,
 inpaint code, sticky pick, and definitive-mask state. Use the existing
 `canonical_tolerance` and GT matcher.
 
-Report false positives on live footage, replay, cutaway, and uncertain frames
-separately. A replayed serve can look like a live serve setup, so a setup gate
-does not prove that the footage is live.
+Report false positives on `live`, `live-non-standard`, `replay`, `cutaway` and
+`other` frames separately. A replayed serve can look like a live serve setup, so
+a setup gate does not prove that the footage is live.
 
 ## Recommended measurement sequence
 

@@ -7,8 +7,9 @@ Run from the repository root with the external fixture root configured::
         --out docs/scraper_pipeline/serve_prepend_lookback/data/run-YYYYMMDD-HHMMSS
 
 The script uses the maintained ``FIXTURES`` and ``build_run_video_inputs`` seams. It runs the
-normal committed-mask chain and, by default, the existing all-False-mask counterfactual. The
-counterfactual is a measurement variant; no contacts or spans are fed back into production.
+normal committed-mask chain and, by default, the existing ``no_replay`` variant. That variant passes a
+per-frame ``raw_exclusion_mask`` vector of false values; other processing and downstream filters remain
+active. It is a measurement variant; no contacts or spans are fed back into production.
 
 CSV and JSON files are gzip-compressed. Compact per-rally NumPy evidence tables are stored by
 the native Python ``lzma`` module with XZ/LZMA compression preset 9. Those ``.npy.xz`` files are
@@ -427,7 +428,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=None, help="dated output directory")
     parser.add_argument(
         "--mask-mode", choices=("committed", "no_replay", "both"), default="both",
-        help="run the committed mask, the all-False counterfactual, or both",
+        help="run the committed mask, the no_replay sensitivity control, or both",
     )
     return parser.parse_args()
 
@@ -463,7 +464,7 @@ def main() -> None:
         "window_seconds_each_side": WINDOW_SECONDS,
         "notes": [
             "Rows describe the current baseline and evidence around GT serves; they do not run a serve-prepend trigger.",
-            "The no_replay variant replaces the raw mask with an all-False mask through the existing calibration precedent.",
+            "The no_replay variant passes raw_exclusion_mask=False for every frame through the existing calibration precedent.",
             "The array files are native NumPy .npy streams wrapped with lzma XZ preset 9.",
         ],
         "variants": all_summaries,
