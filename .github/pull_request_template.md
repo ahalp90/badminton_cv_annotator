@@ -1,7 +1,6 @@
 <!--
-Fill in each section below. The "PR quality" check verifies these four
-sections exist and are non-empty. Keep it readable: short sentences, plain
-language. Lines inside HTML comments like this one are ignored by the check.
+Fill in each section below when it helps the reviewer. Keep it readable: short
+sentences and plain language. This structure is guidance, not a merge gate.
 -->
 
 ## What
