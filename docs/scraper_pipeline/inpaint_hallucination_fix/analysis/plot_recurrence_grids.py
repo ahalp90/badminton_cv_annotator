@@ -4,7 +4,7 @@ The input masks come from ``audit_tracks.py``. Each panel uses the 512x288
 TrackNet image plane, so a reviewer can compare locations and paths with the
 source video. The plots are evidence views, not a new detector.
 
-Two views are available:
+The existing and event-union views are available:
 
 ``uncaught``
     Frames flagged by the exploratory RANSAC lens but assigned guard code 0.
@@ -18,6 +18,19 @@ Two views are available:
     The union of the uncaught and sidecar-selected masks. Location counts use
     valid coordinates; sequence windows require all 16 frames to be selected
     by this union.
+``uncaught_inpaint_impulse``
+    The union of the existing uncaught-plus-sidecar-inpaint evidence view and
+    raw contact impulse events from the resolved per-video default detector
+    path. Location counts use valid coordinates; sequence windows contain at
+    least one selected frame and do not require guard-clean frames.
+``uncaught_impulse_tp_rally_end``
+    The union of uncaught candidates, raw contact impulse events and inductive
+    TP rally-ender span-close events. A TP rally-ender means shuttle events
+    that have closed a valid rally, did not overlap with another valid GT
+    rally, and are valid within our rally-ending ruleset. ShuttleSet's GT does
+    not actually record the rally's final event, so we only ever know it
+    inductively. The GT dataset only ever records the final contact, so this is
+    an audit proxy rather than direct GT truth.
 """
 
 from __future__ import annotations
@@ -69,6 +82,12 @@ LOCATION_LABELS = {
     "uncaught": "uncaught RANSAC candidates",
     "inpaint": "sidecar-selected inpaint frames",
     "union": "union of uncaught candidates and sidecar-selected inpaint frames",
+    "uncaught_inpaint_impulse": (
+        "uncaught-plus-sidecar-inpaint frames ∪ raw contact impulse events"
+    ),
+    "uncaught_impulse_tp_rally_end": (
+        "uncaught candidates ∪ raw impulse events ∪ inductive TP rally-enders"
+    ),
 }
 SEQUENCE_LABELS = {
     "uncaught": (
@@ -79,6 +98,51 @@ SEQUENCE_LABELS = {
     "union": (
         "16-frame windows fully selected by the union of uncaught candidates "
         "and sidecar-selected inpaint frames"
+    ),
+    "uncaught_inpaint_impulse": (
+        "valid 16-frame windows containing at least one uncaught, sidecar or "
+        "impulse frame; guard-clean status is not required"
+    ),
+    "uncaught_impulse_tp_rally_end": (
+        "valid 16-frame windows containing at least one uncaught, impulse or "
+        "inductive TP rally-ender frame; guard-clean status is not required"
+    ),
+}
+EVENT_UNION_VIEWS = (
+    "uncaught_inpaint_impulse",
+    "uncaught_impulse_tp_rally_end",
+)
+ALL_VIEWS = ("uncaught", "inpaint", "union", *EVENT_UNION_VIEWS)
+OUTPUT_NAMES = {
+    "uncaught": (
+        "top_locations.csv.gz",
+        "top_sequences.json.gz",
+        "top_uncaught_locations.png",
+        "top_uncaught_sequences.png",
+    ),
+    "inpaint": (
+        "top_inpaint_locations.csv.gz",
+        "top_inpaint_sequences.json.gz",
+        "top_inpaint_locations.png",
+        "top_inpaint_sequences.png",
+    ),
+    "union": (
+        "top_unfiltered_inpaint_locations.csv.gz",
+        "top_unfiltered_inpaint_sequences.json.gz",
+        "top_unfiltered_inpaint_locations.png",
+        "top_unfiltered_inpaint_sequences.png",
+    ),
+    "uncaught_inpaint_impulse": (
+        "top_uncaught_inpaint_impulse_locations.csv.gz",
+        "top_uncaught_inpaint_impulse_sequences.json.gz",
+        "top_uncaught_inpaint_impulse_locations.png",
+        "top_uncaught_inpaint_impulse_sequences.png",
+    ),
+    "uncaught_impulse_tp_rally_end": (
+        "top_uncaught_impulse_tp_rally_end_locations.csv.gz",
+        "top_uncaught_impulse_tp_rally_end_sequences.json.gz",
+        "top_uncaught_impulse_tp_rally_end_locations.png",
+        "top_uncaught_impulse_tp_rally_end_sequences.png",
     ),
 }
 
@@ -135,6 +199,9 @@ def sequence_starts(
         return np.flatnonzero(valid_windows & clean_windows & selected_windows)
     if view in {"inpaint", "union"}:
         selected_windows = masked_windows.all(axis=1)
+        return np.flatnonzero(valid_windows & selected_windows)
+    if view in EVENT_UNION_VIEWS:
+        selected_windows = masked_windows.any(axis=1)
         return np.flatnonzero(valid_windows & selected_windows)
     raise ValueError(f"unknown plot view: {view}")
 
@@ -417,12 +484,15 @@ def plot_sequence_families(
     )
     colour_map = plt.get_cmap("viridis")
     selected_thresholds: list[float] = []
+    selected_scores: list[float] = []
     for row_index, fixture in enumerate(FIXTURE_NAMES):
         summary = sequence_summaries_by_fixture[fixture]
         families = summary["clusters"]
         clustering = summary["clustering"]
         if clustering["selected_t_rms_px"] is not None:
             selected_thresholds.append(float(clustering["selected_t_rms_px"]))
+        if clustering["selected_silhouette_score"] is not None:
+            selected_scores.append(float(clustering["selected_silhouette_score"]))
         for column_index in range(top_n):
             axis = axes[row_index, column_index]
             if column_index >= len(families):
@@ -452,10 +522,14 @@ def plot_sequence_families(
                 f"{family['exact_start_count']} exact starts"
             )
     threshold_text = ", ".join(f"{value:g}" for value in sorted(set(selected_thresholds)))
+    score_text = ", ".join(f"{value:.3f}" for value in selected_scores)
     figure.suptitle(
-        f"Top-n clustered exact 16-frame sequence families\n{SEQUENCE_LABELS[view]}\n"
+        f"Top-n clustered exact 16-frame sequence families from top-{SEQUENCE_CLUSTER_SAMPLE_LIMIT} "
+        f"exact sequences\n{SEQUENCE_LABELS[view]}\n"
         "distance = sequence RMS over 32 scalar x/y values; "
-        f"selected t values = {threshold_text or 'none'}"
+        "windows scanned at every frame start; "
+        f"selected t values = {threshold_text or 'none'}; silhouette target = {SILHOUETTE_TARGET:g}; "
+        f"selected scores = {score_text or 'undefined'}"
     )
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
@@ -472,9 +546,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-n", type=int, default=6)
     parser.add_argument(
         "--view",
-        choices=("uncaught", "inpaint", "union", "both"),
+        choices=(
+            "uncaught",
+            "inpaint",
+            "union",
+            "uncaught_inpaint_impulse",
+            "uncaught_impulse_tp_rally_end",
+            "both",
+            "events",
+            "all",
+        ),
         default="both",
-        help="which evidence view to write",
+        help="which evidence view set to write",
     )
     return parser.parse_args()
 
@@ -488,13 +571,16 @@ def main() -> None:
     if args.top_n < 1:
         raise ValueError("--top-n must be positive")
 
-    views = ("uncaught", "inpaint", "union") if args.view == "both" else (args.view,)
+    if args.view == "both":
+        views = ("uncaught", "inpaint", "union")
+    elif args.view == "events":
+        views = EVENT_UNION_VIEWS
+    elif args.view == "all":
+        views = ALL_VIEWS
+    else:
+        views = (args.view,)
     points_by_fixture: dict[str, np.ndarray] = {}
-    masks_by_view: dict[str, dict[str, np.ndarray]] = {
-        "uncaught": {},
-        "inpaint": {},
-        "union": {},
-    }
+    masks_by_view: dict[str, dict[str, np.ndarray]] = {view: {} for view in ALL_VIEWS}
     locations_by_view: dict[str, dict[str, list[dict[str, int]]]] = {
         view: {} for view in views
     }
@@ -507,9 +593,16 @@ def main() -> None:
         guard_codes = read_npy_xz(analysis_dir / f"{fixture}_guard_codes.npy.xz")
         uncaught = read_npy_xz(analysis_dir / f"{fixture}_uncaught_mask.npy.xz")
         inpaint = read_npy_xz(analysis_dir / f"{fixture}_sidecar_inpaint_mask.npy.xz")
+        impulse = read_npy_xz(analysis_dir / f"{fixture}_impulse_event_mask.npy.xz")
+        tp_rally_ender = read_npy_xz(
+            analysis_dir / f"{fixture}_tp_rally_ender_mask.npy.xz"
+        )
         points = pixel_points(track)
         valid = ~np.all(track[:, :2] == 0, axis=1)
-        if not all(len(values) == len(track) for values in (guard_codes, uncaught, inpaint)):
+        if not all(
+            len(values) == len(track)
+            for values in (guard_codes, uncaught, inpaint, impulse, tp_rally_ender)
+        ):
             raise ValueError(f"{fixture}: derived arrays do not match track length")
         points_by_fixture[fixture] = points
         uncaught_view = uncaught & valid
@@ -517,6 +610,14 @@ def main() -> None:
         masks_by_view["uncaught"][fixture] = uncaught_view
         masks_by_view["inpaint"][fixture] = inpaint_view
         masks_by_view["union"][fixture] = uncaught_view | inpaint_view
+        impulse_view = impulse & valid
+        tp_rally_ender_view = tp_rally_ender & valid
+        masks_by_view["uncaught_inpaint_impulse"][fixture] = (
+            uncaught_view | inpaint_view | impulse_view
+        )
+        masks_by_view["uncaught_impulse_tp_rally_end"][fixture] = (
+            uncaught_view | impulse_view | tp_rally_ender_view
+        )
         for view in views:
             frame_mask = masks_by_view[view][fixture]
             locations_by_view[view][fixture] = rounded_locations(points, frame_mask, args.top_n)
@@ -524,21 +625,12 @@ def main() -> None:
             sequences_by_view[view][fixture] = cluster_sequence_families(exact, args.top_n)
 
     for view in views:
-        if view == "uncaught":
-            locations_name = "top_locations.csv.gz"
-            sequences_name = "top_sequences.json.gz"
-            locations_plot_name = "top_uncaught_locations.png"
-            sequences_plot_name = "top_uncaught_sequences.png"
-        elif view == "inpaint":
-            locations_name = "top_inpaint_locations.csv.gz"
-            sequences_name = "top_inpaint_sequences.json.gz"
-            locations_plot_name = "top_inpaint_locations.png"
-            sequences_plot_name = "top_inpaint_sequences.png"
-        else:
-            locations_name = "top_unfiltered_inpaint_locations.csv.gz"
-            sequences_name = "top_unfiltered_inpaint_sequences.json.gz"
-            locations_plot_name = "top_unfiltered_inpaint_locations.png"
-            sequences_plot_name = "top_unfiltered_inpaint_sequences.png"
+        (
+            locations_name,
+            sequences_name,
+            locations_plot_name,
+            sequences_plot_name,
+        ) = OUTPUT_NAMES[view]
         write_location_csv(analysis_dir / locations_name, view, locations_by_view[view])
         write_json_gz(
             analysis_dir / sequences_name,

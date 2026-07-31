@@ -13,9 +13,19 @@ one heuristic, not hallucination recall. The sidecars add provenance, but they
 are not visual ground truth. The obvious next step is a bounded video review of
 at most nine representative chunks before changing the guard or replacing it.
 
+The event-union pass adds two context views. Union 1 combines the existing
+uncaught-plus-sidecar evidence view with raw contact impulses. Union 2 combines
+uncaught candidates, raw impulses and inductive TP rally-enders. Their totals
+are evidence-view counts, not hallucination counts.
+
+The separate provenance-coverage follow-up compares the current guard with an
+exploratory `guard OR Union 2` tag over sidecar-selected material. It shows
+more producer provenance covered, not more hallucinations caught.
+
 ## Contents
 
 - [Start here](#start-here)
+- [Executive overview](#executive-overview)
 - [Current outputs](#current-outputs)
 - [Why the formats are deliberate](#why-the-formats-are-deliberate)
 - [Re-run the bounded analysis](#re-run-the-bounded-analysis)
@@ -34,10 +44,38 @@ at most nine representative chunks before changing the guard or replacing it.
   the different patterns each heuristic measures.
 - [Next-step infographic](inpaint_hallucination_next_steps_infographic.png):
   the smallest useful video-review plan.
+- [Event-union infographic](inpaint_hallucination_event_unions_infographic.png):
+  what the two evidence unions contain.
+- [Event-union percentage findings infographic](inpaint_hallucination_event_unions_findings_infographic.png):
+  the same extension expressed as denominator-labelled percentages.
+- [Inpaint provenance coverage infographic](inpaint_hallucination_provenance_coverage_infographic.png):
+  how much sidecar-selected material receives a current or exploratory tag.
 - [Follow-up report](ongoing_shuttle_hallucination_issues_20260731-094523.md):
   measured results, limitations, sidecar comparison, and next action.
+- [Provenance coverage follow-up](inpaint_provenance_coverage_followup_20260731-192654.md):
+  the separate frame- and span-level comparison behind the new infographic.
 
 External review and planning records are kept outside this committed workset.
+
+## Executive overview
+
+The guard is useful as a broad screening heuristic. It catches structured
+recurrence in the saved track and exposes inspectable non-zero grades. It does
+not know whether a coordinate came from ordinary detector output, inpaint,
+masking or real shuttle motion. The RANSAC comparison and sidecar overlap are
+therefore leads, not recall or precision measurements.
+
+The new unions add context around possible blind spots. Raw impulses follow
+the current fps-resolved contact path. A TP rally-ender means shuttle events
+that have closed a valid rally, did not overlap with another valid GT rally, and
+are valid within our rally-ending ruleset. This encompasses the fact that
+ShuttleSet's GT does not actually record the rally's final event, so we only
+ever know it inductively. The GT dataset only ever records the final contact.
+The accepted frame is a current-span close proxy, not direct GT truth.
+
+The obvious next step remains a small visual review of representative uncaught
+chunks. The aggregate data does not justify a second production detector,
+threshold change or guard replacement.
 
 ## Current outputs
 
@@ -58,6 +96,9 @@ arrays:
 - `analysis/*_ransac_candidate.npy.xz`
 - `analysis/*_uncaught_mask.npy.xz`
 - `analysis/*_sidecar_inpaint_mask.npy.xz`
+- `analysis/*_impulse_event_mask.npy.xz`
+- `analysis/*_tp_rally_ender_mask.npy.xz`
+- `analysis/*_event_source_codes.npy.xz`
 
 Per-frame and per-chunk text outputs use gzip level 9:
 
@@ -69,9 +110,13 @@ Per-frame and per-chunk text outputs use gzip level 9:
 - `analysis/top_sequences.json.gz`
 - `analysis/top_inpaint_sequences.json.gz`
 - `analysis/top_unfiltered_inpaint_sequences.json.gz`
+- `analysis/*_impulse_events.csv.gz`
+- `analysis/*_tp_rally_ender_events.csv.gz`
+- `analysis/event_union.json.gz`
+- `analysis/inpaint_coverage.json.gz`
 - `analysis/accepted_attractor_overlap.json.gz`
 
-The six image-space views are:
+The ten image-space views are:
 
 - [Top uncaught locations](plots/top_uncaught_locations.png)
 - [Top uncaught sequence families](plots/top_uncaught_sequences.png)
@@ -79,6 +124,10 @@ The six image-space views are:
 - [Sidecar-selected inpaint sequence families](plots/top_inpaint_sequences.png)
 - [Union locations](plots/top_unfiltered_inpaint_locations.png)
 - [Union sequence families](plots/top_unfiltered_inpaint_sequences.png)
+- [Uncaught + inpaint + impulse locations](plots/top_uncaught_inpaint_impulse_locations.png)
+- [Uncaught + inpaint + impulse sequence families](plots/top_uncaught_inpaint_impulse_sequences.png)
+- [Uncaught + impulse + TP rally-ender locations](plots/top_uncaught_impulse_tp_rally_end_locations.png)
+- [Uncaught + impulse + TP rally-ender sequence families](plots/top_uncaught_impulse_tp_rally_end_sequences.png)
 
 ## Why the formats are deliberate
 
@@ -111,7 +160,7 @@ Run from the repository root:
 MPLCONFIGDIR=/tmp/badminton-matplotlib \
   ~/.venvs/badminton-cicd/bin/python \
   docs/scraper_pipeline/inpaint_hallucination_fix/analysis/plot_recurrence_grids.py \
-  --top-n 6
+  --top-n 6 --view all
 ```
 
 `audit_tracks.py` calls the live `annotator.inpaint_guard.grade_track`. Its
@@ -160,6 +209,29 @@ require all 16 frames to be selected by that union. The union can therefore
 show a frame that is not sidecar-selected and a sidecar frame that the guard
 already marked non-zero.
 
+The first event view, `uncaught_inpaint_impulse`, extends that existing union
+with the raw contact impulse mask. The second event view,
+`uncaught_impulse_tp_rally_end`, combines the uncaught mask, raw impulse mask
+and inductive TP rally-ender mask without the sidecar. Both views use the
+coordinate-valid OR of their source masks. Their source-coded arrays retain
+overlap information without double-counting frames.
+
+For this audit, a TP rally-ender means shuttle events that have closed a valid
+rally, did not overlap with another valid GT rally, and are valid within our
+rally-ending ruleset. This encompasses the fact that ShuttleSet's GT does not
+actually record the rally's final event, so we only ever know it inductively.
+The GT dataset only ever records the final contact. The audit accepts only a
+pre-video-end span containing one complete GT rally and no second overlapping GT
+rally. It marks the last frame inside the span, so the result is an inductive
+span-close proxy.
+
+For both event views, location plots count coordinate-valid frames. Sequence
+views require 16 valid coordinates and at least one selected union frame. They
+do not require guard-clean status, and they scan every possible frame start.
+The script clusters only the top 256 exact sequences. None of the fifteen
+generated fixture/view combinations reaches the silhouette target of 0.5, so
+the selected families remain descriptive leads.
+
 The clustering threshold `t` is a sequence-level RMS pixel-distance threshold.
 Each 16-frame sequence contributes 32 scalar values: x and y for each frame.
 The distance is:
@@ -176,7 +248,7 @@ threshold. A few points can use much of the RMS budget while other points
 remain close.
 Silhouette 0.5 is a quality target, not a prescribed value of `t`. The script
 tests a small fixed threshold grid, chooses the smallest threshold meeting 0.5,
-and otherwise chooses the best tested silhouette. None of the nine generated
+and otherwise chooses the best tested silhouette. None of the fifteen generated
 fixture/view combinations reaches 0.5, so the families remain descriptive
 leads.
 
