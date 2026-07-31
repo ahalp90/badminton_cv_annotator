@@ -10,11 +10,15 @@ still a manual `docker compose -f docker-compose.prod.yml up --build -d` (see
 `lint` (ruff) · `test` (pytest) · `frontend` (npm build; self-skips if `frontend/`
 is removed) · `docker-build` (builds the images, no push).
 
-**`pr-quality.yml`** (PRs):
-`commit-lint` (gitlint, rules in `.gitlint`) · `pr-body` (needs **What / Why /
-Testing / Reviewer focus** sections) · `main-files` (deterministic; inserts a
-short **Main files changed** block into the PR body) · `advisory` (AI review,
-never blocks).
+**`pr-quality.yml`** (PRs, all non-blocking):
+`commit-lint` (compatibility status for existing branch protection) · `pr-body`
+(optional template-section suggestions) · `main-files` (deterministic; inserts
+a short **Main files changed** block into the PR body) · `advisory` (AI review,
+including commit-message feedback).
+
+The pull request template still provides **What / Why / Testing / Reviewer
+focus** sections. PR content does not make these jobs fail. Gitlint remains
+available as an optional local hook. It does not enforce title or body length.
 
 `main-files` (`scripts/pr_main_files.py`) lists the most-impactful changed files
 (up to 8), ranked by churn × path relevance (`src/`, `training/` outrank config;
@@ -46,10 +50,10 @@ secrets, so it runs on in-repo branches only.
 explicit PyTorch index first. After changing deps, run
 `./scripts/gen-requirements.sh --check` and update any drifted pins.
 
-## Make the checks required
+## Branch protection
 
-They only block merges once marked required: Settings → Branches → ruleset for
-`main` → Require status checks → select every job **except `advisory`**.
+Existing required-check settings can keep their current status names. PR
+content cannot fail these checks.
 
 ## Local hooks (optional)
 
