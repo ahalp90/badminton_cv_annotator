@@ -18,7 +18,7 @@ numpy==2.4.4
 pandas==2.3.3
 matplotlib==3.10.9
 scikit-learn==1.8.0
-opencv-python==4.13.0.92     # cv2; used by perception/video_io.py and tests/test_video_io.py
+opencv-python==5.0.0.93      # cv2; used by perception/video_io.py and tests/test_video_io.py
 ultralytics==8.4.50          # YOLO11 + ByteTrack; perception/players.py + scripts/preprocess_videos.py
 positional-encodings==6.0.3  # Positional encoding layers used by BST-X transformer model (bst_x/model/)
 torchinfo==1.8.0             # Model summary utility used by tempose.py in the BST-X model module
