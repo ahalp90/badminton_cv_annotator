@@ -1,8 +1,7 @@
-"""Download scraper candidates and record their source and audio status.
+"""Download selected videos and record their source and audio status.
 
-The downloader deliberately follows the ShuttleSet downloader's small worker
-shape. Scraper downloads differ in two places: they request audio and verify
-that the resulting file contains an audio stream before accepting it.
+Scraper downloads request and verify audio. The explicit video-only mode serves
+ShuttleSet matches that do not require commentary audio.
 """
 
 from __future__ import annotations
@@ -32,14 +31,21 @@ VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 
 _H264_WITH_M4A = 'bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]'
 _H264_WITH_ANY_AUDIO = 'bestvideo[vcodec^=avc1]+bestaudio'
-_H264_PREMUXED = 'best[vcodec^=avc1][ext=mp4]'
+# H.264 only: YouTube defaults to AV1-in-mp4, which the HPC nodes' cv2 cannot
+# decode (2026-07-08 pilot finding). avc1 is the H.264 fourcc, not AV1. There
+# is deliberately no unpinned fallback: a video with no H.264 variant fails
+# the download loudly instead of shipping an undecodable file downstream.
+_H264_VIDEO_ONLY = 'bestvideo[vcodec^=avc1][ext=mp4]'  # separate stream; carries 1080p
+_H264_PREMUXED = 'best[vcodec^=avc1][ext=mp4]'  # video+audio; usually caps at 720p
 _YTDLP_FORMAT = f'{_H264_WITH_M4A}/{_H264_WITH_ANY_AUDIO}/{_H264_PREMUXED}'
+# yt-dlp's '/' means "or else": prefer the 1080p-capable stream, else pre-muxed.
+_YTDLP_VIDEO_ONLY_FORMAT = f'{_H264_VIDEO_ONLY}/{_H264_PREMUXED}'
 
 _YTDLP_TIMEOUT_S = 1800
 _FFPROBE_TIMEOUT_S = 60
-_DEFAULT_WORKERS = 2
 _SCALAR_TYPES = (str, bool, int, float)
 _BARE_KEY = re.compile(r'^[A-Za-z0-9_-]+$')
+_YTDLP_FORMAT_STEM = re.compile(r'\.f\d+$')
 
 
 @dataclass(frozen=True)
@@ -62,8 +68,10 @@ class _AudioProbeTimeout(Exception):
 
 def _check_ytdlp() -> None:
     """Fail before worker creation when yt-dlp is unavailable."""
-    if not shutil.which('yt-dlp'):
-        raise RuntimeError('yt-dlp not found in PATH. Install with: pip install yt-dlp')
+    if not shutil.which(config.YTDLP_BIN):
+        raise RuntimeError(
+            f'{config.YTDLP_BIN} not found in PATH. Install with: pip install yt-dlp'
+        )
 
 
 def _check_ffprobe() -> None:
@@ -73,12 +81,13 @@ def _check_ffprobe() -> None:
 
 
 def _completed_outputs(output_dir: Path, video_id: str) -> list[Path]:
-    """Return completed video files for ``video_id`` in stable order."""
+    """Return exact or legacy spaced-name video files for ``video_id``."""
     return [
         path
         for path in sorted(output_dir.iterdir(), key=lambda candidate: candidate.name)
         if path.is_file()
-        and path.stem == video_id
+        and (path.stem == video_id or path.stem.startswith(f'{video_id} '))
+        and not _YTDLP_FORMAT_STEM.search(path.stem)
         and path.suffix.lower() in VIDEO_EXTENSIONS
     ]
 
@@ -263,11 +272,12 @@ def _download_one(
     task: tuple[str, str, str, Path],
     *,
     allow_missing_audio: bool,
+    video_only: bool,
     existing_videos: Mapping[str, object],
-    direct_existing_entry: Mapping[str, object] | None = None,
 ) -> DownloadOutcome:
     """Download and verify one candidate without catching programming errors."""
     url, video_id, title, output_dir = task
+    skip_audio_gate = allow_missing_audio or video_only
     existing = _completed_outputs(output_dir, video_id)
     if len(existing) > 1:
         raise RuntimeError(
@@ -277,11 +287,7 @@ def _download_one(
 
     if existing:
         output_path = existing[0]
-        raw_entry = (
-            direct_existing_entry
-            if direct_existing_entry is not None
-            else existing_videos.get(output_path.name)
-        )
+        raw_entry = existing_videos.get(output_path.name)
         if raw_entry is not None and not isinstance(raw_entry, dict):
             raise TypeError(f"sources.toml entry for {output_path.name!r} must be a table")
         existing_entry = raw_entry if isinstance(raw_entry, dict) else None
@@ -299,7 +305,7 @@ def _download_one(
                 _source_entry(task, False, existing_entry),
                 False,
             )
-        if allow_missing_audio:
+        if skip_audio_gate:
             eligibility = recorded_eligibility is True
             print(f'  Skipping video {video_id} (already exists: {output_path.name})')
             return DownloadOutcome(
@@ -316,17 +322,17 @@ def _download_one(
     try:
         result = subprocess.run(
             [
-                'yt-dlp',
-                '--format', _YTDLP_FORMAT,
+                config.YTDLP_BIN,
+                '--format', _YTDLP_VIDEO_ONLY_FORMAT if video_only else _YTDLP_FORMAT,
                 '--output', output_template,
                 '--merge-output-format', 'mp4',
                 '--no-playlist',
-                '--retries', '3',
-                '--sleep-interval', '5',
-                '--max-sleep-interval', '15',
-                '--sleep-requests', '10',
-                '--limit-rate', '2M',
-                '--concurrent-fragments', '1',
+                '--retries', str(config.YTDLP_RETRIES),
+                '--sleep-interval', str(config.SLEEP_INTERVAL_S),
+                '--max-sleep-interval', str(config.MAX_SLEEP_INTERVAL_S),
+                '--sleep-requests', str(config.SLEEP_REQUESTS_S),
+                '--limit-rate', config.LIMIT_RATE,
+                '--concurrent-fragments', str(config.CONCURRENT_FRAGMENTS),
                 url,
             ],
             capture_output=True,
@@ -351,7 +357,7 @@ def _download_one(
         return _failure_outcome(task)
 
     output_path = downloaded[0]
-    if allow_missing_audio:
+    if skip_audio_gate:
         print(f'  Downloaded video {video_id}: {output_path.name} (audio not checked)')
         return DownloadOutcome(
             video_id,
@@ -426,35 +432,6 @@ def _verify_existing(
     )
 
 
-def download_video(
-    url: str,
-    video_id: int | str,
-    title: str,
-    output_dir: Path = VIDEOS_DIR,
-    *,
-    allow_missing_audio: bool = False,
-    existing_entry: Mapping[str, object] | None = None,
-) -> str | None:
-    """Download one scraper video and return its actual output basename.
-
-    :param url: YouTube video URL.
-    :param video_id: YouTube id used as the output basename stem.
-    :param title: Stage-1 title recorded in the source manifest.
-    :param output_dir: Directory containing downloaded videos.
-    :param allow_missing_audio: Accept media without invoking ffprobe.
-    :param existing_entry: Existing manifest entry for a pre-existing file.
-    :return: Actual output filename on success, or ``None`` on a seed failure.
-    """
-    task = (url, str(video_id), title, output_dir)
-    outcome = _download_one(
-        task,
-        allow_missing_audio=allow_missing_audio,
-        existing_videos={},
-        direct_existing_entry=existing_entry,
-    )
-    return outcome.filename if not outcome.failed else None
-
-
 def _tasks_from_rows(rows: list[dict], output_dir: Path) -> list[tuple[str, str, str, Path]]:
     """Filter kept candidates and reject duplicate download seeds."""
     tasks: list[tuple[str, str, str, Path]] = []
@@ -473,9 +450,10 @@ def _tasks_from_rows(rows: list[dict], output_dir: Path) -> list[tuple[str, str,
 def download_all_videos(
     candidates_path: Path = CANDIDATES_CSV,
     output_dir: Path = VIDEOS_DIR,
-    max_workers: int = _DEFAULT_WORKERS,
+    max_workers: int = config.DOWNLOAD_WORKERS,
     *,
     allow_missing_audio: bool = False,
+    video_only: bool = False,
 ) -> list[DownloadOutcome]:
     """Download selected scraper candidates and update their source manifest.
 
@@ -483,6 +461,7 @@ def download_all_videos(
     :param output_dir: Destination for downloaded videos.
     :param max_workers: Number of parallel download threads.
     :param allow_missing_audio: Skip ffprobe and mark new files ineligible.
+    :param video_only: Request H.264 video without requiring an audio stream.
     :return: One outcome per selected seed when workers finish normally.
     """
     manifest_path = output_dir / SOURCES_MANIFEST_NAME
@@ -497,7 +476,7 @@ def download_all_videos(
         return []
 
     _check_ytdlp()
-    if not allow_missing_audio:
+    if not (allow_missing_audio or video_only):
         _check_ffprobe()
 
     videos = manifest['videos']
@@ -513,6 +492,7 @@ def download_all_videos(
                 _download_one,
                 task,
                 allow_missing_audio=allow_missing_audio,
+                video_only=video_only,
                 existing_videos=videos,
             )
             for task in tasks
@@ -550,12 +530,17 @@ def main() -> int:
         default=config.CANDIDATES_CSV,
     )
     parser.add_argument('--output-dir', type=Path, default=config.VIDEOS_DIR)
-    parser.add_argument('--workers', type=int, default=_DEFAULT_WORKERS)
+    parser.add_argument('--workers', type=int, default=config.DOWNLOAD_WORKERS)
     parser.add_argument(
         '--allow-missing-audio',
         action='store_true',
         help='Accept videos without checking for an audio stream; newly accepted files are\n'
              'marked commentary-ineligible.',
+    )
+    parser.add_argument(
+        '--video-only',
+        action='store_true',
+        help='Use the H.264 video-only selector and mark new files commentary-ineligible.',
     )
     args = parser.parse_args()
 
@@ -564,6 +549,7 @@ def main() -> int:
         output_dir=args.output_dir,
         max_workers=args.workers,
         allow_missing_audio=args.allow_missing_audio,
+        video_only=args.video_only,
     )
     if not outcomes:
         return 0

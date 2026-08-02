@@ -1,7 +1,7 @@
 """Rename teammate's downloaded videos to pipeline convention and generate metadata.
 
-Renames files from '{id}_{resolution}_{fps}.mp4' to '{id} {match_name}.mp4'
-(the format expected by clip_generator.py). Also generates:
+Renames files from '{id}_{resolution}_{fps}.mp4' to '{id}.mp4'
+(the current pipeline format). Also generates:
   - A video metadata CSV with id, video name, url, width, height, fps, notes
   - my_raw_video_resolution.csv for the pipeline (id, width, height)
 
@@ -128,7 +128,14 @@ def main():
             unparseable.append(f.name)
             continue
         parsed['path'] = f
-        local_files[parsed['id']] = parsed
+        video_id = parsed['id']
+        if video_id in local_files:
+            first_path = local_files[video_id]['path']
+            raise RuntimeError(
+                f'Multiple source files for ID {video_id}: '
+                f'{first_path.name}, {f.name}'
+            )
+        local_files[video_id] = parsed
 
     if unparseable:
         print(f'Skipped {len(unparseable)} unparseable files: {", ".join(unparseable)}')
@@ -139,10 +146,13 @@ def main():
         if vid_id not in matches:
             print(f'  WARNING: ID {vid_id} not found in match.csv, skipping')
             continue
-        match_name = matches[vid_id]['video']
-        new_name = f'{vid_id} {match_name}.mp4'
+        new_name = f'{vid_id}.mp4'
         old_path = info['path']
         new_path = old_path.parent / new_name
+        if new_path.exists() and new_path != old_path:
+            raise FileExistsError(
+                f'Rename target already exists for ID {vid_id}: {new_path}'
+            )
         renames.append((old_path, new_path))
 
     # Print rename plan

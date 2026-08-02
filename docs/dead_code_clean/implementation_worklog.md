@@ -2,14 +2,13 @@
 
 ## Resume
 
-- **Current state:** B1 and B2 are merged. B3 commit `6014b21` is on the
-  continuing `cleanup-dedup` branch. Its follow-up corrections are uncommitted.
-- **Next action:** Review the final B3 follow-up diff, then run the B3 review-fix
-  commit helper.
+- **Current state:** B1 through B3 are merged. B4 is ready to commit on
+  `cleanup-dedup-b4` from merge commit `4a52929`.
+- **Next action:** Review the final B4 diff, then run the B4 commit helper.
 - **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
   through PR #41 (`a4eddca`). B2 commit `03f8b26` is contained in merged PR #42
-  (`ef77e71`). B3 passes its focused suite, Ruff, and focused
-  Pyrefly.
+  (`ef77e71`). B3 and its corrections are contained in merged PR #43
+  (`4a52929`). The B4 focused and scraper suite passes with 222 tests.
 - **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
@@ -52,6 +51,14 @@
   validation paths, unknown handling, plotting descriptions, missing-curation
   behavior, and TrackNet large-video wording. Restored the original court and
   player-mapping comments at their corresponding statements.
+- **B4:** New downloads use `{id}.mp4`. Resume checks, clip generation, and
+  resolution metadata also accept legacy `{id} {title}.mp4` files. A directory
+  containing both names for one ID raises an error.
+- **B4 gate:** `pipeline.build_dataset --help` remains blocked by the missing
+  declared `moviepy` dependency. The new adapter and metadata CLIs load.
+- **B4 review:** Added rename collision preflight, preserved existing resolution
+  metadata when every video is unreadable, and placed the package-root setup
+  before Stage 1 commands.
 
 ## Original and intended shape
 
@@ -83,9 +90,10 @@ frame/thumbnail video helpers are absent.
 
 ### Downloaders
 
-`src/bst_x/pipeline/download_videos.py` and
-`src/scraper/download_scraped_videos.py` remain separate. R3 has not been
-implemented.
+`src/scraper/download_scraped_videos.py` owns yt-dlp execution. The ShuttleSet
+adapter enables its H.264 video-only mode. Resolution scanning and its missing-
+video report live in `src/bst_x/pipeline/video_metadata.py`. The old BST-X
+downloader is absent.
 
 ### Annotator and CourtKeyNet
 
@@ -216,5 +224,25 @@ R4 and R9 require no implementation changes.
   input, and current UNE v1.14 collated training output. The same 67 focused
   tests, Ruff, focused Pyrefly, source compilation, and path-provenance checks
   passed after that correction.
-- **Commit:** `6014b21 Consolidate classifier taxonomy and dataset helpers`.
-  Follow-up corrections are uncommitted.
+- **Commit:** `6014b21 Consolidate classifier taxonomy and dataset helpers` and
+  `72f1438 Correct B3 paths and preserve source documentation`; merged by PR
+  #43 as `4a52929`.
+
+### B4 downloader
+
+- **Readiness:** R3 and the D1 compatibility report governed the scope. The
+  existing downloader, both filename forms, resolution report, clip lookup,
+  raw-video guard, config constants, and active runbooks were mapped.
+- **Files:** Added `pipeline/download_adapter.py` and `video_metadata.py`;
+  removed `pipeline/download_videos.py`; updated the scraper downloader,
+  pipeline consumers, retained video rename tool, tests, and active runbooks.
+- **Change:** ShuttleSet match rows now enter the scraper-owned downloader
+  through a fixed-schema adapter and explicit video-only mode. Metadata and
+  clip readers accept new and legacy filenames and reject duplicate ID matches.
+  The raw-video guard ignores `sources.toml`.
+- **Gate:** Focused downloader and scraper suite: 222 passed. Whole-project
+  Ruff passed. Focused Pyrefly reported zero errors. The adapter, metadata, and
+  scraper downloader CLI help commands passed. `pipeline.build_dataset --help`
+  stopped at the documented missing `moviepy` dependency. The independent B4
+  review found three defects; all three corrections passed their targeted checks.
+- **Commit:** Not yet committed.
