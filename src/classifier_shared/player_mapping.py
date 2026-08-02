@@ -1,8 +1,6 @@
-"""ShuttleSet player A/B -> Top/Bottom mapping + per-match shot collection.
+"""ShuttleSet player A/B to Top/Bottom mapping and shot collection.
 
-Mirrored from ``bst_x.pipeline.player_mapping``. Same pattern as
-``shared.dataset.compute_temporal_bounds`` etc. — keep BRIC self-contained
-without importing from ``bst_x``.
+This is the shared implementation used by both classifier pipelines.
 
 The ShuttleSet CSVs label players as 'A' and 'B'. Which physical player is
 Top (far court) vs Bottom (near court) depends on:

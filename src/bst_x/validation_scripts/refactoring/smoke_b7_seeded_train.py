@@ -15,12 +15,12 @@ in-memory dataset that matches the live loader contract:
 
 Usage:
     # On the reference state, capture the golden:
-    PYTHONPATH=src/bst_x ~/.venvs/badminton-cicd/bin/python \\
+    PYTHONPATH=src:src/bst_x ~/.venvs/badminton-cicd/bin/python \\
         src/bst_x/validation_scripts/refactoring/smoke_b7_seeded_train.py \\
         capture --out /tmp/seeded_train_golden.pt
 
     # On the proposed-change state, verify:
-    PYTHONPATH=src/bst_x ~/.venvs/badminton-cicd/bin/python \\
+    PYTHONPATH=src:src/bst_x ~/.venvs/badminton-cicd/bin/python \\
         src/bst_x/validation_scripts/refactoring/smoke_b7_seeded_train.py \\
         check --golden /tmp/seeded_train_golden.pt
 
@@ -45,9 +45,10 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 # script lives at src/bst_x/validation_scripts/refactoring/<name>.py;
-# parents[2] is src/bst_x/.
+# parents[2] is src/bst_x/. Its parent is the shared package root.
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
+sys.path.insert(0, str(SRC.parent))
 
 import bst_x_train as t  # noqa: E402
 from model.bst import BST_CG_AP  # noqa: E402

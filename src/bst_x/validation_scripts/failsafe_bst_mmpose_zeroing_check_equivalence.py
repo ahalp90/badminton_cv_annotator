@@ -31,7 +31,7 @@ main's.
 
 Run from the repo root with both package roots on PYTHONPATH::
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
         python -m validation_scripts.failsafe_bst_mmpose_zeroing_check_equivalence \\
             --raw-dir /scratch/comp320a/ShuttleSet_keypoints_raw \\
             --committed-dir /scratch/comp320a/clean_current_main_50 \\

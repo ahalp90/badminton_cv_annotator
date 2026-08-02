@@ -193,7 +193,7 @@ def court_setup(print_versions: bool = False) -> tuple:
     """
     import pandas as pd
     from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-    from pipeline.court_utils import get_court_info
+    from shared.court import get_court_info
 
     from preparing_data.heuristics.base import ClipContext, RawClip
     from preparing_data.heuristics.sticky_anchor import StickyAnchorParams

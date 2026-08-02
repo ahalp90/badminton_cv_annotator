@@ -87,7 +87,7 @@ and `$BST_X_RTMPOSE_NPY_DIR`. Typo guard against destroying the canonical extrac
 ## Apply heuristic — canonical run
 
 ```
-PYTHONPATH=src/bst_x python -m preparing_data.apply_heuristic \
+PYTHONPATH=src:src/bst_x python -m preparing_data.apply_heuristic \
     --raw-dir /scratch/comp320a/ShuttleSet_keypoints_raw \
     --output-dir /scratch/comp320a/ShuttleSet_keypoints_clean_<variant> \
     --heuristic sticky_anchor \
@@ -151,7 +151,7 @@ STICKY=/scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor
 # pass; we only want $MAIN_CURR populated with main's current-extract output.
 git checkout main
 rm -rf "$MAIN_CURR" "$BRANCH_CURR"
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     python -m preparing_data.failsafe_bst_mmpose_zeroing_check_equivalence \
         --raw-dir "$RAW" \
         --committed-dir "$STICKY" \
@@ -161,7 +161,7 @@ PYTHONPATH=src/bst_x \
 
 # The real gate
 git checkout <branch>
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     python -m validation_scripts.failsafe_bst_mmpose_zeroing_check_equivalence \
         --raw-dir "$RAW" \
         --committed-dir "$MAIN_CURR" \
@@ -177,7 +177,7 @@ Per-video setup (once per clip, using the homography):
 
 - `halfcourt_centre[TOP] = ((bL + bR) / 2, bU + (bD - bU) / 4)` normalised.
 - `halfcourt_centre[BOTTOM] = ((bL + bR) / 2, bU + 3 * (bD - bU) / 4)` normalised.
-- `bL`, `bR`, `bU`, `bD` are court borders from `pipeline.court_utils.get_court_info`.
+- `bL`, `bR`, `bU`, `bD` are court borders from `shared.court.get_court_info`.
 - On ShuttleSet the canonical rectangle collapses these to (0.5, 0.25) and (0.5, 0.75). For
   amateur data they derive from whatever canonical rectangle that video's homography
   defines, so the formula is already data-adaptive.
@@ -307,7 +307,7 @@ Implied singles-sideline normalised x coordinates: **x = 0.0754** and **x = 0.92
 
 ### The legacy `eps = 0.01` buffer is effectively zero
 
-`check_pos_in_court` in `pipeline/court_utils.py` tests `-eps < x,y < 1 + eps` with
+`check_pos_in_court` in `shared/court.py` tests `-eps < x,y < 1 + eps` with
 `eps = 0.01`. Converted to physical units against the canonical rectangle:
 
 | Axis | Normalised eps | Physical buffer |
@@ -392,7 +392,7 @@ smash setup) is rejected by the legacy filter.
 - `src/bst_x/preparing_data/apply_heuristic.py` — CLI + `run` library entry point.
 - `src/bst_x/preparing_data/heuristics/{base,current,sticky_anchor}.py` — heuristic modules.
 - `src/bst_x/validation_scripts/failsafe_bst_mmpose_zeroing_check_equivalence.py` — failsafe gate.
-- `src/bst_x/pipeline/court_utils.py` — `get_court_info`, `to_court_coordinate`, `normalize_position`.
+- `src/shared/court.py` - `get_court_info`, `to_court_coordinate`, `normalize_position`.
 - `historical_mmpose_heuristic_investigation.md` — full investigation history (Phase 0/1/2,
   status updates 2026-04-25 and 2026-04-29, decision log, rejected variants, failure-mode
   triage, Phase 2 plan, amateur-generalisation notes, parked recovery routes).

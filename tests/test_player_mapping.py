@@ -1,4 +1,4 @@
-"""Tests for `shared.player_mapping`.
+"""Tests for ``classifier_shared.player_mapping``.
 
 Three layers:
 
@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from shared.dataset import SET_INFO_DIR
-from shared.player_mapping import (
+from classifier_shared.player_mapping import (
     collect_shots,
     find_set3_switch_rally,
     map_players,

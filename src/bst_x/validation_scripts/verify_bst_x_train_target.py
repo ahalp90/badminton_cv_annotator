@@ -7,7 +7,7 @@ path exists under the expected scratch root.
 
 Run from the repo root::
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
         python src/bst_x/validation_scripts/verify_bst_train_target.py
 
 Override the scratch root with ``--root /some/other/path`` if needed.

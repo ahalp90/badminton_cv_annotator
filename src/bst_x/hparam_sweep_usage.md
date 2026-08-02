@@ -26,7 +26,7 @@ the how-to.
 ## Step 1: make a session
 
 ```bash
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     python -m hparam_sweep --new-session aug_v1_round_1
 ```
 
@@ -94,7 +94,7 @@ Common patterns:
 ## Step 3: launch
 
 ```bash
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     python -m hparam_sweep <session_dir>
 ```
 
@@ -247,7 +247,7 @@ high_variance_warn_stdev: 0.010
 ## Sanity-check before launch
 
 ```bash
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     python -m hparam_sweep --dry-run <session_dir>
 ```
 

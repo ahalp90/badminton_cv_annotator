@@ -49,7 +49,7 @@ Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
   CLIPS_DIR=/tmp/prepare_2d_smoke_clips \\
   REFERENCE_DIR="$BST_X_RTMPOSE_NPY_DIR" \\
   SCRATCH_DIR=/tmp/prepare_2d_smoke_main \\
-  PYTHONPATH=src/bst_x \\
+  PYTHONPATH=src:src/bst_x \\
       python src/bst_x/validation_scripts/refactoring/smoke_prepare_2d_bit_exact.py
 
   # STEP 2 -- the real gate on the branch.
@@ -57,7 +57,7 @@ Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
   CLIPS_DIR=/tmp/prepare_2d_smoke_clips \\
   REFERENCE_DIR=/tmp/prepare_2d_smoke_main \\
   SCRATCH_DIR=/tmp/prepare_2d_smoke_branch \\
-  PYTHONPATH=src/bst_x \\
+  PYTHONPATH=src:src/bst_x \\
       python src/bst_x/validation_scripts/refactoring/smoke_prepare_2d_bit_exact.py
 
 A passing run prints ``PASS: N stems matched`` for every stem.
@@ -129,7 +129,7 @@ def main() -> int:
     # The active homography uses ShuttleSet's set_info + my_raw_video_resolution.
     import pandas as pd  # noqa: PLC0415
     from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR  # noqa: PLC0415
-    from pipeline.court_utils import build_all_court_info  # noqa: PLC0415
+    from shared.court import build_all_court_info  # noqa: PLC0415
     from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
         prepare_dataset_npy_from_raw_video,
     )

@@ -30,7 +30,7 @@ Usage on bourbaki / engelbart (dual-invocation main-vs-branch):
   # same code. The script sets torch.use_deterministic_algorithms(True);
   # this env var unlocks the same guarantee at the CuBLAS layer.
   export CUBLAS_WORKSPACE_CONFIG=:4096:8
-  export PYTHONPATH=src/bst_x
+  export PYTHONPATH=src:src/bst_x
 
   # STEP 1 -- branch
   git checkout <refactor-branch>

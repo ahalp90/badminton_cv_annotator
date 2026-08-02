@@ -7,7 +7,7 @@ This sits next to the train-vs-val-vs-test analysis. The idea is to test whether
 - Data: `notebooks/clips_master.csv`, 33,481 raw clips across 40 matches.
 - Taxonomy: `une_merge_v1_nosides` (no Top_/Bottom_ prefix), `split_v2`, `drop_unknown=True`. Drops `unknown` and folds `defensive_return_lob`, `driven_flight`, `back_court_drive`, `defensive_return_drive` into their merge targets via `UNE_MERGE_V1_MAP`.
 - After taxonomy + drop unknown: **32,203 clips** (matches the unified extract size that bst_x_train operates on across Phase 2).
-- Player resolution: `(vid, set, rally, player_side)` mapped to a player name. Convention from `pipeline/player_mapping.py`: A is the winner, B is the loser; sides swap between sets 1 and 2; set 3 has a mid-set switch at 11 points (split rally pulled per match from `set3.csv`).
+- Player resolution: `(vid, set, rally, player_side)` mapped to a player name. Convention from `classifier_shared/player_mapping.py`: A is the winner, B is the loser; sides swap between sets 1 and 2; set 3 has a mid-set switch at 11 points (split rally pulled per match from `set3.csv`).
 
 ## Target classes (median top-3 + bottom-4 by test F1 across the nine Phase 2 nosides runs)
 
@@ -141,7 +141,7 @@ Three follow-ups this points at:
 
 ## Methodology notes
 
-- Player name resolution mirrors `pipeline/player_mapping.py`. For sets 1 and 2 it's deterministic from `downcourt`. For set 3, the script reads each match's `set3.csv` and finds the first rally where either score reaches 11; the rally after that is the switch point. Clips with rally < switch are pre-switch (set-1 mapping), rally >= switch are post-switch (set-2 mapping). When neither player reaches 11 (rare retirements), all set-3 rallies stay pre-switch.
+- Player name resolution mirrors `classifier_shared/player_mapping.py`. For sets 1 and 2 it's deterministic from `downcourt`. For set 3, the script reads each match's `set3.csv` and finds the first rally where either score reaches 11; the rally after that is the switch point. Clips with rally < switch are pre-switch (set-1 mapping), rally >= switch are post-switch (set-2 mapping). When neither player reaches 11 (rare retirements), all set-3 rallies stay pre-switch.
 - A=winner, B=loser convention from BST-original `ShuttleSet/get_each_class_total.py:8` (`'''A is the winner and B is the loser.'''`).
 - Filter (b) reads the per-shot `flaw` column from each match's `set1.csv` / `set2.csv` / `set3.csv`. Shots with `flaw == 1` (NaN-or-1 column) are dropped at this filter. **Note**: this is the per-shot annotator flag, separate from `flaw_shot_records.csv` (the removal log), which was already applied during `notebooks/03_build_clips_master.ipynb` and so doesn't show up here.
 - Scripts: `docs/architecture_notes/player_overlap_analysis.py` (loader + metrics + charts). Output JSON: `/tmp/player_overlap_results.json`.

@@ -10,7 +10,7 @@ Single source of truth for BRIC's per-stroke metadata. Reads from:
       * ``shared.dataset`` — paths, EXCLUDED_VIDEOS, REMOVED_SHOTS,
         SPLITS_V2, SPLITS_BST_BASELINE, CLIP_WINDOW,
         compute_temporal_bounds, compute_clip_bounds
-      * ``shared.player_mapping`` — collect_shots (A/B → Top/Bottom)
+      * ``classifier_shared.player_mapping`` - collect_shots (A/B to Top/Bottom)
       * ``shared.taxonomy`` — STROKE_TYPES_19_ZH
 
 No imports from ``bst_x`` — BRIC stays self-contained. No
@@ -60,7 +60,7 @@ from shared.dataset import (  # noqa: E402  — must follow sys.path insertion
     compute_clip_bounds,
     compute_temporal_bounds,
 )
-from shared.player_mapping import collect_shots  # noqa: E402
+from classifier_shared.player_mapping import collect_shots  # noqa: E402
 from shared.taxonomy import STROKE_TYPES_19_ZH  # noqa: E402
 
 OUT_PATH = (

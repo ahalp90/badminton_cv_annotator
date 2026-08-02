@@ -17,7 +17,7 @@ Env:
                       short prefix with several detections exercises it fully)
 
 Run:
-  PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> OMP_NUM_THREADS=1 <venv>/bin/python \\
+  PYTHONPATH=src:src/bst_x XDG_CACHE_HOME=<warm-cache> OMP_NUM_THREADS=1 <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/gate_cpu_determinism.py
 """
 from __future__ import annotations

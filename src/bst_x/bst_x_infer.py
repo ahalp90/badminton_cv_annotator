@@ -13,7 +13,7 @@
 #      FE-shape converter / calibration run against a run without retraining.
 #
 # Run from the repo root with both package roots on PYTHONPATH:
-#   PYTHONPATH=src/bst_x \
+#   PYTHONPATH=src:src/bst_x \
 #       python -m bst_x_infer --fe \
 #           --run-dir .../experiments/bst_x/shuttleset/run_<id> --serial 5
 #   The dump lands in <run-dir>/inference_runs/<timestamp>/ (npz +

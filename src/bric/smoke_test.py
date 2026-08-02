@@ -18,7 +18,7 @@ What it checks:
   5. R(2+1)D-18 forward pass on the accelerator (Kinetics-400 pretrained)
   6. OpenCV importable
   7. BRIC's own modules import cleanly (shared.taxonomy, shared.court,
-     shared.video_io)
+     classifier_shared.video_io)
 
 Exits 0 on full success, 1 on first failure with a clear diagnostic.
 """
@@ -170,7 +170,7 @@ except Exception as e:
 
 
 # ---------------------------------------------------------------------------
-# 6. OpenCV import (used by shared.video_io)
+# 6. OpenCV import (used by classifier_shared.video_io)
 # ---------------------------------------------------------------------------
 banner('6. OpenCV')
 try:
@@ -201,10 +201,10 @@ except Exception as e:
     fail('shared.court failed to import', e)
 
 try:
-    from shared import video_io
-    info(f'shared.video_io: VideoInfo dataclass present = {hasattr(video_io, "VideoInfo")}')
+    from classifier_shared import video_io
+    info(f'classifier_shared.video_io: VideoInfo dataclass present = {hasattr(video_io, "VideoInfo")}')
 except Exception as e:
-    fail('shared.video_io failed to import', e)
+    fail('classifier_shared.video_io failed to import', e)
 
 ok('BRIC modules importable')
 

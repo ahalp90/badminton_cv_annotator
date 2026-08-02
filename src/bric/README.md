@@ -28,17 +28,17 @@ src/bric/
     └── debug_court_bias.py   # Per-stroke court coord diagnostics
 ```
 
-Generic utilities BRIC consumes live in `src/shared/`: taxonomy,
-court geometry, player mapping, video I/O, frame-window helpers, and the
-canonical TrackNetV3 inference tree. A
+Cross-pipeline court geometry and TrackNetV3 live in `src/shared/`.
+Classifier-only player mapping, plotting, and video metadata live in
+`src/classifier_shared/`. A
 per-stroke clip slicer (`shared/slicer.py`) is planned for PR 4 as
 the cross-arch primitive for the live-upload inference path.
 
 ## Import rules
 
 - `bric.*` modules **never** `import bst_x.*`.
-- They import generic utilities (taxonomy, court, video_io, temporal)
-  from `shared.*`.
+- They import cross-pipeline court geometry from `shared.*`.
+- They import classifier-only utilities from `classifier_shared.*`.
 - They import their own perception layer from `bric.perception.*`.
 
 ## What's trained by us

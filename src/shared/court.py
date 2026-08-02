@@ -1,4 +1,4 @@
-"""Court homography utilities, mirrored from bst_x.pipeline.court_utils.
+"""Court homography utilities shared by classifiers and the annotator.
 
 Pure functions for camera-pixel <-> normalised court coordinate transforms.
 
@@ -14,9 +14,8 @@ Two ways to use this module:
    Use `load_all_court_info()` and `get_court_info()` to load BST's
    pre-computed matrices for ShuttleSet videos.
 
-What's NOT mirrored:
-  - The `pipeline.config` import. HOMOGRAPHY_RESOLUTION is defined locally
-    so this module has no cross-package dependencies.
+``HOMOGRAPHY_RESOLUTION`` is defined locally so this module has no classifier
+package dependency.
 """
 
 from pathlib import Path
@@ -150,3 +149,13 @@ def load_all_court_info(homo_csv_path: Path) -> dict:
     """Load court info for all videos from BST's homography.csv."""
     homo_df = pd.read_csv(homo_csv_path).set_index('id')
     return {vid: get_court_info(homo_df, vid) for vid in homo_df.index}
+
+
+def build_all_court_info(set_info_dir: Path, res_df: pd.DataFrame) -> dict:
+    """Build court info for every video represented in ``res_df``.
+
+    Indexing from the resolution table is intentional. A missing homography
+    therefore fails immediately instead of silently omitting a video.
+    """
+    homo_df = pd.read_csv(set_info_dir / 'homography.csv').set_index('id')
+    return {vid: get_court_info(homo_df, vid) for vid in res_df.index}

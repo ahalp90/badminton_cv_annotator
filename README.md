@@ -54,7 +54,8 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 
 - `src/bst_x/` — data pipeline and BST-X classifier; standalone subproject with its own pinned environments
 - `src/bric/` — BRIC: R(2+1)D-18 with optional shuttle + court fusion lanes. Self-contained: network, dataset, train, infer, eval, plus its own `perception/` (YOLO + TrackNet), `preprocessing/` (cache producers), and `diagnostics/` (cache validators)
-- `src/shared/` — values and utilities BRIC consumes: stroke taxonomy, court geometry, player mapping, video I/O, frame-window helpers
+- `src/shared/` - cross-pipeline court geometry, taxonomy data, and TrackNetV3
+- `src/classifier_shared/` - player mapping, plotting, and video metadata shared by BRIC and BST-X
 - `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs
 - `scripts/` — cross-cutting setup and shared data-prep. Per-architecture scripts live with their architecture
 - `training/` — per-model training data, caches, and run artefacts (gitignored)
@@ -86,7 +87,7 @@ Lists clips for a given `split` + `class` filter, paired with their shuttle and 
 
 ```bash
 # Set PYTHONPATH once for the session
-export PYTHONPATH=src/bst_x
+export PYTHONPATH=src:src/bst_x
 
 python -m pipeline.data_access --summary                       # counts per split/class
 python -m pipeline.data_access --split val --class Top_smash   # one row per matching clip

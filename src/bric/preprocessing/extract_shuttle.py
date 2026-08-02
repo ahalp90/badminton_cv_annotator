@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 from bric.perception.shuttle import extract_shuttle  # noqa: E402
-from shared.video_io import get_video_info  # noqa: E402
+from classifier_shared.video_io import get_video_info  # noqa: E402
 
 SHOTS_MASTER_PATH = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 RAW_VIDEO_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'raw_video'

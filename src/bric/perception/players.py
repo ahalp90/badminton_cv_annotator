@@ -38,7 +38,7 @@ from typing import Literal
 
 import numpy as np
 
-from shared.video_io import get_video_info
+from classifier_shared.video_io import get_video_info
 from shared.court import convert_homogeneous, project
 
 # Project-relative default location for the YOLO11n weights.

@@ -35,7 +35,7 @@ for revival.
 
 Run from the repo root with both package roots on PYTHONPATH::
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
         python -m preparing_data.raw_extract --help
 """
 

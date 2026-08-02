@@ -438,7 +438,7 @@ cd /home/ahalperi/badminton_cv_annotator
 #### B2. `raw_extract.py` (no code change)
 
 ```bash
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     /home/ahalperi/.venvs/venv-bst-x/bin/python -m preparing_data.raw_extract \
     --clip-stems-file /scratch/comp320a/ShuttleSet_keypoints_raw_unknown/stems_unknown.txt \
     --save-dir /scratch/comp320a/ShuttleSet_keypoints_raw_unknown \
@@ -450,7 +450,7 @@ Wall time: ~1,278 / 32,203 of the original Phase-2 budget. Roughly 1.5 hours on 
 #### B3. `apply_heuristic.py` (no code change; collision guards already in place)
 
 ```bash
-PYTHONPATH=src/bst_x \
+PYTHONPATH=src:src/bst_x \
     /home/ahalperi/.venvs/venv-bst-x/bin/python -m preparing_data.apply_heuristic \
     --raw-dir /scratch/comp320a/ShuttleSet_keypoints_raw_unknown \
     --output-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor_unknown \

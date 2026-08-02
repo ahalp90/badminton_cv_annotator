@@ -47,7 +47,7 @@ from typing import NamedTuple
 import numpy as np
 
 from pipeline.config import COCO_N_JOINTS
-from pipeline.court_utils import normalize_position, to_court_coordinate
+from shared.court import normalize_position, to_court_coordinate
 
 from .base import (
     DOUBLES_COUNT_MARGIN,

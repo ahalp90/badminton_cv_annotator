@@ -54,7 +54,7 @@ class ClipContext:
     """Per-clip context needed to project pixel coords into court coords.
 
     ``all_court_info`` is a ``{vid: court_info}`` map as returned by
-    ``pipeline.court_utils.get_court_info``; ``res_df`` is a DataFrame
+    ``shared.court.get_court_info``; ``res_df`` is a DataFrame
     indexed by video id with at least ``width`` and ``height`` columns.
     """
     vid: int

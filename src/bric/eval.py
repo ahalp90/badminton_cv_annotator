@@ -14,7 +14,7 @@ from tqdm import tqdm
 from bric.dataset import ShuttleSetDataset, collate_strokes
 from bric.network import BRICNetwork
 from bric.train import _resolve_taxonomy, _move_batch, _forward_for_variant
-from shared.eval_plots import plot_confusion_matrix
+from classifier_shared.eval_plots import plot_confusion_matrix
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXPERIMENTS = _REPO_ROOT / 'training' / 'bric' / 'experiments'
@@ -187,7 +187,7 @@ def main():
     plot_confusion_matrix(
         y_true=labels.numpy(), y_pred=preds.numpy(),
         class_names=classes, model_name=args.run_id,
-        save_name=str(run_dir / 'eval' / 'test'),
+        output_path=run_dir / 'eval' / 'test_confusion_matrix.jpg',
     )
 
 if __name__ == '__main__':

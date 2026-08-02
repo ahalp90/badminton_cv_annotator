@@ -45,9 +45,10 @@ from PIL import Image, ImageDraw
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT / "src" / "bst_x"))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.config import HOMOGRAPHY_RESOLUTION  # noqa: E402
-from pipeline.court_utils import get_court_info  # noqa: E402
+from shared.court import get_court_info  # noqa: E402
 
 
 COLOURS = {
