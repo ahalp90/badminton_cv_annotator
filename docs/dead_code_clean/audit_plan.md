@@ -1,24 +1,27 @@
-# Dead / parallel / duplicate code audit — plan (rev 2, post Sol review)
+# Dead, parallel and duplicate code audit plan
 
-Goal: find dead code, parallel implementations of the same problem class, and
-near-duplicates where a small tweak lets one side fully supersede the other,
-across src/ and scripts/. Audit only; no refactor is executed from this pass.
+The audit looked for dead code, parallel implementations of the same problem,
+and near-duplicates where a small change would let one implementation replace
+another. It covered `src/` and `scripts/`. The audit was read-only and made no
+source-code changes.
 
-Rev 2 folds the Sol (medium) plan review of 2026-08-01: disjoint work-package
-ownership, a production owner for courtkeynet, a split dead-code taxonomy, a
-root manifest for liveness claims, and a trimmed doc set.
+The final plan used separate work-package ownership, a production owner for
+CourtKeyNet, distinct dead-code categories, and a root manifest for liveness
+claims. An independent plan review on 2026-08-01 led to those changes.
 
 ## Scope
 
-In:
+Included:
+
 - src/annotator, src/api, src/bric, src/bst_x, src/courtkeynet, src/scraper, src/shared
 - scripts/ excluding scripts/archive
 - tests/ as evidence (duplicated helpers; test-only production symbols as a
   classification, not a delete list)
 
-Out:
-- docs/**/*.py — one-shot analysis and evidence scripts, deliberately parked
-- scripts/archive — already archived; WP7 runs one explicit tracked-content
+Excluded:
+
+- docs/**/*.py, one-shot analysis and evidence scripts that were deliberately parked
+- scripts/archive, already archived; WP7 runs one explicit tracked-content
   search for imports, path loads, or subprocess calls into it, nothing more
 - Internal style of vendored code (src/bric/perception/_vendor,
   src/courtkeynet/_vendor, src/bst_x/TrackNetV3). Duplication BETWEEN mirrors is
@@ -34,7 +37,7 @@ A zero-caller claim only counts if the symbol is unreachable from every root:
 
 - CI (.github/workflows): pytest suite; scripts/pr_main_files.py;
   scripts/pr_advisory.py
-- Docker: uvicorn src.api.main:app — every FastAPI route/handler in src/api is live
+- Docker: uvicorn src.api.main:app. Every FastAPI route or handler in src/api is live
 - Documented `python -m` modules (git grep over tracked *.md/*.py/*.sh/*.yml/*.toml),
   including: pipeline.data_access, pipeline.build_dataset, pipeline.shuttle_extractor,
   pipeline.download_videos, pipeline.clip_generator, pipeline.verify, hparam_sweep,
@@ -49,24 +52,24 @@ A zero-caller claim only counts if the symbol is unreachable from every root:
 - conftest.py fixtures and tests-by-name selection; pre-commit hooks; getattr /
   importlib / registry / `__all__` string dispatch
 
-## Finding categories (shared rubric)
+## Finding categories
 
-- **D-unreach** — unreachable from every root above, static and dynamic. The only
+- **D-unreach**, unreachable from every root above, static and dynamic. The only
   category that supports "delete" outright.
-- **D-prod** — no production reference; kept alive only by tests or by nothing.
-- **T** — test-only surface (helpers, fixtures, production symbols only tests
-  touch). A classification for Ariel to rule on, not a delete list.
-- **U** — unused surface inside live code: parameters never passed, write-only
+- **D-prod**, no production reference; kept alive only by tests or by nothing.
+- **T**, test-only surface (helpers, fixtures, production symbols only tests
+  touch). A classification for a maintainer ruling, not a delete list.
+- **U**, unused surface inside live code: parameters never passed, write-only
   state, dead branches, stale config knobs.
-- **P** — parallel implementations of one problem class, with matched inputs,
+- **P**, parallel implementations of one problem class, with matched inputs,
   outputs, invariants, and side effects shown. Unproven equivalence stays C.
-- **S** — supersedable near-duplicate: matched contract plus the named small tweak
+- **S**, supersedable near-duplicate: matched contract plus the named small tweak
   that lets one side absorb the other, and which side is better with the losing
   side's concrete deficiency stated.
-- **C** — comparison note: similar code where equivalence is unproven or the
+- **C**, comparison note: similar code where equivalence is unproven or the
   divergence looks intentional (e.g. a mirror preventing coupling). States what
   coupling the duplication currently prevents.
-- **O** — overengineering per .github/AGENTS.md, admitted only with a concrete
+- **O**, overengineering per .github/AGENTS.md, admitted only with a concrete
   maintenance, comprehension, or correctness cost stated. Module size and
   caller counts are prompts for inspection, not violations.
 
@@ -75,51 +78,46 @@ and a proposed disposition (delete / absorb into X / park as archive / leave,
 one-line reason). Findings without evidence are marked UNVERIFIED and stay out
 of the report.
 
-## Work packages — disjoint ownership
+## Work packages
 
-Every directory and every cross-package comparison has exactly one finding
-author. Other packages record cross-boundary suspicions in an "outward notes"
-section of their return; the merge step routes those to the owner's ledger
-entries rather than duplicating findings.
+Every directory and cross-package comparison had one owner. Cross-boundary
+notes were routed to that owner's ledger entries during the merge, which
+prevented duplicate findings. Each work package was an automated read-only
+sweep.
 
-All sweeps are read-only gpt-5.6-luna; xhigh for mechanical traces, max where
-inference is needed.
+| WP | Owns | Focus |
+|----|------|-------|
+| 1 | src/bric/perception/_vendor, src/bst_x/TrackNetV3, src/courtkeynet/_vendor | File-by-file mirror diff (bric vendor vs bst_x TrackNetV3); which side is newer; exact surface each consumer calls; minimal live surface per mirror |
+| 2 | All cross-package comparisons (no directory) | Cross-package P/S/C: bst_x/pipeline vs scraper stages; court_utils vs shared/court vs courtkeynet/court_corners; player_mapping pair; shuttle_extractor vs bric extract_shuttle; bst_x's non-use of src/shared incl. legacy taxonomy names; duplicated data contracts, schemas, path/config resolution, CLI orchestration, validation logic and repeated constants |
+| 3 | src/annotator + src/courtkeynet (production code) | Internal D/U/T/P/S/O; calibration/ and validation_overlay/ included; courtkeynet wrapper/constants/court_corners liveness |
+| 4 | src/scraper + src/shared | Stage modules, config contracts, dead branches; shared/ internal quality and adoption map |
+| 5 | src/bst_x excluding TrackNetV3 and validation_scripts | pipeline/, preparing_data/ (including their mutual overlap), model/, loss/, train/infer/reporting/run_tracker/result_utils/run_overview |
+| 6 | src/bric excluding _vendor and diagnostics, + src/api | dataset/network/train/eval/perception/preprocessing; the api inference triplet (inference.py, bric_inference.py, bst_x_inference.py); bric/dataset vs shared/dataset |
+| 7 | scripts/ (non-archive), src/bst_x/validation_scripts, src/courtkeynet/validation_scripts, src/bric/diagnostics | Liveness census: live tool / one-shot gate from a finished pass (archive candidate) / D-unreach; plus the scripts/archive inbound-reference check |
+| 8 | tests/ | Duplicated helpers/fixtures; T-list of production symbols only tests reference |
 
-| WP | Owns | Effort | Focus |
-|----|------|--------|-------|
-| 1 | src/bric/perception/_vendor, src/bst_x/TrackNetV3, src/courtkeynet/_vendor | xhigh | File-by-file mirror diff (bric vendor vs bst_x TrackNetV3); which side is newer; exact surface each consumer calls; minimal live surface per mirror |
-| 2 | All cross-package comparisons (no directory) | max | Sole author of cross-package P/S/C: bst_x/pipeline vs scraper stages; court_utils vs shared/court vs courtkeynet/court_corners; player_mapping pair; shuttle_extractor vs bric extract_shuttle; bst_x's non-use of src/shared incl. legacy taxonomy names; plus outward axes: duplicated data contracts, schemas, path/config resolution, CLI orchestration, validation logic, repeated constants |
-| 3 | src/annotator + src/courtkeynet (production code) | max | Internal D/U/T/P/S/O; calibration/ and validation_overlay/ included; courtkeynet wrapper/constants/court_corners liveness |
-| 4 | src/scraper + src/shared | max | Stage modules, config contracts, dead branches; shared/ internal quality and adoption map |
-| 5 | src/bst_x excluding TrackNetV3 and validation_scripts | max | pipeline/, preparing_data/ (incl. their mutual overlap), model/, loss/, train/infer/reporting/run_tracker/result_utils/run_overview |
-| 6 | src/bric excluding _vendor and diagnostics, + src/api | max | dataset/network/train/eval/perception/preprocessing; the api inference triplet (inference.py, bric_inference.py, bst_x_inference.py); bric/dataset vs shared/dataset |
-| 7 | scripts/ (non-archive), src/bst_x/validation_scripts, src/courtkeynet/validation_scripts, src/bric/diagnostics | xhigh | Liveness census: live tool / one-shot gate from a finished pass (archive candidate) / D-unreach; plus the single scripts/archive inbound-reference check |
-| 8 | tests/ | xhigh | Duplicated helpers/fixtures; T-list of production symbols only tests reference (evidence for the package owners' D-prod findings) |
+## Verification
 
-## Verification (Claude-side, after delegates return)
-
-1. Every D-unreach, D-prod, and S finding the report recommends acting on gets
-   first-hand verification: PyCharm MCP find-usages plus `git grep` over tracked
-   content, checked against the root manifest.
+1. Every D-unreach, D-prod, and S finding recommended for action received a
+   first-hand check. Semantic references and `git grep` over tracked content
+   were checked against the root manifest.
 2. Contested or refuted findings drop to a report appendix with the refutation
    noted.
 
 ## Deliverables (docs/dead_code_clean/)
 
-- audit_plan.md — this file
-- decisions.md — deviations and open questions for Ariel
-- worklog.md — resume block, concerns, execution log
-- findings.md — the single merged ledger, rubric format (raw delegate returns
-  stay in the session scratchpad, not the repo)
-- report.md — readable report, themes and justifications first, stats last;
-  audited by Sol (high) before final
+- audit_plan.md, this scope and method record
+- decisions.md, the final refactor rulings
+- worklog.md, the internal audit execution record
+- findings.md, the merged ledger
+- findings/wp1.md through findings/wp8.md, the raw sweep returns
+- report.md, the reader-facing summary
 
 ## Order of execution
 
-1. ~~Sol (medium) plan review~~ — done; ten criticisms folded into this rev.
-2. Launch WP1–WP8 in parallel (background; poll on-disk job JSON, not companion
-   status — the flag guard blocks flagless companion calls).
-3. Merge returns into findings.md; route outward notes to owners; Claude-side
-   verification pass on actionable findings.
+1. Review the plan. Ten points from the 2026-08-01 review were folded into this revision.
+2. Run WP1 to WP8 as separate read-only sweeps.
+3. Merge returns into findings.md, route outward notes to owners, and verify
+   actionable findings first-hand.
 4. Write report.md.
-5. Sol (high) audits report.md. Fold feedback. Done — no refactor executed.
+5. Run an independent final review and fold in the findings. No refactor was executed.

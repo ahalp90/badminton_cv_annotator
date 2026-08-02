@@ -1,8 +1,8 @@
-# WP6 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP6 raw return (automated read-only sweep, 2026-08-01)
 
-CLUSTER SHAPE — `src/bric` provides BRIC training, cache assembly, perception and preprocessing, with documented entry points in `bric.train`, `bric.smoke_test` and the three preprocessing modules (`src/bric/README.md:9-29`, `src/bric/train.py:738-744`, `src/bric/preprocessing/slice_rallies.py:230-231`, `src/bric/preprocessing/extract_shuttle.py:216-217`, `src/bric/preprocessing/preprocess_videos.py:568-569`). `src/api` is live through the Docker `uvicorn src.api.main:app` root, including upload, library, job, model and registry routes (`docs/dead_code_clean/audit_plan.md:21-31`, `src/api/main.py:185-197`, `src/api/main.py:365-572`), with `_process_video` dispatching to BST, BRIC or the fallback stub (`src/api/main.py:208-301`).
+CLUSTER SHAPE: `src/bric` provides BRIC training, cache assembly, perception and preprocessing, with documented entry points in `bric.train`, `bric.smoke_test` and the three preprocessing modules (`src/bric/README.md:9-29`, `src/bric/train.py:738-744`, `src/bric/preprocessing/slice_rallies.py:230-231`, `src/bric/preprocessing/extract_shuttle.py:216-217`, `src/bric/preprocessing/preprocess_videos.py:568-569`). `src/api` is live through the Docker `uvicorn src.api.main:app` root, including upload, library, job, model and registry routes (`docs/dead_code_clean/audit_plan.md:21-31`, `src/api/main.py:185-197`, `src/api/main.py:365-572`), with `_process_video` dispatching to BST, BRIC or the fallback stub (`src/api/main.py:208-301`).
 
-LEDGER —
+LEDGER:
 
 WP6-1 | D-unreach | `src/bric/perception/players.py:detect_and_track` | The ByteTrack-based `detect_and_track` function and its `PlayerTrack` helper chain have no production caller, while live preprocessing and API inference use the frame-detection path instead. | evidence: `src/bric/perception/players.py:55-149,157-266`; live callers `src/bric/preprocessing/preprocess_videos.py:33-37,129-223,267-388` and `src/api/bric_inference.py:33-37,297-350`; Pyrefly refs on `players.py:84:5` found only the definition and git grep found no caller; roots checked: CI pytest/scripts, Docker uvicorn routes, documented `python -m` roots, undocumented `__main__` modules, tests/conftest, hooks, dynamic getattr/importlib/registry/`__all__` | delete `PlayerTrack`, `detect_and_track` and its private helper chain, retaining `DEFAULT_YOLO_WEIGHTS` because `preprocess_videos.py:70` and `api/bric_inference.py:36` use it | confidence high
 
@@ -36,7 +36,7 @@ WP6-15 | C | `src/bric/dataset.py:ShuttleSetDataset` vs `src/shared/dataset.py` 
 
 WP6-16 | C | `src/bric/dataset.py:_build_court_snapshot` vs `src/api/bric_inference.py:_striker_court_position` | Offline and online court projection use equivalent geometry but consume different state, so neither path can absorb the other without coupling API inference to training caches. | evidence: offline snapshot smoothing and projection `src/bric/dataset.py:242-296`; offline sequence path `src/bric/dataset.py:298-335`; online smoothing and projection `src/api/bric_inference.py:115-158`; online arrays and response use `src/api/bric_inference.py:325-350,524-528`; roots checked: BRIC dataset/training roots, Docker BRIC route and tests | leave separate because offline NPZ caches and live per-upload arrays are different lifecycle boundaries | confidence high
 
-OUTWARD NOTES —
+OUTWARD NOTES:
 
 `src/bric/perception/shuttle.py:35-45` and `src/bst_x/pipeline/shuttle_extractor.py:33-41,83-109` duplicate TrackNet stride/evaluation settings and differ on `large_video`; route the cross-package comparison to WP2.
 
@@ -46,4 +46,4 @@ OUTWARD NOTES —
 
 `docs/api_contract.md:120-125,215-217` advertises `match` query filters, but `src/api/registry.py:399-434` exposes no `match` filter; check the API/frontend contract outside WP6.
 
-NOT CHECKED — `src/bric/perception/_vendor` and `src/bric/diagnostics` were not line-audited because they belong to other work packages; diagnostic readers were checked only to verify cache-field usage. No runtime inference, preprocessing, TrackNet or full pytest run was performed because this was a read-only audit. Scoped Pyrefly exited 0 and scoped Ruff F401/F841 exited 0; full Ruff could not create its cache in the read-only filesystem. `src/bric/eval.py` was treated as runnable but undocumented, not automatically dead. No P or O finding met the evidence bar.
+NOT CHECKED: `src/bric/perception/_vendor` and `src/bric/diagnostics` were not line-audited because they belong to other work packages; diagnostic readers were checked only to verify cache-field usage. No runtime inference, preprocessing, TrackNet or full pytest run was performed because this was a read-only audit. Scoped Pyrefly exited 0 and scoped Ruff F401/F841 exited 0; full Ruff could not create its cache in the read-only filesystem. `src/bric/eval.py` was treated as runnable but undocumented, not automatically dead. No P or O finding met the evidence bar.

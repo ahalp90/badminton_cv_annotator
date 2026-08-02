@@ -1,4 +1,4 @@
-# WP2 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP2 raw return (automated read-only sweep, 2026-08-01)
 
 ## 1. CLUSTER SHAPE
 

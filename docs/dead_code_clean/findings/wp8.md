@@ -1,8 +1,8 @@
-# WP8 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP8 raw return (automated read-only sweep, 2026-08-01)
 
-1. CLUSTER SHAPE — `tests/` is a pytest suite covering annotator, scraper, BST-X, API, CourtKeyNet and shared utilities; CI pytest and pytest discovery/conftest are the live test entry points (docs/dead_code_clean/audit_plan.md:35-36,49-50; tests/conftest.py:12-32).
+1. CLUSTER SHAPE: `tests/` is a pytest suite covering annotator, scraper, BST-X, API, CourtKeyNet and shared utilities; CI pytest and pytest discovery/conftest are the live test entry points (docs/dead_code_clean/audit_plan.md:35-36,49-50; tests/conftest.py:12-32).
 
-2. LEDGER —
+2. LEDGER:
 
 WP8-1 | C | tests/test_sticky_anchor.py:_identity_court_ctx/_bbox_for/_standing_kps_for_bbox/_sitting_kps_for_bbox/_identity_normalize_joints | The sticky-anchor and doubles-overcount suites mirror the same identity-court, pose and no-op-normalisation setup rule. | evidence: tests/test_sticky_anchor.py:19-124, tests/test_doubles_overcount.py:25-186; the suites use `src.bst_x...` versus flat `preparing_data...` imports, so one conftest helper would couple namespace spellings and class identities | leave the deliberate isolation mirror | confidence high
 
@@ -36,10 +36,10 @@ WP8-15 | O | tests/test_raw_schema.py:_assert_ndet_fits_int8 | `_assert_ndet_fit
 
 WP8-16 | O | tests/test_environment.py:test_core_dependencies_import | The test imports six heavyweight dependencies under one broad `ImportError` catch and asserts a boolean without exercising a project path. | evidence: tests/test_environment.py:1-22; it adds suite startup cost and reports only a coarse environment failure; proportional-verification rule: .github/AGENTS.md:7-11 | delete the environment-only smoke test and rely on actual test imports and dependency installation checks | confidence med
 
-3. OUTWARD NOTES —
+3. OUTWARD NOTES:
 
 - API owner: `tests/test_api.py:17-24` explicitly records that live library prediction, registry, clip-serving and range-response paths remain untested.
 - Annotator owner: `src/annotator/calibration/sweep.py:589-654` and `src/annotator/calibration/sweep.py:657-717` contain adjacent winner loaders with different production liveness.
 - Archive check: `tests/test_raw_schema.py:3` is a prose reference to a retired validation script, while executable code imports current `preparing_data.raw_extract` at `tests/test_raw_schema.py:23-24`; no `scripts/archive` import was found in tests.
 
-4. NOT CHECKED — No runtime pytest, lint or whole-project type run was performed; this was a read-only static trace. External consumers, untracked files and archived-file internals were outside WP8 scope.
+4. NOT CHECKED: No runtime pytest, lint or whole-project type run was performed; this was a read-only static trace. External consumers, untracked files and archived-file internals were outside WP8 scope.

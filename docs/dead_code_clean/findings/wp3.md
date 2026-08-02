@@ -1,6 +1,6 @@
-# WP3 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP3 raw return (automated read-only sweep, 2026-08-01)
 
-1. CLUSTER SHAPE — The cluster runs the annotator chain from fps/config resolution through rally segmentation, masks, doubles detection, court evidence, landing and winner attribution (`src/annotator/run_video.py:199-620`, `src/annotator/rally_segmentation.py:1283-1420`), with calibration and validation-overlay CLIs as live roots (`src/annotator/calibration/gt_scoring.py:782-810`, `src/annotator/validation_overlay/overlays/shuttle_track.py:99-134`). CourtKeyNet supplies detector batches, scene quads and consensus repair to the annotator (`src/annotator/court_evidence.py:203-237,608-709`, `src/annotator/e2e_court_annotator.py:932-946`).
+1. CLUSTER SHAPE: The cluster runs the annotator chain from fps/config resolution through rally segmentation, masks, doubles detection, court evidence, landing and winner attribution (`src/annotator/run_video.py:199-620`, `src/annotator/rally_segmentation.py:1283-1420`), with calibration and validation-overlay CLIs as live roots (`src/annotator/calibration/gt_scoring.py:782-810`, `src/annotator/validation_overlay/overlays/shuttle_track.py:99-134`). CourtKeyNet supplies detector batches, scene quads and consensus repair to the annotator (`src/annotator/court_evidence.py:203-237,608-709`, `src/annotator/e2e_court_annotator.py:932-946`).
 
 2. LEDGER
 
@@ -46,7 +46,7 @@ WP3-17 | O | src/annotator/run_video.py:run_video | `run_video` repeats the same
 
 4. NOT CHECKED
 
-- `src/courtkeynet/_vendor/` and `src/courtkeynet/validation_scripts/` were excluded by the assignment.
+- `src/courtkeynet/_vendor/` and `src/courtkeynet/validation_scripts/` were outside this work package's scope.
 - `docs/**/*.py`, `scripts/archive/`, data, experiments and untracked callers were excluded by the audit plan.
 - Full pytest, whole-project pyrefly checking and runtime CourtKeyNet or ffmpeg tests were not run; the owned-tree ruff check passed with exit code 0.
-- PyCharm call hierarchy did not resolve the candidate Python callables, so Pyrefly references and tracked `git grep` supplemented the semantic search.
+- Semantic call hierarchy did not resolve the candidate Python callables, so pyrefly references and tracked `git grep` supplemented the search.

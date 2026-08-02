@@ -121,8 +121,7 @@ Paginated list of precomputed clip predictions, with optional filters.
 
 **Query params:** `limit` (int, 1-500, default 50), `offset` (int, default 0),
 `true_class` (string, optional), `predicted_class` (string, optional),
-`match` (string, optional — exact-string match against the clip's `match` field;
-combinable with the other filters), `errors_only` (bool, default false).
+`errors_only` (bool, default false).
 
 **Response:**
 
@@ -212,8 +211,7 @@ Per-class aggregates for the per-class panel.
 
 **Path params:** `model_id`, `split`.
 
-**Query params:** `match` (string, optional — restricts the aggregation to a
-single match. Same exact-string semantics as the filter on `/clips`).
+**Query params:** none.
 
 **Response:**
 

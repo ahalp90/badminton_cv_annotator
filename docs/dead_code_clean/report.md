@@ -1,20 +1,25 @@
-# Dead and duplicate code: what the audit found
+# Dead and duplicate code audit
 
-This is the readable summary. The full evidence lives in findings.md and the
-raw sweep returns under findings/. Nothing has been changed; every line below
-is a finding or a recommendation, not an action taken. Where a claim was
-checked only by a sweep agent and not re-checked by hand, it says so.
+This report summarises the audit scope, findings, and final refactor rulings.
+The merged evidence is in `findings.md`. The read-only sweep returns are under
+`findings/`. The audit changed no source code.
+
+The audit used eight read-only sweeps, each covering a separate area. The
+results were merged against a root manifest of tracked entry points.
+Load-bearing claims were checked first-hand against all tracked content. An
+independent second check reviewed the final report and the R0-R9 rulings.
+Hand-run entry points required separate attention because ordinary caller
+tracing does not expose them.
 
 ## The short version
 
-The codebase is in better shape than the duplication suggests. Most of the
-copying between bst_x, the scraper and src/shared turned out to be deliberate
-and documented, done to stop packages depending on each other's internals.
-The real rot is smaller and more specific: one dead vendor file, one dead
-player tracker, a shared library that was never fully adopted, a crop of
-functions kept alive only by their tests, and forty finished-pass scripts
-that belong in an archive folder. The duplicates genuinely worth merging are
-few, small, and all have a clear winner.
+Most duplication between bst_x, the scraper and src/shared was deliberate and
+documented. The copies keep packages from depending on each other's internals.
+The confirmed dead or superseded surface is narrower: one dead vendor file,
+one dead player tracker, partly adopted shared modules, functions kept alive
+only by tests, and a small set of duplicates with a clear canonical version.
+The audit classified 40 finished-pass scripts as archive candidates. R9 later
+ruled that all 40 stay in their existing locations.
 
 ## Theme 1: the bric TrackNet copy is a working duplicate, and part of it is dead
 
@@ -27,16 +32,16 @@ drives predict.py through a subprocess, and the API imports two functions
 from the package. So today the mirror buys namespace isolation and nothing
 else, at the price of two trees to patch.
 
-If you want one tree, the work is: retarget bric's subprocess path and the
-API imports at the bst_x copy, keep --large_video, delete the bric tree. The
-files being identical means no behaviour reconciliation is needed, but the
-path and import changes still deserve a runtime check before anyone calls
-the job small. If you keep the mirror, delete bric's batch_predict.py
-either way, since it is dead on both sides of the argument.
+R1 settles the mirror question. Keep one tree with bst_x's content at
+`src/shared/tracknetv3/`. Retarget the four consumers and all documented
+commands. Preserve `--large_video`, update literal tooling exclusions, and
+delete both old trees after the move. The working files are identical, so no
+behaviour reconciliation is needed. The path and import changes still require
+runtime checks.
 
 ## Theme 2: the bst_x / scraper / shared "redundancy" is mostly on purpose
 
-This was the audit's surprise. The suspicious pairs (two yt-dlp downloaders,
+The suspicious pairs (two yt-dlp downloaders,
 two court-maths modules, two player mappers, two clip-bound calculators, two
 taxonomy registries) are documented mirrors, not accidents. For the shared
 copies, src/shared/README.md spells out the trade: BRIC must stay
@@ -44,27 +49,30 @@ self-contained rather than import bst_x internals, so shared carries copies
 and accepts drift. The bst_x downloader states its own duplication in a
 comment. The annotator, for what it is worth, already imports bst_x's
 sticky-anchor heuristics directly, so the wall only ever applied to BRIC.
-Killing these copies would re-couple what the mirrors keep apart. You could
-revisit that design, but it is a decision, not an oversight.
+Removing these copies without a replacement boundary would re-couple the
+packages. R2 and R3 now define the replacement boundaries.
 
-The drift the mirrors accepted has, however, started to happen. Two live
-divergences deserve a deliberate ruling rather than silence:
+The mirrors had two live divergences. R2 settles both:
 
-- shared's compute_clip_bounds lacks the max(0, start_f) clamp the bst_x
-  version has, so a stroke near the start of a video produces different clip
-  bounds on the two sides.
-- the two taxonomy registries disagree about driven_flight: bst_x maps it to
-  drive, the shared legacy map sends it to unknown.
+- `shared.dataset.compute_clip_bounds` lacks the `max(0, start_f)` clamp in the
+  bst_x version. R2 adopts bst_x semantics, including the clamp. This is an
+  accepted behaviour change for early-frame clip bounds.
+- The taxonomy registries disagree about `driven_flight`. bst_x maps it to
+  `drive`, while the shared legacy map sends it to `unknown`. R2 makes the
+  bst_x mapping authoritative and corrects every merge map, including legacy
+  entries.
 
 ## Theme 3: src/shared is a shared library nobody finished moving into
 
-shared was built as the neutral ground, but adoption stopped partway, and a
-chunk of it is now dead or kept alive only by tests: the legacy court
+shared was built as neutral ground, but adoption stopped partway. A chunk of
+the package is dead or kept alive only by tests: the legacy court
 projection pair, the whole temporal module, video_io's readers and thumbnail
 writer, the import-time SPLITS_V2 table (its one importer never uses the
 name), and two taxonomy constants whose live twins sit in bst_x's own
-config. All of these were re-checked by hand. The honest options per module
-are: name a production user, or delete it and shrink the README.
+config. All of these were re-checked by hand. R2 deletes the unused surface,
+moves classifier-only modules to `src/classifier_shared/`, keeps annotator or
+scraper dependencies in `src/shared/`, and rewrites `shared/README.md` for the
+split.
 
 ## Theme 4: functions kept alive only by their tests
 
@@ -76,30 +84,30 @@ They fall into three groups:
   pick_landing_to_end), detect_contacts (production uses
   detect_contact_flags), fetch_span (production streams frames), the
   court-inputs builder, the legacy winner-config loader, and courtkeynet's
-  single-frame detect (production uses detect_batch). Fix: point the test at
-  the live function, delete the wrapper.
-- Test helpers living in production files, sweep-verified only: the
+  single-frame detect (production uses detect_batch). R5 deletes each wrapper
+  and updates or removes its test as specified in the ruling.
+- Test helpers living in production files, reported by the read-only sweep:
   calibration floors assertion, score_stage8, two selection functions, and
-  court_scale_boxes. Each needs its own look; some may just move into the
-  test file.
-- Probes nothing consults, sweep-verified only: the API's registry and
+  court_scale_boxes. R5 keeps these in scope but requires first-hand
+  verification before deletion. Each ruling includes its test action.
+- Probes nothing consults, reported by the read-only sweep: the API's registry and
   model liveness checks (is_available, available_splits, _live_splits,
-  _summary_live).
+  _summary_live). R8 deletes all four probes and the two direct tests at
+  `tests/test_api.py:125-136`.
 
-Related maintenance hazard from the same sweep: run_video repeats the same
-resolved span options across five branches, so a new option needs five
-synchronised edits. The suggested fix is a local variable, not new
-machinery.
+`run_video` also repeats the same resolved span options across five branches.
+R5 hoists those options into one local mapping.
 
 ## Theme 5: stale knobs from the fixed-25fps era
 
-Four config aliases (BEST_CONFIG_THRESHOLDS, COURT_ABSENT_WINDOW,
-SUSTAINED_LOSS_FRAMES, MIN_DESCEND_SAMPLES) predate the fps-scaling work and
-now shadow the values production actually resolves (sweep-verified, each
-with its live replacement named in the ledger). Two scraper download knobs
-(CONCURRENT_FRAGMENTS, DOWNLOAD_WORKERS) have zero consumers because the
-downloader hardcodes the same numbers; that pair was re-checked by hand. All
-six mislead whoever goes looking for the tuning point.
+Four config aliases (`BEST_CONFIG_THRESHOLDS`, `COURT_ABSENT_WINDOW`,
+`SUSTAINED_LOSS_FRAMES`, `MIN_DESCEND_SAMPLES`) predate the fps-scaling work.
+They now shadow the values production actually resolves. Each live replacement
+is named in the ledger. Two scraper download knobs, `CONCURRENT_FRAGMENTS` and
+`DOWNLOAD_WORKERS`, had zero consumers because the downloader hardcoded the
+same numbers. That pair was re-checked by hand. R3 keeps the constants and
+makes the downloader read them, along with the other named yt-dlp settings.
+R5 deletes the four stale fixed-25fps aliases.
 
 ## Theme 6: half the scripts are finished checks, not tools
 
@@ -109,9 +117,9 @@ the rtmlib migration checks (14 files), the refactoring equivalence checks
 (8), the mmpose investigation scripts (6), most of scripts/plots (7 charts
 pinned to historical run IDs), and five singles including the mmpose zeroing
 equivalence check. They did their job and the docs cite their results.
-Moving them under an archive folder, as scripts/archive already models,
-would make the live tool set visible at a glance. The scripts/archive
-boundary itself is clean: nothing live imports it.
+The `scripts/archive` boundary itself is clean: nothing live imports it. R9
+rules against archiving any of the 40 candidates because the larger groups
+already sit in named subtrees. The five loose single files also stay in place.
 
 ## Theme 7: the duplicates worth merging, all small, all with a clear winner
 
@@ -128,31 +136,43 @@ Re-checked by hand:
 - hparam_sweep hand-rolls mean arithmetic next to the reducers it should
   call.
 
-Sweep-verified only, needs a closer look before acting:
+Reported by the read-only sweep and requiring a first-hand check before acting:
 
 - _find_rally_spans recomputes scaffolding _rally_regions already returns.
 - inout_verdict repeats geometry landing_margins already computes.
 
-And one genuinely dead block with no argument for keeping it, re-checked by
-hand: bric's ByteTrack-based detect_and_track player tracker (~200 lines),
-which nothing has called since the frame-detection path took over.
+One dead block was re-checked by hand: bric's ByteTrack-based
+`detect_and_track` player tracker, ~200 lines, has had no caller since the
+frame-detection path took over. R8 deletes the block while retaining
+`DEFAULT_YOLO_WEIGHTS`.
 
-## Decisions this leaves with you
+## What was decided
 
-1. Keep or collapse the bric TrackNet mirror (theme 1). The evidence says
-   the working files are identical today; the cost sits in retargeting the
-   subprocess and imports, and wants a runtime check.
-2. Rule on the two live mirror divergences (theme 2): the clip-bound clamp
-   and the driven_flight mapping.
-3. Per shared module with no production caller: adopt or delete (theme 3).
-4. Three bric/api items that anticipate features which never arrived, all
-   sweep-verified only: the model-selection plumbing the routes never
-   dispatch on; the court-enabled deployment knob that cannot work because
-   the API never supplies the court tensors; and the dataset building
-   tensors for disabled model lanes. Related: the advertised cache-repair
-   path is bypassed on ordinary reruns, and several player/shuttle cache
-   fields are written but never read. That last one changes an on-disk
-   format, so it needs its own careful pass before anyone acts.
+The rulings in `decisions.md` are the contract for the later refactor:
+
+1. R0 keeps bric working but frozen. Only the mechanical retargets,
+   consolidations, and deletions named in R1, R2 and R8 are allowed.
+2. R1 moves the authoritative TrackNet tree to `src/shared/tracknetv3/` and
+   retargets four consumers. Hand-run commands and literal tooling exclusions
+   must also move.
+3. R2 splits shared code by consumer. Annotator or scraper dependencies stay
+   in `src/shared/`; classifier-only code moves to `src/classifier_shared/`.
+   The ruling adopts bst_x court, clip-bound and taxonomy semantics while
+   preserving every listed compatibility and stored-data contract.
+4. R3 promotes the scraper downloader. A bst_x adapter, an explicit video-only
+   mode, dual filename support, completed-output handling, a separate
+   resolution metadata module, and config-driven yt-dlp settings are required.
+5. R4 leaves the remaining lane-specific mirrors and both manifest readers
+   separate. It also keeps the live bst_x confusion-matrix renderer.
+6. R5 approves the annotator and CourtKeyNet deletions and three small dedups.
+   The four sweep-only helpers require first-hand verification before deletion.
+7. R6 approves the two test-helper dedups and two test deletions. It leaves the
+   sticky-anchor mirror and legacy call-shape test under their stated conditions.
+8. R7 leaves bst_x internals alone except for WP5-1 and WP5-6. The hparam sweep
+   readers must retain their fixed-five completeness validation.
+9. R8 approves the named bric and API deletions and dedups. It rules that
+   WP6-2/3/4/5/11 and the WP6 comparison rows stay unchanged.
+10. R9 keeps all 40 script archive candidates in place.
 
 ## The numbers
 
@@ -168,16 +188,14 @@ corroborated the package sweeps:
 - About 18 functions or constants kept alive only by tests (theme 4 plus
   the shared library's test-only surface).
 - About 14 unused-surface items inside live code (stale knobs, write-only
-  fields, dead parameters), most sweep-verified only.
+  fields, dead parameters), most marked REPORTED.
 - 7 duplicates recommended for merging (theme 7), 5 re-checked by hand.
 - 40 of 77 census files classified as finished checks to archive,
   classification per file cited in findings/wp7.md.
 - Around 20 deliberate mirrors recorded with their reasons, left alone.
 
-Verification method: every "re-checked by hand" claim above was confirmed
-against the full tracked repository, including the documented entry points
-(CI, the served API, and every python -m command the docs mention). Two
-sweep claims failed that check and were thrown out; two were corrected.
-Items marked sweep-verified rest on the sweep's file-and-line evidence and
-should be re-confirmed at refactor time. The ledger tags every row one way
-or the other.
+Every "re-checked by hand" claim above was confirmed against the full tracked
+repository. The check included CI, the served API, and every documented
+`python -m` entry point. Two reported claims failed that check and were
+refuted. Two were amended. Items marked REPORTED rest on file-and-line evidence
+from an automated read-only sweep and must be re-confirmed at refactor time.

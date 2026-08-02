@@ -1,8 +1,8 @@
-# WP5 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP5 raw return (automated read-only sweep, 2026-08-01)
 
-1. CLUSTER SHAPE — `src/bst_x/pipeline` builds and validates clips and paired artefacts, `preparing_data` extracts and collates pose/shuttle arrays, and `model`/`loss` support BST-X training and inference; documented roots cover these entry points plus the reporting tools [docs/dead_code_clean/audit_plan.md:38-50, src/bst_x/data_pipeline_to_model_train.md:65-101,457-505]. Both heuristics are live through `REGISTRY` and `apply_heuristic.run` [src/bst_x/preparing_data/heuristics/__init__.py:12-18, src/bst_x/preparing_data/apply_heuristic.py:166-235]. No D-unreach or D-prod claim met the root-manifest evidence bar.
+1. CLUSTER SHAPE: `src/bst_x/pipeline` builds and validates clips and paired artefacts, `preparing_data` extracts and collates pose/shuttle arrays, and `model`/`loss` support BST-X training and inference; documented roots cover these entry points plus the reporting tools [docs/dead_code_clean/audit_plan.md:38-50, src/bst_x/data_pipeline_to_model_train.md:65-101,457-505]. Both heuristics are live through `REGISTRY` and `apply_heuristic.run` [src/bst_x/preparing_data/heuristics/__init__.py:12-18, src/bst_x/preparing_data/apply_heuristic.py:166-235]. No D-unreach or D-prod claim met the root-manifest evidence bar.
 
-2. LEDGER —
+2. LEDGER:
 
 WP5-1 | S | src/bst_x/preparing_data/raw_extract.py:build_stem_to_path | `build_stem_to_path` and `build_clip_path_index` implement the same recursive `clip_stem -> .mp4 Path` index, leaving two sources of truth. | evidence: src/bst_x/preparing_data/raw_extract.py:199-201,285; src/bst_x/pipeline/clip_index.py:28-49; src/bst_x/pipeline/data_access.py:341-344; src/bst_x/build_fe_stats_jsons.py:148-155; roots/callers checked: documented `preparing_data.raw_extract`, `pipeline.data_access`, `build_fe_stats_jsons`, `pipeline.clip_index`, full tracked `src/`, `tests/`, and docs | absorb the raw helper into `pipeline.clip_index.build_clip_path_index` and delete the local definition | confidence high
 
@@ -28,7 +28,7 @@ WP5-11 | U | src/bst_x/bst_x_infer.py:infer | `infer` unpacks `labels` from ever
 
 WP5-12 | T | src/bst_x/preparing_data/heuristics/sticky_anchor.py:compatibility aliases | The four compatibility aliases are used by tests and archived scripts, while the live annotator caller uses the public names and the source marks the aliases for Stage 7 removal. | evidence: src/bst_x/preparing_data/heuristics/sticky_anchor.py:151-154,320-321; src/annotator/rally_segmentation.py:1199-1231; tests/test_sticky_anchor.py:28-32,148-460; tests/test_doubles_overcount.py:36,206-207; scripts/archive/m_sticky_gate_arm.py:83-147; archive exclusion: docs/dead_code_clean/audit_plan.md:20-22; roots/callers checked: tracked non-archive production, tests, and documented heuristic roots | migrate tests to the public functions, then delete the four aliases at the stated Stage 7 boundary | confidence high
 
-3. OUTWARD NOTES —
+3. OUTWARD NOTES:
 
 - `src/bst_x/pipeline/court_utils.py:26-180` mirrors `src/shared/court.py`; cross-package ownership is WP2.
 - `src/bst_x/pipeline/shuttle_extractor.py:41-46` is called by `src/bric/perception/shuttle.py:96`; compare TrackNet mode handling under WP2.
@@ -39,4 +39,4 @@ WP5-12 | T | src/bst_x/preparing_data/heuristics/sticky_anchor.py:compatibility 
 - `src/bst_x/preparing_data/heuristics/sticky_anchor.py:89-279` is consumed by `src/annotator/rally_segmentation.py:1199-1231`; public API ownership is outside WP5.
 - `src/bst_x/run_tracker.py:167-179` is used by `src/bric/train.py:363`; shared metadata ownership is outside WP5.
 
-4. NOT CHECKED — `src/bst_x/TrackNetV3/` and `src/bst_x/validation_scripts/` were excluded by assignment; cross-package implementations were recorded only as outward notes; `data/`, `experiments/`, and credentials were not examined. Full pytest and whole-project Pyrefly checks were not run for this read-only audit. Ruff passed with exit code 0 using the no-cache scoped command.
+4. NOT CHECKED: `src/bst_x/TrackNetV3/` and `src/bst_x/validation_scripts/` were outside this work package's scope; cross-package implementations were recorded only as outward notes; `data/`, `experiments/`, and credentials were not examined. Full pytest and whole-project Pyrefly checks were not run for this read-only audit. Ruff passed with exit code 0 using the no-cache scoped command.

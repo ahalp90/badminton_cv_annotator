@@ -1,8 +1,8 @@
-# WP4 raw return (gpt-5.6-luna, read-only sweep, 2026-08-01)
+# WP4 raw return (automated read-only sweep, 2026-08-01)
 
-1. CLUSTER SHAPE — `src/scraper` owns documented stages 1, 2, 3 and 11 (`stage1_index.py:13`, `stage2_transcripts.py:10`, `stage3_triage.py:9`, `stage11_pairing.py:13`), plus runnable-undocumented stage 10 and downloader entry points (`stage10_clean.py:437-467`, `download_scraped_videos.py:543-579`). `src/shared` supplies live court, dataset, taxonomy, video-I/O, plotting and player-mapping utilities used by annotator, API, BRIC and `scripts/build_shots_master.py`; `shared.temporal` is only exercised by tests (`tests/test_temporal.py:14`).
+1. CLUSTER SHAPE: `src/scraper` owns documented stages 1, 2, 3 and 11 (`stage1_index.py:13`, `stage2_transcripts.py:10`, `stage3_triage.py:9`, `stage11_pairing.py:13`), plus runnable-undocumented stage 10 and downloader entry points (`stage10_clean.py:437-467`, `download_scraped_videos.py:543-579`). `src/shared` supplies live court, dataset, taxonomy, video-I/O, plotting and player-mapping utilities used by annotator, API, BRIC and `scripts/build_shots_master.py`; `shared.temporal` is only exercised by tests (`tests/test_temporal.py:14`).
 
-2. LEDGER —
+2. LEDGER:
 
 WP4-1 | D-unreach | `src/shared/court.py:to_court_coordinate/check_pos_in_court` | The legacy coordinate/filter chain is unreachable from tracked roots because `check_pos_in_court` has no caller and `to_court_coordinate` is called only by it. | evidence: `src/shared/court.py:101-146`, `src/shared/README.md:38-45`; roots/callers checked: CI pytest, Docker FastAPI routes, documented `python -m` roots, `__main__` blocks, `getattr`/`importlib`/registry/`__all__` dispatch, and all `shared.court` imports | delete both functions and their unreferenced documentation | confidence high
 
@@ -24,7 +24,7 @@ WP4-9 | D-prod | `src/scraper/download_scraped_videos.py:download_video` | `down
 
 WP4-10 | C | `src/scraper/stage11_pairing.py:VIDEO_EXTENSIONS/_read_sources_manifest; src/scraper/download_scraped_videos.py:VIDEO_EXTENSIONS/_read_manifest` | The stages duplicate the manifest boundary and extension set, but their validation contracts differ and the local copies deliberately keep pairing independent of downloader internals. | evidence: `src/scraper/stage11_pairing.py:41-44,239-253`, `src/scraper/download_scraped_videos.py:31,126-208`; roots/callers checked: documented `scraper.stage11_pairing`, downloader `__main__`, CI tests, and dynamic dispatch | leave; extracting a shared reader or constant would add coupling without a proven contract reduction | confidence high
 
-3. OUTWARD NOTES —
+3. OUTWARD NOTES:
 
 WP2: `src/shared/court.py:1-20` mirrors `src/bst_x/pipeline/court_utils.py:1-180`; compare drift and isolation rationale.
 
@@ -34,4 +34,4 @@ WP2: `src/shared/eval_plots.py:22-137` overlaps `scripts/plots/confusion_matrix.
 
 WP2: `src/scraper/download_scraped_videos.py:1-6` shares downloader shape and throttle literals with `src/bst_x/pipeline/download_videos.py:1-41`.
 
-4. NOT CHECKED — No scraper network, Gemini, WhisperX, BERTScore, CUDA, yt-dlp, ffprobe or video runtime was executed; full lint, type and test gates were not run because this was read-only. Cross-package P/S/C adjudication and other auditors’ directories were not audited. `.env`, credentials, untracked files and ignored callers were excluded.
+4. NOT CHECKED: No scraper network, Gemini, WhisperX, BERTScore, CUDA, yt-dlp, ffprobe or video runtime was executed; full lint, type and test gates were not run because this was read-only. Cross-package P/S/C adjudication and directories owned by other work packages were not audited. `.env`, credentials, untracked files and ignored callers were excluded.
