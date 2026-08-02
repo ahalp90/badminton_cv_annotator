@@ -1,6 +1,4 @@
-"""ShuttleSet player A/B to Top/Bottom mapping and shot collection.
-
-This is the shared implementation used by both classifier pipelines.
+"""ShuttleSet player A/B -> Top/Bottom mapping + per-match shot collection.
 
 The ShuttleSet CSVs label players as 'A' and 'B'. Which physical player is
 Top (far court) vs Bottom (near court) depends on:
@@ -16,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shared.taxonomy import ZH_TO_EN
+from classifier_shared.taxonomy import ZH_TO_EN
 
 # Columns we need from each set CSV.
 _SHOT_COLS = ['rally', 'ball_round', 'frame_num',
@@ -96,6 +94,8 @@ def collect_shots(
         df = pd.read_csv(csv_path)[_SHOT_COLS]
         df.insert(0, 'set', np.full(len(df), 3, dtype=int))
 
+        # switch detection needs the unfiltered frame: positional index +
+        # complete scores; filter after splitting.
         i_split = find_set3_switch_rally(df)
         df_before = map_players(df.iloc[:i_split], first_A_is_top, 1)
         df_after = map_players(df.iloc[i_split:], first_A_is_top, 2)

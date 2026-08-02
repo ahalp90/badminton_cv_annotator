@@ -41,11 +41,9 @@ import yaml
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# parents of mmpose_heuristic_investigation/: [0]=validation_scripts,
-# [2]=bst_x, [3]=src, [4] doesn't exist; script lives 4 levels deep under repo root.
-# After the Stage 4 run-artefact move, experiments/ lives at the repo root, not under src/bst_x/.
-BST_X = SCRIPT_DIR.parents[2]
-REPO_ROOT = SCRIPT_DIR.parents[4]
+SRC_ROOT = SCRIPT_DIR.parents[2]
+BST_X = SRC_ROOT / 'bst_x'
+REPO_ROOT = SRC_ROOT.parent
 DEFAULT_CLIPS_CSV = REPO_ROOT / 'notebooks' / 'clips_master.csv'
 EXPERIMENTS_DIR = REPO_ROOT / 'experiments' / 'bst_x' / 'shuttleset'
 DEFAULT_OUT_DIR = SCRIPT_DIR / 'analysis_outputs'
@@ -88,8 +86,9 @@ def main() -> None:
             f'--bin-pct must divide 100 evenly; got {args.bin_pct}.'
         )
 
+    sys.path.insert(0, str(SRC_ROOT))
     sys.path.insert(0, str(BST_X))
-    from pipeline.config import derive_class_index, taxonomy_lookup
+    from classifier_shared.taxonomy import derive_class_index, taxonomy_lookup
 
     flat_dir = _resolve_flat_dir(args.flat_dir)
     if not flat_dir.is_dir():

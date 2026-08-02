@@ -3,9 +3,9 @@
 Runs TrackNetV3 inference on clip .mp4 files to produce per-clip shuttle
 trajectory arrays. Both architectures share this step.
 
-TrackNetV3 is included under ``src/shared/tracknetv3`` and shares the BST
-training venv. Pretrained weights must be downloaded separately. See the
-TrackNetV3 README in that directory.
+TrackNetV3 is included in the repo at ``src/shared/tracknetv3`` (trimmed to
+inference only) and shares the BST training venv. Pretrained weights must be
+downloaded separately — see ``src/shared/tracknetv3/README.md``.
 
 Usage:
     python -m pipeline.shuttle_extractor [--clips-dir DIR] \

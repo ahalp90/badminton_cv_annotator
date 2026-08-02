@@ -17,7 +17,7 @@ Intended for Phase 1 of the MMPose heuristic investigation: produce the
 Usage on engelbart (whole-clip, the original criterion):
 
     python src/bst_x/validation_scripts/mmpose_heuristic_investigation/find_busted_clips.py \\
-        --flat-dir /scratch/comp320a/ShuttleSet_data_une_v1_14/dataset_npy_between_2_hits_with_max_limits_flat \\
+        --flat-dir /scratch/comp320a/ShuttleSet_data_merged_25/dataset_npy_between_2_hits_with_max_limits_flat \\
         --clips-csv /home/ahalperi/badminton_stroke_classifier/notebooks/clips_master.csv \\
         --taxonomy une_v1_14 \\
         --split-column split_v2 \\
@@ -51,11 +51,16 @@ import pandas as pd
 # File lives at src/bst_x/validation_scripts/mmpose_heuristic_investigation/<this>,
 # so the repo root is four parents up.
 REPO_ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(REPO_ROOT / 'src'))
 sys.path.insert(0, str(REPO_ROOT / 'src' / 'bst_x'))
 # hit_frame_lookup lives next to validate_zeroed_frames.py as a flat module.
 sys.path.insert(0, str(REPO_ROOT / 'src' / 'bst_x' / 'validation_scripts'))
 
-from pipeline.config import TAXONOMIES, derive_class_index, taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    BST_X_TAXONOMIES,
+    derive_class_index,
+    taxonomy_lookup,
+)
 
 SPLITS = ('train', 'val', 'test')
 
@@ -67,7 +72,7 @@ def main() -> int:
     parser.add_argument('--clips-csv', type=Path, required=True,
                         help='Master clips CSV (one row per clip).')
     parser.add_argument('--taxonomy', default='une_v1_14',
-                        choices=list(TAXONOMIES.keys()))
+                        choices=list(BST_X_TAXONOMIES))
     parser.add_argument('--split-column', default='split_v2',
                         help='Column in clips_csv giving train/val/test.')
     parser.add_argument('--threshold', type=float, default=0.50,

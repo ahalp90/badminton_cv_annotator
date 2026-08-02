@@ -7,17 +7,17 @@ totals. Labels stratify by player_side (Top_smash is separate from Bottom_smash)
 which complements validate_zeroed_frames.py's per-stroke-type view that pools
 Top and Bottom together.
 
-Usage on engelbart (from repo root) — explicit --dataset-npy-dir:
+Current Phase-2 input on engelbart (from repo root):
   python src/bst_x/validation_scripts/fail_rate_per_class.py \\
       --clips-csv notebooks/clips_master.csv \\
-      --dataset-npy-dir /scratch/comp320a/ShuttleSet_data_une_v1_14/dataset_npy_between_2_hits_with_max_limits_flat \\
-      --split-column split_bst_baseline \\
+      --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \\
+      --split-column split_v2 \\
       --taxonomy une_v1_14
 
-Or with --data-root auto-discovery (picks the *_flat subdir):
+Legacy Phase-1 baseline with --data-root auto-discovery:
   python src/bst_x/validation_scripts/fail_rate_per_class.py \\
       --clips-csv notebooks/clips_master.csv \\
-      --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \\
+      --data-root /scratch/comp320a/ShuttleSet_data_merged_25 \\
       --split-column split_bst_baseline \\
       --taxonomy une_v1_14 \\
       --save-txt
@@ -36,9 +36,16 @@ import numpy as np
 import pandas as pd
 
 BST_REFACTOR_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = BST_REFACTOR_ROOT.parent
+sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(BST_REFACTOR_ROOT))
 
-from pipeline.config import TAXONOMIES, Taxonomy, derive_class_index, taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    BST_X_TAXONOMIES,
+    Taxonomy,
+    derive_class_index,
+    taxonomy_lookup,
+)
 
 
 def derive_labels(df: pd.DataFrame, taxonomy: Taxonomy) -> pd.Series:
@@ -168,7 +175,8 @@ def main() -> int:
     parser.add_argument('--clips-csv', type=Path, required=True)
     parser.add_argument(
         '--data-root', type=Path, default=None,
-        help='ShuttleSet_data_{taxonomy} dir. Enables *_flat auto-discovery '
+        help='Directory containing one flat per-clip NPY subdirectory. '
+             'Enables *_flat auto-discovery '
              '(same pattern as validate_zeroed_frames.py).',
     )
     parser.add_argument(
@@ -178,7 +186,7 @@ def main() -> int:
     )
     parser.add_argument('--split-column', default='split_bst_baseline')
     parser.add_argument('--taxonomy', default='une_v1_14',
-                        choices=list(TAXONOMIES.keys()))
+                        choices=list(BST_X_TAXONOMIES))
     parser.add_argument(
         '--save-txt', action='store_true',
         help='Tee stdout to zeroed_frames_analysis_outputs/'

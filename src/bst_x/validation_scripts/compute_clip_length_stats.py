@@ -7,13 +7,18 @@ Replicates the clipping logic from gen_my_dataset.py using only the CSV annotati
 import sys
 from pathlib import Path
 
-# Allow importing pipeline when invoked directly. validation_scripts/ is one
-# level below src/bst_x/, so parents[1] resolves to the bst_x package root.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Allow importing classifier_shared and pipeline when invoked directly.
+# validation_scripts/ is one level below src/bst_x/, so parents[1] resolves to
+# the bst_x package root and its parent resolves to src/.
+BST_X_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BST_X_ROOT.parent))
+sys.path.insert(0, str(BST_X_ROOT))
 
-import pandas as pd
-import numpy as np
-from pipeline.config import SPLITS, REMOVED_SHOTS
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from classifier_shared.dataset import CLIP_WINDOW, compute_clip_bounds  # noqa: E402
+from pipeline.config import REMOVED_SHOTS, SPLITS  # noqa: E402
 
 
 def estimate_fps(set_info_dir: Path, video_name: str, n_sets: int) -> int:
@@ -41,9 +46,6 @@ def estimate_fps(set_info_dir: Path, video_name: str, n_sets: int) -> int:
 def compute_clip_lengths_for_video(set_info_dir: Path, vid: int, video_name: str,
                                     n_sets: int, removed_shots: set) -> tuple[np.ndarray, int]:
     fps = estimate_fps(set_info_dir, video_name, n_sets)
-    t = fps // 2
-    limit = fps * 3 // 2
-    eps = t // 2
 
     clip_lengths = []
     folder = set_info_dir / video_name
@@ -69,15 +71,16 @@ def compute_clip_lengths_for_video(set_info_dir: Path, vid: int, video_name: str
             if (vid, set_i, row.rally, row.ball_round) in removed_shots:
                 continue
 
-            frame_num = int(row.frame_num)
-            s = int(row.start_f) if row.start_f != -1 else (frame_num - t)
-            e = int(row.end_f) + eps if row.end_f != -1 else (frame_num + t)
-
-            # Clamp to limits
-            s = max(s, frame_num - limit)
-            e = min(e, frame_num + limit + eps)
-
-            clip_lengths.append(e - s)
+            start_f, end_f = compute_clip_bounds(
+                {
+                    'frame_num': int(row.frame_num),
+                    'start_f': row.start_f,
+                    'end_f': row.end_f,
+                },
+                CLIP_WINDOW,
+                fps,
+            )
+            clip_lengths.append(end_f - start_f)
 
     return np.array(clip_lengths, dtype=int), fps
 

@@ -28,14 +28,15 @@ import torch
 from torch import nn
 
 # script lives at src/bst_x/validation_scripts/refactoring/<name>.py;
-# parents[2] is src/bst_x/. Its parent is the shared package root.
+# parents[2] is src/bst_x/, where bst_x_train and friends live.
+# Its parent is the shared package root.
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 sys.path.insert(0, str(SRC.parent))
 
 from bst_x_train import validate  # noqa: E402
 from model.bst import BST_CG_AP  # noqa: E402
-from pipeline.config import taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import taxonomy_lookup  # noqa: E402
 
 N_CLASSES = taxonomy_lookup("une_v1_14").n_classes
 B, T, N = 4, 100, 2

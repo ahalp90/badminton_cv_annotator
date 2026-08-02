@@ -2,12 +2,14 @@
 
 ## Resume
 
-- **Next action:** Prepare and validate the B2 commit and PR handoff script.
-- **Current batch:** B2 implementation, independent review, corrections, and
-  local gates are complete on the continuing `cleanup-dedup` branch.
+- **Current state:** B1 and B2 are merged. B3 commit `6014b21` is on the
+  continuing `cleanup-dedup` branch. Its follow-up corrections are uncommitted.
+- **Next action:** Review the final B3 follow-up diff, then run the B3 review-fix
+  commit helper.
 - **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
-  through PR #41 (`a4eddca`). B2's focused suite passes 161 tests with 6 skips.
-  Ruff and focused Pyrefly pass.
+  through PR #41 (`a4eddca`). B2 commit `03f8b26` is contained in merged PR #42
+  (`ef77e71`). B3 passes its focused suite, Ruff, and focused
+  Pyrefly.
 - **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
@@ -26,18 +28,30 @@
   targeted tests and source-level gates pass.
 - **B1:** Whole-project Pyrefly reports 17 existing jaxtyping shape-name errors
   in untouched BST-X files. Pyrefly reports zero errors on the B1 files.
-- **B1 review:** A fresh Codex session found one medium documentation defect.
-  The shared setup path, single-clip command, CLI flag descriptions, and BRIC
-  layout still named deleted locations. All cited active instructions were
-  corrected and rechecked. No runtime finding was reported.
+- **B1 follow-up:** Corrected the shared setup path, single-clip command, CLI
+  flag descriptions, and BRIC layout. The active instructions were rechecked.
 - **B2:** The available venv does not contain `matplotlib`, although it is
   declared in both root and BST-X dependencies. Plotting execution needs an
   environment with the declared evaluation dependencies installed.
-- **B2 review:** A fresh Codex session found three confirmed path defects:
-  incomplete BST-X `PYTHONPATH` commands and self-bootstrap roots, a notebook
-  setup cell missing `src`, and one stale active player-mapping recipe. All
-  were corrected. A follow-up active-path search is clean outside explicitly
-  historical pre-phase documents.
+- **B2 follow-up:** Corrected incomplete BST-X `PYTHONPATH` commands and
+  self-bootstrap roots, a notebook setup cell missing `src`, and one stale
+  player-mapping recipe. The active-path search is clean outside historical
+  pre-phase documents.
+- **B3:** No deployed BRIC checkpoint file is present under `runtime/` or
+  `training/`. The manifest contract and 14-output head can be verified here,
+  but loading `best.pt` needs the external checkpoint.
+- **B3 follow-up:** Validation helpers use the frame-zero-clamped clip-bound
+  function. Active taxonomy commands and imports use the current API. Validation
+  examples distinguish the current Phase-2 sticky-anchor input, the legacy
+  Phase-1 merged-25 input, and the UNE v1.14 collated training data. BST-X
+  commands use a six-entry taxonomy registry.
+- **B3 path evidence:** The local workstation does not mount `/scratch/comp320a`.
+  Tracked 29 April output records the current Phase-2 sticky-anchor input, and
+  tracked 21 April output records the legacy merged-25 baseline.
+- **B1-B3 provenance review:** Corrected stale taxonomy imports and ownership,
+  validation paths, unknown handling, plotting descriptions, missing-curation
+  behavior, and TrackNet large-video wording. Restored the original court and
+  player-mapping comments at their corresponding statements.
 
 ## Original and intended shape
 
@@ -61,11 +75,11 @@ BST-X and BRIC trees are absent. No model weights were moved or changed.
 
 ### Shared and classifier helpers
 
-`src/shared/` contains the cross-pipeline court implementation, dataset and
-taxonomy code reserved for B3, and TrackNetV3. `src/classifier_shared/` now
-contains player mapping, evaluation plotting, and video metadata. The old BST
-court and player-mapping modules are absent. The test-only temporal module and
-unused frame/thumbnail video helpers are absent.
+`src/shared/` contains the cross-pipeline court implementation and TrackNetV3.
+`src/classifier_shared/` contains classifier taxonomy, dataset helpers, player
+mapping, evaluation plotting, and video metadata. The old BST court and
+player-mapping modules are absent. The test-only temporal module and unused
+frame/thumbnail video helpers are absent.
 
 ### Downloaders
 
@@ -100,7 +114,7 @@ duplicate `_select_device`. API-specific R8 targets are absent.
    the approved test fixture consolidation.
 7. **B6 BST-X and BRIC:** Apply R7 and the remaining BRIC-only R8 changes.
 8. **B7 final gates:** Run targeted tests, full pytest, Ruff, Pyrefly, BRIC
-   smoke, TrackNet command smokes, and the approved adversarial review.
+   smoke, TrackNet command smokes, and the adversarial review.
 
 R4 and R9 require no implementation changes.
 
@@ -127,14 +141,14 @@ R4 and R9 require no implementation changes.
 - **Change:** Both classifiers and the scrape profile now use one TrackNetV3
   tree. The canonical path is the CLI default. Local checkpoint files under
   its `ckpts/` directory are ignored to prevent accidental commits.
-- **Gate:** Green for B1 scope. Post-review focused suite: 64 passed in 2.19
+- **Gate:** Green for B1 scope. Focused suite: 64 passed in 2.19
   seconds. Ruff: passed.
   Pyrefly on touched files: 0 errors. `predict.py --help`,
   `batch_predict.py --help`, and the pipeline CLI help passed. Temporary-index
   staged diff check passed, with no weight or model files present. Broader
   namespace/integration collection was blocked by a missing
-  `positional_encodings` dependency in the available venv. Independent review:
-  one confirmed medium documentation finding, fixed and rechecked.
+  `positional_encodings` dependency in the available venv. The active
+  documentation paths were rechecked after correction.
 - **Commit:** `f589f55 Consolidate TrackNetV3 under shared`; merged by PR #41
   as `a4eddca`.
 
@@ -151,11 +165,56 @@ R4 and R9 require no implementation changes.
   video metadata there. The presentation script is now a thin renderer CLI.
   Removed the unused video frame/thumbnail helpers and the test-only temporal
   module.
-- **Gate:** Green for the B2 scope. Independent review suite: 248 passed, 6
+- **Gate:** Green for the B2 scope. Focused suite: 248 passed, 6
   skipped. Post-fix focused suite: 201 passed, 6 skipped. Ruff: passed.
   Focused Pyrefly: 0 errors. Raw extraction, the equivalence failsafe, BST
   preparation, training augmentations, and the notebook setup resolve with
   both package roots. Plotting execution is blocked in the available venv
   because its declared `matplotlib` dependency is not installed; source
   compilation and static checks pass.
-- **Commit:** Pending.
+- **Commit:** `03f8b26 Consolidate shared classifier foundations`; merged by
+  PR #42 as `ef77e71`.
+
+### B3 taxonomy and dataset
+
+- **Readiness:** R2 and every surviving D2 taxonomy/dataset consumer were
+  rechecked. The deployed BRIC manifest pins the legacy key, exact ordered
+  14-class trainable list, and 14-output head.
+- **Files:** New `classifier_shared/taxonomy.py` and `dataset.py`; moved split
+  CSV; removed `shared/taxonomy.py` and `dataset.py`; trimmed
+  `pipeline/config.py` and `clip_generator.py`; retargeted BRIC, BST-X,
+  scripts, validation commands, tests, and active runbooks.
+- **Change:** The six BST-X taxonomies are unchanged. Retained BRIC keys keep
+  their old names and ordered full/trainable lists. Every merge map now sends
+  `driven_flight` to `drive`. Flaw parsing requires an explicit path. Both
+  classifiers use the BST-X clip-bound implementation with the frame-zero
+  clamp. The unused computed `SPLITS_V2` export is gone.
+- **Gate:** Green for the available B3 scope. Post-review focused suite: 95
+  passed, 13 skipped. Ruff:
+  passed. Focused Pyrefly: 0
+  errors. Source compilation passed. Direct comparisons against the B2 branch
+  confirm all six BST-X taxonomy contracts and both retained BRIC ordered class
+  lists are unchanged. The deployed manifest matches the 14-class trainable
+  view. Clean-shell help checks passed for the retargeted fail-rate and busted-
+  clip validation commands. The inference smoke reaches its model import, then
+  stops on the missing `positional_encodings` dependency. Broader BST-X
+  collection is blocked by missing `torcheval` and `positional_encodings`.
+  The deployed checkpoint is not available locally, so its state dictionary
+  has not been loaded. Both validation helpers now call the clip-bound function,
+  with early-frame tests, and active documentation uses the current taxonomy
+  API and CLI. Follow-up checks: 67 focused tests
+  passed, whole-project Ruff passed, and focused Pyrefly reported zero errors.
+  The registry assertion passed, and four affected CLI help commands showed
+  only the six BST-X choices. Two additional help commands remain blocked by
+  the documented missing `moviepy` and `matplotlib` dependencies. Active
+  package descriptions state the current module ownership and behavior. The
+  notebook JSON and setup cell passed from the documented working directory.
+  Active-document sweeps also corrected the BST-X overview and both X3D plan
+  copies. `tests/test_taxonomy.py` remains blocked at collection by the missing
+  `positional_encodings` dependency; direct registry assertions passed. The
+  final path sweep separated current Phase-2 pose input, legacy Phase-1 pose
+  input, and current UNE v1.14 collated training output. The same 67 focused
+  tests, Ruff, focused Pyrefly, source compilation, and path-provenance checks
+  passed after that correction.
+- **Commit:** `6014b21 Consolidate classifier taxonomy and dataset helpers`.
+  Follow-up corrections are uncommitted.

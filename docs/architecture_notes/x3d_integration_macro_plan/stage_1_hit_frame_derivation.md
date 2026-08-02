@@ -46,7 +46,7 @@ The deliverable is data + diagnostics, not training. Implementation happens in a
 
 ## What's already settled
 
-- Clip windowing rule is `between_2_hits_with_max_limits` with the 100-frame cap. Stem format is `{vid}_{set}_{rally}_{ball_round}`. Source: `pipeline/clip_generator.py:_compute_clip_bounds`.
+- Clip windowing rule is `between_2_hits_with_max_limits` with the 100-frame cap. Stem format is `{vid}_{set}_{rally}_{ball_round}`. Source: `classifier_shared/dataset.py:compute_clip_bounds`.
 - Method A scaffold exists at `src/bst_x/validation_scripts/hit_frame_lookup.py:25`. It returns a `dict[stem -> hit_idx_disk]` derived from `ShuttleSet/set/*.csv` plus `video_metadata.csv`. CPU-only, runs in seconds. Not yet writing sidecars.
 - Collation pads everything to seq_len=100 via `make_seq_len_same` at `src/bst_x/preparing_data/shuttleset_dataset.py:66`. Two cases: `videos_len > 100` resamples the disk clip by linspace index sampling, `np.round(np.linspace(0, videos_len - 1, 100)).astype(int)` (the readability pass replaced the old fixed-stride + pad scheme; identical on all current data since no clip exceeds 100 frames); `videos_len <= 100` zero-pads on the right. Resampling shifts the hit index; padding does not.
 - Shuttle stream: `shuttle.npy` per split is `(n_clips, 100, 2)` xy in court-normalised coordinates. The TrackNetV3-inpaint version is what `wipe_drop` collation pulls in; gaps are the inpaint output's own residual misses, not raw zeros.

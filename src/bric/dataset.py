@@ -20,11 +20,12 @@ from shared.court import (
     project,
     scale_pos_by_resolution,
 )
-from shared.dataset import HOMOGRAPHY_CSV_PATH
-from shared.taxonomy import (
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH
+from classifier_shared.taxonomy import (
     DEFAULT_TAXONOMY,
     TAXONOMIES,
     Taxonomy,
+    derive_class_index,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -79,14 +80,8 @@ def _derive_label(
     raw_type: str, player_side: str, taxonomy: Taxonomy,
 ) -> str | None:
     """Map ``raw_type`` through the taxonomy; return the label or ``None`` to drop."""
-    merged = (taxonomy.merge_map or {}).get(raw_type, raw_type)
-    if merged == 'unknown':
-        return None
-    if merged in taxonomy.standalone_set:
-        return merged
-    if merged in taxonomy.base_types:
-        return f'{player_side}_{merged}'
-    return None
+    index = derive_class_index(taxonomy, raw_type, player_side)
+    return None if index is None else taxonomy.classes[index]
 
 
 class ShuttleSetDataset(Dataset):

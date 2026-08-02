@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 from bric.dataset import ShuttleSetDataset, collate_strokes
 from bric.network import BRICNetwork
-from shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, Taxonomy
+from classifier_shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, Taxonomy
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXPERIMENTS_DIR = _REPO_ROOT / 'training' / 'bric' / 'experiments'

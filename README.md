@@ -53,9 +53,9 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 ## Project structure
 
 - `src/bst_x/` — data pipeline and BST-X classifier; standalone subproject with its own pinned environments
-- `src/bric/` — BRIC: R(2+1)D-18 with optional shuttle + court fusion lanes. Self-contained: network, dataset, train, infer, eval, plus its own `perception/` (YOLO + TrackNet), `preprocessing/` (cache producers), and `diagnostics/` (cache validators)
-- `src/shared/` - cross-pipeline court geometry, taxonomy data, and TrackNetV3
-- `src/classifier_shared/` - player mapping, plotting, and video metadata shared by BRIC and BST-X
+- `src/bric/` — BRIC classifier, preprocessing wrappers, and diagnostics
+- `src/shared/` - court geometry and TrackNetV3 shared across pipelines
+- `src/classifier_shared/` - taxonomy, dataset, player mapping, plotting, and video metadata shared by BRIC and BST-X
 - `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs
 - `scripts/` — cross-cutting setup and shared data-prep. Per-architecture scripts live with their architecture
 - `training/` — per-model training data, caches, and run artefacts (gitignored)
@@ -111,9 +111,9 @@ Training, pose extraction, and eval at scale all run on the UNE HPC GPU nodes. A
 - Run long training jobs inside `tmux` so they survive SSH drops.
 - `/scratch` is **not backed up** and is **local to each HPC host**: data on engelbart's scratch is not visible from bourbaki.
 
-### Symlinks from project into `/scratch`
+### Project paths into `/scratch`
 
-The pipeline expects clip and pose data inside the repo tree; symlink to `/scratch` so the bulk data lives outside home.
+The pipeline defaults clip data to the repo tree. Symlink those bulk directories to `/scratch`:
 
 ```bash
 mkdir -p /scratch/comp320a/ShuttleSet/{raw_video,clips,shuttle_csv,shuttle_npy}
@@ -125,12 +125,11 @@ ln -s /scratch/comp320a/ShuttleSet/shuttle_csv shuttle_csv
 ln -s /scratch/comp320a/ShuttleSet/shuttle_npy shuttle_npy
 ```
 
-Per-taxonomy pose output dir, same pattern:
+Configure the shared Phase-2 pose input and the collated-data root in `.env`:
 
-```bash
-mkdir -p /scratch/comp320a/ShuttleSet_data_une_v1_14
-cd ~/badminton_cv_annotator/src/bst_x/preparing_data
-ln -s /scratch/comp320a/ShuttleSet_data_une_v1_14 ShuttleSet_data_une_v1_14
+```dotenv
+BST_X_RTMPOSE_NPY_DIR=/scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor
+BST_X_COLLATED_DATA_ROOT=/scratch/comp320a
 ```
 
 After first download, open permissions so the rest of the team can read/write the shared data:
@@ -139,7 +138,7 @@ After first download, open permissions so the rest of the team can read/write th
 chmod -R 775 /scratch/comp320a/ShuttleSet
 ```
 
-**Don't commit these symlinks.** They're host-local and break on every other machine. Add them to your local `.gitignore` if `git status` keeps surfacing them. Pose data is physically taxonomy-independent (same clip gives a byte-identical pose npy), so a single pose extraction can be reused across taxonomies via filename matching; only the output folder layout differs.
+**Don't commit the clip-data symlinks.** They're host-local and break on every other machine. The Phase-2 pose input is flat and shared across taxonomies. Collation writes taxonomy-specific outputs under `ShuttleSet_data_<taxonomy>/`.
 
 HPC quickstart and GPU notes: [`docs/hpc_quickstart.md`](docs/hpc_quickstart.md), [`docs/gpu-access.md`](docs/gpu-access.md).
 

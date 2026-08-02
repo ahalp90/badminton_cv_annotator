@@ -23,7 +23,7 @@ stroke classifier  +  per-class scores
 
 It runs in two halves. The first downloads the videos, cuts them into labelled clips, and runs a shuttle tracker over each clip. The second adds player pose and packs all three streams into the arrays the model trains on. The whole thing is automated, called from the CLI with specific args depending on what you need (e.g., if you want to skip stages or tweak a setting).
 
-It has a single source of truth config file (`pipeline/config.py`): the splits, the stroke names, the rules for grouping. It also sets the class collapse per taxonomy; for example, whether a "wrist_smash" counts as its own class, or gets merged with "smash". These options can be set at the CLI.
+`pipeline/config.py` defines the splits and pipeline settings. `classifier_shared/taxonomy.py` defines the stroke names and grouping rules, including whether a "wrist_smash" counts as its own class or gets merged with "smash". These options can be set at the CLI.
 
 The pipeline is totally separate from the model build. It's just a modular data pipeline that eats video urls and CSVs and saves out CSVs and numpy arrays. It's model agnostic.
 

@@ -17,12 +17,19 @@ from pathlib import Path
 
 from pipeline.config import (
     SET_INFO_DIR, RAW_VIDEO_DIR, CLIPS_OUTPUT_DIR,
-    SPLITS, STROKE_TYPES_19, STROKE_TYPES_19_ZH,
+    SPLITS,
     REMOVED_SHOTS, CLIP_WINDOW, PLAYERS,
-    NOSIDE_FOLDERS, Taxonomy, taxonomy_lookup,
+    NOSIDE_FOLDERS,
 )
 
+from classifier_shared.dataset import compute_clip_bounds, compute_temporal_bounds
 from classifier_shared.player_mapping import collect_shots
+from classifier_shared.taxonomy import (
+    STROKE_TYPES_19,
+    STROKE_TYPES_19_ZH,
+    Taxonomy,
+    taxonomy_lookup,
+)
 
 # Default taxonomy when callers don't pass one. Matches the project's
 # working baseline; override via the function arg for one-off runs.
@@ -32,48 +39,6 @@ _DEFAULT_TAXONOMY = taxonomy_lookup('une_v1_14')
 VALID_CLIP_WINDOWS = frozenset(
     {'middle_in_a_sec', 'between_2_hits', 'between_2_hits_with_max_limits'}
 )
-
-
-def compute_temporal_bounds(folder_path: Path, shots_df: pd.DataFrame) -> pd.DataFrame:
-    """Add start_f and end_f columns to shots_df based on adjacent shots.
-
-    For each shot, the start frame is the previous shot's frame in the same
-    rally, and the end frame is the next shot's frame. First/last shots in a
-    rally get -1 (handled by the clip window as fallback).
-
-    Adapted from gen_my_dataset.py set_between_2_hits_from_pos().
-
-    :param folder_path: Path to the match folder containing set CSVs.
-    :param shots_df: DataFrame with 'set', 'rally', 'ball_round', 'frame_num' columns.
-    :return: DataFrame with start_f and end_f columns added.
-    """
-    parts = []
-    for set_i, group_idx in shots_df.groupby('set').groups.items():
-        df = pd.read_csv(folder_path / f'set{set_i}.csv')
-        df = df[['rally', 'ball_round', 'frame_num']]
-
-        # Use a shift to find adjacent frames.
-        # We look at the previous shot, but if this is the first shot of a rally,
-        # there is no 'previous', so we fallback to -1.
-        df['start_f'] = df['frame_num'].shift(1)
-        df['start_f'] = df['start_f'].where(df.duplicated('rally', keep='first'), -1)
-        # Similarly, look at the next shot, but fallback to -1 if it's the last shot of the rally.
-        df['end_f'] = df['frame_num'].shift(-1)
-        df['end_f'] = df['end_f'].where(df.duplicated('rally', keep='last'), -1)
-
-        merged = pd.merge(
-            shots_df.loc[group_idx].reset_index(drop=True),
-            df,
-            on=['rally', 'ball_round', 'frame_num'],
-        )
-        merged = merged[[
-            'set', 'rally', 'ball_round',
-            'start_f', 'frame_num', 'end_f',
-            'roundscore_A', 'roundscore_B', 'player', 'type',
-        ]]
-        parts.append(merged)
-
-    return pd.concat(parts).reset_index(drop=True)
 
 
 def _frame_to_time(frame_number: int, fps: float) -> str:
@@ -108,39 +73,6 @@ def _frame_to_time(frame_number: int, fps: float) -> str:
     minutes = int(total_seconds % 3600 // 60)
     seconds = total_seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:09.6f}"
-
-
-def _compute_clip_bounds(row, clip_window: str, fps: float) -> tuple[int, int]:
-    """Compute start and end frame for one clip based on the clip window.
-
-    :param row: A Series (from iterrows) with keys frame_num, start_f, end_f.
-    :param clip_window: One of 'middle_in_a_sec', 'between_2_hits',
-        'between_2_hits_with_max_limits'.
-    :param fps: Video frames per second.
-    :return: (start_frame, end_frame) as ints.
-    """
-    t = int(fps) // 2       # frames in 0.5 sec
-    frame_num = int(row['frame_num'])
-
-    if clip_window == 'middle_in_a_sec':
-        # Fixed 1-second window centred on the shot frame
-        return frame_num - t, frame_num + t
-
-    # --- between_2_hits and between_2_hits_with_max_limits ---
-    # Use adjacent shot frames if they exist, otherwise fall back to ±0.5 sec
-    eps = t // 2  # frames in 0.25 sec (small extension past the next hit)
-    start_f = int(row['start_f']) if row['start_f'] != -1 else (frame_num - t)
-    end_f = int(row['end_f']) + eps if row['end_f'] != -1 else (frame_num + t)
-
-    if clip_window == 'between_2_hits_with_max_limits':
-        # Clamp so clip never exceeds 1.5 sec each side of the shot
-        limit = int(fps) * 3 // 2  # frames in 1.5 sec
-        start_f = max(start_f, frame_num - limit)
-        end_f = min(end_f, frame_num + limit + eps)
-
-    # Clamp the start to 0: insurance for a shot in the first half-second of a
-    # video (unreachable on real match footage, where play starts minutes in).
-    return max(0, start_f), end_f
 
 
 def _write_clips_for_video(
@@ -194,7 +126,7 @@ def _write_clips_for_video(
             if out_path.exists():
                 continue
 
-            start_f, end_f = _compute_clip_bounds(row, clip_window, fps)
+            start_f, end_f = compute_clip_bounds(row, clip_window, fps)
 
             clip = video.subclipped(
                 _frame_to_time(start_f, fps),

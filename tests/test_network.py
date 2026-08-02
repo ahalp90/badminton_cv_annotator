@@ -8,7 +8,11 @@ import pytest
 import torch
 
 from bric.network import _COURT_ENCODERS, _SHUTTLE_ENCODERS, BRICNetwork
-from shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, TAXONOMY_RAW_35
+from classifier_shared.taxonomy import (
+    DEFAULT_TAXONOMY,
+    TAXONOMIES,
+    TAXONOMY_RAW_35,
+)
 
 
 @pytest.fixture(scope='module')

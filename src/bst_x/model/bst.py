@@ -428,7 +428,7 @@ BST_CG_AP = BST
 
 
 if __name__ == '__main__':
-    from pipeline.config import taxonomy_lookup
+    from classifier_shared.taxonomy import taxonomy_lookup
     n_classes = taxonomy_lookup('une_v1_14').n_classes
 
     b, t, n_players = 1, 100, 2

@@ -55,9 +55,8 @@ def extract_shuttle(
 ) -> Path:
     """Run TrackNetV3 + InpaintNet on a video; return path to the output CSV.
 
-    Always uses ``--large_video`` mode (streaming dataset; safe on full
-    1-2 hr match videos). Skips the overlay-video output — we only need
-    the CSV.
+    Uses ``--large_video`` by default; pass ``large_video=False`` to disable
+    it. Skips the overlay-video output — we only need the CSV.
 
     :param video_path: Path to source mp4.
     :param save_dir: Directory to write the output CSV into. Created if

@@ -23,7 +23,7 @@ import yaml
 
 import bst_x_infer
 from bst_x_common import build_bst_x_network, dump_topk_predictions
-from pipeline.config import taxonomy_lookup
+from classifier_shared.taxonomy import taxonomy_lookup
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
 from torch.utils.data import DataLoader
 

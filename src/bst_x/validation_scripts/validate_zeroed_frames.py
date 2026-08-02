@@ -24,14 +24,14 @@ Per-clip npy files are resolved flat under ``{dataset_npy_dir}/{clip_stem}_*.npy
 and ``{shuttle_npy_dir}/{clip_stem}.npy``.
 
 Usage:
-    python validate_zeroed_frames.py \
-        --data-root /path/to/ShuttleSet_data_une_v1_14 \
-        --clips-csv /path/to/notebooks/clips_master.csv \
+    python src/bst_x/validation_scripts/validate_zeroed_frames.py \
+        --data-root /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+        --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
         --taxonomy une_v1_14 \
-        --split-column split_bst_baseline \
+        --split-column split_v2 \
         --threshold 0.5 \
-        --set-dir /path/to/data/shuttleset/set \
-        --shuttle-npy-dir /path/to/data/shuttleset/shuttle_npy_flat
+        --set-dir data/shuttleset/set \
+        --shuttle-npy-dir /scratch/comp320a/ShuttleSet/shuttle_npy_flat
 """
 import argparse
 import io
@@ -50,9 +50,16 @@ matplotlib.use("Agg")  # headless backend for HPC (no X11 display)
 import matplotlib.pyplot as plt  # noqa: E402
 
 BST_REFACTOR_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = BST_REFACTOR_ROOT.parent
+sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(BST_REFACTOR_ROOT))
 
-from pipeline.config import TAXONOMIES, Taxonomy, taxonomy_lookup, NOSIDE_CLASSES  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    BST_X_TAXONOMIES,
+    NOSIDE_CLASSES,
+    Taxonomy,
+    taxonomy_lookup,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1233,8 +1240,8 @@ def main():
     )
     parser.add_argument(
         "--data-root", type=Path, required=True,
-        help="Path to ShuttleSet_data_{taxonomy} directory (holds the flat "
-             "per-clip npy subdir).",
+        help="Source root reported in the output and used for optional "
+             "*_flat auto-discovery.",
     )
     parser.add_argument(
         "--dataset-npy-dir", type=Path, default=None,
@@ -1253,7 +1260,7 @@ def main():
     )
     parser.add_argument(
         "--taxonomy", type=str, default="une_v1_14",
-        choices=list(TAXONOMIES.keys()),
+        choices=list(BST_X_TAXONOMIES),
         help="Taxonomy for label derivation, filenames, and display headers "
              "(default: une_v1_14).",
     )
