@@ -30,6 +30,7 @@ from classifier_shared.taxonomy import (
     Taxonomy,
     taxonomy_lookup,
 )
+from pipeline.video_metadata import find_video_files
 
 # Default taxonomy when callers don't pass one. Matches the project's
 # working baseline; override via the function arg for one-off runs.
@@ -106,13 +107,13 @@ def _write_clips_for_video(
             for player in players:
                 (out_folder / f'{player}_{typ}').mkdir(parents=True, exist_ok=True)
 
-    # Open the source video. list() so an absent video is a warning, not a StopIteration.
-    video_matches = list(raw_video_dir.glob(f"{video_id} *"))
-    if not video_matches:
+    # New downloads use ``{id}.ext``; existing ShuttleSet files may retain
+    # ``{id} {name}.ext``. The shared index rejects a directory containing both.
+    video_path = find_video_files(raw_video_dir).get(video_id)
+    if video_path is None:
         print(f"Warning: Raw video for ID {video_id} not found. Skipping.")
         return 0
-    video_path = str(video_matches[0])
-    video = VideoFileClip(video_path)
+    video = VideoFileClip(str(video_path))
     fps = video.fps
     clips_written = 0
 

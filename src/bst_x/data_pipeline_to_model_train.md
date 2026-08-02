@@ -27,22 +27,25 @@ The project uses three separate Python environments so the pipeline, pose-extrac
 
 | Environment | Requirements file | Purpose |
 |---|---|---|
-| **Pipeline** | `pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **Pose extraction (rtmlib)** | `preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
-| **BST training** | `requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
+| **Pipeline** | `src/bst_x/pipeline/requirements.txt` | Download videos, generate clips, verify output |
+| **Pose extraction (rtmlib)** | `src/bst_x/preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
+| **BST training** | `src/bst_x/requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
 
 ### Environment setup
 
 ```bash
+# Run this setup and the execution commands below from the repository root.
+export PYTHONPATH=src:src/bst_x
+
 # 1. Pipeline venv
 python3.11 -m venv venv-pipeline
 source venv-pipeline/bin/activate
-pip install -r pipeline/requirements.txt
+pip install -r src/bst_x/pipeline/requirements.txt
 
 # 2. Pose-extraction venv (rtmlib over onnxruntime; no source builds)
 python3.11 -m venv venv-rtmlib
 source venv-rtmlib/bin/activate
-pip install -r preparing_data/requirements.txt
+pip install -r src/bst_x/preparing_data/requirements.txt
 # GPU extract box: swap onnxruntime -> onnxruntime-gpu per the notes in that file.
 # GPU runtime: onnxruntime-gpu SILENTLY falls back to CPU (~10x slower, two red
 # log lines, then it keeps going) unless the dynamic loader can find cuDNN 9 and
@@ -59,7 +62,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 python3.11 -m venv venv-bst-x
 source venv-bst-x/bin/activate
 pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -r requirements.txt
+pip install -r src/bst_x/requirements.txt
 ```
 
 ### Execution order
@@ -82,15 +85,12 @@ python -m pipeline.build_dataset \
 source venv-rtmlib/bin/activate
 
 # On engelbart, symlink the taxonomy output dir to scratch first (see Stage 2 Setup below).
-# Run from the repo root with both package roots on PYTHONPATH (matches conftest.py for tests).
-export PYTHONPATH=src:src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
     --skip-collate                                         # pose only (no shuttle CSV needed)
 
 # ── Stage 3: Collation + training (BST venv) ────────────────────────
 source venv-bst-x/bin/activate
-export PYTHONPATH=src:src/bst_x
 
 python -m preparing_data.prepare_train_on_shuttleset \
     --skip-pose                                            # collate (reads shuttle npys)
@@ -119,7 +119,8 @@ The pipeline downloads match videos, cuts them into labeled stroke clips, option
 | `classifier_shared/taxonomy.py` | Classifier taxonomy definitions, stroke mappings, and label derivation. | `Taxonomy`, `TAXONOMIES`, `taxonomy_lookup()`, `derive_class_index()`, `UNE_MERGE_V1_MAP`, `MERGE_MAP_25`, and the English/Chinese stroke mappings. |
 | `classifier_shared/dataset.py` | ShuttleSet paths, flaw parsing, split metadata, and clip bounds. | `ANNOTATIONS_DIR`, `FLAW_RECORDS_PATH`, `SPLITS_V2_PATH`, `parse_flaw_records()`, and `compute_clip_bounds()`. |
 | `build_dataset.py` | One-command orchestrator. Runs steps 1-6 in order with CLI flags to skip individual steps (`--skip-download`, `--skip-resolution`, `--skip-clips`, `--skip-verify`, `--skip-shuttle`). `--skip-clips` skips both clip generation (step 3) and class merge (step 4) since they are tightly coupled: the merge moves clips out of their original folders, so re-running step 3 after a merge would re-generate them from video. | `run_pipeline()` (main entry point), `dry_run()` (preview without side effects), `_validate_inputs()` (fail-fast checks before long work). |
-| `download_videos.py` | Downloads 40 ShuttleSet match videos from YouTube via yt-dlp. Also builds a resolution CSV by scanning each video with OpenCV. | `download_all_videos(max_workers)`, `build_resolution_csv()`. Output: `data/shuttleset/raw_video/{id} {match_name}.mp4` and `data/shuttleset/my_raw_video_resolution.csv`. |
+| `download_adapter.py` | Maps ShuttleSet match rows into the scraper-owned yt-dlp downloader. | `download_shuttleset_videos(max_workers)`. New output: `data/shuttleset/raw_video/{id}.mp4`; existing `{id} {match_name}.mp4` files remain readable. |
+| `video_metadata.py` | Builds the resolution CSV by scanning each video with OpenCV. | `build_resolution_csv()`. Output: `data/shuttleset/my_raw_video_resolution.csv`. |
 | `clip_generator.py` | Extracts individual stroke clips from full match videos. Reads ShuttleSet CSV annotations (Chinese column names), maps A/B players to Top/Bottom, filters excluded videos and removed shots, and organizes clips into `{split}/{Player}_{stroke_type}/` folders. | `generate_all_clips()`, `apply_class_merge()` (moves clips from rare subtype folders into their parent type folders per the active taxonomy's merge map). Three clip window modes: `middle_in_a_sec`, `between_2_hits`, `between_2_hits_with_max_limits` (default, clamps to 1.5s each side). |
 | `classifier_shared/player_mapping.py` | Maps ShuttleSet A/B labels to Top/Bottom court positions. Handles set-3 court switches. | `collect_shots()`, `map_players()`, `find_set3_switch_rally()`. |
 | `verify.py` | Post-generation sanity checks: all splits present, no clips from excluded videos, no removed shots, merged subtype folders empty, no orphan files. | `verify_splits_present()`, `verify_no_excluded()`, `verify_no_removed_shots()`, `verify_class_merge()`, `verify_shuttle_sync()`, `print_dataset_summary()`. |
@@ -519,7 +520,8 @@ pipeline/config.py                     # Paths, splits, pipeline settings
     |
     v
 pipeline/build_dataset.py             # Orchestrates Steps 1-6 (--taxonomy flag)
-  -> download_videos.py               # Step 1: yt-dlp download
+  -> download_adapter.py              # Step 1: ShuttleSet adapter to shared yt-dlp downloader
+  -> video_metadata.py                # Step 2: resolution CSV
   -> clip_generator.py                # Steps 3-4: clip extraction + class merge
      -> classifier_shared/player_mapping.py  # A/B -> Top/Bottom
   -> verify.py                        # Step 5: sanity checks

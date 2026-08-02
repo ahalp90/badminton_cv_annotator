@@ -65,7 +65,7 @@ SUBSTREAM_INSTRUCTIONAL = 'instructional'
 # ---------------------------------------------------------------------------
 # Stage 1: search indexing (spec s2)
 # ---------------------------------------------------------------------------
-YTDLP_BIN = 'yt-dlp'  # same binary the pipeline already uses (download_videos.py)
+YTDLP_BIN = 'yt-dlp'  # downloader command shared by scraper and ShuttleSet adapter
 
 YTSEARCH_COUNT = 50  # spec s2 uses ytsearch50
 

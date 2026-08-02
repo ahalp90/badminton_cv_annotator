@@ -57,7 +57,7 @@ HOMOGRAPHY_RESOLUTION = (1280, 720)
 try:
     EXCLUDED_VIDEOS, REMOVED_SHOTS = parse_flaw_records(FLAW_RECORDS_PATH)
     # Read-only downstream (membership + iteration only); frozenset makes the
-    # download_videos frozenset[int] annotation honest.
+    # download_adapter frozenset[int] annotation honest.
     EXCLUDED_VIDEOS = frozenset(EXCLUDED_VIDEOS)
 except FileNotFoundError:
     import warnings

@@ -31,7 +31,8 @@ from classifier_shared.taxonomy import (
     taxonomy_lookup,
 )
 
-from pipeline.download_videos import download_all_videos, build_resolution_csv
+from pipeline.download_adapter import download_shuttleset_videos
+from pipeline.video_metadata import build_resolution_csv, find_video_files
 from pipeline.clip_generator import generate_all_clips, apply_class_merge
 from pipeline.verify import (
     _scan_clips, verify_splits_present, verify_no_excluded,
@@ -190,14 +191,14 @@ def run_pipeline(
 
     if not skip_download:
         _step(1, 'Downloading videos from YouTube')
-        download_all_videos(max_workers=workers)
+        download_shuttleset_videos(max_workers=workers)
     else:
         print('Step 1: Skipped (--skip-download)')
 
     # Check videos exist first.
     if not skip_resolution:
         _step(2, 'Building resolution CSV')
-        video_files = list(RAW_VIDEO_DIR.glob('*.*'))
+        video_files = find_video_files(RAW_VIDEO_DIR)
         if not video_files:
             print(f'ERROR: No video files found in {RAW_VIDEO_DIR}')
             print('Step 1 may have failed silently. Aborting.')

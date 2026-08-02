@@ -20,7 +20,11 @@ New here? [`data_pipeline_and_model_train_overview.md`](../data_pipeline_and_mod
 
 ## Quick Start
 
+Run these commands from the repository root with both source roots available:
+
 ```bash
+export PYTHONPATH=src:src/bst_x
+
 # Preview what the pipeline will do (no files created)
 python -m pipeline.build_dataset --skip-shuttle --dry-run
 
@@ -49,14 +53,19 @@ python -m pipeline.build_dataset \
 Downloads 40 ShuttleSet match videos from YouTube using yt-dlp. Checks that yt-dlp is installed before spawning workers. Skips videos that already exist on disk.
 
 ```bash
-python -m pipeline.download_videos --workers 4
+python -m pipeline.download_adapter --workers 4
 ```
 
-Output: `data/shuttleset/raw_video/{id} {match_name}.mp4`
+Output: `data/shuttleset/raw_video/{id}.mp4`. Existing
+`{id} {match_name}.mp4` files remain supported.
 
 ### Step 2: Build Resolution CSV
 
 Scans downloaded videos with OpenCV and writes `my_raw_video_resolution.csv`. Replaces the need to manually create this file.
+
+```bash
+python -m pipeline.video_metadata
+```
 
 Output: `data/shuttleset/my_raw_video_resolution.csv`
 
@@ -223,7 +232,8 @@ python -m pipeline.shuttle_extractor \
 ```
 data/shuttleset/
   raw_video/                                    # Step 1
-    {id} {match_name}.mp4
+    {id}.mp4
+    sources.toml                                # Download resume metadata
   my_raw_video_resolution.csv                   # Step 2
   clips/                                        # Steps 3-4 (still nested)
     train/{Top,Bottom}_{stroke_type}/*.mp4
@@ -245,7 +255,7 @@ These files ship with the ShuttleSet dataset and are required by the pipeline. D
 
 | File | Read by | Contents |
 |---|---|---|
-| `data/shuttleset/set/match.csv` | `download_videos.py`, `clip_generator.py` | Match metadata: video IDs, YouTube URLs, player court orientation (`downcourt` flag). 44 matches. |
+| `data/shuttleset/set/match.csv` | `download_adapter.py`, `clip_generator.py` | Match metadata: video IDs, YouTube URLs, player court orientation (`downcourt` flag). 44 matches. |
 | `data/shuttleset/set/{match_folder}/set[1-3].csv` | `clip_generator.py`, `classifier_shared.player_mapping` | Per-set stroke annotations: stroke type (Chinese), rally/ball_round numbers, frame timestamps, player A/B labels. One folder per match, up to 3 CSVs per folder. |
 | `data/shuttleset/set/homography.csv` | `shared.court`, `prepare_train_on_shuttleset.py` | Homography matrices and court corner coordinates for camera-to-court projection. Computed at 1280x720 (W x H) resolution. Optional for basic pipeline; required for court-normalised features. |
 | `data/shuttleset/flaw_shot_records.csv` | `classifier_shared.dataset` via `pipeline/config.py` | Data quality records: 4 whole-video exclusions and 25 individual shot removals. Drives `EXCLUDED_VIDEOS` and `REMOVED_SHOTS` constants. |
@@ -298,7 +308,8 @@ Update `data/shuttleset/flaw_shot_records.csv`. The pipeline reads it at import 
 | `classifier_shared/taxonomy.py` | Classifier taxonomy definitions, stroke mappings, and label derivation |
 | `classifier_shared/dataset.py` | ShuttleSet paths, flaw parsing, split metadata, and clip bounds |
 | `classifier_shared/player_mapping.py` | A/B to Top/Bottom mapping with set 3 court-switch handling |
-| `download_videos.py` | yt-dlp downloader + resolution CSV builder |
+| `download_adapter.py` | ShuttleSet adapter to the scraper-owned yt-dlp downloader |
+| `video_metadata.py` | Resolution CSV builder and missing-video report |
 | `clip_generator.py` | Clip extraction, flaw filtering, class merging |
 | `shuttle_extractor.py` | TrackNetV3 wrapper + CSV-to-NPY normalisation |
 | `shared/court.py` | Shared homography-based court projection utilities |
@@ -312,7 +323,8 @@ Update `data/shuttleset/flaw_shot_records.csv`. The pipeline reads it at import 
 Each module can be run standalone:
 
 ```bash
-python -m pipeline.download_videos --workers 4
+python -m pipeline.download_adapter --workers 4
+python -m pipeline.video_metadata
 python -m pipeline.clip_generator --clip-window between_2_hits
 python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python
