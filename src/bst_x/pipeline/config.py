@@ -53,7 +53,7 @@ HOMOGRAPHY_RESOLUTION = (1280, 720)
 # Flaw record parsing -- CSV is the single source of truth for exclusions
 # ---------------------------------------------------------------------------
 # Load lazily at import so path-only inspection works without the flaw CSV.
-# Pipeline steps that need the records fail loudly when they're empty.
+# A missing file leaves both sets empty, so execution can produce incorrect results.
 try:
     EXCLUDED_VIDEOS, REMOVED_SHOTS = parse_flaw_records(FLAW_RECORDS_PATH)
     # Read-only downstream (membership + iteration only); frozenset makes the

@@ -98,6 +98,7 @@ from pipeline.config import (
     SHUTTLE_OUTPUT_DIR,
 )
 from classifier_shared.taxonomy import (
+    BST_X_TAXONOMIES,
     TAXONOMIES,
     Taxonomy,
     derive_class_index,
@@ -508,7 +509,7 @@ def interactive(paths: DataPaths) -> None:
     split_column = _menu('Select split column:', available_split_cols)
 
     # Step 1: taxonomy.
-    taxonomy_name = _menu('Select taxonomy:', list(TAXONOMIES))
+    taxonomy_name = _menu('Select taxonomy:', list(BST_X_TAXONOMIES))
 
     # Step 2: split.
     split_choice = _menu('Select split:', ['all'] + list(SPLITS))
@@ -563,7 +564,8 @@ def _build_cli() -> argparse.ArgumentParser:
              f'(the TUI prompts for it). (default: {DEFAULT_SPLIT_COLUMN}).',
     )
     parser.add_argument(
-        '--taxonomy', choices=list(TAXONOMIES), default=DEFAULT_TAXONOMY_NAME,
+        '--taxonomy', choices=list(BST_X_TAXONOMIES),
+        default=DEFAULT_TAXONOMY_NAME,
         help=f'Taxonomy for label derivation and class validation; non-interactive '
              f"runs only (the TUI prompts for it). The chosen taxonomy's "
              f'excluded_base_stroke_types drives row filtering '

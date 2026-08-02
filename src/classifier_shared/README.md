@@ -1,7 +1,6 @@
 # Classifier-shared utilities
 
-This package contains code shared by BRIC and BST-X without assigning it to
-either classifier.
+This package contains classifier utilities used by BRIC and BST-X.
 
 | Module | Purpose |
 | --- | --- |
@@ -11,5 +10,4 @@ either classifier.
 | `eval_plots.py` | Precision and recall normalised confusion-matrix rendering. |
 | `video_io.py` | Video metadata through `get_video_info`. |
 
-Court geometry remains in [`shared`](../shared/) because the annotator also
-uses it.
+Court geometry and TrackNetV3 are documented in [`shared`](../shared/).

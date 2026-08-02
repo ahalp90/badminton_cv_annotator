@@ -1,10 +1,5 @@
 """Classifier dataset paths, curation data, and clip-bound helpers.
 
-Single source of truth for where ShuttleSet annotations live and which
-videos / shots have been curated out. Mirrors the relevant pieces of
-`bst_x.pipeline.config` so BRIC code never needs to import from
-that module.
-
 ShuttleSet upstream annotations live under ``training/data/shuttleset/annotations/``:
 
   - ``ANNOTATIONS_DIR``      — root of the annotations tree (CSVs + set/)
@@ -31,7 +26,8 @@ are empty and a warning is emitted — fine for inspecting the module,
 not fine for actual pipeline runs.
 
 ``SPLITS_BST_BASELINE`` is kept to regenerate the comparison column in
-``shots_master.csv``. New training reads ``SPLITS_V2_PATH`` directly.
+``shots_master.csv``. BRIC metadata generation reads ``SPLITS_V2_PATH``
+directly.
 """
 
 from __future__ import annotations
@@ -79,8 +75,6 @@ def parse_flaw_records(
     ``stroke_type`` column is ``'whole'``, the entire match is excluded;
     otherwise the specific (set, rally, ball_round) shot is removed.
 
-    Logic mirrored from ``bst_x.pipeline.config.parse_flaw_records``.
-
     :param csv_path: Path to flaw_shot_records.csv.
     :return: (excluded_video_ids, removed_shot_tuples).
     """
@@ -110,8 +104,8 @@ def _load_flaw_records() -> tuple[set[int], set[tuple[int, int, int, int]]]:
     """Load flaw records lazily; warn + return empty sets if file is missing.
 
     Lets this module be importable for inspection without the CSV present.
-    Pipeline code that actually depends on the curation will fail loudly
-    elsewhere if these are empty when they shouldn't be.
+    Execution continues with empty curation sets, which can produce incorrect
+    pipeline results.
     """
     try:
         return parse_flaw_records(FLAW_RECORDS_PATH)
@@ -132,7 +126,7 @@ EXCLUDED_VIDEOS, REMOVED_SHOTS = _load_flaw_records()
 # Train/val/test splits
 # ---------------------------------------------------------------------------
 
-# BST's original baseline split, from `bst_x.pipeline.config._SPLITS_RAW`.
+# BST's original baseline split.
 # Raw — does not strip EXCLUDED_VIDEOS. Apply the filter at the call site if
 # needed (e.g. enrichment script does ``if vid in EXCLUDED_VIDEOS: continue``).
 # Kept here so the enriched master CSV can populate ``split_bst_baseline`` for
@@ -153,21 +147,29 @@ def compute_temporal_bounds(
     folder_path: Path,
     shots_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Add ``start_f``/``end_f`` columns to ``shots_df`` from adjacent shots.
+    """Add start_f and end_f columns to shots_df based on adjacent shots.
 
-    For each shot, ``start_f`` is the previous shot's ``frame_num`` in the
-    same rally, and ``end_f`` is the next shot's. First/last shots in a
-    rally get -1 (handled as a fallback by ``compute_clip_bounds``).
+    For each shot, the start frame is the previous shot's frame in the same
+    rally, and the end frame is the next shot's frame. First/last shots in a
+    rally get -1 (handled by the clip window as fallback).
 
-    This is the canonical implementation used by both classifiers.
+    Adapted from gen_my_dataset.py set_between_2_hits_from_pos().
+
+    :param folder_path: Path to the match folder containing set CSVs.
+    :param shots_df: DataFrame with 'set', 'rally', 'ball_round', 'frame_num' columns.
+    :return: DataFrame with start_f and end_f columns added.
     """
     parts = []
     for set_i, group_idx in shots_df.groupby("set").groups.items():
         df = pd.read_csv(folder_path / f"set{set_i}.csv")
         df = df[["rally", "ball_round", "frame_num"]]
 
+        # Use a shift to find adjacent frames.
+        # We look at the previous shot, but if this is the first shot of a rally,
+        # there is no 'previous', so we fallback to -1.
         df["start_f"] = df["frame_num"].shift(1)
         df["start_f"] = df["start_f"].where(df.duplicated("rally", keep="first"), -1)
+        # Similarly, look at the next shot, but fallback to -1 if it's the last shot of the rally.
         df["end_f"] = df["frame_num"].shift(-1)
         df["end_f"] = df["end_f"].where(df.duplicated("rally", keep="last"), -1)
 
@@ -196,27 +198,33 @@ def compute_temporal_bounds(
 
 
 def compute_clip_bounds(row, clip_window: str, fps: float) -> tuple[int, int]:
-    """Compute (start_frame, end_frame) for one shot's window.
+    """Compute start and end frame for one clip based on the clip window.
 
-    ``clip_window`` is one of ``'middle_in_a_sec'``, ``'between_2_hits'``,
-    ``'between_2_hits_with_max_limits'``. BRIC uses ``CLIP_WINDOW``
-    (= ``'between_2_hits_with_max_limits'``) — the ±1.5s clamped variant.
-
-    Uses BST-X semantics, including clamping the start to frame zero.
+    :param row: A Series (from iterrows) with keys frame_num, start_f, end_f.
+    :param clip_window: One of 'middle_in_a_sec', 'between_2_hits',
+        'between_2_hits_with_max_limits'.
+    :param fps: Video frames per second.
+    :return: (start_frame, end_frame) as ints.
     """
-    t = int(fps) // 2  # frames in 0.5 sec
+    t = int(fps) // 2       # frames in 0.5 sec
     frame_num = int(row["frame_num"])
 
     if clip_window == "middle_in_a_sec":
+        # Fixed 1-second window centred on the shot frame
         return frame_num - t, frame_num + t
 
-    eps = t // 2  # frames in 0.25 sec (extension past the next hit)
+    # --- between_2_hits and between_2_hits_with_max_limits ---
+    # Use adjacent shot frames if they exist, otherwise fall back to ±0.5 sec
+    eps = t // 2  # frames in 0.25 sec (small extension past the next hit)
     start_f = int(row["start_f"]) if row["start_f"] != -1 else (frame_num - t)
     end_f = int(row["end_f"]) + eps if row["end_f"] != -1 else (frame_num + t)
 
     if clip_window == "between_2_hits_with_max_limits":
+        # Clamp so clip never exceeds 1.5 sec each side of the shot
         limit = int(fps) * 3 // 2  # frames in 1.5 sec
         start_f = max(start_f, frame_num - limit)
         end_f = min(end_f, frame_num + limit + eps)
 
+    # Clamp the start to 0: insurance for a shot in the first half-second of a
+    # video (unreachable on real match footage, where play starts minutes in).
     return max(0, start_f), end_f

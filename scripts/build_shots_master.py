@@ -4,13 +4,13 @@ Single source of truth for BRIC's per-stroke metadata. Reads from:
 
   - ShuttleSet upstream annotations under training/data/shuttleset/annotations/
     (match.csv, setN.csv per match, video_metadata.csv, flaw_shot_records.csv).
-  - BST-team v2 split CSV under src/shared/shuttleset_splits_v2.csv
+  - BST-team v2 split CSV under src/classifier_shared/shuttleset_splits_v2.csv
     (player-leakage-corrected split, active for BRIC).
-  - BST-team curation + logic mirrored into ``shared``:
+  - BST-team curation + logic in ``classifier_shared``:
       * ``classifier_shared.dataset`` — paths, EXCLUDED_VIDEOS, REMOVED_SHOTS,
         SPLITS_BST_BASELINE, CLIP_WINDOW,
         compute_temporal_bounds, compute_clip_bounds
-      * ``classifier_shared.player_mapping`` - collect_shots (A/B to Top/Bottom)
+      * ``classifier_shared.player_mapping`` — collect_shots (A/B → Top/Bottom)
       * ``classifier_shared.taxonomy`` — STROKE_TYPES_19_ZH
 
 No imports from ``bst_x`` — BRIC stays self-contained. No

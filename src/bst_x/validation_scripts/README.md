@@ -1,8 +1,8 @@
 # Validation Scripts
 
-Analysis tools for the pose/shuttle dataset. Some run on the raw mmpose extract (pre-heuristic), others on the post-heuristic / post-collation per-clip arrays. Use them before training to assess data quality and surface failure floors.
+Analysis tools for the pose/shuttle dataset. Some run on the raw mmpose extract, while others read the post-heuristic per-clip arrays. Use them before training to assess data quality and surface failure floors.
 
-The post-collation CLI scripts (`validate_zeroed_frames.py`, `fail_rate_per_class.py`) are CSV-driven: splits and labels come from `notebooks/clips_master.csv` (per `--split-column` and `--taxonomy`), not from the on-disk folder tree. Per-clip `.npy` files resolve flat at `{dataset_npy_dir}/{clip_stem}_*.npy`. This matches the Phase 2 flat-dir layout and the taxonomy definitions in `pipeline/config.py`.
+`validate_zeroed_frames.py` and `fail_rate_per_class.py` read flat pose arrays, not collated training data. The current Phase-2 input is `/scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor/`; the legacy Phase-1 baseline is under `ShuttleSet_data_merged_25/`. Splits and labels come from `notebooks/clips_master.csv` using the selected `--split-column` and `--taxonomy`.
 
 ## Scripts
 
@@ -48,22 +48,24 @@ Analyses two independent detection failure modes across the dataset:
 
 2. **Shuttle detection failures** (from shuttle NPYs, optional): TrackNetV3 reported visibility=0 (shuttle not detected). Independent of MMPose — the visibility column is dropped during collation, so these failures are invisible to the model as silent (0, 0) shuttle coordinates.
 
-**Minimal usage** (MMPose failure stats only, from repo root):
+**Minimal usage** (current Phase-2 MMPose failure stats, from repo root):
 
 ```bash
 python src/bst_x/validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
-    --split-column split_bst_baseline \
+    --data-root /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --split-column split_v2 \
     --taxonomy une_v1_14
 ```
 
-`--clips-csv` defaults to `<repo>/notebooks/clips_master.csv`. `--dataset-npy-dir` is auto-discovered under `--data-root` (the single `*_flat/` subdir). `--set-dir` is auto-detected at `<repo>/data/shuttleset/set` if a `match.csv` is present there, which also enables the flaw and hit-frame sections below.
+The current Phase-2 directory stores the per-clip arrays directly, so pass it explicitly as `--dataset-npy-dir`. `--clips-csv` defaults to `<repo>/notebooks/clips_master.csv`. `--set-dir` is auto-detected at `<repo>/data/shuttleset/set` if a `match.csv` is present there.
 
 **Full usage** (explicit paths for flaw cross-reference, hit-frame proximity, and shuttle analysis):
 
 ```bash
 python src/bst_x/validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
+    --data-root /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
     --split-column split_v2 \
     --taxonomy une_v1_14 \
     --set-dir data/shuttleset/set \
@@ -75,11 +77,11 @@ python src/bst_x/validation_scripts/validate_zeroed_frames.py \
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--data-root` | Yes | - | Path to `ShuttleSet_data_{taxonomy}` directory. The per-clip npy directory is auto-discovered inside it. |
-| `--dataset-npy-dir` | No | auto-discover | Explicit flat per-clip npy dir. Required when `--data-root` holds more than one `*_flat/` subdir. |
+| `--data-root` | Yes | - | Source root reported in the output; also used for `*_flat` auto-discovery when `--dataset-npy-dir` is omitted. |
+| `--dataset-npy-dir` | No | auto-discover | Explicit flat per-clip npy dir. Use when files live directly under `--data-root` or auto-discovery is ambiguous. |
 | `--clips-csv` | No | `<repo>/notebooks/clips_master.csv` | Master clips CSV (one row per clip). |
 | `--split-column` | No | `split_bst_baseline` | Column in clips_csv giving train/val/test assignment. |
-| `--taxonomy` | No | `une_v1_14` | Taxonomy name (choices from `classifier_shared.taxonomy.TAXONOMIES`). Used for label derivation, filenames, and display headers. |
+| `--taxonomy` | No | `une_v1_14` | BST-X taxonomy name. Used for label derivation, filenames, and display headers. |
 | `--threshold` | No | `0.5` | Fail-rate cutoff for the flagged-clips list. |
 | `--set-dir` | No | repo-relative fallback | Path to `data/shuttleset/set/`. Enables flaw cross-reference and hit-frame proximity. If omitted, checks `<repo>/data/shuttleset/set` for a `match.csv` and uses it when found. |
 | `--hit-window` | No | `10` | Frames either side of the hit frame to check. Requires `--set-dir`. |
@@ -115,22 +117,22 @@ Timestamps use Sydney time (AEST/AEDT). The `unknown/` garbage class is excluded
 
 Per-class MMPose fail-rate stats joined on `clips_master.csv`. Reads the flat per-clip `*_failed.npy` files, applies the requested taxonomy's exclusions, and prints per-class totals so you can see which class is carrying the most zeroed frames. Useful for seeing how the per-class pose-quality picture shifts between taxonomies (for example, `bst_25` versus `une_v1_14`) without rerunning the full `validate_zeroed_frames.py` report.
 
-**With explicit `--dataset-npy-dir`:**
+**Current Phase-2 input:**
 
 ```bash
 python src/bst_x/validation_scripts/fail_rate_per_class.py \
     --clips-csv notebooks/clips_master.csv \
-    --dataset-npy-dir /scratch/comp320a/ShuttleSet_data_une_v1_14/dataset_npy_between_2_hits_with_max_limits_flat \
-    --split-column split_bst_baseline \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --split-column split_v2 \
     --taxonomy une_v1_14
 ```
 
-**With `--data-root` auto-discovery** (mirrors `validate_zeroed_frames.py`):
+**Legacy Phase-1 baseline with `--data-root` auto-discovery:**
 
 ```bash
 python src/bst_x/validation_scripts/fail_rate_per_class.py \
     --clips-csv notebooks/clips_master.csv \
-    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
+    --data-root /scratch/comp320a/ShuttleSet_data_merged_25 \
     --split-column split_v2 \
     --taxonomy une_v1_14 \
     --save-txt
@@ -143,7 +145,7 @@ Exactly one of `--dataset-npy-dir` or `--data-root` must be given. Auto-discover
 | Argument | Required | Default | Description |
 |---|---|---|---|
 | `--clips-csv` | Yes | - | Master clips CSV. |
-| `--data-root` | No* | - | `ShuttleSet_data_{taxonomy}` dir; enables `*_flat` auto-discovery. |
+| `--data-root` | No* | - | Directory containing one flat per-clip NPY subdirectory; enables `*_flat` auto-discovery. |
 | `--dataset-npy-dir` | No* | - | Explicit flat per-clip dir holding `{clip_stem}_failed.npy`. |
 | `--split-column` | No | `split_bst_baseline` | Column in clips_csv giving train/val/test assignment. |
 | `--taxonomy` | No | `une_v1_14` | Taxonomy name. Its exclusion rules determine which raw rows are dropped. |
@@ -195,4 +197,4 @@ See also `src/bst_x/pipeline/clip_index.py`: the analogous helper for Datasets n
 - Python 3.10+ (uses `X | None` union syntax)
 - `numpy`, `matplotlib`, `pandas` — all available in the mmpose venv
 - `zoneinfo` — stdlib (Python 3.9+)
-- `classifier_shared.taxonomy` (in-repo): both CLI scripts use its registry and label derivation for the `--taxonomy` choices.
+- `classifier_shared.taxonomy` (in-repo): taxonomy lookup and label derivation.

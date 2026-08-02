@@ -24,7 +24,12 @@ from pipeline.config import (
     RAW_VIDEO_DIR, CLIPS_OUTPUT_DIR, RESOLUTION_CSV_PATH,
     SPLITS, EXCLUDED_VIDEOS, REMOVED_SHOTS, CLIP_WINDOW,
 )
-from classifier_shared.taxonomy import TAXONOMIES, Taxonomy, taxonomy_lookup
+from classifier_shared.taxonomy import (
+    BST_X_TAXONOMIES,
+    TAXONOMIES,
+    Taxonomy,
+    taxonomy_lookup,
+)
 
 from pipeline.download_videos import download_all_videos, build_resolution_csv
 from pipeline.clip_generator import generate_all_clips, apply_class_merge
@@ -284,7 +289,8 @@ if __name__ == '__main__':
                         help='Skip TrackNetV3 shuttle trajectory extraction')
     parser.add_argument('--no-merge', action='store_true',
                         help='Skip class merging (keep all 19 stroke types)')
-    parser.add_argument('--taxonomy', default=_DEFAULT_TAXONOMY_NAME, choices=list(TAXONOMIES.keys()),
+    parser.add_argument('--taxonomy', default=_DEFAULT_TAXONOMY_NAME,
+                        choices=list(BST_X_TAXONOMIES),
                         help=f'Stroke type taxonomy (default: {_DEFAULT_TAXONOMY_NAME})')
     parser.add_argument('--dry-run', action='store_true',
                         help='Preview what the pipeline would do without executing')

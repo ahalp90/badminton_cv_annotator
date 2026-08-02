@@ -9,7 +9,7 @@ lane share the TrackNetV3 inference tree.
 | Module | Purpose |
 | --- | --- |
 | `court.py` | Court homography, projection, normalisation, and reference dimensions. |
-| `tracknetv3/` | Canonical TrackNetV3 and InpaintNet inference code. |
+| `tracknetv3/` | TrackNetV3 and InpaintNet inference code. |
 
 Classifier-only utilities live in [`classifier_shared`](../classifier_shared/).
 

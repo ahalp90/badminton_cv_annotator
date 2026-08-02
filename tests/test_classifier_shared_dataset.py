@@ -1,4 +1,4 @@
-"""Contracts for the consolidated classifier dataset helpers."""
+"""Tests for classifier dataset helpers."""
 
 from pathlib import Path
 

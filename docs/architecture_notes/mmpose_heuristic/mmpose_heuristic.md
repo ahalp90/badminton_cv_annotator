@@ -56,8 +56,9 @@ Active dirs on `/scratch/comp320a/` (bourbaki + engelbart, byte-identical across
 | `ShuttleSet_keypoints_clean_sticky_anchor_unknown/` | sticky_anchor output for unknown | 1,278 |
 | `ShuttleSet_keypoints_raw_provenance/` | per-stem provenance siblings | n/a |
 
-Unknown is held in separate sibling dirs so it cannot accidentally enter the training set
-through a permissive glob. Active training taxonomies exclude it in their taxonomy rules.
+Unknown is held in separate sibling dirs so it cannot accidentally enter a taxonomy that
+excludes it through a permissive glob. `bst_25` and `une_v1_15` load it from the separate
+unknown input directory.
 
 Per-clip raw schema (5 files per stem):
 

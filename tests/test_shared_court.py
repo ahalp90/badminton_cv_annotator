@@ -1,4 +1,4 @@
-"""Contract tests for the consolidated court helpers."""
+"""Tests for shared court helpers."""
 
 import pandas as pd
 import pytest

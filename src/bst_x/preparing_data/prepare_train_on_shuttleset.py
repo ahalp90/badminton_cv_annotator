@@ -57,13 +57,14 @@ from pipeline.config import (
     derive_npy_collated_dir_basename,
 )
 from classifier_shared.taxonomy import (
-    TAXONOMIES,
+    BST_X_TAXONOMIES,
     Taxonomy,
     derive_class_index,
     taxonomy_lookup,
 )
 from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
-# Re-export check_pos_in_court for the indirect current.py consumer.
+# Court helpers live in shared.court; re-export check_pos_in_court so the
+# heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from shared.court import build_all_court_info, check_pos_in_court  # noqa: F401
 # Shared doubles-guard head count. No import cycle: base.py pulls in no pipeline
 # code, and the heuristics modules import this module only lazily inside functions.
@@ -810,7 +811,7 @@ def main():
     parser.add_argument(
         "--taxonomy",
         default="une_v1_14",
-        choices=list(TAXONOMIES.keys()),
+        choices=list(BST_X_TAXONOMIES),
         help="Stroke type taxonomy (default: une_v1_14). Drives derive_class_index "
              "per-row index + the unknown-filter rule via "
              "excluded_base_stroke_types.",

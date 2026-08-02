@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Render a classifier prediction file as a dual-panel confusion matrix."""
+"""Confusion matrix render for the supervisor presentation.
+
+Reads a per-split predictions npz (``<split>_serial_<n>.npz`` produced by
+``bst_x_train`` at end-of-serial, or post-hoc by ``bst_x_infer --fe``) and renders a
+dual-panel confusion matrix: precision-normalised (columns sum to 1) and
+recall-normalised (rows sum to 1). Classes are ordered ascending by
+per-class F1.
+
+The 'Blues' colourmap is a single-hue sequential, universally readable
+(protanopia-safe by virtue of being one-hue).
+
+Usage::
+
+    python scripts/plots/confusion_matrix.py \\
+        --predictions experiments/bst_x/shuttleset/run_<id>/predictions/test_serial_5.npz
+"""
 
 from __future__ import annotations
 
@@ -16,6 +31,9 @@ from classifier_shared.eval_plots import plot_confusion_matrix  # noqa: E402
 
 DEFAULT_OUT_PATH = REPO_ROOT / 'local_scratch/presentation_prep/confusion_matrix.png'
 
+# Mapping from raw run_id to the in-doc / in-chat common name. Used to title the figure
+# so the reader sees the ablation by its working name first, run_id second. Extend as
+# new runs get rendered; missing entries fall back to the run_id alone.
 RUN_LABELS: dict[str, str] = {
     'run_20260505_154907': 'aug v1 + p_jit=0.3',
     'run_20260503_172922': 'shuttle_zero_fix [wipe_drop]',
@@ -39,14 +57,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         '--predictions', type=Path, required=True,
-        help='Predictions NPZ written by bst_x_train or bst_x_infer --fe',
+        help='Path to a predictions/<split>_serial_<n>.npz dumped by '
+             'bst_x_train (end-of-serial) or bst_x_infer --fe',
     )
     parser.add_argument('--out', type=Path, default=DEFAULT_OUT_PATH)
     parser.add_argument(
         '--figsize', type=_parse_figsize, default=(20.0, 9.0),
-        help='Figure width and height in inches, formatted as W,H',
+        help='W,H in inches; bump for taxonomies with many classes '
+             '(e.g. 28,13 for ~24)',
     )
-    parser.add_argument('--font-size', type=int, default=9)
+    parser.add_argument(
+        '--font-size', type=int, default=9,
+        help='tick and cell-annotation font size',
+    )
     args = parser.parse_args()
 
     payload = np.load(args.predictions, allow_pickle=True)
@@ -57,7 +80,7 @@ def main() -> None:
 
     plot_confusion_matrix(
         y_true=payload['y_true'],
-        y_pred=payload['y_pred_top1'],
+        y_pred=payload['y_pred_top1'],  # argmax preds (top-1 of the top-k dump)
         class_names=list(payload['class_list']),
         model_name=f'{run_label} S{serial_no}',
         font_size=args.font_size,

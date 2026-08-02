@@ -7,7 +7,9 @@ Replicates the clipping logic from gen_my_dataset.py using only the CSV annotati
 import sys
 from pathlib import Path
 
-# Allow importing both classifier_shared and pipeline when invoked directly.
+# Allow importing classifier_shared and pipeline when invoked directly.
+# validation_scripts/ is one level below src/bst_x/, so parents[1] resolves to
+# the bst_x package root and its parent resolves to src/.
 BST_X_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BST_X_ROOT.parent))
 sys.path.insert(0, str(BST_X_ROOT))

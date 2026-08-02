@@ -260,7 +260,8 @@ label derivation live in `classifier_shared/taxonomy.py`.
 
 | Constant | Description |
 |---|---|
-| `TAXONOMIES` | Dict of pinned `Taxonomy` instances. It includes the six BST-X names plus retained BRIC compatibility names. Each pins its ordered classes and merge rules. |
+| `BST_X_TAXONOMIES` | BST-X command registry containing `bst_25`, `bst_24`, `bst_12`, `une_v1_14`, `une_v1_15`, and `shuttleset_18`. |
+| `TAXONOMIES` | Complete classifier registry containing the BST-X taxonomies and BRIC label spaces. |
 | `taxonomy_lookup()` | Look up a `Taxonomy` by canonical name; raises `KeyError` for unknown names. |
 | `derive_class_index()` | The single per-row label decision: `excluded_base_stroke_types` (drop), then `merge_map`, then side-prefixing. Shared by the collator and `data_access`. |
 | `NOSIDE_FOLDERS` | Frozenset of raw types that get one flat folder at clip generation instead of split `Top_`/`Bottom_` folders (`{'unknown', 'driven_flight'}`). Disk-layout concern; not a taxonomy property. |
@@ -293,7 +294,9 @@ Update `data/shuttleset/flaw_shot_records.csv`. The pipeline reads it at import 
 
 | Module | Purpose |
 |---|---|
-| `config.py` | All constants, paths, stroke types, splits, flaw records |
+| `config.py` | BST-X paths, splits, and pipeline constants |
+| `classifier_shared/taxonomy.py` | Classifier taxonomy definitions, stroke mappings, and label derivation |
+| `classifier_shared/dataset.py` | ShuttleSet paths, flaw parsing, split metadata, and clip bounds |
 | `classifier_shared/player_mapping.py` | A/B to Top/Bottom mapping with set 3 court-switch handling |
 | `download_videos.py` | yt-dlp downloader + resolution CSV builder |
 | `clip_generator.py` | Clip extraction, flaw filtering, class merging |

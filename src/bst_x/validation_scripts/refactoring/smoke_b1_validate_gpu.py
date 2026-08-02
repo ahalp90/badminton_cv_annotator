@@ -28,7 +28,8 @@ import torch
 from torch import nn
 
 # script lives at src/bst_x/validation_scripts/refactoring/<name>.py;
-# parents[2] is src/bst_x/. Its parent is the shared package root.
+# parents[2] is src/bst_x/, where bst_x_train and friends live.
+# Its parent is the shared package root.
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 sys.path.insert(0, str(SRC.parent))

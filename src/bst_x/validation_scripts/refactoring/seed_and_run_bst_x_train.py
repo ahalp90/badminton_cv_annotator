@@ -31,7 +31,8 @@ from pathlib import Path
 import torch
 
 # script lives at src/bst_x/validation_scripts/refactoring/<name>.py;
-# parents[2] is src/bst_x/. Its parent holds shared classifier packages.
+# parents[2] is src/bst_x/, the package root runpy.run_module needs on sys.path.
+# Its parent holds shared classifier packages.
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
 sys.path.insert(0, str(SRC.parent))

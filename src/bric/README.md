@@ -28,8 +28,8 @@ src/bric/
     └── debug_court_bias.py   # Per-stroke court coord diagnostics
 ```
 
-Cross-pipeline court geometry and TrackNetV3 live in `src/shared/`.
-Classifier-only player mapping, plotting, and video metadata live in
+Court geometry and TrackNetV3 live in `src/shared/`. Taxonomy, dataset helpers,
+player mapping, plotting, and video metadata live in
 `src/classifier_shared/`. A
 per-stroke clip slicer (`shared/slicer.py`) is planned for PR 4 as
 the cross-arch primitive for the live-upload inference path.

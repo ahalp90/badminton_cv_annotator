@@ -1,9 +1,9 @@
-"""Plotting helpers shared by classifier evaluation tools.
+"""Plotting helpers for classification eval.
 
-Adapted from ``src/bst_x/result_utils.py`` and the presentation renderer.
-Produces a dual-panel precision- and recall-normalised
-confusion matrix with classes ordered ascending by per-class F1 so the
-worst-performing pairs cluster at the bottom-left.
+Adapted from src/bst_x/result_utils.py and
+scripts/plots/confusion_matrix.py (Ari's presentation-polish
+version). Produces a dual-panel precision- and recall-normalised
+confusion matrix with classes ordered ascending by per-class F1.
 """
 from __future__ import annotations
 
@@ -21,7 +21,12 @@ SAVE_DPI = 160
 
 
 def annotate_cells(ax: Axes, matrix: np.ndarray, font_size: int) -> None:
-    """Write each cell value in white on dark / black on light."""
+    """Write the value of each cell in white on dark / black on light.
+
+    :param ax: target axis
+    :param matrix: 2-D normalised matrix (values in [0, 1])
+    :param font_size: text size for cell annotations
+    """
     threshold = matrix.max() / 2.0
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
@@ -43,10 +48,17 @@ def render_panel(
     primary_axis: str,
     font_size: int = DEFAULT_FONT_SIZE,
 ) -> None:
-    """Heatmap a normalised matrix onto one axis with class-name ticks.
+    """Heatmap one normalised matrix onto a single axis with class-name ticks.
 
-    :param primary_axis: 'x' or 'y'; the axis whose label is bolded to flag the
+    :param fig: figure for the colourbar
+    :param ax: target axis
+    :param matrix: 2-D normalised matrix
+    :param class_names: tick labels in the same order as matrix rows/cols
+    :param title: panel title
+    :param subtitle: italic reading-hint line drawn just under the title
+    :param primary_axis: "x" or "y"; the axis whose label is bolded to flag the
         direction along which the matrix's values form a proper distribution.
+    :param font_size: text size for ticks and cell annotations
     """
     im = ax.imshow(matrix, interpolation='nearest', cmap='Blues', vmin=0, vmax=1)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -60,6 +72,7 @@ def render_panel(
                   fontweight='bold' if primary_axis == 'x' else 'normal')
     ax.set_ylabel('ground truth',
                   fontweight='bold' if primary_axis == 'y' else 'normal')
+    # pad lifts the title to leave room for the italic subtitle sitting at the axes edge.
     ax.set_title(title, pad=24)
     ax.text(0.5, 1.01, subtitle, transform=ax.transAxes,
             ha='center', va='bottom', fontstyle='italic', fontsize=font_size)
@@ -78,8 +91,7 @@ def plot_confusion_matrix(
 ) -> None:
     """Plot precision- and recall-normalised confusion matrices side by side.
 
-    Classes are reordered ascending by per-class F1 so the worst-performing
-    pairs sit at the bottom-left where confusions tend to cluster.
+    Classes are reordered ascending by per-class F1.
 
     :param y_true: shape (N,) class indices, or (N, C) one-hot if need_pre_argmax.
     :param y_pred: shape (N,) class indices, or (N, C) logits/probs if need_pre_argmax.
@@ -94,7 +106,7 @@ def plot_confusion_matrix(
 
     n_classes = len(class_names)
 
-    # Per-class F1 → ascending sort. Worst classes end up bottom-left.
+    # Per-class F1 → ascending sort.
     per_class_f1 = f1_score(y_true, y_pred, average=None, labels=np.arange(n_classes))
     order = np.argsort(per_class_f1)
     sorted_names = [class_names[i] for i in order]

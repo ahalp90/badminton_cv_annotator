@@ -33,6 +33,7 @@ import yaml
 from torch import nn
 
 from classifier_shared.taxonomy import (
+    BST_X_TAXONOMIES,
     NOSIDE_CLASSES,
     TAXONOMIES,
     TAXONOMY_BST_12,
@@ -95,6 +96,24 @@ def test_taxonomy_n_classes_expected_per_taxonomy():
     assert TAXONOMY_SHUTTLESET_18.n_classes == 18
 
 
+def test_bst_x_registry_contains_expected_taxonomies():
+    assert tuple(BST_X_TAXONOMIES) == (
+        'bst_25',
+        'bst_24',
+        'bst_12',
+        'une_v1_14',
+        'une_v1_15',
+        'shuttleset_18',
+    )
+
+
+def test_full_registry_contains_bric_taxonomies():
+    assert set(TAXONOMIES) - set(BST_X_TAXONOMIES) == {
+        'une_merge_v1_nosides',
+        'raw_35',
+    }
+
+
 def test_deployed_bric_taxonomy_contract_matches_manifests():
     manifests = sorted(DEPLOYED_BRIC_DIR.glob('*/manifest.yaml'))
     assert manifests, 'expected at least one deployed BRIC manifest'
@@ -109,7 +128,7 @@ def test_deployed_bric_taxonomy_contract_matches_manifests():
         assert taxonomy.n_trainable_classes == manifest['model_size']['num_classes']
 
 
-def test_legacy_bric_taxonomies_keep_pinned_full_spaces():
+def test_bric_taxonomy_class_spaces():
     assert TAXONOMY_UNE_MERGE_V1_NOSIDES.n_classes == 15
     assert TAXONOMY_UNE_MERGE_V1_NOSIDES.n_trainable_classes == 14
     assert TAXONOMY_UNE_MERGE_V1_NOSIDES.classes[-1] == 'unknown'

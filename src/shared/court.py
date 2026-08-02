@@ -14,8 +14,6 @@ Two ways to use this module:
    Use `load_all_court_info()` and `get_court_info()` to load BST's
    pre-computed matrices for ShuttleSet videos.
 
-``HOMOGRAPHY_RESOLUTION`` is defined locally so this module has no classifier
-package dependency.
 """
 
 from pathlib import Path
@@ -88,6 +86,8 @@ def get_court_info(homo_df: pd.DataFrame, vid: int) -> dict:
     corner_camera = get_corner_camera(homography_info)
     corner_camera = convert_homogeneous(corner_camera)
     corner_court = project(H, corner_camera)
+    # CSV corner columns arrive (upleft, upright, downleft, downright), so R
+    # reads from column 1 (upright) and D from column 2 (downleft).
     return {
         'H': H,
         'border_L': corner_court[0, 0],
@@ -133,13 +133,16 @@ def check_pos_in_court(
         boolean and pos_court_normalized is (m, 2).
     """
     n_people = keypoints.shape[0]
-    feet_camera = keypoints[:, -2:, :].reshape(-1, 2).T
-    feet_court = to_court_coordinate(feet_camera, vid, all_court_info, res_df)
-    feet_court = feet_court.reshape(2, n_people, -1)
-    pos_court = feet_court.mean(axis=-1)
-    pos_court_normalized = normalize_position(pos_court, court_info=all_court_info[vid]).T
 
-    eps = 0.01
+    # Use foot keypoints (last 2 joints in COCO format) as position proxy
+    feet_camera = keypoints[:, -2:, :].reshape(-1, 2).T  # (2, n_people*2)
+    feet_court = to_court_coordinate(feet_camera, vid, all_court_info, res_df)
+    feet_court = feet_court.reshape(2, n_people, -1)  # (2, n_people, 2)
+
+    pos_court = feet_court.mean(axis=-1)  # midpoint between feet, (2, n_people)
+    pos_court_normalized = normalize_position(pos_court, court_info=all_court_info[vid]).T  # (m, 2)
+
+    eps = 0.01  # soft border tolerance
     dim_in_court = (pos_court_normalized > -eps) & (pos_court_normalized < (1 + eps))
     in_court = dim_in_court[:, 0] & dim_in_court[:, 1]
     return in_court, pos_court_normalized
@@ -152,10 +155,13 @@ def load_all_court_info(homo_csv_path: Path) -> dict:
 
 
 def build_all_court_info(set_info_dir: Path, res_df: pd.DataFrame) -> dict:
-    """Build court info for every video represented in ``res_df``.
+    """Build ``{vid: court_info}`` for every video in ``res_df``.
 
-    Indexing from the resolution table is intentional. A missing homography
-    therefore fails immediately instead of silently omitting a video.
+    Reads homography.csv from ``set_info_dir`` and keys the result on
+    ``res_df.index`` (the resolution rows), NOT on homography.csv's own index,
+    on purpose: a video with a resolution row but no homography row KeyErrors
+    here, loud and early, rather than being silently dropped and failing
+    deeper in the pipeline.
     """
     homo_df = pd.read_csv(set_info_dir / 'homography.csv').set_index('id')
     return {vid: get_court_info(homo_df, vid) for vid in res_df.index}

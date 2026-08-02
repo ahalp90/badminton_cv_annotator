@@ -115,8 +115,9 @@ The pipeline downloads match videos, cuts them into labeled stroke clips, option
 
 | Module | Role | Key functions / concepts |
 |--------|------|--------------------------|
-| `config.py` | BST-X paths, split membership, and pipeline constants. | `SPLITS` (excluded videos auto-stripped), `EXCLUDED_VIDEOS`, `REMOVED_SHOTS`, and `NOSIDE_FOLDERS`. Flaw parsing is delegated to `classifier_shared.dataset` with the BST-X data path passed explicitly. |
-| `classifier_shared/taxonomy.py` | Single classifier taxonomy and stroke-mapping implementation shared by BST-X and BRIC. | `Taxonomy`, `TAXONOMIES`, `taxonomy_lookup()`, `derive_class_index()`, `UNE_MERGE_V1_MAP`, `MERGE_MAP_25`, and the English/Chinese stroke mappings. |
+| `config.py` | BST-X paths, split membership, and pipeline constants. | `SPLITS`, `EXCLUDED_VIDEOS`, `REMOVED_SHOTS`, and `NOSIDE_FOLDERS`. |
+| `classifier_shared/taxonomy.py` | Classifier taxonomy definitions, stroke mappings, and label derivation. | `Taxonomy`, `TAXONOMIES`, `taxonomy_lookup()`, `derive_class_index()`, `UNE_MERGE_V1_MAP`, `MERGE_MAP_25`, and the English/Chinese stroke mappings. |
+| `classifier_shared/dataset.py` | ShuttleSet paths, flaw parsing, split metadata, and clip bounds. | `ANNOTATIONS_DIR`, `FLAW_RECORDS_PATH`, `SPLITS_V2_PATH`, `parse_flaw_records()`, and `compute_clip_bounds()`. |
 | `build_dataset.py` | One-command orchestrator. Runs steps 1-6 in order with CLI flags to skip individual steps (`--skip-download`, `--skip-resolution`, `--skip-clips`, `--skip-verify`, `--skip-shuttle`). `--skip-clips` skips both clip generation (step 3) and class merge (step 4) since they are tightly coupled: the merge moves clips out of their original folders, so re-running step 3 after a merge would re-generate them from video. | `run_pipeline()` (main entry point), `dry_run()` (preview without side effects), `_validate_inputs()` (fail-fast checks before long work). |
 | `download_videos.py` | Downloads 40 ShuttleSet match videos from YouTube via yt-dlp. Also builds a resolution CSV by scanning each video with OpenCV. | `download_all_videos(max_workers)`, `build_resolution_csv()`. Output: `data/shuttleset/raw_video/{id} {match_name}.mp4` and `data/shuttleset/my_raw_video_resolution.csv`. |
 | `clip_generator.py` | Extracts individual stroke clips from full match videos. Reads ShuttleSet CSV annotations (Chinese column names), maps A/B players to Top/Bottom, filters excluded videos and removed shots, and organizes clips into `{split}/{Player}_{stroke_type}/` folders. | `generate_all_clips()`, `apply_class_merge()` (moves clips from rare subtype folders into their parent type folders per the active taxonomy's merge map). Three clip window modes: `middle_in_a_sec`, `between_2_hits`, `between_2_hits_with_max_limits` (default, clamps to 1.5s each side). |
@@ -176,7 +177,7 @@ ln -s /scratch/comp320a/ShuttleSet_data_une_v1_14 ShuttleSet_data_une_v1_14
 
 If running locally or without scratch, no setup is needed -- the script creates `ShuttleSet_data_{taxonomy}/` and all subdirectories automatically.
 
-**Taxonomy independence of pose data:** Pose data is physically taxonomy-independent. Clip filenames (`{vid}_{set}_{rally}_{ball}`) are physical identifiers -- the same clip produces byte-identical keypoints regardless of which taxonomy folder it sits in. In principle, pose results from one taxonomy can be reused by another via filename matching (the folder structure differs but the data is identical). A future refactor could flatten pose output entirely and defer taxonomy-aware organization to collation.
+**Taxonomy independence of pose data:** Phase-2 pose data is already flat and taxonomy-independent. `BST_X_RTMPOSE_NPY_DIR` points to `ShuttleSet_keypoints_clean_sticky_anchor/`, where each clip stem identifies one set of pose arrays. The collator applies the selected taxonomy and writes the result under `ShuttleSet_data_<taxonomy>/`.
 
 #### CLI usage
 
@@ -263,20 +264,24 @@ Before training, run the validation scripts to assess detection quality. Two ind
 
 #### Usage
 
-Run from `src/bst_x/` (rtmlib or BST venv -- only needs numpy, matplotlib, pandas):
+Run from the repository root (rtmlib or BST venv -- only needs numpy, matplotlib, pandas):
 
 ```bash
-# Minimal (pose failure stats only):
-python validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
+# Minimal (current Phase-2 pose failure stats only):
+python src/bst_x/validation_scripts/validate_zeroed_frames.py \
+    --data-root /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --split-column split_v2 \
     --taxonomy une_v1_14
 
 # Full (adds flaw cross-reference, hit-frame proximity, shuttle analysis):
-python validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
+python src/bst_x/validation_scripts/validate_zeroed_frames.py \
+    --data-root /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_keypoints_clean_sticky_anchor \
+    --split-column split_v2 \
     --taxonomy une_v1_14 \
     --set-dir data/shuttleset/set \
-    --shuttle-npy-dir data/shuttleset/shuttle_npy
+    --shuttle-npy-dir /scratch/comp320a/ShuttleSet/shuttle_npy_flat
 ```
 
 Optional flags: `--threshold` (flagged-clip cutoff, default 0.5), `--hit-window` (frames either side of hit, default 10), `--taxonomy` (for label derivation and output filenames, default `une_v1_14`).
@@ -509,7 +514,8 @@ Lightweight script for loading a trained checkpoint and predicting stroke types.
 ### Full dependency chain (BST-X on ShuttleSet)
 
 ```
-pipeline/config.py                     # Taxonomy, stroke types, splits, paths, merge map
+classifier_shared/taxonomy.py          # Taxonomy, stroke types, class labels, merge map
+pipeline/config.py                     # Paths, splits, pipeline settings
     |
     v
 pipeline/build_dataset.py             # Orchestrates Steps 1-6 (--taxonomy flag)
@@ -554,7 +560,8 @@ result_utils.py                       # F1 scores, confusion matrices
 ### What stays the same
 
 - **The entire `pipeline/` directory.** The pipeline produces labeled video clips and shuttle trajectories. It is model-agnostic -- it doesn't know or care what architecture consumes its output.
-- **`pipeline/config.py`** remains the single source of truth for stroke types, class labels, splits, and merge rules. Your custom dataset loader should import from here to stay in sync.
+- **`classifier_shared/taxonomy.py`** is the single source of truth for stroke types, class labels, and merge rules. Your custom dataset loader should import taxonomy definitions from here to stay in sync.
+- **`pipeline/config.py`** provides dataset paths, splits, and pipeline settings.
 - **`result_utils.py`** works with any model that produces `(predictions, ground_truth)` tensors. `show_f1_results()` and `plot_confusion_matrix()` are architecture-agnostic.
 
 ### What changes or may be replaced
