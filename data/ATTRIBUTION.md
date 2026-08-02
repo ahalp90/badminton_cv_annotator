@@ -15,9 +15,8 @@ Tsi-Ui Ik and Wen-Chih Peng. Source: https://github.com/wywyWang/CoachAI-Project
                  Badminton Tactical Analysis},
       journal = {CoRR}, volume = {abs/2306.04948}, year = {2023}}
 
-The annotation CSVs are MIT (above). The underlying match videos they reference,
-and any clip excerpts, remain the copyright of their original broadcasters;
-see scripts/api_fixtures/README.md.
+The annotation CSVs are MIT (above). The underlying match videos they reference
+remain the copyright of their original broadcasters.
 
 ```
 MIT License

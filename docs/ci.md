@@ -1,14 +1,12 @@
 # CI / CD
 
-CI lives in `.github/workflows/` — the YAML is commented. No auto-deploy: prod is
-still a manual `docker compose -f docker-compose.prod.yml up --build -d` (see
-`DEPLOYMENT.md`). This doc covers only what you can't get from reading the YAML.
+CI lives in `.github/workflows/`. The retired web demo and its deployment
+workflow are no longer tested or deployed.
 
 ## What runs
 
 **`ci.yml`** (PRs + pushes to `main`), all blocking:
-`lint` (ruff) · `test` (pytest) · `frontend` (npm build; self-skips if `frontend/`
-is removed) · `docker-build` (builds the images, no push).
+`lint` (ruff and pyrefly) · `test` (pytest).
 
 **`pr-quality.yml`** (PRs, all non-blocking):
 `commit-lint` (compatibility status for existing branch protection) · `pr-body`
@@ -45,9 +43,9 @@ secrets, so it runs on in-repo branches only.
 
 ## Dependencies
 
-`requirements.txt` is pinned from `uv.lock` so CI installs what the image ships.
-`torch`/`torchvision` are unpinned — CI and the Dockerfile install them from an
-explicit PyTorch index first. After changing deps, run
+`requirements.txt` is pinned from `uv.lock` so CI uses a repeatable dependency
+set. `torch` and `torchvision` are unpinned because CI installs their CPU builds
+from the PyTorch index first. After changing dependencies, run
 `./scripts/gen-requirements.sh --check` and update any drifted pins.
 
 ## Branch protection
