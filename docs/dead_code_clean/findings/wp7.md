@@ -46,11 +46,11 @@ WP7-19 | C | scripts/validate_videos.py:main | LIVE TOOL: the repository review 
 
 WP7-20 | D-prod | src/bst_x/validation_scripts/calibration_ece.py:main | ONE-SHOT GATE: calibration analysis is pinned to completed run artefacts and is referenced as a finished downstream check. | evidence: src/bst_x/validation_scripts/calibration_ece.py:1-16, src/bst_x/validation_scripts/refactoring/README.md:19-20; roots: audit_plan.md:25-36; no production caller | archive candidate with generated calibration evidence | confidence high
 
-WP7-21 | D-prod | src/bst_x/validation_scripts/collation_fulldiff.py:main | ONE-SHOT GATE: this is a completed refactor parity utility retained as evidence of byte-identical collation. | evidence: src/bst_x/validation_scripts/refactoring/README.md:26-37, docs/architecture_notes/completed_general_refactors/simplification_pass/refactor_worklog.md:376-387; roots: audit_plan.md:25-36; no production caller | archive candidate | confidence high
+WP7-21 | D-prod | src/bst_x/validation_scripts/collation_fulldiff.py:main | ONE-SHOT GATE: this is a completed refactor parity utility retained as evidence of byte-identical collation. | evidence: src/bst_x/validation_scripts/refactoring/README.md:26-37, docs/archive/completed_general_refactors/simplification_pass/refactor_worklog.md:376-387; roots: audit_plan.md:25-36; no production caller | archive candidate | confidence high
 
 WP7-22 | D-prod | src/bst_x/validation_scripts/compute_clip_length_stats.py:main | ONE-SHOT GATE: the CSV-only clip-length calculation is cited as the extraction used for the completed EDA notebook. | evidence: notebooks/01_shuttleset_eda_v3.ipynb:85, src/bst_x/validation_scripts/hit_frame_lookup.py:9; roots: audit_plan.md:25-36; no production caller | archive candidate | confidence med
 
-WP7-23 | C | src/bst_x/validation_scripts/fail_rate_per_class.py:main | LIVE TOOL: the validation README documents two current CLI forms for per-class fail-rate analysis. | evidence: src/bst_x/validation_scripts/README.md:114-155, docs/architecture_notes/completed_general_refactors/dir_flatten_refactor.md:100; roots: audit_plan.md:25-36 | leave as reusable validation tooling | confidence high
+WP7-23 | C | src/bst_x/validation_scripts/fail_rate_per_class.py:main | LIVE TOOL: the validation README documents two current CLI forms for per-class fail-rate analysis. | evidence: src/bst_x/validation_scripts/README.md:114-155, docs/archive/completed_general_refactors/dir_flatten_refactor.md:100; roots: audit_plan.md:25-36 | leave as reusable validation tooling | confidence high
 
 WP7-24 | D-prod | src/bst_x/validation_scripts/failsafe_bst_mmpose_zeroing_check_equivalence.py:main | ONE-SHOT GATE: the completed MMPose heuristic pass used this byte-identity gate as critical verification infrastructure. | evidence: docs/architecture_notes/mmpose_heuristic/mmpose_heuristic.md:103-165, :394; docs/architecture_notes/pre_phase_2_review_2026-04-26.md:112; roots: audit_plan.md:25-36; no production caller | archive candidate with the parity result | confidence high
 
@@ -128,7 +128,7 @@ WP7-60 | C | src/bst_x/validation_scripts/shuttle_gap_y_distribution.py:main | L
 
 WP7-61 | C | src/bst_x/validation_scripts/validate_zeroed_frames.py:main | LIVE TOOL: the data-pipeline guide and validation README document this pre-training data-quality CLI. | evidence: src/bst_x/validation_scripts/README.md:43-112, src/bst_x/data_pipeline_to_model_train.md:257-292; roots: audit_plan.md:25-36 | leave as reusable validation tooling | confidence high
 
-WP7-62 | C | src/bst_x/validation_scripts/verify_bst_x_train_target.py:main | LIVE TOOL: the actual filename is referenced by the structure-and-guards plan, although its module docstring still shows the stale shorter filename. | evidence: docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md:172, src/bst_x/validation_scripts/verify_bst_x_train_target.py:8-14; roots: audit_plan.md:25-36 | leave live, with the stale invocation treated as documentation drift | confidence high
+WP7-62 | C | src/bst_x/validation_scripts/verify_bst_x_train_target.py:main | LIVE TOOL: the actual filename is referenced by the structure-and-guards plan, although its module docstring still shows the stale shorter filename. | evidence: docs/archive/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md:172, src/bst_x/validation_scripts/verify_bst_x_train_target.py:8-14; roots: audit_plan.md:25-36 | leave live, with the stale invocation treated as documentation drift | confidence high
 
 WP7-63 | C | src/bst_x/validation_scripts/verify_env_paths.py:main | LIVE TOOL: the validation README documents this as a pre-flight guard for the BST environment paths. | evidence: src/bst_x/validation_scripts/README.md:157-170, src/bst_x/validation_scripts/verify_env_paths.py:8-13; roots: audit_plan.md:25-36 | leave as pre-flight tooling | confidence high
 
@@ -166,7 +166,7 @@ WP7-77 | C | src/bric/diagnostics/validate_rgb.py:main | LIVE TOOL: BRIC documen
 
 `src/shared/eval_plots.py:3-7` references `scripts/plots/confusion_matrix.py`; the shared plotting owner should decide whether the presentation script remains separately needed.
 
-`scripts/archive` boundary: tracked hits are historical documentation and Ruff exclusions at `docs/architecture_notes/collation_taxon_pin_w_preds_refactor_log.md:61`, `docs/architecture_notes/completed_general_refactors/annotator_cleanup/README.md:27`, `pyproject.toml:154,178-179`, plus archive self-usage; no non-archive live-code import, path load or subprocess call into `scripts/archive` was found.
+`scripts/archive` boundary: tracked hits are historical documentation and Ruff exclusions at `docs/architecture_notes/collation_taxon_pin_w_preds_refactor_log.md:61`, `docs/archive/completed_general_refactors/annotator_cleanup/README.md:27`, `pyproject.toml:154,178-179`, plus archive self-usage; no non-archive live-code import, path load or subprocess call into `scripts/archive` was found.
 
 ## 4. NOT CHECKED
 

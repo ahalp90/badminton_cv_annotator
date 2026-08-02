@@ -110,7 +110,7 @@ End-of-refactor sweep targets. Updated as new finds emerge during execution.
 - `docs/architecture_notes/bst_x_overview.md` (active baseline pointer)
 - `docs/models_registry.yaml` (taxonomy field; leave-via-alias or re-key)
 - `docs/architecture_notes/unknown_channel_fix_review.md` (archived design doc, deprecated symbol refs; pure history)
-- `docs/architecture_notes/completed_general_refactors/data_access_integration_plan.md` (archived design doc, deprecated symbol refs; pure history)
+- `docs/archive/completed_general_refactors/data_access_integration_plan.md` (archived design doc, deprecated symbol refs; pure history)
 - `src/bst_x/validation_scripts/README.md` (line 163 references `derive_ablation_id`)
 - `scratch/research/dump_videos_len.py` (uses old `derive_npy_collated_dir_basename` signature; TypeError on invocation; ad-hoc inspection script Ariel likely reaches for during X3D-S work — fix when next touched)
 

@@ -1,7 +1,7 @@
 # LEGACY OpenMMLab stack. Nothing live runs it: the 2D extraction path migrated
 # to rtmlib (see requirements.txt in this dir) and the 3D stream was removed.
 # Kept solely as the environment for the parked 3D revival design
-# (docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md).
+# (docs/archive/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md).
 #
 # Python 3.11.X; mmcv 2.1.0 cannot build on 3.12 (no wheels, distutils removed).
 # Install into a SEPARATE venv from the rtmlib extraction venv (numpy<2 here vs

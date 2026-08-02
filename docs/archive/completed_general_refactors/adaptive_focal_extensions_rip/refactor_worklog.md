@@ -136,6 +136,6 @@ None during execution. All discoveries either folded into the current batch's co
 Landed in the follow-up close-out commit that also created this dir:
 
 - **Annotated `docs/architecture_notes/function_invariants/train_network.md`.** Per historical-refs item 10, this doc is a snapshot of the 30 June simplification pass and does not track live code. Added a 2026-07-01 historical note at the top under the existing pre-pass-snapshot frontmatter, naming the extension symbols that came out and pointing at the reversal sketch. Body unchanged.
-- **Annotated `docs/architecture_notes/completed_general_refactors/simplification_pass/simplification_review.md:61`.** Single `apply_val_gate` mention in a "clean on the simplification lens" note gets a historical-footnote paragraph flagging the retirement.
+- **Annotated `docs/archive/completed_general_refactors/simplification_pass/simplification_review.md:61`.** Single `apply_val_gate` mention in a "clean on the simplification lens" note gets a historical-footnote paragraph flagging the retirement.
 - **Filled in the sketch's `Removed:` banner SHA** with `39e72a5`.
 - **Created this dir** (README, refactor_summary, refactor_worklog, historical_refs_decisions).

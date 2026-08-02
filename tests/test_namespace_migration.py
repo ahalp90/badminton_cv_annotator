@@ -520,8 +520,8 @@ def test_t11_stage5_legacy_env_vars():
     allowed = {
         'docs/architecture_notes/namespace_migration_test_design.md',
         'docs/architecture_notes/pre_phase_2_tidy_plan.md',
-        'docs/architecture_notes/completed_general_refactors/data_access_integration_plan.md',
-        'docs/architecture_notes/completed_general_refactors/dir_flatten_refactor.md',
+        'docs/archive/completed_general_refactors/data_access_integration_plan.md',
+        'docs/archive/completed_general_refactors/dir_flatten_refactor.md',
         'docs/architecture_notes/collation_taxon_pin_w_preds_refactor_log.md',
         'docs/architecture_notes/collation_taxon_pin_w_preds_refactor.md',
         'tests/test_namespace_migration.py',

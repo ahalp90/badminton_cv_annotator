@@ -7,7 +7,7 @@ context, not current chain behaviour. The current live reference is
 `tests/data/annotator_calibration/reference/`, generated after W2.9 by
 `annotator.calibration.gt_scoring --capture`. The W2.9 behavioural delta
 is preserved in
-`docs/architecture_notes/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
+`docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
 
 Historical fixture aliases (`pilot`, `vid15`, `sset21`) survive in quoted
 tables and CSVs; canonical stems `sset_01` / `sset_15` / `sset_21` are used
@@ -143,7 +143,7 @@ W2.9 shipped `SmoothingMode.IGNORE_INVISIBLE`, base-30 demotion bound
 `75`, `ReentryGuardVariant.TWO_SIDED`, and re-entry buffer `0.05` together
 in `BaseAnnotatorConfig` (`eee3e29`). Contact F1 improved on all three
 fixtures; landing and getpoint moved mixed. The full pre/post surface is
-`docs/architecture_notes/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
+`docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
 
 `tests/data/annotator_calibration/reference/` is the live capture after
 that flip. Commit `85b8751` re-pinned its predecessor, and W3.1 refreshed

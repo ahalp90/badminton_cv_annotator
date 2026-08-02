@@ -3,7 +3,7 @@
 This documents the OpenMMLab-based extraction path that produced the committed
 keypoint dataset. Nothing in the live pipeline runs it: the 2D path runs rtmlib
 (`docs/architecture_notes/rtmlib_migration/`) and the 3D stream was removed
-(parked design: `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md`,
+(parked design: `docs/archive/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md`,
 env: `requirements-legacy-3d.txt`).
 
 This directory bridges the pipeline's clip output and BST-X's expected input format. The pose extraction code in `prepare_train_on_shuttleset.py` runs MMPose on ~33k short clips to produce per-clip skeleton keypoints, court positions, and shuttle trajectories.
@@ -157,7 +157,7 @@ For each clip, `detect_players_2d()`:
 
 ### Output format per clip
 
-Files land flat under `save_root_dir`, one set per clip stem. Split and label assignment come from `notebooks/clips_master.csv` at collation time, not from the on-disk directory layout. See `docs/architecture_notes/completed_general_refactors/dir_flatten_refactor.md` for the flatten refactor.
+Files land flat under `save_root_dir`, one set per clip stem. Split and label assignment come from `notebooks/clips_master.csv` at collation time, not from the on-disk directory layout. See `docs/archive/completed_general_refactors/dir_flatten_refactor.md` for the flatten refactor.
 
 | File | Shape | Contents |
 |------|-------|----------|

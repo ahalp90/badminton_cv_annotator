@@ -62,7 +62,7 @@ Every batch that touched code (3, 5, 6) had an independent per-stage reviewer pa
 Three follow-ups queued after merge, all doc updates that flow from the code being gone:
 
 - `docs/architecture_notes/function_invariants/train_network.md`: annotated with a historical note at the top; the extension-method references in the body are preserved as a snapshot of the 30 June simplification pass. Doc's own frontmatter already flags itself as a pre-pass snapshot, so the treatment is consistent.
-- `docs/architecture_notes/completed_general_refactors/simplification_pass/simplification_review.md:61`: single `apply_val_gate` mention in a "clean on the simplification lens" note annotated with a retirement footnote.
+- `docs/archive/completed_general_refactors/simplification_pass/simplification_review.md:61`: single `apply_val_gate` mention in a "clean on the simplification lens" note annotated with a retirement footnote.
 - `docs/architecture_notes/focal_alpha_revert_sketch.md` `Removed:` banner: SHA fill-in with the merge commit `39e72a5`.
 
 All three landed under a follow-up commit alongside this dir's creation.
