@@ -52,7 +52,7 @@ sys.path.insert(0, str(SRC.parent))
 
 import bst_x_train as t  # noqa: E402
 from model.bst import BST_CG_AP  # noqa: E402
-from pipeline.config import taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import taxonomy_lookup  # noqa: E402
 from preparing_data.shuttleset_dataset import get_bone_pairs  # noqa: E402
 
 SEED = 0

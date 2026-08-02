@@ -50,9 +50,16 @@ matplotlib.use("Agg")  # headless backend for HPC (no X11 display)
 import matplotlib.pyplot as plt  # noqa: E402
 
 BST_REFACTOR_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = BST_REFACTOR_ROOT.parent
+sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(BST_REFACTOR_ROOT))
 
-from pipeline.config import TAXONOMIES, Taxonomy, taxonomy_lookup, NOSIDE_CLASSES  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    NOSIDE_CLASSES,
+    TAXONOMIES,
+    Taxonomy,
+    taxonomy_lookup,
+)
 
 
 # ---------------------------------------------------------------------------

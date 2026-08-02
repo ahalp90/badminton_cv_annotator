@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shared.taxonomy import ZH_TO_EN
+from classifier_shared.taxonomy import ZH_TO_EN
 
 # Columns we need from each set CSV.
 _SHOT_COLS = ['rally', 'ball_round', 'frame_num',

@@ -53,7 +53,7 @@ from src.bst_x.preparing_data.shuttleset_dataset import (
     Dataset_npy_collated,
 )
 from src.bst_x.model.bst import BST_CG_AP
-from src.bst_x.pipeline.config import TAXONOMIES, taxonomy_lookup  # noqa: F401
+from src.classifier_shared.taxonomy import TAXONOMIES, taxonomy_lookup  # noqa: F401
 
 BST_X_DATA_DIR = os.environ.get("BST_X_DATA_DIR")
 

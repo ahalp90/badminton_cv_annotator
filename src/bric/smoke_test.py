@@ -17,7 +17,7 @@ What it checks:
   4. YOLO11n forward pass on the accelerator
   5. R(2+1)D-18 forward pass on the accelerator (Kinetics-400 pretrained)
   6. OpenCV importable
-  7. BRIC's own modules import cleanly (shared.taxonomy, shared.court,
+  7. BRIC's own modules import cleanly (classifier_shared.taxonomy, shared.court,
      classifier_shared.video_io)
 
 Exits 0 on full success, 1 on first failure with a clear diagnostic.
@@ -188,11 +188,14 @@ banner('7. BRIC modules')
 sys.path.insert(0, str(PROJECT_ROOT / 'src'))
 
 try:
-    from shared import taxonomy
+    from classifier_shared import taxonomy
     n_classes = len(taxonomy.TAXONOMY_UNE_MERGE_V1_NOSIDES.class_list())
-    info(f'shared.taxonomy: {n_classes} classes ({taxonomy.DEFAULT_TAXONOMY})')
+    info(
+        f'classifier_shared.taxonomy: {n_classes} classes '
+        f'({taxonomy.DEFAULT_TAXONOMY})'
+    )
 except Exception as e:
-    fail('shared.taxonomy failed to import', e)
+    fail('classifier_shared.taxonomy failed to import', e)
 
 try:
     from shared import court

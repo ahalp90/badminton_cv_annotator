@@ -124,7 +124,7 @@ This script checks:
 5. R(2+1)D-18 forward pass on the accelerator (Kinetics-400 pretrained,
    `torchvision.models.video`)
 6. OpenCV importable
-7. BRIC's own modules (`shared.taxonomy`, `shared.court`,
+7. BRIC's own modules (`classifier_shared.taxonomy`, `shared.court`,
    `classifier_shared.video_io`) import cleanly
 
 Expected output ends with:

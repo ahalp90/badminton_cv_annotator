@@ -15,7 +15,7 @@ from torch import Tensor, nn
 from beartype import beartype
 from jaxtyping import Float32, jaxtyped
 
-from pipeline.config import Taxonomy
+from classifier_shared.taxonomy import Taxonomy
 from preparing_data.shuttleset_dataset import (
     Dataset_npy_collated,
     POSE_BONE_MULTIPLIER,

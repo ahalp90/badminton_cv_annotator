@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torchvision.models.video import R2Plus1D_18_Weights, r2plus1d_18
 
-from shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, Taxonomy
+from classifier_shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, Taxonomy
 
 _RGB_FEATURE_DIM = 512
 _SHUTTLE_DIM = 64
@@ -220,7 +220,7 @@ class BRICNetwork(nn.Module):
         """Construct the network.
 
         :param taxonomy: stroke taxonomy. Defaults to
-            ``shared.taxonomy.DEFAULT_TAXONOMY``; pass explicitly in
+            ``classifier_shared.taxonomy.DEFAULT_TAXONOMY``; pass explicitly in
             production code so the run pins its class scheme.
         :param pretrained: load Kinetics-400 backbone weights.
         :param num_classes: override the head size; bypasses taxonomy.

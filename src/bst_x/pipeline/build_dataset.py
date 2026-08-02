@@ -23,8 +23,8 @@ from pathlib import Path
 from pipeline.config import (
     RAW_VIDEO_DIR, CLIPS_OUTPUT_DIR, RESOLUTION_CSV_PATH,
     SPLITS, EXCLUDED_VIDEOS, REMOVED_SHOTS, CLIP_WINDOW,
-    TAXONOMIES, Taxonomy, taxonomy_lookup,
 )
+from classifier_shared.taxonomy import TAXONOMIES, Taxonomy, taxonomy_lookup
 
 from pipeline.download_videos import download_all_videos, build_resolution_csv
 from pipeline.clip_generator import generate_all_clips, apply_class_merge

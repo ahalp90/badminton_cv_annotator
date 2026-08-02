@@ -33,7 +33,7 @@ from shared.court import (  # noqa: E402
     project,
     scale_pos_by_resolution,
 )
-from shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 
 _SHOTS_MASTER = _REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 _SET_DIR      = _REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'set'

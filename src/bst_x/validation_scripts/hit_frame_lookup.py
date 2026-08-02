@@ -5,7 +5,7 @@ Re-derives clip boundaries from the ShuttleSet set CSVs using the same
 without needing the actual video files.
 
 Adapted from:
-  - pipeline/clip_generator.py:_compute_clip_bounds()  (canonical)
+  - classifier_shared/dataset.py:compute_clip_bounds()  (canonical)
   - validation_scripts/compute_clip_length_stats.py        (CSV-only version)
 
 Usage as a library::
@@ -20,6 +20,8 @@ Usage as a library::
 from pathlib import Path
 
 import pandas as pd
+
+from classifier_shared.dataset import CLIP_WINDOW, compute_clip_bounds
 
 
 def build_hit_frame_lookup(
@@ -59,9 +61,6 @@ def build_hit_frame_lookup(
         fps = id_to_fps.get(vid_id)
         if fps is None:
             continue  # excluded video, no clips to look up
-        t = fps // 2            # 0.5 sec in frames
-        limit = fps * 3 // 2    # 1.5 sec in frames
-
         for set_i in range(1, n_sets + 1):
             csv_path = set_dir / folder / f"set{set_i}.csv"
             if not csv_path.exists():
@@ -80,8 +79,6 @@ def build_hit_frame_lookup(
             df["start_f"] = df["start_f"].where(
                 df.duplicated("rally", keep="first"), -1
             )
-            # end_f is unused here (only start_f is needed for hit index),
-            # but kept for parity with clip_generator.py:_compute_clip_bounds().
             df["end_f"] = df["frame_num"].shift(-1)
             df["end_f"] = df["end_f"].where(
                 df.duplicated("rally", keep="last"), -1
@@ -93,12 +90,17 @@ def build_hit_frame_lookup(
             for row in df.itertuples(index=False):
                 frame_num = int(row.frame_num)
 
-                # Clip start: previous shot frame or fallback to (hit - 0.5s)
-                s = int(row.start_f) if row.start_f != -1 else (frame_num - t)
-                # Clamp to limit
-                s = max(s, frame_num - limit)
+                start_f, _ = compute_clip_bounds(
+                    {
+                        "frame_num": frame_num,
+                        "start_f": row.start_f,
+                        "end_f": row.end_f,
+                    },
+                    CLIP_WINDOW,
+                    fps,
+                )
 
                 stem = f"{vid_id}_{set_i}_{row.rally}_{row.ball_round}"
-                lookup[stem] = frame_num - s
+                lookup[stem] = frame_num - start_f
 
     return lookup

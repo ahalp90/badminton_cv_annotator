@@ -54,9 +54,11 @@ from pipeline.config import (
     SET_INFO_DIR,
     RESOLUTION_CSV_PATH,
     SHUTTLE_OUTPUT_DIR,
-    Taxonomy,
-    TAXONOMIES,
     derive_npy_collated_dir_basename,
+)
+from classifier_shared.taxonomy import (
+    TAXONOMIES,
+    Taxonomy,
     derive_class_index,
     taxonomy_lookup,
 )

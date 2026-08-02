@@ -32,7 +32,7 @@ from torcheval.metrics.functional import multiclass_f1_score
 from frozendict import frozendict
 
 import bst_x_train as bt
-from pipeline.config import Taxonomy
+from classifier_shared.taxonomy import Taxonomy
 from bst_x_common import build_bst_x_network
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
 

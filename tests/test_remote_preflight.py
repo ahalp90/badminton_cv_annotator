@@ -41,7 +41,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pipeline.config import derive_npy_collated_dir_basename, taxonomy_lookup
+from classifier_shared.taxonomy import taxonomy_lookup
+from pipeline.config import derive_npy_collated_dir_basename
 from pipeline.data_access import env_path_or_none, load_repo_dotenv
 
 

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from pipeline.config import Taxonomy
+from classifier_shared.taxonomy import Taxonomy
 from loss.adaptive_focal import AdaptiveFocalLoss
 
 if TYPE_CHECKING:

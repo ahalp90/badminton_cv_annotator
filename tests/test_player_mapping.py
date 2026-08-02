@@ -20,13 +20,13 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from shared.dataset import SET_INFO_DIR
+from classifier_shared.dataset import SET_INFO_DIR
 from classifier_shared.player_mapping import (
     collect_shots,
     find_set3_switch_rally,
     map_players,
 )
-from shared.taxonomy import STROKE_TYPES_19_ZH
+from classifier_shared.taxonomy import STROKE_TYPES_19_ZH
 
 
 # ---------------------------------------------------------------------------

@@ -32,12 +32,8 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
-from pipeline.config import (
-    Taxonomy,
-    collation_id_from_manifest,
-    derive_npy_collated_dir_basename,
-    taxonomy_lookup,
-)
+from classifier_shared.taxonomy import Taxonomy, taxonomy_lookup
+from pipeline.config import collation_id_from_manifest, derive_npy_collated_dir_basename
 from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
 from bst_x_common import (
     write_prediction_npz,

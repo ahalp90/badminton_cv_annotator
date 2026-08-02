@@ -74,7 +74,7 @@ from shared.court import (  # noqa: E402
     project,
     scale_pos_by_resolution,
 )
-from shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 
 SHOTS_MASTER_PATH = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 RAW_VIDEO_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'raw_video'

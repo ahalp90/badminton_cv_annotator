@@ -213,8 +213,8 @@ Imports of `pipeline.*` / `main_on_shuttleset.*` / `model.*` resolve through `co
 - **Spec.** Import-based asserts, not greps (imports are formatting-proof and catch semantic breakage):
   - `from model.bst import BST, BST_0, BST_PPF, BST_CG, BST_AP, BST_CG_AP`. Assert each variant is a `functools.partial` with `.func is BST` and `.keywords` exactly matching the pinned flag table: `BST_0` (False, False, False), `BST_PPF` (True, False, False), `BST_CG` (True, True, False), `BST_AP` (True, False, True), `BST_CG_AP` (True, True, True) for `(use_ppf, use_cg, use_ap)`.
   - The five Chang `MODELS` keys map to those exact objects: `MODELS['BST'] is BST_PPF`, `MODELS['BST_0'] is BST_0`, etc. (the `'BST'`-to-`BST_PPF` mapping is the one a mechanical rename is most likely to mangle).
-  - `from pipeline.config import TAXONOMY_BST_25, TAXONOMY_BST_24, TAXONOMY_BST_12, resolve_taxonomy`; assert `.name` values `'bst_25'`/`'bst_24'`/`'bst_12'`, `n_classes` 25/24/12, and `resolve_taxonomy('bst_25') is TAXONOMY_BST_25`.
-  - `from shared.dataset import SPLITS_BST_BASELINE`; assert it is a dict with key set `{'train', 'val', 'test'}` (confirm exact keys at implementation) and non-empty list values.
+  - `from classifier_shared.taxonomy import TAXONOMY_BST_25, TAXONOMY_BST_24, TAXONOMY_BST_12, taxonomy_lookup`; assert `.name` values `'bst_25'`/`'bst_24'`/`'bst_12'`, `n_classes` 25/24/12, and `taxonomy_lookup('bst_25') is TAXONOMY_BST_25`.
+  - `from classifier_shared.dataset import SPLITS_BST_BASELINE`; assert it is a dict with key set `{'train', 'val', 'test'}` (confirm exact keys at implementation) and non-empty list values.
   - `pd.read_csv(REPO_ROOT / 'notebooks' / 'clips_master.csv', nrows=0)`; assert `'split_bst_baseline'` and `'split_v2'` in columns. Header-only read keeps it fast.
   - One grep-shaped assert, kept because it's prose with no import surface: the first line of `model/bst.py` contains `Original BST by Jing-Yuan Chang` (attribution is part of the KEEP contract).
 - **Dependencies.** pandas (in the venv); conftest sys.path.

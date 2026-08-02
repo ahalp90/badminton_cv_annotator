@@ -7,11 +7,11 @@ Single source of truth for BRIC's per-stroke metadata. Reads from:
   - BST-team v2 split CSV under src/shared/shuttleset_splits_v2.csv
     (player-leakage-corrected split, active for BRIC).
   - BST-team curation + logic mirrored into ``shared``:
-      * ``shared.dataset`` — paths, EXCLUDED_VIDEOS, REMOVED_SHOTS,
-        SPLITS_V2, SPLITS_BST_BASELINE, CLIP_WINDOW,
+      * ``classifier_shared.dataset`` — paths, EXCLUDED_VIDEOS, REMOVED_SHOTS,
+        SPLITS_BST_BASELINE, CLIP_WINDOW,
         compute_temporal_bounds, compute_clip_bounds
       * ``classifier_shared.player_mapping`` - collect_shots (A/B to Top/Bottom)
-      * ``shared.taxonomy`` — STROKE_TYPES_19_ZH
+      * ``classifier_shared.taxonomy`` — STROKE_TYPES_19_ZH
 
 No imports from ``bst_x`` — BRIC stays self-contained. No
 dependency on notebook 03's clips_master.csv either; this script
@@ -49,7 +49,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
-from shared.dataset import (  # noqa: E402  — must follow sys.path insertion
+from classifier_shared.dataset import (  # noqa: E402  — must follow sys.path insertion
     CLIP_WINDOW,
     EXCLUDED_VIDEOS,
     REMOVED_SHOTS,
@@ -61,7 +61,7 @@ from shared.dataset import (  # noqa: E402  — must follow sys.path insertion
     compute_temporal_bounds,
 )
 from classifier_shared.player_mapping import collect_shots  # noqa: E402
-from shared.taxonomy import STROKE_TYPES_19_ZH  # noqa: E402
+from classifier_shared.taxonomy import STROKE_TYPES_19_ZH  # noqa: E402
 
 OUT_PATH = (
     REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations'

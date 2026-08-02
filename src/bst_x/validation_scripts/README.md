@@ -52,9 +52,9 @@ Analyses two independent detection failure modes across the dataset:
 
 ```bash
 python src/bst_x/validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_merged_25 \
+    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
     --split-column split_bst_baseline \
-    --taxonomy une_merge_v1
+    --taxonomy une_v1_14
 ```
 
 `--clips-csv` defaults to `<repo>/notebooks/clips_master.csv`. `--dataset-npy-dir` is auto-discovered under `--data-root` (the single `*_flat/` subdir). `--set-dir` is auto-detected at `<repo>/data/shuttleset/set` if a `match.csv` is present there, which also enables the flaw and hit-frame sections below.
@@ -63,9 +63,9 @@ python src/bst_x/validation_scripts/validate_zeroed_frames.py \
 
 ```bash
 python src/bst_x/validation_scripts/validate_zeroed_frames.py \
-    --data-root /scratch/comp320a/ShuttleSet_data_merged_25 \
+    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
     --split-column split_v2 \
-    --taxonomy une_merge_v1 \
+    --taxonomy une_v1_14 \
     --set-dir data/shuttleset/set \
     --hit-window 10 \
     --shuttle-npy-dir /scratch/comp320a/ShuttleSet/shuttle_npy_flat
@@ -79,7 +79,7 @@ python src/bst_x/validation_scripts/validate_zeroed_frames.py \
 | `--dataset-npy-dir` | No | auto-discover | Explicit flat per-clip npy dir. Required when `--data-root` holds more than one `*_flat/` subdir. |
 | `--clips-csv` | No | `<repo>/notebooks/clips_master.csv` | Master clips CSV (one row per clip). |
 | `--split-column` | No | `split_bst_baseline` | Column in clips_csv giving train/val/test assignment. |
-| `--taxonomy` | No | `une_merge_v1` | Taxonomy name (choices from `TAXONOMIES` in `pipeline/config.py`). Used for label derivation, filenames, and display headers. |
+| `--taxonomy` | No | `une_v1_14` | Taxonomy name (choices from `classifier_shared.taxonomy.TAXONOMIES`). Used for label derivation, filenames, and display headers. |
 | `--threshold` | No | `0.5` | Fail-rate cutoff for the flagged-clips list. |
 | `--set-dir` | No | repo-relative fallback | Path to `data/shuttleset/set/`. Enables flaw cross-reference and hit-frame proximity. If omitted, checks `<repo>/data/shuttleset/set` for a `match.csv` and uses it when found. |
 | `--hit-window` | No | `10` | Frames either side of the hit frame to check. Requires `--set-dir`. |
@@ -97,7 +97,7 @@ python src/bst_x/validation_scripts/validate_zeroed_frames.py \
 | `surviving_clips_{tax_short}_{split_short}_{date}_{time}.png` | Per-class clip counts remaining after hit-zone quality filter, by split *(requires `--set-dir`)* |
 | `hit_oob_clips_{tax_short}_{split_short}_{date}_{time}.txt` | Clips where hit-frame index exceeded clip length, skipped from hit-frame profile *(requires `--set-dir`; only written when OOB clips exist)* |
 
-`tax_short` strips underscores from the taxonomy (`une_merge_v1` -> `unemergev1`); `split_short` strips the `split_` prefix and remaining underscores (`split_bst_baseline` -> `bstbaseline`). Output filenames disambiguate by split so back-to-back runs on different `--split-column` values don't overwrite each other.
+`tax_short` strips underscores from the taxonomy (`une_v1_14` -> `unev114`); `split_short` strips the `split_` prefix and remaining underscores (`split_bst_baseline` -> `bstbaseline`). Output filenames disambiguate by split so back-to-back runs on different `--split-column` values don't overwrite each other.
 
 Timestamps use Sydney time (AEST/AEDT). The `unknown/` garbage class is excluded from figures, tiered clip counts, flaw cross-reference, shuttle overlap, and hit-frame proximity sections. It is included in overall, per-split, and per-stroke stats (visible as a row).
 
@@ -113,17 +113,16 @@ Timestamps use Sydney time (AEST/AEDT). The `unknown/` garbage class is excluded
 
 ### `fail_rate_per_class.py`
 
-Per-class MMPose fail-rate stats joined on `clips_master.csv`. Reads the flat per-clip `*_failed.npy` files, applies the requested taxonomy (and optional `--drop-unknown`), and prints per-class totals so you can see which class is carrying the most zeroed frames. Useful for seeing how the per-class pose-quality picture shifts between taxonomies (e.g. `merged_25` vs `une_merge_v1`) without rerunning the full `validate_zeroed_frames.py` report.
+Per-class MMPose fail-rate stats joined on `clips_master.csv`. Reads the flat per-clip `*_failed.npy` files, applies the requested taxonomy's exclusions, and prints per-class totals so you can see which class is carrying the most zeroed frames. Useful for seeing how the per-class pose-quality picture shifts between taxonomies (for example, `bst_25` versus `une_v1_14`) without rerunning the full `validate_zeroed_frames.py` report.
 
 **With explicit `--dataset-npy-dir`:**
 
 ```bash
 python src/bst_x/validation_scripts/fail_rate_per_class.py \
     --clips-csv notebooks/clips_master.csv \
-    --dataset-npy-dir /scratch/comp320a/ShuttleSet_data_merged_25/dataset_npy_between_2_hits_with_max_limits_flat \
+    --dataset-npy-dir /scratch/comp320a/ShuttleSet_data_une_v1_14/dataset_npy_between_2_hits_with_max_limits_flat \
     --split-column split_bst_baseline \
-    --taxonomy une_merge_v1 \
-    --drop-unknown
+    --taxonomy une_v1_14
 ```
 
 **With `--data-root` auto-discovery** (mirrors `validate_zeroed_frames.py`):
@@ -131,10 +130,9 @@ python src/bst_x/validation_scripts/fail_rate_per_class.py \
 ```bash
 python src/bst_x/validation_scripts/fail_rate_per_class.py \
     --clips-csv notebooks/clips_master.csv \
-    --data-root /scratch/comp320a/ShuttleSet_data_merged_25 \
+    --data-root /scratch/comp320a/ShuttleSet_data_une_v1_14 \
     --split-column split_v2 \
-    --taxonomy une_merge_v1 \
-    --drop-unknown \
+    --taxonomy une_v1_14 \
     --save-txt
 ```
 
@@ -148,8 +146,7 @@ Exactly one of `--dataset-npy-dir` or `--data-root` must be given. Auto-discover
 | `--data-root` | No* | - | `ShuttleSet_data_{taxonomy}` dir; enables `*_flat` auto-discovery. |
 | `--dataset-npy-dir` | No* | - | Explicit flat per-clip dir holding `{clip_stem}_failed.npy`. |
 | `--split-column` | No | `split_bst_baseline` | Column in clips_csv giving train/val/test assignment. |
-| `--taxonomy` | No | `une_merge_v1` | Taxonomy name. |
-| `--drop-unknown` | No | off | Drop `raw_type_en == "unknown"` rows before aggregating. |
+| `--taxonomy` | No | `une_v1_14` | Taxonomy name. Its exclusion rules determine which raw rows are dropped. |
 | `--save-txt` | No | off | Tee stdout to `zeroed_frames_analysis_outputs/fail_rate_per_class_{tax_short}_{split_short}_{ts}.txt`. |
 
 *One of `--data-root` / `--dataset-npy-dir` is required.
@@ -159,7 +156,7 @@ Exactly one of `--dataset-npy-dir` or `--data-root` must be given. Auto-discover
 Three small scripts that confirm a sanity-train run is pointed at the right artefacts before launch. Each exits 0 on all-OK, 1 on any mismatch, so they double as `set -e` guards in launch wrappers.
 
 - **`verify_env_paths.py`** — loads `.env` via `pipeline.data_access.load_repo_dotenv`, prints the four `BST_X_*` vars, and confirms each resolves to an existing path. Spot-checks `BST_X_RTMPOSE_NPY_DIR` for 32,203 `_failed.npy` and `_pos.npy` files (the post-Phase-2 expected count).
-- **`verify_collated_counts.py`** — pure-stdlib check that the three active collated dirs (combo A / B / C) contain the per-split clip counts expected from `clips_master.csv` filtered for `--drop-unknown`. Hardcoded combo expectations; no external CSV read needed at run time.
+- **`verify_collated_counts.py`** — pure-stdlib check that the three active collated dirs (combo A / B / C) contain the expected per-split clip counts after unknown rows are excluded. Hardcoded combo expectations; no external CSV read needed at run time.
 - **`verify_bst_train_target.py`** — imports the live `hyp` namedtuple from `bst_x_train` without running its `__main__` block, derives the basename via the same `derive_npy_collated_dir_basename` helper the script uses (`npy_[3d_][seq{N}_]{split}_{collation_id}`), and confirms the resolved collated dir exists with its train/val/test sub-dirs and `.npy` files. Resolves the root the same way `bst_x_train` does (`BST_X_COLLATED_DATA_ROOT`, else `/scratch/comp320a`). The standard pre-launch check after a `hyp` edit.
 
 All three run from the repo root:
@@ -174,7 +171,7 @@ PYTHONPATH=src:src/bst_x \
 Three scripts authored 2026-04-30 to verify the off-screen-high hypothesis for the 6.34% post-inpaint shuttle-missing rate, and to test whether the bottleneck classes correlate with shuttle availability.
 
 - **`shuttle_gap_y_distribution.py`** — for every contiguous run of `visibility=0` frames in a per-clip shuttle NPY, records the y-coordinate of the last valid detection before the gap and the first valid detection after, then aggregates across the canonical 32k-clip set. Drops unknowns by default via `--clips-csv`. Saves a histogram PNG + markdown report to `zeroed_frames_analysis_outputs/`.
-- **`shuttle_gap_length_distribution.py`** — gap-length histogram + classification by length-class (1-2 / 3-5 / 6-10 / 11-30 / 31-60 / 61+ frames) interpreted as motion-blur / inpaint sweet spot / off-screen-arc / sustained / inpaint-window-exceeded. Same drop-unknown default.
+- **`shuttle_gap_length_distribution.py`** — gap-length histogram + classification by length-class (1-2 / 3-5 / 6-10 / 11-30 / 31-60 / 61+ frames) interpreted as motion-blur / inpaint sweet spot / off-screen-arc / sustained / inpaint-window-exceeded. It also excludes unknown clips by default; use `--include-unknown` to keep them.
 - **`perclass_shuttle_miss_vs_f1.py`** — joins per-class median F1 from a run's `manifest.yaml` against the per-stroke shuttle-miss-rate table parsed from a `validate_zeroed_frames.py` analysis txt. Pearson + Spearman correlation, scatter PNG, sorted markdown table. Defaults to F1 (the metric currently in the manifest schema); `--metric precision` and `--metric recall` are placeholders gated on the schema extension. Use `--no-collapse-sides` when the manifest's labels already match the analysis table directly (nosides taxonomy).
 
 Run on engelbart or bourbaki for the gap scripts (data is on `/scratch`, host-local). The correlation script can run anywhere since manifest + analysis txt both live on `/home`.
@@ -198,4 +195,4 @@ See also `src/bst_x/pipeline/clip_index.py`: the analogous helper for Datasets n
 - Python 3.10+ (uses `X | None` union syntax)
 - `numpy`, `matplotlib`, `pandas` — all available in the mmpose venv
 - `zoneinfo` — stdlib (Python 3.9+)
-- `pipeline.config` (in-repo): both CLI scripts import `TAXONOMIES` and `Taxonomy` from `src/bst_x/pipeline/config.py` to drive label derivation and the `--taxonomy` choices list.
+- `classifier_shared.taxonomy` (in-repo): both CLI scripts use its registry and label derivation for the `--taxonomy` choices.

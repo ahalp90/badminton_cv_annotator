@@ -96,6 +96,8 @@ from pipeline.clip_index import build_clip_path_index
 from pipeline.config import (
     CLIPS_OUTPUT_DIR,
     SHUTTLE_OUTPUT_DIR,
+)
+from classifier_shared.taxonomy import (
     TAXONOMIES,
     Taxonomy,
     derive_class_index,
@@ -250,7 +252,7 @@ def _derive_class_label(
 ) -> str | None:
     """Resolve a folder-style class label, or None if the row is filtered out.
 
-    Thin wrapper around ``pipeline.config.derive_class_index``: that function is the
+    Thin wrapper around ``classifier_shared.taxonomy.derive_class_index``: that function is the
     single source of truth for the merge_map + side-prefixing + side-agnostic
     rules. This adapter just looks up the resulting class string from
     ``taxonomy.classes`` so callers that work in label-name space (the CSV-row
@@ -305,7 +307,7 @@ def get_clip_records(
         assignment, e.g. 'split_bst_baseline' (default) or 'split_v2'.
     :param taxonomy_name: Canonical name of the Taxonomy whose merge_map +
         side rule + excluded_base_stroke_types drive label derivation.
-        Resolved via ``pipeline.config.taxonomy_lookup``.
+        Resolved via ``classifier_shared.taxonomy.taxonomy_lookup``.
     :raises ValueError: If ``split`` or ``taxonomy_class`` are not valid under
         the chosen taxonomy.
     :raises KeyError: If ``split_column`` is not a column in clips_csv or

@@ -36,9 +36,16 @@ import numpy as np
 import pandas as pd
 
 BST_REFACTOR_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = BST_REFACTOR_ROOT.parent
+sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(BST_REFACTOR_ROOT))
 
-from pipeline.config import TAXONOMIES, Taxonomy, derive_class_index, taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    TAXONOMIES,
+    Taxonomy,
+    derive_class_index,
+    taxonomy_lookup,
+)
 
 
 def derive_labels(df: pd.DataFrame, taxonomy: Taxonomy) -> pd.Series:

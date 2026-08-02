@@ -51,11 +51,16 @@ import pandas as pd
 # File lives at src/bst_x/validation_scripts/mmpose_heuristic_investigation/<this>,
 # so the repo root is four parents up.
 REPO_ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(REPO_ROOT / 'src'))
 sys.path.insert(0, str(REPO_ROOT / 'src' / 'bst_x'))
 # hit_frame_lookup lives next to validate_zeroed_frames.py as a flat module.
 sys.path.insert(0, str(REPO_ROOT / 'src' / 'bst_x' / 'validation_scripts'))
 
-from pipeline.config import TAXONOMIES, derive_class_index, taxonomy_lookup  # noqa: E402
+from classifier_shared.taxonomy import (  # noqa: E402
+    TAXONOMIES,
+    derive_class_index,
+    taxonomy_lookup,
+)
 
 SPLITS = ('train', 'val', 'test')
 

@@ -29,23 +29,28 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+import yaml
 from torch import nn
 
-from pipeline.config import (
+from classifier_shared.taxonomy import (
     NOSIDE_CLASSES,
     TAXONOMIES,
     TAXONOMY_BST_12,
     TAXONOMY_BST_24,
     TAXONOMY_BST_25,
     TAXONOMY_SHUTTLESET_18,
+    TAXONOMY_RAW_35,
+    TAXONOMY_UNE_MERGE_V1_NOSIDES,
     TAXONOMY_UNE_V1_14,
     TAXONOMY_UNE_V1_15,
     Taxonomy,
     _sided_classes,  # noqa: F401  # private helper, tested below
-    collation_id_from_manifest,
-    derive_npy_collated_dir_basename,
     derive_class_index,
     taxonomy_lookup,
+)
+from pipeline.config import (
+    collation_id_from_manifest,
+    derive_npy_collated_dir_basename,
 )
 from bst_x_common import build_bst_x_network
 
@@ -54,6 +59,10 @@ REAL_TAXONOMY_OBJECTS = [
     TAXONOMY_BST_25, TAXONOMY_BST_24, TAXONOMY_BST_12,
     TAXONOMY_UNE_V1_14, TAXONOMY_UNE_V1_15, TAXONOMY_SHUTTLESET_18,
 ]
+
+DEPLOYED_BRIC_DIR = (
+    Path(__file__).resolve().parents[1] / 'runtime' / 'deployed' / 'bric'
+)
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +93,30 @@ def test_taxonomy_n_classes_expected_per_taxonomy():
     assert TAXONOMY_UNE_V1_14.n_classes == 14
     assert TAXONOMY_UNE_V1_15.n_classes == 15
     assert TAXONOMY_SHUTTLESET_18.n_classes == 18
+
+
+def test_deployed_bric_taxonomy_contract_matches_manifests():
+    manifests = sorted(DEPLOYED_BRIC_DIR.glob('*/manifest.yaml'))
+    assert manifests, 'expected at least one deployed BRIC manifest'
+
+    for manifest_path in manifests:
+        manifest = yaml.safe_load(manifest_path.read_text())
+        if manifest.get('architecture') != 'bric':
+            continue
+        taxonomy_name = manifest['config']['taxonomy']
+        taxonomy = taxonomy_lookup(taxonomy_name)
+        assert taxonomy.trainable_class_list() == manifest['config']['classes']
+        assert taxonomy.n_trainable_classes == manifest['model_size']['num_classes']
+
+
+def test_legacy_bric_taxonomies_keep_pinned_full_spaces():
+    assert TAXONOMY_UNE_MERGE_V1_NOSIDES.n_classes == 15
+    assert TAXONOMY_UNE_MERGE_V1_NOSIDES.n_trainable_classes == 14
+    assert TAXONOMY_UNE_MERGE_V1_NOSIDES.classes[-1] == 'unknown'
+    assert TAXONOMY_UNE_MERGE_V1_NOSIDES.merge_map['driven_flight'] == 'drive'
+    assert TAXONOMY_RAW_35.n_classes == 35
+    assert TAXONOMY_RAW_35.n_trainable_classes == 34
+    assert derive_class_index(TAXONOMY_RAW_35, 'driven_flight', 'Top') is None
 
 
 def test_taxonomy_post_init_rejects_unknown_mid_list():

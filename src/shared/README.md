@@ -9,8 +9,6 @@ lane share the TrackNetV3 inference tree.
 | Module | Purpose |
 | --- | --- |
 | `court.py` | Court homography, projection, normalisation, and reference dimensions. |
-| `dataset.py` | ShuttleSet paths, split data, flaw parsing, and clip bounds. |
-| `taxonomy.py` | Current classifier taxonomy definitions and stroke mappings. |
 | `tracknetv3/` | Canonical TrackNetV3 and InpaintNet inference code. |
 
 Classifier-only utilities live in [`classifier_shared`](../classifier_shared/).
