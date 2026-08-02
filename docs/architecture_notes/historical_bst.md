@@ -1148,7 +1148,7 @@ For reproducing the BST paper's published numbers, use `center_align=False` and 
   # Consolidated BST training script for ShuttleSet
   # Replaces: bst_main.py, bst_main_summary_writer.py, bst_backbone_main.py
   ```
-- `bst_x_train.py:53-57`: refactor cross-ref to `docs/architecture_notes/completed_general_refactors/dir_flatten_refactor.md` (block comment preserved as-is below).
+- `bst_x_train.py:53-57`: refactor cross-ref to `docs/archive/completed_general_refactors/dir_flatten_refactor.md` (block comment preserved as-is below).
 - `bst_x_train.py:151`:
   ```python
   use_aux_schedule=True,    # Aggressive CG/AP annealing — matches preferred config from run_20260418_151139.
@@ -1158,7 +1158,7 @@ For reproducing the BST paper's published numbers, use `center_align=False` and 
 
 **Why removed:** the migrations are done; the run id reference rots as new ablation runs supersede it.
 
-The `completed_general_refactors/` directory at `docs/architecture_notes/completed_general_refactors/` still holds the long-form refactor notes; this file just records that the in-source pointers to it have been removed in step 10.
+The `completed_general_refactors/` directory at `docs/archive/completed_general_refactors/` still holds the long-form refactor notes; this file just records that the in-source pointers to it have been removed in step 10.
 
 ---
 

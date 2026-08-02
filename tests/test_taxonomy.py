@@ -14,9 +14,8 @@ Coverage:
 7. Real labels.npy probe (auto-skipped when /scratch/comp320a/... not visible).
 
 Tests for ``Task._assert_label_coverage`` live with the train-surface commit
-(Step D). The inference npz schema smoke + FE handler resolver tests live in
-``tests/test_inference_smoke.py``, ``tests/test_api_registry.py``, and
-``tests/test_api_inference.py`` (added with later commits). CPU-only.
+(Step D). The inference NPZ schema smoke test lives in
+``tests/test_inference_smoke.py``. CPU-only.
 
 Run from repo root::
 

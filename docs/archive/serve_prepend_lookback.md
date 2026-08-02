@@ -284,7 +284,7 @@ audit stronger.
 Every 2026-07-23 count in §1 was measured against the pre-W2.9 sticky
 build. W2.9 changed contact behaviour on all three fixtures (contact_f1
 lifted; server/getpoint moved in mixed directions; see
-`docs/architecture_notes/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`).
+`docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`).
 The miss ledger and the 113 / 23 track split must be re-measured on the
 current chain before either lookback design or replay-mask redesign
 proceeds.

@@ -11,7 +11,6 @@ Stage one built a stroke-type classifier across two deep learning architectures,
 - **Data pipeline**, automated end-to-end. YouTube match downloads, per-stroke clips, shuttle tracking (TrackNetV3 with Inpaint), player pose extraction (rtmlib RTMDet-M + RTMPose-L, cleaned by a custom `sticky_anchor` heuristic), collated numpy arrays per taxonomy and split.
 - **BST-X**, a spatio-temporal CNN/transformer hybrid built on the BST architecture (Chang 2025, [arXiv:2502.21085](https://arxiv.org/abs/2502.21085)). Three streams per clip (pose joints and bones, court position, shuttle xy) fused through BST's cross-attention block. Custom CDB-F1 adaptive focal loss handles class imbalance.
 - **BRIC**, an R(2+1)D-18 backbone (Kinetics-400 pretrained) on 32-frame RGB clips, with optional shuttle and court-position side-streams concatenated at the classifier head.
-- **Web app**: React + FastAPI. Browses precomputed predictions across six BST-X taxonomy/split variants and one BRIC variant over the full 4,202-clip test set, with per-class F1, confusion patterns, match filtering, and inline clip playback. Upload-to-results wizard wired end to end. Live BRIC inference runs on user uploads when a GPU is available; live BST-X inference runs on single-stroke library-clip requests. BST-X live inference on arbitrary user uploads still falls back to a smart stub (Phase 2 carry).
 - **Auto-annotator and downloader**, built for rally-level dataset assembly.
   ShuttleSet supplies a candidate pool of 3,359 usable rallies across 40
   matches after four whole-video exclusions. This is the available annotated
@@ -51,36 +50,20 @@ The smash / wrist_smash pair sets a sticky min-F1 floor: pose and shuttle don't 
 
 Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/).
 
-## Web UI
-
-<p align="center">
-  <img src="docs/images/wizard_t1/2_markup_screen.png" width="85%" alt="Upload wizard: video markup with court boundary handles for homography normalisation" />
-</p>
-
-*Upload wizard: court boundary corner markup for homography normalisation.*
-
-<p align="center">
-  <img src="docs/images/wizard_t1/model_results_per_clip_screen.png" width="85%" alt="Model results browser: per-clip predictions for BST-X une_v1_14 on the v2 test split, with actual vs predicted class and top-5 confidences" />
-</p>
-
-*Per-clip predictions browser across registered model variants.*
-
 ## Project structure
 
 - `src/bst_x/` — data pipeline and BST-X classifier; standalone subproject with its own pinned environments
 - `src/bric/` — BRIC: R(2+1)D-18 with optional shuttle + court fusion lanes. Self-contained: network, dataset, train, infer, eval, plus its own `perception/` (YOLO + TrackNet), `preprocessing/` (cache producers), and `diagnostics/` (cache validators)
 - `src/shared/` — values and utilities BRIC consumes: stroke taxonomy, court geometry, player mapping, video I/O, frame-window helpers
-- `src/api/` — FastAPI service: model registry endpoints (browse precomputed predictions), upload + inference orchestration (live BRIC uploads + live BST-X library clips; BST-X arbitrary-upload path stubbed)
-- `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs; not wired into the frontend yet
-- `frontend/` — React + Vite app; the deployed demo
-- `scripts/` — cross-cutting setup and shared data-prep (e.g. `build_shots_master.py`, `validate_videos.py`, `dev-setup.sh`). Per-architecture scripts live with their architecture
+- `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs
+- `scripts/` — cross-cutting setup and shared data-prep. Per-architecture scripts live with their architecture
 - `training/` — per-model training data, caches, and run artefacts (gitignored)
-- `runtime/` — runtime state for the API + inference jobs (gitignored)
+- `runtime/` — retained BRIC checkpoints and evaluation artefacts
 - `docs/architecture_notes/` — design docs, experiment writeups, taxonomy and loss exploration
 - `scripts/plots/` — charts and eval scripts for milestone reporting
-- `tests/` — pytest suite (environment, dataset, API, integration smoke)
+- `tests/` — pytest suite for the active pipelines and classifiers
 - `notebooks/` — EDA and dataset-build notebooks
-- `docs/` — decision log, API contract, storage layout, model registry YAML
+- `docs/` — decision logs, storage layout, and model registry YAML
 
 ## Data pipeline and classifier training
 
@@ -163,22 +146,6 @@ HPC quickstart and GPU notes: [`docs/hpc_quickstart.md`](docs/hpc_quickstart.md)
 
 Each training run writes a manifest, per-serial metrics, and TensorBoard events under `experiments/bst_x/shuttleset/<run_id>/`. Optional Aim UI for browsing runs: [`src/bst_x/run_tracker.md`](src/bst_x/run_tracker.md).
 
-## Working with the Web app
-
-Bring up the full dev stack (FastAPI backend on :24082, React frontend on :5173):
-
-```bash
-./scripts/dev-setup.sh --up
-```
-
-This sets up env files and mount directories, then starts both services via the dev overlay. Drop `--up` to set up only and print the run command. Plain `docker compose up` runs the base file alone, skipping the local clip mounts and uploads fix.
-
-Three environments: local dev (Vite HMR on :5173), production (nginx on :26138, single-port and Cloudflare-tunnel friendly), and CI (GitHub Actions). With dataset paths empty the app still boots against ~11 MB of committed sample predictions and 13 sample clips; data-dependent features (per-clip browser, "misclassifications only") hide gracefully on cells without local data.
-
-The browsing path serves all six BST-X registered variants plus the BRIC variant from precomputed gzipped JSON sidecars. The upload-to-results wizard is wired end to end (multipart upload, ffmpeg crop, job queue, status polling, results screen). Live BRIC inference runs on user uploads when a GPU is available (TrackNet preprocessing needs one; BRIC's card is gated off in the backend if not); live BST-X inference runs on single-stroke library-clip requests. Multi-annotation library jobs and arbitrary BST-X user uploads fall back to a smart stub. Wiring a real BST-X forward pass on arbitrary uploads is a Phase 2 carry.
-
-Setup, redeploy steps, and env-var precedence: `HANDOVER.md` and `DEPLOYMENT.md`.
-
 Test suite: `pytest tests/`, plus `uv run python -m bric.smoke_test` for the BRIC environment.
 
 ## Next Steps
@@ -211,7 +178,5 @@ the MIT Licence. The files derived from BST are listed, with the MIT notice, in
 [src/bst_x/THIRD_PARTY_NOTICES.md](src/bst_x/THIRD_PARTY_NOTICES.md).
 
 Stroke annotations come from the ShuttleSet dataset (Wang et al. 2023, MIT); see
-[data/ATTRIBUTION.md](data/ATTRIBUTION.md). The short sample match clips are excerpts
-of broadcast footage, included only as research fixtures; see
-[scripts/api_fixtures/README.md](scripts/api_fixtures/README.md). Vendored components
-(TrackNetV3) keep their own licences beside their code.
+[data/ATTRIBUTION.md](data/ATTRIBUTION.md). Vendored components (TrackNetV3)
+keep their own licences beside their code.

@@ -1,18 +1,17 @@
-# Pinned dependency set for CI and the Docker image (single source of truth: uv.lock).
+# Pinned dependency set for CI (single source of truth: uv.lock).
 #
-# Pins are taken from the uv lockfile so CI tests *exactly* what the Docker image
-# ships. After changing deps in pyproject.toml (and `uv lock`), update them with:
+# Pins are taken from the uv lockfile. After changing dependencies in
+# pyproject.toml (and `uv lock`), update them with:
 #   ./scripts/gen-requirements.sh --check     # reports any pin that drifted from uv.lock
 # then bump the versions below to match. See docs/ci.md.
 #
-# torch / torchvision are intentionally LEFT UNPINNED here. Both CI and the
-# Dockerfile install them FIRST from an explicit PyTorch index (CPU by default,
-# cu128 for the prod GPU box) before this file is applied, so pip sees them
-# already satisfied and skips them. Pinning them here would fight that step --
-# the lockfile resolves torch to a `+cu128` build on Linux. See Dockerfile.
+# torch / torchvision are intentionally LEFT UNPINNED here. CI installs their
+# CPU builds first from the PyTorch index, so pip sees them as already satisfied.
+# Pinning them here would fight that step because the lockfile resolves torch to
+# a `+cu128` build on Linux.
 
 # --- ML & Data ---
-torch                 # installed via explicit --index-url before this file (see Dockerfile); unpinned on purpose
+torch                 # installed via explicit --index-url before this file; unpinned on purpose
 torchvision           # ditto
 numpy==2.4.4
 pandas==2.3.3

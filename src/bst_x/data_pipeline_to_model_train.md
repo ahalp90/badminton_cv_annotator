@@ -142,7 +142,7 @@ data/shuttleset/
     {vid}_{set}_{rally}_{ball_round}.npy
 ```
 
-Split and label assignment for `shuttle_npy/` (and downstream pose npys) come from `notebooks/clips_master.csv` at collation time, not from directory structure. The clips directory stays nested for now. See `docs/architecture_notes/completed_general_refactors/dir_flatten_refactor.md` for the migration.
+Split and label assignment for `shuttle_npy/` (and downstream pose npys) come from `notebooks/clips_master.csv` at collation time, not from directory structure. The clips directory stays nested for now. See `docs/archive/completed_general_refactors/dir_flatten_refactor.md` for the migration.
 
 #### Key concepts
 
@@ -402,7 +402,7 @@ One graph now: PPF, CG and AP always run. `BST_CG_AP` stays as a plain alias of 
 BST_CG_AP = BST  # PPF/CG/AP always on; the one graph the project trains
 ```
 
-The old `use_ppf` / `use_cg` / `use_ap` flags and the `BST_0` / `BST_PPF` / `BST_CG` / `BST_AP` partials came out when CG and AP went always-on; their wiring lives in `docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md`.
+The old `use_ppf` / `use_cg` / `use_ap` flags and the `BST_0` / `BST_PPF` / `BST_CG` / `BST_AP` partials came out when CG and AP went always-on; their wiring lives in `docs/archive/completed_general_refactors/structure_and_guards_pass/bst_variant_flags_design.md`.
 
 #### Key hyperparameters (defaults from `bst_x_train.py`)
 

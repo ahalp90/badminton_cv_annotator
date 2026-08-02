@@ -10,7 +10,7 @@ evidence, not current behaviour.**
 - **Pre-W2.9.** The measurement predates the gap-classification and
   invisible-frame smoothing defaults shipped in `eee3e29` on 2026-07-28.
   W2.9 changed contact behaviour on all three fixtures; see
-  `docs/architecture_notes/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`
+  `docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`
   for the exact per-metric movement.
 - **Pre-W3.1 rename.** The CSVs use the pre-W3.1 fixture stems
   (`pilot`, `vid15`, `sset21`). Canonical stems at the current tip are

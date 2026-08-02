@@ -310,13 +310,3 @@ def test_batch_shuttle_extractor_main_resolves_profiles(
 
     assert captured[0]['tracknet_stride'] == expected_stride
     assert captured[0]['large_video'] is expected_large_video
-
-
-def test_bric_api_pins_tracknet_modes() -> None:
-    bric_inference = pytest.importorskip(
-        'src.api.bric_inference',
-        reason='BRIC API runtime dependencies are unavailable in this test environment',
-    )
-    assert bric_inference._EVAL_MODE_BY_STRIDE == {1: 'weight', 8: 'nonoverlap'}
-    assert bric_inference.TRACKNET_STRIDE == 1
-    assert bric_inference.TRACKNET_LARGE_VIDEO is False

@@ -28,8 +28,8 @@ START, END = "<!-- main-files-start -->", "<!-- main-files-end -->"
 # never shows (research/data churn is noise to a code reviewer). Tune freely.
 WEIGHTS = [
     (re.compile(r"^(data|experiments|notebooks|clips_local|scratch)/"), 0),
-    (re.compile(r"^(src|training)/|^frontend/src/"), 3),
-    (re.compile(r"^(scripts|tests)/|^\.github/|^nginx/"), 2),
+    (re.compile(r"^(src|training)/"), 3),
+    (re.compile(r"^(scripts|tests)/|^\.github/"), 2),
 ]
 # Files whose churn misleads (lockfiles, generated, binaries); never shown.
 NOISE = re.compile(

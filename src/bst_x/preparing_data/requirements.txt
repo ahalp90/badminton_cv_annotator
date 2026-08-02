@@ -37,7 +37,7 @@
 #
 # requirements-legacy-3d.txt keeps the OpenMMLab env for the parked 3D pose
 # stream design (the 3D code path was removed; see
-# docs/architecture_notes/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md).
+# docs/archive/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md).
 # Install it in a separate venv; its numpy<2 pin cannot coexist with the numpy>=2 here.
 
 # rtmlib pose extraction (RTMDet + RTMPose over onnxruntime)
