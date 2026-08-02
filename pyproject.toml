@@ -148,8 +148,7 @@ torchvision = [{ index = "pytorch-cuda", marker = "sys_platform == 'linux'" }]
 exclude = [
     "notebooks/",
     "**/deprecated/",
-    "src/bst_x/TrackNetV3/",
-    "src/bric/perception/_vendor/",   # All vendored upstream code (currently TrackNetV3)
+    "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
     "src/courtkeynet/_vendor/",       # Vendored CourtKeyNet (see src/courtkeynet/PROVENANCE.md)
     "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
 ]
@@ -174,7 +173,7 @@ ignore = [
 [tool.pyrefly]
 project-includes = ["src", "scripts", "tests"]
 project-excludes = [
-    "**/TrackNetV3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**",
+    "src/shared/tracknetv3/**", "**/_vendor/**", "**/deprecated/**", "**/autoseg_trials/**",
     "scripts/archive/m_miss_junk_census.py", "scripts/archive/m_sticky_gate_arm.py",
     "scripts/archive/m_sticky_gate_arm_r7.py",
 ]

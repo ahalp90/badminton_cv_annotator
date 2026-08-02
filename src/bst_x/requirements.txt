@@ -22,7 +22,7 @@ torcheval==0.0.7                 # F1 metric computation
 transformers>=4.40.0,<5          # LR scheduler; 5.x requires torch >= 2.4
 tensorboard==2.20.0              # Training logging
 
-# TrackNetV3 inference (shares this venv — see TrackNetV3/requirements.txt)
+# TrackNetV3 inference (shares this venv; see ../shared/tracknetv3/requirements.txt)
 opencv-python==4.13.0.92         # Video frame I/O in TrackNetV3 (not used by BST)
 Pillow==11.2.1                   # Frame processing in TrackNetV3 (also transitive dep of matplotlib)
 parse==1.21.1                    # Path parsing in TrackNetV3 dataset.py (not used by BST)

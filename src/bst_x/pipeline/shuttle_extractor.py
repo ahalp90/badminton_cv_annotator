@@ -3,12 +3,12 @@
 Runs TrackNetV3 inference on clip .mp4 files to produce per-clip shuttle
 trajectory arrays. Both architectures share this step.
 
-TrackNetV3 is included in the repo (trimmed to inference only) and shares the
-BST training venv. Pretrained weights must be downloaded separately — see
-TrackNetV3/README.md.
+TrackNetV3 is included under ``src/shared/tracknetv3`` and shares the BST
+training venv. Pretrained weights must be downloaded separately. See the
+TrackNetV3 README in that directory.
 
 Usage:
-    python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 [--clips-dir DIR] \
+    python -m pipeline.shuttle_extractor [--clips-dir DIR] \
         [--tracknet-python /path/to/bst-venv/bin/python] [--profile {bst,scrape}]
 """
 import argparse
@@ -28,6 +28,7 @@ from pipeline.config import (  # noqa: E402
 )
 from scraper.config import SCRAPE_TRACKNET_STRIDE, SCRAPE_TRACKNET_LARGE_VIDEO  # noqa: E402
 
+DEFAULT_TRACKNET_DIR = _SRC / 'shared' / 'tracknetv3'
 _DEFAULT_TRACKNET_SUBPATH = Path('ckpts') / 'TrackNet_best.pt'
 _DEFAULT_INPAINTNET_SUBPATH = Path('ckpts') / 'InpaintNet_best.pt'
 TRACKNET_STRIDE = 1
@@ -284,8 +285,8 @@ def main():
     parser = argparse.ArgumentParser(
         description='Extract shuttle trajectories from ShuttleSet clips using TrackNetV3.',
     )
-    parser.add_argument('--tracknet-dir', type=Path, required=True,
-                        help='Path to cloned TrackNetV3 repository')
+    parser.add_argument('--tracknet-dir', type=Path, default=DEFAULT_TRACKNET_DIR,
+                        help='TrackNetV3 directory (default: src/shared/tracknetv3)')
     parser.add_argument('--clips-dir', type=Path, default=CLIPS_OUTPUT_DIR,
                         help='Directory containing generated clips')
     parser.add_argument('--csv-dir', type=Path, default=None,

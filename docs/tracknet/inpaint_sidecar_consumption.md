@@ -11,9 +11,8 @@ with the flag today, and what is still owed.
 The writer runs inside every path that produces shuttle CSVs, so from
 `9475036` onward every fresh TrackNetV3 extraction leaves a
 `{video_stem}_stride{N}_inpaint_mask.json.gz` beside its `_ball.csv`. The
-writer covers standalone `predict.py`, `batch_predict.py` (driven by
-`src/bst_x/pipeline/shuttle_extractor.py`), and the direct
-`predict_video` call in `src/api/bric_inference.py`.
+writer covers standalone `predict.py` and `batch_predict.py`, which is driven
+by `src/bst_x/pipeline/shuttle_extractor.py`.
 
 On the three whole-video reference tracks, the raw sidecar fill fraction
 is **51.87%, 53.33%, and 45.96%** of frames (`docs/tracknet/inpaint_sidecar.md`
@@ -28,7 +27,7 @@ subset is the narrower evidence for proven fabrication.
 **No production consumer reads the sidecar JSON.** Grepping
 `inpaint_selected`, `inpaint_status`, and `inpaint_fill_mask` against
 `src/annotator/`, `src/scraper/`, and `src/bst_x/` (excluding the
-TrackNetV3 vendored writer) returns no matches at the current tip. The
+TrackNetV3 writer) returns no matches at the current tip. The
 sidecar boundary choice
 (`docs/tracknet/inpaint_sidecar.md` § Boundary choices) records this as
 "writer only". The producer contract is stable; consumer wiring is the

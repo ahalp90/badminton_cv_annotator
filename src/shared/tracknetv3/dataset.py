@@ -810,5 +810,3 @@ class Video_IterableDataset(IterableDataset):
         # Normalization
         frames /= 255.
         return frames
-
-        

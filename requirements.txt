@@ -25,7 +25,7 @@ tensorboard==2.20.0          # Backs torch.utils.tensorboard.SummaryWriter (impo
 torcheval==0.0.7             # multiclass_f1_score used in the bst_x_train training loop
 transformers==5.8.1          # HuggingFace; provides get_cosine_schedule_with_warmup for the bst_x_train LR schedule
 pyyaml==6.0.3                # tests/test_active_classes.py reads taxonomy YAMLs
-parse==1.22.0                # TrackNetV3 vendor dep (src/bric/perception/_vendor/tracknetv3)
+parse==1.22.0                # TrackNetV3 vendor dep (src/shared/tracknetv3)
 
 # --- Backend API ---
 fastapi==0.136.1

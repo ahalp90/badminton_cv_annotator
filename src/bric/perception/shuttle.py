@@ -1,11 +1,11 @@
 """TrackNetV3 shuttle extraction wrapper.
 
-Thin subprocess wrapper around the vendored TrackNetV3's ``predict.py``
+Thin subprocess wrapper around the shared TrackNetV3 ``predict.py``
 CLI. Returns the path to the output CSV (one row per source-video frame
 with ``Frame, Visibility, X, Y`` columns).
 
-Why subprocess: the vendored ``predict.py`` uses absolute imports
-(``from inference_utils import ...``) that assume cwd is the vendor
+Why subprocess: ``predict.py`` uses absolute imports
+(``from inference_utils import ...``) that assume cwd is the TrackNet
 directory. Importing it in-process would require sys.path manipulation
 plus star-import side effects from ``utils.general``. Subprocess from
 the right cwd is cleaner and matches BST's usage pattern.
@@ -23,8 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Vendor lives at src/bric/perception/_vendor/tracknetv3/.
-_VENDOR_DIR = Path(__file__).resolve().parent / '_vendor' / 'tracknetv3'
+# Shared implementation lives at src/shared/tracknetv3/.
+_TRACKNET_DIR = Path(__file__).resolve().parents[2] / 'shared' / 'tracknetv3'
 
 # Default weights live at runtime/checkpoints/tracknetv3/.
 # Resolved from this file: src/bric/perception/shuttle.py → parents[3] = repo root.
@@ -97,7 +97,7 @@ def extract_shuttle(
     ]
     if large_video:
         cmd.append('--large_video')
-    subprocess.run(cmd, cwd=_VENDOR_DIR, check=True)
+    subprocess.run(cmd, cwd=_TRACKNET_DIR, check=True)
 
     out_csv = save_dir / f'{video_path.stem}_ball.csv'
     if not out_csv.exists():

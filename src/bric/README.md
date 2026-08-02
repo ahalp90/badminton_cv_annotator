@@ -16,7 +16,6 @@ src/bric/
 ├── perception/               # BRIC's perception stack
 │   ├── players.py            # YOLO11 + ByteTrack
 │   ├── shuttle.py            # TrackNetV3 wrapper
-│   └── _vendor/tracknetv3/   # Vendored upstream
 ├── preprocessing/            # Cache producers (run once per source video)
 │   ├── slice_rallies.py      # Rally-level mp4 extraction
 │   ├── preprocess_videos.py  # YOLO+ByteTrack → players cache + RGB tensors
@@ -30,7 +29,8 @@ src/bric/
 ```
 
 Generic utilities BRIC consumes live in `src/shared/`: taxonomy,
-court geometry, player mapping, video I/O, frame-window helpers. A
+court geometry, player mapping, video I/O, frame-window helpers, and the
+canonical TrackNetV3 inference tree. A
 per-stroke clip slicer (`shared/slicer.py`) is planned for PR 4 as
 the cross-arch primitive for the live-upload inference path.
 
