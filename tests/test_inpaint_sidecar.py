@@ -17,25 +17,14 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WRITER_PATH = REPO_ROOT / 'src' / 'bst_x' / 'TrackNetV3' / 'write_inpaint_metadata.py'
+TRACKNET_DIR = REPO_ROOT / 'src' / 'shared' / 'tracknetv3'
+WRITER_PATH = TRACKNET_DIR / 'write_inpaint_metadata.py'
 WRITER_SPEC = importlib.util.spec_from_file_location('authoritative_inpaint_metadata', WRITER_PATH)
 if WRITER_SPEC is None or WRITER_SPEC.loader is None:
     raise RuntimeError(f'Could not load {WRITER_PATH}')
 WRITER_MODULE = importlib.util.module_from_spec(WRITER_SPEC)
 WRITER_SPEC.loader.exec_module(WRITER_MODULE)
 write_inpaint_metadata = WRITER_MODULE.write_inpaint_metadata
-
-VENDORED_WRITER_PATH = (
-    REPO_ROOT / 'src' / 'bric' / 'perception' / '_vendor' / 'tracknetv3'
-    / 'write_inpaint_metadata.py'
-)
-VENDORED_WRITER_SPEC = importlib.util.spec_from_file_location(
-    'vendored_inpaint_metadata', VENDORED_WRITER_PATH,
-)
-if VENDORED_WRITER_SPEC is None or VENDORED_WRITER_SPEC.loader is None:
-    raise RuntimeError(f'Could not load {VENDORED_WRITER_PATH}')
-VENDORED_WRITER_MODULE = importlib.util.module_from_spec(VENDORED_WRITER_SPEC)
-VENDORED_WRITER_SPEC.loader.exec_module(VENDORED_WRITER_MODULE)
 
 
 def _write_sidecar(
@@ -386,15 +375,13 @@ def test_scraped_manifest_extra_eligibility_is_tolerated_by_both_readers(tmp_pat
         'url': 'https://example.test/clip',
     }
 
-    for writer_module in (WRITER_MODULE, VENDORED_WRITER_MODULE):
-        assert writer_module._read_source_provenance(str(video_path)) == expected
+    assert WRITER_MODULE._read_source_provenance(str(video_path)) == expected
 
     video_path.parent.joinpath('sources.toml').write_text(
         'dataset = "scraped"\n\n[videos]\n',
         encoding='utf-8',
     )
-    for writer_module in (WRITER_MODULE, VENDORED_WRITER_MODULE):
-        assert writer_module._read_source_provenance(str(video_path)) == {}
+    assert WRITER_MODULE._read_source_provenance(str(video_path)) == {}
 
 
 def test_malformed_manifest_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -513,7 +500,7 @@ def _is_none_constant(node: ast.expr) -> bool:
 
 
 def test_all_entry_points_propagate_checkpoint_basenames() -> None:
-    standalone_tree = _parse(REPO_ROOT / 'src' / 'bst_x' / 'TrackNetV3' / 'predict.py')
+    standalone_tree = _parse(TRACKNET_DIR / 'predict.py')
     standalone_call = _predict_video_calls(standalone_tree)[0]
     assert _is_basename_call(_keyword(standalone_call, 'tracknet_ckpt'), 'tracknet_file')
     standalone_inpaint = _keyword(standalone_call, 'inpaintnet_ckpt')
@@ -521,10 +508,7 @@ def test_all_entry_points_propagate_checkpoint_basenames() -> None:
     assert _is_basename_call(standalone_inpaint.body, 'inpaintnet_file')
     assert _is_none_constant(standalone_inpaint.orelse)
 
-    for batch_path in (
-        REPO_ROOT / 'src' / 'bst_x' / 'TrackNetV3' / 'batch_predict.py',
-        REPO_ROOT / 'src' / 'bric' / 'perception' / '_vendor' / 'tracknetv3' / 'batch_predict.py',
-    ):
+    for batch_path in (TRACKNET_DIR / 'batch_predict.py',):
         batch_tree = _parse(batch_path)
         batch_call = _predict_video_calls(batch_tree)[0]
         # The call site must pass the resolved variables THEMSELVES, so the
@@ -560,10 +544,7 @@ def test_writer_call_precedes_csv_write_in_predict_video() -> None:
     # constraint (one unconditional sidecar write immediately before the
     # CSV write, both in predict_video's own statement list, so a writer
     # exception must abort the CSV) is asserted structurally instead.
-    for predict_path in (
-        REPO_ROOT / 'src' / 'bst_x' / 'TrackNetV3' / 'predict.py',
-        REPO_ROOT / 'src' / 'bric' / 'perception' / '_vendor' / 'tracknetv3' / 'predict.py',
-    ):
+    for predict_path in (TRACKNET_DIR / 'predict.py',):
         tree = _parse(predict_path)
         predict_video = next(
             node

@@ -198,7 +198,7 @@ def test_extract_shuttle_builds_tracknet_command(
     captured = []
 
     def fake_run(cmd, **kwargs):
-        captured.append(cmd)
+        captured.append((cmd, kwargs))
         (save_dir / 'clip_ball.csv').parent.mkdir(parents=True, exist_ok=True)
         (save_dir / 'clip_ball.csv').touch()
 
@@ -206,9 +206,11 @@ def test_extract_shuttle_builds_tracknet_command(
     shuttle.extract_shuttle(video_path, save_dir, weights_dir, tracknet_stride=stride,
                             large_video=large_video)
 
-    argv = captured[0]
+    argv, run_kwargs = captured[0]
     assert ['--eval_mode', expected_mode] == argv[argv.index('--eval_mode'):argv.index('--eval_mode') + 2]
     assert ('--large_video' in argv) is present
+    expected_dir = Path(shuttle.__file__).resolve().parents[2] / 'shared' / 'tracknetv3'
+    assert run_kwargs['cwd'] == expected_dir
 
 
 def test_extract_shuttle_rejects_stride_three(tmp_path: Path) -> None:
@@ -310,3 +312,17 @@ def test_batch_shuttle_extractor_main_resolves_profiles(
 
     assert captured[0]['tracknet_stride'] == expected_stride
     assert captured[0]['large_video'] is expected_large_video
+
+
+def test_batch_shuttle_extractor_defaults_to_shared_tracknet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.bst_x.pipeline.shuttle_extractor as extractor
+
+    captured = []
+    monkeypatch.setattr(extractor, 'extract_all_shuttles', lambda **kwargs: captured.append(kwargs))
+    monkeypatch.setattr(sys, 'argv', ['shuttle_extractor', '--dry-run'])
+
+    extractor.main()
+
+    assert captured[0]['tracknet_dir'] == extractor.DEFAULT_TRACKNET_DIR

@@ -1,10 +1,11 @@
-# shared/ — values + utilities BRIC consumes
+# shared/ — cross-pipeline values, utilities, and vendored code
 
 A flat namespace for things BRIC needs that are architecture-agnostic.
 Some originated inside BST (taxonomy, court) and were decoupled here
 so BRIC doesn't import from `bst_x.*` directly; others are
 generic helpers (video I/O, frame-window math) that any architecture
-working with video would want.
+working with video would want. The TrackNetV3 inference tree is shared by
+BRIC, BST-X, and the scrape lane.
 
 ## Modules
 
@@ -16,6 +17,7 @@ working with video would want.
 | `dataset.py` | new | Canonical paths to ShuttleSet assets (annotations, video metadata, homography CSV). |
 | `video_io.py` | new | cv2 wrapper: `get_video_info`, `iter_frames`, `read_frame_at`, `read_frames`, `write_frame_thumbnail`. Defaults to RGB ordering; exposes a `VideoInfo` dataclass. |
 | `temporal.py` | new | Frame-window helpers: `clip_window_seconds`, `clip_window_frames`, `subsample_indices`. `subsample_indices` picks N indices uniformly from a coverage-second window centred on a target frame, with stride that adapts to source fps so real-world coverage stays constant. |
+| `tracknetv3/` | vendored | Canonical TrackNetV3 and InpaintNet inference code used by both classifiers and the scrape lane. |
 
 ## Planned
 

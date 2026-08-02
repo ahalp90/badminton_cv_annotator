@@ -34,13 +34,11 @@ where the mask is 1 the saved value is InpaintNet's output, where it is
 
 One gzipped JSON file beside each `{stem}_ball.csv`, named
 `{video_stem}_stride{N}_inpaint_mask.json.gz`. The writer is
-`src/bst_x/TrackNetV3/write_inpaint_metadata.py` (vendored copy under
-`src/bric/perception/_vendor/tracknetv3/`, byte-identical). It runs
-inside `predict_video`, immediately before the CSV write. Every caller
-of that function therefore produces sidecars: standalone `predict.py`,
-`batch_predict.py` (the script the extract pipeline's
-`shuttle_extractor.py` drives), and the API's direct call in
-`src/api/bric_inference.py`.
+`src/shared/tracknetv3/write_inpaint_metadata.py`. It runs inside
+`predict_video`, immediately before the CSV write. Both callers of that
+function therefore produce sidecars: standalone `predict.py` and
+`batch_predict.py`, which the extract pipeline's `shuttle_extractor.py`
+drives.
 
 Example, with every field:
 
@@ -169,18 +167,16 @@ pre-build red-teams; reopen only with a concrete reachable failure.
 Facts about the surrounding code that the scoping verified first-hand
 and that future work here will need:
 
-- `src/bst_x/TrackNetV3/` is authoritative; the vendored copy under
-  `src/bric/perception/_vendor/tracknetv3/` must stay byte-identical
-  for `predict.py` and the writer module. `batch_predict.py`
-  legitimately differs between trees by the `--large_video` flag only
-- both TrackNetV3 trees are excluded from the lint and type gates
+- `src/shared/tracknetv3/` is the authoritative TrackNetV3 tree for BRIC,
+  BST-X, and the scrape lane
+- the TrackNetV3 tree is excluded from the lint and type gates
   (ruff, pyrefly) by repo config, so `tests/test_inpaint_sidecar.py` is
   the only real coverage of the writer. Several of its checks inspect
   the source structurally instead of running it: call order inside
   `predict_video` and checkpoint propagation at the call sites, because
   a live ordering test would need GPU inference
 - the extract pipeline reaches TrackNet through `batch_predict.py`
-  worker processes, so `shuttle_extractor.py` itself needed no change.
+  worker processes.
   Its asymmetry (CSVs skip-if-exists, npys regenerated every run) is
   what makes the CSV the right sidecar anchor
 - whole-video (t, 3) npys have no in-repo producer; they came from a
@@ -190,12 +186,8 @@ and that future work here will need:
 - `predict.py` derives `video_name` by stripping the last four
   characters of the filename. The writer uses `os.path.splitext`
   instead; the two agree on every `.mp4` name
-- the API lane (`src/api/bric_inference.py`) calls `predict_video`
-  directly rather than through the subprocess wrapper. It now passes
-  its checkpoint basenames so its sidecars carry true provenance. No
-  further investment in the BRIC lane (the deployed second classifier's
-  perception stack): it is due to collapse into a combined version with
-  the bst_x tree authoritative
+- the BRIC lane reaches the same tree through the subprocess wrapper in
+  `src/bric/perception/shuttle.py`
 
 ## Verification record
 

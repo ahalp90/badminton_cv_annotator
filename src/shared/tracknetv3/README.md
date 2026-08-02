@@ -4,12 +4,12 @@ Shuttle trajectory extraction for the ShuttleSet stroke classification pipeline.
 
 ## Setup
 
-TrackNetV3 shares the BST training venv rather than maintaining a separate environment. See `stroke_classification/requirements.txt` for the full dependency list, and `requirements.txt` in this directory for standalone setup instructions if needed.
+TrackNetV3 shares the BST training venv rather than maintaining a separate environment. See `../../bst_x/requirements.txt` for the full dependency list, and `requirements.txt` in this directory for standalone setup instructions if needed.
 
 ```bash
-# From the BST training venv:
+# From the repository root with the BST training venv active:
 pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -r stroke_classification/requirements.txt
+pip install -r src/bst_x/requirements.txt
 ```
 
 ### Pretrained Weights
@@ -17,7 +17,7 @@ pip install -r stroke_classification/requirements.txt
 Download the [checkpoints](https://drive.google.com/file/d/1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA/view?usp=sharing) and unzip into `ckpts/`:
 
 ```bash
-unzip TrackNetV3_ckpts.zip
+unzip TrackNetV3_ckpts.zip -d src/shared/tracknetv3/ckpts/
 # Expected: ckpts/TrackNet_best.pt, ckpts/InpaintNet_best.pt
 ```
 
@@ -25,16 +25,18 @@ unzip TrackNetV3_ckpts.zip
 
 ### Via the pipeline (recommended)
 
-The pipeline's `shuttle_extractor.py` calls `predict.py` as a subprocess. Point `--tracknet-python` at the BST venv's Python:
+The pipeline's `shuttle_extractor.py` calls `batch_predict.py` as a subprocess (`predict.py` remains for manual single-clip runs). Point `--tracknet-python` at the BST venv's Python:
 
 ```bash
-python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
+cd src/bst_x
+python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python
 ```
 
 ### Standalone
 
 ```bash
+cd src/shared/tracknetv3
 python predict.py --video_file test.mp4 \
     --tracknet_file ckpts/TrackNet_best.pt \
     --inpaintnet_file ckpts/InpaintNet_best.pt \

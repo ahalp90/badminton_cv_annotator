@@ -28,7 +28,7 @@ python -m pipeline.build_dataset --skip-shuttle --dry-run
 python -m pipeline.build_dataset --skip-shuttle
 
 # Run everything including shuttle extraction (uses BST venv for TrackNetV3)
-python -m pipeline.build_dataset --tracknet-dir TrackNetV3 \
+python -m pipeline.build_dataset \
     --tracknet-python /path/to/bst-venv/bin/python
 ```
 
@@ -101,7 +101,7 @@ Checks that:
 
 Runs TrackNetV3 on each clip to extract shuttle trajectories, then normalises to `(t, 3)` numpy arrays: `[x_norm, y_norm, visibility]`.
 
-TrackNetV3 shares the BST training venv (`requirements.txt`) rather than maintaining a separate environment. The original repo's dependencies (torch 1.10, numpy 1.22) are incompatible with Python 3.11 and CUDA 12.1; the code has been verified to work with torch 2.3.1. See `TrackNetV3/requirements.txt` for the full version rationale and standalone setup instructions.
+TrackNetV3 shares the BST training venv (`requirements.txt`) rather than maintaining a separate environment. The original repo's dependencies (torch 1.10, numpy 1.22) are incompatible with Python 3.11 and CUDA 12.1; the code has been verified to work with torch 2.3.1. See `src/shared/tracknetv3/requirements.txt` for the full version rationale and standalone setup instructions.
 
 The pipeline calls TrackNetV3 as a subprocess via `batch_predict.py`, which loads models once and iterates over all clips in-process. This avoids the ~8s model-reload overhead per clip that the old subprocess-per-clip approach had. The pipeline passes `--batch_size` (default 32; configurable via `--batch-size`) and uses the default `eval_mode='weight'` (full temporal ensemble) for maximum detection accuracy. Inference runs in FP32 to preserve detection accuracy on fast-moving shuttles (>400 km/h at 25-30fps produces faint heatmap responses where FP16 rounding could flip the 0.5 visibility threshold). Frames are pre-resized during loading using PIL BICUBIC, which is bit-identical to the Dataset's own resize and avoids redundant full-resolution array operations. VideoCapture handles are explicitly released after use, and `gc.collect()` + `torch.cuda.empty_cache()` run between clips to prevent resource exhaustion over long batch runs. TrackNetV3's imports don't affect the pipeline venv. Point `--tracknet-python` at the BST venv's Python.
 
@@ -110,11 +110,12 @@ The pipeline calls TrackNetV3 as a subprocess via `batch_predict.py`, which load
 1. **Download pretrained weights** from [Google Drive](https://drive.google.com/file/d/1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA/view?usp=sharing) (~150 MB zip). These are too large for the git repo (`ckpts/` is gitignored).
 
    ```bash
-   cd TrackNetV3
+   cd ../shared/tracknetv3
    pip install gdown              # if not already installed
    gdown 1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA
    unzip TrackNetV3_ckpts.zip -d ckpts/
    # Expected: ckpts/TrackNet_best.pt, ckpts/InpaintNet_best.pt
+   cd ../../bst_x
    ```
 
    Without InpaintNet weights the pipeline will warn and fall back to TrackNet-only (no gap-filling for occluded frames). Without TrackNet weights step 6 will fail.
@@ -133,15 +134,15 @@ The pipeline calls TrackNetV3 as a subprocess via `batch_predict.py`, which load
 
 ```bash
 # Run from the pipeline's own venv (batch mode, single GPU)
-python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
+python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python --workers 1 --batch-size 16
 
 # Retry any OOM failures with a smaller batch size (resume picks up where it left off)
-python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
+python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python --workers 1 --batch-size 8
 
 # Dry run (processes clips but writes no files — test that the pipeline works)
-python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
+python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python --workers 1 --batch-size 16 --dry-run
 ```
 
@@ -152,7 +153,7 @@ If omitted, `--tracknet-python` defaults to the current interpreter (`sys.execut
 Single-clip inference is still available via `predict.py` directly (e.g. for deployment):
 
 ```bash
-cd TrackNetV3
+cd ../shared/tracknetv3
 python predict.py --video_file clip.mp4 --tracknet_file ckpts/TrackNet_best.pt \
     --inpaintnet_file ckpts/InpaintNet_best.pt --save_dir output/
 ```
@@ -168,7 +169,7 @@ Each `.npy` file has shape `(t, 3)`. To get xy-only coordinates: `shuttle[:, :2]
 ```
 python -m pipeline.build_dataset [OPTIONS]
 
---tracknet-dir PATH    Path to TrackNetV3 directory (required unless --skip-shuttle)
+--tracknet-dir PATH    Optional TrackNetV3 override (default: src/shared/tracknetv3)
 --tracknet-python PATH Python executable in BST venv (default: sys.executable)
 --workers N            Parallel workers (default 2, safe for shared GPU nodes)
 --batch-size N         Batch size for TrackNet DataLoader (default 32; use 16 on V100 16GB)
@@ -186,7 +187,7 @@ python -m pipeline.build_dataset [OPTIONS]
 ```
 python -m pipeline.shuttle_extractor [OPTIONS]
 
---tracknet-dir PATH    Path to TrackNetV3 directory (required)
+--tracknet-dir PATH    Optional TrackNetV3 override (default: src/shared/tracknetv3)
 --clips-dir PATH       Directory containing generated clips
 --csv-dir PATH         Directory for TrackNetV3 CSV outputs
 --npy-dir PATH         Output directory for normalised .npy files
@@ -210,12 +211,10 @@ To resume safely after steps 3-5 have completed:
 # Skip straight to shuttle extraction (step 6)
 python -m pipeline.build_dataset \
     --skip-download --skip-resolution --skip-clips --skip-verify \
-    --tracknet-dir TrackNetV3 \
     --tracknet-python /path/to/bst-venv/bin/python
 
 # Or run step 6 directly via its own CLI
 python -m pipeline.shuttle_extractor \
-    --tracknet-dir TrackNetV3 \
     --tracknet-python /path/to/bst-venv/bin/python
 ```
 
@@ -311,7 +310,7 @@ Each module can be run standalone:
 ```bash
 python -m pipeline.download_videos --workers 4
 python -m pipeline.clip_generator --clip-window between_2_hits
-python -m pipeline.shuttle_extractor --tracknet-dir TrackNetV3 \
+python -m pipeline.shuttle_extractor \
     --tracknet-python /path/to/bst-venv/bin/python
 python -m pipeline.verify --clips-dir data/shuttleset/clips
 ```
