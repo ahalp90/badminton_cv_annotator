@@ -13,7 +13,7 @@ forwards those plus the shared sharing-flags.
 
 Usage (from the repo root, both package roots on PYTHONPATH)::
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
         python -m collation_runner \\
         experiments/bst_x/shuttleset/aug_hparam_sweep/your_sweep_name
 """

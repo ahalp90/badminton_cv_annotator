@@ -40,7 +40,7 @@ not three clips of one match (where channel/exposure effects vanish).
 Parity-at-scale against the mmpose baseline is the GPU gate (G8).
 
 Run (CPU default, 5 clips):
-  PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
+  PYTHONPATH=src:src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/gate_keypoint_value.py
 
 Run over the 200-clip Phase-A sample: a GPU-box job with RTMLIB_GATE_DEVICE=cuda,
@@ -53,7 +53,7 @@ output into the comma-separated env var:
       src/bst_x/validation_scripts/rtmlib_migration/make_phase_a_sample.py \\
       --per-video 5 --out phase_a_stems.txt
   RTMLIB_GATE_STEMS=$(paste -sd, phase_a_stems.txt) RTMLIB_GATE_DEVICE=cuda \\
-      PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
+      PYTHONPATH=src:src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/gate_keypoint_value.py
 
 Env:

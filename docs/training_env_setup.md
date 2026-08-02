@@ -125,7 +125,7 @@ This script checks:
    `torchvision.models.video`)
 6. OpenCV importable
 7. BRIC's own modules (`shared.taxonomy`, `shared.court`,
-   `shared.video_io`) import cleanly
+   `classifier_shared.video_io`) import cleanly
 
 Expected output ends with:
 

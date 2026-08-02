@@ -37,7 +37,7 @@ Outputs (under ``--out-dir``, default
 
 Per-(player x slot) aggregation is deliberately NOT produced here; resolving
 a clip stem to its hitter requires the A/B-to-Top/Bottom remap from
-pipeline.player_mapping, which depends on the downcourt flag, set number,
+classifier_shared.player_mapping, which depends on the downcourt flag, set number,
 and the set-3 mid-game switch. Run a follow-up join script over the per-clip
 CSV produced here if the per-(player x slot) breakdown is wanted.
 
@@ -280,7 +280,7 @@ def _process_clip_slot(
 
 # Per-player aggregation deliberately not implemented here. Resolving a
 # clip stem to the hitter's player name requires the A-vs-B-to-Top-vs-Bottom
-# remap from pipeline.player_mapping, which depends on the downcourt flag,
+# remap from classifier_shared.player_mapping, which depends on the downcourt flag,
 # set number, and the set-3 mid-game switch rally. Out of scope for this
 # diagnostic; if the per-(player x slot) breakdown is wanted, run a
 # follow-up join script that consumes the per-clip CSV produced here.

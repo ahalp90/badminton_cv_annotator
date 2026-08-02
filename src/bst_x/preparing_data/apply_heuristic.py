@@ -12,7 +12,7 @@ extract is never overwritten by this tool.
 
 Run from the repo root with both package roots on PYTHONPATH::
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
         python -m preparing_data.apply_heuristic \\
             --raw-dir /scratch/comp320a/ShuttleSet_keypoints_raw \\
             --output-dir /scratch/comp320a/ShuttleSet_keypoints_clean_<variant> \\
@@ -32,7 +32,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-from pipeline.court_utils import build_all_court_info
+from shared.court import build_all_court_info
 from pipeline.data_access import load_repo_dotenv
 
 from preparing_data.heuristics import RAW_SUFFIXES, REGISTRY, ClipContext, RawClip

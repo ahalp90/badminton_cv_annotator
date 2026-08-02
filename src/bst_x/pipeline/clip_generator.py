@@ -22,7 +22,7 @@ from pipeline.config import (
     NOSIDE_FOLDERS, Taxonomy, taxonomy_lookup,
 )
 
-from pipeline.player_mapping import collect_shots
+from classifier_shared.player_mapping import collect_shots
 
 # Default taxonomy when callers don't pass one. Matches the project's
 # working baseline; override via the function arg for one-off runs.

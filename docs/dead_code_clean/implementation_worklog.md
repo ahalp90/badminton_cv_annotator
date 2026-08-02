@@ -2,15 +2,12 @@
 
 ## Resume
 
-- **Next action:** Run the B1 commit script, push the branch, and open the first
-  focused PR.
-- **Current batch:** B1 implementation, local gates, and independent review are
-  complete.
-- **Verified so far:** The branch starts at merged `origin/main` commit
-  `a555159`. `src/api/`, its API tests, and the web frontend are absent. Both
-  TrackNetV3 trees and the remaining R2, R3, R5, R7, and BRIC R8 targets still
-  exist. B1 now has one shared TrackNet tree. Its direct suite passes 63 tests,
-  and the shuttle-array compatibility test also passes.
+- **Next action:** Prepare and validate the B2 commit and PR handoff script.
+- **Current batch:** B2 implementation, independent review, corrections, and
+  local gates are complete on the continuing `cleanup-dedup` branch.
+- **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
+  through PR #41 (`a4eddca`). B2's focused suite passes 161 tests with 6 skips.
+  Ruff and focused Pyrefly pass.
 - **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
@@ -33,6 +30,14 @@
   The shared setup path, single-clip command, CLI flag descriptions, and BRIC
   layout still named deleted locations. All cited active instructions were
   corrected and rechecked. No runtime finding was reported.
+- **B2:** The available venv does not contain `matplotlib`, although it is
+  declared in both root and BST-X dependencies. Plotting execution needs an
+  environment with the declared evaluation dependencies installed.
+- **B2 review:** A fresh Codex session found three confirmed path defects:
+  incomplete BST-X `PYTHONPATH` commands and self-bootstrap roots, a notebook
+  setup cell missing `src`, and one stale active player-mapping recipe. All
+  were corrected. A follow-up active-path search is clean outside explicitly
+  historical pre-phase documents.
 
 ## Original and intended shape
 
@@ -56,9 +61,11 @@ BST-X and BRIC trees are absent. No model weights were moved or changed.
 
 ### Shared and classifier helpers
 
-`src/shared/` still contains court, dataset, taxonomy, player mapping,
-evaluation plots, temporal helpers, and video I/O. `src/classifier_shared/`
-does not exist. No part of R2 has been implemented.
+`src/shared/` contains the cross-pipeline court implementation, dataset and
+taxonomy code reserved for B3, and TrackNetV3. `src/classifier_shared/` now
+contains player mapping, evaluation plotting, and video metadata. The old BST
+court and player-mapping modules are absent. The test-only temporal module and
+unused frame/thumbnail video helpers are absent.
 
 ### Downloaders
 
@@ -128,4 +135,27 @@ R4 and R9 require no implementation changes.
   namespace/integration collection was blocked by a missing
   `positional_encodings` dependency in the available venv. Independent review:
   one confirmed medium documentation finding, fixed and rechecked.
+- **Commit:** `f589f55 Consolidate TrackNetV3 under shared`; merged by PR #41
+  as `a4eddca`.
+
+### B2 shared foundations
+
+- **Readiness:** R2 and the D2 consumer table governed the scope. Taxonomy,
+  flaw parsing, and clip bounds remain reserved for B3.
+- **Files:** `src/shared/court.py`, new `src/classifier_shared/`, all D2-listed
+  court and player-mapping consumers, BRIC plotting and video consumers,
+  operational runbooks, and focused tests.
+- **Change:** Added BST's resolution-indexed court builder to the shared union
+  surface and retired `pipeline.court_utils`. Consolidated player mapping in
+  `classifier_shared` and retired both old copies. Moved the plot renderer and
+  video metadata there. The presentation script is now a thin renderer CLI.
+  Removed the unused video frame/thumbnail helpers and the test-only temporal
+  module.
+- **Gate:** Green for the B2 scope. Independent review suite: 248 passed, 6
+  skipped. Post-fix focused suite: 201 passed, 6 skipped. Ruff: passed.
+  Focused Pyrefly: 0 errors. Raw extraction, the equivalence failsafe, BST
+  preparation, training augmentations, and the notebook setup resolve with
+  both package roots. Plotting execution is blocked in the available venv
+  because its declared `matplotlib` dependency is not installed; source
+  compilation and static checks pass.
 - **Commit:** Pending.

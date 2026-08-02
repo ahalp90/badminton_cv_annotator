@@ -25,7 +25,7 @@ Checks (on one real clip + a synthetic black frame):
 * order-sanity: on the cleanest detection the head sits above the knees and ankles.
 
 Run:
-  PYTHONPATH=src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
+  PYTHONPATH=src:src/bst_x XDG_CACHE_HOME=<warm-cache> <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/adapter_contract_test.py
 """
 from __future__ import annotations

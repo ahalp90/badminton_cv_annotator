@@ -19,7 +19,7 @@ Env:
                            (default: pool .../rtmlib_onnx)
 
 Run:
-  XDG_CACHE_HOME=<cache> PYTHONPATH=src/bst_x <venv>/bin/python \\
+  XDG_CACHE_HOME=<cache> PYTHONPATH=src:src/bst_x <venv>/bin/python \\
       src/bst_x/validation_scripts/rtmlib_migration/download_and_verify_models.py
 """
 from __future__ import annotations

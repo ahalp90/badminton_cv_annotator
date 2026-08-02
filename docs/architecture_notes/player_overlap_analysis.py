@@ -55,7 +55,7 @@ def build_match_info() -> pd.DataFrame:
 def find_set3_switch_rally(set3_path: Path) -> int:
     """First rally AFTER the 11-point court switch in set 3.
 
-    Mirrors find_set3_switch_rally in pipeline/player_mapping.py: the switch
+    Mirrors find_set3_switch_rally in classifier_shared/player_mapping.py: the switch
     occurs at the next rally after either player first reaches 11 points.
     Returns a rally number (not an index); rally < this -> pre-switch phase,
     rally >= this -> post-switch phase. If neither hits 11 (rare retirement

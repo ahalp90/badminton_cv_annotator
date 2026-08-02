@@ -6,7 +6,7 @@
 # BST training script for ShuttleSet.
 #
 # Run from the repo root with both package roots on PYTHONPATH:
-#   PYTHONPATH=src/bst_x \
+#   PYTHONPATH=src:src/bst_x \
 #       python -m bst_x_train
 
 import numpy as np

@@ -68,9 +68,10 @@ from PIL import Image, ImageDraw
 # mmpose_heuristic_investigation/ in Stage 7), so the repo root is three parents up.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src" / "bst_x"))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.config import HOMOGRAPHY_RESOLUTION  # noqa: E402
-from pipeline.court_utils import get_court_info  # noqa: E402
+from shared.court import get_court_info  # noqa: E402
 
 
 # One palette for both stories: bbox colour conveys rank-and-court status,

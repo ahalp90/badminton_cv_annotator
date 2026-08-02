@@ -10,7 +10,7 @@ RNG pinned in the comparison harness. This wrapper does that without modifying
 Pass all the bst_x_train CLI flags through after the launcher path. The
 ``BST_X_SEED`` env var overrides the default seed of 0.
 
-    PYTHONPATH=src/bst_x \\
+    PYTHONPATH=src:src/bst_x \\
     BST_X_SEED=0 python src/bst_x/validation_scripts/refactoring/seed_and_run_bst_x_train.py \\
         --serial-no 1 \\
         --run-id seed_main \\
@@ -31,9 +31,10 @@ from pathlib import Path
 import torch
 
 # script lives at src/bst_x/validation_scripts/refactoring/<name>.py;
-# parents[2] is src/bst_x/, the package root runpy.run_module needs on sys.path.
+# parents[2] is src/bst_x/. Its parent holds shared classifier packages.
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
+sys.path.insert(0, str(SRC.parent))
 
 
 def main() -> int:

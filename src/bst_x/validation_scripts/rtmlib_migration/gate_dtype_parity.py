@@ -44,7 +44,7 @@ SKIP = 2
 def _court_setup():
     import pandas as pd
     from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-    from pipeline.court_utils import get_court_info
+    from shared.court import get_court_info
 
     res_df = pd.read_csv(RESOLUTION_CSV_PATH).set_index("id")
     homo_df = pd.read_csv(str(SET_INFO_DIR / "homography.csv")).set_index("id")
