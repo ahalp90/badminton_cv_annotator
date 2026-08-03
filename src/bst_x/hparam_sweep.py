@@ -305,8 +305,9 @@ def read_run_mean(run_id: str) -> dict:
         raise ValueError(
             f'{run_id}: expected 5 completed serials in manifest, found {len(serials)}'
         )
-    metrics_keys = ['macro_f1', 'min_f1', 'accuracy', 'top2_accuracy']
-    return {k: sum(s['metrics'][k] for s in serials) / 5 for k in metrics_keys}
+    mean = cumulative_mean(serials)
+    assert mean is not None
+    return mean
 
 
 def read_run_per_class_mean(run_id: str) -> dict:
@@ -317,11 +318,7 @@ def read_run_per_class_mean(run_id: str) -> dict:
         raise ValueError(
             f'{run_id}: expected 5 completed serials in manifest, found {len(serials)}'
         )
-    classes = list(serials[0]['metrics']['per_class_f1'].keys())
-    return {
-        cls: sum(s['metrics']['per_class_f1'][cls] for s in serials) / 5
-        for cls in classes
-    }
+    return per_class_mean(serials)
 
 
 REQUIRED_METRIC_KEYS = ('macro_f1', 'min_f1', 'accuracy', 'top2_accuracy', 'per_class_f1')

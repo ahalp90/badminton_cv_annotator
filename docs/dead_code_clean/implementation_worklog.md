@@ -2,13 +2,14 @@
 
 ## Resume
 
-- **Current state:** B1 through B4 are merged. B5 implementation and independent
-  review are complete on `cleanup-dedup-b5` from merge commit `9f21cc3`.
-- **Next action:** Review the final B5 diff, then run the B5 commit helper.
+- **Current state:** B1 through B5 are merged. B6 implementation is complete on
+  `cleanup-dedup-b6` from merge commit `4b13ea4`.
+- **Next action:** Review the final B6 diff, then run the B6 commit helper.
 - **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
   through PR #41 (`a4eddca`). B2 commit `03f8b26` is contained in merged PR #42
   (`ef77e71`). B3 and its corrections are contained in merged PR #43
   (`4a52929`). B4 commit `a8fc6b9` is contained in merged PR #44 (`9f21cc3`).
+  B5 commit `51b2977` is contained in merged PR #45 (`4b13ea4`).
 - **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
@@ -111,8 +112,10 @@ landing, and fps-resolved surfaces directly. The protected R5 mirrors remain.
 
 ### BST-X and BRIC
 
-Both R7 dedups remain. BRIC still has the dead player-tracking chain and the
-duplicate `_select_device`. API-specific R8 targets are absent.
+Raw extraction uses the pipeline clip index. Fixed-five sweep readers use the
+shared reducers after checking completeness. BRIC retains the YOLO weights path,
+while the dead tracker chain is absent. Evaluation uses the training device
+selector.
 
 ## Execution batches
 
@@ -276,4 +279,25 @@ R4 and R9 require no implementation changes.
   collection finds 1,087 tests before nine dependency-related collection
   errors. CourtKeyNet execution remains blocked by missing `safetensors`. The
   independent review found two low documentation issues; both are corrected.
+- **Commit:** `51b2977 Remove dead annotator and test helpers`; merged by PR #45
+  as `4b13ea4`.
+
+### B6 BST-X and BRIC
+
+- **Readiness:** R7 and the remaining BRIC-only R8 items govern the scope. The
+  focused baseline passed 106 tests. The player-tracking chain has no live
+  caller, while `DEFAULT_YOLO_WEIGHTS` remains in use by BRIC preprocessing.
+- **Files:** `preparing_data/raw_extract.py`, `pipeline/clip_index.py` through its
+  existing public helper, `hparam_sweep.py`, `bric/perception/players.py`,
+  `bric/eval.py`, the focused sweep test, and this worklog.
+- **Change:** Raw extraction now uses `build_clip_path_index`. Fixed-five run
+  readers use the shared metric reducers and retain their completeness check.
+  Removed the dead BRIC tracker chain. BRIC evaluation now uses the training
+  device selector.
+- **Gate:** Focused suite: 108 passed. Whole-project Ruff and `git diff --check`
+  pass. Focused Pyrefly reports zero errors. Import checks confirm the retained
+  weights path and canonical clip-index function. The BRIC evaluation CLI is
+  blocked by the previously documented missing `torcheval` dependency. The
+  independent review found no issues and matched the baseline clip index,
+  sweep arithmetic, completeness errors, and device selection.
 - **Commit:** Not yet committed.

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from bric.dataset import ShuttleSetDataset, collate_strokes
 from bric.network import BRICNetwork
-from bric.train import _resolve_taxonomy, _move_batch, _forward_for_variant
+from bric.train import _forward_for_variant, _move_batch, _resolve_taxonomy, _select_device
 from classifier_shared.eval_plots import plot_confusion_matrix
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -28,13 +28,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
          '--run-id', required=True, help='The run_id of the model to evaluate.'
     )
     return p.parse_args(argv)
-
-def _select_device() -> torch.device:
-    if torch.cuda.is_available():
-        return torch.device('cuda')
-    if torch.backends.mps.is_available():
-        return torch.device('mps')
-    return torch.device('cpu')
 
 def _top_n_confusions(cm: torch.Tensor, classes: list[str], n: int = 10) -> list[dict]:
     """N largest off-diagonal confusion-matrix entries, sorted desc."""

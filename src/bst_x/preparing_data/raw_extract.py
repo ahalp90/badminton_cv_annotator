@@ -51,6 +51,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 from tqdm import tqdm
 
+from pipeline.clip_index import build_clip_path_index
 from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
 from preparing_data.extract_failures import (
     FAILURE_ABORT_FRACTION,
@@ -196,11 +197,6 @@ def inspect_one_clip(extractor: RtmlibPoseExtractor, video_path: Path) -> None:
     })
 
 
-def build_stem_to_path(clips_dir: Path) -> dict[str, Path]:
-    """Map every .mp4 stem under ``clips_dir`` to its Path (recursive)."""
-    return {mp4.stem: mp4 for mp4 in clips_dir.glob("**/*.mp4")}
-
-
 def load_stems(path: Path) -> list[str]:
     with path.open() as fh:
         return [line.strip() for line in fh if line.strip()]
@@ -282,7 +278,7 @@ def main() -> int:
     stems = load_stems(args.clip_stems_file)
     print(f"Loaded {len(stems)} stems from {args.clip_stems_file}")
 
-    stem_to_path = build_stem_to_path(args.clips_dir)
+    stem_to_path = build_clip_path_index(args.clips_dir)
     print(f"Indexed {len(stem_to_path)} mp4 files under {args.clips_dir}")
 
     resolved: list[tuple[str, Path]] = []

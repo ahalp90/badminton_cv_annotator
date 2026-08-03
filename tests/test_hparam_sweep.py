@@ -367,6 +367,17 @@ class TestVerdict:
 # ==========================================================================
 
 class TestReductions:
+    @pytest.mark.parametrize('reader', [hs.read_run_mean, hs.read_run_per_class_mean])
+    def test_fixed_run_readers_require_five_serials(self, reader, tmp_experiments):
+        write_fake_run(
+            tmp_experiments,
+            'incomplete_run',
+            [make_serial(i, 0.74, 0.45) for i in range(1, 5)],
+        )
+
+        with pytest.raises(ValueError, match='expected 5 completed serials'):
+            reader('incomplete_run')
+
     def test_cumulative_mean(self):
         serials = [
             make_serial(1, 0.74, 0.45),
