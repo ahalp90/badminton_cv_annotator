@@ -2,13 +2,13 @@
 
 ## Resume
 
-- **Current state:** B1 through B3 are merged. B4 is ready to commit on
-  `cleanup-dedup-b4` from merge commit `4a52929`.
-- **Next action:** Review the final B4 diff, then run the B4 commit helper.
+- **Current state:** B1 through B4 are merged. B5 implementation and independent
+  review are complete on `cleanup-dedup-b5` from merge commit `9f21cc3`.
+- **Next action:** Review the final B5 diff, then run the B5 commit helper.
 - **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
   through PR #41 (`a4eddca`). B2 commit `03f8b26` is contained in merged PR #42
   (`ef77e71`). B3 and its corrections are contained in merged PR #43
-  (`4a52929`). The B4 focused and scraper suite passes with 222 tests.
+  (`4a52929`). B4 commit `a8fc6b9` is contained in merged PR #44 (`9f21cc3`).
 - **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
@@ -59,6 +59,14 @@
 - **B4 review:** Added rename collision preflight, preserved existing resolution
   metadata when every video is unreadable, and placed the package-root setup
   before Stage 1 commands.
+- **B5 baseline:** The focused annotator and test suite reached 391 passes and
+  3 skips. `tests/test_environment.py` failed because this venv lacks the
+  declared `matplotlib` dependency; R6 approves deleting that environment-only
+  test. CourtKeyNet wrapper collection is blocked by missing `safetensors`.
+- **B5 gate:** The complete focused B5 suite passes with 384 tests and 3 skips.
+  Full collection finds 1,087 tests, then stops on nine missing-dependency
+  imports. The missing packages are `safetensors`, `positional_encodings`,
+  `tensorboard`, and `torcheval`.
 
 ## Original and intended shape
 
@@ -97,8 +105,9 @@ downloader is absent.
 
 ### Annotator and CourtKeyNet
 
-The R5 wrappers and stale constants remain. Their named live replacements also
-remain, so the planned test retargets are still possible.
+The approved R5 wrappers, fixed-25-fps aliases, and reported-only helpers are
+absent. Tests use the retained batch, iterator, evidence, scorer, selector,
+landing, and fps-resolved surfaces directly. The protected R5 mirrors remain.
 
 ### BST-X and BRIC
 
@@ -136,7 +145,7 @@ R4 and R9 require no implementation changes.
   work from the planned scope.
 - **Gate:** Green. Worktree starts at `a555159`; Git was clean before this
   worklog. TrackNet baseline: 62 passed in 0.53 seconds.
-- **Commit:** Not yet committed.
+- **Commit:** First committed in `f589f55 Consolidate TrackNetV3 under shared`.
 
 ### B1 TrackNetV3
 
@@ -245,4 +254,26 @@ R4 and R9 require no implementation changes.
   scraper downloader CLI help commands passed. `pipeline.build_dataset --help`
   stopped at the documented missing `moviepy` dependency. The independent B4
   review found three defects; all three corrections passed their targeted checks.
+- **Commit:** `a8fc6b9 Consolidate ShuttleSet video downloading`; merged by PR
+  #44 as `9f21cc3`.
+
+### B5 annotator and tests
+
+- **Readiness:** R5 and R6 govern the scope. The listed compatibility wrappers,
+  aliases, calibration helpers, and direct test consumers were rechecked on
+  merged main. No live production callers remain for the approved deletions.
+- **Files:** Planned changes are limited to the R5 annotator and CourtKeyNet
+  targets, their direct tests, the R6 fixtures and raw-schema assertions, and
+  this worklog.
+- **Change:** Removed the approved compatibility wrappers, stale aliases, and
+  reported-only helpers. Consolidated rally-region geometry, landing verdict
+  geometry, and repeated `run_video` span options. Moved the scoring floor into
+  its test, shared serve-setup and doubles-CSV builders through conftest, removed
+  repeated int8 assertions, and deleted the environment-only import test.
+- **Gate:** Focused suite: 384 passed, 3 skipped. Whole-project Ruff and
+  `git diff --check` pass. Focused Pyrefly reports zero errors. Project-wide
+  Pyrefly reports the same 17 errors in untouched BST-X shape annotations. Full
+  collection finds 1,087 tests before nine dependency-related collection
+  errors. CourtKeyNet execution remains blocked by missing `safetensors`. The
+  independent review found two low documentation issues; both are corrected.
 - **Commit:** Not yet committed.

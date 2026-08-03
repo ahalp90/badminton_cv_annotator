@@ -29,7 +29,6 @@ from annotator.calibration.scoring import RallyBoundary, classify_all, load_gt_r
 from annotator.calibration.schemas import (
     CSV_COLUMNS_BY_FILENAME,
     WINNER_JSON_BOUNDARY_KEY,
-    WINNER_JSON_CONTACT_KEY,
     WINNER_JSON_META_KEY,
     WINNER_SPEC_OVERRIDES_KEY,
     WINNER_SPEC_STRATEGIES_KEY,
@@ -38,7 +37,6 @@ from annotator.calibration.schemas import (
 )
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import _OVERRIDABLE_BASE30_ROWS
-from annotator.resolve import resolve
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
 from annotator.run_video import run_video
 from annotator.types import ScalingKind, ServeStartConfig, SpanOpen
@@ -565,93 +563,6 @@ def _validate_provenance(meta: dict[str, Any], fixture: Fixture) -> None:
         raise ValueError(f"config winner input digest mismatch for {file_name}")
     for pin in _input_pins(fixture):
         verify_file(pin)
-
-
-def _load_winner_document(path: Path) -> dict[str, Any]:
-    try:
-        def no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-            payload: dict[str, Any] = {}
-            for key, value in pairs:
-                if key in payload:
-                    raise ValueError(f"duplicate winner-document key {key!r}")
-                payload[key] = value
-
-            return payload
-
-        document = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_keys)
-    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
-        raise ValueError(f"invalid config winner document: {error}") from error
-    if not isinstance(document, dict):
-        raise ValueError("invalid config winner document: offending key 'document' is not a dict")
-    return document
-
-
-def load_winner_config(path: Path, fixture_name: str) -> CandidateSpec:
-    """Load and validate a complete boundary or contact winner spec."""
-    document = _load_winner_document(path)
-    if set(document) - {WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY, WINNER_JSON_CONTACT_KEY}:
-        raise ValueError("config winner document has unknown or missing phase keys")
-    if WINNER_JSON_META_KEY not in document or not isinstance(document[WINNER_JSON_META_KEY], dict):
-        raise ValueError("invalid config winner document: offending key 'meta' is not a dict")
-    meta = document[WINNER_JSON_META_KEY]
-    if meta.get("fixture") != fixture_name:
-        raise ValueError("config winner fixture does not match --fixture")
-    if "schema_version" in meta:
-        fixture = _fixture(fixture_name)
-        _validate_provenance(meta, fixture)
-    elif set(meta) != {"fixture", "phases_run", "verdict", "tolerances_base30"}:
-        raise ValueError("config winner meta has unknown or missing keys")
-    if WINNER_JSON_BOUNDARY_KEY not in document or not isinstance(document[WINNER_JSON_BOUNDARY_KEY], dict):
-        raise ValueError("invalid config winner document: offending key 'boundary' is not a dict")
-    boundary = document[WINNER_JSON_BOUNDARY_KEY]
-    contact = document.get(WINNER_JSON_CONTACT_KEY)
-    if contact is not None and not isinstance(contact, dict):
-        raise ValueError("invalid config winner document: offending key 'contact' is not a dict")
-    phases_run = meta.get("phases_run")
-    if (
-        not isinstance(phases_run, list)
-        or any(not isinstance(item, str) for item in phases_run)
-        or not phases_run
-        or len(set(phases_run)) != len(phases_run)
-        or any(item not in {"boundary", "contact"} for item in phases_run)
-    ):
-        raise ValueError("config winner phases_run is invalid")
-    if (contact is None) != ("contact" not in phases_run):
-        raise ValueError("config winner phases_run does not match its phase keys")
-    if meta.get("verdict") != "issued" or meta.get("tolerances_base30") != list(TOLERANCES):
-        raise ValueError("config winner meta does not describe an issued base-30 verdict")
-    for name, phase in (("boundary", boundary), ("contact", contact)):
-        if phase is None:
-            continue
-        if set(phase) != {WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY}:
-            raise ValueError(f"{name} winner phase has unknown or missing spec keys")
-        if not isinstance(phase[WINNER_SPEC_OVERRIDES_KEY], dict) or not isinstance(phase[WINNER_SPEC_STRATEGIES_KEY], dict):
-            raise ValueError(f"invalid {name} winner phase spec")
-    if contact is not None:
-        overrides = contact[WINNER_SPEC_OVERRIDES_KEY]
-        if set(overrides) != {*BOUNDARY_KEYS, *CONTACT_KEYS}:
-            raise ValueError("contact winner must contain exactly boundary and contact numeric keys")
-        selected = contact
-    else:
-        overrides = boundary[WINNER_SPEC_OVERRIDES_KEY]
-        if set(overrides) != set(BOUNDARY_KEYS):
-            raise ValueError("boundary winner must contain exactly the five boundary numeric keys")
-        selected = boundary
-    if selected[WINNER_SPEC_STRATEGIES_KEY] != {}:
-        raise ValueError("winner strategies must be empty")
-    checked: dict[str, float] = {}
-    for key, raw_value in selected[WINNER_SPEC_OVERRIDES_KEY].items():
-        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
-            raise ValueError(f"invalid winner numeric value for {key!r}")
-        value = float(raw_value)
-        values = BOUNDARY_VALUES.get(key, CONTACT_VALUES.get(key))
-        if isinstance(value, bool) or not math.isfinite(value) or value <= 0 or values is None or value not in values:
-            raise ValueError(f"invalid winner numeric value for {key!r}")
-        checked[key] = value
-    spec = CandidateSpec(selection.GRID_LABEL, checked, {})
-    base, _serve = _base_and_serve(spec)
-    resolve(base, _fixture(fixture_name).fps)
-    return spec
 
 
 def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:

@@ -306,45 +306,6 @@ def test_loader_rejects_duplicate_keys_and_masks(tmp_path) -> None:
     )
 
 
-def test_load_winner_config_returns_contact_or_boundary_spec(tmp_path, monkeypatch) -> None:
-    boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
-    contact = {**boundary, **{key: values[0] for key, values in sweep.CONTACT_VALUES.items()}}
-    legacy = sweep.winner_document("sset_01", ["boundary"], boundary=sweep.winner_spec(boundary, {}))
-    two_phase = sweep.winner_document(
-        "sset_01", ["boundary", "contact"], boundary=sweep.winner_spec(boundary, {}),
-        contact=sweep.winner_spec(contact, {}),
-    )
-    for name, document, expected in (("boundary", legacy, boundary), ("contact", two_phase, contact)):
-        path = tmp_path / f"{name}.json"
-        path.write_text(json.dumps(document), encoding="utf-8")
-        loaded = sweep.load_winner_config(path, "sset_01")
-        assert loaded.overrides_base30 == expected
-
-    digests = sweep._input_digest_bundle(SSET_01)
-    monkeypatch.setattr(sweep, "_input_digest_bundle", lambda fixture: digests)
-    provenance = sweep.winner_document(
-        "sset_01", ["boundary"], boundary=sweep.winner_spec(boundary, {}),
-        schema_version=1, tuning_video_ids=[SSET_01.video_id], input_digests=digests,
-    )
-    provenance["meta"]["input_digests"] = {**digests, "missing-input.npy": "bad"}
-    path = tmp_path / "mismatch.json"
-    path.write_text(json.dumps(provenance), encoding="utf-8")
-    with pytest.raises(ValueError, match="missing-input.npy"):
-        sweep.load_winner_config(path, "sset_01")
-
-
-def test_load_winner_config_rejects_unknown_schema_version(tmp_path) -> None:
-    boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
-    document = sweep.winner_document(
-        "sset_01", ["boundary"], boundary=sweep.winner_spec(boundary, {}),
-        schema_version=99, tuning_video_ids=[SSET_01.video_id], input_digests={"input": "digest"},
-    )
-    path = tmp_path / "unknown-schema.json"
-    path.write_text(json.dumps(document), encoding="utf-8")
-    with pytest.raises(ValueError, match="unknown config winner schema_version"):
-        sweep.load_winner_config(path, "sset_01")
-
-
 def test_main_classifies_configuration_and_execution_errors(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(sys, "argv", ["sweep", "--fixture", "sset_01", "--out-dir", str(tmp_path), "--phase", "contact"])
     with pytest.raises(SystemExit) as error:

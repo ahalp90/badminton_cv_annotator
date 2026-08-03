@@ -9,7 +9,6 @@ import pytest
 
 from annotator.calibration.fixtures import SSET_01
 from annotator.config import (
-    BEST_CONFIG_THRESHOLDS,
     END_REST_FRAMES,
     SHIPPED_THRESHOLDS,
     SMOOTH_WINDOW,
@@ -21,7 +20,6 @@ from annotator.rally_segmentation import (
     ServeStartMode,
     ServeStartOptions,
     SpanOpen,
-    court_scale_boxes,
     _find_rally_spans,
     _find_rally_spans_span_open,
     _last_rest_close,
@@ -34,7 +32,6 @@ from annotator.rally_segmentation import (
     contact_proximity_ok,
     court_scale_slots,
     detect_contact_flags,
-    detect_contacts,
     segment_video,
     span_impulses,
     suppress_contact_flags,
@@ -172,7 +169,7 @@ def _triangle_track(step: float) -> np.ndarray:
 
 def test_contact_detected_on_fast_reversal():
     track = _triangle_track(RALLY_STEP)
-    contacts = detect_contacts(track, 0, len(track))
+    contacts = [frame for frame, _impulse in detect_contact_flags(track, 0, len(track))]
     assert contacts == [1, 7, 13]
 
 
@@ -346,14 +343,6 @@ def test_thresholds_preset_changes_behaviour():
     assert len(segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0]) >= 1
     stricter = SHIPPED_THRESHOLDS._replace(start_speed=0.03)
     assert segment_video(track, thresholds=stricter)[0] == []
-
-
-def test_thresholds_best_config_is_the_shipped_default():
-    # The block-2 sweep pick ships as the default: BEST_CONFIG_THRESHOLDS aliases the shipped
-    # preset, and the default globals path agrees with it bit-for-bit.
-    assert BEST_CONFIG_THRESHOLDS == SHIPPED_THRESHOLDS
-    track = _burst_track()
-    assert segment_video(track) == segment_video(track, thresholds=BEST_CONFIG_THRESHOLDS)
 
 
 # ---------------------------------------------------------------------------
@@ -737,22 +726,6 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
     _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None)
     assert diag['qualifying_counts'] == [3]
     assert diag['qualifying_spacings'] == [70, 70]  # 80-10, 150-80
-
-
-# ---------------------------------------------------------------------------
-# Court geometry filtering uses tracked fixture geometry
-# ---------------------------------------------------------------------------
-def test_court_geo_filter_uses_tracked_sset_01_geometry():
-    x_lo, x_hi = SSET_01_COURT_GEO.x_range
-    y_lo, y_hi = SSET_01_COURT_GEO.y_range
-    foot_x = (x_lo + x_hi) / 2.0
-    foot_y = (y_lo + y_hi) / 2.0
-    bboxes = np.full((16, 4), np.nan)
-    scores = np.full(16, np.nan)
-    bboxes[0] = (foot_x - 30.0, foot_y - 1.0, foot_x + 30.0, foot_y)
-    bboxes[1] = (x_lo - 61.0, foot_y - 10000.0, x_lo - 1.0, foot_y)
-    scores[:2] = 0.9
-    assert len(court_scale_boxes(bboxes, scores, SSET_01_COURT_GEO)[0]) == 1
 
 
 def test_serve_distance_ratio_helper_uses_distance_mask_and_boundary() -> None:

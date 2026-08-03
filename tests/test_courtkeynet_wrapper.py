@@ -208,14 +208,14 @@ def frame_small() -> np.ndarray:
 
 @pytest.fixture(scope="module")
 def detect_landscape(detector: CourtKeyNetDetector, frame_landscape: np.ndarray) -> CornerDetection:
-    """detect() on the landscape frame (forward pass 1)."""
-    return detector.detect(frame_landscape)
+    """Single-item batch on the landscape frame (forward pass 1)."""
+    return detector.detect_batch([frame_landscape])[0]
 
 
 @pytest.fixture(scope="module")
 def detect_small(detector: CourtKeyNetDetector, frame_small: np.ndarray) -> CornerDetection:
-    """detect() on the small frame (forward pass 2)."""
-    return detector.detect(frame_small)
+    """Single-item batch on the small frame (forward pass 2)."""
+    return detector.detect_batch([frame_small])[0]
 
 
 def test_param_count_and_strict_load(detector: CourtKeyNetDetector) -> None:
@@ -249,7 +249,7 @@ def test_batch_equals_sequential(
     detect_landscape: CornerDetection,
     detect_small: CornerDetection,
 ) -> None:
-    """Batching two different-size frames matches the two single detect() calls."""
+    """Batching two different-size frames matches two single-item batches."""
     batch = detector.detect_batch([frame_landscape, frame_small])  # forward pass 3 (B=2)
     assert len(batch) == 2
     assert np.allclose(batch[0].corners_px, detect_landscape.corners_px, atol=1e-4)
@@ -260,5 +260,5 @@ def test_determinism(
     detector: CourtKeyNetDetector, frame_landscape: np.ndarray, detect_landscape: CornerDetection
 ) -> None:
     """The same frame twice gives identical corner pixels."""
-    again = detector.detect(frame_landscape)  # forward pass 4
+    again = detector.detect_batch([frame_landscape])[0]  # forward pass 4
     assert np.array_equal(again.corners_px, detect_landscape.corners_px)

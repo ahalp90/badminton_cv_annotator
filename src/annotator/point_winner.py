@@ -92,12 +92,6 @@ SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
 SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
 NET_COURT_Y = 0.5
 
-# Landing-window constants. A sustained track loss is a run of >= this many consecutive invisible
-# frames (mirrors stage 8's BLIP_MAX_FRAMES, a gap longer than a blip); the descending run needs
-# >= 3 visible samples.
-SUSTAINED_LOSS_FRAMES = 10
-MIN_DESCEND_SAMPLES = 3
-
 # Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
 # (2% of any edge): matches the harness's single source of truth for "at the top edge".
@@ -583,19 +577,12 @@ def inout_verdict(landing_norm: np.ndarray, receiver_half: Half, margin_m: float
     the four boundary lines are converted to metres (x*6.10, y*13.40). Inside with every
     clearance > M => won; outside (point-to-rectangle distance) by > M => lost; else null.
     """
-    x, y = float(landing_norm[0]), float(landing_norm[1])
-    y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == Half.BOT else (0.0, NET_COURT_Y)
-
-    clear_xlo = (x - SINGLES_X_LO) * COURT_WIDTH_M
-    clear_xhi = (SINGLES_X_HI - x) * COURT_WIDTH_M
-    clear_ylo = (y - y_lo) * COURT_LENGTH_M
-    clear_yhi = (y_hi - y) * COURT_LENGTH_M
-    if min(clear_xlo, clear_xhi, clear_ylo, clear_yhi) > margin_m:
+    signed_margin = landing_margins(
+        (float(landing_norm[0]), float(landing_norm[1])), receiver_half,
+    ).margin_m
+    if signed_margin > margin_m:
         return Verdict.WON
-
-    out_x = max(0.0, (SINGLES_X_LO - x), (x - SINGLES_X_HI)) * COURT_WIDTH_M
-    out_y = max(0.0, (y_lo - y), (y - y_hi)) * COURT_LENGTH_M
-    if float(np.hypot(out_x, out_y)) > margin_m:
+    if signed_margin < -margin_m:
         return Verdict.LOST
     return None  # within +/-M of a boundary line
 
@@ -616,7 +603,7 @@ class LandingMargins(NamedTuple):
 
 
 def landing_margins(landing_norm: tuple[float, float], receiver_half: Half) -> LandingMargins:
-    """Court-metre clearances for a landing, reusing inout_verdict's boundary geometry."""
+    """Court-metre clearances for a landing against the receiver's singles half."""
     x, y = float(landing_norm[0]), float(landing_norm[1])
     y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == Half.BOT else (0.0, NET_COURT_Y)
     baseline_y = y_hi if receiver_half == Half.BOT else y_lo  # the non-net y edge = receiver baseline
@@ -730,31 +717,6 @@ def pick_landing_to_end(
         frame=landing_frame, norm=norm, half=half,
         at_border=_at_frame_border(landing_xy),
         net_ender=is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
-    )
-
-
-def pick_landing(
-    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
-    net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
-    constants: FpsConstants, fps: float,
-    shuttle_hallucination_mask: np.ndarray | None = None,
-    rejected_intervals: list[tuple[int, int]] | None = None,
-) -> Landing | None:
-    """The picked landing for one rally: the filtered terminal, projected to court space, with
-    quality flags. None when nothing survives the landing filter within the window.
-
-    ``fps`` must be the rate for which ``constants`` was resolved; it is used only to convert
-    landing options once.
-    """
-    win_end = landing_window(
-        final_contact, next_start, track, dead, constants.sustained_loss_frames,
-        shuttle_hallucination_mask,
-    ).end_frame
-    return pick_landing_to_end(
-        final_contact, win_end, track, kin, opts, striker_half, net_band,
-        resolution, court_info, constants, fps, shuttle_hallucination_mask,
-        rejected_intervals,
     )
 
 

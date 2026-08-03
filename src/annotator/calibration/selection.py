@@ -18,7 +18,7 @@ empty requested grid is instead a B6 configuration error before either phase.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from typing import Any
 
 
@@ -185,18 +185,6 @@ def coverage_allowance_rows(
     ]
 
 
-def select_best_config(rows: Iterable[ScoreRow], key: GridKey) -> ScoreRow:
-    """Return the best grid row for a total-order key.
-
-    Reference rows are excluded.  The key must end with ``standard_tail`` so an
-    exact metric tie is deterministic; an empty grid raises ``ValueError``.
-    """
-    candidates = grid_rows(rows)
-    if not candidates:
-        raise ValueError("no grid rows to select from")
-    return min(candidates, key=key)
-
-
 def select_contact_live_winner(
     rows: Iterable[ScoreRow],
     minimum_precision: float | None = None,
@@ -216,28 +204,6 @@ def select_contact_live_winner(
     if not candidates:
         return None
     return min(candidates, key=contact_live_key_floored_f1)
-
-
-def select_contact_live_winners(
-    rows_by_boundary_config: Mapping[str, Iterable[ScoreRow]],
-    minimum_precision: float | None = None,
-    minimum_recall: float | None = None,
-) -> dict[str, ScoreRow | None]:
-    """Return one contact winner per supplied boundary configuration.
-
-    This supports B6's three-way stability check without deciding which boundary
-    configurations to run.  Each group follows ``select_contact_live_winner``:
-    its floor and standard-tail rules apply independently, and no eligible row
-    maps to ``None``.
-    """
-    return {
-        boundary_config: select_contact_live_winner(
-            rows,
-            minimum_precision,
-            minimum_recall,
-        )
-        for boundary_config, rows in rows_by_boundary_config.items()
-    }
 
 
 def best_config_clears_quality_floor(

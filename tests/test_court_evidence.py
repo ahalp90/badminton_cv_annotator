@@ -219,8 +219,8 @@ def test_detected_inputs_use_only_accepted_scene_quads() -> None:
     quad = _quad(np.array([[0, 0], [512, 0], [512, 288], [0, 288]]))
     bboxes, scores, ndet = _pose_inputs(20)
     ndet[10:] = 0
-    inputs = evidence.build_detected_court_inputs(
-        1,
+    result = evidence.build_detected_court_evidence(
+        '', '', 1,
         (1280.0, 720.0),
         cuts,
         [evidence.SceneEvidence(0, 10, (2,), quad), evidence.SceneEvidence(10, 20, (12,), None)],
@@ -228,6 +228,8 @@ def test_detected_inputs_use_only_accepted_scene_quads() -> None:
         scores,
         ndet,
     )
+    inputs = result.inputs
+    assert inputs is not None
 
     assert inputs.homography_rows[['start_frame', 'end_frame']].values.tolist() == [[0, 10]]
     projected = project_pixels_to_court(

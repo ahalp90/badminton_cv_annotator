@@ -24,8 +24,6 @@ from pipeline.config import COCO_N_JOINTS
 from preparing_data.raw_extract import extract_raw_frame
 
 _J = COCO_N_JOINTS  # 17, the COCO keypoint count the real adapter emits
-_INT8_MAX = np.iinfo(np.int8).max  # 127; per-frame counts above this lose data on the int8 save
-
 # Duck-typed stand-in for rtmlib_pose.FrameDetections: extract_raw_frame only
 # reads these four attributes off the detection object.
 _FakeFrame = namedtuple("_FakeFrame", ["keypoints", "bboxes", "bbox_scores", "kp_scores"])
@@ -50,17 +48,6 @@ def _markers(kps: np.ndarray, n: int) -> list[int]:
     return [int(kps[i, 0, 0]) for i in range(n)]
 
 
-def _assert_ndet_fits_int8(n_dets: int) -> None:
-    """extract_one_clip saves the per-frame count via ``np.asarray(..., np.int8)``,
-    a cast that only stays lossless while each count sits in int8's range. Assert
-    that assembly-level precondition here; the saved-array dtype itself is checked
-    on the full extract_one_clip path in test_extract_failure_guard.py.
-    """
-    assert isinstance(n_dets, int)
-    assert 0 <= n_dets <= _INT8_MAX
-    assert int(np.int8(n_dets)) == n_dets  # the actual save cast round-trips the value
-
-
 def test_truncation_keeps_top_n_max_descending():
     """20 dets, ascending scores, n_max=16: keep the top-16 by score in DESCENDING
     order (markers 19..4), drop the 4 lowest, NaN-pad slots 16.., float32 throughout."""
@@ -76,7 +63,6 @@ def test_truncation_keeps_top_n_max_descending():
         assert arr.dtype == np.float32
     assert np.isnan(kps[16:]).all() and np.isnan(bboxes[16:]).all()
     assert np.isnan(scores_out[16:]).all() and np.isnan(kp_scores[16:]).all()
-    _assert_ndet_fits_int8(n_dets)
 
 
 def test_stable_ties_keep_detector_order():
@@ -85,7 +71,6 @@ def test_stable_ties_keep_detector_order():
     frame = extract_raw_frame(_frame([0.5, 0.9, 0.9]), 2, "syn", 0, set())
     assert frame.n_dets == 2
     assert _markers(frame.kps, 2) == [1, 2]
-    _assert_ndet_fits_int8(frame.n_dets)
 
 
 def test_empty_frame_all_nan_ndet_zero():
@@ -94,7 +79,6 @@ def test_empty_frame_all_nan_ndet_zero():
     assert n_dets == 0
     assert np.isnan(kps).all() and np.isnan(bboxes).all()
     assert np.isnan(scores).all() and np.isnan(kp_scores).all()
-    _assert_ndet_fits_int8(n_dets)
 
 
 def test_partial_frame_fills_slot_zero():
@@ -103,4 +87,3 @@ def test_partial_frame_fills_slot_zero():
     assert frame.n_dets == 1
     assert _markers(frame.kps, 1) == [0]
     assert np.isnan(frame.kps[1:]).all()
-    _assert_ndet_fits_int8(frame.n_dets)
