@@ -300,14 +300,6 @@ class CourtKeyNetDetector:
         chw = rgb.astype(np.float32).transpose(2, 0, 1) / 255.0
         return chw, geom
 
-    def detect(self, frame_bgr: np.ndarray) -> CornerDetection:
-        """Detect court corners in a single BGR frame.
-
-        :param frame_bgr: (H, W, 3) uint8 BGR frame
-        :return: the gated corner detection for that frame
-        """
-        return self.detect_batch([frame_bgr])[0]
-
     def detect_batch(self, frames_bgr: Sequence[np.ndarray]) -> list[CornerDetection]:
         """Detect court corners across frames that may have different sizes.
 

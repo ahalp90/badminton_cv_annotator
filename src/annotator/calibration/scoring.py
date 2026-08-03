@@ -614,28 +614,3 @@ def score_contacts(
         'precision_raw': _raw_precision_curve(contacts, all_pairs, tolerances),
         'per_set': per_set,
     }
-
-
-# ---------------------------------------------------------------------------
-# Top-level score
-# ---------------------------------------------------------------------------
-def score_stage8(
-    spans: Sequence[tuple[int, int]],
-    contacts: Sequence[tuple[int, int, bool | None, bool | None]],
-    gt_rallies: Sequence[GtRally],
-    tolerances: Sequence[int] = DEFAULT_TOLERANCES,
-) -> dict:
-    """Full stage-8 score for one video: boundary and contact metrics in one dict.
-
-    :param spans: detected rally spans, ``[(start_frame, end_frame), ...]``.
-    :param contacts: detected contacts, ``[(rally_id, contact_frame, proximity_ok), ...]``.
-    :param gt_rallies: ground-truth rallies for the same video.
-    :param tolerances: frame tolerances for the contact credit curve.
-    :return: ``{'n_gt_rallies', 'tolerances', 'boundaries', 'contacts'}``.
-    """
-    return {
-        'n_gt_rallies': len(gt_rallies),
-        'tolerances': list(tolerances),
-        'boundaries': score_boundaries(spans, gt_rallies),
-        'contacts': score_contacts(spans, contacts, gt_rallies, tolerances),
-    }

@@ -15,7 +15,6 @@ from annotator.point_winner import (
     LandingFilterOptions,
     LandingKinematics,
     LandingWindow,
-    MIN_DESCEND_SAMPLES,
     Verdict,
     VerdictSource,
     _carried_terminal,
@@ -31,20 +30,16 @@ from annotator.point_winner import (
     landing_window,
     landing_margins,
     next_server_half,
-    pick_landing,
     pick_landing_to_end,
     rally_verdict,
     window_end,
 )
 from annotator.rally_segmentation import (
-    ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtGeo, StickyResult, court_scale_boxes,
+    ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult,
 )
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40
-
-TEST_COURT_GEO = CourtGeo(x_range=(0.0, 2000.0), y_range=(0.0, 2000.0), net_band=(660.0, 700.0))
-
 
 def _mk_pose_arrays(
     n_frames: int,
@@ -127,7 +122,7 @@ def test_window_end_waits_past_a_top_exit_gap():
     # Contact frame sits at the top edge (a lob leaving the frame); the sustained-loss gap that
     # follows is skipped, and nothing else closes the window before next_start.
     rows = [(0.5, 0.01, 1)]         # frame 0: at the top edge (< TOP_EDGE_FRAC)
-    rows += [(0.0, 0.0, 0)] * 10    # frames 1-10: a sustained loss (>= SUSTAINED_LOSS_FRAMES)
+    rows += [(0.0, 0.0, 0)] * 10    # frames 1-10: sustained loss at the 25 fps window
     rows += [(0.5, 0.5, 1)] * 5     # frames 11-15: back in view
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
@@ -340,12 +335,13 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
                                 carry_thr=0.5, use_settle=False)
 
-    landing = filtered_descending_landing(0, 3, track, kin, opts, MIN_DESCEND_SAMPLES)
+    min_samples = scale_for_fps(25.0).min_descend_samples
+    landing = filtered_descending_landing(0, 3, track, kin, opts, min_samples)
     assert landing is not None
     assert landing[0] == 2  # the only run's terminal, kept despite being carried
 
     strict_opts = opts._replace(null_if_all_carried=True)
-    assert filtered_descending_landing(0, 3, track, kin, strict_opts, MIN_DESCEND_SAMPLES) is None
+    assert filtered_descending_landing(0, 3, track, kin, strict_opts, min_samples) is None
 
 
 def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later_run():
@@ -365,7 +361,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, MIN_DESCEND_SAMPLES,
+        0, 7, track, kin, opts, scale_for_fps(25.0).min_descend_samples,
         shuttle_hallucination_mask=event_mask,
         rejected_intervals=rejected_intervals,
     )
@@ -390,7 +386,7 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, MIN_DESCEND_SAMPLES,
+        0, len(track), track, kin, opts, scale_for_fps(25.0).min_descend_samples,
         shuttle_hallucination_mask=event_mask,
     ) is None
 
@@ -575,7 +571,14 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
                   'border_U': 0.0, 'border_D': resolution[1]}
     net_band = (100.0, 200.0)  # well above the landing: irrelevant to net_ender here
 
-    landing = pick_landing(2, n_frames, track, dead, kin, opts, Half.TOP, net_band, resolution, court_info, scale_for_fps(25.0), 25.0)
+    constants = scale_for_fps(25.0)
+    end_frame = landing_window(
+        2, n_frames, track, dead, constants.sustained_loss_frames,
+    ).end_frame
+    landing = pick_landing_to_end(
+        2, end_frame, track, kin, opts, Half.TOP, net_band, resolution,
+        court_info, constants, 25.0,
+    )
 
     assert landing is not None
     assert landing.frame == 4
@@ -585,7 +588,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
     assert landing.net_ender is False
 
 
-def test_explicit_end_landing_matches_safe_wrapper():
+def test_landing_window_end_feeds_explicit_landing():
     n_frames = 10
     track = np.zeros((n_frames, 3))
     track[:, 2] = 1
@@ -602,17 +605,13 @@ def test_explicit_end_landing_matches_safe_wrapper():
         'border_U': 0.0, 'border_D': resolution[1],
     }
     constants = scale_for_fps(25.0)
-    safe_end = window_end(2, n_frames, track, dead, constants.sustained_loss_frames)
-
-    wrapped = pick_landing(
-        2, n_frames, track, dead, kin, opts, Half.TOP, (100.0, 200.0), resolution,
+    window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames)
+    landing = pick_landing_to_end(
+        2, window.end_frame, track, kin, opts, Half.TOP, (100.0, 200.0), resolution,
         court_info, constants, 25.0,
     )
-    explicit = pick_landing_to_end(
-        2, safe_end, track, kin, opts, Half.TOP, (100.0, 200.0), resolution,
-        court_info, constants, 25.0,
-    )
-    assert explicit == wrapped
+    assert window.end_frame == n_frames
+    assert landing is not None and landing.frame == 4
 
 
 def test_build_landing_kinematics_reads_nearer_wrist_and_ankle_in_body_heights():
@@ -643,13 +642,3 @@ def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
     kin = build_landing_kinematics(track, sticky, kps, resolution)
     assert np.isnan(kin.carry_ratio[0])
     assert np.isnan(kin.ankle_ratio[0])
-
-
-def test_court_scale_boxes_is_importable_as_the_public_name():
-    # Renamed off stage 8 for stage 10's reuse; a smoke check that the promoted module's import
-    # path resolves to the same function stage 8 exposes.
-    bboxes = np.full((16, 4), np.nan)
-    scores = np.full(16, np.nan)
-    bboxes[0] = (970.0, 150.0, 1030.0, 300.0)
-    scores[0] = 0.9
-    assert len(court_scale_boxes(bboxes, scores, TEST_COURT_GEO)[0]) == 1

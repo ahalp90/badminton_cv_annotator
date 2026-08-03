@@ -12,9 +12,7 @@ from annotator.calibration.selection import (
     contact_meets_floors,
     coverage_allowance_rows,
     f1_raw_5,
-    select_best_config,
     select_contact_live_winner,
-    select_contact_live_winners,
 )
 
 
@@ -118,15 +116,6 @@ def test_contact_live_key_and_selection_use_floored_raw_f1() -> None:
     assert select_contact_live_winner([low_f1], minimum_precision=0.5) is None
 
 
-def test_contact_live_winners_selects_each_boundary_configuration_independently() -> None:
-    first = make_row(recall_5=0.8, precision_raw_5=0.8)
-    second = make_row(recall_5=0.9, precision_raw_5=0.9)
-    winners = select_contact_live_winners(
-        {"live": [first], "fewest_merges": [second], "coverage_first": []}
-    )
-    assert winners == {"live": first, "fewest_merges": second, "coverage_first": None}
-
-
 def test_coverage_allowance_uses_fractional_arithmetic_and_excludes_references() -> None:
     best = make_row(covered=10)
     within_fractional_allowance = make_row(covered=9, settings=(7, 0.2))
@@ -140,10 +129,7 @@ def test_coverage_allowance_uses_fractional_arithmetic_and_excludes_references()
     assert eligible == [best, within_fractional_allowance]
 
 
-def test_select_best_config_excludes_reference_and_quality_floor_fails_closed() -> None:
-    reference = make_row(label="reference", swallowed_rallies=0)
-    grid = make_row(swallowed_rallies=1)
-    assert select_best_config([reference, grid], boundary_report_key_fewest_merges) is grid
+def test_quality_floor_fails_closed() -> None:
     assert best_config_clears_quality_floor(make_row(covered_fraction=0.5), 0.5)
     assert not best_config_clears_quality_floor(make_row(covered_fraction=0.49), 0.5)
     assert not best_config_clears_quality_floor(make_row(covered_fraction=None), 0.0)

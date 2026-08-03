@@ -1,12 +1,34 @@
 """Regression floors for the full annotator GT scoring harness."""
+import math
 import os
 
 import pytest
 
 from annotator.calibration.fixtures import FIXTURES
-from annotator.calibration.gt_scoring import assert_floors, flatten_metrics, render_table, run_fixture
+from annotator.calibration.gt_scoring import REFERENCE_SCORES, flatten_metrics, render_table, run_fixture
 from annotator.calibration.scoring import GtRally, strict_contact_rows, wide_edge_contact_rows
 from annotator.types import ContactCandidate
+
+
+# Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
+# raised from the drafted 0.5).
+FLOOR_MULTIPLIER = 0.75
+
+
+def _assert_floors(fixture, metrics: dict[str, int | float | None]) -> None:
+    if REFERENCE_SCORES is None:
+        raise AssertionError("REFERENCE_SCORES is not captured")
+    for metric in ("covered_fraction", "contact_f1"):
+        reference = REFERENCE_SCORES[fixture.name][metric]
+        current = metrics[metric]
+        if not isinstance(reference, (int, float)) or not math.isfinite(reference) or reference < 0:
+            raise AssertionError(f"invalid reference {fixture.name} {metric}: {reference!r}")
+        if not isinstance(current, (int, float)) or not math.isfinite(current):
+            raise AssertionError(f"invalid current {fixture.name} {metric}: {current!r}")
+        if current < FLOOR_MULTIPLIER * reference:
+            raise AssertionError(
+                f"{fixture.name} {metric}: {current!r} < floor {FLOOR_MULTIPLIER * reference!r}"
+            )
 
 
 @pytest.mark.slow
@@ -16,7 +38,7 @@ def test_annotator_gt_floors(fixture):
         pytest.skip("ANNOTATOR_FIXTURES_ROOT is unset; external fixtures are unavailable")
     metrics = flatten_metrics(run_fixture(fixture))
     print(render_table({fixture.name: metrics}))
-    assert_floors(fixture, metrics)
+    _assert_floors(fixture, metrics)
 
 
 def test_strict_contact_rows_keep_all_row_kinds_and_scaled_tolerances():

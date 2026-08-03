@@ -50,9 +50,8 @@ class Stage8Thresholds(NamedTuple):
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
     reads the globals (the default path); a preset here reads its fields instead.
     One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep
-    pick); BEST_CONFIG_THRESHOLDS aliases it so the CLI 'best' preset keeps
-    selecting the same values. PROXIMITY_MAX is not swept, so it stays a plain
-    global and is not carried here.
+    pick). PROXIMITY_MAX is not swept, so it stays a plain global and is not
+    carried here.
     """
 
     rest_speed: float
@@ -79,15 +78,9 @@ SHIPPED_THRESHOLDS = Stage8Thresholds(
     smooth_window=SMOOTH_WINDOW,
 )
 
-# The block-2 widened-sweep pick under the merge-penalised selection key is now
-# the shipped default (the constants above). The name survives as an alias so
-# the CLI 'best' preset keeps working.
-BEST_CONFIG_THRESHOLDS = SHIPPED_THRESHOLDS
-
 # ---------------------------------------------------------------------------
 # Stage 9: replay and off-rally rules (spec s7)
 # ---------------------------------------------------------------------------
-COURT_ABSENT_WINDOW = _AT_25FPS.court_absent_window  # frames of court-present False to fire the signal
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
 # the build's starting value, tuned at B5.

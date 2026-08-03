@@ -9,8 +9,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
-
 import cv2
 import numpy as np
 import pandas as pd
@@ -564,29 +562,6 @@ def build_static_court_evidence(
         for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid))
     )
     return CourtEvidenceResult(inputs, records, keep_vote, court_present, None)
-
-
-def build_detected_court_inputs(
-    video_id: int | str,
-    resolution: tuple[float, float],
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    scene_evidence: Sequence[SceneEvidence],
-    bboxes: np.ndarray,
-    scores: np.ndarray,
-    ndet: np.ndarray,
-    *,
-    detector_resolution: tuple[float, float] = DETECTOR_RESOLUTION,
-    gate_resolution_table: pd.DataFrame | None = None,
-    ref_err_px: float = 3.5,
-) -> CourtInputs:
-    """Build the detected parent and return only its operational inputs."""
-    result = build_detected_court_evidence(
-        '', '', video_id, resolution, raw_cuts, scene_evidence, bboxes, scores, ndet,
-        detector_resolution=detector_resolution,
-        gate_resolution_table=gate_resolution_table,
-        ref_err_px=ref_err_px,
-    )
-    return cast(CourtInputs, result.inputs)
 
 
 def build_detected_court_evidence(

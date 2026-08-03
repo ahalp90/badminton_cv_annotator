@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from annotator.validation_overlay.core.cli import make_render_plan, render
-from annotator.validation_overlay.core.decode import fetch_span, probe_video
+from annotator.validation_overlay.core.decode import iter_span_frames, probe_video
 from annotator.validation_overlay.core.timeline import (
     Segment,
     SegmentPlan,
@@ -116,8 +116,12 @@ def test_decode_is_exact_at_broadcast_frame_rates(tmp_path: Path, rate: str) -> 
     info = probe_video(video)
     assert info.fps == Fraction(rate)
     for first, last in [(0, 2), (9, 13), (info.nb_frames - 3, info.nb_frames - 1)]:
-        decoded = [hashlib.sha256(frame.tobytes()).hexdigest()
-                   for frame in fetch_span(video, first, last, info.fps)]
+        decoded = [
+            hashlib.sha256(frame.tobytes()).hexdigest()
+            for frame in iter_span_frames(
+                video, first, last, info.fps, info.width, info.height,
+            )
+        ]
         assert decoded == _reference_hashes(video, first, last)
 
 
@@ -140,7 +144,9 @@ def test_seek_regression_pins_exact_frame_and_half_frame_behaviour(validation_vi
     frame_index = 3
     exact = _seek_one(validation_video, Fraction(frame_index, SOURCE_FPS))
     half_frame = _seek_one(validation_video, Fraction(frame_index) / SOURCE_FPS + Fraction(1, 2) / SOURCE_FPS)
-    all_frames = fetch_span(validation_video, 0, SOURCE_FRAMES - 1, SOURCE_FPS)
+    all_frames = np.stack(list(iter_span_frames(
+        validation_video, 0, SOURCE_FRAMES - 1, SOURCE_FPS, SOURCE_WIDTH, SOURCE_HEIGHT,
+    )))
     assert np.array_equal(exact, all_frames[frame_index])
     assert np.array_equal(half_frame, all_frames[frame_index + 1])
 
@@ -191,8 +197,14 @@ def test_frame_zero_lead_context_is_clipped_without_padding() -> None:
 
 def test_short_read_raises_and_exact_eof_span_succeeds(validation_video: Path) -> None:
     with pytest.raises(RuntimeError, match="expected"):
-        fetch_span(validation_video, SOURCE_FRAMES - 2, SOURCE_FRAMES, SOURCE_FPS)
-    last = fetch_span(validation_video, SOURCE_FRAMES - 1, SOURCE_FRAMES - 1, SOURCE_FPS)
+        list(iter_span_frames(
+            validation_video, SOURCE_FRAMES - 2, SOURCE_FRAMES, SOURCE_FPS,
+            SOURCE_WIDTH, SOURCE_HEIGHT,
+        ))
+    last = np.stack(list(iter_span_frames(
+        validation_video, SOURCE_FRAMES - 1, SOURCE_FRAMES - 1, SOURCE_FPS,
+        SOURCE_WIDTH, SOURCE_HEIGHT,
+    )))
     assert last.shape == (1, SOURCE_HEIGHT, SOURCE_WIDTH, 3)
 
 

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import csv
 import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -146,19 +144,11 @@ def test_cli_uses_exception_name_when_processing_failure_has_no_message(
     assert '- vid: skipped; ValueError\n' in report_text
 
 
-def _write_whole_video_flags(path: Path, rows: list[tuple[str, str]]) -> None:
-    with path.open('w', newline='', encoding='utf-8') as handle:
-        writer = csv.writer(handle)
-        writer.writerow(['video_id', 'rally_id', 'doubles_flag'])
-        for video_id, doubles_flag in rows:
-            writer.writerow([video_id, '', doubles_flag])
-
-
 def test_all_excluded_publishes_before_raising_and_writes_no_output_csv(
-    tmp_path, monkeypatch, capsys,
+    tmp_path, monkeypatch, capsys, write_doubles_flags,
 ):
     flags_path = tmp_path / 'doubles.csv'
-    _write_whole_video_flags(flags_path, [('vid', 'True')])
+    write_doubles_flags(flags_path, [('vid', '', 'True')])
     spans_path = tmp_path / 'spans.csv'
     contacts_path = tmp_path / 'contacts.csv'
     shuttle_dir = tmp_path / 'tracks'
@@ -189,9 +179,11 @@ def test_all_excluded_publishes_before_raising_and_writes_no_output_csv(
     assert not contacts_path.exists()
 
 
-def test_all_excluded_report_failure_keeps_existing_value_error(tmp_path, monkeypatch):
+def test_all_excluded_report_failure_keeps_existing_value_error(
+    tmp_path, monkeypatch, write_doubles_flags,
+):
     flags_path = tmp_path / 'doubles.csv'
-    _write_whole_video_flags(flags_path, [('vid', 'True')])
+    write_doubles_flags(flags_path, [('vid', '', 'True')])
     spans_path = tmp_path / 'spans.csv'
     shuttle_dir = tmp_path / 'tracks'
     shuttle_dir.mkdir()

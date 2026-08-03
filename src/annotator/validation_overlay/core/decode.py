@@ -284,32 +284,3 @@ def iter_span_frames(
         raise ValueError(f"guard_s must be non-negative, got {guard_s}")
     command = _decode_command(Path(video), first, last, fps, guard_s)
     yield from _iter_decoded_frames(command, last - first + 1, width, height)
-
-
-def fetch_span(
-    video: Path,
-    first: int,
-    last: int,
-    fps: Fraction,
-    guard_s: int = 2,
-) -> np.ndarray:
-    """Decode source frames ``[first, last]`` inclusive as ``(n, h, w, 3)`` BGR.
-
-    Seeks deliberately early and selects the window by absolute source
-    timestamp, so the result never depends on ``-ss`` landing on an exact
-    frame. A short read is an error even when ffmpeg reports success.
-    """
-    info = probe_video(Path(video))
-    # Probing anyway, so refuse a caller fps that disagrees with the file. A wrong
-    # rate still satisfies the byte count when the shifted window happens to hold
-    # enough frames, which would return correctly-counted, wrongly-indexed frames.
-    if fps != info.fps:
-        raise ValueError(f"fps {fps} does not match the probed rate {info.fps} for {video}")
-    frames = list(iter_span_frames(video, first, last, fps, info.width, info.height, guard_s))
-    expected_count = last - first + 1
-    if len(frames) != expected_count:
-        raise RuntimeError(
-            f"ffmpeg decode returned {len(frames)}, expected {expected_count} "
-            f"for source span [{first}, {last}]"
-        )
-    return np.stack(frames, axis=0)

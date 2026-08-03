@@ -12,11 +12,11 @@ import pytest
 
 import annotator.replay_mask as replay_mask_module
 from annotator.config import (
-    COURT_ABSENT_WINDOW,
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
 )
 from annotator.inpaint_guard import FABRICATED, code_counts, grade_track
+from annotator.fps_constants import scale_for_fps
 from annotator.replay_mask import (
     HOMOGRAPHY_CORNER_COLS,
     _cli_non_evidence,
@@ -40,7 +40,8 @@ def _homography_row(video_id: str, start: int, end: int, corners: list[float]) -
 def test_court_absence_fires_on_sustained_gap_not_blips():
     n_frames = 60
     court_present = np.ones(n_frames, dtype=bool)
-    long_gap = slice(10, 10 + COURT_ABSENT_WINDOW + 5)   # sustained absence, fires
+    window = scale_for_fps(25.0).court_absent_window
+    long_gap = slice(10, 10 + window + 5)   # sustained absence, fires
     short_blip = slice(45, 48)                            # 3 frames, below the window
     court_present[long_gap] = False
     court_present[short_blip] = False

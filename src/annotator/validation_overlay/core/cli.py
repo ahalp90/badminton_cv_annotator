@@ -121,12 +121,6 @@ class RenderPlan:
     def fps(self) -> Fraction:
         return self.timeline.fps
 
-    @property
-    def frames(self) -> tuple[object, ...]:
-        """Expose the flattened timeline for simple test inspection."""
-        return self.timeline.frames
-
-
 @dataclass(frozen=True)
 class RenderResult:
     """Counts reported by a successful render."""

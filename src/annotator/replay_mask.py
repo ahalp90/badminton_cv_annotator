@@ -50,7 +50,7 @@ HOMOGRAPHY_CORNER_COLS = [
 # Signal 1: court absence
 # ---------------------------------------------------------------------------
 def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float) -> np.ndarray:
-    """Fire across any court-absent run of at least COURT_ABSENT_WINDOW frames.
+    """Fire across court-absent runs that reach the fps-scaled window.
 
     A sustained absence (>= the window) masks its whole run; a one- or two-frame
     detector blip does not. This reads the spec's "court-present false across a

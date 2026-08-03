@@ -535,21 +535,10 @@ def _find_rally_spans(
         module globals through the low-level opt-out path.
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    start_speed = START_SPEED if thresholds is None else thresholds.start_speed
-    end_rest_frames = END_REST_FRAMES if thresholds is None else thresholds.end_rest_frames
-    start_min_frames = START_MIN_FRAMES if thresholds is None else thresholds.start_min_frames
-
-    fast = np.nan_to_num(speed, nan=0.0) > start_speed  # (t,) NaN steps are not fast
-
-    long_rest = np.zeros(len(speed), dtype=bool)  # (t,) frames inside an extended rest
-    for start, end in true_runs(at_rest):
-        if end - start >= end_rest_frames:
-            long_rest[start:end] = True
-
-    fast_runs = [(start, end) for start, end in true_runs(fast) if end - start >= start_min_frames]
+    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
 
     spans: list[tuple[int, int]] = []
-    for region_start, region_end in true_runs(~long_rest):
+    for region_start, region_end in regions:
         # The first qualifying fast run that opens inside this active region is
         # the acceleration out of the preceding rest; the region's end is the
         # onset of the next extended rest (or the video end).
@@ -607,33 +596,6 @@ def _find_rally_spans_quiet_start(
         )
         spans.append((int(bursts[0] if quiet_burst is None else quiet_burst), int(region_end)))
     return spans
-
-
-# ---------------------------------------------------------------------------
-# Court-scale filtering shared by contact and point-winner paths
-# ---------------------------------------------------------------------------
-# The court geometry is caller-supplied, so no sset_01-scoped geometry lives here.
-def court_scale_boxes(
-    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """One frame's court-scale person boxes.
-
-    Public helper retained for direct court-geometry consumers. The current sticky and landing
-    paths use sticky-selected players instead.
-
-    Keeps the detections whose foot point (bottom-centre) sits inside the court region.
-    Detection validity is `np.isfinite(scores)`, NOT a >= 0.5 cutoff: the pose
-    extraction already floored scores at 0.30, so `isfinite` equals the scoping's ndet.
-    Padding slots carry NaN scores and drop out.
-
-    :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
-    :param frame_scores: (16,) detection scores, NaN on padding slots.
-    :param court_geo: the court geometry to filter against.
-    :return: (x1, y1, x2, y2, scores) filtered to the court-scale detections, each (k,).
-    """
-    slots = court_scale_slots(frame_bboxes, frame_scores, court_geo)
-    x1, y1, x2, y2 = frame_bboxes[slots].T  # each (k,) pixels
-    return x1, y1, x2, y2, frame_scores[slots]
 
 
 def court_scale_slots(
@@ -1047,23 +1009,6 @@ def detect_contact_flags(
 ) -> list[tuple[int, float]]:
     """Independently invoke the raw contact finder and retain ``(frame, impulse)`` flags."""
     return impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
-
-
-def detect_contacts(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
-    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
-) -> list[int]:
-    """Raw contact frames from ``impulse_cell_candidates``, in ascending order.
-
-    The candidate rule uses a three-frame visibility mask, a rolling impulse
-    floor, and largest-impulse-first de-duplication. Use
-    ``detect_contact_flags`` when suppression needs the impulse value.
-    """
-    return [
-        frame for frame, _impulse in detect_contact_flags(
-            track, start, end, thresholds, smoothing_mode=smoothing_mode,
-        )
-    ]
 
 
 def contact_proximity_ok(

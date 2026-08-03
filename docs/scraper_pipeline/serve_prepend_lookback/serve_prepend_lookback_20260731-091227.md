@@ -339,8 +339,7 @@ The links below are relative to this document.
   point-winner calls
 - [rally_segmentation.py](../../../src/annotator/rally_segmentation.py):
   `segment_video`, `assemble_contacts`, `detect_contact_flags`,
-  `detect_contacts`, `ServeStartOptions`,
-  `_sticky_serve_setup_before` and `apply_replay_mask`
+  `ServeStartOptions`, `_sticky_serve_setup_before` and `apply_replay_mask`
 - [types.py](../../../src/annotator/types.py): `ServeStartConfig`,
   `ContactCandidate`, `StickyResult` and `true_runs`
 - [replay_mask.py](../../../src/annotator/replay_mask.py):

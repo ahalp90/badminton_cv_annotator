@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from annotator.validation_overlay.core.cli import compose_frames, make_render_plan, render
-from annotator.validation_overlay.core.decode import fetch_span, probe_video
+from annotator.validation_overlay.core.decode import iter_span_frames, probe_video
 from annotator.validation_overlay.core.timeline import Segment
 from annotator.validation_overlay.overlays.shuttle_track import BOX_COLOUR, make_draw
 
@@ -30,7 +30,9 @@ def test_composed_stream_pairs_every_source_frame_and_marks_before_encoding(
         spacer=Fraction(2, 25),
     )
     expected_indices = [0, 1, 2, 3, None, None, 4, 5, 6, 7]
-    expected_source = fetch_span(validation_video, 0, 7, info.fps)
+    expected_source = np.stack(list(iter_span_frames(
+        validation_video, 0, 7, info.fps, info.width, info.height,
+    )))
     observed: list[tuple[int, bool]] = []
     mark_counts: list[int] = []
 

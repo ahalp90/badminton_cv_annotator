@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -261,6 +261,15 @@ def run_video(
             capture.raw_exclusion_mask = raw_exclusion_mask.copy()
 
     resolved = resolve(base, fps)
+    span_options: dict[str, Any] = {
+        'thresholds': resolved.thresholds,
+        'span_open': resolved.span_open,
+        'constants': resolved.constants,
+        'gap_state_demotion_bound': resolved.gap_state_demotion_bound,
+        'reentry_guard_variant': resolved.reentry_guard_variant,
+        'reentry_guard_buffer': resolved.reentry_guard_buffer,
+        'quiet_start_window': resolved.quiet_start_window,
+    }
     # Injected spans skip span finding, so serve-start would otherwise silently never run.
     if serve_start is not None and spans is not None:
         raise ValueError('serve_start cannot be combined with injected spans')
@@ -348,21 +357,14 @@ def run_video(
             capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
         if contacts is None:
             final_spans, raw_contacts = stage8_seg.segment_video(
-                track, positions=positions, thresholds=resolved.thresholds,
-                span_open=resolved.span_open, replay_mask=definitive_exclusion_mask, sticky_distances=None,
+                track, positions=positions, replay_mask=definitive_exclusion_mask,
+                sticky_distances=None,
                 spans=spans, smoothing_mode=resolved.smoothing_mode,
-                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-                reentry_guard_variant=resolved.reentry_guard_variant,
-                reentry_guard_buffer=resolved.reentry_guard_buffer,
-                quiet_start_window=resolved.quiet_start_window,
+                **span_options,
             )
         else:
             final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-                track, resolved.thresholds, span_open=resolved.span_open,
-                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-                reentry_guard_variant=resolved.reentry_guard_variant,
-                reentry_guard_buffer=resolved.reentry_guard_buffer,
-                quiet_start_window=resolved.quiet_start_window,
+                track, **span_options,
             )
             raw_contacts = [
                 ContactCandidate(rally_id, frame, None, None, None)
@@ -380,11 +382,7 @@ def run_video(
         # Injected contacts already carry the selected rally IDs. Span finding still runs when
         # callers did not inject spans; sticky already ran over tracker segments above.
         final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-            track, resolved.thresholds, span_open=resolved.span_open,
-            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-            reentry_guard_variant=resolved.reentry_guard_variant,
-            reentry_guard_buffer=resolved.reentry_guard_buffer,
-            quiet_start_window=resolved.quiet_start_window,
+            track, **span_options,
         )
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
@@ -402,11 +400,7 @@ def run_video(
         # unmasked pass supplies rally spans to the mask builder.
         if raw_exclusion_mask is None:
             bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
-                track, resolved.thresholds, span_open=resolved.span_open,
-                constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-                reentry_guard_variant=resolved.reentry_guard_variant,
-                reentry_guard_buffer=resolved.reentry_guard_buffer,
-                quiet_start_window=resolved.quiet_start_window,
+                track, **span_options,
             )
             raw_replay_mask = build_dead_mask(
                 resolved.dead_mask_mode, len(track), fps, court_present=court_present,
@@ -439,15 +433,11 @@ def run_video(
 
     if contacts is None:
         final_spans, raw_contacts = stage8_seg.segment_video(
-            track, positions=positions, thresholds=resolved.thresholds,
-            span_open=resolved.span_open,
+            track, positions=positions,
             replay_mask=definitive_exclusion_mask, sticky_distances=sticky.distances,
             serve_start=serve_options,
             spans=final_spans, smoothing_mode=resolved.smoothing_mode,
-            constants=resolved.constants, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-            reentry_guard_variant=resolved.reentry_guard_variant,
-            reentry_guard_buffer=resolved.reentry_guard_buffer,
-            quiet_start_window=resolved.quiet_start_window,
+            **span_options,
         )
     spans, contacts = final_spans, raw_contacts
 

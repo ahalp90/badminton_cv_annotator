@@ -18,7 +18,8 @@ from annotator.point_winner import (
     LandingKinematics,
     attribute_half,
     convert_landing_options,
-    pick_landing,
+    landing_window,
+    pick_landing_to_end,
     window_end,
 )
 from annotator.rally_segmentation import build_sticky_result, scale_thresholds, segment_video
@@ -259,20 +260,22 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
 
     kin = LandingKinematics(np.full(n_frames, np.nan), np.full(n_frames, np.nan), np.zeros(n_frames))
     opts = LandingFilterOptions(1, 0.0, 1, 1, 0.0, use_settle=False, use_carry=False)
-    unscaled_landing = pick_landing(
-        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
-        (520.0, 560.0), (1920.0, 1080.0), court_info,
-        replace(resolved.constants, sustained_loss_frames=10, min_descend_samples=3), resolved.fps,
+    dead = np.zeros(n_frames, dtype=bool)
+
+    def pick_with(constants):
+        end_frame = landing_window(
+            final_contact, n_frames, landing_track, dead, constants.sustained_loss_frames,
+        ).end_frame
+        return pick_landing_to_end(
+            final_contact, end_frame, landing_track, kin, opts, Half.TOP,
+            (520.0, 560.0), (1920.0, 1080.0), court_info, constants, resolved.fps,
+        )
+
+    unscaled_landing = pick_with(
+        replace(resolved.constants, sustained_loss_frames=10, min_descend_samples=3),
     )
-    landing = pick_landing(
-        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
-        (520.0, 560.0), (1920.0, 1080.0), court_info, resolved.constants, resolved.fps,
-    )
-    double_scaled_landing = pick_landing(
-        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), kin, opts, Half.TOP,
-        (520.0, 560.0), (1920.0, 1080.0), court_info,
-        replace(resolved.constants, min_descend_samples=12), resolved.fps,
-    )
+    landing = pick_with(resolved.constants)
+    double_scaled_landing = pick_with(replace(resolved.constants, min_descend_samples=12))
     assert unscaled_landing is not None
     assert unscaled_landing.frame == 139
     assert landing is not None
