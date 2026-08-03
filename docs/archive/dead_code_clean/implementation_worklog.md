@@ -2,15 +2,18 @@
 
 ## Resume
 
-- **Current state:** B1 through B5 are merged. B6 implementation is complete on
-  `cleanup-dedup-b6` from merge commit `4b13ea4`.
-- **Next action:** Review the final B6 diff, then run the B6 commit helper.
+- **Current state:** B1 through B6 are merged. B7 gates, final independent
+  review, and documentation archive are complete on `cleanup-dedup-b7` from
+  merge commit `182b1f1`.
+- **Final handoff:** Review this archive diff, commit it on
+  `cleanup-dedup-b7`, and merge it through a pull request.
 - **Verified so far:** B1 commit `f589f55` is contained in merged `origin/main`
   through PR #41 (`a4eddca`). B2 commit `03f8b26` is contained in merged PR #42
   (`ef77e71`). B3 and its corrections are contained in merged PR #43
   (`4a52929`). B4 commit `a8fc6b9` is contained in merged PR #44 (`9f21cc3`).
   B5 commit `51b2977` is contained in merged PR #45 (`4b13ea4`).
-- **Runbook:** `docs/dead_code_clean/decisions.md`, rulings R0 through R9.
+  B6 commit `dc50e8b` is contained in merged PR #46 (`182b1f1`).
+- **Runbook:** `docs/archive/dead_code_clean/decisions.md`, rulings R0 through R9.
 
 ## Concerns and observations
 
@@ -68,6 +71,11 @@
   Full collection finds 1,087 tests, then stops on nine missing-dependency
   imports. The missing packages are `safetensors`, `positional_encodings`,
   `tensorboard`, and `torcheval`.
+- **B7:** GPU validation ran on Bourbaki's A100 in an isolated Python 3.12
+  environment. The remote worktree remained clean.
+- **B7 observation:** TrackNet's inpaint sidecar fails on a six-frame clip with
+  a mask-length error. The relevant source blobs are identical to the
+  pre-cleanup BST-X tree. An 84-frame clip completed normally.
 
 ## Original and intended shape
 
@@ -142,7 +150,7 @@ R4 and R9 require no implementation changes.
 
 ### B0 revalidation
 
-- **Files:** Read-only review of `docs/dead_code_clean/`, `src/`, `tests/`,
+- **Files:** Read-only review of `docs/archive/dead_code_clean/`, `src/`, `tests/`,
   `pyproject.toml`, and active TrackNet documentation.
 - **Change:** Created this current execution record and removed retired API
   work from the planned scope.
@@ -300,4 +308,46 @@ R4 and R9 require no implementation changes.
   blocked by the previously documented missing `torcheval` dependency. The
   independent review found no issues and matched the baseline clip index,
   sweep arithmetic, completeness errors, and device selection.
+- **Commit:** `dc50e8b Deduplicate BST-X helpers and trim BRIC`; merged by PR
+  #46 as `182b1f1`.
+
+### B7 final gates
+
+- **Readiness:** B1 through B6 are merged. GitHub CI and PR-quality checks pass
+  on the B6 merge.
+- **Files:** The completed `docs/archive/dead_code_clean/` record set only.
+- **Change:** No production change. Record the final checks and archive the
+  completed cleanup documents.
+- **Gate:** Whole-project Ruff passes. Project Pyrefly reports the same 17
+  existing BST-X jaxtyping shape-name errors. Full local pytest stops at the
+  same nine missing-dependency collection errors. The complete suite in the
+  isolated Bourbaki environment passes 1,302 tests with 26 skips. The focused
+  TrackNet, BRIC, and shared-helper suite passes 98 tests. TrackNet command
+  smokes pass outside the repository and both inference entry points expose
+  `--large_video`. The BRIC shared-module probe reports the 14-class deployed
+  taxonomy contract.
+  On Bourbaki's A100, BRIC passed tensor, YOLO11, and R(2+1)D-18 forward
+  passes. BST-X validation passed on CUDA. Two seeded CUDA training runs
+  produced the same checkpoint hash and metrics. TrackNet `--large_video`
+  inference with the official checkpoints produced an 84-row contiguous CSV
+  and its inpaint sidecar from an 84-frame 1080p clip. The final independent
+  review found no issues across R1 through R9, protected contracts, active
+  paths, documentation, or the B7 record.
+- **Follow-up gates:** The released deployed BRIC checkpoint loads strictly on
+  CUDA with no missing or unexpected keys. Its classifier is `(14, 576)`, its
+  manifest matches the 14-class taxonomy, and a CUDA forward returns `(1, 14)`
+  logits. The real Bourbaki data checks pass 15 BST-X preflight cases and one
+  end-to-end data-loader/model-forward case. The RTMLib provider guard passes
+  all three cases in the separate pose environment.
+- **Remaining external checks:** Nine annotator calibration cases require a
+  complete external fixture bundle. The available shared-scratch copy lacks
+  the three pinned `kp_scores.npy` arrays; the other 41 tests in those modules
+  pass. The retired Docker namespace case remains skipped because its web-demo
+  condition no longer exists. The opt-in legacy venv-name scan finds old
+  `venv-bst` wording in architecture notes and its own test pattern. Neither
+  item is a GPU check or a production cleanup gate.
+- **Archive:** Moved all 16 cleanup records to
+  `docs/archive/dead_code_clean/`, preserving the directory structure. Updated
+  25 internal absolute path prefixes to the archive location and added the
+  archive README. No audit prose was rewritten.
 - **Commit:** Not yet committed.
