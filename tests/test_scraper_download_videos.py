@@ -455,7 +455,8 @@ def test_manifest_round_trip_preserves_rich_strings_and_unknown_scalars(
     [
         ('[videos."clip.mp4"\n', tomllib.TOMLDecodeError),
         ('dataset = "scraped"\nvideos = []\n', TypeError),
-        ('dataset = "other"\n[videos]\n', ValueError),
+        ('dataset = 7\n[videos]\n', TypeError),
+        ('dataset = ""\n[videos]\n', ValueError),
         ('dataset = "scraped"\nfuture = [1, 2]\n[videos]\n', TypeError),
     ],
 )
@@ -494,6 +495,42 @@ def test_empty_selected_input_writes_empty_manifest_and_exits_zero(tmp_path: Pat
     with manifest_path.open('rb') as handle:
         manifest = tomllib.load(handle)
     assert manifest == {'dataset': 'scraped', 'videos': {}}
+
+
+def test_cli_writes_explicit_dataset_label(tmp_path: Path, monkeypatch) -> None:
+    candidates_path = tmp_path / 'candidates.csv'
+    _write_candidates(candidates_path, [])
+    output_dir = tmp_path / 'videos'
+
+    monkeypatch.setattr(
+        'sys.argv',
+        [
+            'download_scraped_videos',
+            '--candidates-csv', str(candidates_path),
+            '--output-dir', str(output_dir),
+            '--dataset', 'shuttleset',
+        ],
+    )
+
+    assert downloader.main() == 0
+    with (output_dir / 'sources.toml').open('rb') as handle:
+        manifest = tomllib.load(handle)
+    assert manifest == {'dataset': 'shuttleset', 'videos': {}}
+
+
+def test_existing_manifest_dataset_must_match_requested_label(tmp_path: Path) -> None:
+    candidates_path = tmp_path / 'candidates.csv'
+    _write_candidates(candidates_path, [])
+    output_dir = tmp_path / 'videos'
+    output_dir.mkdir()
+    manifest_path = output_dir / 'sources.toml'
+    manifest_text = 'dataset = "shuttleset"\n\n[videos]\n'
+    manifest_path.write_text(manifest_text, encoding='utf-8')
+
+    with pytest.raises(ValueError, match="expected 'scraped'"):
+        downloader.download_all_videos(candidates_path, output_dir)
+
+    assert manifest_path.read_text(encoding='utf-8') == manifest_text
 
 
 def test_probe_audio_pins_full_argv_timeout_and_exact_path(tmp_path: Path, monkeypatch) -> None:

@@ -53,4 +53,5 @@ def test_adapter_maps_match_rows_filters_exclusions_and_enables_video_only(
     assert isinstance(kwargs, dict)
     assert kwargs['output_dir'] == output_dir
     assert kwargs['max_workers'] == 3
+    assert kwargs['dataset'] == 'shuttleset'
     assert kwargs['video_only'] is True

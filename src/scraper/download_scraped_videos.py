@@ -28,6 +28,7 @@ VIDEOS_DIR = config.VIDEOS_DIR
 SOURCES_MANIFEST_NAME = config.SOURCES_MANIFEST_NAME
 
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
+DEFAULT_DATASET_LABEL = 'scraped'
 
 _H264_WITH_M4A = 'bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]'
 _H264_WITH_ANY_AUDIO = 'bestvideo[vcodec^=avc1]+bestaudio'
@@ -132,12 +133,20 @@ def _manifest_scalar(value: object, *, context: str) -> None:
         raise ValueError(f'{context} must be a finite float')
 
 
+def _validate_dataset_label(value: object) -> str:
+    """Return a non-empty dataset label suitable for source provenance."""
+    if not isinstance(value, str):
+        raise TypeError("sources.toml 'dataset' must be a string")
+    if not value.strip():
+        raise ValueError("sources.toml 'dataset' must not be empty")
+    return value
+
+
 def _validate_manifest(manifest: object) -> dict[str, object]:
     """Validate and return a manifest that the writer can round-trip."""
     if not isinstance(manifest, dict):
         raise TypeError('sources.toml must contain a table')
-    if manifest.get('dataset') != 'scraped':
-        raise ValueError("sources.toml 'dataset' must be 'scraped'")
+    _validate_dataset_label(manifest.get('dataset'))
 
     videos = manifest.get('videos')
     if not isinstance(videos, dict):
@@ -168,12 +177,18 @@ def _validate_manifest(manifest: object) -> dict[str, object]:
     return manifest
 
 
-def _read_manifest(manifest_path: Path) -> dict[str, object]:
+def _read_manifest(manifest_path: Path, dataset: str) -> dict[str, object]:
     """Read, validate, or initialise a scraper source manifest."""
+    dataset = _validate_dataset_label(dataset)
     if not manifest_path.exists():
-        return {'dataset': 'scraped', 'videos': {}}
+        return {'dataset': dataset, 'videos': {}}
     with manifest_path.open('rb') as handle:
-        return _validate_manifest(tomllib.load(handle))
+        manifest = _validate_manifest(tomllib.load(handle))
+    if manifest['dataset'] != dataset:
+        raise ValueError(
+            f"sources.toml 'dataset' is {manifest['dataset']!r}, expected {dataset!r}"
+        )
+    return manifest
 
 
 def _toml_key(key: str) -> str:
@@ -452,6 +467,7 @@ def download_all_videos(
     output_dir: Path = VIDEOS_DIR,
     max_workers: int = config.DOWNLOAD_WORKERS,
     *,
+    dataset: str = DEFAULT_DATASET_LABEL,
     allow_missing_audio: bool = False,
     video_only: bool = False,
 ) -> list[DownloadOutcome]:
@@ -460,13 +476,14 @@ def download_all_videos(
     :param candidates_path: Candidate CSV, filtered with exact ``keep == 'True'``.
     :param output_dir: Destination for downloaded videos.
     :param max_workers: Number of parallel download threads.
+    :param dataset: Provenance label written to ``sources.toml``.
     :param allow_missing_audio: Skip ffprobe and mark new files ineligible.
     :param video_only: Request H.264 video without requiring an audio stream.
     :return: One outcome per selected seed when workers finish normally.
     """
     manifest_path = output_dir / SOURCES_MANIFEST_NAME
     output_dir.mkdir(parents=True, exist_ok=True)
-    manifest = _read_manifest(manifest_path)
+    manifest = _read_manifest(manifest_path, dataset)
     rows = config.read_candidates(candidates_path)
     tasks = _tasks_from_rows(rows, output_dir)
 
@@ -532,6 +549,11 @@ def main() -> int:
     parser.add_argument('--output-dir', type=Path, default=config.VIDEOS_DIR)
     parser.add_argument('--workers', type=int, default=config.DOWNLOAD_WORKERS)
     parser.add_argument(
+        '--dataset',
+        default=DEFAULT_DATASET_LABEL,
+        help=f'Dataset provenance label written to sources.toml (default: {DEFAULT_DATASET_LABEL})',
+    )
+    parser.add_argument(
         '--allow-missing-audio',
         action='store_true',
         help='Accept videos without checking for an audio stream; newly accepted files are\n'
@@ -548,6 +570,7 @@ def main() -> int:
         candidates_path=args.candidates_path,
         output_dir=args.output_dir,
         max_workers=args.workers,
+        dataset=args.dataset,
         allow_missing_audio=args.allow_missing_audio,
         video_only=args.video_only,
     )

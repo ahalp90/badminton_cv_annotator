@@ -11,6 +11,9 @@ from scraper.download_scraped_videos import DownloadOutcome, download_all_videos
 from pipeline.config import EXCLUDED_VIDEOS, RAW_VIDEO_DIR, SET_INFO_DIR
 
 
+SHUTTLESET_DATASET_LABEL = 'shuttleset'
+
+
 def _candidate_rows(
     match_csv_path: Path,
     excluded: frozenset[int],
@@ -53,6 +56,7 @@ def download_shuttleset_videos(
             candidates_path=candidates_path,
             output_dir=output_dir,
             max_workers=max_workers,
+            dataset=SHUTTLESET_DATASET_LABEL,
             video_only=True,
         )
 
