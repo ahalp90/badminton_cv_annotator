@@ -8,11 +8,8 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig, SHIPPED_THRESHOLDS
 from annotator.fps_constants import scale_for_fps
-from annotator.rally_segmentation import (
-    _find_rally_spans_quiet_start,
-    _gap_state_rest_mask,
-    segment_video,
-)
+from annotator.rally.spans import _find_rally_spans_quiet_start, _gap_state_rest_mask
+from annotator.rally_segmentation import segment_video
 import annotator.run_video as run_video_module
 from annotator.resolve import resolve
 from annotator.run_video import build_serve_options, run_video
@@ -183,11 +180,12 @@ def test_off_path_keeps_legacy_rest_mask_call_shapes(monkeypatch: pytest.MonkeyP
     # The frozen sweep rebinds _rest_mask to a (speed, track) replacement; until
     # Until the legacy rest-mask path is retired, the OFF path must accept its call shapes.
     import annotator.rally_segmentation as seg
+    import annotator.rally.spans as rally_spans
 
     def two_arg_rest_mask(speed: np.ndarray, track: np.ndarray, thresholds=None) -> np.ndarray:
         return np.zeros(len(speed), dtype=bool)
 
-    monkeypatch.setattr(seg, '_rest_mask', two_arg_rest_mask)
+    monkeypatch.setattr(rally_spans, '_rest_mask', two_arg_rest_mask)
     track = np.column_stack([np.zeros(20), np.zeros(20), np.ones(20)])
     assert seg.find_rally_spans(track) == []
     assert seg.find_rally_spans(track, SHIPPED_THRESHOLDS) == []

@@ -20,13 +20,6 @@ from annotator.rally_segmentation import (
     ServeStartMode,
     ServeStartOptions,
     SpanOpen,
-    _find_rally_spans,
-    _find_rally_spans_span_open,
-    _last_rest_close,
-    _nan_rolling_mean,
-    _rolling_mean,
-    _serve_distance_ratio_passes,
-    _serve_start_find_rally_spans,
     apply_replay_mask,
     compute_speed,
     contact_proximity_ok,
@@ -37,6 +30,14 @@ from annotator.rally_segmentation import (
     suppress_contact_flags,
     wrist_contact_near,
 )
+from annotator.rally.serve import _serve_distance_ratio_passes
+from annotator.rally.spans import (
+    _find_rally_spans,
+    _find_rally_spans_span_open,
+    _last_rest_close,
+    _serve_start_find_rally_spans,
+)
+from annotator.rally.trajectory import _nan_rolling_mean, _rolling_mean
 from annotator.fps_constants import scale_for_fps
 from annotator.types import SmoothingMode
 

@@ -1,0 +1,1 @@
+"""Internal rally-segmentation responsibilities."""
