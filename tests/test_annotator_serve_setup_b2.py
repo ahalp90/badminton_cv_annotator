@@ -4,12 +4,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from annotator.rally.serve import _sticky_serve_setup_before
 from annotator.rally_segmentation import (
     ServeSetupInputs,
     ServeStartMode,
     ServeStartOptions,
     StickyResult,
-    _sticky_serve_setup_before,
     build_serve_setup_inputs,
     find_rally_spans,
 )
