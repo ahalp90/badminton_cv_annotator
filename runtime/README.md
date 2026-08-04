@@ -1,7 +1,7 @@
 # `runtime/`
 
-This directory retains model and perception files used by BRIC tooling,
-classifier comparisons, and future in-process classification.
+This directory retains the non-API runtime files used by BRIC tooling and
+classifier comparisons.
 
 ## `checkpoints/`
 

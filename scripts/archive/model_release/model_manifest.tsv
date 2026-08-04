@@ -6,6 +6,6 @@ experiments/bst_x/shuttleset/run_20260530_192738_970644/weights/bst_x_JnB_bone_b
 experiments/bst_x/shuttleset/run_20260601_184437_030823/weights/bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_3.pt	bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_bst_24_3.pt	167a0fe7840ef915d2e52f0b0ab309c9ca7a934ed357f9e92c104c12ef79aca9
 experiments/bst_x/shuttleset/run_20260601_153738_936523/weights/bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_shuttleset_18_5.pt	bst_x_JnB_bone_between_2_hits_with_max_limits_seq_100_shuttleset_18_5.pt	85df69c4b770df555ec651f9ce1344f61e3219d335e04ba729565f8f6f6332a5
 # BRIC (bric_best.pt) is intentionally omitted: its weight was never committed
-# and is not on this server. Its precomputed evaluation artefacts remain in the
-# repository. To enable in-process BRIC classification, source the weight, place
-# it at runtime/deployed/bric/<run>/best.pt, and add a row here. See MODELS.md.
+# and is not on this server. BRIC serves precomputed predictions, so the demo
+# does not need it. If live BRIC inference is wanted, source the weight, place it
+# at runtime/deployed/bric/<run>/best.pt, and add a row here. See MODELS.md.

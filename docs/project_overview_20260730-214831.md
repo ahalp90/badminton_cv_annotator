@@ -22,15 +22,11 @@ stream, covered in the appendix.
 
 ## Current position
 
-The project is a computer-vision annotation pipeline for broadcast badminton
-footage. It
+The project combines a badminton stroke classifier with a data pipeline for
+broadcast match footage. The pipeline is the current centre of gravity. It
 searches and downloads suitable videos, extracts shuttle, pose and court
 evidence, identifies rallies and stroke contacts, derives related labels, and
 pairs each retained rally with cleaned English commentary.
-
-BST-X and BRIC provide optional stroke classification after the annotator has
-identified stroke windows. The intended integration runs in process as part of
-the data pipeline. It has no separate web-application role.
 
 The pipeline work is merged. A fixed court-aware CUDA measurement ran on the
 University of New England's Bourbaki HPC, and the retrieved result passed its
@@ -55,13 +51,13 @@ There are three connected workstreams.
 | --- | --- | --- |
 | Scraper and commentary lane | Find broadcast footage, download it safely, extract inputs, transcribe and pair commentary | Builds a source of rally-level video-commentary records |
 | Auto-annotator | Infer rally spans, contacts, striker, server, hit height, landing and winner | Produces structured records from the extracted video evidence |
-| BST-X and BRIC | Classify detected strokes from their model-specific inputs | Optional downstream stages in the annotation pipeline |
+| BST-X | Classify an individual stroke from pose and shuttle features | Supplies a completed classifier and can become a downstream feature |
 
 ### Project flow at a glance
 
-> Read from top to bottom. Acquisition feeds the rally-record lanes. Detected
-> contacts can feed an optional in-process classifier stage. The fixed
-> measurement is a separate evidence lane around the auto-annotator.
+> Read from top to bottom. Acquisition feeds the two rally-record lanes;
+> BST-X remains a neighbouring individual-stroke model; the fixed measurement
+> is a separate evidence lane around the auto-annotator.
 
 ```mermaid
 flowchart TB
@@ -79,9 +75,9 @@ flowchart TB
         P7 --> P8
     end
 
-    subgraph P_BST["Optional stroke classification stage"]
+    subgraph P_BST["Individual-stroke model"]
         direction LR
-        P9["Detected<br/>stroke window"] --> P10["BST-X or BRIC<br/>stroke class"]
+        P9["Pose and shuttle<br/>stroke window"] --> P10["BST-X<br/>stroke class"]
     end
 
     subgraph P_MEASURE["Fixed evidence lane"]
@@ -92,8 +88,8 @@ flowchart TB
 
     P3 --> P4
     P3 --> P6
-    P5 --> P9
-    P10 --> P8
+    P3 --> P9
+    P10 -.->|"possible feature"| P8
     P12 -.->|"measures"| P4
 
     classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a

@@ -78,7 +78,6 @@ convention (currently BRIC):
    with `manifest.yaml`, `best.pt`, `metrics.csv`.
 2. Symlink or rsync the run into `runtime/deployed/<arch>/` for shared use —
    see [`runtime/README.md`](../runtime/README.md).
-3. Add a registry entry to `docs/models_registry.yaml`.
 
 These steps retain the model and its provenance. They do not activate a web
 service. An annotator classifier stage should load the selected model directly

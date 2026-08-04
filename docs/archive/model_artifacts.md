@@ -1,9 +1,7 @@
 # Model Artifacts: Storage and Retrieval
 
 How model weights, training arrays, and TensorBoard logs are made available to
-the next team, and why. See the
-[current project overview](docs/project_overview_20260730-214831.md) for the
-pipeline context.
+the next team, and why. See `HANDOVER.md` for the project-wide handover.
 
 > **Status — Tier 1 published.** The 6 BST-X run-time weights are tracked in
 > git AND uploaded as assets on the `models-v1` GitHub Release (which carries
@@ -11,18 +9,20 @@ pipeline context.
 > `scripts/fetch-models.sh` works against it. The Tier 2 training archive
 > already lives on shared institutional storage (which may not persist
 > indefinitely; a maintainer backup is the fallback, see Tier 2 below). The
-> The retained prediction and evaluation artefacts remain in the repository.
+> demo is unaffected either way: it runs from the precomputed predictions
+> already in the repo.
 
 ## The decision (two tiers)
 
 | Tier | What | Size | Where it goes | How to get it |
 | --- | --- | --- | --- | --- |
-| 1. Run-time weights | The 6 BST-X `*.pt` available to classifier pipeline work | ~43 MB | **GitHub Release** asset | `scripts/fetch-models.sh` |
+| 1. Run-time weights | The 6 BST-X `*.pt` the registry serves | ~43 MB | **GitHub Release** asset | `scripts/fetch-models.sh` |
 | 2. Training archive | All historical `*.pt` (49), logit `*.npz` (63), TB logs (466) | ~440 MB | **Institutional / HPC bulk storage** | manifest + manual copy |
 
-The base annotator does not need either tier when stroke classification is
-disabled. An in-process classification stage needs the selected Tier 1 model
-weights. Tier 2 is only needed to reproduce or retrain historical models.
+Neither tier is needed to run the demo. Results screens are driven by the
+**precomputed predictions that are already committed** (~11 MB; see
+`HANDOVER.md`). You only need Tier 1 for live inference on new uploads, and
+Tier 2 only to reproduce or retrain.
 
 ## Why not the obvious alternatives
 
@@ -46,12 +46,12 @@ or university cloud), referenced by a manifest.
 > The steps below are kept for reference / re-publishing a new tag. The manifest's
 > `sha256` column is filled, so fetches are integrity-verified.
 
-The retained weights are listed in `scripts/model_manifest.tsv` from each
-catalogue entry's `weights_path`. It currently holds the **6 BST-X**
+The deployed weights are listed in `scripts/model_manifest.tsv` (generated from
+each registry entry's `weights_path`). It currently holds the **6 BST-X**
 weights that exist on this server. BRIC's `weights_path` is declared in the
-catalogue but the file was never committed and is not on the server. Its
-precomputed evaluation artefacts remain available. The manifest documents how
-to restore BRIC weights when an in-process BRIC classification stage needs them.
+registry but the file was never committed and is not on the server; BRIC serves
+precomputed predictions, so the demo does not need it. The manifest documents
+this in a comment, with how to add BRIC back if live BRIC inference is wanted.
 
 1. Create a release tag, e.g. `models-v1`.
 2. Upload each file in the manifest's first column as a release asset, named by

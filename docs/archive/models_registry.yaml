@@ -1,11 +1,12 @@
-# Hand-curated catalogue of classifier models available to pipeline work.
-# Add a new entry when a run or serial becomes a retained classifier option.
+# Hand-curated registry of FE-facing models.
+# Schema and consumer contract: ./frontend_integration_handoff.md  section 1.
+# Add a new entry when a run/serial graduates to user-facing status.
 #
-# Each entry points to a training manifest and retained weights. BST-X also
-# stores evaluation sidecars under the run's `fe_jsons/` directory. BRIC uses
-# `predictions/` and `eval/test_summary.json`. These artefacts remain useful for
-# classifier comparison and for a future in-process annotator classifier stage.
-# Pipeline code treats this file as a model catalogue.
+# Tier 1 (current): the backend joins each entry's `manifest.yaml` (headline +
+# val metrics) with its FE sidecar JSONs. BST-X parks those under the run's
+# `fe_jsons/` dir (clip_index, {split}.json, perclass_stats_{split}.json); BRIC
+# uses `predictions/` + `eval/test_summary.json`. See src/api/registry.py.
+# Tier 2 (later): the same registry drives weight loading + npy lookup.
 #
 # Provenance (collation_id, ablation_id) and the class list are read off each
 # entry's manifest `config` block, not duplicated here. The author-written
@@ -15,10 +16,11 @@
 # Proper temperature-scaling fit is parked at section 6.5 of the long doc.
 #
 # Six taxon_pinned_w_preds BST-X cells were trained (taxonomies bst_12/18/24/25
-# and une_v1_14, across v2 + BST-baseline splits). All six are retained. The
-# `is_default: true` cell is une_v1_14 on v2, the like-for-like match to BRIC's
-# 14-class v2 footing. Exactly one BST-X entry should carry is_default so a
-# pipeline consumer has one declared default.
+# and une_v1_14, across v2 + BST-baseline splits). All six are surfaced. The FE
+# shows the `is_default: true` cell (une_v1_14 on v2, the like-for-like match to
+# BRIC's 14-class v2 footing) as the headline BST-X card, and lets the user swap
+# in any of the other five via the "Change model" picker. Exactly one BST-X entry
+# should carry is_default; the FE falls back to the first model otherwise.
 
 models:
   - id: bst_x_une_v1_14_v2
