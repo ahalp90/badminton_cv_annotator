@@ -360,11 +360,50 @@ the sibling and court tool contain real duplicate behaviour that would drift if
 maintained separately. Do not build a web UI, a general annotation framework,
 or an annotation service for this one-video pilot.
 
+### Issue 29 timeline tool
+
+The bounded sibling tool is `annotator.non_play_annotation`. It keeps its
+interval state and CSV contract separate from the corner-specific annotator and
+does not import the production replay pipeline.
+
+Run it from the repository root:
+
+```bash
+PYTHONPATH=src python -m annotator.non_play_annotation \
+  --video /path/to/sset_01_288p.mp4 \
+  --video-id sset_01 \
+  --out-csv local_scratch/autograder_architecture/measurements/sset_01_non_play_manual_labelling.csv \
+  --proposal-csv /path/to/proposals.csv \
+  --gt-csv /path/to/gt_rally_extents.csv
+```
+
+The number keys assign the five classes. A new interval ends after the
+displayed frame, so its stored end remains exclusive. Existing intervals can
+be relabelled, deleted, noted, and replaced. The `g` key jumps to the first
+gap, `j` jumps to the next proposal or GT boundary, and `v` validates the
+declared range. Use `--validate-only` for the final non-GUI source-metadata and
+partition check.
+
+Proposal CSVs default to zero-based half-open `start_frame`, `end_frame`, and
+`truth` columns. The column names can be changed with CLI flags. GT guide CSVs
+default to inclusive `first_stroke_frame` and `last_stroke_frame`; the tool
+converts the end to half-open form for display only. Neither guide becomes
+human truth.
+
 ## One artefact contract
 
 Use one CSV per selected video. A suggested name is:
 
 `<video_id>_non_play_manual_labelling.csv`
+
+During Issue 29, the editable plain CSV stays under the gitignored
+`local_scratch/` measurement path. After human review and validation, the one
+canonical tracked copy is:
+
+`docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_non_play_manual_labelling.csv.gz`
+
+Readers use that tracked gzip file. The local plain file remains temporary
+working output and must not become a second maintained truth artefact.
 
 Each row is one ordered, contiguous interval. Use zero-based half-open frames:
 `[start_frame, end_frame)`, where the start frame is included and the end frame
