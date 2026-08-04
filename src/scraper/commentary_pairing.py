@@ -1,4 +1,4 @@
-"""Stage 11: rally-to-commentary pairing (scraper_spec.md section 9).
+"""Pair rallies with commentary chunks (scraper_spec.md section 9).
 
 A mechanical time-range join: each rally span pairs with the commentary chunk
 that immediately follows it. Replay-masked rallies and chunks are held out of
@@ -10,7 +10,7 @@ chunk sidecar's native unit). Each field keeps its producer's unit so nothing is
 silently converted; downstream assembly derives seconds from frames via the
 per-video fps when it wants both on one clock.
 
-Run as `python -m scraper.stage11_pairing` with PYTHONPATH=src.
+Run as `python -m scraper.commentary_pairing` with PYTHONPATH=src.
 """
 import argparse
 import csv
@@ -206,7 +206,7 @@ def _read_fps_map(fps_csv: Path) -> dict[str, float]:
 def _read_rally_spans_by_video(spans_csv: Path) -> dict[str, list[tuple[int, int, int]]]:
     """Group rally spans by video: `{video_id: [(rally_id, start, end), ...]}`."""
     if not spans_csv.exists():
-        raise FileNotFoundError(f'{spans_csv} not found. Run stage 8 first.')
+        raise FileNotFoundError(f'{spans_csv} not found. Run rally segmentation first.')
     grouped: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
     with spans_csv.open(newline='', encoding='utf-8') as handle:
         for row in csv.DictReader(handle):
@@ -302,7 +302,7 @@ def _manifest_pairing_index(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Stage 11: pair rallies to commentary chunks.')
+    parser = argparse.ArgumentParser(description='Pair rallies to commentary chunks.')
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--chunks-dir', type=Path, default=CHUNKS_DIR)
     parser.add_argument('--masks-dir', type=Path, default=MASKS_DIR)

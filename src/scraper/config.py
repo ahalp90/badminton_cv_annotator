@@ -1,9 +1,9 @@
 """Shared config for the badminton-commentary scraper.
 
-Single source of truth for the file contracts and named constants the stages
+Single source of truth for the file contracts and named constants the components
 share: output paths, the candidates.csv column set, yt-dlp throttle flags, the
-metadata screens, chunking and keep thresholds, LLM settings, and the stage 8/9
-trajectory-rule constants. Every stage imports from here so the column order,
+metadata screens, chunking and keep thresholds, LLM settings, and the rally-segmentation
+and replay-mask trajectory rules. Every component imports from here so the column order,
 sidecar layout and rate-limit values live in one place.
 
 Constant provenance is cited inline as "spec sN" against the section of
@@ -27,21 +27,21 @@ from annotator.config import CONTACT_FRAMES_CSV, MASKS_DIR, RALLY_SPANS_CSV, SCR
 # SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are
 # annotator-owned (annotator.config); imported inward here so this module's
 # own consumers keep the same names and values.
-CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'  # spec s2 (stages 1, 3)
+CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'  # spec s2 (search indexing and relevance triage)
 VIDEOS_DIR = SCRAPE_DIR / 'videos'
 SOURCES_MANIFEST_NAME = 'sources.toml'
-TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'  # spec s3 (stage 2)
-CHUNKS_DIR = SCRAPE_DIR / 'chunks'  # spec s4 (stages 3, 10)
-PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'  # spec s9 (stage 11)
+TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'  # spec s3 (transcript acquisition)
+CHUNKS_DIR = SCRAPE_DIR / 'chunks'  # spec s4 (relevance triage and commentary cleaning)
+PAIRS_CSV = SCRAPE_DIR / 'rally_commentary_pairs.csv'  # spec s9 (commentary pairing)
 
 # ---------------------------------------------------------------------------
 # candidates.csv contract (spec s2)
 # ---------------------------------------------------------------------------
-# Column order is fixed here. INVARIANT: stage 1 writes this header, stage 3
+# Column order is fixed here. INVARIANT: search indexing writes this header, relevance triage
 # rewrites the same file with the same header (only keep changes), and the
 # section 10 human packet later fills triage_verdict.
 # Bool columns serialise as the CSV strings 'True'/'False' (keep is also blank
-# before stage 3 fills it). Consumers must parse (== 'True'), never truth-test
+# before relevance triage fills it). Consumers must parse (== 'True'), never truth-test
 # a raw cell: any non-empty string is truthy, 'False' included.
 CANDIDATES_COLUMNS = [
     'video_id',  # yt-dlp id
@@ -55,7 +55,7 @@ CANDIDATES_COLUMNS = [
     'doubles_suspect',  # bool, title/metadata keyword screen (spec s8)
     'duration_suspect',  # bool, duration outside the match-length band (spec s2, D8)
     'upload_date_suspect',  # bool, always False while the floor is off (spec s2, D8)
-    'keep',  # bool, appended by stage 3; blank at index time
+    'keep',  # bool, appended by relevance triage; blank at index time
     'triage_verdict',  # keep/drop/uncertain, human packet; blank at index time
 ]
 
@@ -63,7 +63,7 @@ SUBSTREAM_MATCH = 'match'
 SUBSTREAM_INSTRUCTIONAL = 'instructional'
 
 # ---------------------------------------------------------------------------
-# Stage 1: search indexing (spec s2)
+# Search indexing (spec s2)
 # ---------------------------------------------------------------------------
 YTDLP_BIN = 'yt-dlp'  # downloader command shared by scraper and ShuttleSet adapter
 
@@ -118,17 +118,17 @@ DOUBLES_KEYWORD_TOKENS = ['xd', 'md', 'wd']
 # Ariel supplies one.
 
 # ---------------------------------------------------------------------------
-# Stage 2: transcript acquisition (spec s3)
+# Transcript acquisition (spec s3)
 # ---------------------------------------------------------------------------
 SUB_LANGS = 'en.*'  # spec s3 --sub-langs
 SUB_FORMAT = 'json3/vtt/best'  # spec s3: prefer timestamped json3
 # WhisperX fallback for videos with no English track (D23, signed off
 # 2026-07-06): large-v3-turbo for this coarse pass; remote GPU venv only.
 WHISPERX_COARSE_MODEL = 'large-v3-turbo'
-STAGE2_FAIL_FRACTION_BLOCK = 0.5  # spec s3: block when >50% of a batch fails
+TRANSCRIPT_FAIL_FRACTION_BLOCK = 0.5  # spec s3: block when >50% of a batch fails
 
 # ---------------------------------------------------------------------------
-# Stage 3: relevance triage (spec s4)
+# Relevance triage (spec s4)
 # ---------------------------------------------------------------------------
 # Overlapping windows so a chunk straddling a boundary is not lost (spec s4).
 CHUNK_WINDOW_S = 10 * 60
@@ -159,7 +159,7 @@ SCRAPE_TRACKNET_LARGE_VIDEO = True
 API_KEY_ENV = 'GEMINI_API_KEY'  # referenced by name only; never a value
 
 # ---------------------------------------------------------------------------
-# Stage 10: clean pass and fine timestamps (spec s9)
+# Commentary cleaning and fine timestamps (spec s9)
 # ---------------------------------------------------------------------------
 # The clean and paraphrase share one call budget (schema s5); the clean lane
 # earns the stronger tier while the triage filter stays on flash (spec s4).
@@ -169,7 +169,7 @@ ALT_PHRASINGS_K = 3  # schema s5: 2 to 4, default 3
 CLEAN_BERTSCORE_MIN = 0.80
 WHISPERX_FINE_MODEL = 'large-v2'  # D23: fine-timestamp pass, remote GPU only
 
-# Stage 11 pairing (spec s9): a rally pairs with the first commentary chunk
+# Commentary pairing (spec s9): a rally pairs with the first commentary chunk
 # whose start falls within this many seconds after the rally's end.
 PAIR_WINDOW_S = 8
 
@@ -182,7 +182,7 @@ SLEEP_INTERVAL_S = 5  # spec s5 --sleep-interval (randomised pre-download pause)
 MAX_SLEEP_INTERVAL_S = 15  # spec s5 --max-sleep-interval
 SLEEP_REQUESTS_S = 10  # spec s5 --sleep-requests (between extraction requests)
 LIMIT_RATE = '2M'  # spec s5 --limit-rate (byte-transfer cap)
-CONCURRENT_FRAGMENTS = 1  # spec s5 --concurrent-fragments (stage 4 downloads)
+CONCURRENT_FRAGMENTS = 1  # spec s5 --concurrent-fragments (video downloads)
 DOWNLOAD_WORKERS = 2  # spec s5: worker count down from 4
 SLEEP_SUBTITLES_S = 2  # spec s3 --sleep-subtitles (between subtitle pulls)
 YTDLP_RETRIES = 3  # existing downloader convention
@@ -195,8 +195,8 @@ SUBTITLE_TIMEOUT_S = 300
 # s4: every call fails) say when to block, not when to evaluate; checking
 # mid-loop once past these floors stops a banned or dead-endpoint run from
 # hammering through the rest of the batch.
-STAGE2_BLOCK_MIN_ATTEMPTS = 10
-STAGE3_BLOCK_MIN_FAILURES = 5
+TRANSCRIPT_BLOCK_MIN_ATTEMPTS = 10
+TRIAGE_BLOCK_MIN_FAILURES = 5
 
 # LLM retry/backoff. Exponential backoff base, doubled per attempt.
 LLM_MAX_RETRIES = 3
@@ -207,7 +207,7 @@ LLM_BACKOFF_BASE_S = 2.0
 # Shared helpers
 # ---------------------------------------------------------------------------
 def check_ytdlp() -> None:
-    """Fail loud if yt-dlp is missing before any stage does work."""
+    """Fail loud if yt-dlp is missing before any scraper component does work."""
     if not shutil.which(YTDLP_BIN):
         raise RuntimeError(
             f'{YTDLP_BIN} not found in PATH. Install with: pip install yt-dlp'
@@ -221,17 +221,17 @@ def ensure_dirs() -> None:
 
 
 def ytdlp_throttle_args(include_subtitles: bool = False) -> list[str]:
-    """yt-dlp throttle flags shared by the stage 1 and stage 2 calls.
+    """yt-dlp throttle flags shared by the search indexing and transcript acquisition calls.
 
-    Single source for the throttle set so no stage hardcodes a magic number.
+    Single source for the throttle set so no component hardcodes a magic number.
     --sleep-interval / --max-sleep-interval are deliberately NOT here: they
-    pause before a *video* download, which stages 1 and 2 never do (both pass
-    --skip-download). Those two constants belong to stage 4's download path;
-    stages 1 and 2 pace their own process spawns from Python instead.
+    pause before a *video* download. Indexing and transcript acquisition both
+    pass --skip-download. Those constants belong to the video-download path;
+    the two metadata components pace their process spawns from Python instead.
     --limit-rate is a no-op on pure metadata prints (no bytes move) but is kept
     for a single throttle source and does real work on the caption transfer.
 
-    :param include_subtitles: add the between-subtitle-pull sleep (stage 2).
+    :param include_subtitles: add the between-subtitle-pull sleep (transcript acquisition).
     :return: flag list to splice into a yt-dlp argv.
     """
     flags = [
@@ -245,14 +245,14 @@ def ytdlp_throttle_args(include_subtitles: bool = False) -> list[str]:
 
 
 def read_candidates(input_path: Path | None = None) -> list[dict]:
-    """Read candidates.csv into a list of row dicts (stages 2, 3 consume it).
+    """Read candidates.csv into a list of row dicts (transcript acquisition and triage consume it).
 
-    :param input_path: Optional candidates file override for isolated stages.
+    :param input_path: Optional candidates file override for isolated components.
     :return: one dict per row, keys per CANDIDATES_COLUMNS.
     """
     candidates_path = CANDIDATES_CSV if input_path is None else input_path
     if not candidates_path.exists():
-        raise FileNotFoundError(f'{candidates_path} not found. Run stage 1 first.')
+        raise FileNotFoundError(f'{candidates_path} not found. Run search indexing first.')
     with candidates_path.open(newline='', encoding='utf-8') as handle:
         return list(csv.DictReader(handle))
 
@@ -260,7 +260,7 @@ def read_candidates(input_path: Path | None = None) -> list[dict]:
 def write_candidates(rows: list[dict]) -> None:
     """Write rows to candidates.csv using the fixed CANDIDATES_COLUMNS header.
 
-    Used by stage 1 (initial write) and stage 3 (rewrite with keep filled). Any
+    Used by search indexing (initial write) and relevance triage (rewrite with keep filled). Any
     column missing from a row writes blank, which keeps the header stable.
 
     :param rows: one dict per row; extra keys are ignored, missing keys write blank.

@@ -78,7 +78,7 @@ time saving.
   confidence label and is not automatically a live negative
 - **Believed replay** means a raw replay-mask run that survives
   `filter_short_exclusion_runs`. Consumers treat those frames as replay
-- **Stage 11** is the commentary-pairing stage that consumes replay belief
+- **Commentary pairing** consumes replay belief
 - **Sticky cache** means the current cached person-selection observations used
   by `build_serve_options`
 - **End-to-end (e2e) runner** means the fixed runner in
@@ -411,9 +411,9 @@ content in either artefact.
 | Raw and definitive masks | `RunCapture` in `src/annotator/run_video.py` and `src/annotator/e2e_court_annotator.py` | The e2e capture saves raw and definitive arrays. Preserve both. Neither is human truth |
 | Track treatment | `apply_replay_mask` in `src/annotator/rally_segmentation.py` | Believed replay runs freeze the shuttle track before segmentation |
 | Contact treatment | `run_video` | Contacts on the definitive mask are removed after the scoring gate |
-| Commentary pairing | `src/scraper/stage11_pairing.py` | Pairing uses the same fps-scaled `replay_mask_min_frames` constant for its interior grace. It holds out a rally only when believed replay reaches the interior beyond that grace. Chunk starts on believed replay are skipped |
+| Commentary pairing | `src/scraper/commentary_pairing.py` | Pairing uses the same fps-scaled `replay_mask_min_frames` constant for its interior grace. It holds out a rally only when believed replay reaches the interior beyond that grace. Chunk starts on believed replay are skipped |
 | GT scoring | `src/annotator/calibration/gt_scoring.py` and `scoring.py` | Use `canonical_tolerance(fps)` and the existing GT matcher. A committed fixture mask is injected input, not replay truth |
-| Mask file names | `replay_mask.py`, the Stage 8 loader, and the e2e capture | The CLI writes `<video_id>_replay.npy`; the Stage 8 loader looks for `<video_id>_dead_mask.npy`; the e2e capture writes `raw_replay_mask.npy` and `definitive_exclusion_mask.npy`. For a fixture pilot, use the `Fixture.mask_path` calibration path, currently `<name>_results/<name>_dead_mask.npy`. Do not add another disk convention |
+| Mask file names | `replay_mask.py`, the rally-segmentation loader, and the e2e capture | The CLI writes `<video_id>_replay.npy`; the rally-segmentation loader looks for `<video_id>_dead_mask.npy`; the e2e capture writes `raw_replay_mask.npy` and `definitive_exclusion_mask.npy`. For a fixture pilot, use the `Fixture.mask_path` calibration path, currently `<name>_results/<name>_dead_mask.npy`. Do not add another disk convention |
 
 The default `BaseAnnotatorConfig.dead_mask_mode` is `REPLAY`. The current
 slow-motion fraction is `SLOWMO_SPEED_FRAC = 0.15`. The current perspective
@@ -518,7 +518,7 @@ a setup gate does not prove that the footage is live.
    proposed change is measured, killed, or still unknown
 
 A replay label is evidence for a follow-up issue. It is not permission to
-change `run_video`, Stage 11, or the scoring contract in this labelling task.
+change `run_video`, commentary pairing, or the scoring contract in this labelling task.
 
 ## Shared flow
 
@@ -556,7 +556,7 @@ flowchart TB
 
 ## Out of scope
 
-- changing the replay union, its belief threshold, or the Stage 11 pairing
+- changing the replay union, its belief threshold, or the commentary-pairing
   rule
 - adding a replay detector, duplicate-retrieval system, or annotation UI in
   this documentation pass

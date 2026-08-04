@@ -8,7 +8,7 @@ from typing import Any, NamedTuple
 import numpy as np
 
 import annotator.point_winner as point_winner
-import annotator.rally_segmentation as stage8_seg
+import annotator.rally_segmentation as rally_segmentation
 from annotator.config import BaseAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
 from annotator.replay_mask import filter_short_exclusion_runs
@@ -92,8 +92,8 @@ def _record_trusted_mask_contact_rejection(
 
 
 def build_serve_options(
-    config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,
-) -> stage8_seg.ServeStartOptions:
+    config, sticky, constants, resolution, span_open=rally_segmentation.SpanOpen.BACK_FILL,
+) -> rally_segmentation.ServeStartOptions:
     """Build sticky-sourced serve-start evidence from the unmasked cache.
 
     Serve evidence deliberately comes from the sticky cache built before any masking; the
@@ -102,10 +102,10 @@ def build_serve_options(
     """
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
-    return stage8_seg.ServeStartOptions(
+    return rally_segmentation.ServeStartOptions(
         # The sticky path supplies body-height-normalised serve-setup evidence.
         dist=None, threshold=config.threshold_bh, mode=config.mode, close=config.close,
-        setup=stage8_seg.build_serve_setup_inputs(sticky, resolution),
+        setup=rally_segmentation.build_serve_setup_inputs(sticky, resolution),
         stillness_threshold_bh=config.stillness_threshold_bh,
         lookback_frames=constants.serve_start_lookback_frames,
         stillness_window_frames=constants.serve_stillness_window_frames,
@@ -120,7 +120,7 @@ class AnnotatorResult(NamedTuple):
         `suppressed` records a gate-passing candidate that lost suppression.
     :param filtered_contacts: rows where `wrist_near is not False and suppressed is not True`.
         This keeps suppression winners and the unmeasured no-gate path — the set
-        `scripts.stage8_score.score_contacts` scores the ball_round column against.
+        `annotator.calibration.scoring.score_contacts` scores the ball_round column against.
     :param filtered_by_rally: rally_id -> ascending contact frames from `filtered_contacts`.
     :param striker_halves: fitted final-contact half per rally_id (None: no contacts, or a tied
         fit); index-aligned to `spans`.
@@ -232,7 +232,7 @@ def run_video(
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
     `court_optional` is only valid with `stop_after_segmentation`. That mode does not build
-    sticky or enter any downstream court-dependent stage, so it accepts only the track, fps,
+    sticky or enter downstream court-dependent work, so it accepts only the track, fps,
     positions, and optional raw exclusion mask.
 
     ``court_invalid_is_excluded`` is opt-in so existing calibration callers keep
@@ -332,8 +332,8 @@ def run_video(
     )
     sticky = None
     if not court_optional:
-        segments = stage8_seg.tracker_segments(homography_rows, court_present, len(track))
-        sticky = stage8_seg.build_sticky_result(
+        segments = rally_segmentation.tracker_segments(homography_rows, court_present, len(track))
+        sticky = rally_segmentation.build_sticky_result(
             track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
             gate_resolution_table, resolution, resolved.constants.body_unit_half_window,
         )
@@ -356,14 +356,14 @@ def run_video(
         if capture is not None:
             capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
         if contacts is None:
-            final_spans, raw_contacts = stage8_seg.segment_video(
+            final_spans, raw_contacts = rally_segmentation.segment_video(
                 track, positions=positions, replay_mask=definitive_exclusion_mask,
                 sticky_distances=None,
                 spans=spans, smoothing_mode=resolved.smoothing_mode,
                 **span_options,
             )
         else:
-            final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+            final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
                 track, **span_options,
             )
             raw_contacts = [
@@ -381,7 +381,7 @@ def run_video(
     if contacts is not None:
         # Injected contacts already carry the selected rally IDs. Span finding still runs when
         # callers did not inject spans; sticky already ran over tracker segments above.
-        final_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
             track, **span_options,
         )
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
@@ -399,7 +399,7 @@ def run_video(
         # The sticky cache above already runs over scene-gated tracker segments. This span-only,
         # unmasked pass supplies rally spans to the mask builder.
         if raw_exclusion_mask is None:
-            bootstrap_spans = spans if spans is not None else stage8_seg.find_rally_spans(
+            bootstrap_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
                 track, **span_options,
             )
             raw_replay_mask = build_dead_mask(
@@ -432,7 +432,7 @@ def run_video(
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
 
     if contacts is None:
-        final_spans, raw_contacts = stage8_seg.segment_video(
+        final_spans, raw_contacts = rally_segmentation.segment_video(
             track, positions=positions,
             replay_mask=definitive_exclusion_mask, sticky_distances=sticky.distances,
             serve_start=serve_options,

@@ -1,4 +1,4 @@
-"""Stage 6 B4 config plumbing and opt-in span strategy tests."""
+"""Annotator config plumbing and opt-in span strategy tests."""
 from __future__ import annotations
 
 import inspect
@@ -84,7 +84,7 @@ def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest
                                   'stillness_threshold_bh': None})()
     with pytest.raises(ValueError, match='unsupported with BACK_FILL'):
         build_serve_options(config, None, scale_for_fps(30.0), (1.0, 1.0))
-    monkeypatch.setattr(run_video_module.stage8_seg, 'build_serve_setup_inputs', lambda *_args: None)
+    monkeypatch.setattr(run_video_module.rally_segmentation, 'build_serve_setup_inputs', lambda *_args: None)
     options = build_serve_options(config, None, scale_for_fps(30.0), (1.0, 1.0), None)
     assert options.close is config.close
 
@@ -181,7 +181,7 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
 
 def test_off_path_keeps_legacy_rest_mask_call_shapes(monkeypatch: pytest.MonkeyPatch) -> None:
     # The frozen sweep rebinds _rest_mask to a (speed, track) replacement; until
-    # Stage 7 retires it, the OFF path must stay callable with the legacy shapes.
+    # Until the legacy rest-mask path is retired, the OFF path must accept its call shapes.
     import annotator.rally_segmentation as seg
 
     def two_arg_rest_mask(speed: np.ndarray, track: np.ndarray, thresholds=None) -> np.ndarray:

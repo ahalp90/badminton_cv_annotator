@@ -1,4 +1,4 @@
-"""Stage 2: one coarse transcript per candidate video, source-flagged.
+"""Acquire one source-flagged coarse transcript per candidate video.
 
 YouTube's own captions are the primary source: yt-dlp pulls the ASR track (plus a
 human track where one exists), preferring the timestamped json3 format, parsed
@@ -7,7 +7,7 @@ on the remote GPU fills the gap (D23). One JSON sidecar per video lands at
 transcripts/<video_id>.json carrying {source, segments}, source one of
 youtube_asr or whisper.
 
-Run as: python -m scraper.stage2_transcripts (PYTHONPATH=src).
+Run as: python -m scraper.transcript_acquisition (PYTHONPATH=src).
 
 Failure behaviour (spec s3): log-and-skip per video; block when more than 50% of a
 batch fails transcript acquisition (an IP-ban or systemic break, not scattered
@@ -26,8 +26,8 @@ from pathlib import Path
 from .config import (
     MAX_SLEEP_INTERVAL_S,
     SLEEP_INTERVAL_S,
-    STAGE2_BLOCK_MIN_ATTEMPTS,
-    STAGE2_FAIL_FRACTION_BLOCK,
+    TRANSCRIPT_BLOCK_MIN_ATTEMPTS,
+    TRANSCRIPT_FAIL_FRACTION_BLOCK,
     SUB_FORMAT,
     SUB_LANGS,
     SUBTITLE_TIMEOUT_S,
@@ -127,7 +127,7 @@ def parse_vtt(path: Path) -> list[dict]:
 
     A cue is a timestamp line followed by one or more text lines up to a blank
     line. Basic parser: good enough for the coarse pass; fine timestamps are
-    re-derived at stage 10.
+    re-derived during commentary cleaning.
 
     :param path: the vtt caption file.
     :return: one {start, end, text} dict per cue, times in seconds.
@@ -158,7 +158,7 @@ def _download_audio(video_id: str, url: str, work_dir: str) -> Path | None:
 
     Used only by the WhisperX fallback. Unlike the caption pull this needs the
     real audio, so -x extracts the track to a file (no --skip-download). Paces
-    itself with a randomised pre-pull sleep even though run_stage2 already slept
+    itself with a randomised pre-pull sleep even though run_transcript_acquisition already slept
     before the caption pull: the audio pull is a second, separate YouTube
     request, and the D22 pre-download pause applies per request, not per video.
 
@@ -197,8 +197,8 @@ def whisperx_fallback(video_id: str, url: str) -> list[dict] | None:
     Absent either, it logs and returns None so the caller records the video as
     unresolved, exactly like a failed caption pull. Otherwise it pulls bestaudio,
     runs the coarse large-v3-turbo pass with diarisation and alignment off (the
-    VAD-segment timestamps are enough here; fine times are re-derived at stage
-    10), and maps the segments to {start, end, text}.
+    VAD-segment timestamps are enough here; fine times are re-derived during
+    commentary cleaning), and maps the segments to {start, end, text}.
 
     :param video_id: yt-dlp id, for log lines and the temp audio filename.
     :param url: webpage_url passed to yt-dlp.
@@ -206,7 +206,7 @@ def whisperx_fallback(video_id: str, url: str) -> list[dict] | None:
     """
     # Function-local imports: the fallback only runs on the remote GPU venv. The
     # test/CI venv carries neither whisperx nor CUDA, and a module-level import
-    # would break stage 2 there. torch is imported only to read the CUDA flag; gc
+    # would break transcript acquisition there. torch is imported only to read the CUDA flag; gc
     # is used to free VRAM between videos.
     try:
         import gc
@@ -234,7 +234,7 @@ def whisperx_fallback(video_id: str, url: str) -> list[dict] | None:
             result = model.transcribe(audio, batch_size=_WHISPERX_BATCH_SIZE)
         finally:
             # WhisperX leaks VRAM across a batch loop unless the model is freed
-            # (whisperx_settings_proposal.md s6); stage 2 calls this per video.
+            # (whisperx_settings_proposal.md s6); transcript acquisition calls this per video.
             del model
             gc.collect()
             torch.cuda.empty_cache()
@@ -277,7 +277,7 @@ def acquire_transcript(video_id: str, url: str) -> dict | None:
         return {'source': 'youtube_asr', 'segments': segments}
 
 
-def run_stage2(rows: list[dict] | None = None) -> None:
+def run_transcript_acquisition(rows: list[dict] | None = None) -> None:
     """Acquire a transcript per candidate and write the per-video sidecars.
 
     Blocks (raises) when the failure fraction crosses the spec's 50% threshold,
@@ -291,7 +291,7 @@ def run_stage2(rows: list[dict] | None = None) -> None:
         rows = read_candidates()
     total = len(rows)
     if total == 0:
-        raise RuntimeError('Stage 2: candidates.csv is empty. Run stage 1 first.')
+        raise RuntimeError('Transcript acquisition: candidates.csv is empty. Run search indexing first.')
 
     failures = 0
     attempted = 0
@@ -314,12 +314,12 @@ def run_stage2(rows: list[dict] | None = None) -> None:
             print(f'  FAILED transcript {video_id}')
             # Circuit-break mid-batch: past the floor, a failing majority means an
             # IP-ban or systemic break; carrying on only makes a ban worse.
-            past_floor = attempted >= STAGE2_BLOCK_MIN_ATTEMPTS
-            if past_floor and failures / attempted > STAGE2_FAIL_FRACTION_BLOCK:
+            past_floor = attempted >= TRANSCRIPT_BLOCK_MIN_ATTEMPTS
+            if past_floor and failures / attempted > TRANSCRIPT_FAIL_FRACTION_BLOCK:
                 raise RuntimeError(
-                    f'Stage 2: {failures}/{attempted} attempted so far failed '
+                    f'Transcript acquisition: {failures}/{attempted} attempted so far failed '
                     f'transcript acquisition, over the '
-                    f'{STAGE2_FAIL_FRACTION_BLOCK:.0%} block threshold.'
+                    f'{TRANSCRIPT_FAIL_FRACTION_BLOCK:.0%} block threshold.'
                 )
             continue
         sidecar.write_text(json.dumps(transcript, indent=2), encoding='utf-8')
@@ -329,25 +329,25 @@ def run_stage2(rows: list[dict] | None = None) -> None:
         )
 
     if attempted == 0:
-        print(f'Stage 2: nothing to do, all {total} sidecars already exist')
+        print(f'Transcript acquisition: nothing to do, all {total} sidecars already exist')
         return
     # Fraction over videos attempted THIS run: a resumed run's existing sidecars
     # must not dilute the mass-failure signal.
     fail_fraction = failures / attempted
-    print(f'Stage 2: {failures}/{attempted} attempted failed ({fail_fraction:.0%})')
-    if fail_fraction > STAGE2_FAIL_FRACTION_BLOCK:
+    print(f'Transcript acquisition: {failures}/{attempted} attempted failed ({fail_fraction:.0%})')
+    if fail_fraction > TRANSCRIPT_FAIL_FRACTION_BLOCK:
         # Mass failure signals an IP-ban or a systemic break (spec s3).
         raise RuntimeError(
-            f'Stage 2: {fail_fraction:.0%} of the batch failed transcript acquisition, '
-            f'over the {STAGE2_FAIL_FRACTION_BLOCK:.0%} block threshold.'
+            f'Transcript acquisition: {fail_fraction:.0%} of the batch failed transcript acquisition, '
+            f'over the {TRANSCRIPT_FAIL_FRACTION_BLOCK:.0%} block threshold.'
         )
 
 
 def main() -> None:
     argparse.ArgumentParser(
-        description='Stage 2: pull transcripts to transcripts/<video_id>.json.',
+        description='Transcript acquisition: pull transcripts to transcripts/<video_id>.json.',
     ).parse_args()
-    run_stage2()
+    run_transcript_acquisition()
 
 
 if __name__ == '__main__':

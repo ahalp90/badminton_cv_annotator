@@ -1,16 +1,16 @@
-"""Stage 1: turn the seed search families into candidates.csv (metadata only).
+"""Index seed search families into candidates.csv without downloading media.
 
 Runs the flat yt-dlp metadata index over every seed search term, dedups the hits
 by video_id, enriches empty fields with one per-video metadata pull, applies the
 cheap screens (doubles / duration / upload-date, flag never drop), and writes
 candidates.csv with the fixed column set. keep and triage_verdict stay blank at
-index time (stage 3 fills keep, the section 10 human packet fills triage_verdict).
+index time (relevance triage fills keep, the section 10 human packet fills triage_verdict).
 
 Search terms are grouped by substream ('match' / 'instructional', D24): every row
 carries its family's substream, and the instructional family skips the short
 duration flag since coach-review clips run short by design.
 
-Run as: python -m scraper.stage1_index (PYTHONPATH=src).
+Run as: python -m scraper.search_index (PYTHONPATH=src).
 
 Failure behaviour (spec s2): log-and-skip per term (a term returning nothing logs
 and moves on); block only if every term returns empty, which signals a broken
@@ -210,7 +210,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
             print(f'Searching [{substream}]: {term}')
             rows = search_term_rows(term, substream)
             # Per-term logging (spec s2): the count each term returns feeds the B5
-            # per-term keep-rate read-out (stage-3 keeps over rows surfaced).
+            # per-term keep-rate read-out (relevance-triage keeps over rows surfaced).
             print(f'  {term!r}: {len(rows)} rows')
             if rows:
                 terms_with_hits += 1
@@ -230,7 +230,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     if terms_with_hits == 0:
         # Every term returned nothing: block loud (spec s2 failure rule).
         raise RuntimeError(
-            'Stage 1: every search term returned zero rows. Check yt-dlp and network.'
+            'Search indexing: every search term returned zero rows. Check yt-dlp and network.'
         )
 
     rows = list(by_id.values())
@@ -242,14 +242,14 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
         if enrich_row(row):  # mutates in place; True when a call hit YouTube
             # SLEEP_REQUESTS_S, not the 5-15 s interval pause: enrichment is a
             # metadata extraction request, matching --sleep-requests semantics.
-            # The randomised pre-download pause belongs to stage 2's caption pull.
+            # The randomised pre-download pause belongs to transcript acquisition's caption pull.
             time.sleep(SLEEP_REQUESTS_S)
         row['doubles_suspect'] = flag_doubles(row['title'])
         row['duration_suspect'] = duration_out_of_band(row['duration_s'], row['substream'])
         row['upload_date_suspect'] = upload_before_floor(row['upload_date'])
         flagged_duration += row['duration_suspect']
         flagged_upload += row['upload_date_suspect']
-        # INVARIANT: keep and triage_verdict are blank at index time. Stage 3
+        # INVARIANT: keep and triage_verdict are blank at index time. Relevance triage
         # fills keep; the section 10 human packet fills triage_verdict.
         row['keep'] = ''
         row['triage_verdict'] = ''
@@ -268,7 +268,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
 
 def main() -> None:
     argparse.ArgumentParser(
-        description='Stage 1: index the seed search families into candidates.csv.',
+        description='Search indexing: index the seed search families into candidates.csv.',
     ).parse_args()
     build_candidates()
 

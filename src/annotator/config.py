@@ -1,4 +1,4 @@
-"""Annotation-chain constants, split from scraper.config at Stage 2.
+"""Annotation-chain constants separated from scraper configuration.
 
 Constant provenance is cited inline as "spec sN" against the section of
 local_scratch/autograder_architecture/scraper_spec.md it came from.
@@ -23,12 +23,12 @@ from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 # sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
-MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (stage 9)
-RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (stage 8)
-CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (stage 8)
+MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (replay masking)
+RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (rally segmentation)
+CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (rally segmentation)
 
 # ---------------------------------------------------------------------------
-# Stage 8: rally segmentation and contact rules (spec s6)
+# Rally segmentation and contact rules (spec s6)
 # ---------------------------------------------------------------------------
 # Speed means per-frame L2 displacement of (x_norm, y_norm) on visibility-1
 # frames. fps_constants.py stores the base-30 table; these globals are its
@@ -43,8 +43,8 @@ END_REST_FRAMES = _AT_25FPS.end_rest_frames  # rally end: extended rest of at le
 PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrail column)
 
 
-class Stage8Thresholds(NamedTuple):
-    """The ten stage-8 trajectory-rule thresholds bundled as one value.
+class RallySegmentationThresholds(NamedTuple):
+    """The ten rally-segmentation trajectory-rule thresholds bundled as one value.
 
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
@@ -69,7 +69,7 @@ class Stage8Thresholds(NamedTuple):
 # The shipped thresholds as one value, built from the constants above so the
 # numbers live in exactly one place. segment_video(thresholds=SHIPPED_THRESHOLDS)
 # is equivalent to the default globals path.
-SHIPPED_THRESHOLDS = Stage8Thresholds(
+SHIPPED_THRESHOLDS = RallySegmentationThresholds(
     rest_speed=REST_SPEED,
     rest_window=REST_WINDOW,
     end_rest_frames=END_REST_FRAMES,
@@ -79,7 +79,7 @@ SHIPPED_THRESHOLDS = Stage8Thresholds(
 )
 
 # ---------------------------------------------------------------------------
-# Stage 9: replay and off-rally rules (spec s7)
+# Replay and off-rally masking rules (spec s7)
 # ---------------------------------------------------------------------------
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
@@ -91,7 +91,7 @@ PERSPECTIVE_SHIFT_THRESHOLD = 0.05
 # rally-tail deceleration as slow motion.
 SLOWMO_SPEED_FRAC = 0.15
 
-# Composition dead-mask (stage9_composition_mask), the per-segment alternative to
+# Composition dead-mask (`composition_mask`), the per-segment alternative to
 # the replay mask. A PySceneDetect content pass cuts the timeline; each segment is
 # kept or dropped by the court-view vote. content threshold 27 with vote 0.5
 # (comp_content27_v0p5) is the config the sset_01 scoring picked.
@@ -117,10 +117,10 @@ class BaseAnnotatorConfig:
     Resolution overwrites every fps-sensitive field from the shipped base-30 table.
     ``overrides_base30`` may replace named rows before their final per-fps
     values are built. Strategy fields (dead-mask producer, smoothing, and
-    serve lanes) arrive with their stages.
+    serve lanes) are carried by the same preset.
     """
 
-    thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS
+    thresholds: RallySegmentationThresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
     # Measured together in W2.9: ignore invisible coordinates during smoothing,
     # then classify sustained gaps with the ruled two-sided re-entry guard.
@@ -162,7 +162,7 @@ class ResolvedAnnotatorConfig:
 
     fps: float
     constants: FpsConstants
-    thresholds: Stage8Thresholds
+    thresholds: RallySegmentationThresholds
     dead_mask_mode: DeadMaskMode
     smoothing_mode: SmoothingMode
     span_open: SpanOpen | None = SpanOpen.BACK_FILL

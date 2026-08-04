@@ -1,4 +1,4 @@
-"""Stage 8 rally-segmentation tests: synthetic tracks, CPU-only, fast.
+"""Rally-segmentation tests using fast, CPU-only synthetic tracks.
 
 Tracks are built to make the truth obvious: a rest span, a zig-zag rally with a
 known number of clean velocity reversals, then a long rest. The contact tests

@@ -1,4 +1,4 @@
-"""Stage 8: rally segmentation and contact detection (scraper_spec.md section 6).
+"""Rally segmentation and contact detection (scraper_spec.md section 6).
 
 Trajectory rules over a whole-video TrackNetV3 shuttle track, the `(t, 3)`
 `[x_norm, y_norm, visibility]` npy that `shuttle_extractor.py:244-249` writes
@@ -7,7 +7,7 @@ through). Speed everywhere below is per-frame L2 displacement of `(x, y)` on
 frames where visibility is 1.
 
 Three primitives (`compute_speed`, `true_runs`, `rolling_nanmedian`) are
-re-exported from `annotator.types` because stage 9 reuses them. Its slow-motion
+re-exported from `annotator.types` because replay masking reuses them. Its slow-motion
 signal is defined against the same per-frame speed, so re-deriving it there
 would be a second source of truth. All per-frame arrays here share one
 frame-index space `[0, t)`; that invariant is what lets rally spans, contacts
@@ -15,7 +15,7 @@ and masks line up downstream.
 
 `segment_video` takes four off-by-default keyword options that each preserve
 today's behaviour exactly when left at their default:
-  - `thresholds`: a `Stage8Thresholds` preset used instead of the module globals;
+  - `thresholds`: a `RallySegmentationThresholds` preset used instead of the module globals;
     None reads the globals through the low-level opt-out path.
   - `serve_start`: `ServeStartOptions` gating rally openings on a serve-setup
     lookback (the shuttle sitting near a court-scale player through the last
@@ -55,7 +55,7 @@ from .config import (
     SMOOTH_WINDOW,
     START_MIN_FRAMES,
     START_SPEED,
-    Stage8Thresholds,
+    RallySegmentationThresholds,
 )
 from .doubles_flag import read_whole_video_flags
 from .fps_constants import FpsConstants, scale_for_fps
@@ -104,9 +104,9 @@ CONTACT_SUPPRESSION_RADIUS_FRAMES = scale_for_fps(25.0).contact_suppression_radi
 
 
 def scale_thresholds(
-    thresholds: Stage8Thresholds, fps: float, *,
+    thresholds: RallySegmentationThresholds, fps: float, *,
     constants: FpsConstants | None = None, overrides_base30: Mapping[str, float] | None = None,
-) -> Stage8Thresholds:
+) -> RallySegmentationThresholds:
     """Replace a preset's fps-dependent fields from the base-30 table; the preset
     contributes only its non-fps fields. Returned fields are final.
     """
@@ -392,7 +392,7 @@ class ServeStartOptions(NamedTuple):
     stillness_window_frames: int | None = None
 
 
-# Stage 6 bridge fixed body-height window. The resolved path supplies this explicitly.
+# Fixed body-height window for the compatibility path. Resolved config supplies it explicitly.
 BODY_UNIT_HALF_WINDOW = 12
 
 
@@ -434,7 +434,7 @@ def _gap_passes_reentry_guard(
 
 
 def _gap_state_rest_mask(
-    speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds, constants: FpsConstants, demotion_bound: int,
+    speed: np.ndarray, track: np.ndarray, thresholds: RallySegmentationThresholds, constants: FpsConstants, demotion_bound: int,
     reentry_guard_variant: ReentryGuardVariant | None, reentry_guard_buffer: float | None,
 ) -> np.ndarray:
     speed_median = rolling_nanmedian(speed, thresholds.rest_window)
@@ -458,7 +458,7 @@ def _gap_state_rest_mask(
 
 
 def _rest_mask(
-    speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds | None = None, *,
+    speed: np.ndarray, track: np.ndarray, thresholds: RallySegmentationThresholds | None = None, *,
     constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
     reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
 ) -> np.ndarray:
@@ -487,7 +487,7 @@ def _rest_mask(
 
 
 def _rally_regions(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None,
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
     """Shared region scaffold for the span-opening rules.
 
@@ -518,7 +518,7 @@ def _rally_regions(
 
 
 def _find_rally_spans(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None = None,
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None = None,
 ) -> list[tuple[int, int]]:
     """Segment the video into rally spans between extended rest.
 
@@ -553,7 +553,7 @@ def _find_rally_spans(
 
 
 def _find_rally_spans_span_open(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None, span_open: SpanOpen,
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None, span_open: SpanOpen,
 ) -> list[tuple[int, int]]:
     """Span finder under a SpanOpen rule (no serve gating).
 
@@ -581,7 +581,7 @@ def _find_rally_spans_span_open(
 
 
 def _find_rally_spans_quiet_start(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds, window: int,
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds, window: int,
 ) -> list[tuple[int, int]]:
     fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
     spans: list[tuple[int, int]] = []
@@ -747,7 +747,7 @@ def _sticky_serve_setup_before(
 
 
 def _serve_start_find_rally_spans(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds | None,
+    speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None,
     options: ServeStartOptions, span_open: SpanOpen | None,
 ) -> list[tuple[int, int]]:
     """Span finder that opens only at a serve-setup-preceded burst.
@@ -873,7 +873,7 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
     its visibility (column 2) forced to 1. A run that starts at frame 0 has no earlier frame,
     so it takes the xy of the first frame AFTER it instead.
 
-    Why: stage 8 reads invisible or NaN-speed frames as not-rest, so replay closeups hold rally
+    Why: rally segmentation reads invisible or NaN-speed frames as not-rest, so replay closeups hold rally
     regions open. Freezing the position makes masked footage read as sustained sub-REST_SPEED
     rest (masked frames count as rest). Forcing visibility avoids the NaN-speed path reopening
     the region.
@@ -883,7 +883,7 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
     the untouched copy returns bit-identical by construction.
 
     :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track.
-    :param mask: `(t,)` bool, True on replay/off-rally frames (stage-9 `1_replay.npy` convention).
+    :param mask: `(t,)` bool, True on replay/off-rally frames (replay-mask `1_replay.npy` convention).
     :return: a new `(t, 3)` track with masked frames frozen to rest.
     """
     if len(mask) != len(track):
@@ -913,7 +913,7 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 # ever needs retiring, the measured simple fallback is
 # OR(angle > 60 with speeds > 0.0035) plus the body-unit gate: 73.8% recall / 55.3% precision.
 def span_impulses(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    track: np.ndarray, start: int, end: int, thresholds: RallySegmentationThresholds | None = None, *,
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> np.ndarray | None:
     """Return ``|v_out - v_in|`` for each junction in one rally span.
@@ -962,7 +962,7 @@ def rolling_floor(
 
 
 def impulse_cell_candidates(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    track: np.ndarray, start: int, end: int, thresholds: RallySegmentationThresholds | None = None, *,
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[tuple[int, float]]:
     """Find raw impulse candidates and retain their impulse for suppression.
@@ -1004,7 +1004,7 @@ def impulse_cell_candidates(
 
 
 def detect_contact_flags(
-    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,
+    track: np.ndarray, start: int, end: int, thresholds: RallySegmentationThresholds | None = None, *,
     smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[tuple[int, float]]:
     """Independently invoke the raw contact finder and retain ``(frame, impulse)`` flags."""
@@ -1226,7 +1226,7 @@ def build_sticky_result(
 
 
 def find_rally_spans(
-    track: np.ndarray, thresholds: Stage8Thresholds | None = None,
+    track: np.ndarray, thresholds: RallySegmentationThresholds | None = None,
     serve_start: ServeStartOptions | None = None, span_open: SpanOpen | None = None,
     *, constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
     reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
@@ -1258,7 +1258,7 @@ def find_rally_spans(
 
 def assemble_contacts(
     track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
-    thresholds: Stage8Thresholds | None, sticky_distances: np.ndarray | None,
+    thresholds: RallySegmentationThresholds | None, sticky_distances: np.ndarray | None,
     suppression_radius: int | None,
     *, smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,
 ) -> list[ContactCandidate]:
@@ -1282,7 +1282,7 @@ def assemble_contacts(
 
 def segment_video(
     track: np.ndarray, positions: np.ndarray | None = None, *,
-    thresholds: Stage8Thresholds | None = None,
+    thresholds: RallySegmentationThresholds | None = None,
     serve_start: ServeStartOptions | None = None,
     span_open: SpanOpen | None = None,
     replay_mask: np.ndarray | None = None,
@@ -1296,14 +1296,14 @@ def segment_video(
     reentry_guard_buffer: float | None = None,
     quiet_start_window: int | None = None,
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
-    """Full stage-8 pass over one video's shuttle track.
+    """Full rally-segmentation pass over one video's shuttle track.
 
     Every keyword option is off by default and each default preserves today's behaviour
     exactly. `thresholds=None` reads the module globals through the low-level opt-out path.
 
     :param track: `(t, 3)` whole-video track.
     :param positions: optional `(t, 2, 2)` court positions for the proximity guardrail.
-    :param thresholds: a `Stage8Thresholds` preset used instead of the globals, or None.
+    :param thresholds: a `RallySegmentationThresholds` preset used instead of the globals, or None.
     :param serve_start: `ServeStartOptions` gating rally openings on sticky serve-setup evidence,
         or None. Its setup inputs are built from the UNMASKED track by the caller (the committed
         measurement convention); serve-start was only ever measured with masking off, so combining
@@ -1425,7 +1425,7 @@ def _read_string_id_table(path: Path, label: str):
 
 
 def _read_fps_table(path: Path):
-    """Read a unique string-id FPS table written by stage 11."""
+    """Read a unique string-id FPS table written by commentary pairing."""
     table = _read_string_id_table(path, 'fps CSV')
     if 'fps' not in table.columns:
         raise ValueError('fps CSV: expected an fps column')
@@ -1433,7 +1433,7 @@ def _read_fps_table(path: Path):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')
+    parser = argparse.ArgumentParser(description='Rally segmentation: rally spans and contacts from shuttle tracks.')
     parser.add_argument('--shuttle-dir', type=Path, required=True,
                         help='Directory of <video_id>.npy (t, 3) shuttle tracks')
     parser.add_argument('--pos-dir', type=Path, default=None,
@@ -1445,7 +1445,7 @@ def main() -> None:
                         help='Optional doubles flags CSV; only whole-video False rows are processed')
     fps_group = parser.add_mutually_exclusive_group()
     fps_group.add_argument('--fps-csv', type=Path, default=None,
-                           help='per-video id,fps table written by stage 11')
+                           help='per-video id,fps table written by commentary pairing')
     fps_group.add_argument('--fps', type=float, default=None,
                            help='CFR override for every video in this run')
     parser.add_argument('--span-open', choices=tuple(_SPAN_OPEN_CHOICES), default=None,
