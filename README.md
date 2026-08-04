@@ -1,12 +1,17 @@
-# Badminton Stroke Classifier
+# Badminton CV Annotator
 
-In June 2026, we completed stage one of a year-long project to build a badminton auto-grader.
+This repository develops a computer-vision pipeline that turns badminton match
+video into structured rally and stroke records. The retained BST-X and BRIC
+models are intended for an optional in-process classification stage.
 
-Stage one built a stroke-type classifier across two deep learning architectures, the data pipeline that feeds them, and a deployed web app that browses precomputed predictions over the held-out test set. COSC594 and COSC320 capstone, University of New England, 2026.
+In June 2026, stage one delivered the two classifier architectures and their
+data pipelines as a COSC594 and COSC320 capstone at the University of New
+England. The former web demonstration is archived and is not part of the
+current annotator pipeline.
 
 ![Headline test-split summary: TemPose, BST, and BST-X on the 25-class paper taxon; BRIC and BST-X on the project's 14-class taxon.](docs/images/bar_chart_overall_shuttleset_comparison.png)
 
-## What's in this stage
+## What is in this repository
 
 - **Data pipeline**, automated end-to-end. YouTube match downloads, per-stroke clips, shuttle tracking (TrackNetV3 with Inpaint), player pose extraction (rtmlib RTMDet-M + RTMPose-L, cleaned by a custom `sticky_anchor` heuristic), collated numpy arrays per taxonomy and split.
 - **BST-X**, a spatio-temporal CNN/transformer hybrid built on the BST architecture (Chang 2025, [arXiv:2502.21085](https://arxiv.org/abs/2502.21085)). Three streams per clip (pose joints and bones, court position, shuttle xy) fused through BST's cross-attention block. Custom CDB-F1 adaptive focal loss handles class imbalance.
@@ -56,7 +61,7 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 - `src/bric/` — BRIC classifier, preprocessing wrappers, and diagnostics
 - `src/shared/` - court geometry and TrackNetV3 shared across pipelines
 - `src/classifier_shared/` - taxonomy, dataset, player mapping, plotting, and video metadata shared by BRIC and BST-X
-- `src/xai/` — local keypoint-overlay prototype for inspecting `sticky_anchor` outputs
+- `src/xai/` — classifier explainability and confidence-scoring notes
 - `scripts/` — cross-cutting setup and shared data-prep. Per-architecture scripts live with their architecture
 - `training/` — per-model training data, caches, and run artefacts (gitignored)
 - `runtime/` — retained BRIC checkpoints and evaluation artefacts
@@ -64,7 +69,7 @@ Ablation summary and confusion-matrix charts: [`scripts/plots/`](scripts/plots/)
 - `scripts/plots/` — charts and eval scripts for milestone reporting
 - `tests/` — pytest suite for the active pipelines and classifiers
 - `notebooks/` — EDA and dataset-build notebooks
-- `docs/` — decision logs, storage layout, and model registry YAML
+- `docs/` — current guides, decisions, project records, and the model catalogue
 
 ## Data pipeline and classifier training
 
@@ -150,10 +155,10 @@ Test suite: `pytest tests/`, plus `uv run python -m bric.smoke_test` for the BRI
 
 ## Next Steps
 
-Continuing into COSC595 with: 
+Continuing into COSC595 with:
 - X3D-S wrist-crop fusion for BST-X to address the fine-grained discrimination bottleneck, 
 - an amateur-footage classifier (self-supervised pretrain on scraped YouTube footage, fine-tune on the pro set), 
-- live BST-X inference on arbitrary user uploads, and a CrossTrainer-style [arXiv:2511.13993](https://arxiv.org/abs/2511.13993) (Ashutosh and Grauman 2025) single-shot autograder proof of concept.
+- in-process BST-X classification of detected stroke clips, and a CrossTrainer-style [arXiv:2511.13993](https://arxiv.org/abs/2511.13993) (Ashutosh and Grauman 2025) single-shot autograder proof of concept.
 
 ## Team
 

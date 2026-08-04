@@ -2,8 +2,8 @@
 #
 # Keep requirements.txt pins in sync with uv.lock (the source of truth).
 #
-# uv.lock is what local dev installs; requirements.txt is what CI and the Docker
-# image install. They must agree, so requirements.txt is pinned to the versions
+# uv.lock is what local development installs; requirements.txt is what CI
+# installs. They must agree, so requirements.txt is pinned to the versions
 # uv.lock resolves. This script compares the two and reports drift.
 #
 #   ./scripts/gen-requirements.sh          # print each pin: file vs uv.lock
@@ -24,7 +24,7 @@ command -v uv >/dev/null 2>&1 || { echo "error: 'uv' is required (https://docs.a
 EXPORT="$(mktemp)"
 trap 'rm -f "$EXPORT"' EXIT
 
-# Resolve the full set CI/Docker install (every extra except the MMPose subprocess venv).
+# Resolve the full CI install (every extra except the pose-extraction subprocess venv).
 uv export --frozen --no-hashes --no-emit-project \
   --extra bric-runtime --extra bric-train --extra bst-x-runtime --extra dev \
   > "$EXPORT"

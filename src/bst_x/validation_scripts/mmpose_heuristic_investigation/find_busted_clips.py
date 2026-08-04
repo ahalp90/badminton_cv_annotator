@@ -18,12 +18,12 @@ Usage on engelbart (whole-clip, the original criterion):
 
     python src/bst_x/validation_scripts/mmpose_heuristic_investigation/find_busted_clips.py \\
         --flat-dir /scratch/comp320a/ShuttleSet_data_merged_25/dataset_npy_between_2_hits_with_max_limits_flat \\
-        --clips-csv /home/ahalperi/badminton_stroke_classifier/notebooks/clips_master.csv \\
+        --clips-csv /home/ahalperi/badminton_cv_annotator/notebooks/clips_master.csv \\
         --taxonomy une_v1_14 \\
         --split-column split_v2 \\
         --threshold 0.50 \\
         --exclude-unknown \\
-        --output /home/ahalperi/badminton_stroke_classifier/docs/architecture_notes/busted_whole_clips_phase1.txt
+        --output /home/ahalperi/badminton_cv_annotator/docs/architecture_notes/busted_whole_clips_phase1.txt
 
 Hit-zone criterion (matches the hit_zone_heatmap filter):
 

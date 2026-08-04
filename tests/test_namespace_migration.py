@@ -1,4 +1,4 @@
-"""Durable post-rebrand guards: registry + FE schema + Chang baseline + tree scans.
+"""Durable post-rebrand guards: catalogue + sidecar schema + Chang baseline + tree scans.
 
 Pruned 2026-06-16 from the original T1-T12 namespace migration suite (full
 design at docs/architecture_notes/namespace_migration_test_design.md). The
@@ -6,7 +6,7 @@ one-shot rebrand mechanics (T1/T2/T3/T4/T5/T7/T9/T12) all landed and were
 trimmed once stable; the four families that remain catch ongoing regressions:
 
   T6  registry + TSV lockstep (manifest_path/weights_path resolve, naming pins)
-  T8  FE sidecar JSON schemas (clip splits, perclass stats, clip index)
+  T8  classifier sidecar JSON schemas (clip splits, perclass stats, clip index)
   T10 Chang baseline run untouched (weight filenames keep bst_cg_ap_ per the contract)
   T11 staged tree scans (no regression to legacy modules / dirs / extras / env vars / venv name)
 
@@ -118,9 +118,9 @@ def test_t6_registry_manifest_resolves(entry):
     ids=lambda e: e['id'],
 )
 def test_t6_bst_x_weights_resolve(entry):
-    """BRIC's weight is intentionally not in-tree (BRIC serves precomputed
-    predictions; see scripts/model_manifest.tsv's tail comment). BST-X weights
-    must resolve."""
+    """BRIC's weight is intentionally absent from the tree; its precomputed
+    evaluation artefacts remain available. See the manifest's tail comment.
+    BST-X weights must resolve."""
     assert (REPO_ROOT / entry['weights_path']).exists(), \
         f'{entry["id"]}: weights_path missing'
 
@@ -212,7 +212,7 @@ def _check_no_model_name_key(obj, path='root'):
 def _registry_anchored_fe_dirs() -> list[Path]:
     """The bst-x registry's run dirs (six in total today). Slimmed at Step 9b
     from the full-corpus walk: the migration insurance has done its job, this
-    keeps the FE schema pin on the shape the API actually serves."""
+    keeps the schema pin on the retained evaluation sidecars."""
     out = []
     for entry in _registry_entries():
         if entry['architecture'] != 'bst-x':
@@ -362,8 +362,7 @@ TEXT_EXTS = {
 # .gitignore must be matched by name: pathlib treats the leading dot as a
 # hidden-file prefix, so Path('.gitignore').suffix is '' and a TEXT_EXTS
 # entry never fires.
-EXPLICIT_TEXT_NAMES = {'.gitignore', '.env.example', 'docker-compose.yml',
-                       'docker-compose.dev.yml', 'docker-compose.prod.yml'}
+EXPLICIT_TEXT_NAMES = {'.gitignore', '.env.example'}
 
 GLOBAL_EXCLUDE_PREFIXES = (
     'local_scratch/',
@@ -414,13 +413,6 @@ def _step6_common_landed() -> bool:
         return True
     except ImportError:
         return False
-
-
-def _step7_bst_inputs_landed() -> bool:
-    compose = REPO_ROOT / 'docker-compose.dev.yml'
-    if not compose.exists():
-        return False
-    return 'bst_x_inputs' in compose.read_text()
 
 
 def _step5_runtime_landed() -> bool:
@@ -480,22 +472,6 @@ def test_t11_stage2_module_paths():
     assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
 
 
-def test_t11_stage3_bst_inputs_dir():
-    if not _step7_bst_inputs_landed():
-        pytest.skip('Step 7 not landed: docker-compose.dev.yml does not mention bst_x_inputs')
-    # The design doc and this test file quote the rename pattern verbatim;
-    # allowlist both to avoid a self-flag.
-    allowed = {
-        'docs/architecture_notes/namespace_migration_test_design.md',
-        'tests/test_namespace_migration.py',
-    }
-    hits = _scan_pattern(
-        re.compile(r'\bbst_inputs\b'), _tracked_text_files(),
-        allow_path=lambda rel: str(rel) in allowed,
-    )
-    assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
-
-
 def test_t11_stage4_extras_group():
     if not _step5_runtime_landed():
         pytest.skip('Step 5 not landed: pyproject.toml has no bst-x-runtime group')
@@ -534,15 +510,13 @@ def test_t11_stage5_legacy_env_vars():
 
 
 def _stage6_in_scope(rel: str) -> bool:
-    """Scoped stage-6 corpus: live shipped docs, api code, manifest tsv, run
+    """Scoped stage-6 corpus: live shipped docs, manifest tsv, run
     manifests, and the Chang baseline dir. Scratch history (now relocated
     under docs/architecture_notes/) and the ledger legitimately mention old
     filenames; not in scope here."""
     if rel.startswith('docs/architecture_notes/'):
         return False
     if rel.startswith('docs/'):
-        return True
-    if rel.startswith('src/api/'):
         return True
     if rel == 'scripts/model_manifest.tsv':
         return True
@@ -590,5 +564,3 @@ def test_t11_stage7_legacy_venv_name():
         allow_path=lambda rel: False,
     )
     assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
-
-

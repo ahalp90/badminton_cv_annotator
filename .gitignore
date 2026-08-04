@@ -23,13 +23,8 @@ mlflow.db
 #local
 .worktrees/
 .env
-# Untracked local GPU-dev override for the dev compose (see docker-compose.yml header).
-docker-compose.override.yml
 .venv
 venv/
-
-# Force-track the repo handover doc, unlike globally/locally ignored HANDOVER.md working docs.
-!HANDOVER.md
 
 # Local mirror of the engelbart raw-extract output (rsync'd per-clip *_raw_*.npy files).
 # Multi-GB depending on how many clips are pulled; never worth committing.
@@ -53,28 +48,18 @@ src/bst_x/preparing_data/ShuttleSet_data_*
 .virtual_documents/
 
 # ---------------------------------------------------------------------------
-# Project operational dirs split across two roots — see runtime/README.md
-# and training/README.md for the full layout. Directory structure tracked
-# via .gitkeep; contents not.
+# Project model and data dirs split across two roots. See runtime/README.md and
+# training/README.md for the full layout. Directory structure is tracked via
+# .gitkeep; model and data contents are generally not.
 #
-#   runtime/                — what the deployed application needs.
-#     deployed/<arch>/      — live model package (manifest.yaml + best.pt).
-#     checkpoints/<dep>/    — third-party perception used at inference
-#                             (yolo11, tracknetv3).
-#     uploads/              — user-uploaded inference videos.
-#     jobs/                 — per-job inference artefacts (frame thumbnails,
-#                             softmax). Persist for the lifetime of the
-#                             corresponding jobs row in state/inference.db.
-#     state/                — backend SQLite (inference.db).
+#   runtime/                — classifier and perception artefacts.
+#     deployed/<arch>/      — retained model packages and evaluation results.
+#     checkpoints/<dep>/    — third-party perception weights used by pipelines.
 #
-#   training/               — never on a serving host.
+#   training/               — source data, caches and training runs.
 #     data/                 — source training data (ShuttleSet).
 #     <arch>/cache/         — re-derivable per-architecture preprocessing.
 #     <arch>/experiments/   — training run manifests, metrics, weights.
-#                             Promote a chosen run to deployed via
-#                             `ln -snf training/<arch>/experiments/<run_id> \
-#                                       runtime/deployed/<arch>` (local) or
-#                             rsync to the serving host's runtime/deployed/<arch>/.
 # ---------------------------------------------------------------------------
 
 # runtime/
@@ -85,18 +70,6 @@ runtime/checkpoints/yolo11/*
 
 # Local TrackNetV3 and InpaintNet weights for the shared inference tree.
 src/shared/tracknetv3/ckpts/
-
-runtime/clips/*
-!runtime/clips/.gitkeep
-
-runtime/uploads/*
-!runtime/uploads/.gitkeep
-
-runtime/jobs/*
-!runtime/jobs/.gitkeep
-
-runtime/state/*
-!runtime/state/.gitkeep
 
 # training/
 training/data/shuttleset/clips/*
@@ -137,12 +110,6 @@ scratch/bst_x_inputs/
 # Private dev scribbles. Outside the tracked scratch/README.md contract.
 local_scratch/
 
-# Local-only sample clips for the Model Results per-clip player (dev/demo).
-# Drop <clip_stem>.mp4 here to play it in the UI; clip files are never committed.
-clips_local/*
-!clips_local/.gitkeep
-!clips_local/README.md
-TODO-frontend.md
 CLAUDE.md
 
 # --- Heavy ML artifacts: keep new ones out of git (see MODELS.md) ---

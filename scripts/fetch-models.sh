@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Fetch the deployed model weights that the registry serves. The 6 BST-X
+# Fetch retained model weights for classifier pipeline use. The 6 BST-X
 # weights are tracked in git AND uploaded as assets on a GitHub Release; this
 # script is the canonical fetch path for fresh clones and for any new weights
 # published outside git (e.g. BRIC, which is not in-tree). The release also
 # carries 8 BRIC assets uploaded alongside (see MODELS.md). You only need
-# this script for LIVE inference on new uploads or for retraining.
-# The demo's results screens run from precomputed predictions that ARE in git,
-# so a fresh clone shows working results without running this.
+# this script for in-process classification or for retraining.
 #
 # Reads scripts/model_manifest.tsv (dest_path <TAB> asset_name <TAB> sha256) and
 # downloads each asset from $MODELS_BASE_URL into dest_path.

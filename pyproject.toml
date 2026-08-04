@@ -1,18 +1,17 @@
 [project]
-name = "badminton-stroke-classification"
+name = "badminton-cv-annotator"
 version = "0.1.0"
-description = "Capstone — BST-X + BRIC stroke classifiers and supporting pipeline."
+description = "Badminton video auto-annotation pipeline with optional BST-X and BRIC stroke classification."
 requires-python = ">=3.11"
 
 # ---------------------------------------------------------------------------
 # Shared base — installed by every `uv sync`.
-# These deps are needed by every architecture (BRIC, BST-X handler) as well as
-# the FastAPI backend. Architecture-specific deps go in the extras groups
-# below.
+# These deps are shared by the annotator and classifier pipelines.
+# Architecture-specific deps go in the extras groups below.
 #
 # Compatible coexistence notes:
-#   - BRIC and BST-X inference handlers can share one venv. Both use PyTorch,
-#     TrackNetV3, opencv, fastapi.
+#   - BRIC and BST-X inference can share one venv. Both use PyTorch,
+#     TrackNetV3 and opencv.
 #   - **Pose extraction runs in its own dataset-build venv.** The 2D extraction
 #     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
 #     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
@@ -24,7 +23,7 @@ requires-python = ">=3.11"
 # Install patterns:
 #   - BRIC training:                     uv sync --extra bric --extra dev
 #   - BRIC inference only:               uv sync --extra bric-runtime
-#   - Unified API server (both arches):  uv sync --extra bric-runtime --extra bst-x-runtime
+#   - Both classifier architectures:     uv sync --extra bric-runtime --extra bst-x-runtime
 #   - Dev tooling only (lint / tests):   uv sync --extra dev
 # ---------------------------------------------------------------------------
 dependencies = [
@@ -44,11 +43,6 @@ dependencies = [
     "pycocotools",     # used by TrackNetV3 inference_utils; if the ARM64 wheel install fails, patch and drop
     # Config
     "pyyaml",
-    # API serving — FastAPI is small enough to be base; lets the API skeleton
-    # boot even without architecture-specific extras (returns mock results).
-    "fastapi",
-    "uvicorn",
-    "python-multipart",
     # Runtime type + shape enforcement for tensor-shape/dtype contracts.
     "jaxtyping",
     "beartype",
@@ -92,21 +86,21 @@ scraper = [
 # Convenience meta-extras: install both bric-runtime and bric-train.
 # Use this for training (`uv sync --extra bric --extra dev`).
 bric = [
-    "badminton-stroke-classification[bric-runtime,bric-train]",
+    "badminton-cv-annotator[bric-runtime,bric-train]",
 ]
 
-# BST-X handler runtime deps for the unified API server.
+# BST-X classifier runtime deps for in-process inference.
 #
 # **Pre-populated as a starting guess** from the project's existing
 # requirements.txt (which is BST-X's source of truth). Comments mirror the
 # usage notes from that file. The BST-X pipeline owner should prune this
-# down to inference-only deps once the handler is wired — training-only
+# down to inference-only deps once the in-process adapter is implemented. Training-only
 # tooling (tensorboard, matplotlib, etc.) can move to a future
 # `bst-x-train` extras group.
 #
 # Pose extraction (rtmlib) deliberately omitted; it runs in its own
-# dataset-build venv (src/bst_x/preparing_data/requirements.txt), not this
-# API-server install.
+# dataset-build venv (src/bst_x/preparing_data/requirements.txt), outside the
+# root project environment.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)
     "torchinfo",              # Model summary utility (imported by tempose.py)
@@ -120,7 +114,6 @@ bst-x-runtime = [
 # Dev tooling.
 dev = [
     "pytest",
-    "httpx",
     "ipython",
     "ruff",   # configured in [tool.ruff] below; invoke via `uv run ruff check`
 ]
