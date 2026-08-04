@@ -1,4 +1,4 @@
-"""Stage 9: replay and off-rally mask (scraper_spec.md section 7).
+"""Replay masking: replay and off-rally mask (scraper_spec.md section 7).
 
 Three independent per-frame boolean signals unioned into one `(frames,)` mask,
 true where the frame is a replay or otherwise off-rally. Saved per video to
@@ -10,7 +10,7 @@ missing input contributes an all-False mask with a log line rather than killing
 the union: an absent court mask must not veto a real perspective-shift replay.
 
 Speed and its helpers come from the shared annotator declarations, re-exported
-by stage 8. The slow-motion signal therefore reads the same per-frame speed as
+by rally segmentation. The slow-motion signal therefore reads the same per-frame speed as
 the rally rules, not a second definition.
 
 Run as `python -m annotator.replay_mask --video-id ...` with PYTHONPATH=src.
@@ -171,7 +171,7 @@ def velocity_drop_signal(
     the shuttle is visible. Invisible frames are the court-absence signal's job.
     Genuine rest (below REST_SPEED) deliberately does NOT fire: a resting
     shuttle is the between-rallies state, and that is exactly where the
-    commentary stage 11 pairs with lives; masking rest would hold every
+    commentary pairing joins with live spans; masking rest would hold every
     post-rally chunk out of pairing. Slow motion means moving, slowly.
 
     Speed steps touching a non_evidence frame are unmeasured: they feed neither the baseline nor the rolling median; edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.
@@ -300,7 +300,7 @@ def _cli_non_evidence(track: np.ndarray | None) -> np.ndarray | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Stage 9: replay/off-rally mask for one video.')
+    parser = argparse.ArgumentParser(description='Replay masking: replay/off-rally mask for one video.')
     parser.add_argument('--video-id', required=True)
     parser.add_argument('--shuttle', type=Path, default=None,
                         help='<video_id>.npy (t, 3) shuttle track')

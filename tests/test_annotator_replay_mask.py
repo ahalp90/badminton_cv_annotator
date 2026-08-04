@@ -1,4 +1,4 @@
-"""Stage 9 replay-mask tests: each signal in isolation, the union, and missing inputs.
+"""Replay-mask tests for isolated signals, their union, and missing inputs.
 
 Synthetic inputs are shaped so each signal has one obvious firing region and one
 obvious quiet region.
@@ -91,7 +91,7 @@ def test_velocity_drop_fires_on_slow_span_not_normal_play():
 def test_velocity_drop_ignores_genuine_rest():
     """Rest (below REST_SPEED) is the between-rallies state, not slow motion.
 
-    Post-rally commentary starts during rest; if rest fired this signal, stage 11
+    Post-rally commentary starts during rest; if rest fired this signal, commentary pairing
     would hold every post-rally chunk out of pairing.
     """
     n_frames = 90
@@ -491,7 +491,7 @@ def test_cli_non_evidence_propagates_grade_track_errors(monkeypatch):
         _cli_non_evidence(track)
 
 
-def test_stage9_writer_trusts_detector_output_and_supports_maskless_mode(
+def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
     monkeypatch, tmp_path, caplog,
 ):
     court_path = tmp_path / 'court.npy'

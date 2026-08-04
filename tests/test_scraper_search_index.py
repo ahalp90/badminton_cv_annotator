@@ -1,4 +1,4 @@
-"""Stage 1 (search-term indexing) unit tests. CPU-only, no network.
+"""Search-index unit tests. CPU-only, no network.
 
 Covers --print line parsing (NA normalisation, wrong-field-count skip), the
 dedup provenance join with first-substream-wins, the doubles/duration/upload
@@ -7,14 +7,14 @@ keep/triage_verdict invariant, and the all-terms-empty block.
 
 Run from repo root::
 
-    ~/.venvs/badminton-cicd/bin/python -m pytest tests/test_scraper_stage1.py -v
+    ~/.venvs/badminton-cicd/bin/python -m pytest tests/test_scraper_search_index.py -v
 """
 from types import SimpleNamespace
 
 import pytest
 
 from annotator import config as annotator_config
-from src.scraper import config, stage1_index as stage1
+from src.scraper import config, search_index
 
 
 def test_scrape_output_paths_are_annotator_owned() -> None:
@@ -57,9 +57,9 @@ def patched_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(config, 'TRANSCRIPTS_DIR', scrape / 'transcripts')
     monkeypatch.setattr(config, 'CHUNKS_DIR', scrape / 'chunks')
     monkeypatch.setattr(config, 'MASKS_DIR', scrape / 'masks')
-    monkeypatch.setattr(stage1, 'CANDIDATES_CSV', scrape / 'candidates.csv')
-    monkeypatch.setattr(stage1, 'check_ytdlp', lambda: None)
-    monkeypatch.setattr(stage1.time, 'sleep', lambda *args, **kwargs: None)
+    monkeypatch.setattr(search_index, 'CANDIDATES_CSV', scrape / 'candidates.csv')
+    monkeypatch.setattr(search_index, 'check_ytdlp', lambda: None)
+    monkeypatch.setattr(search_index.time, 'sleep', lambda *args, **kwargs: None)
     return scrape
 
 
@@ -74,10 +74,10 @@ def test_search_term_rows_parses_normalises_na_and_skips_bad_lines(monkeypatch):
         '',                                              # blank line, skipped
     ])
     monkeypatch.setattr(
-        stage1.subprocess, 'run',
+        search_index.subprocess, 'run',
         lambda *a, **k: SimpleNamespace(returncode=0, stdout=stdout, stderr=''),
     )
-    rows = stage1.search_term_rows('some term', config.SUBSTREAM_INSTRUCTIONAL)
+    rows = search_index.search_term_rows('some term', config.SUBSTREAM_INSTRUCTIONAL)
 
     assert len(rows) == 2
     assert rows[0]['video_id'] == 'vid1'
@@ -92,10 +92,10 @@ def test_search_term_rows_parses_normalises_na_and_skips_bad_lines(monkeypatch):
 
 def test_search_term_rows_nonzero_exit_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        stage1.subprocess, 'run',
+        search_index.subprocess, 'run',
         lambda *a, **k: SimpleNamespace(returncode=1, stdout='', stderr='boom'),
     )
-    assert stage1.search_term_rows('term', config.SUBSTREAM_MATCH) == []
+    assert search_index.search_term_rows('term', config.SUBSTREAM_MATCH) == []
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ def test_search_term_rows_nonzero_exit_returns_empty(monkeypatch):
     ('Singles final full match', False),
 ])
 def test_flag_doubles(title, expected):
-    assert stage1.flag_doubles(title) is expected
+    assert search_index.flag_doubles(title) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -122,20 +122,20 @@ def test_duration_out_of_band_match():
     below = str(config.DURATION_MIN_S - 1)
     above = str(config.DURATION_MAX_S + 1)
     inside = str(config.DURATION_MIN_S + 60)
-    assert stage1.duration_out_of_band(below, config.SUBSTREAM_MATCH) is True
-    assert stage1.duration_out_of_band(above, config.SUBSTREAM_MATCH) is True
-    assert stage1.duration_out_of_band(inside, config.SUBSTREAM_MATCH) is False
-    assert stage1.duration_out_of_band('', config.SUBSTREAM_MATCH) is False       # unknown
-    assert stage1.duration_out_of_band('junk', config.SUBSTREAM_MATCH) is False   # unparseable
+    assert search_index.duration_out_of_band(below, config.SUBSTREAM_MATCH) is True
+    assert search_index.duration_out_of_band(above, config.SUBSTREAM_MATCH) is True
+    assert search_index.duration_out_of_band(inside, config.SUBSTREAM_MATCH) is False
+    assert search_index.duration_out_of_band('', config.SUBSTREAM_MATCH) is False       # unknown
+    assert search_index.duration_out_of_band('junk', config.SUBSTREAM_MATCH) is False   # unparseable
 
 
 def test_duration_out_of_band_instructional_skips_short_keeps_long():
     below = str(config.DURATION_MIN_S - 1)
     above = str(config.DURATION_MAX_S + 1)
     # D24: coach-review clips run short by design, so the short leg is skipped...
-    assert stage1.duration_out_of_band(below, config.SUBSTREAM_INSTRUCTIONAL) is False
+    assert search_index.duration_out_of_band(below, config.SUBSTREAM_INSTRUCTIONAL) is False
     # ...but the over-long leg still applies.
-    assert stage1.duration_out_of_band(above, config.SUBSTREAM_INSTRUCTIONAL) is True
+    assert search_index.duration_out_of_band(above, config.SUBSTREAM_INSTRUCTIONAL) is True
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +143,8 @@ def test_duration_out_of_band_instructional_skips_short_keeps_long():
 # ---------------------------------------------------------------------------
 def test_upload_before_floor_off_is_always_false():
     assert config.UPLOAD_DATE_FLOOR is None  # the shipped default (floor off)
-    assert stage1.upload_before_floor('20200101') is False
-    assert stage1.upload_before_floor('') is False
+    assert search_index.upload_before_floor('20200101') is False
+    assert search_index.upload_before_floor('') is False
 
 
 # ---------------------------------------------------------------------------
@@ -155,13 +155,13 @@ def test_build_candidates_dedup_join_and_first_substream_wins(patched_paths, mon
         'm1': [_row_line('shared'), _row_line('onlyM')],
         'i1': [_row_line('shared'), _row_line('onlyI')],
     }
-    monkeypatch.setattr(stage1.subprocess, 'run', _search_run(term_to_lines))
+    monkeypatch.setattr(search_index.subprocess, 'run', _search_run(term_to_lines))
     search_terms = {
         config.SUBSTREAM_MATCH: ['m1'],
         config.SUBSTREAM_INSTRUCTIONAL: ['i1'],
     }
 
-    rows = stage1.build_candidates(search_terms)
+    rows = search_index.build_candidates(search_terms)
     by_id = {row['video_id']: row for row in rows}
 
     assert set(by_id) == {'shared', 'onlyM', 'onlyI'}
@@ -171,7 +171,7 @@ def test_build_candidates_dedup_join_and_first_substream_wins(patched_paths, mon
     assert by_id['shared']['search_term'] == 'm1,i1'
     assert by_id['onlyM']['substream'] == config.SUBSTREAM_MATCH
     assert by_id['onlyI']['substream'] == config.SUBSTREAM_INSTRUCTIONAL
-    # keep and triage_verdict blank at index time (stage 3 / human packet fill them).
+    # keep and triage_verdict blank at index time (relevance triage / human packet fill them).
     assert all(row['keep'] == '' for row in rows)
     assert all(row['triage_verdict'] == '' for row in rows)
 
@@ -184,9 +184,9 @@ def test_build_candidates_dedup_join_and_first_substream_wins(patched_paths, mon
 
 def test_build_candidates_all_terms_empty_raises(patched_paths, monkeypatch):
     monkeypatch.setattr(
-        stage1.subprocess, 'run',
+        search_index.subprocess, 'run',
         lambda *a, **k: SimpleNamespace(returncode=0, stdout='', stderr=''),
     )
     search_terms = {config.SUBSTREAM_MATCH: ['m1', 'm2']}
     with pytest.raises(RuntimeError, match='every search term returned zero'):
-        stage1.build_candidates(search_terms)
+        search_index.build_candidates(search_terms)

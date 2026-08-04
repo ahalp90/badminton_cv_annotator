@@ -17,8 +17,8 @@ as the best config on sset_01; those are the config defaults.
 
 The cut detector needs scenedetect (and its cv2 backend), which lives only in the
 dedicated detect venv. Its import is function-local so the model/test venv, which
-carries neither, can still import this module (matching stage 2's whisperx
-fallback). The court-view vote is a precomputed input here, the same way stage 9
+carries neither, can still import this module (matching transcript acquisition's whisperx
+fallback). The court-view vote is a precomputed input here, the same way replay masking
 takes its court and homography inputs precomputed.
 
 Run as `python -m annotator.composition_mask --video-id ... --video <288p>
@@ -56,7 +56,7 @@ def detect_cuts(video_path: Path, expected_frames: int, threshold: float, min_sc
     # scenedetect and its cv2 backend live only in the dedicated detect venv; the
     # model/test venv carries neither. A module-level import would break every
     # importer that never runs cut detection (the whole test suite included), so
-    # it is function-local, matching stage 2's whisperx fallback.
+    # it is function-local, matching transcript acquisition's whisperx fallback.
     from scenedetect import ContentDetector, SceneManager, open_video
 
     video = open_video(str(video_path))
@@ -161,7 +161,7 @@ def main() -> None:
     mask, segments = build_composition_mask(cut_frames, keep_vote, n_frames, args.vote)
     n_live = sum(1 for seg in segments if not seg.is_dead)
 
-    # Feeds stage 8's existing dead-mask slot (segment_video reads <video_id>_dead_mask.npy).
+    # Feeds rally segmentation's existing dead-mask slot (segment_video reads <video_id>_dead_mask.npy).
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_path = args.out_dir / f'{args.video_id}_dead_mask.npy'
     np.save(out_path, mask)

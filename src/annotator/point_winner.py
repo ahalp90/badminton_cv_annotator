@@ -1,4 +1,4 @@
-"""Stage 10: point-winner verdicts (D5 chain — attribution, alternation fit, landing, verdict).
+"""Point-winner verdicts (D5 chain — attribution, alternation fit, landing, verdict).
 
 Wrist-anchored striker attribution in body-height units, an alternation-rhythm fit for the
 final-contact half, a kinematic landing filter (a settle cap plus a carry filter, both refined by
@@ -18,11 +18,11 @@ play would break. That assumption rides the measured configuration and is not a 
 
 Library-only: no argparse main. Every function here reads precomputed per-video arrays (a shuttle
 track, court-scale pose boxes, a replay/dead mask, a homography) for one rally or one frame at a
-time; there is no established pipeline path convention yet for wiring stage 8/9's outputs into a
-point-winner CLI, so this stays a library the caller composes over a rally list, the way the
+time; there is no established path convention yet for wiring rally-segmentation and replay-mask
+outputs into a point-winner CLI, so this stays a library the caller composes over a rally list, the way the
 harness's own per-rally loop does. See
-local_scratch/autograder_architecture/d5_stage10_pin.py for a runnable example that reproduces the
-D5 retest's arm-2 verdict CSVs from this module.
+the pinned D5 example under local_scratch/autograder_architecture for a runnable reproduction of
+the D5 retest's arm-2 verdict CSVs from this module.
 """
 from __future__ import annotations
 
@@ -301,7 +301,7 @@ def _at_frame_border(xy: np.ndarray) -> bool:
 # Purpose: the "last descending run" a naive search keeps is often the post-rally pickup / carry /
 # toss-back, whose ELEVATED terminal (shuttle in a hand, mid-air) projects past the far baseline
 # through the floor homography and lands the verdict in the wrong court half. This filter excludes
-# fallen/carried shuttle spans from the descending-run search KINEMATICALLY, repurposing stage 8's
+# fallen/carried shuttle spans from the descending-run search KINEMATICALLY, repurposing rally segmentation's
 # serve gate's low-displacement-over-a-window machinery (its body-height form) into two signals:
 #   - SETTLE: the shuttle goes static (self-speed rolling-median <= settle_thr) for >= settle_min
 #     frames and is NOT held at a wrist (the "not a trajectory inversion around the nearest wrist"

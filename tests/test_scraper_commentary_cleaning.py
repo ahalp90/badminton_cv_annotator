@@ -1,4 +1,4 @@
-"""Tests for scraper stage 10 (clean pass + fine timestamps).
+"""Tests for scraper commentary cleaning and fine timestamps.
 
 CPU only, no network, no WhisperX. The LLM call is faked via monkeypatch; the
 WhisperX/torch imports inside refine_timestamps are function-local, so importing
@@ -10,12 +10,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.scraper import stage10_clean as stage10
+from src.scraper import commentary_cleaning
 
 
 @pytest.fixture(autouse=True)
 def fake_bert_score(monkeypatch):
-    """Keep stage-10 tests independent of the optional scorer model."""
+    """Keep commentary-cleaning tests independent of the optional scorer model."""
     class FakeBERTScorer:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -29,7 +29,7 @@ def fake_bert_score(monkeypatch):
 
 def _phrasings():
     """A list of exactly ALT_PHRASINGS_K fake paraphrases."""
-    return [f'p{i}' for i in range(stage10.ALT_PHRASINGS_K)]
+    return [f'p{i}' for i in range(commentary_cleaning.ALT_PHRASINGS_K)]
 
 
 def _write_sidecar(chunks_dir, video_id, chunks):
@@ -44,9 +44,9 @@ def _write_sidecar(chunks_dir, video_id, chunks):
 
 def test_run_clean_extends_in_place_and_keeps_k_phrasings(tmp_path, monkeypatch):
     """A kept video's chunks gain text_clean + K phrasings; original fields survive."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
     monkeypatch.setattr(
-        stage10, 'call_clean_llm',
+        commentary_cleaning, 'call_clean_llm',
         lambda text: {'text_clean': f'CLEAN::{text}', 'alt_phrasings': _phrasings()},
     )
     sidecar = _write_sidecar(tmp_path, 'v1', [
@@ -54,27 +54,27 @@ def test_run_clean_extends_in_place_and_keeps_k_phrasings(tmp_path, monkeypatch)
         {'chunk_id': 'v1_c1', 'start': 3.0, 'end': 4.0, 'text': 'raw two'},
     ])
 
-    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+    commentary_cleaning.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
 
     out = json.loads(sidecar.read_text(encoding='utf-8'))
     assert out[0]['text_clean'] == 'CLEAN::raw one'
     assert out[1]['text_clean'] == 'CLEAN::raw two'
     # Original coarse timestamps and chunk_id are left in place.
     assert (out[0]['start'], out[0]['end'], out[0]['chunk_id']) == (1.0, 2.0, 'v1_c0')
-    assert len(out[0]['alt_phrasings']) == stage10.ALT_PHRASINGS_K
-    assert len(out[1]['alt_phrasings']) == stage10.ALT_PHRASINGS_K
+    assert len(out[0]['alt_phrasings']) == commentary_cleaning.ALT_PHRASINGS_K
+    assert len(out[1]['alt_phrasings']) == commentary_cleaning.ALT_PHRASINGS_K
 
 
 def test_run_clean_idempotent_skip_and_force_override(tmp_path, monkeypatch):
     """A chunk already carrying text_clean is skipped unless --force is set."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
     calls = []
 
     def fake(text):
         calls.append(text)
         return {'text_clean': 'NEW', 'alt_phrasings': _phrasings()}
 
-    monkeypatch.setattr(stage10, 'call_clean_llm', fake)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
     sidecar = _write_sidecar(tmp_path, 'v1', [{
         'chunk_id': 'v1_c0', 'start': 1.0, 'end': 2.0, 'text': 'raw',
         'text_clean': 'OLD', 'alt_phrasings': ['x'],
@@ -82,12 +82,12 @@ def test_run_clean_idempotent_skip_and_force_override(tmp_path, monkeypatch):
     rows = [{'video_id': 'v1', 'keep': 'True'}]
 
     # Idempotent: no call, text_clean untouched.
-    stage10.run_clean(rows=rows)
+    commentary_cleaning.run_clean(rows=rows)
     assert calls == []
     assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['text_clean'] == 'OLD'
 
     # Force: the chunk is re-cleaned.
-    stage10.run_clean(rows=rows, force=True)
+    commentary_cleaning.run_clean(rows=rows, force=True)
     assert calls == ['raw']
     assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['text_clean'] == 'NEW'
 
@@ -96,14 +96,14 @@ def test_run_clean_idempotent_skip_and_force_override(tmp_path, monkeypatch):
 def test_run_clean_clean_pass_threshold_boundary(tmp_path, monkeypatch, f1, expected):
     """The stored score controls the flag at the configured inclusive boundary."""
     monkeypatch.setattr(
-        stage10, '_score_chunks', lambda chunks: {index: f1 for index in range(len(chunks))},
+        commentary_cleaning, '_score_chunks', lambda chunks: {index: f1 for index in range(len(chunks))},
     )
     sidecar = _write_sidecar(tmp_path, 'v1', [{
         'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw', 'text_clean': 'clean',
     }])
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
 
-    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+    commentary_cleaning.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
 
     assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['clean_pass'] is expected
     assert json.loads(sidecar.read_text(encoding='utf-8'))[0]['bert_f1'] == f1
@@ -111,14 +111,14 @@ def test_run_clean_clean_pass_threshold_boundary(tmp_path, monkeypatch, f1, expe
 
 def test_run_clean_scores_existing_clean_without_calling_llm(tmp_path, monkeypatch):
     """A sidecar with text_clean but no score takes the score-only path."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
-    monkeypatch.setattr(stage10, 'call_clean_llm', lambda _text: pytest.fail('LLM must not run'))
-    monkeypatch.setattr(stage10, '_score_chunks', lambda chunks: {0: 0.81})
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', lambda _text: pytest.fail('LLM must not run'))
+    monkeypatch.setattr(commentary_cleaning, '_score_chunks', lambda chunks: {0: 0.81})
     sidecar = _write_sidecar(tmp_path, 'v1', [{
         'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw', 'text_clean': 'clean',
     }])
 
-    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+    commentary_cleaning.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
 
     out = json.loads(sidecar.read_text(encoding='utf-8'))[0]
     assert out['bert_f1'] == 0.81
@@ -127,16 +127,16 @@ def test_run_clean_scores_existing_clean_without_calling_llm(tmp_path, monkeypat
 
 def test_run_clean_blank_model_output_is_kept_and_fails(tmp_path, monkeypatch):
     """Blank model output is recorded without sending it to BERTScore."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
-    monkeypatch.setattr(stage10, 'call_clean_llm', lambda _text: {
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', lambda _text: {
         'text_clean': '', 'alt_phrasings': _phrasings(),
     })
-    monkeypatch.setattr(stage10, '_score_chunks', lambda _chunks: pytest.fail('blank text must not score'))
+    monkeypatch.setattr(commentary_cleaning, '_score_chunks', lambda _chunks: pytest.fail('blank text must not score'))
     sidecar = _write_sidecar(tmp_path, 'v1', [{
         'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'raw',
     }])
 
-    stage10.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
+    commentary_cleaning.run_clean(rows=[{'video_id': 'v1', 'keep': 'True'}])
 
     out = json.loads(sidecar.read_text(encoding='utf-8'))[0]
     assert out['text_clean'] == ''
@@ -158,19 +158,19 @@ def test_bert_score_device_checks_torch_architecture(monkeypatch, cuda_available
     )
     monkeypatch.setitem(sys.modules, 'torch', SimpleNamespace(cuda=fake_cuda))
 
-    assert stage10._bert_score_device() == expected
+    assert commentary_cleaning._bert_score_device() == expected
 
 
 def test_run_clean_keep_filter_parses_not_truth_tests(tmp_path, monkeypatch):
     """Only rows whose keep equals the string 'True' are processed."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
     seen = []
 
     def fake(text):
         seen.append(text)
         return {'text_clean': 'C', 'alt_phrasings': _phrasings()}
 
-    monkeypatch.setattr(stage10, 'call_clean_llm', fake)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
     for video_id in ('keep_true', 'keep_false', 'keep_lower', 'keep_blank'):
         _write_sidecar(tmp_path, video_id, [
             {'chunk_id': f'{video_id}_c0', 'start': 0.0, 'end': 1.0, 'text': video_id},
@@ -182,20 +182,20 @@ def test_run_clean_keep_filter_parses_not_truth_tests(tmp_path, monkeypatch):
         {'video_id': 'keep_blank', 'keep': ''},
     ]
 
-    stage10.run_clean(rows=rows)
+    commentary_cleaning.run_clean(rows=rows)
     assert seen == ['keep_true']
 
 
 def test_run_clean_logs_and_skips_failing_video(tmp_path, monkeypatch):
     """One dead video is logged and skipped; the others still clean; no raise."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
 
     def fake(text):
         if text.startswith('BAD'):
-            raise stage10.CleanError('boom')
+            raise commentary_cleaning.CleanError('boom')
         return {'text_clean': f'C::{text}', 'alt_phrasings': _phrasings()}
 
-    monkeypatch.setattr(stage10, 'call_clean_llm', fake)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
     good = _write_sidecar(tmp_path, 'good', [
         {'chunk_id': 'good_c0', 'start': 0.0, 'end': 1.0, 'text': 'good one'},
     ])
@@ -204,7 +204,7 @@ def test_run_clean_logs_and_skips_failing_video(tmp_path, monkeypatch):
     ])
     rows = [{'video_id': 'good', 'keep': 'True'}, {'video_id': 'bad', 'keep': 'True'}]
 
-    result = stage10.run_clean(rows=rows)  # must not raise: not every call failed
+    result = commentary_cleaning.run_clean(rows=rows)  # must not raise: not every call failed
     assert 'text_clean' in json.loads(good.read_text(encoding='utf-8'))[0]
     assert 'text_clean' not in json.loads(bad.read_text(encoding='utf-8'))[0]
     assert result == {'good': 1}
@@ -212,18 +212,18 @@ def test_run_clean_logs_and_skips_failing_video(tmp_path, monkeypatch):
 
 def test_run_clean_raises_on_dead_endpoint(tmp_path, monkeypatch):
     """Every LLM call failing blocks the run (dead endpoint)."""
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', tmp_path)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
 
     def fake(_text):
-        raise stage10.CleanError('dead')
+        raise commentary_cleaning.CleanError('dead')
 
-    monkeypatch.setattr(stage10, 'call_clean_llm', fake)
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
     _write_sidecar(tmp_path, 'v1', [{'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'a'}])
     _write_sidecar(tmp_path, 'v2', [{'chunk_id': 'v2_c0', 'start': 0.0, 'end': 1.0, 'text': 'b'}])
     rows = [{'video_id': 'v1', 'keep': 'True'}, {'video_id': 'v2', 'keep': 'True'}]
 
     with pytest.raises(RuntimeError, match='all .* LLM calls failed'):
-        stage10.run_clean(rows=rows)
+        commentary_cleaning.run_clean(rows=rows)
 
 
 def test_call_clean_llm_retries_then_raises(monkeypatch):
@@ -234,12 +234,12 @@ def test_call_clean_llm_retries_then_raises(monkeypatch):
         attempts.append(text)
         raise RuntimeError('transient')
 
-    monkeypatch.setattr(stage10, '_clean_once', boom)
-    monkeypatch.setattr(stage10.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(commentary_cleaning, '_clean_once', boom)
+    monkeypatch.setattr(commentary_cleaning.time, 'sleep', lambda _s: None)
 
-    with pytest.raises(stage10.CleanError):
-        stage10.call_clean_llm('hi')
-    assert len(attempts) == stage10.LLM_MAX_RETRIES
+    with pytest.raises(commentary_cleaning.CleanError):
+        commentary_cleaning.call_clean_llm('hi')
+    assert len(attempts) == commentary_cleaning.LLM_MAX_RETRIES
 
 
 # -- Fine-timestamp pass -----------------------------------------------------
@@ -247,9 +247,9 @@ def test_call_clean_llm_retries_then_raises(monkeypatch):
 
 def test_padded_span_pads_and_clamps():
     """The span is padded FINE_PAD_S each side and the start never goes negative."""
-    pad = stage10.FINE_PAD_S
-    assert stage10._padded_span(10.0, 20.0) == (10.0 - pad, 20.0 + pad)
-    start, end = stage10._padded_span(0.5, 5.0)  # start within pad of zero clamps
+    pad = commentary_cleaning.FINE_PAD_S
+    assert commentary_cleaning._padded_span(10.0, 20.0) == (10.0 - pad, 20.0 + pad)
+    start, end = commentary_cleaning._padded_span(0.5, 5.0)  # start within pad of zero clamps
     assert start == 0.0
     assert end == 5.0 + pad
 
@@ -262,10 +262,10 @@ def test_extract_span_ffmpeg_argv(tmp_path, monkeypatch):
         captured['argv'] = list(argv)
         captured['kwargs'] = kwargs
 
-    monkeypatch.setattr(stage10.subprocess, 'run', fake_run)
+    monkeypatch.setattr(commentary_cleaning.subprocess, 'run', fake_run)
     video = tmp_path / 'vid.mp4'
     wav = tmp_path / 'out.wav'
-    stage10._extract_span(video, 12.5, 34.25, wav)
+    commentary_cleaning._extract_span(video, 12.5, 34.25, wav)
 
     argv = captured['argv']
     assert argv[0] == 'ffmpeg'
@@ -282,16 +282,16 @@ def test_fine_pass_noop_without_whisperx(tmp_path, monkeypatch):
     def boom(*_args, **_kwargs):
         raise AssertionError('subprocess.run must not run when whisperx is absent')
 
-    monkeypatch.setattr(stage10.subprocess, 'run', boom)
-    assert stage10.load_fine_models() is None  # this venv has no whisperx
+    monkeypatch.setattr(commentary_cleaning.subprocess, 'run', boom)
+    assert commentary_cleaning.load_fine_models() is None  # this venv has no whisperx
 
     chunks_dir = tmp_path / 'chunks'
     chunks_dir.mkdir()
     sidecar = chunks_dir / 'vid.json'
     original = '[{"chunk_id": "c0", "start": 1.0, "end": 2.0, "text": "t"}]'
     sidecar.write_text(original, encoding='utf-8')
-    monkeypatch.setattr(stage10, 'CHUNKS_DIR', chunks_dir)
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', chunks_dir)
 
     rows = [{'video_id': 'vid', 'keep': 'True'}]
-    stage10.run_fine(tmp_path, rows)
+    commentary_cleaning.run_fine(tmp_path, rows)
     assert sidecar.read_text(encoding='utf-8') == original  # never rewritten

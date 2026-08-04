@@ -1,4 +1,4 @@
-"""Stage 11 pairing tests: the time-range join, replay exclusions, and the fps sidecar.
+"""Commentary-pairing tests for joins, replay exclusions, and the FPS sidecar.
 
 fps is fixed at 10 so frame/second arithmetic is easy to read: end_frame 100 is
 10.0 s, and the pairing window is `(10.0, 10.0 + PAIR_WINDOW_S]`.
@@ -9,7 +9,7 @@ import json
 import numpy as np
 import pytest
 
-from src.scraper import stage11_pairing as stage11
+from src.scraper import commentary_pairing
 from src.scraper.config import PAIR_WINDOW_S
 
 FPS = 10.0
@@ -19,7 +19,7 @@ def _chunk(chunk_id: str, start: float, end: float) -> dict:
     return {'chunk_id': chunk_id, 'start': start, 'end': end, 'text': 'commentary'}
 
 
-def _invoke_stage11(
+def _invoke_commentary_pairing(
     monkeypatch,
     *,
     video_dir,
@@ -31,7 +31,7 @@ def _invoke_stage11(
     build_fps_from=None,
 ) -> None:
     argv = [
-        'stage11_pairing',
+        'commentary_pairing',
         '--fps-csv', str(fps_csv),
         '--rally-spans', str(spans_csv),
         '--pairs-csv', str(pairs_csv),
@@ -45,7 +45,7 @@ def _invoke_stage11(
     if build_fps_from is not None:
         argv.extend(['--build-fps-from', str(build_fps_from)])
     monkeypatch.setattr('sys.argv', argv)
-    stage11.main()
+    commentary_pairing.main()
 
 
 def _pair_rows(path) -> list[dict[str, str]]:
@@ -56,7 +56,7 @@ def _pair_rows(path) -> list[dict[str, str]]:
 def test_chunk_within_window_pairs():
     rally_spans = [(0, 0, 100)]                          # rally_end_t = 10.0 s
     chunks = [_chunk('c0', 11.0, 15.0)]                  # start inside (10, 18]
-    rows = stage11.pair_video('v', rally_spans, chunks, None, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, None, FPS)
     assert len(rows) == 1
     assert rows[0]['chunk_id'] == 'c0'
     assert rows[0]['commentary_start'] == 11.0
@@ -66,7 +66,7 @@ def test_chunk_within_window_pairs():
 def test_chunk_outside_window_leaves_unpaired_blanks():
     rally_spans = [(0, 0, 100)]
     late = 10.0 + PAIR_WINDOW_S + 5.0                    # past the window
-    rows = stage11.pair_video('v', rally_spans, [_chunk('c0', late, late + 2)], None, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, [_chunk('c0', late, late + 2)], None, FPS)
     assert rows[0]['chunk_id'] == ''
     assert rows[0]['commentary_start'] == ''
     assert rows[0]['commentary_end'] == ''
@@ -77,7 +77,7 @@ def test_chunk_start_stray_flag_is_cleared_so_the_chunk_pairs():
     chunks = [_chunk('c0', 11.0, 15.0)]                  # start frame = int(11.0 * 10) = 110
     replay_mask = np.zeros(400, dtype=bool)
     replay_mask[110] = True
-    rows = stage11.pair_video('v', rally_spans, chunks, replay_mask, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, replay_mask, FPS)
     assert rows[0]['chunk_id'] == 'c0'                    # the one-frame stray is not believed
 
 
@@ -86,7 +86,7 @@ def test_rally_overlapping_replay_is_held_out():
     chunks = [_chunk('c0', 11.0, 15.0)]                  # a valid chunk exists
     replay_mask = np.zeros(400, dtype=bool)
     replay_mask[50:55] = True                            # sustained at 10 fps (window = 5)
-    rows = stage11.pair_video('v', rally_spans, chunks, replay_mask, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, replay_mask, FPS)
     assert rows[0]['chunk_id'] == ''                     # held out despite the available chunk
 
 
@@ -94,7 +94,7 @@ def test_rally_with_short_mask_run_remains_pairable():
     rally_spans = [(0, 0, 100)]
     replay_mask = np.zeros(400, dtype=bool)
     replay_mask[50:54] = True                            # one below the 5-frame window
-    rows = stage11.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
     assert rows[0]['chunk_id'] == 'c0'
 
 
@@ -103,14 +103,14 @@ def test_two_short_mask_runs_do_not_accumulate():
     replay_mask = np.zeros(400, dtype=bool)
     replay_mask[40:43] = True
     replay_mask[60:63] = True
-    rows = stage11.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
     assert rows[0]['chunk_id'] == 'c0'
 
 
 def test_mask_run_at_span_edge_is_trusted_from_the_full_video_run():
     replay_mask = np.zeros(20, dtype=bool)
     replay_mask[0:5] = True
-    rows = stage11.pair_video(
+    rows = commentary_pairing.pair_video(
         'v', [(0, 2, 5)], [_chunk('c0', 1.0, 2.0)], replay_mask, FPS,
     )
     assert rows[0]['chunk_id'] == 'c0'  # the believed run sits wholly in boundary grace
@@ -121,13 +121,13 @@ def test_duration_filtered_replay_only_disqualifies_a_rally_interior():
     duration_filtered_replay_mask[0:5] = True
     duration_filtered_replay_mask[6] = True
 
-    assert not stage11._believed_replay_in_rally_interior(
+    assert not commentary_pairing._believed_replay_in_rally_interior(
         duration_filtered_replay_mask, 0, 5, grace=5,
     )
-    assert stage11._believed_replay_in_rally_interior(
+    assert commentary_pairing._believed_replay_in_rally_interior(
         duration_filtered_replay_mask, 0, 20, grace=5,
     )
-    assert not stage11._believed_replay_in_rally_interior(
+    assert not commentary_pairing._believed_replay_in_rally_interior(
         duration_filtered_replay_mask, 0, 10, grace=5,
     )
 
@@ -135,23 +135,23 @@ def test_duration_filtered_replay_only_disqualifies_a_rally_interior():
 def test_none_empty_and_all_false_masks_do_not_hold_out():
     rally_spans = [(0, 0, 100)]
     chunks = [_chunk('c0', 11.0, 15.0)]
-    rows = stage11.pair_video('v', rally_spans, chunks, None, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, None, FPS)
     assert rows[0]['chunk_id'] == 'c0'
-    rows = stage11.pair_video('v', [(0, 0, 0)], [_chunk('c0', 1.0, 2.0)], np.zeros(0, dtype=bool), FPS)
+    rows = commentary_pairing.pair_video('v', [(0, 0, 0)], [_chunk('c0', 1.0, 2.0)], np.zeros(0, dtype=bool), FPS)
     assert rows[0]['chunk_id'] == 'c0'
-    rows = stage11.pair_video('v', rally_spans, chunks, np.zeros(400, dtype=bool), FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, np.zeros(400, dtype=bool), FPS)
     assert rows[0]['chunk_id'] == 'c0'
 
 
 def test_all_true_mask_holds_out():
     replay_mask = np.ones(400, dtype=bool)
-    rows = stage11.pair_video('v', [(0, 0, 100)], [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
+    rows = commentary_pairing.pair_video('v', [(0, 0, 100)], [_chunk('c0', 11.0, 15.0)], replay_mask, FPS)
     assert rows[0]['chunk_id'] == ''
 
 
 def test_rally_endpoint_beyond_mask_fails_loudly():
     with pytest.raises(ValueError, match='outside replay mask'):
-        stage11.pair_video('v', [(0, 0, 101)], [], np.zeros(100, dtype=bool), FPS)
+        commentary_pairing.pair_video('v', [(0, 0, 101)], [], np.zeros(100, dtype=bool), FPS)
 
 
 def test_load_replay_mask_requires_one_dimensional_boolean_array(tmp_path):
@@ -160,15 +160,15 @@ def test_load_replay_mask_requires_one_dimensional_boolean_array(tmp_path):
     np.save(masks_dir / 'bad_shape_replay.npy', np.zeros((2, 2), dtype=bool))
     np.save(masks_dir / 'bad_type_replay.npy', np.zeros(4, dtype=np.uint8))
     with pytest.raises(ValueError, match='one-dimensional boolean'):
-        stage11._load_replay_mask(masks_dir, 'bad_shape')
+        commentary_pairing._load_replay_mask(masks_dir, 'bad_shape')
     with pytest.raises(ValueError, match='one-dimensional boolean'):
-        stage11._load_replay_mask(masks_dir, 'bad_type')
+        commentary_pairing._load_replay_mask(masks_dir, 'bad_type')
 
 
 def test_chunk_claimed_by_earlier_of_two_rallies():
     rally_spans = [(0, 0, 100), (1, 110, 120)]           # windows (10, 18] and (12, 20]
     chunks = [_chunk('c0', 13.0, 16.0)]                  # start 13.0 falls in both
-    rows = stage11.pair_video('v', rally_spans, chunks, None, FPS)
+    rows = commentary_pairing.pair_video('v', rally_spans, chunks, None, FPS)
     by_id = {row['rally_id']: row for row in rows}
     assert by_id[0]['chunk_id'] == 'c0'                  # earlier rally claims it
     assert by_id[1]['chunk_id'] == ''                    # later rally left unpaired
@@ -194,9 +194,9 @@ def test_build_video_fps_csv(tmp_path, monkeypatch):
     (video_dir / 'vid2.mkv').write_bytes(b'')
     (video_dir / 'notes.txt').write_bytes(b'')           # non-video, ignored
 
-    monkeypatch.setattr(stage11.cv2, 'VideoCapture', _FakeCapture)
+    monkeypatch.setattr(commentary_pairing.cv2, 'VideoCapture', _FakeCapture)
     out_csv = tmp_path / 'video_fps.csv'
-    stage11.build_video_fps_csv(video_dir, out_csv)
+    commentary_pairing.build_video_fps_csv(video_dir, out_csv)
 
     with out_csv.open(newline='', encoding='utf-8') as handle:
         rows = list(csv.DictReader(handle))
@@ -234,7 +234,7 @@ def test_commentary_ineligible_video_pairs_with_blank_commentary(tmp_path, monke
     monkeypatch.setattr(
         'sys.argv',
         [
-            'stage11_pairing',
+            'commentary_pairing',
             '--video-dir', str(video_dir),
             '--fps-csv', str(fps_csv),
             '--rally-spans', str(spans_csv),
@@ -244,7 +244,7 @@ def test_commentary_ineligible_video_pairs_with_blank_commentary(tmp_path, monke
         ],
     )
 
-    stage11.main()
+    commentary_pairing.main()
 
     with pairs_csv.open(newline='', encoding='utf-8') as handle:
         rows = list(csv.DictReader(handle))
@@ -280,7 +280,7 @@ def test_commentary_eligible_video_pairs_normally(tmp_path, monkeypatch):
     )
     pairs_csv = tmp_path / 'pairs.csv'
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -321,7 +321,7 @@ def test_commentary_ineligible_video_leaves_every_rally_blank(tmp_path, monkeypa
     )
     pairs_csv = tmp_path / 'pairs.csv'
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -365,8 +365,8 @@ def test_ineligible_video_does_not_load_malformed_replay_mask(tmp_path, monkeypa
     def fail_load(_masks_dir, _video_id):
         raise AssertionError('ineligible video must not load replay mask')
 
-    monkeypatch.setattr(stage11, '_load_replay_mask', fail_load)
-    _invoke_stage11(
+    monkeypatch.setattr(commentary_pairing, '_load_replay_mask', fail_load)
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -393,7 +393,7 @@ def test_missing_manifest_fails_for_video_with_fps(tmp_path, monkeypatch):
     pairs_csv = tmp_path / 'pairs.csv'
 
     with pytest.raises(FileNotFoundError, match='sources.toml'):
-        _invoke_stage11(
+        _invoke_commentary_pairing(
             monkeypatch,
             video_dir=video_dir,
             fps_csv=fps_csv,
@@ -476,7 +476,7 @@ def test_strict_manifest_errors_happen_before_pairs_csv_write(
     pairs_csv.write_text('sentinel\n', encoding='utf-8')
 
     with pytest.raises(error_type):
-        _invoke_stage11(
+        _invoke_commentary_pairing(
             monkeypatch,
             video_dir=video_dir,
             fps_csv=fps_csv,
@@ -517,7 +517,7 @@ def test_manifest_extra_keys_and_entry_without_video_id_are_tolerated(tmp_path, 
     )
     pairs_csv = tmp_path / 'pairs.csv'
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -553,7 +553,7 @@ def test_stale_missing_manifest_basename_is_ignored(tmp_path, monkeypatch):
     )
     pairs_csv = tmp_path / 'pairs.csv'
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -585,7 +585,7 @@ def test_manifest_mapping_requires_existing_video_file(tmp_path, monkeypatch):
     pairs_csv = tmp_path / 'pairs.csv'
 
     with pytest.raises(ValueError, match='no existing manifest entry'):
-        _invoke_stage11(
+        _invoke_commentary_pairing(
             monkeypatch,
             video_dir=video_dir,
             fps_csv=fps_csv,
@@ -604,7 +604,7 @@ def test_different_video_and_fps_build_directories_fail_loudly(tmp_path, monkeyp
     pairs_csv = tmp_path / 'pairs.csv'
 
     with pytest.raises(ValueError, match='must resolve to the same path'):
-        _invoke_stage11(
+        _invoke_commentary_pairing(
             monkeypatch,
             video_dir=video_dir,
             build_fps_from=build_dir,
@@ -635,7 +635,7 @@ def test_video_dir_argument_alone_selects_manifest_directory(tmp_path, monkeypat
     )
     pairs_csv = tmp_path / 'pairs.csv'
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=video_dir,
         fps_csv=fps_csv,
@@ -665,9 +665,9 @@ def test_build_fps_from_argument_alone_selects_manifest_directory(tmp_path, monk
     )
     fps_csv = tmp_path / 'fps.csv'
     pairs_csv = tmp_path / 'pairs.csv'
-    monkeypatch.setattr(stage11.cv2, 'VideoCapture', _FakeCapture)
+    monkeypatch.setattr(commentary_pairing.cv2, 'VideoCapture', _FakeCapture)
 
-    _invoke_stage11(
+    _invoke_commentary_pairing(
         monkeypatch,
         video_dir=None,
         build_fps_from=video_dir,
@@ -695,7 +695,7 @@ def test_missing_fps_skips_without_reading_manifest(tmp_path, monkeypatch, caplo
     monkeypatch.setattr(
         'sys.argv',
         [
-            'stage11_pairing',
+            'commentary_pairing',
             '--video-dir', str(video_dir),
             '--fps-csv', str(fps_csv),
             '--rally-spans', str(spans_csv),
@@ -703,7 +703,7 @@ def test_missing_fps_skips_without_reading_manifest(tmp_path, monkeypatch, caplo
         ],
     )
 
-    stage11.main()
+    commentary_pairing.main()
 
     assert 'no fps for unlisted; skipping its rallies' in caplog.text
     with pairs_csv.open(newline='', encoding='utf-8') as handle:

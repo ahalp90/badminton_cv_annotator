@@ -1,6 +1,6 @@
-"""Stage 10: commentary clean pass, alt-phrasings, and fine timestamps (spec s9).
+"""Clean commentary, generate alternate phrasing, and refine timestamps (spec s9).
 
-Two passes over the stage-3 chunk sidecars (`chunks/<video_id>.json`, a list of
+Two passes over the relevance-triage chunk sidecars (`chunks/<video_id>.json`, a list of
 `{chunk_id, start, end, text}`), run for every video whose `candidates.csv` keep
 column parses True:
 
@@ -18,8 +18,8 @@ The real Gemini call is reached only outside the test venv (google-genai is not
 installed there); tests fake it via monkeypatch. The WhisperX and torch imports
 are function-local for the same reason: importing this module must never fail.
 
-Descended from the poc stage-3 triage skeleton (poc/stage3_triage.py); the LLM
-retry/backoff wrapper and the Gemini call shape are ported from there.
+Descended from the proof-of-concept relevance-triage skeleton. The LLM
+retry/backoff wrapper and Gemini call shape are ported from there.
 """
 import argparse
 import json
@@ -75,7 +75,7 @@ class CleanError(RuntimeError):
 def _clean_once(text: str) -> dict:
     """Single Gemini clean+paraphrase call for one chunk. Never runs in tests.
 
-    Builds the request exactly as poc/stage3_triage.py does: model, contents, and
+    Builds the same request as the proof-of-concept triage: model, contents, and
     a config carrying the system instruction, token cap and a JSON response mime
     type. The client reads the key from ``os.environ[API_KEY_ENV]``; we confirm
     the env var is set by name only and never read or log its value.
@@ -109,7 +109,7 @@ def _clean_once(text: str) -> dict:
 def call_clean_llm(text: str) -> dict:
     """Call the clean LLM for one chunk with retry and exponential backoff.
 
-    Ported from the poc stage-3 wrapper: catch broadly (the real SDK raises typed
+    Ported from the proof-of-concept wrapper: catch broadly (the real SDK raises typed
     errors on rate limits and transient faults), back off ``LLM_BACKOFF_BASE_S``
     doubled per attempt, and raise CleanError after ``LLM_MAX_RETRIES`` so the
     caller can log-and-skip the video.
@@ -237,7 +237,7 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
         # every chunk call, so this fires only when the first call of every video
         # died and nothing got through.
         raise RuntimeError(
-            f'Stage 10 clean: all {attempted} LLM calls failed. Check the endpoint.'
+            f'Commentary cleaning: all {attempted} LLM calls failed. Check the endpoint.'
         )
 
     pending_chunks: list[dict] = []
@@ -425,7 +425,7 @@ def run_fine(video_dir: Path, rows: list[dict] | None = None) -> None:
             print(f'  {video_id}: refined {len(chunks)} chunk timestamps')
     finally:
         # One model load serves the whole run; free the VRAM on the way out
-        # (mirrors the stage 2 fallback's cleanup, whisperx_settings_proposal s6).
+        # (mirrors the transcript acquisition fallback's cleanup, whisperx_settings_proposal s6).
         import gc
 
         import torch
@@ -436,8 +436,8 @@ def run_fine(video_dir: Path, rows: list[dict] | None = None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description='Stage 10: LLM clean+paraphrase pass and WhisperX fine '
-                    'timestamps over the stage-3 chunk sidecars.',
+        description='Commentary cleaning: LLM clean+paraphrase pass and WhisperX fine '
+                    'timestamps over the relevance-triage chunk sidecars.',
     )
     parser.add_argument('--clean-only', action='store_true',
                         help='Run only the LLM clean+paraphrase pass')
@@ -453,13 +453,13 @@ def main() -> None:
     run_fine_pass = not args.clean_only
 
     if run_clean_pass:
-        print('=== Stage 10 clean pass ===')
+        print('=== Commentary clean pass ===')
         run_clean(force=args.force)
 
     if run_fine_pass:
         if args.video_dir is None:
             parser.error('--video-dir is required for the fine-timestamp pass')
-        print('=== Stage 10 fine-timestamp pass ===')
+        print('=== Commentary fine-timestamp pass ===')
         run_fine(args.video_dir)
 
 

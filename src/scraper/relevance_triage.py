@@ -1,4 +1,4 @@
-"""Stage 3: LLM relevance triage over the stage-2 transcripts.
+"""Run LLM relevance triage over acquired transcripts.
 
 For each video with a transcript: split the segments into overlapping windows so a
 chunk straddling a boundary is not lost, ask a cheap fast LLM per window for the
@@ -6,7 +6,7 @@ qualitative-commentary chunks, aggregate them into chunks/<video_id>.json as
 {chunk_id, start, end, text}, then decide keep per video by the three-legged D9
 rule and write keep back into the candidates.csv column.
 
-Run as: python -m scraper.stage3_triage (PYTHONPATH=src). The LLM call needs the
+Run as: python -m scraper.relevance_triage (PYTHONPATH=src). The LLM call needs the
 GEMINI_API_KEY env var set (referenced by name only, never read or logged) and the
 google-genai SDK installed on the calling machine.
 
@@ -30,7 +30,7 @@ from .config import (
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
     SHORT_VIDEO_MIN_S,
-    STAGE3_BLOCK_MIN_FAILURES,
+    TRIAGE_BLOCK_MIN_FAILURES,
     TRANSCRIPTS_DIR,
     TRIAGE_MAX_TOKENS,
     TRIAGE_MODEL,
@@ -127,7 +127,7 @@ def _call_once(system_prompt: str, user_prompt: str) -> list[dict]:
     """
     # Function-local import: google-genai only installs on the machine that runs
     # the real triage. The test/CI venv does not carry it, and a module-level
-    # import would break stage 3 there.
+    # import would break relevance triage there.
     from google import genai
 
     if API_KEY_ENV not in os.environ:
@@ -196,8 +196,8 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
 
     :param video_id: yt-dlp id.
     :param duration_s: the video's duration_s cell, for the keep rule.
-    :return: (keep, chunks), or None when the video has no stage-2 transcript.
-        Propagates TriageError so run_stage3 can retry-list the video.
+    :return: (keep, chunks), or None when the video has no acquired transcript.
+        Propagates TriageError so run_relevance_triage can retry-list the video.
     """
     transcript = load_transcript(video_id)
     if transcript is None:
@@ -215,7 +215,7 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
     return keep, chunks
 
 
-def run_stage3(rows: list[dict] | None = None) -> dict[str, bool]:
+def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
     """Triage every video with a transcript; write chunk sidecars and keep flags.
 
     Blocks (raises) only when every triage call fails (a dead endpoint, spec s4),
@@ -236,7 +236,7 @@ def run_stage3(rows: list[dict] | None = None) -> dict[str, bool]:
     for row in rows:
         video_id = row['video_id']
         if not (TRANSCRIPTS_DIR / f'{video_id}.json').exists():
-            continue  # no stage-2 transcript; nothing to triage
+            continue  # no acquired transcript; nothing to triage
         videos_with_transcript += 1
         try:
             outcome = triage_video(video_id, row.get('duration_s', ''))
@@ -246,9 +246,9 @@ def run_stage3(rows: list[dict] | None = None) -> dict[str, bool]:
             print(f'  TRIAGE FAILED {video_id}: {error}')
             # Circuit-break a dead endpoint: zero successes across the floor means
             # nothing is getting through; stop before burning the batch.
-            if failed >= STAGE3_BLOCK_MIN_FAILURES and failed == videos_with_transcript:
+            if failed >= TRIAGE_BLOCK_MIN_FAILURES and failed == videos_with_transcript:
                 raise RuntimeError(
-                    f'Stage 3: first {failed} triage calls all failed. '
+                    f'Relevance triage: first {failed} triage calls all failed. '
                     f'Check the LLM endpoint.'
                 ) from error
             continue
@@ -263,7 +263,7 @@ def run_stage3(rows: list[dict] | None = None) -> dict[str, bool]:
     if videos_with_transcript > 0 and failed == videos_with_transcript:
         # Every call failed: a dead endpoint, not scattered errors (spec s4).
         raise RuntimeError(
-            f'Stage 3: all {failed} triage calls failed. Check the LLM endpoint.'
+            f'Relevance triage: all {failed} triage calls failed. Check the LLM endpoint.'
         )
     if retry_list:
         print(f"Retry list ({len(retry_list)}): {', '.join(retry_list)}")
@@ -290,10 +290,10 @@ def _write_keep_back(rows: list[dict], keep_by_id: dict[str, bool]) -> None:
 
 def main() -> None:
     argparse.ArgumentParser(
-        description='Stage 3: LLM relevance triage into chunks/<video_id>.json '
+        description='Relevance triage: LLM relevance triage into chunks/<video_id>.json '
                     'and the keep column.',
     ).parse_args()
-    run_stage3()
+    run_relevance_triage()
 
 
 if __name__ == '__main__':
