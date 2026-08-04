@@ -9,11 +9,11 @@ import numpy as np
 
 import annotator.point_winner as point_winner
 import annotator.rally_segmentation as rally_segmentation
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
 from annotator.replay_mask import filter_short_exclusion_runs
 from annotator.resolve import resolve
-from annotator.types import ContactCandidate, ServeStartConfig
+from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 
 
 OTHER_HALF = point_winner.OTHER_HALF
@@ -196,6 +196,584 @@ def _first_stroke_half(final_half, n_strokes: int):
     return final_half if (n_strokes - 1) % 2 == 0 else OTHER_HALF[final_half]
 
 
+@dataclass(frozen=True)
+class _CourtInputs:
+    """Court and player evidence used only by court-dependent modes."""
+
+    bboxes: Any
+    scores: Any
+    kps: Any
+    ndet: Any
+    resolution: tuple[float, float] | None
+    video_id: int | None
+    court_info: dict | None
+    homo_df: Any
+    gate_court_info: dict | None
+    gate_resolution_table: Any
+    court_present: Any
+    homography_rows: Any
+    cut_frames: Any
+    keep_vote: Any
+
+
+@dataclass(frozen=True)
+class _SegmentationData:
+    """Final spans, contacts, and exclusion mask from the segmentation phase."""
+
+    spans: list[tuple[int, int]]
+    contacts: list[ContactCandidate]
+    definitive_exclusion_mask: np.ndarray
+    sticky: StickyResult | None = None
+
+
+@dataclass(frozen=True)
+class _ContactData:
+    """Filtered contacts and fitted hitting-order fields for downstream stages."""
+
+    filtered_contacts: list[ContactCandidate]
+    scored_by_rally: dict[int, list[int]]
+    filtered_by_rally: dict[int, list[int]]
+    striker_halves: list[point_winner.Half | None]
+    n_strokes_list: list[int]
+    next_servers: list[point_winner.Half | None]
+    fitted_first_all: list[point_winner.Half | None]
+
+
+@dataclass(frozen=True)
+class _VerdictData:
+    """Rally-indexed landing and winner outputs."""
+
+    verdict_rows: dict[int, point_winner.VerdictRow]
+    landings: dict[int, point_winner.Landing | None]
+    geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow]
+
+
+def _validate_landing_horizons(
+    capture: RunCapture | None, landing_horizons_s: tuple[float, ...],
+) -> None:
+    """Validate optional horizon capture without changing its rounding policy."""
+    if not landing_horizons_s:
+        return
+    if capture is None:
+        raise ValueError('landing_horizons_s requires capture')
+    for horizon in landing_horizons_s:
+        if not math.isfinite(horizon) or horizon <= 0:
+            raise ValueError('landing_horizons_s must contain finite positive values')
+    for earlier, later in zip(landing_horizons_s, landing_horizons_s[1:]):
+        if later <= earlier:
+            raise ValueError('landing_horizons_s must be strictly increasing')
+
+
+def _span_options(resolved: ResolvedAnnotatorConfig) -> dict[str, Any]:
+    """Return the shared options for every span-finding path."""
+    return {
+        'thresholds': resolved.thresholds,
+        'span_open': resolved.span_open,
+        'constants': resolved.constants,
+        'gap_state_demotion_bound': resolved.gap_state_demotion_bound,
+        'reentry_guard_variant': resolved.reentry_guard_variant,
+        'reentry_guard_buffer': resolved.reentry_guard_buffer,
+        'quiet_start_window': resolved.quiet_start_window,
+    }
+
+
+def _validate_run_inputs(
+    court: _CourtInputs,
+    *,
+    serve_start: ServeStartConfig | None,
+    spans: list[tuple[int, int]] | None,
+    resolved: ResolvedAnnotatorConfig,
+    court_optional: bool,
+    stop_after_segmentation: bool,
+    landing_options: Any,
+    net_band: tuple[float, float] | None,
+    landing_error_band_m: float | None,
+) -> object | None:
+    """Validate mode-specific inputs and normalise scene rows."""
+    if serve_start is not None and spans is not None:
+        raise ValueError('serve_start cannot be combined with injected spans')
+    if serve_start is not None and resolved.quiet_start_window is not None:
+        raise ValueError('quiet_start_window cannot be combined with serve_start')
+    if court_optional and not stop_after_segmentation:
+        raise ValueError('court_optional requires stop_after_segmentation')
+    if court_optional:
+        supplied_optional_inputs = {
+            'homography_rows': court.homography_rows,
+            'court_present': court.court_present,
+            'bboxes': court.bboxes,
+            'scores': court.scores,
+            'kps': court.kps,
+            'ndet': court.ndet,
+            'resolution': court.resolution,
+            'video_id': court.video_id,
+            'gate_court_info': court.gate_court_info,
+            'gate_resolution_table': court.gate_resolution_table,
+            'serve_start': serve_start,
+        }
+        supplied = [name for name, value in supplied_optional_inputs.items() if value is not None]
+        if supplied:
+            raise ValueError(f'court_optional rejects supplied inputs: {", ".join(supplied)}')
+        return court.homography_rows
+
+    if court.homography_rows is None or court.court_present is None:
+        raise ValueError('scene-gated sticky needs homography_rows and court_present')
+    required_sticky_inputs = {
+        'bboxes': court.bboxes,
+        'scores': court.scores,
+        'kps': court.kps,
+        'ndet': court.ndet,
+        'resolution': court.resolution,
+        'video_id': court.video_id,
+        'gate_court_info': court.gate_court_info,
+        'gate_resolution_table': court.gate_resolution_table,
+    }
+    missing_sticky_inputs = [name for name, value in required_sticky_inputs.items() if value is None]
+    if missing_sticky_inputs:
+        raise ValueError(f'normal mode requires {", ".join(missing_sticky_inputs)}')
+    if not stop_after_segmentation:
+        required_downstream_inputs = {
+            'landing_options': landing_options,
+            'net_band': net_band,
+            'court_info': court.court_info,
+        }
+        missing_downstream_inputs = [
+            name for name, value in required_downstream_inputs.items() if value is None
+        ]
+        if landing_error_band_m is None and court.homo_df is None:
+            missing_downstream_inputs.append('homo_df or landing_error_band_m')
+        if missing_downstream_inputs:
+            raise ValueError(f'full-chain mode requires {", ".join(missing_downstream_inputs)}')
+
+    if hasattr(court.homography_rows, 'to_dict'):
+        return court.homography_rows.to_dict('records')
+    return court.homography_rows
+
+
+def _empty_result(
+    spans: list[tuple[int, int]], contacts: list[ContactCandidate],
+) -> AnnotatorResult:
+    """Return the existing segmentation-only result shape."""
+    return AnnotatorResult(
+        spans=spans, contacts=contacts, filtered_contacts=[], filtered_by_rally={},
+        striker_halves=[], n_strokes_list=[], next_servers=[], fitted_first_all=[],
+        verdict_rows={}, landings={}, geometric_verdict_rows={}, hit_height_by_frame={},
+        hit_height_failures=[],
+    )
+
+
+def _injected_contact_rows(contacts: dict[int, list[int]]) -> list[ContactCandidate]:
+    """Adapt injected rally-indexed frames to unmeasured contact rows."""
+    return [
+        ContactCandidate(rally_id, frame, None, None, None)
+        for rally_id, frames in contacts.items()
+        for frame in frames
+    ]
+
+
+def _finalize_exclusion_mask(
+    raw_exclusion_mask: np.ndarray,
+    *,
+    n_frames: int,
+    replay_mask_min_frames: int,
+    capture: RunCapture | None,
+    court_present: np.ndarray | None = None,
+    include_court_invalid: bool = False,
+    check_definitive_mask: bool = True,
+) -> np.ndarray:
+    """Validate, filter, optionally union, and capture an exclusion mask."""
+    if len(raw_exclusion_mask) != n_frames:
+        raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {n_frames}')
+    if capture is not None:
+        capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+    if raw_exclusion_mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+    definitive_exclusion_mask = filter_short_exclusion_runs(
+        raw_exclusion_mask, replay_mask_min_frames,
+    )
+    if include_court_invalid:
+        assert court_present is not None
+        definitive_exclusion_mask = definitive_exclusion_mask | ~court_present
+    if capture is not None:
+        capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
+    if check_definitive_mask and definitive_exclusion_mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+    return definitive_exclusion_mask
+
+
+def _run_court_optional_segmentation(
+    track: np.ndarray,
+    positions: np.ndarray | None,
+    spans: list[tuple[int, int]] | None,
+    contacts: dict[int, list[int]] | None,
+    raw_exclusion_mask: np.ndarray | None,
+    capture: RunCapture | None,
+    resolved: ResolvedAnnotatorConfig,
+    span_options: dict[str, Any],
+) -> _SegmentationData:
+    """Run the court-free segmentation-only mode."""
+    raw_mask = (
+        raw_exclusion_mask
+        if raw_exclusion_mask is not None
+        else np.zeros(len(track), dtype=bool)
+    )
+    definitive_exclusion_mask = _finalize_exclusion_mask(
+        raw_mask,
+        n_frames=len(track),
+        replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
+        capture=capture,
+        check_definitive_mask=False,
+    )
+    if contacts is None:
+        final_spans, raw_contacts = rally_segmentation.segment_video(
+            track,
+            positions=positions,
+            replay_mask=definitive_exclusion_mask,
+            sticky_distances=None,
+            spans=spans,
+            smoothing_mode=resolved.smoothing_mode,
+            **span_options,
+        )
+    else:
+        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
+            track, **span_options,
+        )
+        raw_contacts = _injected_contact_rows(contacts)
+    return _SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask)
+
+
+def _run_court_segmentation(
+    track: np.ndarray,
+    *,
+    fps: float,
+    court: _CourtInputs,
+    homography_rows: object,
+    raw_exclusion_mask: np.ndarray | None,
+    positions: np.ndarray | None,
+    serve_start: ServeStartConfig | None,
+    spans: list[tuple[int, int]] | None,
+    contacts: dict[int, list[int]] | None,
+    shuttle_hallucination_mask: np.ndarray,
+    capture: RunCapture | None,
+    court_invalid_is_excluded: bool,
+    stop_after_segmentation: bool,
+    resolved: ResolvedAnnotatorConfig,
+    span_options: dict[str, Any],
+) -> _SegmentationData:
+    """Build sticky evidence, exclusion masks, spans, and contacts."""
+    # Sticky evidence must see the original track. Build it once before any replay masking.
+    segments = rally_segmentation.tracker_segments(
+        homography_rows, court.court_present, len(track),
+    )
+    sticky = rally_segmentation.build_sticky_result(
+        track, segments, court.bboxes, court.scores, court.kps, court.ndet,
+        str(court.video_id), court.gate_court_info, court.gate_resolution_table,
+        court.resolution, resolved.constants.body_unit_half_window,
+    )
+
+    serve_options = None
+    if contacts is not None:
+        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
+            track, **span_options,
+        )
+        raw_contacts = _injected_contact_rows(contacts)
+        if raw_exclusion_mask is None:
+            raw_exclusion_mask = build_dead_mask(
+                resolved.dead_mask_mode, len(track), fps, court_present=court.court_present,
+                homography_rows=homography_rows, track=track, rally_spans=final_spans,
+                cut_frames=court.cut_frames, keep_vote=court.keep_vote,
+                shuttle_hallucination_mask=shuttle_hallucination_mask,
+            )
+    else:
+        if raw_exclusion_mask is None:
+            # The mask builder needs unmasked rally spans as its normal-speed baseline.
+            bootstrap_spans = (
+                spans
+                if spans is not None
+                else rally_segmentation.find_rally_spans(track, **span_options)
+            )
+            raw_exclusion_mask = build_dead_mask(
+                resolved.dead_mask_mode, len(track), fps, court_present=court.court_present,
+                homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
+                cut_frames=court.cut_frames, keep_vote=court.keep_vote,
+                shuttle_hallucination_mask=shuttle_hallucination_mask,
+            )
+        final_spans = spans
+        if serve_start is not None:
+            assert court.resolution is not None
+            serve_options = build_serve_options(
+                serve_start, sticky, resolved.constants, court.resolution, resolved.span_open,
+            )
+
+    assert raw_exclusion_mask is not None
+    definitive_exclusion_mask = _finalize_exclusion_mask(
+        raw_exclusion_mask,
+        n_frames=len(track),
+        replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
+        capture=capture,
+        court_present=court.court_present,
+        include_court_invalid=(
+            court_invalid_is_excluded and not stop_after_segmentation
+        ),
+    )
+    if contacts is None:
+        final_spans, raw_contacts = rally_segmentation.segment_video(
+            track,
+            positions=positions,
+            replay_mask=definitive_exclusion_mask,
+            sticky_distances=sticky.distances,
+            serve_start=serve_options,
+            spans=final_spans,
+            smoothing_mode=resolved.smoothing_mode,
+            **span_options,
+        )
+    return _SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask, sticky)
+
+
+def _build_contact_data(
+    spans: list[tuple[int, int]],
+    contacts: list[ContactCandidate],
+    definitive_exclusion_mask: np.ndarray,
+    track: np.ndarray,
+    sticky: StickyResult,
+    bboxes: np.ndarray,
+    net_band: tuple[float, float],
+) -> _ContactData:
+    """Filter contacts and fit each rally's alternating striker phase."""
+    scored_contacts = scoring_filter(contacts)
+    filtered_contacts = [
+        contact
+        for contact in scored_contacts
+        if not definitive_exclusion_mask[contact.contact_frame]
+    ]
+    scored_by_rally: dict[int, list[int]] = {}
+    for contact in scored_contacts:
+        scored_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
+    filtered_by_rally: dict[int, list[int]] = {}
+    for contact in filtered_contacts:
+        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
+
+    striker_halves: list[point_winner.Half | None] = []
+    for rally_id in range(len(spans)):
+        guesses = []
+        for frame in filtered_by_rally.get(rally_id, []):
+            guesses.append(point_winner.attribute_half(frame, track, sticky, bboxes, net_band))
+        striker_halves.append(point_winner.fit_alternation(guesses))
+    n_strokes_list = [len(filtered_by_rally.get(rally_id, [])) for rally_id in range(len(spans))]
+    next_servers = point_winner.next_server_half(striker_halves, n_strokes_list)
+    fitted_first_all = [
+        _first_stroke_half(half, n) if half is not None else None
+        for half, n in zip(striker_halves, n_strokes_list)
+    ]
+    return _ContactData(
+        filtered_contacts=filtered_contacts,
+        scored_by_rally=scored_by_rally,
+        filtered_by_rally=filtered_by_rally,
+        striker_halves=striker_halves,
+        n_strokes_list=n_strokes_list,
+        next_servers=next_servers,
+        fitted_first_all=fitted_first_all,
+    )
+
+
+def _build_verdict_data(
+    track: np.ndarray,
+    *,
+    fps: float,
+    segmentation: _SegmentationData,
+    contact_data: _ContactData,
+    resolved: ResolvedAnnotatorConfig,
+    court: _CourtInputs,
+    landing_options: Any,
+    net_band: tuple[float, float],
+    ref_err_px: float,
+    landing_error_band_m: float | None,
+    shuttle_hallucination_mask: np.ndarray,
+    source_codes: np.ndarray | None,
+    rejection_diagnostics: list[dict[str, object]] | None,
+    capture: RunCapture | None,
+    landing_horizons_s: tuple[float, ...],
+) -> _VerdictData:
+    """Build landing, verdict, diagnostic, and horizon outputs for every rally."""
+    assert segmentation.sticky is not None
+    assert court.kps is not None
+    assert court.resolution is not None
+    assert court.court_info is not None
+    spans = segmentation.spans
+    kin = point_winner.build_landing_kinematics(
+        track, segmentation.sticky, court.kps, court.resolution,
+    )
+    band_m = (
+        landing_error_band_m
+        if landing_error_band_m is not None
+        else point_winner.corner_error_band_m(
+            court.video_id, court.homo_df, court.court_info, ref_err_px,
+        )
+    )
+    verdict_rows: dict[int, point_winner.VerdictRow] = {}
+    landings: dict[int, point_winner.Landing | None] = {}
+    geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow] = {}
+    for rally_id in range(len(spans)):
+        striker = contact_data.striker_halves[rally_id]
+        if striker is None:
+            scored_frames = contact_data.scored_by_rally.get(rally_id, [])
+            if scored_frames and not contact_data.filtered_by_rally.get(rally_id):
+                _record_trusted_mask_contact_rejection(
+                    rejection_diagnostics, rally_id, spans[rally_id], scored_frames,
+                )
+            continue
+        frames = contact_data.filtered_by_rally[rally_id]
+        usable_final_contacts = [
+            frame for frame in frames if not shuttle_hallucination_mask[frame]
+        ]
+        skipped_trailing: list[int] = []
+        for frame in reversed(frames):
+            if not shuttle_hallucination_mask[frame]:
+                break
+            skipped_trailing.append(frame)
+        if skipped_trailing:
+            _record_rejection(
+                rejection_diagnostics, 'final_contact', rally_id, skipped_trailing[-1],
+                frames[-1] + 1, shuttle_hallucination_mask, source_codes,
+                candidate_frames=skipped_trailing[::-1],
+            )
+        if not usable_final_contacts:
+            landing = None
+            verdict = point_winner.rally_verdict(
+                rally_id, striker, contact_data.next_servers[rally_id], landing, band_m,
+            )
+            verdict_rows[rally_id] = verdict
+            geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
+            geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
+                rally_id, geometric, geometric_winner, None, False,
+            )
+            landings[rally_id] = landing
+            continue
+
+        final_contact = usable_final_contacts[-1]
+        next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
+        safe_window = point_winner.landing_window(
+            final_contact, next_start, track, segmentation.definitive_exclusion_mask,
+            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
+        )
+        if rejection_diagnostics is not None:
+            window_end_without_events = point_winner.window_end(
+                final_contact, next_start, track, segmentation.definitive_exclusion_mask,
+                resolved.constants.sustained_loss_frames,
+            )
+            if safe_window.end_frame < window_end_without_events:
+                _record_rejection(
+                    rejection_diagnostics, 'lost_shuttle_guard', rally_id, final_contact + 1,
+                    window_end_without_events, shuttle_hallucination_mask, source_codes,
+                )
+        all_false_exclusion_mask = np.zeros_like(segmentation.definitive_exclusion_mask)
+        window_end_without_exclusion_mask = point_winner.window_end(
+            final_contact, next_start, track, all_false_exclusion_mask,
+            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
+        )
+        window_closed_by_mask = safe_window.end_frame < window_end_without_exclusion_mask
+        landing_rejections: list[tuple[int, int]] = []
+        landing = point_winner.pick_landing_to_end(
+            final_contact, safe_window.end_frame, track, kin, landing_options, striker, net_band,
+            court.resolution, court.court_info, resolved.constants, fps,
+            shuttle_hallucination_mask=shuttle_hallucination_mask,
+            rejected_intervals=landing_rejections,
+        )
+        for start_frame, end_frame in landing_rejections:
+            _record_rejection(
+                rejection_diagnostics, 'landing_descent', rally_id, start_frame, end_frame,
+                shuttle_hallucination_mask, source_codes,
+            )
+        verdict = point_winner.rally_verdict(
+            rally_id, striker, contact_data.next_servers[rally_id], landing, band_m,
+        )
+        verdict_rows[rally_id] = verdict
+        geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
+        shipped_winner = None
+        if verdict.verdict == point_winner.Verdict.WON:
+            shipped_winner = striker
+        elif verdict.verdict == point_winner.Verdict.LOST:
+            shipped_winner = OTHER_HALF[striker]
+        # Both verdict arms share the fitted hitting order, so this checks consistency only.
+        agreement = None
+        if shipped_winner is not None and geometric_winner is not None:
+            agreement = shipped_winner == geometric_winner
+        geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
+            rally_id, geometric, geometric_winner, agreement, window_closed_by_mask,
+        )
+        landings[rally_id] = landing
+
+        if landing_horizons_s:
+            assert capture is not None
+            for horizon_seconds in landing_horizons_s:
+                horizon_frames = max(1, math.floor(horizon_seconds * fps + 0.5))
+                requested_end_frame = final_contact + horizon_frames
+                effective_end_frame = max(
+                    final_contact + 1,
+                    min(requested_end_frame, safe_window.end_frame),
+                )
+                closure_reasons: list[str] = []
+                if requested_end_frame == effective_end_frame:
+                    closure_reasons.append('horizon_cap')
+                if effective_end_frame == safe_window.end_frame:
+                    closure_reasons.extend(safe_window.closure_reasons)
+                capped_landing = point_winner.pick_landing_to_end(
+                    final_contact, effective_end_frame, track, kin, landing_options, striker,
+                    net_band, court.resolution, court.court_info, resolved.constants, fps,
+                    shuttle_hallucination_mask=shuttle_hallucination_mask,
+                )
+                capped_verdict = point_winner.rally_verdict(
+                    rally_id, striker, contact_data.next_servers[rally_id], capped_landing, band_m,
+                )
+                capped_winner = None
+                if capped_verdict.verdict == point_winner.Verdict.WON:
+                    capped_winner = striker
+                elif capped_verdict.verdict == point_winner.Verdict.LOST:
+                    capped_winner = OTHER_HALF[striker]
+                capture.landing_horizon_rows.append(LandingHorizonRow(
+                    rally_id=rally_id,
+                    horizon_seconds=horizon_seconds,
+                    horizon_frames=horizon_frames,
+                    final_contact_frame=final_contact,
+                    requested_end_frame=requested_end_frame,
+                    safe_end_frame=safe_window.end_frame,
+                    effective_end_frame=effective_end_frame,
+                    closure_reasons=tuple(closure_reasons),
+                    strict_landing=landing,
+                    capped_landing=capped_landing,
+                    strict_verdict=verdict,
+                    capped_verdict=capped_verdict,
+                    strict_winner=shipped_winner,
+                    capped_winner=capped_winner,
+                    landing_changed=landing != capped_landing,
+                    winner_changed=shipped_winner != capped_winner,
+                ))
+
+    return _VerdictData(verdict_rows, landings, geometric_verdict_rows)
+
+
+def _build_hit_heights(
+    spans: list[tuple[int, int]],
+    filtered_by_rally: dict[int, list[int]],
+    track: np.ndarray,
+    net_band: tuple[float, float],
+    resolution: tuple[float, float],
+) -> tuple[dict[int, int], list[tuple[int, int, int, str]]]:
+    """Build hit-height outputs without coupling them to landing verdicts."""
+    hit_height_by_frame: dict[int, int] = {}
+    hit_height_failures: list[tuple[int, int, int, str]] = []
+    for rally_id in range(len(spans)):
+        for stroke_idx, contact_frame in enumerate(filtered_by_rally.get(rally_id, [])):
+            try:
+                rows = point_winner.build_hit_height_rows(
+                    [(rally_id, stroke_idx, contact_frame)], track, net_band, resolution,
+                )
+            except ValueError as exc:
+                hit_height_failures.append((rally_id, stroke_idx, contact_frame, str(exc)))
+                continue
+            hit_height_by_frame[contact_frame] = rows[0].hit_height
+    return hit_height_by_frame, hit_height_failures
+
+
 def run_video(
     track, bboxes=None, scores=None, kps=None, ndet=None,
     *,
@@ -239,411 +817,109 @@ def run_video(
     their supplied mask semantics. ``landing_error_band_m`` lets a parent pass
     its active geometry's uncertainty without opening a static homography table.
     """
+    court = _CourtInputs(
+        bboxes=bboxes, scores=scores, kps=kps, ndet=ndet, resolution=resolution,
+        video_id=video_id, court_info=court_info, homo_df=homo_df,
+        gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
+        court_present=court_present, homography_rows=homography_rows, cut_frames=cut_frames,
+        keep_vote=keep_vote,
+    )
     if capture is not None:
         capture.raw_exclusion_mask = None
         capture.definitive_exclusion_mask = None
         capture.landing_horizon_rows.clear()
-    if landing_horizons_s:
-        if capture is None:
-            raise ValueError('landing_horizons_s requires capture')
-        if any(
-            not math.isfinite(horizon) or horizon <= 0
-            for horizon in landing_horizons_s
-        ):
-            raise ValueError('landing_horizons_s must contain finite positive values')
-        if any(
-            later <= earlier
-            for earlier, later in zip(landing_horizons_s, landing_horizons_s[1:])
-        ):
-            raise ValueError('landing_horizons_s must be strictly increasing')
-    if capture is not None:
-        if raw_exclusion_mask is not None:
-            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
+    _validate_landing_horizons(capture, landing_horizons_s)
+    if capture is not None and raw_exclusion_mask is not None:
+        capture.raw_exclusion_mask = raw_exclusion_mask.copy()
 
     resolved = resolve(base, fps)
-    span_options: dict[str, Any] = {
-        'thresholds': resolved.thresholds,
-        'span_open': resolved.span_open,
-        'constants': resolved.constants,
-        'gap_state_demotion_bound': resolved.gap_state_demotion_bound,
-        'reentry_guard_variant': resolved.reentry_guard_variant,
-        'reentry_guard_buffer': resolved.reentry_guard_buffer,
-        'quiet_start_window': resolved.quiet_start_window,
-    }
-    # Injected spans skip span finding, so serve-start would otherwise silently never run.
-    if serve_start is not None and spans is not None:
-        raise ValueError('serve_start cannot be combined with injected spans')
-    if serve_start is not None and resolved.quiet_start_window is not None:
-        raise ValueError('quiet_start_window cannot be combined with serve_start')
-    if court_optional and not stop_after_segmentation:
-        raise ValueError('court_optional requires stop_after_segmentation')
-    if court_optional:
-        supplied_optional_inputs = {
-            'homography_rows': homography_rows,
-            'court_present': court_present,
-            'bboxes': bboxes,
-            'scores': scores,
-            'kps': kps,
-            'ndet': ndet,
-            'resolution': resolution,
-            'video_id': video_id,
-            'gate_court_info': gate_court_info,
-            'gate_resolution_table': gate_resolution_table,
-            'serve_start': serve_start,
-        }
-        supplied = [name for name, value in supplied_optional_inputs.items() if value is not None]
-        if supplied:
-            raise ValueError(f'court_optional rejects supplied inputs: {", ".join(supplied)}')
-    else:
-        if homography_rows is None or court_present is None:
-            raise ValueError('scene-gated sticky needs homography_rows and court_present')
-        required_sticky_inputs = {
-            'bboxes': bboxes,
-            'scores': scores,
-            'kps': kps,
-            'ndet': ndet,
-            'resolution': resolution,
-            'video_id': video_id,
-            'gate_court_info': gate_court_info,
-            'gate_resolution_table': gate_resolution_table,
-        }
-        missing_sticky_inputs = [name for name, value in required_sticky_inputs.items() if value is None]
-        if missing_sticky_inputs:
-            raise ValueError(f'normal mode requires {", ".join(missing_sticky_inputs)}')
-        if not stop_after_segmentation:
-            required_downstream_inputs = {
-                'landing_options': landing_options,
-                'net_band': net_band,
-                'court_info': court_info,
-            }
-            missing_downstream_inputs = [
-                name for name, value in required_downstream_inputs.items() if value is None
-            ]
-            if landing_error_band_m is None and homo_df is None:
-                missing_downstream_inputs.append('homo_df or landing_error_band_m')
-            if missing_downstream_inputs:
-                raise ValueError(f'full-chain mode requires {", ".join(missing_downstream_inputs)}')
-
-        if hasattr(homography_rows, 'to_dict'):
-            homography_rows = homography_rows.to_dict('records')
-
+    span_options = _span_options(resolved)
+    homography_rows = _validate_run_inputs(
+        court,
+        serve_start=serve_start,
+        spans=spans,
+        resolved=resolved,
+        court_optional=court_optional,
+        stop_after_segmentation=stop_after_segmentation,
+        landing_options=landing_options,
+        net_band=net_band,
+        landing_error_band_m=landing_error_band_m,
+    )
     shuttle_hallucination_mask, source_codes = _build_shuttle_hallucination_mask(
         len(track), resolved.rejected_grades, inpaint_codes, shuttle_hallucination_mask,
     )
-    sticky = None
-    if not court_optional:
-        segments = rally_segmentation.tracker_segments(homography_rows, court_present, len(track))
-        sticky = rally_segmentation.build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, str(video_id), gate_court_info,
-            gate_resolution_table, resolution, resolved.constants.body_unit_half_window,
-        )
-    serve_options = None
+
     if court_optional:
-        raw_exclusion_mask = (
-            raw_exclusion_mask
-            if raw_exclusion_mask is not None
-            else np.zeros(len(track), dtype=bool)
+        segmentation = _run_court_optional_segmentation(
+            track, positions=positions, spans=spans, contacts=contacts,
+            raw_exclusion_mask=raw_exclusion_mask, capture=capture,
+            resolved=resolved, span_options=span_options,
         )
-        if len(raw_exclusion_mask) != len(track):
-            raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
-        if capture is not None:
-            capture.raw_exclusion_mask = raw_exclusion_mask.copy()
-        if raw_exclusion_mask.all():
-            raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-        definitive_exclusion_mask = filter_short_exclusion_runs(
-            raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
-        )
-        if capture is not None:
-            capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
-        if contacts is None:
-            final_spans, raw_contacts = rally_segmentation.segment_video(
-                track, positions=positions, replay_mask=definitive_exclusion_mask,
-                sticky_distances=None,
-                spans=spans, smoothing_mode=resolved.smoothing_mode,
-                **span_options,
-            )
-        else:
-            final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
-                track, **span_options,
-            )
-            raw_contacts = [
-                ContactCandidate(rally_id, frame, None, None, None)
-                for rally_id, frames in contacts.items() for frame in frames
-            ]
-        return AnnotatorResult(
-            spans=final_spans, contacts=raw_contacts, filtered_contacts=[], filtered_by_rally={},
-            striker_halves=[], n_strokes_list=[], next_servers=[], fitted_first_all=[],
-            verdict_rows={}, landings={}, geometric_verdict_rows={}, hit_height_by_frame={},
-            hit_height_failures=[],
-        )
+        return _empty_result(segmentation.spans, segmentation.contacts)
 
-    assert sticky is not None
-    if contacts is not None:
-        # Injected contacts already carry the selected rally IDs. Span finding still runs when
-        # callers did not inject spans; sticky already ran over tracker segments above.
-        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
-            track, **span_options,
-        )
-        raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
-                        for rally_id, frames in contacts.items() for frame in frames]
-        # Replay mask baselines slow-motion detection against each rally's normal speed.
-        if raw_exclusion_mask is None:
-            raw_replay_mask = build_dead_mask(
-                resolved.dead_mask_mode, len(track), fps, court_present=court_present,
-                homography_rows=homography_rows, track=track, rally_spans=final_spans,
-                cut_frames=cut_frames, keep_vote=keep_vote,
-                shuttle_hallucination_mask=shuttle_hallucination_mask,
-            )
-            raw_exclusion_mask = raw_replay_mask
-    else:
-        # The sticky cache above already runs over scene-gated tracker segments. This span-only,
-        # unmasked pass supplies rally spans to the mask builder.
-        if raw_exclusion_mask is None:
-            bootstrap_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
-                track, **span_options,
-            )
-            raw_replay_mask = build_dead_mask(
-                resolved.dead_mask_mode, len(track), fps, court_present=court_present,
-                homography_rows=homography_rows, track=track, rally_spans=bootstrap_spans,
-                cut_frames=cut_frames, keep_vote=keep_vote,
-                shuttle_hallucination_mask=shuttle_hallucination_mask,
-            )
-            raw_exclusion_mask = raw_replay_mask
-        final_spans = spans
-        if serve_start is not None:
-            serve_options = build_serve_options(
-                serve_start, sticky, resolved.constants, resolution, resolved.span_open,
-            )
-
-    if len(raw_exclusion_mask) != len(track):
-        raise ValueError(f'mask length {len(raw_exclusion_mask)} != track length {len(track)}')
-    if capture is not None:
-        capture.raw_exclusion_mask = raw_exclusion_mask.copy()
-    if raw_exclusion_mask.all():
-        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-    definitive_exclusion_mask = filter_short_exclusion_runs(
-        raw_exclusion_mask, resolved.constants.replay_mask_min_frames,
+    assert homography_rows is not None
+    segmentation = _run_court_segmentation(
+        track,
+        fps=fps,
+        court=court,
+        homography_rows=homography_rows,
+        raw_exclusion_mask=raw_exclusion_mask,
+        positions=positions,
+        serve_start=serve_start,
+        spans=spans,
+        contacts=contacts,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
+        capture=capture,
+        court_invalid_is_excluded=court_invalid_is_excluded,
+        stop_after_segmentation=stop_after_segmentation,
+        resolved=resolved,
+        span_options=span_options,
     )
-    if court_invalid_is_excluded and not stop_after_segmentation:
-        definitive_exclusion_mask = definitive_exclusion_mask | ~court_present
-    if capture is not None:
-        capture.definitive_exclusion_mask = definitive_exclusion_mask.copy()
-    if definitive_exclusion_mask.all():
-        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
-
-    if contacts is None:
-        final_spans, raw_contacts = rally_segmentation.segment_video(
-            track, positions=positions,
-            replay_mask=definitive_exclusion_mask, sticky_distances=sticky.distances,
-            serve_start=serve_options,
-            spans=final_spans, smoothing_mode=resolved.smoothing_mode,
-            **span_options,
-        )
-    spans, contacts = final_spans, raw_contacts
-
     if stop_after_segmentation:
-        return AnnotatorResult(
-            spans=spans, contacts=contacts, filtered_contacts=[], filtered_by_rally={},
-            striker_halves=[], n_strokes_list=[], next_servers=[], fitted_first_all=[],
-            verdict_rows={}, landings={}, geometric_verdict_rows={}, hit_height_by_frame={},
-            hit_height_failures=[],
-        )
+        return _empty_result(segmentation.spans, segmentation.contacts)
 
-    scored_contacts = scoring_filter(contacts)
-    filtered_contacts = [
-        contact for contact in scored_contacts if not definitive_exclusion_mask[contact.contact_frame]
-    ]
-    scored_by_rally: dict[int, list[int]] = {}
-    for contact in scored_contacts:
-        scored_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
-    filtered_by_rally: dict[int, list[int]] = {}
-    for contact in filtered_contacts:
-        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
-
-    striker_halves = []
-    for rally_id in range(len(spans)):
-        frames = filtered_by_rally.get(rally_id, [])
-        guesses = [
-            point_winner.attribute_half(
-                frame, track, sticky, bboxes, net_band,
-            )
-            for frame in frames
-        ]
-        striker_halves.append(point_winner.fit_alternation(guesses))
-    n_strokes_list = [len(filtered_by_rally.get(rally_id, [])) for rally_id in range(len(spans))]
-    next_servers = point_winner.next_server_half(striker_halves, n_strokes_list)
-    fitted_first_all = [
-        _first_stroke_half(half, n) if half is not None else None
-        for half, n in zip(striker_halves, n_strokes_list)
-    ]
-
-    kin = point_winner.build_landing_kinematics(
-        track, sticky, kps, resolution,
+    assert segmentation.sticky is not None
+    assert court.bboxes is not None
+    assert court.resolution is not None
+    assert net_band is not None
+    contact_data = _build_contact_data(
+        spans=segmentation.spans, contacts=segmentation.contacts,
+        definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
+        track=track, sticky=segmentation.sticky, bboxes=court.bboxes, net_band=net_band,
     )
-    band_m = (
-        landing_error_band_m
-        if landing_error_band_m is not None
-        else point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
+    verdict_data = _build_verdict_data(
+        track,
+        fps=fps,
+        segmentation=segmentation,
+        contact_data=contact_data,
+        resolved=resolved,
+        court=court,
+        landing_options=landing_options,
+        net_band=net_band,
+        ref_err_px=ref_err_px,
+        landing_error_band_m=landing_error_band_m,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
+        source_codes=source_codes,
+        rejection_diagnostics=rejection_diagnostics,
+        capture=capture,
+        landing_horizons_s=landing_horizons_s,
     )
-
-    verdict_rows: dict[int, object] = {}
-    landings: dict[int, object | None] = {}
-    geometric_verdict_rows: dict[int, object] = {}
-    for rally_id in range(len(spans)):
-        striker = striker_halves[rally_id]
-        if striker is None:
-            scored_frames = scored_by_rally.get(rally_id, [])
-            if scored_frames and not filtered_by_rally.get(rally_id):
-                _record_trusted_mask_contact_rejection(
-                    rejection_diagnostics, rally_id, spans[rally_id], scored_frames,
-                )
-            continue
-        frames = filtered_by_rally[rally_id]
-        usable_final_contacts = [
-            frame for frame in frames if not shuttle_hallucination_mask[frame]
-        ]
-        skipped_trailing: list[int] = []
-        for frame in reversed(frames):
-            if not shuttle_hallucination_mask[frame]:
-                break
-            skipped_trailing.append(frame)
-        if skipped_trailing:
-            _record_rejection(
-                rejection_diagnostics, 'final_contact', rally_id, skipped_trailing[-1], frames[-1] + 1,
-                shuttle_hallucination_mask, source_codes, candidate_frames=skipped_trailing[::-1],
-            )
-        if not usable_final_contacts:
-            landing = None
-            verdict = point_winner.rally_verdict(
-                rally_id, striker, next_servers[rally_id], landing, band_m,
-            )
-            verdict_rows[rally_id] = verdict
-            geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
-            geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
-                rally_id, geometric, geometric_winner, None, False,
-            )
-            landings[rally_id] = landing
-            continue
-        final_contact = usable_final_contacts[-1]
-        next_start = spans[rally_id + 1][0] if rally_id + 1 < len(spans) else len(track)
-        safe_window = point_winner.landing_window(
-            final_contact, next_start, track, definitive_exclusion_mask,
-            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
-        )
-        event_aware_window_end = safe_window.end_frame
-        if rejection_diagnostics is not None:
-            window_end_without_events = point_winner.window_end(
-                final_contact, next_start, track, definitive_exclusion_mask,
-                resolved.constants.sustained_loss_frames,
-            )
-            if event_aware_window_end < window_end_without_events:
-                _record_rejection(
-                    rejection_diagnostics, 'lost_shuttle_guard', rally_id, final_contact + 1,
-                    window_end_without_events, shuttle_hallucination_mask, source_codes,
-                )
-        all_false_exclusion_mask = np.zeros_like(definitive_exclusion_mask)
-        window_end_without_exclusion_mask = point_winner.window_end(
-            final_contact, next_start, track, all_false_exclusion_mask,
-            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,
-        )
-        window_closed_by_mask = event_aware_window_end < window_end_without_exclusion_mask
-        landing_rejections: list[tuple[int, int]] = []
-        landing = point_winner.pick_landing_to_end(
-            final_contact, event_aware_window_end, track,
-            kin, landing_options, striker, net_band,
-            resolution, court_info, resolved.constants, fps,
-            shuttle_hallucination_mask=shuttle_hallucination_mask,
-            rejected_intervals=landing_rejections,
-        )
-        for start_frame, end_frame in landing_rejections:
-            _record_rejection(
-                rejection_diagnostics, 'landing_descent', rally_id, start_frame, end_frame,
-                shuttle_hallucination_mask, source_codes,
-            )
-        verdict = point_winner.rally_verdict(
-            rally_id, striker, next_servers[rally_id], landing, band_m,
-        )
-        verdict_rows[rally_id] = verdict
-        geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
-        shipped_winner = None
-        if verdict.verdict == point_winner.Verdict.WON:
-            shipped_winner = striker
-        elif verdict.verdict == point_winner.Verdict.LOST:
-            shipped_winner = OTHER_HALF[striker]
-        # Agreement is a consistency check, not an accuracy meter: both arms share the same
-        # fitted hitting order.
-        agreement = None
-        if shipped_winner is not None and geometric_winner is not None:
-            agreement = shipped_winner == geometric_winner
-        geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
-            rally_id, geometric, geometric_winner, agreement, window_closed_by_mask,
-        )
-        landings[rally_id] = landing
-
-        if landing_horizons_s:
-            strict_winner = shipped_winner
-            for horizon_seconds in landing_horizons_s:
-                horizon_frames = max(1, math.floor(horizon_seconds * fps + 0.5))
-                requested_end_frame = final_contact + horizon_frames
-                effective_end_frame = max(
-                    final_contact + 1,
-                    min(requested_end_frame, safe_window.end_frame),
-                )
-                closure_reasons: list[str] = []
-                if requested_end_frame == effective_end_frame:
-                    closure_reasons.append('horizon_cap')
-                if effective_end_frame == safe_window.end_frame:
-                    closure_reasons.extend(safe_window.closure_reasons)
-                capped_landing = point_winner.pick_landing_to_end(
-                    final_contact, effective_end_frame, track, kin, landing_options,
-                    striker, net_band, resolution, court_info, resolved.constants, fps,
-                    shuttle_hallucination_mask=shuttle_hallucination_mask,
-                )
-                capped_verdict = point_winner.rally_verdict(
-                    rally_id, striker, next_servers[rally_id], capped_landing, band_m,
-                )
-                capped_winner = None
-                if capped_verdict.verdict is point_winner.Verdict.WON:
-                    capped_winner = striker
-                elif capped_verdict.verdict is point_winner.Verdict.LOST:
-                    capped_winner = OTHER_HALF[striker]
-                capture.landing_horizon_rows.append(LandingHorizonRow(
-                    rally_id=rally_id,
-                    horizon_seconds=horizon_seconds,
-                    horizon_frames=horizon_frames,
-                    final_contact_frame=final_contact,
-                    requested_end_frame=requested_end_frame,
-                    safe_end_frame=safe_window.end_frame,
-                    effective_end_frame=effective_end_frame,
-                    closure_reasons=tuple(closure_reasons),
-                    strict_landing=landing,
-                    capped_landing=capped_landing,
-                    strict_verdict=verdict,
-                    capped_verdict=capped_verdict,
-                    strict_winner=strict_winner,
-                    capped_winner=capped_winner,
-                    landing_changed=landing != capped_landing,
-                    winner_changed=strict_winner != capped_winner,
-                ))
-
-    hit_height_by_frame: dict[int, int] = {}
-    hit_height_failures: list[tuple[int, int, int, str]] = []
-    for rally_id in range(len(spans)):
-        for stroke_idx, contact_frame in enumerate(filtered_by_rally.get(rally_id, [])):
-            try:
-                rows = point_winner.build_hit_height_rows(
-                    [(rally_id, stroke_idx, contact_frame)], track, net_band, resolution,
-                )
-            except ValueError as exc:
-                hit_height_failures.append((rally_id, stroke_idx, contact_frame, str(exc)))
-                continue
-            hit_height_by_frame[contact_frame] = rows[0].hit_height
-
+    hit_height_by_frame, hit_height_failures = _build_hit_heights(
+        spans=segmentation.spans, filtered_by_rally=contact_data.filtered_by_rally,
+        track=track, net_band=net_band, resolution=court.resolution,
+    )
     return AnnotatorResult(
-        spans=spans, contacts=contacts, filtered_contacts=filtered_contacts,
-        filtered_by_rally=filtered_by_rally,
-        striker_halves=striker_halves, n_strokes_list=n_strokes_list, next_servers=next_servers,
-        fitted_first_all=fitted_first_all, verdict_rows=verdict_rows, landings=landings,
-        geometric_verdict_rows=geometric_verdict_rows,
-        hit_height_by_frame=hit_height_by_frame, hit_height_failures=hit_height_failures,
+        spans=segmentation.spans,
+        contacts=segmentation.contacts,
+        filtered_contacts=contact_data.filtered_contacts,
+        filtered_by_rally=contact_data.filtered_by_rally,
+        striker_halves=contact_data.striker_halves,
+        n_strokes_list=contact_data.n_strokes_list,
+        next_servers=contact_data.next_servers,
+        fitted_first_all=contact_data.fitted_first_all,
+        verdict_rows=verdict_data.verdict_rows,
+        landings=verdict_data.landings,
+        geometric_verdict_rows=verdict_data.geometric_verdict_rows,
+        hit_height_by_frame=hit_height_by_frame,
+        hit_height_failures=hit_height_failures,
     )
