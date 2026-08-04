@@ -1,4 +1,4 @@
-# Badminton stroke classification: project overview
+# Badminton CV annotator: project overview
 
 **Current overview, 30 July 2026.** This overview describes the project
 as it stands at repository merge `726b155`. It puts the scraper and

@@ -24,18 +24,12 @@ torchinfo==1.8.0             # Model summary utility used by tempose.py in the B
 tensorboard==2.20.0          # Backs torch.utils.tensorboard.SummaryWriter (imported at module load in bst_x_train.py)
 torcheval==0.0.7             # multiclass_f1_score used in the bst_x_train training loop
 transformers==5.8.1          # HuggingFace; provides get_cosine_schedule_with_warmup for the bst_x_train LR schedule
+httpx==0.28.1                # Indirect transport dependency of transformers via huggingface-hub
 pyyaml==6.0.3                # tests/test_active_classes.py reads taxonomy YAMLs
 parse==1.22.0                # TrackNetV3 vendor dep (src/shared/tracknetv3)
 
-# --- Backend API ---
-fastapi==0.136.1
-starlette==0.52.1            # FastAPI dependency; pinned so CI matches uv.lock
-uvicorn==0.46.0              # The server that runs FastAPI
-python-multipart==0.0.28     # Required for file upload endpoints
-
 # --- Testing & Infrastructure ---
 pytest==9.0.3
-httpx==0.28.1                # Required by FastAPI TestClient
 
 # bst_x subproject has complex dependencies; so requires 2-3 separate venvs depending on how you run it.
 # Requires Python 3.11.x.

@@ -1,7 +1,8 @@
 # `training/`
 
 Source training data, per-architecture caches, and experiment records.
-Required to train a model; not required by a serving host.
+Required to train a model. Pipeline inference uses selected weights from the
+runtime or experiment trees.
 
 ```
 training/
@@ -65,23 +66,22 @@ training/bric/experiments/<run_id>/
 └── best.pt          best-on-val-macro-F1 model weights
 ```
 
-## Deploying a new model variant (the hot path)
+## Recording a classifier model variant
 
-This is the framework's genuinely pluggable unit: a new training run
-of an existing architecture goes live with zero code changes.
+A completed run can be retained for classifier comparison or selected by a
+future in-process annotator classification stage.
 
 For architectures that use this tree's `experiments/<run_id>/`
 convention (currently BRIC):
 
 1. Train a new run → produces `training/<arch>/experiments/<run_id>/`
    with `manifest.yaml`, `best.pt`, `metrics.csv`.
-2. Symlink or rsync the run into `runtime/deployed/<arch>/` —
+2. Symlink or rsync the run into `runtime/deployed/<arch>/` for shared use —
    see [`runtime/README.md`](../runtime/README.md).
-3. Add a registry entry to `docs/models_registry.yaml`.
-4. Backend dispatcher loads the manifest at boot; frontend renders the
-   new variant from registry data.
 
-No code changes. New checkpoint → live in production.
+These steps retain the model and its provenance. They do not activate a web
+service. An annotator classifier stage should load the selected model directly
+inside the pipeline process.
 
 ## Adding a new architecture
 
@@ -89,10 +89,10 @@ A new architecture is a project, not a drop-in. It requires:
 
 - A new `src/<arch>/` package (dataset, network, train, infer, eval)
   designed for its own input shape and training loop
-- Registration in `src/api/inference.py`'s handler dispatcher
+- An in-process pipeline adapter if the annotator should call it
 - Its own preprocessing scripts and any perception infra it needs
 - Optionally adopting the `training/<arch>/` and
-  `runtime/deployed/<arch>/` conventions for the deployment hot-path
+  `runtime/deployed/<arch>/` conventions for shared model storage
 
 The conventions in this tree (experiment manifest schema, cache
 layout per arch, deployment symlink/rsync workflow) are **opt-in**:
@@ -110,7 +110,7 @@ For architectures that opt into this tree:
   `<arch>/experiments/<run_id>/manifest.yaml` should declare
   `architecture`, `taxonomy`, `variant`, `classes`, hyperparameters,
   seed, and git SHA. Lets `runtime/deployed/<arch>/` slots point at
-  any run uniformly.
+  any run uniformly and supports direct pipeline loading.
 - **Cache idempotency** — caches should be content-addressable on
   their source so re-running producing scripts is safe.
 - **`.gitignore` pattern** — `<dir>/*` plus `!<dir>/.gitkeep` keeps

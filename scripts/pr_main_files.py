@@ -27,7 +27,7 @@ START, END = "<!-- main-files-start -->", "<!-- main-files-end -->"
 # Path relevance: score = churn x weight, first match wins, default 1. Weight 0
 # never shows (research/data churn is noise to a code reviewer). Tune freely.
 WEIGHTS = [
-    (re.compile(r"^(data|experiments|notebooks|clips_local|scratch)/"), 0),
+    (re.compile(r"^(data|experiments|notebooks|scratch)/"), 0),
     (re.compile(r"^(src|training)/"), 3),
     (re.compile(r"^(scripts|tests)/|^\.github/"), 2),
 ]

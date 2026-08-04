@@ -40,7 +40,7 @@ DEFAULT_OUT_DIR = (
     Path(__file__).resolve().parent / "zeroed_frames_analysis_outputs"
 )
 DEFAULT_CLIPS_CSV = Path(
-    "/home/ahalperi/badminton_stroke_classifier/notebooks/clips_master.csv"
+    "/home/ahalperi/badminton_cv_annotator/notebooks/clips_master.csv"
 )
 
 

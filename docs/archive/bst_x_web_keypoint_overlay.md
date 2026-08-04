@@ -1,4 +1,8 @@
-# Live keypoint overlay for BST_X clip viewer
+# Archived BST-X web keypoint overlay plan
+
+This preliminary plan targeted the retired browser clip viewer and FastAPI
+backend. It is preserved for its XAI design notes and is not an active
+implementation plan for the annotator pipeline.
 
 Drawing a player's skeleton on top of a playing video clip, live, synced to playback. For the BST_X models. The drawing happens in the browser on a canvas layer. The server's only job is handing over precomputed joint data as JSON. No PIL, no server-side rendering, no per-request numpy.
 
@@ -12,7 +16,7 @@ This deliverable is independent of any rally-playback work. It slots into the ex
 
 ## Where everything sits
 
-- This planning doc: `src/xai/bst_x_fe_keypoint_overlay.md`
+- This archived planning doc: `docs/archive/bst_x_web_keypoint_overlay.md`
 - Build script: `scripts/build_joints_json_cache.py`
 - Cache output: `runtime/cache/joints_json/{clip_stem}.json.gz`, flat, around 270 MB across 32k clips, gitignored contents
 - API module: `src/api/joints.py`, routes registered from `src/api/main.py`

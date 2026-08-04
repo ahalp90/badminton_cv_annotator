@@ -1,4 +1,7 @@
-# Inference State Store — Design
+# Archived web demo inference state design
+
+This document describes the retired FastAPI web demo. It is preserved as a
+historical design record and does not describe the current annotator pipeline.
 
 A lightweight SQLite-backed store for inference jobs, results, and player
 identification. Sits behind the FastAPI backend and feeds analytics queries.

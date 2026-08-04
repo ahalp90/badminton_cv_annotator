@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Archived with the retired model registry and release manifest.
 # Publish the deployed run-time weights as GitHub Release assets, one-time, by
 # the current team. Pairs with scripts/fetch-models.sh (the next team's side).
 # See MODELS.md for the full rationale.

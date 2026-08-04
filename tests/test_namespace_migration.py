@@ -1,12 +1,12 @@
-"""Durable post-rebrand guards: registry + FE schema + Chang baseline + tree scans.
+"""Durable post-rebrand guards: retained weights + sidecars + Chang baseline + scans.
 
 Pruned 2026-06-16 from the original T1-T12 namespace migration suite (full
 design at docs/architecture_notes/namespace_migration_test_design.md). The
 one-shot rebrand mechanics (T1/T2/T3/T4/T5/T7/T9/T12) all landed and were
 trimmed once stable; the four families that remain catch ongoing regressions:
 
-  T6  registry + TSV lockstep (manifest_path/weights_path resolve, naming pins)
-  T8  FE sidecar JSON schemas (clip splits, perclass stats, clip index)
+  T6  retained-weight integrity (run manifests agree, naming pins)
+  T8  classifier sidecar JSON schemas (clip splits, perclass stats, clip index)
   T10 Chang baseline run untouched (weight filenames keep bst_cg_ap_ per the contract)
   T11 staged tree scans (no regression to legacy modules / dirs / extras / env vars / venv name)
 
@@ -77,101 +77,41 @@ EXPERIMENTS = _experiments_dir()
 
 
 # ---------------------------------------------------------------------------
-# T6: registry lockstep
+# T6: retained-weight integrity
 # ---------------------------------------------------------------------------
 
-REGISTRY_YAML = REPO_ROOT / 'docs' / 'models_registry.yaml'
-MANIFEST_TSV = REPO_ROOT / 'scripts' / 'model_manifest.tsv'
+def _retained_weights() -> list[Path]:
+    return sorted(EXPERIMENTS.glob('run_*/weights/*.pt'))
 
 
-def _load_registry() -> dict:
-    return yaml.safe_load(REGISTRY_YAML.read_text())
+def _run_dir_for_weight(weight_path: Path) -> Path:
+    return weight_path.parent.parent
 
 
-def _registry_entries() -> list[dict]:
-    return _load_registry()['models']
+def test_t6_six_retained_weights_resolve():
+    weights = _retained_weights()
+    assert len(weights) == 6
+    assert all(weight.is_file() for weight in weights)
 
 
-def _tsv_rows() -> list[list[str]]:
-    rows = []
-    for line in MANIFEST_TSV.read_text().splitlines():
-        if not line.strip() or line.lstrip().startswith('#'):
-            continue
-        rows.append(line.split('\t'))
-    return rows
-
-
-def test_t6_registry_minimum_entries_and_architectures():
-    entries = _registry_entries()
-    assert len(entries) >= 7
-    assert {e['architecture'] for e in entries} <= {'bst-x', 'bric'}
-
-
-@pytest.mark.parametrize('entry', _registry_entries(), ids=lambda e: e['id'])
-def test_t6_registry_manifest_resolves(entry):
-    assert (REPO_ROOT / entry['manifest_path']).exists(), \
-        f'{entry["id"]}: manifest_path missing'
-
-
-@pytest.mark.parametrize(
-    'entry', [e for e in _registry_entries() if e['architecture'] == 'bst-x'],
-    ids=lambda e: e['id'],
-)
-def test_t6_bst_x_weights_resolve(entry):
-    """BRIC's weight is intentionally not in-tree (BRIC serves precomputed
-    predictions; see scripts/model_manifest.tsv's tail comment). BST-X weights
-    must resolve."""
-    assert (REPO_ROOT / entry['weights_path']).exists(), \
-        f'{entry["id"]}: weights_path missing'
-
-
-@pytest.mark.parametrize(
-    'entry', [e for e in _registry_entries() if e['architecture'] == 'bst-x'],
-    ids=lambda e: e['id'],
-)
-def test_t6_bst_x_manifest_serial_weight_name_agrees(entry):
-    """The serial referenced in the registry has a weights_path basename matching
-    what the registry advertises. This is the manifest/registry filename
-    agreement the rename script must preserve."""
-    manifest = yaml.safe_load((REPO_ROOT / entry['manifest_path']).read_text())
-    serial_no = entry['serial_no']
-    serial = next((s for s in manifest['serials'] if s.get('serial_no') == serial_no), None)
-    assert serial is not None, f'serial {serial_no} not in manifest'
-    assert Path(serial['weights_path']).name == Path(entry['weights_path']).name
-
-
-def test_t6_exactly_one_bst_x_is_default():
-    bst_x = [e for e in _registry_entries() if e['architecture'] == 'bst-x']
-    defaults = [e for e in bst_x if e.get('is_default') is True]
-    assert len(defaults) == 1
-
-
-def test_t6_tsv_dest_paths_resolve_and_match_registry():
-    """Every non-comment row's dest_path exists AND equals some registry entry's
-    weights_path; sha256 looks like 64 hex chars."""
-    registry_weights = {e['weights_path'] for e in _registry_entries()}
-    for row in _tsv_rows():
-        assert len(row) == 3, f'malformed tsv row: {row!r}'
-        dest_path, _asset_name, sha = row
-        assert (REPO_ROOT / dest_path).is_file(), f'tsv dest missing: {dest_path}'
-        assert dest_path in registry_weights, f'tsv dest not in registry: {dest_path}'
-        assert re.fullmatch(r'[0-9a-f]{64}', sha), f'sha256 malformed: {sha!r}'
+def test_t6_retained_weights_match_run_manifests():
+    """Every retained weight is recorded by its training-run manifest."""
+    for weight_path in _retained_weights():
+        manifest_path = _run_dir_for_weight(weight_path) / 'manifest.yaml'
+        manifest = yaml.safe_load(manifest_path.read_text())
+        weight_names = {
+            Path(serial['weights_path']).name
+            for serial in manifest['serials']
+            if serial.get('weights_path')
+        }
+        assert weight_path.name in weight_names, weight_path
 
 
 @pytest.mark.skipif(not _switchover_landed(), reason='Step 6b not landed')
 def test_t6_post_switchover_weights_prefixed_bst_x():
-    """Post-6b.2: every bst-x entry advertises a bst_x_*.pt weight; the string
-    'bst_CG_AP' no longer appears anywhere in the registry file; the tsv's
-    dest_path basenames are bst_x_*. The asset_name column is exempt
-    (release assets keep their pre-rebrand names by design)."""
-    raw = REGISTRY_YAML.read_text()
-    assert 'bst_CG_AP' not in raw
-    for entry in _registry_entries():
-        if entry['architecture'] == 'bst-x':
-            assert Path(entry['weights_path']).name.startswith('bst_x_'), entry['id']
-    for row in _tsv_rows():
-        dest_path = row[0]
-        assert Path(dest_path).name.startswith('bst_x_'), dest_path
+    """Every retained destination uses the post-switchover BST-X prefix."""
+    for weight_path in _retained_weights():
+        assert weight_path.name.startswith('bst_x_'), weight_path
 
 
 # ---------------------------------------------------------------------------
@@ -209,22 +149,18 @@ def _check_no_model_name_key(obj, path='root'):
             _check_no_model_name_key(v, f'{path}[{i}]')
 
 
-def _registry_anchored_fe_dirs() -> list[Path]:
-    """The bst-x registry's run dirs (six in total today). Slimmed at Step 9b
-    from the full-corpus walk: the migration insurance has done its job, this
-    keeps the FE schema pin on the shape the API actually serves."""
-    out = []
-    for entry in _registry_entries():
-        if entry['architecture'] != 'bst-x':
-            continue
-        fe_dir = (REPO_ROOT / entry['manifest_path']).parent / 'fe_jsons'
+def _retained_weight_fe_dirs() -> list[Path]:
+    """Return sidecar directories for the six retained BST-X weights."""
+    out: set[Path] = set()
+    for weight_path in _retained_weights():
+        fe_dir = _run_dir_for_weight(weight_path) / 'fe_jsons'
         if fe_dir.is_dir():
-            out.append(fe_dir)
+            out.add(fe_dir)
     return sorted(out)
 
 
 @pytest.mark.parametrize(
-    'fe_dir', _registry_anchored_fe_dirs(), ids=lambda p: p.parent.name,
+    'fe_dir', _retained_weight_fe_dirs(), ids=lambda p: p.parent.name,
 )
 def test_t8_fe_jsons_exact_file_set(fe_dir):
     """Every fe_jsons/ dir holds exactly the five gzipped json sidecars."""
@@ -232,7 +168,7 @@ def test_t8_fe_jsons_exact_file_set(fe_dir):
 
 
 @pytest.mark.parametrize(
-    'fe_dir', _registry_anchored_fe_dirs(), ids=lambda p: p.parent.name,
+    'fe_dir', _retained_weight_fe_dirs(), ids=lambda p: p.parent.name,
 )
 def test_t8_clips_split_schema(fe_dir):
     run_id = fe_dir.parent.name
@@ -248,7 +184,7 @@ def test_t8_clips_split_schema(fe_dir):
 
 
 @pytest.mark.parametrize(
-    'fe_dir', _registry_anchored_fe_dirs(), ids=lambda p: p.parent.name,
+    'fe_dir', _retained_weight_fe_dirs(), ids=lambda p: p.parent.name,
 )
 def test_t8_perclass_stats_schema(fe_dir):
     for split in ('test', 'val'):
@@ -262,7 +198,7 @@ def test_t8_perclass_stats_schema(fe_dir):
 
 
 @pytest.mark.parametrize(
-    'fe_dir', _registry_anchored_fe_dirs(), ids=lambda p: p.parent.name,
+    'fe_dir', _retained_weight_fe_dirs(), ids=lambda p: p.parent.name,
 )
 def test_t8_clip_index_schema(fe_dir):
     data = _load_gz_json(fe_dir / 'clip_index.json.gz')
@@ -277,15 +213,11 @@ def test_t8_clip_index_schema(fe_dir):
     _check_no_model_name_key(data)
 
 
-def test_t8_registry_anchored_dirs_have_fe_jsons():
-    """Vacuous-pass guard: every bst-x registry entry's run dir carries the
-    complete five-file fe_jsons/ set."""
-    for entry in _registry_entries():
-        if entry['architecture'] != 'bst-x':
-            continue
-        run_dir = (REPO_ROOT / entry['manifest_path']).parent
-        fe_dir = run_dir / 'fe_jsons'
-        assert fe_dir.is_dir(), f'{entry["id"]}: fe_jsons/ missing'
+def test_t8_retained_weight_dirs_have_fe_jsons():
+    """Every retained BST-X run carries the complete sidecar set."""
+    for weight_path in _retained_weights():
+        fe_dir = _run_dir_for_weight(weight_path) / 'fe_jsons'
+        assert fe_dir.is_dir(), f'{weight_path}: fe_jsons/ missing'
         assert {p.name for p in fe_dir.iterdir()} == FE_FILES
 
 
@@ -362,8 +294,7 @@ TEXT_EXTS = {
 # .gitignore must be matched by name: pathlib treats the leading dot as a
 # hidden-file prefix, so Path('.gitignore').suffix is '' and a TEXT_EXTS
 # entry never fires.
-EXPLICIT_TEXT_NAMES = {'.gitignore', '.env.example', 'docker-compose.yml',
-                       'docker-compose.dev.yml', 'docker-compose.prod.yml'}
+EXPLICIT_TEXT_NAMES = {'.gitignore', '.env.example'}
 
 GLOBAL_EXCLUDE_PREFIXES = (
     'local_scratch/',
@@ -414,13 +345,6 @@ def _step6_common_landed() -> bool:
         return True
     except ImportError:
         return False
-
-
-def _step7_bst_inputs_landed() -> bool:
-    compose = REPO_ROOT / 'docker-compose.dev.yml'
-    if not compose.exists():
-        return False
-    return 'bst_x_inputs' in compose.read_text()
 
 
 def _step5_runtime_landed() -> bool:
@@ -480,22 +404,6 @@ def test_t11_stage2_module_paths():
     assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
 
 
-def test_t11_stage3_bst_inputs_dir():
-    if not _step7_bst_inputs_landed():
-        pytest.skip('Step 7 not landed: docker-compose.dev.yml does not mention bst_x_inputs')
-    # The design doc and this test file quote the rename pattern verbatim;
-    # allowlist both to avoid a self-flag.
-    allowed = {
-        'docs/architecture_notes/namespace_migration_test_design.md',
-        'tests/test_namespace_migration.py',
-    }
-    hits = _scan_pattern(
-        re.compile(r'\bbst_inputs\b'), _tracked_text_files(),
-        allow_path=lambda rel: str(rel) in allowed,
-    )
-    assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
-
-
 def test_t11_stage4_extras_group():
     if not _step5_runtime_landed():
         pytest.skip('Step 5 not landed: pyproject.toml has no bst-x-runtime group')
@@ -534,17 +442,13 @@ def test_t11_stage5_legacy_env_vars():
 
 
 def _stage6_in_scope(rel: str) -> bool:
-    """Scoped stage-6 corpus: live shipped docs, api code, manifest tsv, run
-    manifests, and the Chang baseline dir. Scratch history (now relocated
+    """Scoped stage-6 corpus: live shipped docs, run manifests, and the Chang
+    baseline dir. Scratch history (now relocated
     under docs/architecture_notes/) and the ledger legitimately mention old
     filenames; not in scope here."""
     if rel.startswith('docs/architecture_notes/'):
         return False
     if rel.startswith('docs/'):
-        return True
-    if rel.startswith('src/api/'):
-        return True
-    if rel == 'scripts/model_manifest.tsv':
         return True
     if rel.startswith('experiments/bst_x/shuttleset/run_'):
         return True
@@ -566,16 +470,6 @@ def test_t11_stage6_bst_cg_ap_filename_prose():
             lines = path.read_text(errors='ignore').splitlines()
         except FileNotFoundError:
             continue
-        # tsv's asset_name column (column index 1) is exempt — frozen by design.
-        if rel == 'scripts/model_manifest.tsv':
-            for i, line in enumerate(lines, 1):
-                if line.startswith('#') or not line.strip():
-                    continue
-                cols = line.split('\t')
-                checkable = '\t'.join([cols[0]] + cols[2:]) if len(cols) >= 2 else line
-                if pattern.search(checkable):
-                    hits.append((rel, i, line.rstrip()))
-            continue
         for i, line in enumerate(lines, 1):
             if pattern.search(line):
                 hits.append((rel, i, line.rstrip()))
@@ -590,5 +484,3 @@ def test_t11_stage7_legacy_venv_name():
         allow_path=lambda rel: False,
     )
     assert hits == [], '\n'.join(f'{r}:{n}: {line}' for r, n, line in hits)
-
-

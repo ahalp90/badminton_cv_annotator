@@ -32,11 +32,6 @@ This runs all tests except the HPC integration test, which auto-skips when `BST_
 
 - **Prerequisites:** Project dependencies
 
-### `test_api.py`
-**FastAPI endpoint smoke tests.** Tests the `/api/upload`, `/api/status`, `/api/results`, and `/api/models` endpoints using FastAPI's `TestClient`.
-
-- **Prerequisites:** Project dependencies
-
 ### `test_integration.py`
 **End-to-end downstream pipeline test.** Validates the full path from real preprocessed npy files through to a BST_CG_AP forward pass:
 

@@ -62,7 +62,7 @@ What this does:
   satisfies `requires-python = ">=3.11"`.
 - Installs the **shared base** (always): torch, torchvision, numpy,
   pandas, scipy, opencv-python, Pillow, tqdm, parse, pycocotools,
-  pyyaml, fastapi, uvicorn, python-multipart.
+  pyyaml, jaxtyping, beartype, frozendict, and pyrefly.
 - Installs the **`bric` extras** on top: ultralytics, transformers,
   torcheval (combines `bric-runtime` + `bric-train`). R(2+1)D-18 ships
   in torchvision (a base dep) so no extra ML lib is needed beyond
