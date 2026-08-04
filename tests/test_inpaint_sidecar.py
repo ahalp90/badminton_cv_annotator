@@ -309,7 +309,7 @@ def test_manifest_provenance_comes_from_video_directory(tmp_path: Path, monkeypa
     video_path, csv_path, working_dir = _manifest_paths(tmp_path, monkeypatch)
     _write_manifest(
         video_path,
-        '''dataset = "ShuttleSet"\n\n[videos."1.mp4"]\nvideo_id = 1\ntitle = "Kento_MOMOTA"\nurl = "https://example.test/video"\nfps = 25.0\n''',
+        '''dataset = "shuttleset"\n\n[videos."1.mp4"]\nvideo_id = 1\ntitle = "Kento_MOMOTA"\nurl = "https://example.test/video"\nfps = 25.0\n''',
     )
     working_dir.joinpath('sources.toml').write_text(
         '''dataset = "Wrong working-directory dataset"\n\n[videos."1.mp4"]\nvideo_id = 999\n''',
@@ -321,7 +321,7 @@ def test_manifest_provenance_comes_from_video_directory(tmp_path: Path, monkeypa
         key: payload[key]
         for key in ('dataset', 'video_id', 'title', 'url', 'fps')
     } == {
-        'dataset': 'ShuttleSet',
+        'dataset': 'shuttleset',
         'video_id': 1,
         'title': 'Kento_MOMOTA',
         'url': 'https://example.test/video',
@@ -343,7 +343,7 @@ def test_manifest_fields_are_omitted_for_unlisted_video(tmp_path: Path, monkeypa
     video_path, csv_path, _working_dir = _manifest_paths(tmp_path, monkeypatch)
     _write_manifest(
         video_path,
-        '''dataset = "ShuttleSet"\n\n[videos."2.mp4"]\nvideo_id = 2\ntitle = "Other"\nurl = "https://example.test/other"\nfps = 25.0\n''',
+        '''dataset = "shuttleset"\n\n[videos."2.mp4"]\nvideo_id = 2\ntitle = "Other"\nurl = "https://example.test/other"\nfps = 25.0\n''',
     )
     payload = _write_manifest_case(video_path, csv_path)
     assert not {'dataset', 'video_id', 'title', 'url', 'fps'} & payload.keys()
@@ -353,10 +353,10 @@ def test_manifest_partial_entry_copies_only_present_fields(tmp_path: Path, monke
     video_path, csv_path, _working_dir = _manifest_paths(tmp_path, monkeypatch)
     _write_manifest(
         video_path,
-        '''dataset = "ShuttleSet"\n\n[videos."1.mp4"]\ntitle = "Partial"\n''',
+        '''dataset = "shuttleset"\n\n[videos."1.mp4"]\ntitle = "Partial"\n''',
     )
     payload = _write_manifest_case(video_path, csv_path)
-    assert payload['dataset'] == 'ShuttleSet'
+    assert payload['dataset'] == 'shuttleset'
     assert payload['title'] == 'Partial'
     assert not {'video_id', 'url', 'fps'} & payload.keys()
 
@@ -394,7 +394,7 @@ def test_malformed_manifest_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_manifest_permission_error_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     video_path, csv_path, _working_dir = _manifest_paths(tmp_path, monkeypatch)
     manifest_path = video_path.parent / 'sources.toml'
-    manifest_path.write_text('dataset = "ShuttleSet"\n', encoding='utf-8')
+    manifest_path.write_text('dataset = "shuttleset"\n', encoding='utf-8')
     real_open = builtins.open
 
     def raise_for_manifest(path, *args, **kwargs):
@@ -439,7 +439,7 @@ def test_manifest_field_types_are_validated(
     video_path, csv_path, _working_dir = _manifest_paths(tmp_path, monkeypatch)
     _write_manifest(
         video_path,
-        f'dataset = "ShuttleSet"\n\n[videos."1.mp4"]\n{field} = {value}\n',
+        f'dataset = "shuttleset"\n\n[videos."1.mp4"]\n{field} = {value}\n',
     )
     with pytest.raises(TypeError):
         _write_manifest_case(video_path, csv_path)
@@ -447,7 +447,7 @@ def test_manifest_field_types_are_validated(
 
 def test_manifest_accepts_string_video_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     video_path, csv_path, _working_dir = _manifest_paths(tmp_path, monkeypatch)
-    _write_manifest(video_path, 'dataset = "ShuttleSet"\n\n[videos."1.mp4"]\nvideo_id = "001"\n')
+    _write_manifest(video_path, 'dataset = "shuttleset"\n\n[videos."1.mp4"]\nvideo_id = "001"\n')
     payload = _write_manifest_case(video_path, csv_path)
     assert payload['video_id'] == '001'
 

@@ -242,8 +242,11 @@ def _read_sources_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:
         raise FileNotFoundError(f'{manifest_path} not found')
     with manifest_path.open('rb') as handle:
         manifest = tomllib.load(handle)
-    if manifest.get('dataset') != 'scraped':
-        raise ValueError("sources.toml 'dataset' must be 'scraped'")
+    dataset = manifest.get('dataset')
+    if not isinstance(dataset, str):
+        raise TypeError("sources.toml 'dataset' must be a string")
+    if not dataset.strip():
+        raise ValueError("sources.toml 'dataset' must not be empty")
     videos = manifest.get('videos')
     if not isinstance(videos, dict):
         raise TypeError("sources.toml 'videos' must be a table")

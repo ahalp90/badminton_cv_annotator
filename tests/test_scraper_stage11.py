@@ -209,7 +209,7 @@ def test_commentary_ineligible_video_pairs_with_blank_commentary(tmp_path, monke
     video_dir.mkdir()
     (video_dir / 'v.mp4').write_bytes(b'video')
     (video_dir / 'sources.toml').write_text(
-        'dataset = "scraped"\n\n'
+        'dataset = "shuttleset"\n\n'
         '[videos."v.mp4"]\n'
         'video_id = "v"\n'
         'commentary_eligible = false\n',
@@ -439,6 +439,16 @@ def test_missing_manifest_fails_for_video_with_fps(tmp_path, monkeypatch):
             'commentary_eligible = "true"\n',
             ['v.mp4'],
             TypeError,
+        ),
+        (
+            'dataset = 7\n\n[videos]\n',
+            ['v.mp4'],
+            TypeError,
+        ),
+        (
+            'dataset = ""\n\n[videos]\n',
+            ['v.mp4'],
+            ValueError,
         ),
     ],
 )

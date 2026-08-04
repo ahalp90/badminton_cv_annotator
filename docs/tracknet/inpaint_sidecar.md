@@ -53,7 +53,7 @@ Example, with every field:
         "tracknet_ckpt": "TrackNet_best.pt",
         "inpaintnet_ckpt": "InpaintNet_best.pt",
         "input_video": "1.mp4",
-        "dataset": "ShuttleSet",
+        "dataset": "shuttleset",
         "video_id": 1,
         "title": "Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals",
         "url": "https://www.youtube.com/watch?v=O669aZhH0LI",
@@ -121,7 +121,7 @@ Source facts are asserted, never inferred: a numeric stem like `1.mp4`
 proves nothing about which video it is. The writer looks for
 `sources.toml` in the input video's own directory:
 
-    dataset = "ShuttleSet"
+    dataset = "shuttleset"
 
     [videos."1.mp4"]
     video_id = 1
