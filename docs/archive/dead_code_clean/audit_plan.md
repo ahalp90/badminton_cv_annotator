@@ -104,7 +104,7 @@ sweep.
 2. Contested or refuted findings drop to a report appendix with the refutation
    noted.
 
-## Deliverables (docs/dead_code_clean/)
+## Deliverables (docs/archive/dead_code_clean/)
 
 - audit_plan.md, this scope and method record
 - decisions.md, the final refactor rulings

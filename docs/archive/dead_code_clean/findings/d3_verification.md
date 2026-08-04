@@ -2,7 +2,7 @@
 
 1. VERDICT: Confirmed. BST-X and BRIC have live callers; the script is a CLI-only renderer; `annotate_cells` and `render_panel` duplicate the shared helper internals.
 
-- Shared renderer: production caller is `src/bric/eval.py:17` (`from shared.eval_plots import plot_confusion_matrix`) and `src/bric/eval.py:187-191` (`plot_confusion_matrix(...)`). No test caller was found. Documentation references include `README.md:52`, `src/shared/eval_plots.py:3-5`, and the audit notes `docs/dead_code_clean/findings/wp2.md:21-23`.
+- Shared renderer: production caller is `src/bric/eval.py:17` (`from shared.eval_plots import plot_confusion_matrix`) and `src/bric/eval.py:187-191` (`plot_confusion_matrix(...)`). No test caller was found. Documentation references include `README.md:52`, `src/shared/eval_plots.py:3-5`, and the audit notes `docs/archive/dead_code_clean/findings/wp2.md:21-23`.
 - BST-X renderer: live production caller is confirmed. `src/bst_x/bst_x_train.py:38` imports it, and `src/bst_x/bst_x_train.py:943-951` contains:
 
   > `if show_confusion_matrix:`  
@@ -10,7 +10,7 @@
 
   Its only other executable call is the module self-demo at `src/bst_x/result_utils.py:137-153`. Documentation references are `src/bst_x/data_pipeline_to_model_train.md:505,558` and `docs/architecture_notes/architecture_2_research_10_April.md:228`.
 - Script renderer: `annotate_cells` is called only by `render_panel` at `scripts/plots/confusion_matrix.py:90`; `render_panel` is called only by `main` at `scripts/plots/confusion_matrix.py:142-149`; `main` is reached only through the module guard at `scripts/plots/confusion_matrix.py:159-160`. The script usage is documented at `scripts/plots/confusion_matrix.py:12-15` and `README.md:52`. No production import caller or test caller was found.
-- The BRIC claim is confirmed. `src/bric/eval.py:17` imports `shared.eval_plots`, and `src/bric/eval.py:187-191` calls it. The contrary audit note at `docs/dead_code_clean/findings/wp5.md:38` is stale.
+- The BRIC claim is confirmed. `src/bric/eval.py:17` imports `shared.eval_plots`, and `src/bric/eval.py:187-191` calls it. The contrary audit note at `docs/archive/dead_code_clean/findings/wp5.md:38` is stale.
 - The duplicate internals are confirmed. Both implementations contain the same threshold and cell loop: `src/shared/eval_plots.py:24-31` and `scripts/plots/confusion_matrix.py:48-55`. Both render the same heatmap, labels, subtitle and annotations: `src/shared/eval_plots.py:50-65` and `scripts/plots/confusion_matrix.py:74-90`. Their F1 sorting and zero-safe normalisation also match at `src/shared/eval_plots.py:95-110` and `scripts/plots/confusion_matrix.py:114-131`.
 - History:
   - Shared renderer: last substantive code commit `4c83fff` (authored 2026-05-24, committed 2026-06-18). `git log -L` identifies it as the body introduction. Later touches `12b30c9`, `fc6aa62` and `2369971` changed source paths or provenance text.

@@ -1,6 +1,6 @@
 # WP6 raw return (automated read-only sweep, 2026-08-01)
 
-CLUSTER SHAPE: `src/bric` provides BRIC training, cache assembly, perception and preprocessing, with documented entry points in `bric.train`, `bric.smoke_test` and the three preprocessing modules (`src/bric/README.md:9-29`, `src/bric/train.py:738-744`, `src/bric/preprocessing/slice_rallies.py:230-231`, `src/bric/preprocessing/extract_shuttle.py:216-217`, `src/bric/preprocessing/preprocess_videos.py:568-569`). `src/api` is live through the Docker `uvicorn src.api.main:app` root, including upload, library, job, model and registry routes (`docs/dead_code_clean/audit_plan.md:21-31`, `src/api/main.py:185-197`, `src/api/main.py:365-572`), with `_process_video` dispatching to BST, BRIC or the fallback stub (`src/api/main.py:208-301`).
+CLUSTER SHAPE: `src/bric` provides BRIC training, cache assembly, perception and preprocessing, with documented entry points in `bric.train`, `bric.smoke_test` and the three preprocessing modules (`src/bric/README.md:9-29`, `src/bric/train.py:738-744`, `src/bric/preprocessing/slice_rallies.py:230-231`, `src/bric/preprocessing/extract_shuttle.py:216-217`, `src/bric/preprocessing/preprocess_videos.py:568-569`). `src/api` is live through the Docker `uvicorn src.api.main:app` root, including upload, library, job, model and registry routes (`docs/archive/dead_code_clean/audit_plan.md:21-31`, `src/api/main.py:185-197`, `src/api/main.py:365-572`), with `_process_video` dispatching to BST, BRIC or the fallback stub (`src/api/main.py:208-301`).
 
 LEDGER:
 

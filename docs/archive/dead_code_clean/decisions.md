@@ -26,7 +26,7 @@ the maintainer's rulings, and three automated read-only checks from 2026-08-02:
 D1 downloader compatibility, D2 shared-swap blast radius, and D3 verification.
 Planning only: no code changes were made during the audit. Execution is a later
 pass. The D1/D2/D3 raw returns are archived as
-docs/dead_code_clean/findings/d1_downloader.md, d2_shared_swap.md and
+docs/archive/dead_code_clean/findings/d1_downloader.md, d2_shared_swap.md and
 d3_verification.md; their consumer and contract tables are normative for
 the retargets below.
 
