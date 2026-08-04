@@ -1,0 +1,66 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/replay_mask.py",
+    "line": 177,
+    "category": "docs-prose",
+    "claim": "Docstring sentence exceeds single-sub-clause limit with multiple semicolons and chained conditions.",
+    "quote": "Speed steps touching a non_evidence frame are unmeasured: they feed neither the baseline nor the rolling median; edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.",
+    "chunk_id": "whole",
+    "suggested_fix": "Split into 2\u20133 shorter sentences: e.g., 'Speed steps touching a non_evidence frame are unmeasured and feed neither the baseline nor the rolling median. Edge frames of a graded run can still fire on neighbouring measured evidence. A window with no measured step reads not-slow.'"
+   },
+   {
+    "file": "src/annotator/replay_mask.py",
+    "line": 179,
+    "category": "docs-orientation",
+    "claim": "Parameter documentation for track omits axis semantics; index-2 visibility is used in code but unexplained in docstring.",
+    "quote": ":param track: `(t, 3)` whole-video shuttle track, or None.",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify axes: ':param track: `(t, 3)` whole-video shuttle track where each row is `[x, y, visibility]` (1=visible, 0=occluded), or None.'"
+   },
+   {
+    "file": "src/annotator/replay_mask.py",
+    "line": 293,
+    "category": "needless-abstraction",
+    "claim": "_cli_non_evidence is a single-caller wrapper that chains grade_track, logging, and config lookup without encapsulating complex logic.",
+    "quote": "def _cli_non_evidence(track: np.ndarray | None) -> np.ndarray | None:\n    \"\"\"Grade a CLI track and return frames rejected by the resolved policy.\"\"\"\n    if track is None:\n        return None\n    codes, _guard_info = grade_track(track)\n    log.info('inpaint grade counts: %s', code_counts(codes))\n    return np.isin(codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))",
+    "chunk_id": "whole",
+    "suggested_fix": "Inline the 7 lines into main() at line 340, replacing `non_evidence=_cli_non_evidence(track)` with the direct sequence."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/replay_mask.py",
+    "line": 177,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Docstring sentence has four clauses (separated by colons and semicolons), violating the single sub-clause rule.",
+    "confidence": "high",
+    "quote": "Speed steps touching a non_evidence frame are unmeasured: they feed neither the baseline nor the rolling median; edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.",
+    "suggested_fix": "Split into separate sentences: 'Speed steps touching a non_evidence frame are unmeasured. They feed neither the baseline nor the rolling median. Edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.'"
+   },
+   {
+    "file": "src/annotator/replay_mask.py",
+    "line": 286,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Multi-line list comprehension with method call in predicate violates comprehension house style rule.",
+    "confidence": "high",
+    "quote": "return [\n            (int(row['start_frame']), int(row['end_frame']))\n            for row in csv.DictReader(handle)\n            if row.get('video_id') == video_id\n        ]",
+    "suggested_fix": "Unpack to explicit for loop: 'result = []; (read/iterate); if row.get('video_id') == video_id: result.append(...); return result'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [],
+  "overflow_note": null
+ }
+]

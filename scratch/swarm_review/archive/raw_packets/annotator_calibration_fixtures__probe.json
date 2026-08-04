@@ -1,0 +1,68 @@
+{
+ "module": "src/annotator/calibration/fixtures.py",
+ "purpose": "Defines digest-validated input fixtures for annotator calibration. Loads camera geometry from tracked homography and resolution data, constructs three Fixture instances representing badminton matches with tracked positions and ground truth, and validates external fixture files against MD5 digests to prevent silent data corruption.",
+ "public_api": [
+  {
+   "name": "FilePin",
+   "role": "Dataclass storing path, MD5 digest, and root location for one tracked file; used to pin external files against bit-for-bit changes."
+  },
+  {
+   "name": "CalibrationGeometry",
+   "role": "Dataclass holding derived camera-space court bounds, net band, and video resolution for one fixture."
+  },
+  {
+   "name": "FixtureDigests",
+   "role": "Dataclass holding nine MD5 digests for one fixture's external files in fixed order; passed to Fixture constructor."
+  },
+  {
+   "name": "Fixture",
+   "role": "Dataclass representing all inputs for one scoring fixture; name, video ID, FPS, geometry, and file digests; properties derive paths from name."
+  },
+  {
+   "name": "fixtures_root",
+   "role": "Returns the external fixture root directory from ANNOTATOR_FIXTURES_ROOT environment variable; called to resolve fixture file locations."
+  },
+  {
+   "name": "verify_file",
+   "role": "Asserts one pinned file exists and matches its recorded MD5 digest; called before using fixture files."
+  },
+  {
+   "name": "verify_fixture",
+   "role": "Validates that all nine external files named by a fixture exist with correct MD5 digests; top-level validation entry point."
+  },
+  {
+   "name": "SSET_01",
+   "role": "Pre-built Fixture instance for Wave 1 calibration (Kento MOMOTA match); exposed at module level for test imports."
+  },
+  {
+   "name": "SSET_15",
+   "role": "Pre-built Fixture instance for Wave 1 calibration (Anthony GINTING match); exposed at module level for test imports."
+  },
+  {
+   "name": "SSET_21",
+   "role": "Pre-built Fixture instance for Wave 1 calibration (An Se Young match); exposed at module level for test imports."
+  },
+  {
+   "name": "FIXTURES",
+   "role": "Tuple collecting the three pre-built Fixture instances; provides unified access to all Wave 1 fixtures."
+  },
+  {
+   "name": "SHARED_FILES",
+   "role": "Tuple of FilePin entries for repository-local files (CSVs) shared across fixtures; used for validation."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "homography = get_H(homography_row)",
+   "why_unclear": "Function is imported from shared.court but I cannot determine its exact signature or which columns it expects from the homography_row DataFrame without reading that module."
+  },
+  {
+   "quote": "court_units_per_metre = (court_y_max - court_y_min) / REF_COURT_M[0]",
+   "why_unclear": "REF_COURT_M is imported from shared.court but I cannot determine its value, units, or what other tuple elements represent without reading that module."
+  },
+  {
+   "quote": "# Worked arithmetic: docs/scraper_pipeline/annotator_fixture_geometry.md.\n_HOMOGRAPHY_TO_FIXTURE_MULTIPLIER = 1.5",
+   "why_unclear": "The multiplier is justified in external documentation I have not read, so I cannot verify that 1.5 is the correct scaling factor from 1280\u00d7720 homography coordinates to 1920\u00d71080 fixture coordinates."
+  }
+ ]
+}

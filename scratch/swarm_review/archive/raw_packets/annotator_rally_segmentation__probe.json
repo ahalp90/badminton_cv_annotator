@@ -1,0 +1,120 @@
+{
+ "module": "src/annotator/rally_segmentation.py",
+ "purpose": "This module implements stage 8 of a badminton video pipeline: it takes a whole-video shuttle-position track and turns it into rally spans (start/end frames of each rally) and contact events (frames where a player hits the shuttle). It works by finding stretches of shuttle motion separated by \"rest\" (slow or untracked) periods, then within each rally span detecting sudden velocity changes (\"impulses\") as candidate contacts, filtering those against player-wrist proximity, and de-duplicating nearby candidates. It also has an optional CLI entry point for batch-processing a directory of tracks into CSV outputs.",
+ "public_api": [
+  {
+   "name": "scale_thresholds",
+   "role": "Rescales an fps-independent Stage8Thresholds preset to a given fps using the base-30 lookup table; called when segmenting video shot at a non-default frame rate."
+  },
+  {
+   "name": "CourtGeo",
+   "role": "NamedTuple holding court geometry (x/y bounds, net band) used to filter person detections to the court; constructed by callers doing player-slot filtering."
+  },
+  {
+   "name": "ServeSetupInputs",
+   "role": "NamedTuple bundling per-frame sticky-tracker evidence (ankle/wrist/height data) for the serve-setup stillness gate; built by build_serve_setup_inputs and consumed by serve_setup_still."
+  },
+  {
+   "name": "series_drift",
+   "role": "Computes median-half positional drift of a sentinel-coded point series; used internally to measure how much a player moved during a lookback window."
+  },
+  {
+   "name": "serve_setup_still",
+   "role": "Returns whether specified players stayed still (drift below a body-height threshold) through a claimed serve frame; used as part of the serve-start gating option."
+  },
+  {
+   "name": "build_serve_setup_inputs",
+   "role": "Builds and validates a ServeSetupInputs object from a StickyResult and video resolution; call before using serve-start gating in segment_video."
+  },
+  {
+   "name": "ServeStartMode",
+   "role": "StrEnum (TRIM/REJECT) controlling what happens to a rally region with no serve-setup-qualifying burst."
+  },
+  {
+   "name": "ServeStartClose",
+   "role": "StrEnum (BURST/LAST_REST) controlling where a split rally span closes under serve-start gating."
+  },
+  {
+   "name": "ServeStartOptions",
+   "role": "NamedTuple bundling all serve-start gating configuration passed to segment_video/find_rally_spans to require a serve-setup lookback before opening a rally span."
+  },
+  {
+   "name": "serve_setup_still",
+   "role": "(listed above)"
+  },
+  {
+   "name": "court_scale_slots",
+   "role": "Returns which pose-detection slot indices fall within court geometry bounds, for filtering players to those actually on court."
+  },
+  {
+   "name": "apply_replay_mask",
+   "role": "Freezes replay/dead-time frames of a track to the last live position so they read as rest; called at the start of segment_video when a replay_mask is supplied."
+  },
+  {
+   "name": "span_impulses",
+   "role": "Computes per-junction velocity-change magnitude (impulse) within one rally span; the raw signal contact detection is built on."
+  },
+  {
+   "name": "rolling_floor",
+   "role": "Computes a rolling median 'floor' of impulse values over visible junctions, used as the local baseline that a real contact's impulse must exceed by a multiple."
+  },
+  {
+   "name": "impulse_cell_candidates",
+   "role": "Finds raw contact candidates in a span using the impulse-vs-floor rule plus dedup by radius; called by detect_contact_flags."
+  },
+  {
+   "name": "detect_contact_flags",
+   "role": "Thin wrapper around impulse_cell_candidates returning (frame, impulse) contact candidates for one span."
+  },
+  {
+   "name": "contact_proximity_ok",
+   "role": "Guardrail check: is a tracked player near the shuttle at a candidate contact frame; called per-candidate when court positions are available, annotates but never filters."
+  },
+  {
+   "name": "wrist_contact_near",
+   "role": "Body-unit wrist-distance gate on one contact frame; used to filter/annotate raw impulse candidates when sticky wrist distances are supplied."
+  },
+  {
+   "name": "suppress_contact_flags",
+   "role": "Greedy, impulse-ranked suppression of nearby duplicate contact flags within a frame radius; called after wrist gating to produce the final accepted contact set."
+  },
+  {
+   "name": "tracker_segments",
+   "role": "Intersects homography scene-row frame ranges with a court-present boolean mask to get maximal usable tracking intervals; used to scope the sticky player-tracking loop."
+  },
+  {
+   "name": "build_sticky_result",
+   "role": "Runs the sticky player-anchor tracking loop (imported from the bst_x package) over given segments to produce per-frame player position/wrist-distance evidence; called before serve-start gating or wrist-contact gating that needs sticky data."
+  },
+  {
+   "name": "find_rally_spans",
+   "role": "Span-only segmentation entry point: computes rest/speed and returns rally (start,end) spans without doing contact detection; called directly or via segment_video."
+  },
+  {
+   "name": "assemble_contacts",
+   "role": "Given already-chosen spans, runs contact detection, wrist gating, and suppression to produce the list of ContactCandidate rows; called by segment_video."
+  },
+  {
+   "name": "segment_video",
+   "role": "Main entry point: full stage-8 pass over one video's track, combining span-finding and contact assembly with all optional gating/masking behaviour; the top-level function most external callers use."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point (python -m annotator.rally_segmentation --shuttle-dir ...) that batch-processes a directory of shuttle tracks into rally-spans and contact-frames CSVs."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "# TODO: position-based count means a tight close-up CAN read 1 and route partial; the old\n# \"close-ups read zero\" claim was size-banded and does not describe the permanent\n# court-scale box and slot paths.",
+   "why_unclear": "This TODO references a prior claim about close-up framing and count semantics that I have no other context for; I cannot judge whether the surrounding median_count>=1 branch logic is currently correct or still has the flagged issue, since it depends on history/behaviour of the sticky_anchor module I did not open."
+  },
+  {
+   "quote": "params = sticky_anchor.StickyAnchorParams()",
+   "why_unclear": "build_sticky_result's correctness depends heavily on the sticky_anchor.analyse_frame contract (what fields AnalysisResult carries, EMA update semantics, in_generous_court behaviour) from the bst_x package, which this file imports but I did not open, so I can only describe this function's role at a surface level, not verify its internal correctness."
+  },
+  {
+   "quote": "impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > impulse_multiple",
+   "why_unclear": "The specific numeric choice of CONTACT_IMPULSE_MULTIPLE=4.0 and its empirical justification (referenced only via a docstring comment citing measured recall/precision numbers) is not something I can independently verify without the referenced experiments; I take the docstring's stated tradeoff on faith rather than confirmed understanding."
+  }
+ ]
+}

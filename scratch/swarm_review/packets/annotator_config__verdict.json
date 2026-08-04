@@ -1,0 +1,144 @@
+{
+  "module": "src/annotator/config.py",
+  "probe_assessment": "The claude-haiku low-effort cold read held up for the module's purpose and for the path, threshold, guard, and configuration-field roles. It slightly flattened the explicit lifecycle distinction between BaseAnnotatorConfig as a preset and ResolvedAnnotatorConfig as the final per-video configuration, but the class docstrings make that distinction clear, so I treat the wording as probe imprecision rather than a code-induced finding. The three listed stumbles are genuine file-local comprehension gaps: the ResolvedAnnotatorConfig docstring does not define what 'unwired until threading' means, the BaseAnnotatorConfig comment gives no meaning for W2.9 or the two-sided re-entry guard, and __post_init__ enforces the demotion-bound invariant without explaining its semantic relationship to the guard.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/config.py",
+      "line": 159,
+      "category": "comprehension-trap",
+      "claim": "The ResolvedAnnotatorConfig docstring does not explain what constants is connected to or what threading will do, so a junior cannot determine the field's lifecycle from this file alone.",
+      "quote": "``thresholds`` is the run_video-ready value (run_video declares the\nalready-scaled precondition). ``constants`` is deliberately unwired until\nthreading.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 125,
+      "category": "comprehension-trap",
+      "claim": "The BaseAnnotatorConfig comment cites W2.9 and a ruled two-sided re-entry guard without defining either term or their relationship to smoothing, so a junior cannot resolve the note from this file alone.",
+      "quote": "Measured together in W2.9: ignore invisible coordinates during smoothing,\nthen classify sustained gaps with the ruled two-sided re-entry guard.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 147,
+      "category": "comprehension-trap",
+      "claim": "The post-init validation establishes that any specified re-entry guard requires gap_state_demotion_bound, but the file gives no rationale or semantic link for that invariant, so a junior cannot explain the requirement from the file alone.",
+      "quote": "guard_specified = self.reentry_guard_variant is not None or self.reentry_guard_buffer is not None\n        if guard_specified and self.gap_state_demotion_bound is None:\n            raise ValueError('reentry guard requires gap_state_demotion_bound')",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/config.py",
+      "line": 159,
+      "category": "docs-prose",
+      "claim": "The phrase 'deliberately unwired until threading' is obscure and its meaning is not explained to someone unfamiliar with the domain.",
+      "quote": "``constants`` is deliberately unwired until\nthreading.",
+      "suggested_fix": "State whether constants is currently unused or is awaiting a later pass through the resolver, and replace threading with the concrete operation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The surrounding docstring explains the scaled threshold precondition but does not define unwired or threading.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 120,
+      "category": "docs-prose",
+      "claim": "The phrase 'Strategy fields...arrive with their stages' is vague and does not clearly explain how or when these fields are provided.",
+      "quote": "Strategy fields (dead-mask producer, smoothing, and serve lanes)\narrive with their stages.",
+      "suggested_fix": "Say which stage supplies these fields or state that stage-specific callers provide them before resolution.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The dataclass fields show some strategy values, but the file does not identify their source or explain arrive with their stages.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 106,
+      "category": "docs-prose",
+      "claim": "The word 'ruled' in 'ruled 2026-07-07' is unclear; the intent (decided, established, or approved) should be stated explicitly.",
+      "quote": "Fraction only (ruled 2026-07-07): a consecutive-run leg",
+      "suggested_fix": "Replace ruled with decided or state the recorded decision directly.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the following sentences explain the technical choice. Ruled is still an idiosyncratic history label whose exact force is not clear to a new reader.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 52,
+      "category": "docs-prose",
+      "claim": "The term 'block-2 sweep pick' is mentioned without explanation; a junior developer would not know what 'block-2' refers to.",
+      "quote": "One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep\npick).",
+      "suggested_fix": "Replace block-2 sweep pick with the criterion that selected the preset, or define block-2 in plain language.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The class docstring identifies the shipped preset but gives no meaning for block-2 or the sweep that selected it.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 89,
+      "category": "docs-prose",
+      "claim": "The comment uses unexplained domain jargon ('decontaminated baseline', 'rally-tail deceleration') that requires field knowledge to understand.",
+      "quote": "0.15 is swept against the decontaminated baseline (records/decontam_frac_sweep,\nautograder docs); the old 0.3 was tuned against the pre-decontamination norm and read\nrally-tail deceleration as slow motion.",
+      "suggested_fix": "Explain what was decontaminated and why tail deceleration is distinct from slow motion, or remove the experiment shorthand from this configuration comment.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The operational meaning of SLOWMO_SPEED_FRAC is stated on the preceding line, but the provenance terms in this quote are not defined in the file.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 84,
+      "category": "docs-prose",
+      "claim": "The comment uses unexplained computer-vision terms ('reprojected-corner displacement', 'segment homographies') without grounding their significance.",
+      "quote": "Reprojected-corner displacement between adjacent segment homographies, as a\nfraction of frame size.",
+      "suggested_fix": "Describe the compared court-corner positions in plain language and say why their displacement indicates a perspective shift.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and defines the measurement shape, but it does not explain homography or why the measurement is a perspective-shift signal for a junior reader.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 126,
+      "category": "docs-prose",
+      "claim": "The comment references 'W2.9' and 'two-sided re-entry guard' without explaining what these terms mean.",
+      "quote": "Measured together in W2.9: ignore invisible coordinates during smoothing,\nthen classify sustained gaps with the ruled two-sided re-entry guard.",
+      "suggested_fix": "Replace W2.9 with the relevant experiment or decision, and define how the two-sided guard classifies a sustained gap.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The full comment is the clearest surviving version of two narrower duplicate findings about W2.9 and ruled, and neither term is defined in the module.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 134,
+      "category": "docs-prose",
+      "claim": "The comment uses unexplained terms ('three-arm remeasure', 'inpaint grades') without explaining their significance to someone unfamiliar with the project.",
+      "quote": "Shipping default from the three-arm remeasure (2026-07-22): rejecting all three\ninpaint grades scored best on every fixture;",
+      "suggested_fix": "Define the three grades and say what the remeasure compared, or state the resulting default without project shorthand.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The default set makes the three grade values visible, but the file does not explain what the grades or the three-arm remeasure represent.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 96,
+      "category": "comment-noise",
+      "claim": "Comment references project abbreviation 'sset_01' without defining what it means.",
+      "quote": "(comp_content27_v0p5) is the config the sset_01 scoring picked.",
+      "suggested_fix": "Replace sset_01 with a plain description of the scoring set or define the identifier at its first use.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The surrounding comment explains the content threshold and vote, but sset_01 remains an unexplained project identifier.",
+      "duplicates_merged": 0
+    },
+    {
+      "file": "src/annotator/config.py",
+      "line": 25,
+      "category": "overloaded-one-liner",
+      "claim": "Line combines environment variable lookup, path construction fallback, and Path wrapping in one complex expression.",
+      "quote": "SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))",
+      "suggested_fix": "Split the default path, environment lookup, and Path conversion into separate statements.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The expression is conventional and readable, but it combines three distinct concerns and crosses the rubric's overloaded-one-liner threshold.",
+      "duplicates_merged": 0
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

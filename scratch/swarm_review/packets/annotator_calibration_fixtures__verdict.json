@@ -1,0 +1,143 @@
+{
+  "module": "src/annotator/calibration/fixtures.py",
+  "probe_assessment": "The claude-haiku (effort low) cold read was mostly accurate. It correctly identified the fixture dataclasses, import-time geometry derivation, name-derived paths, and digest-verification entry points. Its description of SHARED_FILES as validation input is not established by this module: SHARED_FILES is defined here, but verify_fixture iterates only fixture.files, and the tuple also contains per-match set CSVs. The get_H and REF_COURT_M[0] stumbles are genuine file-hopping dependencies because this file does not define the imported row contract or the constant's tuple value and units. The multiplier stumble is model error. Lines 129-131 state both resolutions, so 1.5 is directly checkable as the scale from 1280x720 to 1920x1080; the external documentation reference is supplementary. No other purpose or public-API error was material.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 194,
+      "category": "comprehension-trap",
+      "claim": "The imported get_H call leaves the row contract implicit. A junior reader cannot determine from this file which homography-row columns get_H consumes or how it builds the matrix.",
+      "quote": "homography = get_H(homography_row)",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 217,
+      "category": "comprehension-trap",
+      "claim": "REF_COURT_M[0] supplies a required court-length value whose tuple structure, exact value, and units are not defined in this file.",
+      "quote": "court_units_per_metre = (court_y_max - court_y_min) / REF_COURT_M[0]",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 357,
+      "category": "comprehension-trap",
+      "claim": "The probe describes SHARED_FILES as validation input shared across fixtures, but this module never feeds that tuple to its verifier; its name and FilePin contents invite that assumption.",
+      "quote": "SHARED_FILES = (\n    FilePin(Path(\"training/data/shuttleset/annotations/shots_master.csv\"), \"39cdc201057050abfe4c6f8770734fde\", \"repo\"),\n    FilePin(Path(\"training/data/shuttleset/annotations/set/homography.csv\"), \"07de7edf7951f4f5ca2d76d9f5490600\", \"repo\"),",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 58,
+      "category": "docs-prose",
+      "claim": "The Fixture docstring sentence joins two independent assertions with a semicolon, making the sentence harder to parse under the single-sub-clause house rule.",
+      "quote": "The ``court_present_path`` property is a pose-derived court-view proxy (True = court view); the scene-gated tracker's producer choice is re-approved at its activation commit.",
+      "suggested_fix": "Split the sentence: `court_present_path` is a pose-derived court-view proxy (True = court view). The scene-gated tracker's producer choice is re-approved at its activation commit.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote appears across wrapped docstring lines. The semicolon joins unrelated claims, so the prose issue is distinct from the jargon issue in the same sentence."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 68,
+      "category": "docs-orientation",
+      "claim": "The public geometry fields expose positional nested tuples without naming their members. A skim reader must trace construction to learn that court_geo is (x_bounds, y_bounds, net_band), while net_band and resolution are pairs.",
+      "quote": "court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]\n    net_band: tuple[float, float]\n    resolution: tuple[float, float]",
+      "suggested_fix": "Document the tuple layouts in the dataclass docstrings: `court_geo` is `(x_bounds, y_bounds, net_band)`, `net_band` is `(min, max)`, and `resolution` is `(width, height)`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the equivalent raw reports at lines 30 and 32 into this broader orientation finding. The construction code makes the layout recoverable, but the declarations do not state it.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 247,
+      "category": "docs-orientation",
+      "claim": "The loader docstring uses the undefined scope label Wave 1 and does not tell a skimmer that the function processes only the configured IDs 1, 15, and 21.",
+      "quote": "\"\"\"Load and derive calibration geometry for every Wave 1 fixture.\"\"\"",
+      "suggested_fix": "Say: `Load and derive calibration geometry for configured video IDs (1, 15, and 21).`",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The authoritative scope is _CALIBRATION_VIDEO_IDS, while Wave 1 is not defined in this module."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 220,
+      "category": "style-house",
+      "claim": "The court_band_points array creation lacks an inline shape annotation.",
+      "quote": "court_band_points = np.array(\n        [[x_centre, x_centre], [y_centre - net_half_band, y_centre + net_half_band]],\n        dtype=float,\n    )",
+      "verdict": "KILLED",
+      "verifier_note": "The scanner's missing-shape-annotation label is not a rubric category, so it is normalised to style-house for verification. The literal visibly contains two rows of two values, so its shape is not non-obvious under the rubric."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 207,
+      "category": "style-house",
+      "claim": "The inverse homography result has no inline annotation of its non-obvious matrix shape.",
+      "quote": "inverse_homography = np.linalg.inv(homography)",
+      "suggested_fix": "Add an inline note such as `# (3, 3); inverse homography maps court points back to camera coordinates`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The scanner's missing-shape-annotation label is normalised to the rubric's style-house category. The shape comes from the imported get_H contract and is not declared locally."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 55,
+      "category": "docs-prose",
+      "claim": "The Fixture docstring sentence combines fixture identity, path derivation, naming terminology, and dataclasses.replace behaviour in one dense sentence.",
+      "quote": "``name`` is the fixture's sole local identity: every operational path and\npin path below is a derived property of it (the stem-plus-role grammar),\nso copying a fixture with a new ``name`` (e.g. via ``dataclasses.replace``)\nmoves every path consistently.",
+      "suggested_fix": "Use separate sentences: `name` is the fixture's sole local identity. The operational and pin paths derive from it. Copying a fixture with a new `name` updates every path consistently.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The ideas are related, but the colon, parenthetical, example, and causal continuation make the sentence carry several independent points."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 54,
+      "category": "unclear-name",
+      "claim": "The phrase stem-plus-role grammar is unexplained, so the naming pattern is not immediately clear to an unfamiliar reader.",
+      "quote": "``name`` is the fixture's sole local identity: every operational path and\npin path below is a derived property of it (the stem-plus-role grammar),",
+      "suggested_fix": "Define the pattern plainly: the fixture name is the path prefix, and role-based suffixes form each derived path.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The f-strings make the pattern recoverable, so the scanner's strongest wording is overstated. The invented phrase itself remains undefined and slows a skim read."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 60,
+      "category": "docs-prose",
+      "claim": "The Fixture docstring uses unexplained terms in pose-derived court-view proxy and scene-gated tracker's producer choice is re-approved at its activation commit.",
+      "quote": "The ``court_present_path`` property is a pose-derived court-view proxy (True = court view); the scene-gated tracker's producer choice is re-approved at its activation commit.",
+      "suggested_fix": "Explain that `court_present_path` names the saved court-view indicator path, and define the tracker lifecycle terms, or remove the lifecycle sentence if it is not part of this class's contract.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Neither pose-derived nor the scene-gated producer and activation-commit language is defined in this module."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 234,
+      "category": "data-structure",
+      "claim": "The net_band value is stored redundantly inside court_geo and as a separate CalibrationGeometry field.",
+      "quote": "court_geo = (x_bounds, y_bounds, net_band)\n    resolution = (width, height)\n    court_geo = (x_bounds, y_bounds, net_band)\n    return CalibrationGeometry(court_geo=court_geo, net_band=net_band, resolution=resolution)",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: the source has one court_geo assignment at line 234, not two. The quote gate therefore kills this scanner item."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 141,
+      "category": "docs-orientation",
+      "claim": "The _read_source_frame docstring says only that it reads and validates the id column, omitting that it rejects malformed, non-finite, non-integer, and duplicate ID values and normalises valid IDs to int.",
+      "quote": "def _read_source_frame(path: Path, source_name: str) -> pd.DataFrame:\n    \"\"\"Read and validate the id column in one tracked calibration source.\"\"\"",
+      "suggested_fix": "Say: `Read a CSV and validate that its id column contains finite integer values with no duplicate IDs, then normalise the values to int.`",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The function performs all of these boundary checks. The precise correction is unique ID values, rather than uniqueness of complete rows."
+    },
+    {
+      "file": "src/annotator/calibration/fixtures.py",
+      "line": 202,
+      "category": "ordering",
+      "claim": "_rounded_bounds is used by _derive_calibration_geometry before its definition, which interrupts a top-to-bottom reading of the helper call flow.",
+      "quote": "    x_bounds = _rounded_bounds(corner_camera_fixture[0])",
+      "suggested_fix": "Move _rounded_bounds above _derive_calibration_geometry so the helper is introduced before its first use.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Python resolves the helper at call time, so execution is valid. The finding concerns the rubric's in-module reading order, not runtime correctness."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

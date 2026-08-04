@@ -1,0 +1,114 @@
+{
+  "module": "src/scraper/config.py",
+  "probe_assessment": "The cold read was mostly sound. The probe invented an uppercase YTDLP_THROTTLE_ARGS constant; the module actually exposes the lower-case ytdlp_throttle_args() function at line 223, so that is a probe error rather than a code-induced trap. The probe also overstates check_ytdlp as something that runs before every stage: the function validates PATH when called, but this module does not call it automatically. The listed model-budget stumble is genuine for project-level rationale because 'candidate seats' is undefined, even though the nearby TRIAGE_MODEL and TRIAGE_MAX_TOKENS make the local relationship clear. The TrackNet/streaming stumble is genuine because the module does not identify that consumer or explain how the settings reach it. The D8/D24 stumble is not a finding: lines 104-106 state the flagging rule and the reason instructional rows skip the short-duration flag. Omitted constants are omissions, not material misreadings.",
+  "probe_findings": [
+    {
+      "file": "src/scraper/config.py",
+      "line": 147,
+      "category": "comprehension-trap",
+      "claim": "The model-budget comment leaves 'candidate seats' and the provider-specific :free comparison undefined, so a junior cannot recover the project-level rationale for the selected triage budget from this module alone.",
+      "quote": "TRIAGE_MODEL = 'gemini-2.5-flash'\n# The documented floor across the candidate seats, kept at the min for fair comparison:\n# gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960 (hard error above it)",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 156,
+      "category": "comprehension-trap",
+      "claim": "The module does not identify what TrackNet or the 'streaming' consumer is, so a junior cannot determine how stride 8 and large-video mode affect the scraper or which stage owns them.",
+      "quote": "SCRAPE_TRACKNET_STRIDE = 8\n# streaming builds its median background image from a capped sample of frames (1800) instead of all of them\nSCRAPE_TRACKNET_LARGE_VIDEO = True",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/scraper/config.py",
+      "line": 154,
+      "category": "comprehension-trap",
+      "claim": "The undefined label 's29 chain' leaves the consumer and subprocess-boundary context unidentified to a skim reader, even though the comment says it is the scrape-lane consumer.",
+      "quote": "The current hand-run s29 chain is the scrape-lane consumer. A promoted wrapper",
+      "suggested_fix": "Clarify what 's29 chain' names and why the promoted wrapper must pass these values at its subprocess boundary.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original suspected category was docs-orientation. The original claim overstates the result because 'scrape-lane consumer' gives the purpose. The undefined label and unexplained subprocess-boundary reference still invite the narrower comprehension trap; the correction is to identify the chain and its boundary role."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 157,
+      "category": "docs-orientation",
+      "claim": "The comment references 'streaming' without explaining whether it is a module, pipeline stage, or component name.",
+      "quote": "# streaming builds its median background image from a capped sample of frames (1800) instead of all of them",
+      "suggested_fix": "Clarify what 'streaming' refers to and identify the stage or module that consumes these settings.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The comment explains the background-image operation but does not identify the streaming consumer, so the orientation gap is present."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 145,
+      "category": "docs-orientation",
+      "claim": "The comment references checkpoint 'B5' without explaining what it represents.",
+      "quote": "# OPEN (spec s4, s12): exact flash ID pinned at B5; tier decided (low-cost",
+      "suggested_fix": "Define what B5 represents or replace it with a self-documenting checkpoint description.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "B5 also appears as the tuning point for the keep-rule starting values, but neither occurrence defines whether it is a batch, checkpoint, or other project milestone."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 5,
+      "category": "stale-doc",
+      "claim": "The module docstring claims to contain stage 8/9 trajectory-rule constants, but no such constants are defined in this module.",
+      "quote": "# metadata screens, chunking and keep thresholds, LLM settings, and the stage 8/9\n# trajectory-rule constants.",
+      "suggested_fix": "Remove the stage 8/9 trajectory-rule phrase or add the constants if they belong in this module.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The module defines stage 1, 2, 3, 10 and 11 settings plus shared settings, but no trajectory-rule constants for stages 8 or 9.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 172,
+      "category": "ordering",
+      "claim": "Stage 4 rate-limiting constants appear after stages 10-11, weakening sequential stage organisation and the module's narrative flow.",
+      "quote": "# Stage 11 pairing (spec s9): a rally pairs with the first commentary chunk\n# whose start falls within this many seconds after the rally's end.\nPAIR_WINDOW_S = 8\n\n# ---------------------------------------------------------------------------\n# Rate limiting / IP-ban mitigation (D22, spec s5)",
+      "suggested_fix": "Group the stage 4 download settings with a stage 4 section, or explain why shared rate-limiting settings follow the later-stage settings.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The section is cross-stage, so the placement is defensible. However, CONCURRENT_FRAGMENTS and DOWNLOAD_WORKERS are explicitly labelled for stage 4 and appear after the Stage 10 and Stage 11 sections, making the ordering concern valid under a sequential stage read."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 149,
+      "category": "docs-prose",
+      "claim": "The model comparison uses the :free route suffix and bare comparison notation without fully explaining their significance.",
+      "quote": "# gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960 (hard error above it)",
+      "suggested_fix": "State that the values are maximum token budgets, identify :free as the free-tier route marker, and explain that the minimum is the common comparison floor.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The numbers and ordering make the comparison partly inferable, and later text mentions free-tier limits. The route suffix and the reason for using the minimum are still left to inference, which meets the docs-prose rubric."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 194,
+      "category": "docs-prose",
+      "claim": "The comment joins two independent clauses with a semicolon, making the circuit-breaker explanation harder to scan under the house prose rule.",
+      "quote": "# Mid-batch circuit-breaker floors. The spec's block rules (s3: over 50% fail;\n# s4: every call fails) say when to block, not when to evaluate; checking\n# mid-loop once past these floors stops a banned or dead-endpoint run from",
+      "suggested_fix": "Split the sentence after 'evaluate' so the block rule and the reason for mid-loop checks are separate sentences.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The inner semicolon separates two spec examples. The later semicolon joins the block-rule clause to the mid-loop evaluation clause, so the cited prose issue is present."
+    },
+    {
+      "file": "src/scraper/config.py",
+      "line": 229,
+      "category": "docs-prose",
+      "claim": "The docstring joins two independent clauses with a semicolon, making the throttle-path explanation harder to scan under the house prose rule.",
+      "quote": "    --skip-download). Those two constants belong to stage 4's download path;\n    stages 1 and 2 pace their own process spawns from Python instead.",
+      "suggested_fix": "Split the explanation into two sentences: one for stage 4 ownership and one for stages 1 and 2 pacing their process spawns.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Both sides of the semicolon are complete clauses, and the sentence can be split without losing meaning."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/scraper/config.py",
+      "line": 273,
+      "quote": "writer.writerow({col: row.get(col, '') for col in CANDIDATES_COLUMNS})",
+      "note": "Missing candidate fields are silently written as blank CSV cells, so malformed rows can cross the output boundary without an error. The write_candidates docstring documents this as intentional schema stabilisation, but the fallback still hides missing data."
+    }
+  ]
+}

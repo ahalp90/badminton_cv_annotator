@@ -1,0 +1,40 @@
+{
+ "module": "src/annotator/fps_constants.py",
+ "purpose": "Defines frame-rate-relative constants for video annotation. The module stores a base-30 reference table and provides functions to scale all timing constants to a video's actual frame rate exactly once, plus validation to confirm the video uses constant (not variable) frame rate.",
+ "public_api": [
+  {
+   "name": "BASE_FPS",
+   "role": "Module constant (30.0). The reference frame rate used as the scaling denominator."
+  },
+  {
+   "name": "REST_SPEED_BASE30",
+   "role": "Module constant (0.002). Base-30 per-frame speed multiplier for rest state animation."
+  },
+  {
+   "name": "START_SPEED_BASE30",
+   "role": "Module constant (0.015). Base-30 per-frame speed multiplier for start state animation."
+  },
+  {
+   "name": "FpsConstants",
+   "role": "Frozen dataclass containing fps-scaled timing parameters (rest_speed, windows, frame counts, etc.). Callers retrieve a single instance per video after calling scale_for_fps()."
+  },
+  {
+   "name": "scale_for_fps(fps, overrides_base30)",
+   "role": "Scales the base-30 table to a specific frame rate and returns a FpsConstants instance. Callers use this to convert all shipped constants from 30fps to the video's actual frame rate."
+  },
+  {
+   "name": "probe_fps(video_path)",
+   "role": "Extracts the frame rate from a video file using ffprobe and validates it is constant (not variable). Callers use this to safely obtain the fps value before calling scale_for_fps()."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "rates = [float(Fraction(stream[key])) for key in ('r_frame_rate', 'avg_frame_rate')]",
+   "why_unclear": "The code uses Fraction as an intermediate to convert frame-rate strings to floats. This handles rational notation like '30000/1001' (NTSC), but the comment does not explain why Fraction is necessary instead of parsing directly as float."
+  },
+  {
+   "quote": "if abs(rates[0] - rates[1]) > 1e-6:\n        raise ValueError(f'{video_path}: variable frame rate is unsupported')",
+   "why_unclear": "The code compares r_frame_rate and avg_frame_rate and requires them to match within 1e-6. It's clear this detects variable frame rate, but the docstring does not explain why both rates are queried or what each represents."
+  }
+ ]
+}

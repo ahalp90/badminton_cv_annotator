@@ -1,0 +1,127 @@
+{
+  "module": "src/scraper/stage10_clean.py",
+  "probe_assessment": "The cold read mostly held up. The purpose and public API descriptions match the module, including the default clean-then-fine flow, BERTScore use, GPU-only WhisperX behaviour, and cleanup. The capability assignment stumble is model error: capability deliberately carries either the 'unavailable' sentinel or the device capability tuple for logging, while arch is derived separately. The _score_pending stumble is genuine: the code consumes a marker inside an OR expression and restores it on the next line, so the marker lifecycle and the reason newly cleaned text supersedes an existing score require tracing. The hallucination_silence_threshold stumble is genuine: the module names the WhisperX setting and points to an external settings proposal, but does not explain its effect or why 2.0 is used. No other material probe misreading was found.",
+  "probe_findings": [
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 248,
+      "category": "comprehension-trap",
+      "claim": "The _score_pending marker is consumed inside a boolean expression and restored immediately afterwards, so the file does not make the marker lifecycle or the reason for rescoring newly cleaned text clear on a skim.",
+      "quote": "score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)",
+      "confidence": "high"
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 338,
+      "category": "comprehension-trap",
+      "claim": "The WhisperX hallucination_silence_threshold is passed as the unexplained literal 2.0; the module does not say what the setting changes or why that value is chosen.",
+      "quote": "asr_options={'suppress_numerals': True, 'hallucination_silence_threshold': 2.0},",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 248,
+      "category": "overloaded-one-liner",
+      "claim": "The side effect of chunk.pop() is buried in a logical OR expression, so it is easy to miss.",
+      "quote": "score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)",
+      "suggested_fix": "Separate the marker read/removal from the score-pending calculation, then assign the marker for the later cleanup pass.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The expression both checks score state and mutates the chunk, which meets the rubric's overloaded-one-liner rule. The identical style-house report is merged here.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 187,
+      "category": "repetition",
+      "claim": "The keep-row filter is duplicated in run_clean and run_fine; one helper could hold the shared selection logic.",
+      "quote": "kept = [row for row in rows if row.get('keep') == 'True']",
+      "suggested_fix": "Extract the kept-row filter to one module-level helper and call it from both passes.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted line appears in both run_clean and run_fine with the same expression. The naming-lens report is the same finding and is merged here.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 196,
+      "category": "repetition",
+      "claim": "The sidecar path, existence check, skip message, and continue are duplicated in run_clean and run_fine.",
+      "quote": "sidecar = CHUNKS_DIR / f'{video_id}.json'\n        if not sidecar.exists():\n            print(f'  {video_id}: no chunk sidecar, skipping')\n            continue",
+      "suggested_fix": "Extract the shared sidecar lookup and skip handling into a small helper.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The four quoted lines recur at the stated locations in both passes, and the repeated control path is suitable for one clean helper."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 374,
+      "category": "style-house",
+      "claim": "The multi-line comprehension contains a method call and nested iteration, which the rubric's house style directs readers to express as explicit loops.",
+      "quote": "words = [\n                word for segment in aligned['segments']\n                for word in segment.get('words', [])\n                if 'start' in word and 'end' in word\n            ]",
+      "suggested_fix": "Build words with explicit nested loops and append only entries containing both start and end.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present, and the rubric specifically calls for explicit loops for a multi-line comprehension with method calls or path construction."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 58,
+      "category": "docs-orientation",
+      "claim": "The module-level constant CLEAN_SYSTEM_PROMPT lacks a docstring; a junior skimming the file won't understand its role without reading the inline comment and the string itself.",
+      "quote": "CLEAN_SYSTEM_PROMPT = (\n    'You process one badminton commentary chunk at a time. Do two things and '\n    'return them together as one JSON object.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim does not hold. The adjacent comment explicitly labels this as the merged clean-and-paraphrase system prompt and explains the shared call budget and pinned JSON shape."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 75,
+      "category": "docs-over-types",
+      "claim": "The return type -> dict is generic while the docstring specifies the stable text_clean and alt_phrasings fields.",
+      "quote": "def _clean_once(text: str) -> dict:\n    \"\"\"Single Gemini clean+paraphrase call for one chunk. Never runs in tests.",
+      "suggested_fix": "Use a TypedDict or another precise return annotation for the stable text_clean and alt_phrasings result.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The stable return shape is carried by prose while the bare dict annotation conveys none of its fields."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 109,
+      "category": "docs-over-types",
+      "claim": "The return type -> dict is generic while the docstring specifies the stable text_clean and alt_phrasings fields.",
+      "quote": "def call_clean_llm(text: str) -> dict:\n    \"\"\"Call the clean LLM for one chunk with retry and exponential backoff.",
+      "suggested_fix": "Use the same precise return annotation as _clean_once for the stable text_clean and alt_phrasings result.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The wrapper returns the same stable record shape, but its bare dict annotation leaves that shape to the docstring."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 192,
+      "category": "data-structure",
+      "claim": "loaded_sidecars stores a fixed four-field record in a positional tuple, so later unpacking requires readers to remember the order of video_id, sidecar path, chunks, and original JSON.",
+      "quote": "loaded_sidecars: list[tuple[str, Path, list[dict], str]] = []",
+      "suggested_fix": "Use a named record such as a NamedTuple with video_id, path, chunks, and original_json fields.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present, and the list is populated and unpacked as a stable four-field record at several later points."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 313,
+      "category": "docs-over-types",
+      "claim": "The return type -> tuple is generic while the docstring specifies the three returned values model, align_model, and align_meta.",
+      "quote": "def load_fine_models() -> tuple | None:\n    \"\"\"Load the WhisperX fine-pass models once for a whole run, or None off-GPU.",
+      "suggested_fix": "Use a named record or a specific tuple annotation for model, align_model, and align_meta.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The stable three-value tuple is documented in prose but not represented by the bare tuple annotation."
+    },
+    {
+      "file": "src/scraper/stage10_clean.py",
+      "line": 344,
+      "category": "docs-over-types",
+      "claim": "The models parameter is annotated as a generic tuple even though the docstring specifies model, align_model, and align_meta from load_fine_models.",
+      "quote": "def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> list[dict]:",
+      "suggested_fix": "Use the same named record or specific tuple annotation as load_fine_models.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The parameter's expected three-field structure is left to the docstring and positional unpacking."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,142 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 55,
+    "category": "unclear-name",
+    "claim": "Function name `_time` implies it returns time, but it converts base-30 time units to frame counts (returns int).",
+    "quote": "def _time(base30: float, fps: float) -> int:\n    return max(1, math.floor(base30 * fps / BASE_FPS + 0.5))",
+    "chunk_id": "whole",
+    "suggested_fix": "Rename to `_base30_to_frames` or `_scale_base30_frames` to indicate the conversion direction."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 30,
+    "category": "unclear-name",
+    "claim": "Name `end_rest_frames` does not clearly indicate whether it means duration, offset, or direction relative to rest.",
+    "quote": "    end_rest_frames: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify with a more specific name (e.g., `end_of_rally_rest_frames`) or add a docstring comment."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 42,
+    "category": "unclear-name",
+    "claim": "Field uses `_samples` suffix while all other time-based fields use `_frames`, making the unit or concept distinction unclear.",
+    "quote": "    min_descend_samples: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Use `min_descend_frames` for consistency, or explain why this field differs in unit or meaning."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 43,
+    "category": "unclear-name",
+    "claim": "Field name includes unexplained domain jargon `body_unit`; a skim reader cannot infer what this represents.",
+    "quote": "    body_unit_half_window: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Spell out the domain term or add a clarifying comment."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 36,
+    "category": "unclear-name",
+    "claim": "Field name includes unexplained domain jargon `impulse_floor`; unclear what an impulse or floor means in this context.",
+    "quote": "    impulse_floor_half_window_frames: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Add a comment explaining the concept, or rename to a more transparent term."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 47,
+    "category": "unclear-name",
+    "claim": "Field name uses unexplained domain term `blip`; a skim reader cannot infer what a blip is.",
+    "quote": "    blip_max_frames: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Spell out the concept or add a comment explaining what constitutes a blip."
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 48,
+    "category": "unclear-name",
+    "claim": "Abbreviation `oob` is not spelled out; affects three field names across lines 48\u201350 (`high_shot_oob_lookback_frames`, `high_shot_oob_min_visible_frames`, `high_shot_oob_extrap_frames`).",
+    "quote": "    high_shot_oob_lookback_frames: int,\n    high_shot_oob_min_visible_frames: int,\n    high_shot_oob_extrap_frames: int,",
+    "chunk_id": "whole",
+    "suggested_fix": "Spell out the full term (likely 'out_of_bounds') in field names or add a module-level comment defining the abbreviation."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 55,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Function lacks docstring; unfamiliar reader cannot understand what it computes without inspecting the implementation",
+    "quote": "def _time(base30: float, fps: float) -> int:\n    return max(1, math.floor(base30 * fps / BASE_FPS + 0.5))"
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 55,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Function name `_time` does not convey its purpose; it scales base-30 values to frame counts, which the name obscures",
+    "quote": "def _time(base30: float, fps: float) -> int:"
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 59,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Docstring omits `:param:` and `:return:` tags per house style; `overrides_base30` parameter is unexplained",
+    "quote": "def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) -> FpsConstants:\n    \"\"\"Scale the base-30 table for a positive finite CFR frame rate.\"\"\""
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 92,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Docstring omits `:param:` and `:return:` tags per house style requirement",
+    "quote": "def probe_fps(video_path: Path) -> float:\n    \"\"\"Read a CFR rate with ffprobe, rejecting missing, invalid, and VFR streams.\"\"\""
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 55,
+    "category": "unclear-name",
+    "claim": "Function name `_time` does not convey its purpose of scaling frame counts from base-30 to another frame rate.",
+    "quote": "def _time(base30: float, fps: float) -> int:",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 55,
+    "category": "docs-orientation",
+    "claim": "Function _time lacks a docstring, leaving its purpose opaque to a skim reader who must reverse-engineer the calculation.",
+    "quote": "def _time(base30: float, fps: float) -> int:\n    return max(1, math.floor(base30 * fps / BASE_FPS + 0.5))",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/fps_constants.py",
+    "line": 106,
+    "category": "style-house",
+    "claim": "Magic number 1e-6 for frame rate tolerance lacks explanation, leaving the significance of this value and the choice of precision undocumented.",
+    "quote": "if abs(rates[0] - rates[1]) > 1e-6:",
+    "chunk_id": "whole",
+    "confidence": "medium"
+   }
+  ],
+  "overflow_note": null
+ }
+]

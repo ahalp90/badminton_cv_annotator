@@ -1,0 +1,42 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/doubles_flag.py",
+    "line": 95,
+    "category": "data-structure",
+    "claim": "Return type `list[dict]` hides the dict structure; rows always have keys 'video_id', 'rally_id', 'doubles_flag' with string values.",
+    "quote": "def _whole_video_verdicts(overcount_paths: dict[str, Path]) -> list[dict]:\n    \"\"\"One whole-video verdict per over-count file; rally_id blank (no spans given).\"\"\"\n    rows.append({'video_id': video_id, 'rally_id': '', 'doubles_flag': str(flag)})",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/doubles_flag.py",
+    "line": 104,
+    "category": "data-structure",
+    "claim": "Return type `list[dict]` hides the dict structure; rows always have keys 'video_id', 'rally_id', 'doubles_flag' with string values.",
+    "quote": "def _span_verdicts(rally_spans_csv: Path, overcount_paths: dict[str, Path]) -> list[dict]:\n    \"\"\"One verdict per rally span, reading (video_id, rally_id, start_frame, end_frame).",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/doubles_flag.py",
+    "line": 135,
+    "category": "data-structure",
+    "claim": "Parameter type `list[dict]` hides the expected dict structure with keys 'video_id', 'rally_id', 'doubles_flag' and string values.",
+    "quote": "def _write_flags(rows: list[dict]) -> None:\n    \"\"\"Write the verdict rows to ``doubles_flags.csv`` with the fixed header.",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,201 @@
+{
+  "module": "src/annotator/point_winner.py",
+  "probe_assessment": "The cold read largely held up. The purpose and almost all public API roles match the implementation. The [0, 1, 3, 2] corner reorder is a genuine file-local comprehension trap because this module documents the destination order but not the source order returned by get_corner_camera. The backwards alternation comprehension is explained by _phase_assignment's docstring, and landing_window explains both tied guards and the output ordering in reason_order, so those stumbles are resolvable from the file. Calling LandingWindow a NamedTuple is a probe error: the @dataclass(frozen=True) declaration is explicit. The LandingMargins summary also overstates signedness: the field documentation says only margin_m is signed and the other two clearances are unsigned. The purpose's '(won/lost)' wording omits the documented blank/None result when no landing exists, but the return field type and rally_verdict documentation make that case clear in the module. These omissions and misclassifications are model errors rather than code-induced traps, so they are recorded here rather than passed up as findings.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 668,
+      "category": "comprehension-trap",
+      "claim": "The corner-order conversion in corner_error_band_m cannot be justified from this module alone: get_corner_camera's source order is not documented, so the [0, 1, 3, 2] permutation is opaque.",
+      "quote": "    source_order = get_corner_camera(homo_df.loc[vid]).T\n    corners = source_order[[0, 1, 3, 2]]\n    return corner_error_band_from_corners(corners, court_info, err_px)",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 608,
+      "category": "repetition",
+      "claim": "Y-bounds logic for receiver-half computation is duplicated across two functions.",
+      "quote": "y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == Half.BOT else (0.0, NET_COURT_Y)",
+      "suggested_fix": "Extract the receiver-half y-bound calculation into a small helper and reuse it in landing_margins and geometric_verdict.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The same conditional appears in landing_margins at line 608 and geometric_verdict at line 741, with only the receiver variable renamed."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 1,
+      "category": "docs-orientation",
+      "claim": "Module docstring uses unexplained jargon (D5, sset_01, GT-anchored, SHIPPED) that leaves an unfamiliar reader confused about project context.",
+      "quote": "Promoted from the D5 point-winner detector proven out in local_scratch/autograder_architecture/d5_winner_retest.py and d5_landing_arms.py (measured on the ShuttleSet sset_01 and trial videos, GT-anchored against the per-set winner labels). Only the SHIPPED chain lands here...",
+      "suggested_fix": "Replace the experiment-history sentence with a concise production-purpose description, or define D5, ShuttleSet/sset_01, GT-anchored, and SHIPPED for a fresh reader.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted project terms appear in the module-level prose without in-file definitions. The source wraps the passage across docstring lines, but the cited text is the same passage."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 1,
+      "category": "docs-prose",
+      "claim": "Opening sentence violates single-sub-clause rule with four noun phrases joined by commas and 'and', making it hard to parse as one thought.",
+      "quote": "Wrist-anchored striker attribution in body-height units, an alternation-rhythm fit for the final-contact half, a kinematic landing filter (a settle cap plus a carry filter, both refined by an ankle rule), and a next-server winner call with a landing-geometry best-guess fallback.",
+      "suggested_fix": "Use a verb-led summary and split the four capabilities across two short sentences.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The scanner's sub-clause description is imprecise because the sentence is a coordinated list rather than four subordinate clauses. The dense noun-pile opening remains a docs-prose readability concern under the rubric."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 132,
+      "category": "docs-orientation",
+      "claim": "Function docstring uses 'sticky pick' and 'sticky tracker' without introduction; a junior would not know these are domain objects.",
+      "quote": "The pick and its cached nearest-wrist body-unit distance come from the sticky tracker. The wrist measurement point is unchanged. The picked bbox's bottom y (pixels) is tested against the net band.",
+      "suggested_fix": "Define the sticky tracker as the mechanism that selects and carries a player pick across frames, then name the cached values it supplies.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The module uses sticky tracker and sticky pick as established project terms but does not define their temporal selection behaviour for a new reader."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 320,
+      "category": "comprehension-trap",
+      "claim": "The field documentation defines the body-height ratio, but leaves 'sticky-selected' and 'shipped' as project-specific shorthand, so a junior still has to infer the tracker and production-choice context.",
+      "quote": ":param carry_ratio: (t,) shuttle-to-nearest sticky-selected player's nearer-WRIST distance divided by that player's bbox height (body-height units); NaN where the shuttle is invisible or no sticky pick has a finite height. The body-height form of the serve gate's proximity signal, with the wrist numerator matching the shipped wrists-per-box-height attribution.",
+      "suggested_fix": "Define sticky-selected in terms of sticky.picks and replace shipped with a plain description of the production choice.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original category: docs-orientation. Correction: body-height units are explained by the division by bbox height. The remaining orientation gap is the unexplained sticky-selected and shipped terminology, which still invites the reported inference."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 211,
+      "category": "docs-prose",
+      "claim": "Docstring chains two independent thoughts with semicolon, violating the single-sub-clause-per-sentence rule.",
+      "quote": "A visible sample there with image-y within TOP_EDGE_FRAC of 0 means the shuttle left the frame upward (a lob) and will fall back into view; a non-visible or non-top sample reads False.",
+      "suggested_fix": "Split the true top-exit case and the false-case definition into separate sentences.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The semicolon joins the positive top-exit rule to its complementary false cases. Both conditions are useful, but the sentence carries two independent statements."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 229,
+      "category": "comprehension-trap",
+      "claim": "The sustained-loss/top-exit rule is packed into a dense multi-sentence paragraph with several nested boundary conditions, so the exception and later-gap rule take careful parsing.",
+      "quote": "A sustained-loss gap does NOT close the window when the last visible sample before it sits at the frame top: the shuttle lobbed out of the top of the picture and will descend back into view, so the search waits for the re-entry, still bounded by the next serve and the replay mask (and by any LATER sustained-loss gap that did not follow a top exit).",
+      "suggested_fix": "Separate the top-exit exception from the later sustained-loss boundary rule, and state the normal closure rule before the exception.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original category: docs-prose. Correction: the quoted paragraph is not 14 lines and it stays on one edge-case topic. The source still packs the exception and several boundary conditions into dense prose, so the underlying comprehension concern survives in a narrower form."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 61,
+      "category": "docs-over-types",
+      "claim": "Docstring explains CSV serialization ('Byte-identical') instead of the semantic meaning of the enum; implementation detail, not domain meaning.",
+      "quote": "\"\"\"Which court half a striker, receiver, or landing sits in. Byte-identical to the harness's plain 'Top'/'Bot' strings, so a CSV written from these serialises the same way.\"\"\"",
+      "verdict": "KILLED",
+      "verifier_note": "The quote starts by stating the enum's semantic meaning: which court half an entity occupies. The serialisation note is an external string-compatibility contract, and it is not prose duplicating a type hint."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 425,
+      "category": "docs-orientation",
+      "claim": "Docstring uses jargon term 'carve-out' (meaning exception or special case) without introduction.",
+      "quote": "Ground-static = the shuttle self-speed rolling-median is <= settle_thr AND the shuttle is NOT held at a wrist (carry_ratio <= carry_thr, the carve-out that keeps a hand-held pause from reading as a floor rest).",
+      "verdict": "KILLED",
+      "verifier_note": "The parenthetical immediately explains what the carve-out does: it prevents a hand-held pause from being treated as a floor rest. The quoted sentence gives the term its local meaning."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 696,
+      "category": "docs-orientation",
+      "claim": "Function docstring is too terse and omits :param and :return documentation; does not orient a reader on what parameters do.",
+      "quote": "\"\"\"Pick a landing in an explicit half-open window endpoint.\"\"\"",
+      "suggested_fix": "Document the window endpoint, the filter and FPS conversion, the projection inputs, and the returned Landing fields or None case with :param and :return sections.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The function has many parameters with domain-specific roles and returns a structured record or None. One sentence does not orient a new caller on those inputs or outputs."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 723,
+      "category": "docs-prose",
+      "claim": "Docstring uses unexplained notation 'M=0' without defining whether it refers to margin_m=0 or some other constant.",
+      "quote": "\"\"\"(verdict, winner_half, source) from the landing geometry at M=0: net rule, else in/out.\"\"\"",
+      "suggested_fix": "Write 'with zero margin tolerance (margin_m=0.0)' instead of M=0.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The call site makes the value unambiguous by passing 0.0 to inout_verdict, but the geometric_verdict docstring never names that parameter or expands M for a first-time reader."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 637,
+      "category": "docs-orientation",
+      "claim": "Docstring uses unexplained abbreviations TL, TR, BR, BL without stating they mean top-left, top-right, bottom-right, bottom-left.",
+      "quote": "\"\"\"``corners_refpx`` uses the CourtKeyNet TL, TR, BR, BL order at :data:`HOMOGRAPHY_RESOLUTION`.\"\"\"",
+      "suggested_fix": "Expand the order as top-left, top-right, bottom-right, bottom-left on first use.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The order is important to the homography calculation, while the four abbreviations are not expanded in this module."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 125,
+      "category": "unclear-name",
+      "claim": "Section comment header uses jargon ('shipped wrist_boxh arm', 'px') without explanation, making the purpose unclear to a junior reader.",
+      "quote": "# Striker attribution (the shipped wrist_boxh arm: nearer-wrist px / mean windowed box height)",
+      "verdict": "KILLED",
+      "verifier_note": "The heading explicitly names the purpose as striker attribution and gives the ratio in the parenthetical. The shorthand may be terse, but the purpose is inferable by a skim reader, so it does not meet the rubric's unclear-name threshold."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 366,
+      "category": "docs-prose",
+      "claim": "Docstring uses 'base-30' without explaining it means 30 fps; term is opaque on first read.",
+      "quote": "\"\"\"Convert base-30 landing options once; returned fields are final fps values.\"\"\"",
+      "suggested_fix": "Say 'Convert landing options from the 30 fps reference configuration to the video's FPS once'.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The implementation scales frame windows and the speed threshold by 30.0/fps, but the docstring leaves the 30 fps reference implicit."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 437,
+      "category": "comprehension-trap",
+      "claim": "The ankle-rule rationale is packed into a dense three-sentence, five-line comment with several clauses, so the invariant and NaN behaviour take careful parsing.",
+      "quote": "Ankle refinement: a static frame whose shuttle is nearer an ankle than a wrist is resting on the ground by the feet, not paused in a hand, so the held carve-out must not veto it. A standing player sits ~0.5 box-heights from a grounded shuttle's nearest wrist (reads as held) but nearer its ankle; without this the settle cap never fires on such a rest. NaN in either ratio -> the comparison is False -> held unchanged.",
+      "suggested_fix": "Split the physical rationale, the settle-cap consequence, and the NaN invariant into short comment lines.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original category: docs-prose. Correction: the source has three sentences, not four. The comment still spans five wrapped lines and combines physical rationale, algorithmic consequence, and NaN edge behaviour, which is the narrower surviving comprehension concern."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 783,
+      "category": "comprehension-trap",
+      "claim": "The phrase 'ported best_guess=True semantics' is project-history jargon; the following parenthetical defines the behaviour but does not explain what 'ported' means.",
+      "quote": "Only when no next serve is attributable does the call fall back to the landing's best-guess court-half membership (the ported best_guess=True semantics: the raw terminal's side always yields a call, so verdict is blank only when there is no landing at all).",
+      "suggested_fix": "Replace 'ported' with a direct description of the fallback or remove the project-history label.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original category: docs-prose. Correction: the docstring does explain how the semantics differ by stating that the raw terminal's side always yields a call. The remaining issue is the unexplained historical word ported, which adds project context without defining it."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 403,
+      "category": "repetition",
+      "claim": "Wrist and ankle distance computation follows identical pattern and is repeated once in the same loop",
+      "quote": "wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]\nwrist_px = np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min()\nwrist_ratio = wrist_px / box_height\n\n[identical pattern for ankles at lines 413-416]",
+      "verdict": "KILLED",
+      "verifier_note": "The bracketed '[identical pattern for ankles at lines 413-416]' text is a scanner annotation, not source text, so the supplied quote is absent from the file. The underlying repetition may be real, but this finding cannot survive the required verbatim-quote check."
+    },
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 650,
+      "category": "overloaded-one-liner",
+      "claim": "Single line combines indexing, multiplication, distance calculation, conversion, and append in nested function calls",
+      "quote": "displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))",
+      "suggested_fix": "Compute the metre-scaled displacement in a named local, then append that value.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The line indexes both displacement components, scales them, computes a hypotenuse, converts the result to float, and appends it. That exceeds the rubric's simple one-liner allowance."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/annotator/point_winner.py",
+      "line": 408,
+      "quote": "wrist_ratios.append(0.0 if np.isnan(wrist_ratio) else wrist_ratio)",
+      "note": "A NaN wrist ratio is silently converted to 0.0, so a missing wrist measurement can look like zero distance and influence the carry or settle filters if the stated pose-output invariant fails."
+    }
+  ]
+}

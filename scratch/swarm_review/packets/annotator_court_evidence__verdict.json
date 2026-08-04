@@ -1,0 +1,242 @@
+{
+  "module": "src/annotator/court_evidence.py",
+  "probe_assessment": "The claude-haiku low-effort cold read held up on the module purpose and every listed public API role; there is no material purpose or public-API misreading to report. Three listed stumbles are code-grounded comprehension traps: the untyped detector interface leaves the rationale for getattr unresolved; _scene_row makes an identity reference-space conversion look like a separate transformation; and the inline corner-index mapping relies on a sticky/replay column-order contract that this file does not define. These are reasonable uncertainties for a junior reader, not model-only errors.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 209,
+      "category": "comprehension-trap",
+      "claim": "The detector interface is represented only as object, and getattr hides the required corner_min_peak_conf contract and why dynamic access is used; a junior cannot resolve that rationale from this file.",
+      "quote": "    corner_floor = float(getattr(detector, 'corner_min_peak_conf'))",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 332,
+      "category": "comprehension-trap",
+      "claim": "The parameter is named corners_refpx, but _scene_row passes HOMOGRAPHY_RESOLUTION as the source resolution, so the file does not explain that this call is an identity conversion before pose-resolution scaling.",
+      "quote": "    pose_corners = _as_ref_corners(corners_refpx, HOMOGRAPHY_RESOLUTION) * np.asarray(\n        [\n            float(resolution[0]) / HOMOGRAPHY_RESOLUTION[0],",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 343,
+      "category": "comprehension-trap",
+      "claim": "The non-sequential corner mapping exposes the indices but not why downleft precedes downright in the output contract; that downstream sticky/replay convention cannot be resolved from this file alone.",
+      "quote": "    prefixes = {'upleft': 0, 'upright': 1, 'downleft': 3, 'downright': 2}",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 34,
+      "category": "style-house",
+      "claim": "DETECTOR_RESOLUTION constant (512.0, 288.0) has no comment explaining what resolution this represents or why these values.",
+      "quote": "DETECTOR_RESOLUTION = (512.0, 288.0)",
+      "verdict": "KILLED",
+      "verifier_note": "The constant name already grounds the values as the detector resolution, and _as_native_corners documents the 512x288 native pixel space. The rubric accepts a named constant as grounding for a magic value, so an extra declaration comment is not required."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 35,
+      "category": "style-house",
+      "claim": "Numpy array UNIT_COURT_CORNERS lacks shape annotation; the array shape (4 corners, 2 coordinates) is non-obvious and should be documented inline per the rubric's shape-annotate numpy arrays rule.",
+      "quote": "UNIT_COURT_CORNERS = np.array(\n    [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],\n    dtype=np.float32,\n)",
+      "verdict": "KILLED",
+      "verifier_note": "The literal visibly contains four two-coordinate rows, and the surrounding corner-order documentation supplies the domain meaning. This is not a non-obvious shape that needs an inline annotation."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 43,
+      "category": "docs-orientation",
+      "claim": "The module uses parent as a project-specific role in its records and parent-pass functions, but never defines parent as the static or detected court-evidence source; a junior must infer the term.",
+      "quote": "    \"\"\"All court-dependent inputs needed by one ``run_video`` parent.",
+      "suggested_fix": "Define parent in the module docstring as the static or detected court-evidence source used by one run_video call.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the two line-43 reports and the separate parent-pass report. The module contrasts two parents but never gives the project term a direct definition.",
+      "duplicates_merged": 3
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 45,
+      "category": "docs-over-types",
+      "claim": "CourtInputs docstring explains immutability mechanics that the dataclass decorator and type hints already express.",
+      "quote": "    Arrays and tables are copied at construction because the dataclass's frozen\n    fields prevent rebinding, but do not make mutable NumPy or pandas values\n    immutable themselves.",
+      "verdict": "KILLED",
+      "verifier_note": "The prose adds runtime semantics that frozen=True and the annotations do not express: construction copies mutable values, while nested values remain mutable. It is not type-restating documentation."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 142,
+      "category": "needless-abstraction",
+      "claim": "Helper _copy_court_info is called only once and duplicates logic trivially; inlining would reduce indirection without loss of clarity.",
+      "quote": "def _copy_court_info(court_info: dict[str, object]) -> dict[str, object]:\n    \"\"\"Copy the dictionary and its mutable array values.\"\"\"\n    return {\n        key: value.copy() if isinstance(value, np.ndarray) else value\n        for key, value in court_info.items()\n    }",
+      "verdict": "KILLED",
+      "verifier_note": "The helper is called at lines 60 and 64, once for court_info and once inside the gate_court_info comprehension. It centralises shared copying logic rather than serving as a single-caller wrapper."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 190,
+      "category": "docs-prose",
+      "claim": "The docstring uses the unexplained term centred-bin for a strategy that selects one middle frame from each equal-width bin, so a skim reader cannot tell the sampling pattern from the prose.",
+      "quote": "    \"\"\"Return deterministic centred-bin samples for one non-empty scene.\"\"\"",
+      "suggested_fix": "Say that the function returns deterministic samples from evenly spaced bins across the scene interval, with up to 10 samples.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 194,
+      "category": "style-house",
+      "claim": "Magic number 10 in frame sampling has no domain grounding or comment explaining the sample count choice.",
+      "quote": "    sample_count = min(10, scene_length)",
+      "suggested_fix": "Define a named maximum such as MAX_SAMPLES_PER_SCENE = 10, with a short why-comment if the cap is a domain choice.",
+      "verdict": "CONFIRMED",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 209,
+      "category": "unclear-name",
+      "claim": "Variable name corner_floor abbreviates and obscures that this is the detector's minimum peak confidence threshold.",
+      "quote": "    corner_floor = float(getattr(detector, 'corner_min_peak_conf'))",
+      "suggested_fix": "Rename it to corner_min_peak_conf or corner_confidence_floor.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The right-hand attribute and the keyword argument make the meaning recoverable, so this is low-impact. The local alias still makes a confidence threshold look like a geometric floor during a skim."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 276,
+      "category": "stale-doc",
+      "claim": "Docstring Map unit-square court coordinates back to reference pixels does not explain what transformation is applied or why the inverse homography is used.",
+      "quote": "    \"\"\"Map unit-square court coordinates back to reference pixels.\"\"\"",
+      "verdict": "KILLED",
+      "verifier_note": "The docstring accurately states the input and output coordinate spaces. The implementation below makes the inverse homography explicit; omitting that implementation detail does not make the docstring stale."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 305,
+      "category": "style-house",
+      "claim": "Magic number 2 in if len(finite_y) != 2 lacks explanation; why must exactly 2 finite points exist?",
+      "quote": "    if len(finite_y) != 2:\n        raise ValueError('net band projection is not finite')",
+      "verdict": "KILLED",
+      "verifier_note": "The two is directly grounded by the two endpoint rows constructed in points immediately above, and the error message identifies the net-band projection being checked. The invariant is locally clear."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 311,
+      "category": "docs-orientation",
+      "claim": "Function _gate_resolution_table lacks a docstring; its purpose is not immediately clear to a skimmer.",
+      "quote": "def _gate_resolution_table(\n    video_id: int | str,\n    resolution: tuple[float, float],\n    table: pd.DataFrame | None,\n) -> pd.DataFrame:",
+      "suggested_fix": "Add a one-line docstring stating that the function returns a copied resolution table or creates a one-row table for the video.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The body is short, but the fallback-row and index-normalisation behaviour is not stated by the name or signature. Retain as a minor orientation finding."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 326,
+      "category": "docs-orientation",
+      "claim": "Function _scene_row lacks documentation of its output row and coordinate/order contract; a skim requires tracing the coordinate conversion and inline mapping.",
+      "quote": "def _scene_row(\n    video_id: int | str,\n    interval: tuple[int, int],\n    corners_refpx: np.ndarray,\n    resolution: tuple[float, float],\n) -> dict[str, object]:",
+      "suggested_fix": "Add a concise docstring stating that the helper builds one pose-resolution scene-table row and maps TL/TR/BR/BL corners to the output columns.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the style and structure reports. This helper carries the coordinate-space and column-order contract that its generic dict return type does not expose.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 332,
+      "category": "comprehension-trap",
+      "claim": "The _scene_row expression combines the _as_ref_corners call with pose-resolution scaling, and because it passes HOMOGRAPHY_RESOLUTION for an already reference-space array, a skimmer may misread the first step as an additional coordinate conversion.",
+      "quote": "    pose_corners = _as_ref_corners(corners_refpx, HOMOGRAPHY_RESOLUTION) * np.asarray(\n        [\n            float(resolution[0]) / HOMOGRAPHY_RESOLUTION[0],\n            float(resolution[1]) / HOMOGRAPHY_RESOLUTION[1],\n        ]\n    )",
+      "suggested_fix": "Remove the identity conversion or make the pose-resolution scale a named local value before applying it.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original category: overloaded-one-liner. Correction: comprehension-trap. _as_ref_corners receives the same source and target resolution here, so the scanner's claimed reference conversion is not a real coordinate conversion; the chained expression still invites that misreading."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 343,
+      "category": "style-house",
+      "claim": "The inline prefixes mapping encodes the CourtQuad TL/TR/BR/BL order as output upleft/upright/downleft/downright indices 0/1/3/2 without a comment or named mapping, so the downleft/downright swap requires reverse-engineering.",
+      "quote": "    prefixes = {'upleft': 0, 'upright': 1, 'downleft': 3, 'downright': 2}",
+      "suggested_fix": "Use a module-scope mapping with a name such as corner_index_by_name and document TL=0, TR=1, BR=2, BL=3 versus the output column order.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the naming, style, and structure reports. The indices are correct, and _as_ref_corners names the input order, but the local output-order contract remains unexplained.",
+      "duplicates_merged": 3
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 372,
+      "category": "docs-prose",
+      "claim": "The build_keep_vote docstring calls the result a raw frame vote for in-margin people without saying that it is a per-frame boolean array true for exactly two finite detections within the ±10% normalised court margin.",
+      "quote": "    \"\"\"Return the raw frame vote for exactly two in-margin people.\"\"\"",
+      "suggested_fix": "Say that the function returns a boolean array that is true for frames with exactly two finite detections whose bottom-centre points fall within the ±10% normalised court margin.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the stale-doc and docs-prose reports. The text is semantically consistent with the code, so stale-doc is not the right category; the underlying jargon and result-shape complaint is valid.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 390,
+      "category": "style-house",
+      "claim": "The -0.10 and 1.10 bounds define a 10% court-margin tolerance without a named constant or why-comment grounding that policy.",
+      "quote": "                & (normalised[:, 0] >= -0.10)\n                & (normalised[:, 0] <= 1.10)\n                & (normalised[:, 1] >= -0.10)\n                & (normalised[:, 1] <= 1.10)",
+      "suggested_fix": "Extract COURT_MARGIN_FRACTION = 0.10 and add a short comment explaining the tolerance for detections near court edges.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the naming, style, and structure reports. The arithmetic reveals a 10% extension, but the reason for choosing that boundary is still an unlabelled policy choice.",
+      "duplicates_merged": 3
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 404,
+      "category": "docs-prose",
+      "claim": "The build_court_present docstring uses exactly-two majority and sole court vector without saying that every frame in each valid scene is marked court-present.",
+      "quote": "    \"\"\"Expand each scene's exactly-two majority to the sole court vector.\"\"\"",
+      "suggested_fix": "Say that the function returns a boolean array marking every frame in a scene as court-present when that scene has passed the exactly-two-person threshold.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the stale-doc and docs-prose reports. The docstring is consistent with the caller's scene_valid calculation, but exactly-two majority and sole court vector are opaque terms.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 418,
+      "category": "unclear-name",
+      "claim": "Parameter ref_err_px is a cryptic abbreviation; readers cannot infer what ref_err means without domain knowledge.",
+      "quote": "    ref_err_px: float = 3.5,",
+      "suggested_fix": "Expand it to reference_error_px or ref_error_px.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The surrounding active_corners_refpx name and error-band call make the meaning recoverable, so this is low-impact. The compact ref_err abbreviation still costs a skim reader a small inference."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 453,
+      "category": "docs-orientation",
+      "claim": "Function _scene_fraction lacks a docstring; its purpose is inferred from the signature only.",
+      "quote": "def _scene_fraction(keep_vote: np.ndarray, interval: tuple[int, int]) -> float:\n    start_frame, end_frame = interval\n    return float(keep_vote[start_frame:end_frame].mean())",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted body directly shows that the helper returns the mean of keep_vote over the half-open interval, so the claim that purpose comes from the signature only is false."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 506,
+      "category": "repetition",
+      "claim": "Five consecutive lines repeat the None if quad is None else quad.FIELD pattern; one helper would collapse this repetition.",
+      "quote": "        raw_corners_px=None if quad is None else quad.corners_px,\n        raw_source=None if quad is None else quad.source,\n        raw_peaks=None if quad is None else quad.peak,\n        raw_corner_source=None if quad is None else quad.corner_source,\n        fallback_diagnostics=None if quad is None else quad.diagnostics,",
+      "suggested_fix": "Extract the quad-derived values once into a small local tuple or record before constructing CourtSceneRecord.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The repeated conditional shape is real. A local extraction can remove five copies while keeping the explicit field names in the record constructor."
+    },
+    {
+      "file": "src/annotator/court_evidence.py",
+      "line": 545,
+      "category": "style-house",
+      "claim": "Magic number 0.5 threshold for scene validity (50% of frames must have exactly 2 people) lacks explanation or grounding.",
+      "quote": "    scene_valid = [_scene_fraction(keep_vote, interval) >= 0.5 for interval in intervals]",
+      "suggested_fix": "Define a named scene-valid fraction such as SCENE_VALID_FRACTION = 0.5, or add a short comment explaining the majority-valid policy.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The comparison and _scene_fraction name make the majority interpretation visible, but the 50% policy remains an unlabelled domain choice."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,80 @@
+{
+ "module": "src/annotator/calibration/selection.py",
+ "purpose": "This module provides pure functions for selecting the best calibration configuration based on score metrics. It filters rows (grid candidates vs non-candidates), applies optional quality floors, and generates sortable keys using different criteria: strict F1 score, coverage, alignment tightness, and merge counts. The module is orchestrated by an upstream component (B6) that computes diagnostics and decides whether to declare a winning configuration.",
+ "public_api": [
+  {
+   "name": "standard_tail",
+   "role": "Deterministic tie-breaker for all sort keys; orders by fewest changed settings, then by settings tuple. Called by every key function to settle otherwise-identical configurations."
+  },
+  {
+   "name": "boundary_live_key_rally_id_f1",
+   "role": "Returns the strict-boundary sort key for selecting the best config based on strict F1 score and alignment median. Callers use this when the primary goal is strict performance (clean coverage) with tight alignment."
+  },
+  {
+   "name": "boundary_report_key_fewest_merges",
+   "role": "Returns a report-mode sort key prioritizing fewest span merges and split/missed/spurious counts. Callers use this to report configurations with minimal auxiliary side effects."
+  },
+  {
+   "name": "boundary_report_key_coverage_first",
+   "role": "Returns a report-mode sort key prioritizing coverage fraction. Callers use this to rank configurations by how much ground truth is covered, secondarily by merge counts."
+  },
+  {
+   "name": "boundary_report_key_tightest_start",
+   "role": "Returns a report-mode sort key prioritizing tightest absolute start alignment median. Callers use this to find configurations with the most precise rally-start detection."
+  },
+  {
+   "name": "f1_raw_5",
+   "role": "Computes raw +/-5 frame F1 score from recall and precision metrics, or returns None if either metric is missing. Used by contact selection and validation logic."
+  },
+  {
+   "name": "contact_meets_floors",
+   "role": "Checks whether a contact row satisfies optional precision and recall floor thresholds. Callers use this to filter ineligible contact configurations before live selection."
+  },
+  {
+   "name": "contact_live_key_floored_f1",
+   "role": "Returns the live contact sort key, ranking by floored F1 score. Callers use this with pre-filtered rows that have already cleared metric floors and have valid F1 scores."
+  },
+  {
+   "name": "grid_rows",
+   "role": "Filters input to return only rows marked as grid candidates (label='grid'); reference rows are excluded. Callers use this to isolate configurations that can win selection."
+  },
+  {
+   "name": "coverage_allowance_rows",
+   "role": "Returns grid rows within a fractional coverage allowance of the best row's coverage count. Callers use this to narrow candidates when exact best coverage is not required."
+  },
+  {
+   "name": "select_contact_live_winner",
+   "role": "Selects and returns the best contact configuration by floored F1 score, applying optional precision/recall floors. Returns None if no row is eligible. Top-level entry point for contact selection."
+  },
+  {
+   "name": "best_config_clears_quality_floor",
+   "role": "Validates whether a candidate best-config row meets a minimum covered-fraction threshold. Callers use this to gate whether B6 reports a winning configuration at all."
+  },
+  {
+   "name": "ScoreRow",
+   "role": "Type alias: dict[str, Any] holding a single configuration's score metrics (covered, covered_fraction, clean_covered, etc.). Used as the input unit for all selection functions."
+  },
+  {
+   "name": "SortKey",
+   "role": "Type alias: tuple[Any, ...] representing a comparable sort order. Returned by every key function; ordered tuples are compared lexicographically by Python's min()/max()."
+  },
+  {
+   "name": "GridKey",
+   "role": "Type alias: Callable[[ScoreRow], SortKey]. Describes the signature of a ranking function that transforms a score row into a sortable key."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "``swallowed_rallies`` (the sum, over merged spans, of contained rallies minus\none),",
+   "why_unclear": "The definition uses multiple domain-specific terms without explanation. What is a 'merged span'? What are 'contained rallies' and why subtract one? The phrasing doesn't clearly convey the semantic meaning of this field."
+  },
+  {
+   "quote": "B6 computes those diagnostics and orchestrates selection.  If its quality\nfloor fails, it withholds the best-config verdict and reports no winner.",
+   "why_unclear": "B6 is presented as a known upstream component but is never defined, imported, or explained in this module. It is unclear what B6 is, whether it calls these functions or is called by them, and what 'orchestrates selection' means in this specific context."
+  },
+  {
+   "quote": "Strict F1 uses ``clean_covered`` as TP, ``n_gt_rallies - TP`` as FN, and",
+   "why_unclear": "'Rally' is a fundamental domain concept used throughout the module (n_gt_rallies, covered count, etc.) but is never defined. Without domain context, it is unclear what a rally represents in badminton annotation or why counting rallies is central to the selection logic."
+  }
+ ]
+}

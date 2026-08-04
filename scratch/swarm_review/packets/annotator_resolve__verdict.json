@@ -1,0 +1,86 @@
+{
+  "module": "src/annotator/resolve.py",
+  "probe_assessment": "The cold read mostly held up. It correctly identifies resolve as taking a base configuration and fps, rejecting unknown override keys, building fps-scaled constants and thresholds, scaling the two direct timing options to frame counts, and returning ResolvedAnnotatorConfig. Its three listed stumbles are genuine file-local gaps: ScalingKind.FRAME_COUNT.scale is defined outside this module, scale_thresholds receives both already-scaled constants and raw overrides without a local explanation, and the whitelist gives no local rationale for its membership or for the meaning of base-30. The phrase that the caller must already have probed fps is stronger than runtime enforcement, because resolve accepts a valid float from any source, but the module documentation explicitly assigns probing to the caller, so I treat that as a contract paraphrase rather than a separate comprehension finding.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 36,
+      "category": "comprehension-trap",
+      "claim": "The call to ScalingKind.FRAME_COUNT.scale hides the rounding and minimum-frame semantics that convert an optional base-30 timing value into a final frame count; resolve.py shows only the imported enum call.",
+      "quote": "        return None if value is None else int(ScalingKind.FRAME_COUNT.scale(value, fps))",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 34,
+      "category": "comprehension-trap",
+      "claim": "The call to scale_thresholds passes both the already-scaled constants and the raw overrides_base30 mapping, but resolve.py does not explain which values each argument supplies or why both are needed.",
+      "quote": "    thresholds = scale_thresholds(base.thresholds, fps, constants=constants, overrides_base30=overrides)",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 14,
+      "category": "comprehension-trap",
+      "claim": "The whitelist exposes field names without explaining why those rows are overridable or that base-30 denotes the reference 30-fps table.",
+      "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({\n    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',\n    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 14,
+      "category": "misleading-name",
+      "claim": "The suffix \"ROWS\" misleads readers to expect tabular structure when the constant contains configuration key names in a frozenset.",
+      "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({\n    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',\n    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',\n    'contact_dedup_radius_frames', 'contact_suppression_radius_frames',\n    'serve_start_lookback_frames', 'serve_stillness_window_frames', 'sustained_loss_frames',\n    'min_descend_samples', 'body_unit_half_window', 'composition_min_scene_len',\n    'blip_max_frames', 'high_shot_oob_lookback_frames', 'high_shot_oob_min_visible_frames',\n    'high_shot_oob_extrap_frames', 'reentry_lookahead_frames', 'reentry_min_visible_frames',\n    'contact_impulse_multiple',",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but ROWS accurately names the allowed row keys of the base-30 override table. The frozenset representation and the set difference at line 30 make the allowlist role clear; expecting the constant itself to be a table is not a demonstrated misreading."
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 14,
+      "category": "unclear-name",
+      "claim": "The 30 in _OVERRIDABLE_BASE30_ROWS is an unexplained base-frame-rate reference that a skim reader cannot confirm from this module.",
+      "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({",
+      "suggested_fix": "Rename the identifier to make the baseline explicit, such as _OVERRIDABLE_BASE_FPS_ROWS, or add a short comment stating that the base rate is 30 fps.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The nearby fps terminology suggests a frame-rate baseline, but the module never states that base-30 means 30 fps or why that baseline governs the override values.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 1,
+      "category": "docs-orientation",
+      "claim": "The module docstring does not orient an unfamiliar reader to the module's output or explain that it resolves and fps-scales a base configuration.",
+      "quote": "\"\"\"Composition module for a base preset and caller-provided video fps.\n\nProbing fps is the caller's business (``probe_fps``); this function never\ndefaults it.\n\"\"\"",
+      "suggested_fix": "State that the module turns a base preset into a final per-video configuration by scaling fps-dependent constants and thresholds and converting direct timing values to frame counts; then state that the caller supplies fps.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. Composition and caller responsibility do not tell a skimmer that resolve returns a final ResolvedAnnotatorConfig or what gets resolved.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 3,
+      "category": "docs-prose",
+      "claim": "The module docstring uses avoidable negative phrasing in \"this function never defaults it\" instead of stating the caller's positive responsibility.",
+      "quote": "Probing fps is the caller's business (``probe_fps``); this function never\ndefaults it.",
+      "suggested_fix": "Replace the sentence with a positive statement such as: \"The caller supplies the probed fps.\"",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The caller boundary matters, but the same contract can be stated positively under the rubric."
+    },
+    {
+      "file": "src/annotator/resolve.py",
+      "line": 27,
+      "category": "docs-orientation",
+      "claim": "The function docstring does not explain what resolve composes or what resolved configuration it returns; it only restates the caller's fps responsibility.",
+      "quote": "    \"\"\"Resolve one preset for a probed fps; probing fps is the caller's business.\"\"\"",
+      "suggested_fix": "Document base and fps, and say that the function returns a final per-video configuration with fps-scaled constants, thresholds, and direct timing settings converted to frame counts.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The return type names the result class, but the docstring does not explain the resolution work that produces it.",
+      "duplicates_merged": 2
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

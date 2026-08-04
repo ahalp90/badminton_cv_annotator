@@ -1,0 +1,166 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 608,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Y-bounds logic for receiver-half computation is duplicated across two functions.",
+    "quote": "y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == Half.BOT else (0.0, NET_COURT_Y)",
+    "confidence": "high",
+    "suggested_fix": "Extract to a helper function: `def _receiver_y_bounds(receiver_half: Half) -> tuple[float, float]:` and reuse in both `landing_margins` (line 608) and `geometric_verdict` (line 741)."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "claim": "Module docstring uses unexplained jargon (D5, sset_01, GT-anchored, SHIPPED) that leaves an unfamiliar reader confused about project context.",
+    "quote": "Promoted from the D5 point-winner detector proven out in local_scratch/autograder_architecture/d5_winner_retest.py and d5_landing_arms.py (measured on the ShuttleSet sset_01 and trial videos, GT-anchored against the per-set winner labels). Only the SHIPPED chain lands here...",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 1,
+    "category": "docs-prose",
+    "claim": "Opening sentence violates single-sub-clause rule with four noun phrases joined by commas and 'and', making it hard to parse as one thought.",
+    "quote": "Wrist-anchored striker attribution in body-height units, an alternation-rhythm fit for the final-contact half, a kinematic landing filter (a settle cap plus a carry filter, both refined by an ankle rule), and a next-server winner call with a landing-geometry best-guess fallback.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 132,
+    "category": "docs-orientation",
+    "claim": "Function docstring uses 'sticky pick' and 'sticky tracker' without introduction; a junior would not know these are domain objects.",
+    "quote": "The pick and its cached nearest-wrist body-unit distance come from the sticky tracker. The wrist measurement point is unchanged. The picked bbox's bottom y (pixels) is tested against the net band.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 320,
+    "category": "docs-orientation",
+    "claim": "NamedTuple field docstring stacks undefined terms ('sticky-selected', 'body-height units', 'shipped') with no explanation of what they mean.",
+    "quote": ":param carry_ratio: (t,) shuttle-to-nearest sticky-selected player's nearer-WRIST distance divided by that player's bbox height (body-height units); NaN where the shuttle is invisible or no sticky pick has a finite height. The body-height form of the serve gate's proximity signal, with the wrist numerator matching the shipped wrists-per-box-height attribution.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 211,
+    "category": "docs-prose",
+    "claim": "Docstring chains two independent thoughts with semicolon, violating the single-sub-clause-per-sentence rule.",
+    "quote": "A visible sample there with image-y within TOP_EDGE_FRAC of 0 means the shuttle left the frame upward (a lob) and will fall back into view; a non-visible or non-top sample reads False.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 229,
+    "category": "docs-prose",
+    "claim": "Docstring is bulky with nested clauses in a single 14-line paragraph; breaks the single-thought-per-paragraph rule.",
+    "quote": "A sustained-loss gap does NOT close the window when the last visible sample before it sits at the frame top: the shuttle lobbed out of the top of the picture and will descend back into view, so the search waits for the re-entry, still bounded by the next serve and the replay mask (and by any LATER sustained-loss gap that did not follow a top exit).",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 61,
+    "category": "docs-over-types",
+    "claim": "Docstring explains CSV serialization ('Byte-identical') instead of the semantic meaning of the enum; implementation detail, not domain meaning.",
+    "quote": "\"\"\"Which court half a striker, receiver, or landing sits in. Byte-identical to the harness's plain `'Top'`/`'Bot'` strings, so a CSV written from these serialises the same way.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 425,
+    "category": "docs-orientation",
+    "claim": "Docstring uses jargon term 'carve-out' (meaning exception or special case) without introduction.",
+    "quote": "Ground-static = the shuttle self-speed rolling-median is <= settle_thr AND the shuttle is NOT held at a wrist (carry_ratio <= carry_thr, the carve-out that keeps a hand-held pause from reading as a floor rest).",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 696,
+    "category": "docs-orientation",
+    "claim": "Function docstring is too terse and omits :param and :return documentation; does not orient a reader on what parameters do.",
+    "quote": "\"\"\"Pick a landing in an explicit half-open window endpoint.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 723,
+    "category": "docs-prose",
+    "claim": "Docstring uses unexplained notation 'M=0' without defining whether it refers to margin_m=0 or some other constant.",
+    "quote": "\"\"\"(verdict, winner_half, source) from the landing geometry at M=0: net rule, else in/out.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 637,
+    "category": "docs-orientation",
+    "claim": "Docstring uses unexplained abbreviations TL, TR, BR, BL without stating they mean top-left, top-right, bottom-right, bottom-left.",
+    "quote": "\"\"\"``corners_refpx`` uses the CourtKeyNet TL, TR, BR, BL order at :data:`HOMOGRAPHY_RESOLUTION`.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 125,
+    "category": "unclear-name",
+    "claim": "Section comment header uses jargon ('shipped wrist_boxh arm', 'px') without explanation, making the purpose unclear to a junior reader.",
+    "quote": "# Striker attribution (the shipped wrist_boxh arm: nearer-wrist px / mean windowed box height)",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 366,
+    "category": "docs-prose",
+    "claim": "Docstring uses 'base-30' without explaining it means 30 fps; term is opaque on first read.",
+    "quote": "\"\"\"Convert base-30 landing options once; returned fields are final fps values.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 437,
+    "category": "docs-prose",
+    "claim": "Inline comment is long (4 sentences) with multiple clauses, violating single-thought-per-sentence rule and making it hard to extract the invariant.",
+    "quote": "Ankle refinement: a static frame whose shuttle is nearer an ankle than a wrist is resting on the ground by the feet, not paused in a hand, so the held carve-out must not veto it. A standing player sits ~0.5 box-heights from a grounded shuttle's nearest wrist (reads as held) but nearer its ankle; without this the settle cap never fires on such a rest.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 783,
+    "category": "docs-prose",
+    "claim": "Docstring uses unclear phrase 'ported best_guess=True semantics' without explaining what 'ported' means or how the semantics differ.",
+    "quote": "Only when no next serve is attributable does the call fall back to the landing's best-guess court-half membership (the ported best_guess=True semantics: the raw terminal's side always yields a call, so verdict is blank only when there is no landing at all).",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 403,
+    "category": "repetition",
+    "claim": "Wrist and ankle distance computation follows identical pattern and is repeated once in the same loop",
+    "quote": "wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]\nwrist_px = np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min()\nwrist_ratio = wrist_px / box_height\n\n[identical pattern for ankles at lines 413-416]",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 650,
+    "category": "overloaded-one-liner",
+    "claim": "Single line combines indexing, multiplication, distance calculation, conversion, and append in nested function calls",
+    "quote": "displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ }
+]

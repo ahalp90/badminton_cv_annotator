@@ -1,0 +1,139 @@
+[
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 248,
+    "category": "overloaded-one-liner",
+    "claim": "Side effect of chunk.pop() is buried in a logical OR expression, easy to miss.",
+    "quote": "score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Separate the membership check from the pop: has_pending = chunk.pop('_score_pending', False); score_pending = 'bert_f1' not in chunk or has_pending"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 187,
+    "category": "repetition",
+    "claim": "Filtering for keep=='True' appears identically in both run_clean and run_fine; should be one helper.",
+    "quote": "kept = [row for row in rows if row.get('keep') == 'True']",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Extract to a module-level helper: def _kept_videos(rows) \u2192 list[dict]"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 196,
+    "category": "repetition",
+    "claim": "Sidecar existence check and skip is duplicated in run_clean (lines 196\u2013199) and run_fine (lines 414\u2013417).",
+    "quote": "sidecar = CHUNKS_DIR / f'{video_id}.json'\n        if not sidecar.exists():\n            print(f'  {video_id}: no chunk sidecar, skipping')\n            continue",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Extract to helper: def _load_or_skip_sidecar(video_id: str) \u2192 list[dict] | None"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 374,
+    "category": "style-house",
+    "claim": "Multi-line comprehension with a method call; house style requires unpacking to explicit for-loops for top-to-bottom scannability.",
+    "quote": "words = [\n                word for segment in aligned['segments']\n                for word in segment.get('words', [])\n                if 'start' in word and 'end' in word\n            ]",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Unpack to explicit loops: words = []; for segment in aligned['segments']: for word in segment.get('words', []): if 'start' in word and 'end' in word: words.append(word)"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 58,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Module-level constant CLEAN_SYSTEM_PROMPT lacks a docstring; a junior skimming the file won't understand its role without reading the inline comment and the string itself.",
+    "quote": "CLEAN_SYSTEM_PROMPT = (\n    'You process one badminton commentary chunk at a time. Do two things and '\n    'return them together as one JSON object.",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring above the assignment: '\"\"\"Merged system prompt requesting both clean text and paraphrases (spec s9, dataset_schema s5 shares budget).\"\"\"'"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 75,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Return type `-> dict:` is generic; the docstring specifies keys ('text_clean', 'alt_phrasings') but the type hint does not.",
+    "quote": "def _clean_once(text: str) -> dict:\n    \"\"\"Single Gemini clean+paraphrase call for one chunk. Never runs in tests.",
+    "confidence": "high",
+    "suggested_fix": "Change to `-> dict[str, str | list[str]]:` to reflect {'text_clean': str, 'alt_phrasings': list[str]}."
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 109,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Return type `-> dict:` is generic; the docstring specifies the same structure as _clean_once but type hint does not.",
+    "quote": "def call_clean_llm(text: str) -> dict:\n    \"\"\"Call the clean LLM for one chunk with retry and exponential backoff.",
+    "confidence": "high",
+    "suggested_fix": "Change to `-> dict[str, str | list[str]]:` to match the documented return shape."
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 192,
+    "category": "data-structure",
+    "chunk_id": "whole",
+    "claim": "Complex tuple `list[tuple[str, Path, list[dict], str]]` accumulates heterogeneous state (video_id, sidecar path, chunks, original json); unpacking at lines 229, 244, 256, 266 relies on positional order.",
+    "quote": "loaded_sidecars: list[tuple[str, Path, list[dict], str]] = []",
+    "confidence": "high",
+    "suggested_fix": "Define a NamedTuple (e.g., `LoadedSidecar`) with fields video_id, path, chunks, original_json so callers name what they unpack."
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 248,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Boolean assignment combines a key-existence check with a dict mutation via .pop(); the side effect obscures intent.",
+    "quote": "score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)",
+    "confidence": "medium",
+    "suggested_fix": "Use named intermediates per house style: has_bert = 'bert_f1' in chunk; pending = chunk.pop('_score_pending', False); score_pending = not has_bert or pending."
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 313,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Return type `-> tuple | None:` is generic; the docstring specifies (model, align_model, align_meta) but type hint does not.",
+    "quote": "def load_fine_models() -> tuple | None:\n    \"\"\"Load the WhisperX fine-pass models once for a whole run, or None off-GPU.",
+    "confidence": "high",
+    "suggested_fix": "Change to more specific type hint or define a NamedTuple to carry (model, align_model, align_meta)."
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 344,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Parameter `models: tuple` is generic; the docstring specifies (model, align_model, align_meta) from load_fine_models but type hint does not.",
+    "quote": "def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> list[dict]:",
+    "confidence": "high",
+    "suggested_fix": "Use the same NamedTuple or specific type hint as load_fine_models() to match the caller's return value."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 186,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Identical logic to filter kept rows appears in both run_clean and run_fine, duplicating the query pattern without a shared helper.",
+    "quote": "if rows is None:\n    rows = read_candidates()\nkept = [row for row in rows if row.get('keep') == 'True']",
+    "suggested_fix": "Extract the filtering logic to a single internal helper (e.g., `def _get_kept_rows(rows: list[dict] | None = None) -> list[dict]`) and call it from both functions."
+   }
+  ],
+  "overflow_note": null
+ }
+]

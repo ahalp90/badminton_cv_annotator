@@ -1,0 +1,175 @@
+{
+  "module": "src/annotator/inpaint_guard.py",
+  "probe_assessment": "The cold read held up on the module's purpose and public API. No material purpose or API misreading needs reporting. The first listed stumble is genuine: the code treats (0, 0) as blank and excludes those windows, but the module does not say whether the origin means missing data, an out-of-frame point, or a valid resting position. The third stumble is partly genuine: the downstream assignments show that the halo marks degraded frames, but the file does not explain why its width is exactly window - 1. The second stumble is probe-only because the module docstring explicitly says that varying attractors are fabrication proof and flat attractors remain suspect because a real shuttle can rest at one pixel. The phrase coordinate hash is loose because the keys are raw position bytes, but the probe also describes the windows as exact, so that wording is not a material API misreading.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 55,
+      "category": "comprehension-trap",
+      "claim": "The module skips every pattern window containing (0, 0), but never states what the origin means in the input track, so a junior developer cannot tell whether the code is excluding missing data or a valid resting position.",
+      "quote": "        if blank_cumulative[start + window] - blank_cumulative[start] > 0:\n            continue",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 242,
+      "category": "comprehension-trap",
+      "claim": "The file shows that the halo is used to mark nearby frames as degraded, but does not explain why the adjacent region is exactly window - 1 frames or what domain boundary that width represents.",
+      "quote": "    edges = np.diff(np.concatenate(([False], core, [False])).astype(np.int8))\n    for start in np.flatnonzero(edges == 1):\n        halo[max(0, int(start) - (window - 1)):int(start)] = True",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 187,
+      "category": "repetition",
+      "claim": "Counting logic for attractors in halves is written identically four times with only boundary parameters varying",
+      "quote": "\"varying_first_half\": sum(\n                any(start < midpoint and start + window > 0 for start in starts)\n                for starts in varying.values()\n            ),\n            \"varying_second_half\": sum(\n                any(start < n_frames and start + window > midpoint for start in starts)\n                for starts in varying.values()\n            ),\n            \"flat_first_half\": sum(\n                any(start < midpoint and start + window > 0 for start in starts)\n                for starts in flat.values()\n            ),\n            \"flat_second_half\": sum(\n                any(start < n_frames and start + window > midpoint for start in starts)\n                for starts in flat.values()\n            ),",
+      "suggested_fix": "Extract a helper function to count attractors in a single half, parameterized by group and boundary checks; call it four times rather than duplicating the expression.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The four sums repeat the same overlap test for two attractor groups and two validation halves. Only the group and half bounds change."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 230,
+      "category": "repetition",
+      "claim": "Code-counting comprehension appears twice within build_mask and once in module-level code_counts, duplicating the same logic",
+      "quote": "info[\"counts_per_code\"] = {\n            code: int(np.count_nonzero(codes == code)) for code in range(4)\n        }",
+      "suggested_fix": "Call code_counts(codes) instead of inline comprehension, or extract the logic once at module level and reuse throughout.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The same four-code count expression occurs at both build_mask exits and in code_counts, which is an existing reusable helper."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 242,
+      "category": "overloaded-one-liner",
+      "claim": "Edge detection combines three operations nested on one line—concatenate, type-cast, then diff—making intent unclear without domain knowledge",
+      "quote": "edges = np.diff(np.concatenate(([False], core, [False])).astype(np.int8))",
+      "suggested_fix": "Split into intermediate steps or add an explanatory comment: edge detection is identifying transitions from 0-frame gaps in the core region.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The line nests concatenation, dtype conversion, and differencing. The operation is correct, but the transition-mask construction takes more work to parse than a short sequence of named steps."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 150,
+      "category": "overloaded-one-liner",
+      "claim": "Computing peak-to-peak range on two separate array columns and comparing both is two operations on one line",
+      "quote": "moves = np.ptp(points[:, 0]) > 0 or np.ptp(points[:, 1]) > 0",
+      "suggested_fix": "Use vectorised approach: moves = np.any(np.ptp(points, axis=0) > 0) to make intent clearer (attractor has movement in any axis).",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The expression performs two column reductions, two comparisons, and a boolean combination on one line. It is short, but it meets the rubric's overloaded-one-liner definition."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 40,
+      "category": "style-house",
+      "claim": "Function signature exceeds 120-character line limit",
+      "quote": "def pattern_episodes(track: np.ndarray, window: int = DEFAULT_WINDOW) -> tuple[dict[bytes, list[int]], dict[bytes, int]]:",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The cited line is 121 characters long, exceeding the rubric's 120-character code-line limit."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 127,
+      "category": "style-house",
+      "claim": "Return type annotation exceeds 120-character limit",
+      "quote": "    ) -> tuple[dict[bytes, list[int]], dict[bytes, int], dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the cited line is 117 characters long. The rubric limits individual code lines, and this line is within 120 characters."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 109,
+      "category": "docs-orientation",
+      "claim": "Function _empty_info lacks a docstring to explain its purpose and return-value structure",
+      "quote": "def _empty_info(\n    window: int, reason: str, threshold: int | None = None, margin: float | None = None,\n) -> dict[str, Any]:",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 125,
+      "category": "docs-orientation",
+      "claim": "Function _candidate_attractors has no docstring for its complex five-element tuple return",
+      "quote": "def _candidate_attractors(\n    track: np.ndarray, window: int,\n) -> tuple[dict[bytes, list[int]], dict[bytes, int], dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 206,
+      "category": "docs-orientation",
+      "claim": "Function _cover lacks a docstring explaining its purpose of building a boolean coverage mask",
+      "quote": "def _cover(track_length: int, groups: dict[bytes, list[int]], window: int) -> np.ndarray:",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 206,
+      "category": "unclear-name",
+      "claim": "Function name _cover does not clearly indicate it returns a boolean mask of frame coverage",
+      "quote": "def _cover(track_length: int, groups: dict[bytes, list[int]], window: int) -> np.ndarray:",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The body makes the behaviour recoverable, but _cover is generic and does not identify the frame-mask result or the window groups it covers."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 149,
+      "category": "style-house",
+      "claim": "Reshaped numpy array lacks inline shape annotation",
+      "quote": "        points = np.frombuffer(key, dtype=track.dtype).reshape(window, 2)",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted construction explicitly shows the resulting shape as (window, 2). The rubric calls for an inline annotation when shape is non-obvious, and the shape is visible here."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 121,
+      "category": "style-house",
+      "claim": "Magic number 4 (grade code count) appears five times in range(4) across lines 121, 161, 231, 262, 295 without a named constant.",
+      "quote": "        \"counts_per_code\": {code: 0 for code in range(4)},",
+      "suggested_fix": "Define NUM_GRADE_CODES = 4 at module scope and use throughout, or reference len(CODE_NAMES).",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The repeated range(4) has a stable domain meaning: the four grade codes. The module defines the individual codes but not a named count. This merges the duplicate style-house finding from the other lens.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 109,
+      "category": "data-structure",
+      "claim": "Loose dict with known keys should be a dataclass or NamedTuple for explicit structure",
+      "quote": "    return {\n        \"detector_version\": DETECTOR_VERSION,\n        \"window\": window,\n        \"threshold\": threshold,\n        \"margin\": margin,\n        \"n_varying\": 0,\n        \"n_flat\": 0,",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The diagnostics mapping has a stable set of named fields and is annotated only as dict[str, Any], so readers must infer the record schema from repeated literals."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 125,
+      "category": "comprehension-trap",
+      "claim": "The private helper name _candidate_attractors leaves its acceptance gates and varying/flat partition implicit, so a skim reader may not know that threshold and margin checks decide which attractors are returned.",
+      "quote": "def _candidate_attractors(\n    track: np.ndarray, window: int,\n) -> tuple[dict[bytes, list[int]], dict[bytes, int], dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:",
+      "suggested_fix": "Rename to _extract_attractors, _accepted_attractors, or add a docstring explaining that the function validates and separates candidates into varying/flat groups.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: misleading-name. The original claim that the name implies the helper only identifies candidate patterns is too strong because the helper does identify accepted candidates and threshold checks are part of selecting them. The correction is to expose the acceptance and varying/flat split in a docstring or a more explicit name."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 73,
+      "category": "unclear-name",
+      "claim": "Parameter name floor in adaptive_threshold is vague without context; a skim reader won't infer it represents a minimum episode count threshold.",
+      "quote": "def adaptive_threshold(episodes: dict[bytes, int], floor: int = _MIN_CANDIDATE_EPISODES) -> tuple[int, float]:",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the immediately following docstring says that counts below floor are noise, and the default _MIN_CANDIDATE_EPISODES grounds it as an episode-count lower bound. Its role is inferable from the file."
+    },
+    {
+      "file": "src/annotator/inpaint_guard.py",
+      "line": 166,
+      "category": "comprehension-trap",
+      "claim": "The _validate_presence signature introduces varying and flat without local orientation about the two attractor groups, so a reader jumping to the helper must look back to the module docstring.",
+      "quote": "def _validate_presence(\n    varying: dict[bytes, list[int]], flat: dict[bytes, list[int]],\n    window: int, n_frames: int,",
+      "suggested_fix": "Add a function docstring explaining that varying and flat are attractor pattern groups where varying patterns show coordinate movement and flat patterns do not.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: unclear-name. The raw claim that the terminology has no explanation is wrong because the module docstring defines varying and flat attractors. The lack of a local docstring still makes this helper less self-contained for a skim reader."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

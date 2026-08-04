@@ -1,0 +1,162 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 119,
+    "category": "misleading-name",
+    "claim": "Function name `_number` implies conversion to numeric type, but actually formats a number to a string.",
+    "quote": "def _number(value: float | int | str | None) -> str:\n    return \"-\" if value is None or value == \"-\" else f\"{float(value):.3f}\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 38,
+    "category": "unclear-name",
+    "claim": "Function name `count_ignored_npy` claims to count, but returns a dict with both file count and byte total; misleads about scope.",
+    "quote": "def count_ignored_npy(run_root: Path) -> dict[str, int]:\n    \"\"\"Count ignored arrays that the run actually wrote.\"\"\"\n    ...return {\"file_count\": count, \"total_bytes\": total_bytes}",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 66,
+    "category": "unclear-name",
+    "claim": "Function name `_regular_run_file` uses vague term 'regular'; the actual logic validates files are non-symlinks within run_root.",
+    "quote": "def _regular_run_file(run_root: Path, relative_path: str) -> Path:\n    path = run_root / relative_path\n    resolved = path.resolve()\n    if path.is_symlink() or not resolved.is_file() or run_root not in resolved.parents:",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 114,
+    "category": "unclear-name",
+    "claim": "Function name `_metric` is too generic; it extracts a nested value from a metrics dict with a fallback, but name doesn't convey this.",
+    "quote": "def _metric(metrics: dict[str, Any], group: str, key: str) -> Any:\n    value = metrics.get(group, {})\n    return value.get(key, \"-\") if isinstance(value, dict) else \"-\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 175,
+    "category": "unclear-name",
+    "claim": "Function name `_candidate_files` uses vague term 'candidate'; from context, these are non-.npy files for security scanning.",
+    "quote": "def _candidate_files(run_root: Path) -> list[Path]:\n    return [\n        path\n        for path in sorted(run_root.rglob(\"*\"))\n        if path.is_file() and not path.is_symlink() and path.suffix != \".npy\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 204,
+    "category": "unclear-name",
+    "claim": "Function name `_planned_json_changes` uses vague verb 'planned'; describes identifying JSON files needing sanitization and extracting tokens.",
+    "quote": "def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], set[str]]:...",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 75,
+    "category": "docs-orientation",
+    "claim": "Docstring for `build_summary` uses unexplained jargon ('closed measurement manifests') without context.",
+    "quote": "def build_summary(run_root: Path) -> dict[str, Any]:\n    \"\"\"Collect the closed measurement manifests and existing metrics files.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 39,
+    "category": "docs-orientation",
+    "claim": "Docstring 'Count ignored arrays that the run actually wrote' lacks context: what makes arrays 'ignored'? Why note 'actually wrote'?",
+    "quote": "def count_ignored_npy(run_root: Path) -> dict[str, int]:\n    \"\"\"Count ignored arrays that the run actually wrote.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 239,
+    "category": "needless-abstraction",
+    "claim": "Function `_write_json` is a single-caller trivial wrapper around `path.write_text(json.dumps(...))` at line 330 only.",
+    "quote": "def _write_json(path: Path, payload: dict[str, Any]) -> None:\n    path.write_text(json.dumps(payload, indent=2) + \"\\n\", encoding=\"utf-8\")",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 38,
+    "category": "unclear-name",
+    "claim": "Docstring 'Count ignored arrays that the run actually wrote' does not explain what 'ignored' means.",
+    "quote": "def count_ignored_npy(run_root: Path) -> dict[str, int]:\n    \"\"\"Count ignored arrays that the run actually wrote.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Replace docstring with explanation: 'Count .npy files in run output that will not be git-tracked (preserved only in backups).'"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 94,
+    "category": "style-house",
+    "claim": "Magic number 8 in configuration count check lacks domain grounding.",
+    "quote": "    if len(configurations) != 8:\n        raise ValueError(f\"successful annotator run must have eight configurations, got {len(configurations)}\")",
+    "chunk_id": "whole",
+    "suggested_fix": "Add a module constant `EXPECTED_CONFIGURATIONS = 8` with a comment explaining the 8 standard parameter combinations, or add an inline comment explaining the expectation."
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 204,
+    "category": "docs-orientation",
+    "claim": "32-line function _planned_json_changes lacks docstring; return type tuple leaves meaning of each element unclear.",
+    "quote": "def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], set[str]]:\n    root_path = _regular_run_file(run_root, \"manifest.json\")\n    root = _read_json(root_path)",
+    "chunk_id": "whole",
+    "suggested_fix": "Add docstring: 'Collect JSON files needing redaction and extract private tokens (usernames, allocations) to redact. Returns dict of paths to cleaned payloads and set of tokens to search for.'"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 259,
+    "category": "docs-orientation",
+    "claim": "60-line function _scanner_findings lacks docstring; unclear what betterleaks and ripgrep are searching for.",
+    "quote": "def _scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> set[Path]:\n    _require_tool(\"betterleaks\")\n    _require_tool(\"rg\")",
+    "chunk_id": "whole",
+    "suggested_fix": "Add docstring: 'Scan files for embedded credentials and private paths. Runs betterleaks (credential scanner) and ripgrep (pattern matcher) to find security/privacy violations. Returns set of unsafe paths for deletion.'"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 183,
+    "category": "unclear-name",
+    "claim": "Function name _private_tokens does not convey that it extracts usernames and allocation IDs from file paths; lacks docstring.",
+    "quote": "def _private_tokens(manifest: dict[str, Any]) -> set[str]:\n    tokens: set[str] = set()\n    for field in (\"command\", \"input_manifest_source\"):",
+    "chunk_id": "whole",
+    "suggested_fix": "Add docstring: 'Extract usernames and allocation IDs from home/scratch paths in manifest for later redaction (sanitization).'"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 243,
+    "category": "docs-orientation",
+    "claim": "Function _backup lacks docstring; purpose and side effects (tarball location) not documented.",
+    "quote": "def _backup(run_root: Path) -> Path:\n    BACKUPS_DIRECTORY.mkdir(parents=True, exist_ok=True)\n    clean_id = datetime.now(timezone.utc).strftime(\"%Y%m%d-%H%M%S-%f\")",
+    "chunk_id": "whole",
+    "suggested_fix": "Add docstring: 'Create timestamped tarball backup of run output in BACKUPS_DIRECTORY before cleaning. Return archive path.'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 217,
+    "category": "repetition",
+    "claim": "Identical list comprehension for sanitizing strings appears at lines 217 and 228; could collapse into a helper like `_sanitise_list()`.",
+    "quote": "cleaned_values = [_sanitise_path(item) if isinstance(item, str) else item for item in value]",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 79,
+    "category": "repetition",
+    "claim": "Identical manifest record validation appears at lines 79\u201380 and 222\u2013223; extracting into a helper would eliminate the duplication.",
+    "quote": "if not isinstance(record, dict) or not isinstance(record.get(\"manifest\"), dict):",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,72 @@
+{
+ "module": "src/annotator/types.py",
+ "purpose": "Defines shared type declarations, enums, and utility functions for video frame-rate scaling, shuttle tracking, pose estimation, and rally segmentation across pipeline stages. Establishes common data structures for contacts, serve configuration, and sticky-picker results.",
+ "public_api": [
+  {
+   "name": "ScalingKind",
+   "role": "StrEnum that declares how base-30 values scale with video FPS (per-frame speed shrinks, frame counts grow, dimensionless stays fixed); callers use the .scale() method to convert values to target FPS."
+  },
+  {
+   "name": "ScalingKind.scale",
+   "role": "Instance method that scales a single base-30 value to the target frame rate."
+  },
+  {
+   "name": "DeadMaskMode",
+   "role": "StrEnum to select the policy (REPLAY, COMPOSITION, or UNION) for generating per-frame dead-time masks."
+  },
+  {
+   "name": "SmoothingMode",
+   "role": "StrEnum to select how invisible frames are treated during span smoothing (ZERO_FILL or IGNORE_INVISIBLE)."
+  },
+  {
+   "name": "SpanOpen",
+   "role": "StrEnum to control where a rally span opens during segmentation: REGION_START or BACK_FILL, passed to segment_video()."
+  },
+  {
+   "name": "ReentryGuardVariant",
+   "role": "StrEnum to select which sides of a high-shot gap the re-entry buffer tests (TWO_SIDED or REENTRY_ONLY)."
+  },
+  {
+   "name": "ContactCandidate",
+   "role": "NamedTuple holding a raw contact candidate and its independent gate/suppression verdicts (rally_id, contact_frame, proximity_ok, wrist_near, suppressed)."
+  },
+  {
+   "name": "ServeStartConfig",
+   "role": "NamedTuple specifying serve-start policy with threshold in body-height multiples, mode, optional close variant, and stillness threshold."
+  },
+  {
+   "name": "Slot",
+   "role": "IntEnum for storage row indices (TOP=0, BOTTOM=1) aligned with sticky_anchor's public constants; used to index per-slot arrays directly."
+  },
+  {
+   "name": "compute_speed",
+   "role": "Function that computes per-frame shuttle speed from a (t, 3) track array; returns (t,) speed in norm-units/frame, NaN where steps are not fully visible."
+  },
+  {
+   "name": "true_runs",
+   "role": "Function that extracts maximal contiguous runs of True values from a boolean mask as half-open [start, end) ranges; used for detecting active segments."
+  },
+  {
+   "name": "rolling_nanmedian",
+   "role": "Function that applies centered rolling median ignoring NaN values; output length matches input and pads ends with NaN so every frame gets a full-width window."
+  },
+  {
+   "name": "WRIST_L, WRIST_R, ANKLE_L, ANKLE_R",
+   "role": "Module constants (integers 9, 10, 15, 16) for COCO pose-keypoint indices used by stage 8 and point_winner for sticky picking and kinematics analysis."
+  },
+  {
+   "name": "StickyResult",
+   "role": "NamedTuple caching sticky-evidence output: distances, picks, standing_count, ankle_pos, bbox_height (pixels), per-slot distances, wrist distance, and analysed-frame mask."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "arithmetic must stay identical to ``scale_for_fps`` until the threading stage rewires the table onto these declarations.",
+   "why_unclear": "The comment references an external scale_for_fps function (not defined in this file) and a future 'threading stage' refactoring. Without inspecting other files, I cannot identify what scale_for_fps is or when/how the threading stage will rewire the scaling logic."
+  },
+  {
+   "quote": "# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Stage 8\n# (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution\n# and landing kinematics.",
+   "why_unclear": "The comment names specific stages (stage 8, point_winner, sticky picker) and methods (attribution, landing kinematics) that are defined elsewhere. The COCO keypoint format and the shape (t, n_max, 17, 2) are domain-specific; without external context I assume these are standard pose-estimation conventions but cannot verify."
+  }
+ ]
+}

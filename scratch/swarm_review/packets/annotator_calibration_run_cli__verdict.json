@@ -1,0 +1,124 @@
+{
+  "module": "src/annotator/calibration/run_cli.py",
+  "probe_assessment": "The cold read from claude-haiku at effort low held up for the module purpose and all listed public API roles; it made no material misreading. The three listed stumbles are genuine from this file alone. The imported fixtures_root() resolver is not defined here, FixtureRunner leaves the callable parameter contract open with an ellipsis, and the runner result is intentionally typed only as object before flattening. The probe also omitted the distinction between per-fixture failures, which are caught, and pre-loop failures, which propagate, but that is an omission rather than a contradiction.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 30,
+      "category": "comprehension-trap",
+      "claim": "From this file alone, a junior cannot establish the complete argument signature that a FixtureRunner must accept because Callable[..., object] leaves the parameters open.",
+      "quote": "FixtureRunner = Callable[..., object]",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 62,
+      "category": "comprehension-trap",
+      "claim": "The file alone does not establish how fixtures_root() chooses the root or whether ANNOTATOR_FIXTURES_ROOT is the setting that controls it.",
+      "quote": "root = fixtures_root()\nif not root.is_dir() or not os.access(root, os.R_OK):\n    raise RuntimeError(f\"ANNOTATOR_FIXTURES_ROOT is unreadable: {root}\")",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 81,
+      "category": "comprehension-trap",
+      "claim": "The file shows only an object-to-metrics boundary, so a junior cannot determine what result structure the runner returns or what flatten_metrics expects inside that object.",
+      "quote": "flattener: Callable[[object], dict[str, int | float | None]] = flatten_metrics,",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 18,
+      "category": "unclear-name",
+      "claim": "Variable _BST_X does not convey what the directory is or why it is needed.",
+      "quote": "_BST_X = _SRC / \"bst_x\"",
+      "suggested_fix": "Rename it to a role-based name such as _BST_X_SOURCE_ROOT and briefly state that the path is inserted for the calibration chain's imports.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The following sys.path insertion shows that the value is an import root, but the project-local acronym still does not explain that role to a new reader."
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 107,
+      "category": "repetition",
+      "claim": "The same flattener(runner(...)) logic is duplicated across the two branches, with only the no_replay_mask=True keyword differing.",
+      "quote": "if no_replay_mask:\n    scores[name] = flattener(runner(by_name[name], no_replay_mask=True))\nelse:\n    scores[name] = flattener(runner(by_name[name]))",
+      "suggested_fix": "Build kwargs = {\"no_replay_mask\": True} when the flag is set and call flattener(runner(by_name[name], **kwargs)) once.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The naming-lens and structure-lens reports describe the same two-branch duplication and are merged here.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 61,
+      "category": "needless-abstraction",
+      "claim": "Single-caller helper _validate_environment() wraps a simple check that could be inlined without loss of clarity.",
+      "quote": "def _validate_environment() -> None:\n    root = fixtures_root()\n    if not root.is_dir() or not os.access(root, os.R_OK):\n        raise RuntimeError(f\"ANNOTATOR_FIXTURES_ROOT is unreadable: {root}\")",
+      "suggested_fix": "Inline the three-line check at the start of run_manifest if the named validation phase is not worth the extra definition.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper name does make the pre-loop phase easy to recognise, so this is a low-severity simplification. The single caller and simple body still meet the rubric's needless-abstraction criterion."
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 92,
+      "category": "docs-orientation",
+      "claim": "The run_manifest docstring uses the internal raw_exclusion_mask= keyword and calls it a mask call without explaining what the mask excludes or how the runner uses it.",
+      "quote": "The runner includes\ndigest verification, array loading, the committed-mask ``raw_exclusion_mask=`` call, and scoring.",
+      "suggested_fix": "Describe the committed mask and the all-False replacement in domain terms, and omit the internal keyword syntax unless callers need that detail.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The style-lens report about the confusing raw_exclusion_mask= notation is the same documentation gap and is merged into this entry.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 30,
+      "category": "comprehension-trap",
+      "claim": "The runner contract is under-specified in the alias, so a reader cannot tell from this file which arguments a fixture runner must accept or what result shape it returns.",
+      "quote": "FixtureRunner = Callable[..., object]",
+      "suggested_fix": "Document the runner contract at this boundary; use a more precise callable protocol only if the injected runner is a stable interface.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: unclear-name. The alias name FixtureRunner is understandable, so the original name-based claim is miscategorised. The code does invite the underlying comprehension problem because ... hides the accepted parameters and object leaves the runner-to-flattener result shape unresolved."
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 123,
+      "category": "docs-orientation",
+      "claim": "The public entry point main() has no direct docstring stating that it parses CLI arguments, delegates to run_manifest, and returns its status.",
+      "quote": "def main(argv: Sequence[str] | None = None, *, registry: Iterable[Fixture] = FIXTURES,\n         runner: FixtureRunner = run_fixture,\n         flattener: Callable[[object], dict[str, int | float | None]] = flatten_metrics,",
+      "suggested_fix": "Add a one-sentence docstring describing the argument parsing and delegation, or document the injected seams if they are intended for callers.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The wrapper is transparent and the module docstring already documents the command, so this is a low-severity orientation gap rather than a behavioural ambiguity."
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 75,
+      "category": "docs-orientation",
+      "claim": "The run_manifest() docstring does not document the roles of its seven parameters, including the injected runner, flattener, and renderer.",
+      "quote": "def run_manifest(\n    names: Sequence[str] | None = None,\n    out: Path | None = None,",
+      "suggested_fix": "Add concise parameter entries for fixture selection, CSV output, the injected collaborators, and no_replay_mask.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The scanner says nine parameters, but the signature has seven. The underlying docs-orientation finding survives after correcting that count; the type hints do not explain the collaborators' roles."
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 88,
+      "category": "docs-prose",
+      "claim": "The phrase let process failures raise does not clearly identify which failures propagate or how that produces the entry point's exit status.",
+      "quote": "fail, and let process failures raise for the entry point's exit 1. Exit 2 is",
+      "suggested_fix": "State that environment, registry, and selection errors propagate and that an unhandled exception makes the module invocation exit 1.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/run_cli.py",
+      "line": 92,
+      "category": "docs-prose",
+      "claim": "The phrase digest verification uses unexplained jargon and does not say what artefact is being verified.",
+      "quote": "digest verification, array loading, the committed-mask ``raw_exclusion_mask=`` call, and scoring.",
+      "suggested_fix": "Name the verified artefact and use plain wording, such as recorded fixture-file checksums, if that is the operation.",
+      "verdict": "CONFIRMED"
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,44 @@
+{
+ "module": "src/annotator/inpaint_guard.py",
+ "purpose": "Detects repeated position sequences (patterns) in shuttle tracks that are too common to be ordinary video footage. It identifies frames with fabricated, suspect flat, or degraded tracking data by analyzing recurrence attractors \u2014 positions that the shuttle returns to repeatedly \u2014 and assigns each frame a uint8 grade code.",
+ "public_api": [
+  {
+   "name": "pattern_episodes",
+   "role": "Groups exact position windows (fixed-frame sequences) by their coordinate hash and counts how many separated episodes (time-distant occurrences) each pattern has. Called during analysis to find candidate repeated sequences."
+  },
+  {
+   "name": "adaptive_threshold",
+   "role": "Derives the episode threshold that separates common patterns from noise by finding the largest ratio gap in descending-sorted episode counts. Called to determine what constitutes abnormally high recurrence."
+  },
+  {
+   "name": "build_mask",
+   "role": "Constructs an array of uint8 grade codes (NO_FLAG, FABRICATED, SUSPECT_FLAT, DEGRADED) for each frame by identifying attractor-based patterns and their surrounding halos. Internal workhorse called by grade_track."
+  },
+  {
+   "name": "grade_track",
+   "role": "Main entry point: grades a canonical track and returns frame-aligned codes plus diagnostics. Uses memoized caching keyed by track content hash and window size."
+  },
+  {
+   "name": "clear_cache",
+   "role": "Clears the in-memory detector cache. Used for isolated test runs to avoid cross-test contamination."
+  },
+  {
+   "name": "code_counts",
+   "role": "Counts how many frames received each of the four grade codes. Called to summarize the results of grading."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "if blank_cumulative[start + window] - blank_cumulative[start] > 0:\n            continue",
+   "why_unclear": "Frames where both x and y are 0 are treated as 'blank' and skipped when building patterns. Without seeing how tracks are populated or whether (0,0) has special meaning in shuttle data (e.g., out-of-frame, missing data, or resting position), I cannot confidently state the intent \u2014 the docstring says 'a real shuttle can rest at one pixel' (line 5), which suggests (0,0) might not mean missing data, but the blank check rejects them anyway."
+  },
+  {
+   "quote": "moves = np.ptp(points[:, 0]) > 0 or np.ptp(points[:, 1]) > 0\n        (varying if moves else flat)[key] = starts_by_pattern[key]",
+   "why_unclear": "Attractors are classified as 'varying' (showing movement across the window) or 'flat' (remaining at one pixel). The logic makes sense, but the downstream handling treats them differently \u2014 varying attractors are 'FABRICATED' proof while flat ones are only 'SUSPECT_FLAT' \u2014 and I cannot confidently infer why flat attractors remain suspect without understanding the domain assumption about what real shuttle motion looks like."
+  },
+  {
+   "quote": "edges = np.diff(np.concatenate(([False], core, [False])).astype(np.int8))\n        for start in np.flatnonzero(edges == 1):\n            halo[max(0, int(start) - (window - 1)):int(start)] = True",
+   "why_unclear": "This computes transitions at the boundaries of core regions and uses them to mark a 'halo' of frames adjacent to attractors. I understand the edge-detection technique (padding, diff, then picking +1 for starts), but without seeing the full frame-marking logic or understanding how the halo affects the final grade, I cannot confidently explain why the halo width is exactly (window - 1) frames or what it represents semantically."
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+{
+ "module": "src/scraper/stage10_clean.py",
+ "purpose": "This module runs two sequential passes over badminton commentary chunk sidecars. The clean pass uses Gemini LLM to remove transcription noise and generate paraphrases, validated by BERTScore. The fine-timestamp pass uses WhisperX on GPU to snap coarse timestamps to word boundaries.",
+ "public_api": [
+  {
+   "name": "CleanError",
+   "role": "Exception raised when LLM clean calls fail after exhausting retries; signals log-and-skip to the caller."
+  },
+  {
+   "name": "call_clean_llm",
+   "role": "Calls Gemini with exponential backoff retry to clean one commentary chunk and generate paraphrases; used internally by run_clean and in tests via monkeypatch."
+  },
+  {
+   "name": "run_clean",
+   "role": "Main entry point for the LLM clean+paraphrase pass; processes all kept videos, calls LLM per chunk, validates via BERTScore, marks pass/fail, and rewrites chunk sidecars."
+  },
+  {
+   "name": "load_fine_models",
+   "role": "Loads WhisperX and alignment models once for the entire run on GPU; returns None if WhisperX/torch missing or CUDA unavailable; used by run_fine to avoid per-video VRAM leaks."
+  },
+  {
+   "name": "refine_timestamps",
+   "role": "Re-aligns padded audio spans of each chunk with WhisperX and snaps start/end to word boundaries; mutates chunks in place; called per video by run_fine."
+  },
+  {
+   "name": "run_fine",
+   "role": "Main entry point for the WhisperX fine-timestamp pass; processes all kept videos, extracts audio spans, calls refine_timestamps, and cleans up GPU memory."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point with flags to run clean-only, fine-only, force re-clean, and specify video directory for fine pass."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "capability = capability_tuple\n        arch = f'sm_{capability_tuple[0]}{capability_tuple[1]}'\n        if arch in torch.cuda.get_arch_list():",
+   "why_unclear": "Line 142 assigns the tuple to a variable with the same semantic meaning but different name, then later logs it as-is. It looks like incomplete refactoring or a missing type conversion, because the intermediate variable is not immediately obvious in purpose."
+  },
+  {
+   "quote": "score_pending = 'bert_f1' not in chunk or chunk.pop('_score_pending', False)\nchunk['_score_pending'] = score_pending\nif score_pending and chunk['text_clean'].strip() and chunk['text'].strip():",
+   "why_unclear": "The logic pops _score_pending in the condition on line 248, then sets it back on 249. The sequence of checking, popping, setting, and checking again in the next line is convoluted and obscures the intent of tracking which chunks need BERTScore."
+  },
+  {
+   "quote": "model = whisperx.load_model(\n        WHISPERX_FINE_MODEL, device, compute_type=FINE_COMPUTE_TYPE,\n        vad_method='pyannote',\n        asr_options={'suppress_numerals': True, 'hallucination_silence_threshold': 2.0},",
+   "why_unclear": "The `hallucination_silence_threshold` parameter passed to WhisperX is not explained. I lack context for what it controls or why 2.0 seconds is the chosen value, despite a settings reference in the docstring above."
+  }
+ ]
+}

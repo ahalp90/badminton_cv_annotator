@@ -1,0 +1,125 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 176,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "The term 'OPEN' in the docstring has no explanation; an unfamiliar reader won't know it signals a design-decision placeholder or optional feature.",
+    "quote": "\"True if the upload predates the floor. OPEN (spec s2): default off.\"",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 205,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Type annotation `dict[str, dict]` omits the inner dict's structure; should specify `dict[str, dict[str, str]]` or use TypedDict so readers know what fields rows carry.",
+    "quote": "by_id: dict[str, dict] = {}",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 165,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Two-step conversion `int(float(duration_s))` lacks a comment explaining why float() is needed (defensive parsing of decimal strings); unclear why not just int().",
+    "quote": "seconds = int(float(duration_s))",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 81,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Magic number `120` for line truncation has no named constant or domain grounding; unclear why this threshold.",
+    "quote": "print(f\"  WARNING term '{term}': unexpected --print line, skipping: {line[:120]}\")",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 147,
+    "category": "comment-noise",
+    "chunk_id": "whole",
+    "claim": "Regex pattern `[^a-z0-9]+` splits by non-alphanumeric but lacks a comment explaining why this tokenization is needed (to isolate whole tokens for doubles keywords).",
+    "quote": "tokens = re.split(r'[^a-z0-9]+', text)",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 250,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Boolean values `row['duration_suspect']` and `row['upload_date_suspect']` added directly to integer counters; implicit bool-to-int coercion should be explicit with int() for clarity.",
+    "quote": "flagged_duration += row['duration_suspect']\n        flagged_upload += row['upload_date_suspect']",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 86,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Dict comprehension replacing 'NA' with '' lacks explanation of the yt-dlp quirk; comment says why, but the transformation itself could use a helper function for clarity.",
+    "quote": "row = {key: ('' if value == 'NA' else value) for key, value in row.items()}",
+    "confidence": "low"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 127,
+    "category": "overloaded-one-liner",
+    "claim": "Assignment combines default fallback, conditional, and type conversion in one line\u2014exceeding the two-operation threshold.",
+    "quote": "row['duration_s'] = row['duration_s'] or ('' if duration is None else str(duration))",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 125,
+    "category": "repetition",
+    "claim": "Identical field-assignment pattern at lines 125 and 128 (row[X] = row[X] or (meta.get(Y) or '')) could be unified.",
+    "quote": "row['channel'] = row['channel'] or (meta.get('channel') or '')",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 101,
+    "category": "stale-doc",
+    "claim": "Docstring claims True indicates metadata call 'actually hit YouTube', but code also returns True on timeout and error\u2014the condition is actually 'a request was attempted'.",
+    "quote": ":return: True when a metadata call actually hit YouTube, so the caller paces\n        only real requests.",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 72,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Magic number 200 for stderr truncation lacks domain grounding or explanation.",
+    "quote": "print(f\"  ERROR term '{term}': {result.stderr.strip()[:200]}\")",
+    "suggested_fix": "Add a named constant like MAX_ERROR_DISPLAY = 200 with a comment explaining it prevents log spam, or add an inline comment."
+   },
+   {
+    "file": "src/scraper/stage1_index.py",
+    "line": 81,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Magic number 120 for line truncation lacks domain grounding or explanation.",
+    "quote": "print(f\"  WARNING term '{term}': unexpected --print line, skipping: {line[:120]}\")",
+    "suggested_fix": "Add a named constant like MAX_LINE_DISPLAY = 120 with a comment explaining it prevents log spam, or add an inline comment."
+   }
+  ],
+  "overflow_note": null
+ }
+]

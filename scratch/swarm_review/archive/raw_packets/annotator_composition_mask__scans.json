@@ -1,0 +1,27 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/composition_mask.py",
+    "line": 106,
+    "category": "docs-prose",
+    "claim": "Docstring sentence violates the rule 'no more than a single sub-clause per sentence' by combining multiple dependent clauses and parenthetical reasoning.",
+    "quote": "Fail loud on an all-dead result: no live segment means nothing for the\nsegmenter to anchor to (apply_replay_mask rejects an all-True mask anyway), so\na fully-dead mask is almost always a bad vote input rather than a real answer.",
+    "chunk_id": "whole",
+    "suggested_fix": "Split into simpler sentences: 'Fail loud on an all-dead result: no live segment means nothing for the segmenter to anchor to. The apply_replay_mask function rejects an all-True mask anyway. A fully-dead mask is almost always a bad vote input rather than a real answer.'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,82 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 43,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "The prefix 'boundary' appears in multiple function names (lines 43, 60, 74, 92) but is never defined or explained in the module, leaving a skim reader unclear about what 'boundary' refers to.",
+    "quote": "def boundary_live_key_rally_id_f1(row: ScoreRow, n_gt_rallies: int) -> SortKey:",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 124,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "The term 'contact' appears in multiple function names (lines 124, 145, 188) but is never defined or mentioned in the module docstring, leaving a skim reader unsure what 'contact' scoring refers to.",
+    "quote": "def contact_meets_floors(\n    row: ScoreRow,\n    minimum_precision: float | None = None,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "The module docstring mentions 'B6' repeatedly (lines 3, 4, 14, 15, 16) without ever defining what B6 is, leaving a fresh reader confused about what component this module depends on.",
+    "quote": "B6 must supply every score row as a dictionary with ``label`` (``\"grid\"`` for\nconfigs that may win), ``changed_from_defaults``, and ``settings``.  It must\nalso supply the existing aggregate fields",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 54,
+    "category": "magic-number",
+    "chunk_id": "whole",
+    "claim": "The constant 2 in the F1 harmonic mean formula appears at lines 54 and 121 without explanation or being named, leaving readers unfamiliar with the F1 formula uncertain about its significance.",
+    "quote": "    denominator = (2 * true_positives) + false_negatives + false_positives\n    f1 = 0.0 if denominator == 0 else (2 * true_positives) / denominator",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 30,
+    "category": "comment-noise",
+    "chunk_id": "whole",
+    "claim": "Constants COVERAGE_ALLOWANCE_FRACTION = 1.0 and MINIMUM_BEST_COVERED_FRACTION = 0.0 lack explanatory comments about their domain purpose and why these specific defaults, requiring readers to trace through function docstrings.",
+    "quote": "COVERAGE_ALLOWANCE_FRACTION = 1.0\nMINIMUM_BEST_COVERED_FRACTION = 0.0",
+    "confidence": "medium"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 3,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Module docstring overwhelms with 16 field names across 10 lines, burying the main point under specification detail.",
+    "quote": "B6 must supply every score row as a dictionary with ``label`` (``\"grid\"`` for\nconfigs that may win), ``changed_from_defaults``, and ``settings``.  It must\nalso supply the existing aggregate fields, including ``covered``,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 201,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Comprehension at line 198-203 has method calls in the predicate; should unpack to explicit loop per house style.",
+    "quote": "if contact_meets_floors(row, minimum_precision, minimum_recall)\nand f1_raw_5(row) is not None",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [],
+  "overflow_note": null
+ }
+]

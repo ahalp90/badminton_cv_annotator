@@ -1,0 +1,65 @@
+{
+  "module": "src/scraper/stage2_transcripts.py",
+  "probe_assessment": "The cold read was largely accurate and listed no unresolved stumbles. It made two material high-level overstatements. First, the WhisperX description narrows the fallback to a missing English track, although the caption helper also returns the same missing-path sentinel for yt-dlp failure or no output. Second, the purpose says every video gets a sidecar, although failed acquisitions take a separate path without writing one. The remaining qualifiers, including the existing-sidecar skip and the mid-batch floor, are visible in the file and do not warrant additional comprehension findings.",
+  "probe_findings": [
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 64,
+      "category": "comprehension-trap",
+      "claim": "The probe says WhisperX is used when no English caption track exists, but the caption pull also returns None for yt-dlp failure or no output, and acquire_transcript uses that missing-path result to enter the WhisperX branch.",
+      "quote": ":return: the caption file path, or None when yt-dlp fails or writes nothing.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 312,
+      "category": "comprehension-trap",
+      "claim": "The purpose says each video gets a JSON sidecar, but an unresolved acquisition follows a failure path and does not write a sidecar; only successful acquisitions reach the write.",
+      "quote": "if transcript is None:\n            failures += 1\n            print(f'  FAILED transcript {video_id}')",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 97,
+      "category": "data-structure",
+      "claim": "parse_json3 and parse_vtt return list[dict] without specifying the stable {start, end, text} record shape; segment records should use a TypedDict.",
+      "quote": "def parse_json3(path: Path) -> list[dict]:\n    \"\"\"Parse a YouTube json3 caption file into {start, end, text} segments.",
+      "suggested_fix": "Define one SegmentDict TypedDict with start, end and text, then use list[SegmentDict] for both parsers.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present at line 97. parse_vtt has the same annotation and segment shape at line 125, so that duplicate finding is folded in. The docstrings state the fields, but list[dict] does not express the stable schema to type-aware readers.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 250,
+      "category": "data-structure",
+      "claim": "acquire_transcript returns dict | None without specifying the stable {source, segments} mapping shape; it should use a TypedDict for the expected fields.",
+      "quote": "def acquire_transcript(video_id: str, url: str) -> dict | None:\n    \"\"\"Return {source, segments} for one video, or None if unresolved.",
+      "suggested_fix": "Define TranscriptDict = TypedDict('TranscriptDict', {'source': str, 'segments': list[SegmentDict]}) and return TranscriptDict | None.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The function returns a stable two-key mapping for either source, so dict | None hides fields and value types at the public boundary."
+    },
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 77,
+      "category": "repetition",
+      "claim": "Both pull_subtitles and _download_audio duplicate the same subprocess error-handling structure (TimeoutExpired and returncode checks with identical print-and-return logic).",
+      "quote": "try:\n    result = subprocess.run(\n        cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S\n    )\nexcept subprocess.TimeoutExpired:\n    print(f'  TIMEOUT subs {video_id}')\n    return None\nif result.returncode != 0:\n    print(f'  ERROR subs {video_id}: {result.stderr.strip()[:200]}')\n    return None",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present at lines 77-87, and the same timeout and non-zero-return handling appears at lines 179-188 with only the audio label changed."
+    },
+    {
+      "file": "src/scraper/stage2_transcripts.py",
+      "line": 122,
+      "category": "overloaded-one-liner",
+      "claim": "The _vtt_seconds return statement chains four int() conversions, three multiplications, two additions, and one division—far exceeding the 'up to 2 chained operations' guideline.",
+      "quote": "return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000.0",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present at line 122. The return expression performs separate conversions and arithmetic for all four timestamp components, so it exceeds the rubric exception for a short return expression."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

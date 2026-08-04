@@ -1,0 +1,113 @@
+{
+  "module": "src/annotator/calibration/selection.py",
+  "probe_assessment": "The cold read mostly held up. The purpose and most public API roles match the module. Two API descriptions are materially imprecise: the contact winner and contact key rank by raw +/-5 F1 after precision and recall floors filter eligibility, rather than by a floored F1 value; and the fewest-merges key orders by swallowed_rallies, which counts excess rallies inside merged spans rather than the number of merged spans. The names and key descriptions invite both shortcuts. The probe's statement about validation callers cannot be verified from this module, so it is not a code comprehension finding. All three listed stumbles are genuine: the file does not define B6, rally, merged span, or contained rallies well enough for a domain-free junior reader to resolve their meaning and interaction from this file alone.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 66,
+      "category": "comprehension-trap",
+      "claim": "The probe describes boundary_report_key_fewest_merges as ranking by the number of span merges. The key actually ranks first by swallowed_rallies, the total excess rallies in merged spans; it does not count merged spans themselves. The function name and report-key label invite the conflation.",
+      "quote": "        row[\"swallowed_rallies\"],",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 155,
+      "category": "comprehension-trap",
+      "claim": "The probe describes the contact winner and contact key as ranking by a floored F1 score. Precision and recall floors only filter eligible rows; the key ranks the resulting rows by raw +/-5 F1.",
+      "quote": "    return (-raw_f1, *standard_tail(row))",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 9,
+      "category": "comprehension-trap",
+      "claim": "The probe's stumble is genuine. The file gives the arithmetic for swallowed_rallies but does not define a merged span, contained rally, or the domain reason for subtracting one.",
+      "quote": "``swallowed_rallies`` (the sum, over merged spans, of contained rallies minus\none),",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 14,
+      "category": "comprehension-trap",
+      "claim": "The probe's B6 stumble is genuine. B6 is named as the supplier and orchestrator, but this file does not identify the component or show whether it calls these functions or is called by them.",
+      "quote": "B6 computes those diagnostics and orchestrates selection.  If its quality\nfloor fails, it withholds the best-config verdict and reports no winner.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 46,
+      "category": "comprehension-trap",
+      "claim": "The probe's rally stumble is genuine. The F1 description uses rally counts and clean coverage without defining what a rally represents in this annotation domain.",
+      "quote": "    Strict F1 uses ``clean_covered`` as TP, ``n_gt_rallies - TP`` as FN, and\n    ``spurious_spans`` as FP.",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 43,
+      "category": "unclear-name",
+      "claim": "The prefix 'boundary' appears in multiple function names (lines 43, 60, 74, 92) but is never defined or explained in the module, leaving a skim reader unclear about what 'boundary' refers to.",
+      "quote": "def boundary_live_key_rally_id_f1(row: ScoreRow, n_gt_rallies: int) -> SortKey:",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The module identifies strict boundary fields and live/report keys, but it never explains the domain meaning of boundary; a new reader must infer it from the surrounding metric names."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 124,
+      "category": "unclear-name",
+      "claim": "The term 'contact' appears in multiple function names (lines 124, 145, 188) but is never defined or mentioned in the module docstring, leaving a skim reader unsure what 'contact' scoring refers to.",
+      "quote": "def contact_meets_floors(\n    row: ScoreRow,\n    minimum_precision: float | None = None,",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. Function docstrings describe contact selection and +/-5 metrics, but the module never defines what a contact is in the annotation domain."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 3,
+      "category": "docs-orientation",
+      "claim": "The module docstring mentions 'B6' repeatedly (lines 3, 4, 14, 15, 16) without ever defining what B6 is, leaving a fresh reader confused about what component this module depends on.",
+      "quote": "B6 must supply every score row as a dictionary with ``label`` (``\"grid\"`` for\nconfigs that may win), ``changed_from_defaults``, and ``settings``.  It must\nalso supply the existing aggregate fields, including ``covered``,",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. B6 is described as the producer and orchestrator, but the module gives no name, import, or other orientation for that component."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 54,
+      "category": "magic-number",
+      "claim": "The constant 2 in the F1 harmonic mean formula appears at lines 54 and 121 without explanation or being named, leaving readers unfamiliar with the F1 formula uncertain about its significance.",
+      "quote": "    denominator = (2 * true_positives) + false_negatives + false_positives\n    f1 = 0.0 if denominator == 0 else (2 * true_positives) / denominator",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The surrounding docs identify F1 and the harmonic mean, which gives the literal some context, but the repeated coefficient is still unnamed and a reader unfamiliar with the formula must recognise its role from the expression."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 30,
+      "category": "comment-noise",
+      "claim": "Constants COVERAGE_ALLOWANCE_FRACTION = 1.0 and MINIMUM_BEST_COVERED_FRACTION = 0.0 lack explanatory comments about their domain purpose and why these specific defaults, requiring readers to trace through function docstrings.",
+      "quote": "COVERAGE_ALLOWANCE_FRACTION = 1.0\nMINIMUM_BEST_COVERED_FRACTION = 0.0",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but absence of a comment is not comment-noise. The constant names and the relevant function signatures and docstrings explain how the defaults are used, so the claim does not establish a rubric finding."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 3,
+      "category": "docs-orientation",
+      "claim": "Module docstring overwhelms with 16 field names across 10 lines, burying the main point under specification detail.",
+      "quote": "B6 must supply every score row as a dictionary with ``label`` (``\"grid\"`` for\nconfigs that may win), ``changed_from_defaults``, and ``settings``.  It must\nalso supply the existing aggregate fields, including ``covered``,",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The first line states the purpose, but the following contract packs 16 field names into a dense block before the selection rules begin, which weakens skim orientation."
+    },
+    {
+      "file": "src/annotator/calibration/selection.py",
+      "line": 201,
+      "category": "style-house",
+      "claim": "Comprehension at line 198-203 has method calls in the predicate; should unpack to explicit loop per house style.",
+      "quote": "if contact_meets_floors(row, minimum_precision, minimum_recall)\nand f1_raw_5(row) is not None",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: the file has indentation before both lines, so this exact-quote check fails. The underlying style claim would otherwise match the rubric, but the finding is killed because the quoted text is absent."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

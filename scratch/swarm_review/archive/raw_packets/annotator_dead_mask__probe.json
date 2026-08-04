@@ -1,0 +1,11 @@
+{
+ "module": "src/annotator/dead_mask.py",
+ "purpose": "This module builds a boolean per-frame dead-time mask that marks which frames represent non-playing periods in a badminton video. It supports three production policies: REPLAY (based on court/track/homography signals), COMPOSITION (based on editor cuts and keep votes), and UNION (combination of both).",
+ "public_api": [
+  {
+   "name": "build_dead_mask",
+   "role": "Main entry point that constructs a boolean dead-time mask by dispatching to REPLAY, COMPOSITION, or UNION strategies based on the mode parameter. Callers use this to generate frame-by-frame annotations of dead time."
+  }
+ ],
+ "stumbles": []
+}

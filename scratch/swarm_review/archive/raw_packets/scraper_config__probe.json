@@ -1,0 +1,60 @@
+{
+ "module": "src/scraper/config.py",
+ "purpose": "Centralized configuration for the badminton commentary scraper, holding file paths, column contracts, yt-dlp throttle settings, stage-specific thresholds (chunk windows, LLM model choices, timeouts), and rate-limiting parameters. Every scraper stage imports from here so that output layout, CSV schema, API rate limits, and neural-model values live in one place.",
+ "public_api": [
+  {
+   "name": "CANDIDATES_CSV",
+   "role": "Path to the main candidate-video index file (stages 1, 3)"
+  },
+  {
+   "name": "CANDIDATES_COLUMNS",
+   "role": "Fixed column order for candidates.csv; includes video_id, url, title, keep flag, and triage_verdict"
+  },
+  {
+   "name": "SUBSTREAM_MATCH",
+   "role": "String constant 'match' for videos tagged as match recordings"
+  },
+  {
+   "name": "SUBSTREAM_INSTRUCTIONAL",
+   "role": "String constant 'instructional' for coach-review or instructional videos"
+  },
+  {
+   "name": "SEARCH_TERMS",
+   "role": "Dictionary of search-term families keyed by substream, seeding YouTube searches"
+  },
+  {
+   "name": "YTDLP_THROTTLE_ARGS",
+   "role": "Build yt-dlp command-line flags (--sleep-requests, --limit-rate, --retries) shared by stages 1\u20132 to avoid IP bans"
+  },
+  {
+   "name": "check_ytdlp",
+   "role": "Validate yt-dlp is installed and in PATH before any scraper stage runs"
+  },
+  {
+   "name": "ensure_dirs",
+   "role": "Create scrape output directories (SCRAPE_DIR, VIDEOS_DIR, TRANSCRIPTS_DIR, CHUNKS_DIR, MASKS_DIR) if missing"
+  },
+  {
+   "name": "read_candidates",
+   "role": "Load candidates.csv into a list of row dictionaries for consumption by stages 2 and 3"
+  },
+  {
+   "name": "write_candidates",
+   "role": "Write rows to candidates.csv using the fixed CANDIDATES_COLUMNS header (stage 1 initial write and stage 3 rewrite with keep flag)"
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "TRIAGE_MODEL = 'gemini-2.5-flash'\n# The documented floor across the candidate seats, kept at the min for fair comparison:\n# gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960",
+   "why_unclear": "This section refers to 'candidate seats' and compares LLM providers (OpenRouter, Groq, Google) with token limits across different models and free-tier rate caps. The context of why these specific seats were chosen and how they relate to the triage decision is not self-evident\u2014it requires knowledge of the larger project's LLM strategy."
+  },
+  {
+   "quote": "SCRAPE_TRACKNET_STRIDE = 8\n# streaming builds its median background image from a capped sample of frames (1800) instead of all of them\nSCRAPE_TRACKNET_LARGE_VIDEO = True",
+   "why_unclear": "The term 'tracknet' and what it does is not introduced or defined. The comment mentions 'streaming' and background-image building, but the connection between these constants and the overall scraper pipeline is opaque without additional context."
+  },
+  {
+   "quote": "# Cheap metadata screens (spec s2, D8). Flag never drop: a dropped row loses\n# its provenance. Instructional-substream rows skip the short-duration flag\n# (D24; coach-review clips run short by design).",
+   "why_unclear": "The acronyms 'D8' and 'D24' refer to design decisions in an external specification document (scraper_spec.md section D8 / D24). Without that document, I cannot fully understand which design choice each constant enforces or why instructional rows are excluded from the duration floor check."
+  }
+ ]
+}

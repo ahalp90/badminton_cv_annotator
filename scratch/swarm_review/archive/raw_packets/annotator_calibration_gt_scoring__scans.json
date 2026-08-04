@@ -1,0 +1,366 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 376,
+    "category": "misleading-name",
+    "claim": "Function name `_norm_half` implies normalization, but code is a binary selector that coerces non-'Top' values to 'Bot'.",
+    "quote": "def _norm_half(side: str) -> str:\n    return \"Top\" if side == \"Top\" else \"Bot\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 372,
+    "category": "unclear-name",
+    "claim": "Formula in `canonical_tolerance` uses unexplained magic numbers (5.0, 30.0, 0.5) without domain grounding or comment.",
+    "quote": "return max(1, math.floor(5.0 * fps / 30.0 + 0.5))",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 462,
+    "category": "unclear-name",
+    "claim": "Variable name `sm_side` uses cryptic abbreviation; likely 'side mapping' but non-standard and unexplained.",
+    "quote": "sm_side = {int(frame): _norm_half(str(side)) for frame, side in zip(per_vid[\"frame_num\"], per_vid[\"player_side\"])}",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 539,
+    "category": "comment-noise",
+    "claim": "Arrays `br`, `timing`, `player`, etc. initialized as `[0, 0, 0, 0]` with indices used throughout but meaning never documented. Pattern suggests [primary_correct, primary_total, secondary_correct, secondary_total] but unconfirmed.",
+    "quote": "br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 587,
+    "category": "needless-abstraction",
+    "claim": "Loop over single-element tuple adds unnecessary hop: `for values, ok in ((player, p_ok),):` should assign directly.",
+    "quote": "for values, ok in ((player, p_ok),):\n            values[0] += int(ok)\n            values[1] += 1",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 748,
+    "category": "needless-abstraction",
+    "claim": "Function `_literal` is called only once (line 779), yet adds file-hop for single-use logic that could inline into `main()`.",
+    "quote": "def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 712,
+    "category": "docs-prose",
+    "claim": "Docstring uses unclear term 'additive' without explaining what is being added or in what sense the output is additive.",
+    "quote": "\"\"\"Write the additive per-rally geometric winner diagnostics.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 732,
+    "category": "docs-prose",
+    "claim": "Docstring term 'unpinned' is unclear\u2014does it mean not yet fixed, unfrozen, or something else? Meaning not grounded.",
+    "quote": "\"\"\"Write unpinned inpaint grades and event-rejection rows for one video.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 281,
+    "category": "unclear-name",
+    "claim": "Field name `ab_to_half` uses undefined abbreviation 'ab' without explanation; likely player identifiers but unconfirmed.",
+    "quote": "ab_to_half: dict[str, str]",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 276,
+    "category": "unclear-name",
+    "claim": "Field name `getpoint_ab` is unclear\u2014likely player who earned the point, but purpose and domain not documented.",
+    "quote": "getpoint_ab: str | None",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 491,
+    "category": "misleading-name",
+    "claim": "Variable `flipped` suggests an action, but logic at line 498 detects inconsistent player sides, not a flip event.",
+    "quote": "flipped = False\n        for frame in gt_frames:\n            at_frame = players[rally.set_id].get(frame, [])\n            if len(at_frame) != 1 or frame not in sm_side:\n                continue\n            ab, half = at_frame[0], sm_side[frame]\n            if ab in ab_to_half and ab_to_half[ab] != half:\n                flipped = True",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 401,
+    "category": "docs-orientation",
+    "claim": "Docstring for `build_run_video_inputs` is minimal; does not orient reader on the two major tasks: loading arrays and validating guard constraints.",
+    "quote": "\"\"\"Load one fixture and assemble its invariant ``run_video`` inputs.\"\"\"",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 527,
+    "category": "docs-orientation",
+    "claim": "score_video is a 119-line mega-function with no docstring explaining its complex multi-step logic",
+    "quote": "def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame, court_info: dict,\n                tolerance: int) -> VideoScoring:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring explaining: load GT data, classify and score rally boundaries, build per-rally metrics (contact, timing, player, server, height, landing, point winner), accumulate aggregate statistics, and return VideoScoring object."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 295,
+    "category": "docs-orientation",
+    "claim": "RallyRow NamedTuple has 23 fields with no docstring or field documentation; a fresh reader cannot quickly understand the schema",
+    "quote": "class RallyRow(NamedTuple):\n    gt_index: int\n    set_id: str\n    rally: int\n    n_gt_strokes: int\n    classification: str",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring explaining the purpose (one row per GT rally, mixing GT labels and predicted values) and what each field represents (e.g., is mapped_span the result span index? Does player_correct compare pred to gt?)"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 325,
+    "category": "docs-orientation",
+    "claim": "ColumnAgg NamedTuple uses 'primary' and 'secondary' without explaining the semantic distinction",
+    "quote": "class ColumnAgg(NamedTuple):\n    primary_correct: int\n    primary_total: int\n    secondary_correct: int\n    secondary_total: int",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring: 'Primary counts include all GT rallies; secondary counts include only covered (detected) spans.'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 390,
+    "category": "docs-orientation",
+    "claim": "load_gt_tables returns tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame] with no docstring or type hints explaining what each element is",
+    "quote": "def load_gt_tables() -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:\n    for pin in SHARED_FILES:\n        verify_file(pin)\n    master = pd.read_csv(REPO_ROOT / \"training/data/shuttleset/annotations/shots_master.csv\")",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring: returns (master: shots_master.csv, homography: set_index('id'), court_info: dict[video_id, info], resolution: set_index('id'))"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 380,
+    "category": "docs-orientation",
+    "claim": "load_fixture_arrays returns tuple[np.ndarray, ...] with no documentation of what each array is or its shape/dtype",
+    "quote": "def load_fixture_arrays(fixture: Fixture) -> tuple[np.ndarray, ...]:\n    verify_fixture(fixture)\n    root = fixtures_root()\n    return (\n        np.load(root / fixture.track_path), np.load(root / fixture.pose_path(\"bboxes\")),",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring with shape annotations: (track, bboxes, scores, kps, ndet, committed_mask) with shapes and dtypes explained"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 460,
+    "category": "docs-orientation",
+    "claim": "reconcile_sets is a 55-line function with no docstring; logic is complex (mapping players to court halves, detecting flips, building GtWinner records)",
+    "quote": "def reconcile_sets(fixture: Fixture, master: pd.DataFrame, gt_rallies: list,\n                   set_dfs: dict[str, pd.DataFrame]) -> Reconciliation:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a docstring explaining: reconcile GT CSVs against master frame records, build mapping of players to court halves, detect side-flip inconsistencies, return Reconciliation with winner/flip counts."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 539,
+    "category": "style-house",
+    "claim": "score_video uses list accumulators (br, timing, player, server, height, landing, winner) with positional indices [0],[1],[2],[3] but never documents what each index represents",
+    "quote": "    br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]\n    server = [0, 0, 0, 0]\n    height = [0, 0, 0, 0]\n    landing = [0, 0, 0, 0]\n    winner = [0, 0, 0, 0]",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Use ColumnAgg or add a comment: '# [primary_correct, primary_total, secondary_correct, secondary_total]' or replace with named accumulators."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 435,
+    "category": "style-house",
+    "claim": "LandingFilterOptions(7, 0.004, 5, 7, 0.75) is called with five positional magic numbers with no explanation of what each means",
+    "quote": "        \"landing_options\": LandingFilterOptions(7, 0.004, 5, 7, 0.75),",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a comment explaining the five parameters; ideally pass named keyword arguments if LandingFilterOptions is a NamedTuple or dataclass."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 648,
+    "category": "docs-orientation",
+    "claim": "flatten_metrics has complex logic (dynamic dict key building in loop, special handling for None values) with no docstring",
+    "quote": "def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:\n    bm = scoring.boundary_metrics\n    values: dict[str, int | float | None] = {key: bm[key] for key in (\"covered_fraction\", \"covered\", \"n_gt_rallies\", \"split\", \"missed\", \"merged_spans\", \"spurious_spans\")}",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring explaining: flatten VideoScoring metrics and aggregations (ColumnAgg, timing tuples, contact/ball-round diffs) into a flat dict matching DISPLAY_METRICS order."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 372,
+    "category": "docs-prose",
+    "claim": "canonical_tolerance has no docstring or comment explaining the formula 'max(1, math.floor(5.0 * fps / 30.0 + 0.5))' or what 'canonical tolerance' represents",
+    "quote": "def canonical_tolerance(fps: float) -> int:\n    return max(1, math.floor(5.0 * fps / 30.0 + 0.5))",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring: 'Compute frame-matching tolerance scaled to FPS (5 frames at 30fps baseline, rounded).'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 275,
+    "category": "docs-orientation",
+    "claim": "GtWinner NamedTuple with fields like getpoint_ab, winner_half, ab_to_half, ab_half_flipped has no docstring explaining purpose or field meanings",
+    "quote": "class GtWinner(NamedTuple):\n    getpoint_ab: str | None\n    winner_half: str | None\n    win_reason: str | None\n    lose_reason: str | None\n    landing_px: tuple[float, float] | None\n    ab_to_half: dict[str, str]\n    ab_half_flipped: bool",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring: 'Per-rally ground-truth winner metadata: point winner, court half, reasons, landing pixel, player-to-half mapping, and flip flag.'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 332,
+    "category": "docs-orientation",
+    "claim": "VideoScoring NamedTuple has 14 fields mixing raw metrics, aggregations, and diagnostics with no docstring explaining the structure",
+    "quote": "class VideoScoring(NamedTuple):\n    name: str\n    rows: list[RallyRow]\n    boundary_metrics: dict\n    ball_round: ColumnAgg\n    timing_primary: tuple[int, int]\n    timing_covered: tuple[int, int]",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring: 'One-video scoring result: per-rally rows, boundary detection metrics, and per-metric aggregations (primary=all, covered=detected).'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 285,
+    "category": "docs-orientation",
+    "claim": "Reconciliation NamedTuple with fields counting exact/dedup/mismatch rallies and boundary flips has no docstring",
+    "quote": "class Reconciliation(NamedTuple):\n    winners: list[GtWinner]\n    n_exact: int\n    n_dedup: int\n    n_mismatch: int\n    n_ab_flip_rallies: int\n    n_ab_flip_boundaries: int\n    offset: int",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring: 'Frame-level GT data reconciliation: GtWinner list, frame-match counts (exact/dedup/mismatch), player-flip counts, and last-stroke offset.'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 252,
+    "category": "docs-orientation",
+    "claim": "DISPLAY_METRICS is a long tuple of 73 metric names with no documentation of purpose, grouping, or what these strings represent",
+    "quote": "DISPLAY_METRICS = (\n    \"covered_fraction\", \"covered\", \"n_gt_rallies\", \"split\", \"missed\", \"merged_spans\",\n    \"spurious_spans\", \"start_offset_mean\", \"start_offset_median\", \"start_offset_n\",",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a docstring: 'Ordered list of metric keys written to output CSV and displayed in comparison tables; mirrors REFERENCE_SCORES structure.'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 376,
+    "category": "unclear-name",
+    "claim": "_norm_half has a cryptic name and no docstring; unclear what 'norm' means or what a 'half' is to a fresh reader",
+    "quote": "def _norm_half(side: str) -> str:\n    return \"Top\" if side == \"Top\" else \"Bot\"",
+    "chunk_id": "whole",
+    "confidence": "low",
+    "suggested_fix": "Rename to _normalize_court_half or add docstring: 'Normalize court-side string to Top/Bot (coerces non-Top to Bot).'"
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 748,
+    "category": "unclear-name",
+    "claim": "_literal function has a cryptic name with no docstring; unclear what 'literal' means (generate Python source code?) or why it's private",
+    "quote": "def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:\n    for fixture, values in scores.items():\n        for metric in (\"covered_fraction\", \"contact_f1\"):",
+    "chunk_id": "whole",
+    "confidence": "low",
+    "suggested_fix": "Rename to _generate_reference_scores_literal or add docstring: 'Generate Python source code (dict literal) for REFERENCE_SCORES constant.'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 539,
+    "category": "repetition",
+    "claim": "The accumulator pattern for metric aggregation is repeated 7 times with nearly identical code.",
+    "quote": "br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]",
+    "chunk_id": "whole",
+    "suggested_fix": "Extract a helper function to accumulate into ColumnAgg-like structures; reuse it for all seven metrics (br, timing, player, server, height, landing, winner) rather than repeating the pattern of [0]+=[ok], [1]+=1, then conditionally [2]+=[ok], [3]+=1."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 539,
+    "category": "data-structure",
+    "claim": "Accumulator lists (br, timing, player, server, height, landing, winner) rely on magic indices [0],[1],[2],[3] instead of using named fields or ColumnAgg instances.",
+    "quote": "br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]\n    server = [0, 0, 0, 0]\n    height = [0, 0, 0, 0]",
+    "chunk_id": "whole",
+    "suggested_fix": "Replace bare lists with ColumnAgg instances or a dict mapping metric names to ColumnAgg; use named fields (primary_correct, primary_total, etc.) instead of positional indices."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 666,
+    "category": "overloaded-one-liner",
+    "claim": "One line constructs and updates a dict with six key-value pairs, each involving function calls or attribute access.",
+    "quote": "values.update({f\"{name}_primary\": _ratio(agg.primary_correct, agg.primary_total), f\"{name}_primary_correct\": agg.primary_correct, f\"{name}_primary_total\": agg.primary_total, f\"{name}_covered\": _ratio(agg.secondary_correct, agg.secondary_total), f\"{name}_covered_correct\": agg.secondary_correct, f\"{name}_covered_total\": agg.secondary_total})",
+    "chunk_id": "whole",
+    "suggested_fix": "Split into multiple statements or build the dict over several lines; assign each ratio once to avoid redundant computation per metric."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 671,
+    "category": "overloaded-one-liner",
+    "claim": "Nested ternary with arithmetic operations and method calls on one line is hard to parse.",
+    "quote": "f1 = None if precision is None or recall is None else (0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall))",
+    "chunk_id": "whole",
+    "suggested_fix": "Extract guard clauses first: check if precision or recall is None, then check if sum is zero; compute f1 only when both guards pass."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 631,
+    "category": "overloaded-one-liner",
+    "claim": "One line combines list comprehension, numpy reduction, float conversion, and ternary logic.",
+    "quote": "mean_err = float(np.mean([abs(rally.stroke_frames[g] - candidates[c]) for g, c in matches])) if matches else None",
+    "chunk_id": "whole",
+    "suggested_fix": "Extract the list comprehension or mean calculation; assign intermediate results to named variables before the ternary."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 587,
+    "category": "overloaded-one-liner",
+    "claim": "A one-item for loop wrapping accumulator code is inconsistent; the same pattern is inlined for other metrics (server, landing, winner).",
+    "quote": "for values, ok in ((player, p_ok),):\n            values[0] += int(ok)\n            values[1] += 1\n            if covered:",
+    "chunk_id": "whole",
+    "suggested_fix": "Either use the loop pattern consistently for all accumulators or inline player like the others; currently it looks like a failed attempt to generalize."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 325,
+    "category": "unclear-name",
+    "claim": "Class name `ColumnAgg` does not clearly convey that it holds primary and secondary aggregation counts.",
+    "quote": "class ColumnAgg(NamedTuple):\n    primary_correct: int\n    primary_total: int\n    secondary_correct: int\n    secondary_total: int",
+    "chunk_id": "whole",
+    "suggested_fix": "Rename to `PrimarySecondaryScore` or `CoverageCounts` to indicate it tracks both overall and subset performance metrics."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 275,
+    "category": "unclear-name",
+    "claim": "Class name `GtWinner` does not clearly indicate it holds ground-truth rally outcome data (winner half, reason, landing).",
+    "quote": "class GtWinner(NamedTuple):\n    getpoint_ab: str | None\n    winner_half: str | None\n    win_reason: str | None",
+    "chunk_id": "whole",
+    "suggested_fix": "Rename to `GroundTruthRallyOutcome` or `GtRallyResult` to clarify that this represents the full outcome of a rally, not just a player identity."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 711,
+    "category": "docs-prose",
+    "claim": "Docstring uses unexplained jargon: 'additive per-rally geometric winner diagnostics' does not convey what 'additive' means or why it matters.",
+    "quote": "def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:\n    \"\"\"Write the additive per-rally geometric winner diagnostics.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify: 'Write per-rally geometric winner inferences (one row per rally showing computed winner and agreement with other signals)' to orient the reader."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 632,
+    "category": "overloaded-one-liner",
+    "claim": "RallyRow construction spans lines 632\u2013637 with 23 arguments including multiple ternary expressions, making it hard to trace which field maps to which value.",
+    "quote": "rows.append(RallyRow(index, rally.set_id, rally.rally, rally.n_strokes, category.value, span,\n            rally.n_strokes, pred_count, br_ok, len(matches), mean_err, gt_player.value,\n            pred_player.value if pred_player else None, p_ok, gt_server.value, pred_server.value if pred_server else None,",
+    "chunk_id": "whole",
+    "suggested_fix": "Build a dict with explicit field names first, then construct RallyRow: `row_dict = {'gt_index': index, 'set_id': rally.set_id, ...}; rows.append(RallyRow(**row_dict))`."
+   }
+  ],
+  "overflow_note": null
+ }
+]

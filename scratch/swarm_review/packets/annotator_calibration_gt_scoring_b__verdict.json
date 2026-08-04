@@ -1,0 +1,136 @@
+{
+  "module": "src/annotator/calibration/gt_scoring.py",
+  "probe_assessment": null,
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 527,
+      "category": "docs-orientation",
+      "claim": "score_video is a 119-line mega-function with no docstring explaining its complex multi-step logic",
+      "quote": "def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame, court_info: dict,\n                tolerance: int) -> VideoScoring:",
+      "suggested_fix": "Add a docstring explaining: load GT data, classify and score rally boundaries, build per-rally metrics (contact, timing, player, server, height, landing, point winner), accumulate aggregate statistics, and return VideoScoring object.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The function spans 119 physical lines and has no docstring. Its scoring pass is cohesive, so the confirmed issue is missing orientation rather than a requirement to split the algorithm."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 539,
+      "category": "data-structure",
+      "claim": "Accumulator lists (br, timing, player, server, height, landing, winner) rely on magic indices [0],[1],[2],[3] instead of using named fields or ColumnAgg instances.",
+      "quote": "    br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]\n    server = [0, 0, 0, 0]\n    height = [0, 0, 0, 0]\n    landing = [0, 0, 0, 0]\n    winner = [0, 0, 0, 0]",
+      "suggested_fix": "Replace bare lists with ColumnAgg instances or a dict mapping metric names to ColumnAgg; use named fields (primary_correct, primary_total, etc.) instead of positional indices.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The style-house and comment-noise reports were folded into this clearer data-structure finding. The quoted code contains no comment, so comment-noise is not the applicable category; the undocumented positional state is real.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 539,
+      "category": "repetition",
+      "claim": "The accumulator pattern for metric aggregation is repeated 7 times with nearly identical code.",
+      "quote": "br = [0, 0, 0, 0]\n    timing = [0, 0, 0, 0]\n    player = [0, 0, 0, 0]",
+      "suggested_fix": "Extract a helper function to accumulate into ColumnAgg-like structures; reuse it for all seven metrics (br, timing, player, server, height, landing, winner) rather than repeating the pattern of [0]+=[ok], [1]+=1, then conditionally [2]+=[ok], [3]+=1.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The metrics have different eligibility rules, but the four-slot update shape is repeated across the scoring pass often enough to meet the repetition category."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 587,
+      "category": "needless-abstraction",
+      "claim": "The player accumulator is wrapped in a single-element loop, adding an unnecessary hop and applying a pattern that is not used consistently for the neighbouring metric accumulators.",
+      "quote": "for values, ok in ((player, p_ok),):\n            values[0] += int(ok)\n            values[1] += 1\n            if covered:",
+      "suggested_fix": "Update player directly like the server, landing, and winner accumulators, or introduce a helper only if the same helper is used consistently.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The needless-abstraction and overloaded-one-liner reports about this loop describe the same single-item indirection and were merged.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 631,
+      "category": "overloaded-one-liner",
+      "claim": "One line combines a list comprehension, numpy reduction, float conversion, and ternary logic.",
+      "quote": "mean_err = float(np.mean([abs(rally.stroke_frames[g] - candidates[c]) for g, c in matches])) if matches else None",
+      "suggested_fix": "Extract the list comprehension or mean calculation; assign intermediate results to named variables before the ternary.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 632,
+      "category": "comprehension-trap",
+      "claim": "The RallyRow constructor passes a long sequence of positional values across six lines, including several conditional expressions, so a reader must manually map values to the named fields.",
+      "quote": "rows.append(RallyRow(index, rally.set_id, rally.rally, rally.n_strokes, category.value, span,\n            rally.n_strokes, pred_count, br_ok, len(matches), mean_err, gt_player.value,\n            pred_player.value if pred_player else None, p_ok, gt_server.value, pred_server.value if pred_server else None,",
+      "suggested_fix": "Build a dict with explicit field names first, then construct RallyRow: `row_dict = {'gt_index': index, 'set_id': rally.set_id, ...}; rows.append(RallyRow(**row_dict))`.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original suspected category was `overloaded-one-liner`, with the correction to build a named-field mapping before constructing `RallyRow`. The scanner's count of 23 arguments is wrong: the constructor passes 27 positional values. The long positional call remains a genuine comprehension trap because the conditional expressions obscure the field mapping."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 648,
+      "category": "docs-orientation",
+      "claim": "flatten_metrics has complex logic (dynamic dict key building in loop, special handling for None values) with no docstring",
+      "quote": "def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:\n    bm = scoring.boundary_metrics\n    values: dict[str, int | float | None] = {key: bm[key] for key in (\"covered_fraction\", \"covered\", \"n_gt_rallies\", \"split\", \"missed\", \"merged_spans\", \"spurious_spans\")}",
+      "suggested_fix": "Add a docstring explaining: flatten VideoScoring metrics and aggregations (ColumnAgg, timing tuples, contact/ball-round diffs) into a flat dict matching DISPLAY_METRICS order.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 666,
+      "category": "overloaded-one-liner",
+      "claim": "One line constructs and updates a dict with six key-value pairs, each involving function calls or attribute access.",
+      "quote": "values.update({f\"{name}_primary\": _ratio(agg.primary_correct, agg.primary_total), f\"{name}_primary_correct\": agg.primary_correct, f\"{name}_primary_total\": agg.primary_total, f\"{name}_covered\": _ratio(agg.secondary_correct, agg.secondary_total), f\"{name}_covered_correct\": agg.secondary_correct, f\"{name}_covered_total\": agg.secondary_total})",
+      "suggested_fix": "Split into multiple statements or build the dict over several lines; assign each ratio once to avoid redundant computation per metric.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 671,
+      "category": "overloaded-one-liner",
+      "claim": "Nested ternary with arithmetic operations and method calls on one line is hard to parse.",
+      "quote": "f1 = None if precision is None or recall is None else (0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall))",
+      "suggested_fix": "Extract guard clauses first: check if precision or recall is None, then check if sum is zero; compute f1 only when both guards pass.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 711,
+      "category": "docs-prose",
+      "claim": "Docstring uses unexplained jargon: 'additive per-rally geometric winner diagnostics' does not convey what 'additive' means or why it matters.",
+      "quote": "\"\"\"Write the additive per-rally geometric winner diagnostics.\"\"\"",
+      "suggested_fix": "Clarify: 'Write per-rally geometric winner inferences (one row per rally showing computed winner and agreement with other signals)' to orient the reader.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The identical geometry-doc report from the other lens was folded in.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 732,
+      "category": "docs-prose",
+      "claim": "Docstring term 'unpinned' is unclear to an unfamiliar reader because it does not explain what state or comparison the term describes.",
+      "quote": "\"\"\"Write unpinned inpaint grades and event-rejection rows for one video.\"\"\"",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 748,
+      "category": "comprehension-trap",
+      "claim": "The private name `_literal` is too generic when first encountered because it does not identify that the helper formats the `REFERENCE_SCORES` Python dictionary source.",
+      "quote": "def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:\n    for fixture, values in scores.items():\n        for metric in (\"covered_fraction\", \"contact_f1\"):",
+      "suggested_fix": "Rename to _generate_reference_scores_literal or add a docstring: 'Generate Python source code (dict literal) for REFERENCE_SCORES constant.'",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original suspected category was `unclear-name`, with the correction to rename the helper or add a docstring. The function body makes its Python-dict-literal output inferable, so the scanner overstates the uncertainty; the bare name still omits the `REFERENCE_SCORES` capture context and can slow a skim reader."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 748,
+      "category": "needless-abstraction",
+      "claim": "Function `_literal` is called only once (line 779), yet adds file-hop for single-use logic that could inline into `main()`.",
+      "quote": "def _literal(scores: dict[str, dict[str, int | float | None]]) -> str:",
+      "suggested_fix": "Inline the validation and literal construction into `main()`.",
+      "verdict": "KILLED",
+      "verifier_note": "The single call is not enough to establish needless abstraction. `_literal` validates capture values and serialises a complete `REFERENCE_SCORES` Python literal, which is a coherent output-formatting boundary outside the orchestration in `main()`. The quoted helper does not create a file hop."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

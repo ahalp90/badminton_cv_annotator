@@ -1,0 +1,139 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/config.py",
+    "line": 160,
+    "category": "docs-prose",
+    "claim": "The phrase 'deliberately unwired until threading' is obscure and its meaning is not explained to someone unfamiliar with the domain.",
+    "quote": "``constants`` is deliberately unwired until\nthreading.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 120,
+    "category": "docs-prose",
+    "claim": "The phrase 'Strategy fields...arrive with their stages' is vague and does not clearly explain how or when these fields are provided.",
+    "quote": "Strategy fields (dead-mask producer, smoothing, and serve lanes)\narrive with their stages.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 106,
+    "category": "docs-prose",
+    "claim": "The word 'ruled' in 'ruled 2026-07-07' is unclear; the intent (decided, established, or approved) should be stated explicitly.",
+    "quote": "Fraction only (ruled 2026-07-07): a consecutive-run leg",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 52,
+    "category": "docs-prose",
+    "claim": "The term 'block-2 sweep pick' is mentioned without explanation; a junior developer would not know what 'block-2' refers to.",
+    "quote": "One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep\npick).",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 89,
+    "category": "docs-prose",
+    "claim": "The comment uses unexplained domain jargon ('decontaminated baseline', 'rally-tail deceleration') that requires field knowledge to understand.",
+    "quote": "0.15 is swept against the decontaminated baseline (records/decontam_frac_sweep,\nautograder docs); the old 0.3 was tuned against the pre-decontamination norm and read rally-tail deceleration as slow motion.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 84,
+    "category": "docs-prose",
+    "claim": "The comment uses unexplained computer-vision terms ('reprojected-corner displacement', 'segment homographies') without grounding their significance.",
+    "quote": "Reprojected-corner displacement between adjacent segment homographies, as a\nfraction of frame size.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 126,
+    "category": "docs-prose",
+    "claim": "The comment references 'W2.9' and 'two-sided re-entry guard' without explaining what these terms mean.",
+    "quote": "Measured together in W2.9: ignore invisible coordinates during smoothing,\nthen classify sustained gaps with the ruled two-sided re-entry guard.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 135,
+    "category": "docs-prose",
+    "claim": "The comment uses unexplained terms ('three-arm remeasure', 'inpaint grades') without explaining their significance to someone unfamiliar with the project.",
+    "quote": "Shipping default from the three-arm remeasure (2026-07-22): rejecting all three\ninpaint grades scored best on every fixture;",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/config.py",
+    "line": 159,
+    "category": "docs-prose",
+    "claim": "Docstring uses vague metaphor 'unwired' without explaining what it means or why.",
+    "quote": "``constants`` is deliberately unwired until threading.",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 126,
+    "category": "comment-noise",
+    "claim": "Comment references unexplained abbreviation 'W2.9' that a fresh reader cannot decipher.",
+    "quote": "Measured together in W2.9: ignore invisible coordinates during smoothing,",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 126,
+    "category": "docs-prose",
+    "claim": "Comment uses the word 'ruled' without clarity\u2014does it mean 'decided', 'enforced', or something else?",
+    "quote": "then classify sustained gaps with the ruled two-sided re-entry guard.",
+    "chunk_id": "whole",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 52,
+    "category": "comment-noise",
+    "claim": "Docstring references 'block-2 sweep' without explaining what 'block-2' is or represents.",
+    "quote": "One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep\npick).",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 96,
+    "category": "comment-noise",
+    "claim": "Comment references project abbreviation 'sset_01' without defining what it means.",
+    "quote": "(comp_content27_v0p5) is the config the sset_01 scoring picked.",
+    "chunk_id": "whole",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/config.py",
+    "line": 25,
+    "category": "overloaded-one-liner",
+    "chunk_id": "whole",
+    "claim": "Line combines environment variable lookup, path construction fallback, and Path wrapping in one complex expression.",
+    "confidence": "medium",
+    "quote": "SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))",
+    "suggested_fix": "Split into separate statements to isolate concerns: `default_scrape_dir = _REPO_ROOT / 'data' / 'scrape_output'` then `SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', default_scrape_dir))`"
+   }
+  ],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,84 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 14,
+    "category": "misleading-name",
+    "claim": "The suffix \"ROWS\" misleads readers to expect tabular structure when the constant contains configuration key names in a frozenset.",
+    "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({\n    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',\n    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 14,
+    "category": "unclear-name",
+    "claim": "\"BASE30\" contains an unexplained constant \"30\" that a skim reader cannot infer the meaning of without external domain knowledge.",
+    "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({\n    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',\n    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "claim": "Module docstring lacks clarity about what the module does; 'Composition module' is vague and doesn't explain that it resolves/scales configuration for a specific frame rate.",
+    "quote": "\"\"\"Composition module for a base preset and caller-provided video fps.\n\nProbing fps is the caller's business (``probe_fps``); this function never\ndefaults it.\n\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 3,
+    "category": "docs-prose",
+    "claim": "Module docstring uses negative phrasing ('this function never defaults it') violating the rule to use positive phrasing except where unavoidable.",
+    "quote": "Probing fps is the caller's business (``probe_fps``); this function never\ndefaults it.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 14,
+    "category": "unclear-name",
+    "claim": "The '30' in _OVERRIDABLE_BASE30_ROWS is an unexplained magic number lacking domain grounding; a skimmer cannot infer what it means.",
+    "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 26,
+    "category": "docs-orientation",
+    "claim": "Function docstring is too minimal; it lacks parameter documentation and explanation of what 'preset resolution' means in domain context, making it difficult for an unfamiliar reader to understand what the function composes.",
+    "quote": "def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:\n    \"\"\"Resolve one preset for a probed fps; probing fps is the caller's business.\"\"\"",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "claim": "Module docstring uses undefined term 'composition' and does not explain what the module produces.",
+    "quote": "\"\"\"Composition module for a base preset and caller-provided video fps.\n\nProbing fps is the caller's business (``probe_fps``); this function never",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 27,
+    "category": "docs-orientation",
+    "claim": "Function docstring does not explain what resolve does; restates only the module-level fps responsibility.",
+    "quote": "\"\"\"Resolve one preset for a probed fps; probing fps is the caller's business.\"\"\"",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ }
+]

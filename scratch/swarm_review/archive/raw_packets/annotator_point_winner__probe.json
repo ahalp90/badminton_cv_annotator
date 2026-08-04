@@ -1,0 +1,140 @@
+{
+ "module": "src/annotator/point_winner.py",
+ "purpose": "Stage 10 of a badminton CV system that determines point winners from rally footage. The module attributes the striker (wrist-anchored in body-height units), fits an alternation rhythm to assign court halves to strokes, filters landing positions kinematically (settle cap + carry filter), and outputs a verdict (won/lost) using winner-serves-next with landing geometry as fallback.",
+ "public_api": [
+  {
+   "name": "Half",
+   "role": "StrEnum denoting court half (Top/Bot) for spatial reasoning throughout the module"
+  },
+  {
+   "name": "Verdict",
+   "role": "StrEnum for rally outcome (won/lost) relative to the striker"
+  },
+  {
+   "name": "VerdictSource",
+   "role": "StrEnum labeling where a verdict came from (next_server, landing_geometry, or net_rule)"
+  },
+  {
+   "name": "project_pixels_to_court",
+   "role": "Convert (2, N) pixel coords at given resolution to normalised court coords using homography"
+  },
+  {
+   "name": "attribute_half",
+   "role": "Determine court half of the sticky-tracked nearest player to the shuttle at a frame"
+  },
+  {
+   "name": "fit_alternation",
+   "role": "Score two possible alternating phases to find the fitted final-stroke half from per-stroke guesses"
+  },
+  {
+   "name": "next_server_half",
+   "role": "Derive winner half per rally from winner-serves-next: rally n's winner is rally n+1's fitted first-stroke half"
+  },
+  {
+   "name": "LandingWindow",
+   "role": "NamedTuple holding the safe landing search endpoint and the boundary conditions that closed it"
+  },
+  {
+   "name": "landing_window",
+   "role": "Find safe landing endpoint by scanning forward from contact frame, handling lob re-entry and sustained loss"
+  },
+  {
+   "name": "window_end",
+   "role": "Convenience wrapper returning just the end_frame from landing_window"
+  },
+  {
+   "name": "LandingKinematics",
+   "role": "NamedTuple of per-frame kinematic signals: shuttle-to-wrist ratio, shuttle-to-ankle ratio, and speed"
+  },
+  {
+   "name": "LandingFilterOptions",
+   "role": "NamedTuple of tunable landing filter parameters (settle window/threshold, carry window/threshold, ankle rule toggle)"
+  },
+  {
+   "name": "convert_landing_options",
+   "role": "Convert landing options from base-30 FPS to the actual video FPS"
+  },
+  {
+   "name": "build_landing_kinematics",
+   "role": "Compute per-frame carry/ankle proximity ratios (body-height units) and shuttle speed for the filter"
+  },
+  {
+   "name": "filtered_descending_landing",
+   "role": "Find the landing: last descending (increasing image-y) run surviving settle cap and carry filter"
+  },
+  {
+   "name": "is_net_ender",
+   "role": "Test whether the rally flight never crossed the net line and died in the net band (implies strike lost)"
+  },
+  {
+   "name": "inout_verdict",
+   "role": "Determine won/lost/None for a landing vs receiver's singles half with margin tolerance M"
+  },
+  {
+   "name": "LandingMargins",
+   "role": "NamedTuple of signed clearances: overall margin_m, net distance, sideline/baseline distance"
+  },
+  {
+   "name": "landing_margins",
+   "role": "Calculate signed court-metre clearances from a landing to the receiver's singles half boundaries"
+  },
+  {
+   "name": "corner_error_band_from_corners",
+   "role": "Propagate homography corner-marking error to court metres via 16 corner perturbations"
+  },
+  {
+   "name": "corner_error_band_m",
+   "role": "Query homography corner positions for a video and compute the corner error band"
+  },
+  {
+   "name": "Landing",
+   "role": "NamedTuple of one rally's picked landing: frame, normalised court position, court half, border flag, net_ender flag"
+  },
+  {
+   "name": "pick_landing_to_end",
+   "role": "Apply kinematic filtering and project a picked landing from pixels to normalised court coords"
+  },
+  {
+   "name": "geometric_verdict",
+   "role": "Verdict and winner half from landing geometry alone (net rule or in/out with best_guess fallback)"
+  },
+  {
+   "name": "VerdictRow",
+   "role": "NamedTuple of one rally's verdict for output: rally_id, striker_half, verdict, source, margin, band flags"
+  },
+  {
+   "name": "GeometricVerdictRow",
+   "role": "NamedTuple for diagnostic consistency check: rally_id, geometric verdict/winner, agreement with verdict"
+  },
+  {
+   "name": "rally_verdict",
+   "role": "Assemble one rally's VerdictRow: next-server call if available, else geometric best-guess fallback"
+  },
+  {
+   "name": "hit_height",
+   "role": "ShuttleSet hit_height coding (1=above net-band centre, 2=at/below) for a contact frame"
+  },
+  {
+   "name": "HitHeightRow",
+   "role": "NamedTuple of one stroke's hit_height: rally_id, stroke_idx, contact_frame, coded height"
+  },
+  {
+   "name": "build_hit_height_rows",
+   "role": "Convert flat list of (rally_id, stroke_idx, contact_frame) tuples to HitHeightRow list"
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "return [final_half if (last - i) % 2 == 0 else OTHER_HALF[final_half]\n        for i in range(n_strokes)]",
+   "why_unclear": "The list comprehension creates an alternating pattern by working backwards from the final stroke (last = n_strokes - 1) using modulo to flip halves. The backwards indexing and why this produces the correct forward-order alternation requires mental simulation to verify."
+  },
+  {
+   "quote": "reason_order = ('next_rally', 'definitive_exclusion', 'sustained_loss', 'video_end')\nreasons = tuple(\n    reason for reason in reason_order\n    if boundaries.get(reason) == safe_end\n)",
+   "why_unclear": "The code collects reasons matching safe_end in a specific order, implying multiple boundary conditions could reach the same endpoint. The docstring says 'all guards tied at that endpoint' but it's not immediately obvious from reading landing_window why this can occur or what the precedence order means."
+  },
+  {
+   "quote": "corners = source_order[[0, 1, 3, 2]]",
+   "why_unclear": "This reordering converts corner coordinates from 'source order' to TL, TR, BR, BL order (stated in the docstring above), but the module does not import or define what source_order contains or what get_corner_camera returns, so the rationale for this specific permutation cannot be verified inside the file alone."
+  }
+ ]
+}

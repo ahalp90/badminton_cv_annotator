@@ -1,0 +1,86 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 22,
+    "category": "misleading-name",
+    "chunk_id": "whole",
+    "claim": "Function name suggests word-counting, but logic selects singular or plural form based on count.",
+    "quote": "def _count_word(count: int, singular: str, plural: str) -> str:\n    return singular if count == 1 else plural",
+    "suggested_fix": "Rename to `_singular_or_plural` or `_pluralize_word` to clarify the selection logic."
+   },
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 26,
+    "category": "needless-abstraction",
+    "chunk_id": "whole",
+    "claim": "Single-caller helper wrapping two standard string operations without reducing complexity.",
+    "quote": "def _format_reason(reason: str) -> str:\n    return re.sub(r'\\s+', ' ', reason).strip()",
+    "suggested_fix": "Inline at line 65: `reason = re.sub(r'\\s+', ' ', outcome.reason or '').strip()`"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 40,
+    "category": "repetition",
+    "claim": "Five independent iterations over outcomes sequence compute aggregations where a single pass could gather all counts.",
+    "quote": "processed_count = sum(outcome.status == 'processed' for outcome in outcomes)\nexcluded_count = sum(outcome.status == 'excluded' for outcome in outcomes)\nskipped_count = sum(outcome.status == 'skipped' for outcome in outcomes)",
+    "chunk_id": "whole",
+    "suggested_fix": "Collapse into one pass that accumulates all counts in a single loop over outcomes."
+   },
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 49,
+    "category": "repetition",
+    "claim": "Identical _count_word() call with same arguments computed in both if-elif-else branches instead of once.",
+    "quote": "elif all_excluded:\n    video_word = _count_word(video_count, 'video', 'videos')\n    headline = f'batch failed: all {video_count} {video_word} excluded'\nelse:\n    video_word = _count_word(video_count, 'video', 'videos')",
+    "chunk_id": "whole",
+    "suggested_fix": "Compute video_word before the conditional; both branches need the same value."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 35,
+    "category": "docs-prose",
+    "short_summary": "Domain term \"shuttle-track file\" unexplained in docstring",
+    "claim": "The docstring uses \"shuttle-track file\" without explaining its significance to a reader unfamiliar with the project.",
+    "quote": ":param outcomes: One outcome for each input shuttle-track file.",
+    "chunk_id": "whole",
+    "suggested_fix": "Add brief explanation: \"One outcome for each input shuttle-track file (a matched video track with trajectory data).\""
+   },
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 36,
+    "category": "docs-prose",
+    "short_summary": "Domain term \"doubles filter\" unexplained in docstring",
+    "claim": "The docstring references \"doubles filter\" without explaining what filtering behaviour this refers to or why it matters.",
+    "quote": ":param all_excluded: Whether the doubles filter excluded every input video.",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify what the filter does: \"Whether the doubles/singles match filter excluded every input video.\""
+   },
+   {
+    "file": "src/annotator/batch_report.py",
+    "line": 89,
+    "category": "docs-prose",
+    "short_summary": "Domain term \"rally-spans\" unexplained in docstring",
+    "claim": "The docstring uses \"rally-spans CSV path\" without defining what a rally-span record represents.",
+    "quote": "\"Return the report path beside a configured rally-spans CSV path.\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Add clarification: \"Return the report path beside the rally-spans CSV file (rally time bounds and outcomes).\""
+   }
+  ],
+  "overflow_note": null
+ }
+]

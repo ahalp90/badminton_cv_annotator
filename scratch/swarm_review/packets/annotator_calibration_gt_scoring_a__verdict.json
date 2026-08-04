@@ -1,0 +1,199 @@
+{
+  "module": "src/annotator/calibration/gt_scoring.py",
+  "probe_assessment": "The claude-haiku cold read at low effort got the module purpose and almost all API roles right. It misread reconcile_sets as handling predicted rally spans, but the signature and body show only ground-truth rallies and per-set CSV tables, so that is a probe error. The single-pair loop is mechanically clear; asking for its rationale is outside this comprehension-only task. The projection's court-coordinate convention and the imported OTHER_HALF mapping are not fully resolvable from this file alone.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 621,
+      "category": "comprehension-trap",
+      "claim": "The landing-half classification depends on an imported court-coordinate convention. This file does not establish what projected[1, 0] measures or the units and meaning of NET_COURT_Y.",
+      "quote": "            projected = point_winner.project_pixels_to_court(np.array([[gt_landing[0]], [gt_landing[1]]]), point_winner.HOMOGRAPHY_RESOLUTION, court_info[fixture.video_id])\n            landing_half = Half.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else Half.BOT",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 608,
+      "category": "comprehension-trap",
+      "claim": "OTHER_HALF is imported and indexed for a lost verdict, but its valid keys, concrete mapping and data structure are defined only in point_winner. Its opposing-half role is inferable, but not fully verifiable here.",
+      "quote": "pred_winner = OTHER_HALF[verdict.striker_half]",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 376,
+      "category": "comprehension-trap",
+      "claim": "The abbreviated _norm_half name does not tell a skim reader that only the exact string \"Top\" is retained and every other input becomes \"Bot\", including an unrecognised value.",
+      "quote": "def _norm_half(side: str) -> str:\n    return \"Top\" if side == \"Top\" else \"Bot\"",
+      "suggested_fix": "Rename it to _normalize_court_half and document or validate the non-Top input policy.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original misleading-name premise is wrong because coercing values into Top or Bot is normalisation. The telling correction is that the abbreviated name hides the non-Top coercion and court-half domain term. This merges the naming and style findings; one duplicate was folded in.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 372,
+      "category": "style-house",
+      "claim": "The tolerance formula uses ungrounded numeric literals for a five-frame baseline at 30 fps, nearest-frame rounding via 0.5 and a one-frame minimum.",
+      "quote": "def canonical_tolerance(fps: float) -> int:\n    return max(1, math.floor(5.0 * fps / 30.0 + 0.5))",
+      "suggested_fix": "Name the baseline and minimum as constants or add a short why-comment explaining the scaling and rounding policy.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the magic-number and missing-formula-documentation findings. The raw unclear-name category is corrected to style-house under the rubric; one duplicate was folded in.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 463,
+      "category": "unclear-name",
+      "claim": "sm_side is an opaque abbreviation for a frame-to-court-half lookup; the reader must infer that purpose from its right-hand side and later uses.",
+      "quote": "sm_side = {int(frame): _norm_half(str(side)) for frame, side in zip(per_vid[\"frame_num\"], per_vid[\"player_side\"])}",
+      "suggested_fix": "Rename it to side_by_frame or master_half_by_frame.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 281,
+      "category": "unclear-name",
+      "claim": "ab_to_half exposes an unexplained ab abbreviation. The surrounding code uses A/B-style player identifiers, but the field does not name that concept as player IDs.",
+      "quote": "ab_to_half: dict[str, str]",
+      "suggested_fix": "Rename it to player_to_half or player_id_to_half.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 276,
+      "category": "unclear-name",
+      "claim": "getpoint_ab combines an unexplained ab abbreviation with getpoint, leaving its role as the player credited with the point to be inferred from later winner logic.",
+      "quote": "getpoint_ab: str | None",
+      "suggested_fix": "Rename it to point_winner_player or point_winner_id.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 491,
+      "category": "misleading-name",
+      "claim": "Variable flipped suggests an action, but the logic detects inconsistent player sides rather than a flip event.",
+      "quote": "flipped = False\n        for frame in gt_frames:\n            at_frame = players[rally.set_id].get(frame, [])\n            if len(at_frame) != 1 or frame not in sm_side:\n                continue\n            ab, half = at_frame[0], sm_side[frame]\n            if ab in ab_to_half and ab_to_half[ab] != half:\n                flipped = True",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim is wrong: comparing one player's previous half with a later different half is exactly the detected side-flip state, so flipped is a clear boolean name."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 401,
+      "category": "docs-orientation",
+      "claim": "The build_run_video_inputs docstring gives only a high-level purpose and does not orient a skimmer to its fixture-array loading and guard-input validation before assembling run_video arguments.",
+      "quote": "\"\"\"Load one fixture and assemble its invariant ``run_video`` inputs.\"\"\"",
+      "suggested_fix": "Add one sentence naming the fixture-array loads and guard-input validation.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 295,
+      "category": "comprehension-trap",
+      "claim": "RallyRow is a large positional record mixing ground-truth labels, predictions, eligibility flags and per-rally metrics, but has no docstring or field documentation.",
+      "quote": "class RallyRow(NamedTuple):\n    gt_index: int\n    set_id: str\n    rally: int\n    n_gt_strokes: int\n    classification: str",
+      "suggested_fix": "Add a class docstring describing the row and the ground-truth, prediction, eligibility and correctness field groups.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original docs-orientation claim says 23 fields, but the class has 27. The underlying schema-orientation concern remains. Original category: docs-orientation; correction: the field count."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 325,
+      "category": "docs-orientation",
+      "claim": "ColumnAgg exposes primary and secondary correctness counts without stating that primary covers all ground-truth rallies while secondary covers detected rallies.",
+      "quote": "class ColumnAgg(NamedTuple):\n    primary_correct: int\n    primary_total: int\n    secondary_correct: int\n    secondary_total: int",
+      "suggested_fix": "Add a class docstring defining primary as all-rally counts and secondary as covered-rally counts.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the docs-orientation and class-name findings for this record. The distinction is visible only by following score_video and flatten_metrics; one duplicate was folded in.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 390,
+      "category": "comprehension-trap",
+      "claim": "load_gt_tables has no docstring naming the four tuple positions. Its generic return annotation leaves the caller to infer master, homography, court-info mapping and resolution.",
+      "quote": "def load_gt_tables() -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:\n    for pin in SHARED_FILES:\n        verify_file(pin)\n    master = pd.read_csv(REPO_ROOT / \"training/data/shuttleset/annotations/shots_master.csv\")",
+      "suggested_fix": "Add a short docstring naming the four return positions.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original claim says there are no type hints, but a generic tuple return annotation is present. It does not identify the semantic role of each position. Original category: docs-orientation; correction: the type hint exists."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 380,
+      "category": "docs-orientation",
+      "claim": "load_fixture_arrays returns an unnamed tuple of six NumPy arrays without documenting their order, shapes or dtypes.",
+      "quote": "def load_fixture_arrays(fixture: Fixture) -> tuple[np.ndarray, ...]:\n    verify_fixture(fixture)\n    root = fixtures_root()\n    return (\n        np.load(root / fixture.track_path), np.load(root / fixture.pose_path(\"bboxes\")),",
+      "suggested_fix": "Add a short docstring naming the six return values in order and any non-obvious domain shapes or dtypes.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 460,
+      "category": "docs-orientation",
+      "claim": "reconcile_sets has no docstring despite reconciling GT CSV frames with master stroke frames, extracting winner and landing data, building player-to-half mappings and counting side-flip inconsistencies.",
+      "quote": "def reconcile_sets(fixture: Fixture, master: pd.DataFrame, gt_rallies: list,\n                   set_dfs: dict[str, pd.DataFrame]) -> Reconciliation:",
+      "suggested_fix": "Add a concise docstring describing the frame reconciliation, outcome extraction, half mapping and flip counts.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 435,
+      "category": "style-house",
+      "claim": "LandingFilterOptions is constructed with five positional numeric literals whose meanings are not explained at the call site.",
+      "quote": "\"landing_options\": LandingFilterOptions(7, 0.004, 5, 7, 0.75),",
+      "suggested_fix": "Use named arguments when supported, or add named constants or a why-comment for the five values.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 275,
+      "category": "docs-orientation",
+      "claim": "GtWinner has no class docstring explaining its per-rally ground-truth outcome metadata and field groups.",
+      "quote": "class GtWinner(NamedTuple):\n    getpoint_ab: str | None\n    winner_half: str | None\n    win_reason: str | None\n    lose_reason: str | None\n    landing_px: tuple[float, float] | None\n    ab_to_half: dict[str, str]\n    ab_half_flipped: bool",
+      "suggested_fix": "Add a concise class docstring describing the outcome record and field groups.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 332,
+      "category": "comprehension-trap",
+      "claim": "VideoScoring is a large positional result record mixing per-rally rows, boundary metrics, primary and covered aggregates, contact totals and diagnostics, but has no class docstring explaining those groups.",
+      "quote": "class VideoScoring(NamedTuple):\n    name: str\n    rows: list[RallyRow]\n    boundary_metrics: dict\n    ball_round: ColumnAgg\n    timing_primary: tuple[int, int]\n    timing_covered: tuple[int, int]",
+      "suggested_fix": "Add a class docstring grouping the per-rally rows, boundary metrics, primary-versus-covered aggregates and diagnostics.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "The original docs-orientation claim says 14 fields, but the class has 20. The underlying grouping concern remains. Original category: docs-orientation; correction: the field count."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 285,
+      "category": "docs-orientation",
+      "claim": "Reconciliation has no class docstring explaining its winner records, exact/deduplicated/mismatched frame counts, player-half flip counts and last-stroke offset.",
+      "quote": "class Reconciliation(NamedTuple):\n    winners: list[GtWinner]\n    n_exact: int\n    n_dedup: int\n    n_mismatch: int\n    n_ab_flip_rallies: int\n    n_ab_flip_boundaries: int\n    offset: int",
+      "suggested_fix": "Add a concise class docstring naming the frame-reconciliation counts, flip counts and offset.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 252,
+      "category": "docs-orientation",
+      "claim": "DISPLAY_METRICS is a long tuple of metric keys with no explicit documentation of its output purpose or metric grouping.",
+      "quote": "DISPLAY_METRICS = (\n    \"covered_fraction\", \"covered\", \"n_gt_rallies\", \"split\", \"missed\", \"merged_spans\",\n    \"spurious_spans\", \"start_offset_mean\", \"start_offset_median\", \"start_offset_n\",",
+      "suggested_fix": "Add a short comment stating that the ordered keys drive the comparison table and captured reference literal.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The name and its render_table and _literal consumers make the purpose partly inferable, so this is a modest orientation finding rather than an opaque-constant claim."
+    },
+    {
+      "file": "src/annotator/calibration/gt_scoring.py",
+      "line": 275,
+      "category": "unclear-name",
+      "claim": "GtWinner does not clearly signal that the record contains ground-truth rally outcome data beyond the winner identity, including reasons, landing and player-half metadata.",
+      "quote": "class GtWinner(NamedTuple):\n    getpoint_ab: str | None\n    winner_half: str | None\n    win_reason: str | None",
+      "suggested_fix": "Consider a name such as GroundTruthRallyOutcome if the record exposes the full outcome.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "GtWinner is understandable and not misleading, but it is underspecified for a record carrying landing, reasons, mapping and flip metadata. This is a judgement-call unclear-name finding."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

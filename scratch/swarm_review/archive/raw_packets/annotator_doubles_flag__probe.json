@@ -1,0 +1,19 @@
+{
+ "module": "src/annotator/doubles_flag.py",
+ "purpose": "This module implements windowed detection of more than 2 people in a badminton court from per-frame over-count signals. It applies a fraction-based rule where a span is flagged as doubles if over-count is true for more than DOUBLES_SPAN_FRACTION of its frames. The module can run as a CLI tool to batch-process directories of over-count arrays into doubles_flags.csv output.",
+ "public_api": [
+  {
+   "name": "read_whole_video_flags",
+   "role": "Load whole-video doubles verdicts from CSV written by this module, filtering for rows with empty rally_id. Callers use this to retrieve previously computed doubles flags for downstream processing."
+  },
+  {
+   "name": "doubles_flag",
+   "role": "Compute the doubles verdict for one span of per-frame over-count data (or the whole array if span is None) using the rule: return True if mean(overcount) > DOUBLES_SPAN_FRACTION. Core logic that callers invoke to determine if a video or rally has >2 people in-court."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point to sweep a directory of <video_id>_overcount.npy arrays into doubles_flags.csv. Callers invoke this as a command-line tool with --overcount-dir and optional --rally-spans arguments."
+  }
+ ],
+ "stumbles": []
+}

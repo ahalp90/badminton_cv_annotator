@@ -1,0 +1,119 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 18,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Variable `_BST_X` does not convey what the directory is or why it is needed.",
+    "quote": "_BST_X = _SRC / \"bst_x\"",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 107,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Runner call logic duplicated across if/else branches; the parameter could pass through unconditionally.",
+    "quote": "if no_replay_mask:\n    scores[name] = flattener(runner(by_name[name], no_replay_mask=True))\nelse:\n    scores[name] = flattener(runner(by_name[name]))",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 61,
+    "category": "needless-abstraction",
+    "chunk_id": "whole",
+    "claim": "Single-caller helper `_validate_environment()` wraps a simple check that could be inlined without loss of clarity.",
+    "quote": "def _validate_environment() -> None:\n    root = fixtures_root()\n    if not root.is_dir() or not os.access(root, os.R_OK):\n        raise RuntimeError(f\"ANNOTATOR_FIXTURES_ROOT is unreadable: {root}\")",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 92,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Docstring references `raw_exclusion_mask=` without explaining what it is or why run_manifest needs to document runner internals.",
+    "quote": "The runner includes\ndigest verification, array loading, the committed-mask ``raw_exclusion_mask=`` call, and scoring.",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 30,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Type alias `FixtureRunner = Callable[..., object]` uses `...` and `object` without constraint; provides no documentation value.",
+    "quote": "FixtureRunner = Callable[..., object]",
+    "confidence": "low"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 123,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Entry point function main() lacks a docstring to orient unfamiliar readers.",
+    "quote": "def main(argv: Sequence[str] | None = None, *, registry: Iterable[Fixture] = FIXTURES,\n         runner: FixtureRunner = run_fixture,\n         flattener: Callable[[object], dict[str, int | float | None]] = flatten_metrics,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 75,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "run_manifest() docstring lacks :param: documentation for its 9 parameters despite complex signature.",
+    "quote": "def run_manifest(\n    names: Sequence[str] | None = None,\n    out: Path | None = None,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 88,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Docstring uses unclear phrasing 'let process failures raise' that doesn't cleanly state the behavior.",
+    "quote": "fail, and let process failures raise for the entry point's exit 1. Exit 2 is",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 92,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Docstring uses undefined jargon 'digest verification' without explaining what is being verified.",
+    "quote": "digest verification, array loading, the committed-mask ``raw_exclusion_mask=`` call, and scoring.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 92,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Docstring notation 'the committed-mask ``raw_exclusion_mask=`` call' is confusing; unclear what operation or setting this refers to.",
+    "quote": "the committed-mask ``raw_exclusion_mask=`` call",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 107,
+    "category": "repetition",
+    "claim": "The same call to `flattener(runner(...))` repeats in both branches with only the `no_replay_mask=True` kwarg differing.",
+    "quote": "if no_replay_mask:\n    scores[name] = flattener(runner(by_name[name], no_replay_mask=True))\nelse:\n    scores[name] = flattener(runner(by_name[name]))",
+    "chunk_id": "whole",
+    "suggested_fix": "Refactor to avoid repetition: `kwargs = {\"no_replay_mask\": True} if no_replay_mask else {}; scores[name] = flattener(runner(by_name[name], **kwargs))`"
+   }
+  ],
+  "overflow_note": null
+ }
+]

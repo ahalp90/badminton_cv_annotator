@@ -1,0 +1,64 @@
+{
+ "module": "src/annotator/calibration/scoring.py",
+ "purpose": "Provides scoring functions to evaluate rally and contact detection quality. Compares detected spans and contacts against ground-truth data, computing metrics like boundary coverage, alignment offsets, count gates, and precision/recall across frame tolerances.",
+ "public_api": [
+  {
+   "name": "RallyBoundary",
+   "role": "StrEnum classifying how a GT rally's strokes land relative to detected spans: COVERED (all in one span), SPLIT (across 2+ spans or outside), MISSED (no spans contain any stroke)"
+  },
+  {
+   "name": "GtRally",
+   "role": "NamedTuple holding one ground-truth rally: set label, rally number, and frame list of its strokes. Provides extent and n_strokes properties."
+  },
+  {
+   "name": "load_gt_rallies",
+   "role": "Load and group strokes from shots_master into GT rallies for a single video, returning list of GtRally objects sorted by (set_id, rally)"
+  },
+  {
+   "name": "merged_span_indices",
+   "role": "Identify detected spans that fully contain 2+ GT rally extents, indicating a span has merged multiple rallies into one detection"
+  },
+  {
+   "name": "classify_rally_boundary",
+   "role": "Classify a single GT rally as COVERED/SPLIT/MISSED and return the span index if covered, or None otherwise"
+  },
+  {
+   "name": "classify_all",
+   "role": "Apply rally boundary classification to all GT rallies in bulk, returning list of (boundary, span_idx) tuples parallel to gt_rallies input"
+  },
+  {
+   "name": "score_boundaries",
+   "role": "Compute rally-level metrics: count of covered/split/missed rallies, merged and spurious spans, start/end frame alignment offsets for covered rallies"
+  },
+  {
+   "name": "greedy_match",
+   "role": "One-to-one match candidates to GT frames within tolerance, greedily claiming closest pairs first; used for per-rally contact matching"
+  },
+  {
+   "name": "strict_contact_rows",
+   "role": "Generate detailed matching rows for covered rallies only, showing matched/unmatched contacts and GT strokes at multiple tolerances; used for strict evaluation"
+  },
+  {
+   "name": "wide_edge_contact_rows",
+   "role": "Generate diagnostic rows for first/last stroke of each rally within wide time windows, matching candidates globally; used for boundary-edge analysis"
+  },
+  {
+   "name": "score_contacts",
+   "role": "Compute contact-level metrics: count gate (candidates == strokes), per-tolerance precision/recall/F1 overall and per-set, accounting for merged spans and spurious candidates"
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "def _scale_base30_frames(base_frames: float, fps: float) -> int:\n    \"\"\"Scale a base-30 frame count with the annotator's half-up rule.\"\"\"\n    return int(ScalingKind.FRAME_COUNT.scale(base_frames, fps))",
+   "why_unclear": "ScalingKind.FRAME_COUNT is imported from annotator.types but the module doesn't define what 'half-up rule' means or how the scaling works. The actual frame transformation is opaque without seeing the types module."
+  },
+  {
+   "quote": "boundary = math.floor((earlier[0] + later[0]) / 2) + 1\n        windows[target_idx][1] = min(windows[target_idx][1], boundary)\n        windows[target_idx + 1][0] = max(windows[target_idx + 1][0], boundary)",
+   "why_unclear": "The window-clipping logic splits adjacent target windows at a midpoint, but the semantics are unclear: why add 1 to the floor division, and why use min/max with max for the lower bound? The frame-numbering convention (half-open interval [start, end) vs inclusive) and intended window boundaries aren't documented in the local function."
+  },
+  {
+   "quote": "- denominator: unique detected contact frames across the whole video, ALL of\n        them, including contacts in spurious spans that no rally pools. Spans are\n        disjoint in frame range, so distinct contacts carry distinct frames and the\n        set size equals ``len(contacts)`` on real input.",
+   "why_unclear": "The _raw_precision_curve docstring claims spans are disjoint so contact frames are unique, but the phrase 'on real input' suggests edge cases where this might not hold. Without seeing actual contact data flow or how spurious spans differ from rallies, it's unclear what 'real input' means and whether the assumption always holds."
+  }
+ ]
+}

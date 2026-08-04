@@ -1,0 +1,226 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 83,
+    "category": "docs-over-types",
+    "claim": "Function `_spans_containing` lacks a return type hint; without it, a caller cannot quickly infer the structure.",
+    "quote": "def _spans_containing(frame: int, spans: Sequence[tuple[int, int]]) -> list[int]:\n    \"\"\"Indices of the spans that contain ``frame`` (start <= frame < end).\"\"\"\n    return [idx for idx, (start, end) in enumerate(spans) if start <= frame < end]",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add `-> list[int]` return type hint."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 88,
+    "category": "docs-over-types",
+    "claim": "Function `_spans_overlapping_extent` lacks a return type hint.",
+    "quote": "def _spans_overlapping_extent(\n    extent: tuple[int, int], spans: Sequence[tuple[int, int]]\n) -> list[int]:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add `-> list[int]` return type hint."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 138,
+    "category": "docs-over-types",
+    "claim": "Function `classify_all` lacks a return type hint.",
+    "quote": "def classify_all(\n    spans: Sequence[tuple[int, int]], gt_rallies: Sequence[GtRally]\n) -> list[tuple[RallyBoundary, int | None]]:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add return type `-> list[tuple[RallyBoundary, int | None]]`."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 163,
+    "category": "docs-over-types",
+    "claim": "Function `score_boundaries` returns bare `dict` instead of a typed dict or specific structure; a skimmer cannot infer the keys without reading the function body.",
+    "quote": "def score_boundaries(\n    spans: Sequence[tuple[int, int]], gt_rallies: Sequence[GtRally]\n) -> dict:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Use `dict[str, int | float | None | dict]` or define a TypedDict/dataclass for the return structure."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 432,
+    "category": "docs-over-types",
+    "claim": "Function `_prf` lacks a return type hint; the dict keys are opaque without inspecting the body.",
+    "quote": "def _prf(matched: int, n_gt: int, n_candidates: int) -> dict:\n    \"\"\"Recall/precision/F1 from raw counts; None where a denominator is zero.\"\"\"\n    recall = matched / n_gt if n_gt else None",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add return type `dict[str, int | float | None]` or use NamedTuple with fields 'recall', 'precision', 'f1', 'gt', 'candidates', 'matched'."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 452,
+    "category": "docs-over-types",
+    "claim": "Function `_tolerance_curve` declares return type `dict[str, dict]` without specifying the inner dict structure; a caller must read the docstring or code to understand the shape.",
+    "quote": "def _tolerance_curve(\n    rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]], tolerances: Sequence[int]\n) -> dict[str, dict]:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Specify inner dict type: `dict[str, dict[str, int | float | None]]` or use TypedDict."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 474,
+    "category": "docs-over-types",
+    "claim": "Function `_raw_precision_curve` declares return type `dict[str, dict]` but does not specify inner structure.",
+    "quote": "def _raw_precision_curve(\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],\n    rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]],\n    tolerances: Sequence[int],\n) -> dict[str, dict]:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Specify inner dict type: `dict[str, dict[str, int | float | None]]` or use TypedDict."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 525,
+    "category": "docs-over-types",
+    "claim": "Function `_count_gate` lacks a return type hint; keys ('pass', 'total', 'fraction') are hidden from a skimmer.",
+    "quote": "def _count_gate(passes: int, total: int) -> dict:\n    \"\"\"Pass/total/fraction for the per-rally count gate (candidates == strokes).\"\"\"\n    return {",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add return type `dict[str, int | float | None]` or use NamedTuple with fields 'pass', 'total', 'fraction'."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 534,
+    "category": "docs-over-types",
+    "claim": "Function `score_contacts` returns bare `dict` without type information; the structure requires reading the body or extensive docstring.",
+    "quote": "def score_contacts(\n    spans: Sequence[tuple[int, int]],\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],\n    gt_rallies: Sequence[GtRally],\n    tolerances: Sequence[int] = DEFAULT_TOLERANCES,\n) -> dict:",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Specify type as `dict[str, dict]` or define a TypedDict for the return structure."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 569,
+    "category": "style-house",
+    "claim": "Nested comprehension with method call and default argument makes the traversal order hard to follow right-to-left; the rubric favors explicit loops for comprehensions with method calls.",
+    "quote": "candidates = [frame for idx in overlapping for frame in contacts_by_span.get(idx, [])]",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Unpack to an explicit loop: `candidates = []; [candidates.extend(contacts_by_span.get(idx, [])) for idx in overlapping]` or use a for loop."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 152,
+    "category": "docs-over-types",
+    "claim": "Array `values` is created from a sequence of floats but lacks a shape annotation; the axis semantics are not documented for clarity.",
+    "quote": "values = np.asarray(offsets, dtype=float)\n    p10, p90 = np.percentile(values, [10, 90])",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add shape comment: `values = np.asarray(offsets, dtype=float)  # (n,); 1D offset samples`"
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 185,
+    "category": "docs-over-types",
+    "claim": "Array `all_stroke_frames` is constructed by flattening nested lists but lacks a shape annotation.",
+    "quote": "all_stroke_frames = np.array(\n        [frame for rally in gt_rallies for frame in rally.stroke_frames], dtype=int\n    )",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add shape comment: `# (k,); concatenated stroke frame indices across all rallies`"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 298,
+    "category": "repetition",
+    "claim": "Row dictionary building logic is repeated three times (matched, unmatched_gt, unmatched_candidate) with identical keys.",
+    "quote": "rows.append({\n                    'rally_id': gt_index,\n                    'tolerance_base30': tolerance_base30,",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 479,
+    "category": "docs-orientation",
+    "claim": "Docstring is too verbose for the function size, spanning 30 lines while the code is 14 lines.",
+    "quote": "    \"\"\"Per-tolerance precision over PHYSICAL candidates, not merge-pooled ones.\n\n    The ``tolerances`` curve above counts a candidate once per GT rally its span",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 551,
+    "category": "stale-doc",
+    "claim": "Parameter docstring describes a 3-tuple but type hint shows a 4-tuple with undocumented 4th element.",
+    "quote": "    :param contacts: detected contacts as ``(rally_id, contact_frame, proximity_ok)``;\n        ``proximity_ok`` is not used here.\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Update docstring to match the type hint: ``(rally_id, contact_frame, proximity_ok, <4th_element>)`` and explain what the 4th element represents, or align the type hint with the docstring."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 501,
+    "category": "stale-doc",
+    "claim": "Parameter docstring describes a 3-tuple but type hint shows a 4-tuple with undocumented 4th element.",
+    "quote": "    :param contacts: detected contacts ``(rally_id, contact_frame, proximity_ok)``;\n        the full list, so spurious-span candidates land in the denominator.\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Update docstring to match the type hint and document the 4th element, or align the type hint with the docstring."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 347,
+    "category": "style-house",
+    "claim": "Magic number 90 (half-width in base-30 frames) lacks domain grounding or explanation.",
+    "quote": "    half_width = _scale_base30_frames(90, fps)",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add a comment explaining what 90 base-30 frames represents in real time and why this value was chosen (e.g., '# 90 base-30 frames \u2248 3 seconds at base reference rate; wide window for diagnostic edge contact analysis')."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 15,
+    "category": "style-house",
+    "claim": "DEFAULT_TOLERANCES values (1, 2, 5, 10) lack domain grounding or explanation.",
+    "quote": "DEFAULT_TOLERANCES = (1, 2, 5, 10)",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Add a comment explaining why these specific frame-tolerance values were chosen and what they represent in the scoring context (e.g., '# Frame tolerances for per-stroke matching credit; geometric progression from 1 to 10 frames')."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 272,
+    "category": "docs-orientation",
+    "claim": "strict_contact_rows docstring lacks parameter documentation and does not describe the structure of returned dicts.",
+    "quote": "def strict_contact_rows(\n    spans: Sequence[tuple[int, int]],\n    filtered_contacts: Sequence[ContactCandidate],\n    gt_rallies: Sequence[GtRally],\n    fps: float,\n    tolerances_base30: Sequence[int] = (5, 10),\n) -> list[dict[str, int | str | None]]:\n    \"\"\"Build strict GT contact rows for covered rallies only.\n\n    A covered GT rally receives candidates from its one associated predicted span.\n    Split and missed rallies therefore have unmatched GT rows but no candidates.\n    ``greedy_match`` supplies the matched-row order and its deterministic ties.\n    \"\"\"",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add parameter documentation (`:param filtered_contacts:`, `:param fps:`, `:param tolerances_base30:`) and specify the returned dict structure (keys: 'rally_id', 'tolerance_base30', 'tolerance_frames', 'row_kind', 'gt_frame', 'candidate_frame', 'offset_frames') and their meanings."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 341,
+    "category": "docs-orientation",
+    "claim": "wide_edge_contact_rows docstring lacks parameter documentation and does not describe the structure of returned dicts.",
+    "quote": "def wide_edge_contact_rows(\n    gt_rallies: Sequence[GtRally],\n    filtered_contacts: Sequence[ContactCandidate],\n    fps: float,\n    n_frames: int,\n) -> list[dict[str, int | str | None]]:\n    \"\"\"Build the diagnostic first/last-GT-contact report with wide edge windows.\n\n    Windows are clipped to the video and split at the deterministic midpoint of\n    adjacent targets. Matching is global and one-to-one, even though final windows\n    are normally disjoint.\n    \"\"\"",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Add parameter documentation for all parameters and specify the returned dict structure (keys: 'window_id', 'rally_id', 'edge', 'window_start', 'window_end', 'row_kind', 'gt_frame', 'candidate_frame', 'offset_frames')."
+   },
+   {
+    "file": "src/annotator/calibration/scoring.py",
+    "line": 393,
+    "category": "style-house",
+    "claim": "Redundant tuple unpacking: _gt_frame is unpacked but never used; code accesses target[0] instead.",
+    "quote": "        _gt_frame, source_order, edge, _start, _end = target\n        common = {\n            'window_id': target_idx,\n            'rally_id': source_order,\n            'edge': edge,\n            'window_start': window_start,\n            'window_end': window_end,\n        }\n        if target_idx in matches:\n            candidate_frame = candidate_frames[matches[target_idx]]\n            rows.append({\n                **common,\n                'row_kind': 'matched',\n                'gt_frame': target[0],",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Either use _gt_frame instead of target[0] on line 406, or remove the redundant unpacking and use tuple indices consistently throughout."
+   }
+  ],
+  "overflow_note": null
+ }
+]

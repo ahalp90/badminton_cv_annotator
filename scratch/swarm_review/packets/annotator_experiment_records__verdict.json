@@ -1,0 +1,182 @@
+{
+  "module": "src/annotator/experiment_records.py",
+  "probe_assessment": "The cold read mostly held up. The public API roles match the module, and the probe correctly understood that utc_run_directory returns a path, not a created directory. The material scope miss is clean_run: deletion is not limited to files containing leaked credentials. The scanner also marks files matching /home/, /scratch/, or /srv/ paths and files containing manifest-derived username or allocation tokens, and clean_run deletes every marked file. The empty stumbles list is correct because no listed uncertainty requires context outside this module.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 299,
+      "category": "comprehension-trap",
+      "claim": "The probe narrows clean_run's file deletion to files containing leaked credentials, but the cleaner also scans for private-path patterns and manifest-derived username or allocation tokens.",
+      "quote": "    patterns = [r\"/(?:home|scratch|srv)/\"] + [re.escape(token) for token in sorted(tokens)]\n    ripgrep_command = [\"rg\", \"--files-with-matches\", \"--no-messages\"]\n    for pattern in patterns:",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 119,
+      "category": "misleading-name",
+      "claim": "Function name '_number' implies conversion to numeric type, but actually formats a number to a string.",
+      "quote": "def _number(value: float | int | str | None) -> str:\n    return \"-\" if value is None or value == \"-\" else f\"{float(value):.3f}\"",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim does not meet the rubric. '_number' can naturally mean a helper that formats a number, and the str return annotation plus f-string make the behaviour clear."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 38,
+      "category": "unclear-name",
+      "claim": "Function name 'count_ignored_npy' claims to count, but returns a dict with both file count and byte total; misleads about scope.",
+      "quote": "def count_ignored_npy(run_root: Path) -> dict[str, int]:\n    \"\"\"Count ignored arrays that the run actually wrote.\"\"\"\n    ...return {\"file_count\": count, \"total_bytes\": total_bytes}",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is not verbatim: the source has a loop and a separate return line, not '...return'. The return annotation and result keys also make the two returned values clear."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 66,
+      "category": "unclear-name",
+      "claim": "Function name '_regular_run_file' uses vague term 'regular'; the actual logic validates files are non-symlinks within run_root.",
+      "quote": "def _regular_run_file(run_root: Path, relative_path: str) -> Path:\n    path = run_root / relative_path\n    resolved = path.resolve()\n    if path.is_symlink() or not resolved.is_file() or run_root not in resolved.parents:",
+      "suggested_fix": "Add a short docstring or rename the helper to expose its non-symlink and run-root containment checks.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is verbatim. 'regular' does not expose the containment and symlink checks, although the body makes them recoverable, so this is a low-severity naming issue."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 114,
+      "category": "unclear-name",
+      "claim": "Function name '_metric' is too generic; it extracts a nested value from a metrics dict with a fallback, but the name does not convey this.",
+      "quote": "def _metric(metrics: dict[str, Any], group: str, key: str) -> Any:\n    value = metrics.get(group, {})\n    return value.get(key, \"-\") if isinstance(value, dict) else \"-\"",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the name accurately identifies a metric lookup. The metrics, group, and key parameters and the short body make the nested fallback clear; the name need not encode that implementation detail."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 175,
+      "category": "unclear-name",
+      "claim": "Function name '_candidate_files' uses vague term 'candidate'; from context, these are non-.npy files for security scanning.",
+      "quote": "def _candidate_files(run_root: Path) -> list[Path]:\n    return [\n        path\n        for path in sorted(run_root.rglob(\"*\"))\n        if path.is_file() and not path.is_symlink() and path.suffix != \".npy\"",
+      "suggested_fix": "Add a short docstring stating that the helper returns non-symlink, non-.npy files used for both backup and scanning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is verbatim. The helper is also used by _backup, so the scanner's security-only framing is incomplete, but 'candidate' still hides the important file-selection rule."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 204,
+      "category": "unclear-name",
+      "claim": "Function name '_planned_json_changes' uses vague verb 'planned'; describes identifying JSON files needing sanitisation and extracting tokens.",
+      "quote": "def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], set[str]]:...",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is not verbatim because the source signature ends at the colon and is followed by a newline, not '...'."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 75,
+      "category": "docs-orientation",
+      "claim": "Docstring for build_summary uses unexplained jargon ('closed measurement manifests') without context.",
+      "quote": "def build_summary(run_root: Path) -> dict[str, Any]:\n    \"\"\"Collect the closed measurement manifests and existing metrics files.\"\"\"",
+      "suggested_fix": "Replace 'closed measurement manifests' with 'the root and per-configuration manifests plus their metrics'.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. 'Closed measurement manifests' is not defined in the module, while the function's actual inputs are the root manifest, per-configuration manifests, and metrics files."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 38,
+      "category": "docs-orientation",
+      "claim": "Docstring 'Count ignored arrays that the run actually wrote' lacks context: what makes arrays 'ignored'? Why note 'actually wrote'?",
+      "quote": "def count_ignored_npy(run_root: Path) -> dict[str, int]:\n    \"\"\"Count ignored arrays that the run actually wrote.\"\"\"",
+      "suggested_fix": "Explain that the helper counts non-symlink .npy files in the run output and totals their bytes; these artifacts are not preserved by Git.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The report later explains Git's treatment of these NPY artifacts, but the function docstring itself leaves 'ignored' and 'actually wrote' unexplained. Merged the duplicate style-lens finding and kept the clearer docs-orientation category.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 239,
+      "category": "needless-abstraction",
+      "claim": "Function '_write_json' is a single-caller trivial wrapper around path.write_text(json.dumps(...)) at line 330 only.",
+      "quote": "def _write_json(path: Path, payload: dict[str, Any]) -> None:\n    path.write_text(json.dumps(payload, indent=2) + \"\\n\", encoding=\"utf-8\")",
+      "suggested_fix": "Inline the write_text call in clean_run unless JSON-writing behaviour is expected to gain another caller.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and _write_json has one caller at line 330. The helper adds no policy or reusable behaviour beyond the two-line write."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 94,
+      "category": "style-house",
+      "claim": "Magic number 8 in configuration count check lacks domain grounding.",
+      "quote": "    if len(configurations) != 8:\n        raise ValueError(f\"successful annotator run must have eight configurations, got {len(configurations)}\")",
+      "suggested_fix": "Name the expected count or add a why-comment identifying the eight standard configurations.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The error message states the required count but not what the eight configurations represent. The fixed domain count therefore remains an unlabelled magic number under the house rubric."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 204,
+      "category": "docs-orientation",
+      "claim": "32-line function _planned_json_changes lacks docstring; return type tuple leaves meaning of each element unclear.",
+      "quote": "def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], set[str]]:\n    root_path = _regular_run_file(run_root, \"manifest.json\")",
+      "suggested_fix": "Add a short docstring describing the changed JSON payload mapping and the token set returned for scanning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the function has no docstring. Its local names help, but the tuple's two distinct meanings and the sanitisation side effect are not stated for a skim reader."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 259,
+      "category": "docs-orientation",
+      "claim": "60-line function _scanner_findings lacks docstring; unclear what betterleaks and ripgrep are searching for.",
+      "quote": "def _scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> set[Path]:\n    _require_tool(\"betterleaks\")\n    _require_tool(\"rg\")",
+      "suggested_fix": "Add a docstring stating that betterleaks finds credentials and rg finds private paths or manifest-derived tokens, returning files to remove.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the function has no docstring. A junior reader can see the tool names and patterns only by tracing the whole function, while the returned paths drive deletion."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 183,
+      "category": "unclear-name",
+      "claim": "Function name _private_tokens does not convey that it extracts usernames and allocation IDs from file paths; lacks docstring.",
+      "quote": "def _private_tokens(manifest: dict[str, Any]) -> set[str]:\n    tokens: set[str] = set()\n    for field in (\"command\", \"input_manifest_source\"):",
+      "suggested_fix": "Add a docstring naming the extracted username and allocation tokens and their later use in scanning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the function has no docstring. The generic token name does not expose which path components matter or why the values are collected."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 243,
+      "category": "docs-orientation",
+      "claim": "Function _backup lacks docstring; purpose and side effects (tarball location) not documented.",
+      "quote": "def _backup(run_root: Path) -> Path:\n    BACKUPS_DIRECTORY.mkdir(parents=True, exist_ok=True)\n    clean_id = datetime.now(timezone.utc).strftime(\"%Y%m%d-%H%M%S-%f\")",
+      "suggested_fix": "Add a docstring stating that it creates a timestamped tar.gz backup under BACKUPS_DIRECTORY before cleaning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the function has no docstring. The body reveals the archive location and format, but the backup side effect is important enough to state at the function boundary."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 217,
+      "category": "repetition",
+      "claim": "Identical list comprehension for sanitising strings appears at lines 217 and 228; could collapse into a helper like _sanitise_list().",
+      "quote": "            cleaned_values = [_sanitise_path(item) if isinstance(item, str) else item for item in value]",
+      "suggested_fix": "Extract a small helper for sanitising command-value lists if the two call sites are expected to remain; otherwise the two simple comprehensions are readable as-is.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted right-hand-side logic is repeated at line 228. The comprehensions are simple and the helper is optional, but the duplicated sanitisation rule is real."
+    },
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 79,
+      "category": "repetition",
+      "claim": "Identical manifest record validation appears at lines 79-80 and 222-223; extracting into a helper would eliminate the duplication.",
+      "quote": "        if not isinstance(record, dict) or not isinstance(record.get(\"manifest\"), dict):",
+      "suggested_fix": "Extract the shared predicate only if a helper can preserve the distinct raise-versus-skip behaviour.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The predicate is duplicated verbatim, although build_summary raises and the sanitisation pass skips. The repeated condition is real; any helper must preserve those different failure policies."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/annotator/experiment_records.py",
+      "line": 222,
+      "quote": "        if not isinstance(record, dict) or not isinstance(record.get(\"manifest\"), dict):\n            continue",
+      "note": "The sanitisation pass silently skips malformed configuration records, so it neither reads their leaf manifest nor reports that the record was omitted. An unsafe path in such a record can remain unsanitised."
+    }
+  ]
+}

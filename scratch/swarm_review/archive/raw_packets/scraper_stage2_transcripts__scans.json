@@ -1,0 +1,69 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/stage2_transcripts.py",
+    "line": 97,
+    "category": "data-structure",
+    "claim": "parse_json3 returns list[dict] without specifying dict structure; segment dicts should use TypedDict to clarify {start, end, text}",
+    "quote": "def parse_json3(path: Path) -> list[dict]:\n    \"\"\"Parse a YouTube json3 caption file into {start, end, text} segments.",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Define a TypedDict for segment records: SegmentDict = TypedDict('SegmentDict', {'start': float, 'end': float, 'text': str}), then use -> list[SegmentDict]"
+   },
+   {
+    "file": "src/scraper/stage2_transcripts.py",
+    "line": 125,
+    "category": "data-structure",
+    "claim": "parse_vtt returns list[dict] without specifying dict structure; segment dicts should use TypedDict to clarify {start, end, text}",
+    "quote": "def parse_vtt(path: Path) -> list[dict]:\n    \"\"\"Parse a WebVTT caption file into {start, end, text} segments.",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Use same SegmentDict TypedDict as parse_json3 and other segment-returning functions"
+   },
+   {
+    "file": "src/scraper/stage2_transcripts.py",
+    "line": 250,
+    "category": "data-structure",
+    "claim": "acquire_transcript returns dict | None without specifying structure; should use TypedDict for {source, segments} to clarify expected fields",
+    "quote": "def acquire_transcript(video_id: str, url: str) -> dict | None:\n    \"\"\"Return {source, segments} for one video, or None if unresolved.",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Define TranscriptDict = TypedDict('TranscriptDict', {'source': str, 'segments': list[SegmentDict]}), then use -> TranscriptDict | None"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/stage2_transcripts.py",
+    "line": 77,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "short_summary": "Identical error-handling pattern repeated in _download_audio",
+    "claim": "Both pull_subtitles and _download_audio duplicate the same subprocess error-handling structure (TimeoutExpired and returncode checks with identical print-and-return logic).",
+    "quote": "try:\n    result = subprocess.run(\n        cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S\n    )\nexcept subprocess.TimeoutExpired:\n    print(f'  TIMEOUT subs {video_id}')\n    return None\nif result.returncode != 0:\n    print(f'  ERROR subs {video_id}: {result.stderr.strip()[:200]}')\n    return None",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage2_transcripts.py",
+    "line": 122,
+    "category": "overloaded-one-liner",
+    "chunk_id": "whole",
+    "short_summary": "One-liner does 7+ arithmetic operations instead of up to 2",
+    "claim": "The _vtt_seconds return statement chains four int() conversions, three multiplications, two additions, and one division\u2014far exceeding the 'up to 2 chained operations' guideline.",
+    "quote": "return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000.0",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ }
+]

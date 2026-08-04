@@ -1,0 +1,23 @@
+{
+ "module": "src/annotator/batch_report.py",
+ "purpose": "Generates and saves plain-text outcome reports for a rally-segmentation batch CLI. Formats summary statistics and per-video outcomes from a sequence of VideoOutcome records into a human-readable report, then writes it to disk alongside the rally-spans data file.",
+ "public_api": [
+  {
+   "name": "VideoOutcome",
+   "role": "Frozen dataclass holding the final batch outcome for one shuttle-track file: its identifier, processing status (processed/excluded/skipped), rally and contact counts, and optional failure reason."
+  },
+  {
+   "name": "format_batch_report",
+   "role": "Formats outcomes into a multi-section report string showing headline status, aggregate counts by outcome type, and per-video details. Called by publish_batch_report to generate the report text."
+  },
+  {
+   "name": "derive_batch_report_path",
+   "role": "Computes the output report filename next to a rally-spans CSV file by replacing the stem with a _batch_report.txt suffix. Called by publish_batch_report to determine where to save the report."
+  },
+  {
+   "name": "publish_batch_report",
+   "role": "Orchestrates report generation, writing, and output: formats outcomes, derives the report path, writes the text to disk, prints it to stdout, and returns the saved path. The main entry point for callers needing a saved report."
+  }
+ ],
+ "stumbles": []
+}

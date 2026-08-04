@@ -1,0 +1,19 @@
+{
+ "module": "src/scraper/stage11_pairing.py",
+ "purpose": "This module pairs badminton rally spans to commentary chunks using a time-range join for the scraper pipeline. Each rally matches with the first commentary chunk whose start falls within a window after the rally ends, excluding rallies and chunks affected by replay masking. The module intentionally maintains mixed units: rally times in frames (from rally_spans.csv) and commentary times in seconds (native chunk units).",
+ "public_api": [
+  {
+   "name": "build_video_fps_csv",
+   "role": "Reads FPS from video files in a directory using OpenCV and writes a CSV mapping video IDs to frame rates."
+  },
+  {
+   "name": "pair_video",
+   "role": "Pairs a single video's rally spans to commentary chunks via time-range join, respecting replay-mask exclusions and claiming chunks to one rally each."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point that orchestrates the full pairing workflow: loading FPS, rally spans, chunks, and replay masks; validating against the sources manifest; and writing paired rally-to-chunk rows to CSV."
+  }
+ ],
+ "stumbles": []
+}
