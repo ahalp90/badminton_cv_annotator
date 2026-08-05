@@ -11,6 +11,7 @@ import pytest
 from annotator.calibration import sweep
 from annotator.calibration.fixtures import SSET_01
 from annotator.calibration.gt_scoring import RunVideoInputs
+from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.calibration.schemas import CSV_COLUMNS_BY_FILENAME
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
 from annotator.types import SpanOpen
@@ -29,6 +30,10 @@ def _row(spec: sweep.CandidateSpec, *, covered: int = 100) -> dict[str, object]:
     }
     row.update(spec.overrides_base30)
     return row
+
+
+def test_sweep_uses_the_shared_contact_tolerances() -> None:
+    assert sweep.CONTACT_TOLERANCES_BASE30 is CONTACT_TOLERANCES_BASE30
 
 
 def test_boundary_values_resolve_to_frozen_25fps_literals() -> None:

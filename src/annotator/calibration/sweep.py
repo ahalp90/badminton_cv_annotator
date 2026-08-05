@@ -25,7 +25,15 @@ import numpy as np
 from annotator.calibration import selection
 from annotator.calibration.fixtures import FIXTURES, SHARED_FILES, FilePin, Fixture, verify_file
 from annotator.calibration.gt_scoring import RunVideoInputs, build_run_video_inputs
-from annotator.calibration.scoring import RallyBoundary, classify_all, load_gt_rallies, merged_span_indices, score_boundaries, score_contacts
+from annotator.calibration.scoring import (
+    CONTACT_TOLERANCES_BASE30,
+    RallyBoundary,
+    classify_all,
+    load_gt_rallies,
+    merged_span_indices,
+    score_boundaries,
+    score_contacts,
+)
 from annotator.calibration.schemas import (
     CSV_COLUMNS_BY_FILENAME,
     WINNER_JSON_BOUNDARY_KEY,
@@ -46,7 +54,6 @@ LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
 WINNER_FILENAME = "config_winner.json"
 WINNER_SCHEMA_VERSION = 1
-TOLERANCES = (1, 2, 5, 10)
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
 DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound", "quiet_start_window"})
@@ -336,7 +343,10 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     clean = [(index, rally, span) for index, (rally, (kind, span)) in enumerate(zip(gt, classifications)) if kind is RallyBoundary.COVERED and span not in merged]
     offsets = [abs(spans[span][0] - rally.extent[0]) for _index, rally, span in clean]
     contained = [sum(start <= first and last < end for first, last in (r.extent for r in gt)) for start, end in spans]
-    tolerances = {band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps) for band in TOLERANCES}
+    tolerances = {
+        band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps)
+        for band in CONTACT_TOLERANCES_BASE30
+    }
     contacts = [(contact.rally_id, contact.contact_frame, contact.proximity_ok, contact.wrist_near) for contact in result.filtered_contacts]
     contact = score_contacts(spans, contacts, gt, tuple(tolerances.values()))
     row: dict[str, Any] = {"label": spec.label, **_display_config(spec), "min_contact_speed": 0.005,
@@ -614,7 +624,10 @@ def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:
         or any(item not in {"boundary", "contact"} for item in phases_run)
     ):
         raise ValueError("boundary winner phases_run is invalid")
-    if meta["verdict"] != "issued" or meta["tolerances_base30"] != list(TOLERANCES):
+    if (
+        meta["verdict"] != "issued"
+        or meta["tolerances_base30"] != list(CONTACT_TOLERANCES_BASE30)
+    ):
         raise ValueError("boundary winner meta does not describe an issued base-30 verdict")
     if set(overrides) != set(BOUNDARY_KEYS) or strategies != {}:
         raise ValueError("boundary winner must contain exactly the five boundary numeric keys")

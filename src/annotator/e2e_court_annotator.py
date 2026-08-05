@@ -44,7 +44,12 @@ from annotator.calibration.gt_scoring import (
     load_gt_tables,
     score_video,
 )
-from annotator.calibration.scoring import GtRally, strict_contact_rows, wide_edge_contact_rows
+from annotator.calibration.scoring import (
+    GtRally,
+    safe_f1,
+    strict_contact_rows,
+    wide_edge_contact_rows,
+)
 from annotator.config import BaseAnnotatorConfig
 from annotator.experiment_records import clean_run, human_bytes, utc_run_directory, write_summary_and_report
 from annotator.court_evidence import (
@@ -588,9 +593,7 @@ def _strict_metrics(rows: Sequence[Mapping[str, object]], tolerance_base30: int,
     matched_count = len(matched)
     precision = matched_count / candidate_count if candidate_count else None
     recall = matched_count / gt_count if gt_count else None
-    f1 = None if precision is None or recall is None else (
-        0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
-    )
+    f1 = None if precision is None or recall is None else safe_f1(precision, recall)
     offsets = [abs(int(row["offset_frames"])) for row in matched]
     mean_offset = float(np.mean(offsets)) if offsets else None
     return {

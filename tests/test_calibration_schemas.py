@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.calibration.schemas import (
     ALIGNMENT_OWN_COVERED_COLUMNS,
     ALIGNMENT_SHARED_COLUMNS,
@@ -15,6 +16,7 @@ from annotator.calibration.schemas import (
     CSV_COLUMNS_BY_FILENAME,
     FROZEN_ROW_COLUMNS,
     SPLIT_LOG_COLUMNS,
+    WINNER_JSON_TOLERANCES_BASE30,
     winner_document,
     winner_spec,
 )
@@ -31,6 +33,10 @@ EXPECTED_FROZEN_ROW_COLUMNS = (
     "total_candidates", "precision_raw_1", "precision_raw_2", "precision_raw_5",
     "precision_raw_10",
 )
+
+
+def test_winner_schema_uses_the_shared_contact_tolerances() -> None:
+    assert WINNER_JSON_TOLERANCES_BASE30 is CONTACT_TOLERANCES_BASE30
 
 
 def test_csv_column_tuples_are_exact() -> None:

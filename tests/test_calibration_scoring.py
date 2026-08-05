@@ -3,13 +3,36 @@ import pandas as pd
 import pytest
 
 from annotator.calibration.scoring import (
-    GtRally, RallyBoundary, classify_rally_boundary, greedy_match,
-    load_gt_rallies, merged_span_indices, score_boundaries, score_contacts,
+    CONTACT_TOLERANCES_BASE30,
+    GtRally,
+    RallyBoundary,
+    classify_rally_boundary,
+    greedy_match,
+    load_gt_rallies,
+    merged_span_indices,
+    safe_f1,
+    score_boundaries,
+    score_contacts,
 )
 
 
 def _rally(set_id: str, rally: int, frames: tuple[int, ...]) -> GtRally:
     return GtRally(set_id=set_id, rally=rally, stroke_frames=frames)
+
+
+def test_contact_tolerances_keep_the_persisted_base30_order() -> None:
+    assert CONTACT_TOLERANCES_BASE30 == (1, 2, 5, 10)
+
+
+@pytest.mark.parametrize(
+    ('precision', 'recall'),
+    ((0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (0.25, 0.5), (2 / 3, 1.0)),
+)
+def test_safe_f1_matches_every_former_formula(precision: float, recall: float) -> None:
+    denominator = precision + recall
+    precision_first = 0.0 if denominator == 0 else 2 * precision * recall / denominator
+    recall_first = 0.0 if denominator == 0 else 2 * recall * precision / denominator
+    assert safe_f1(precision, recall) == precision_first == recall_first
 
 
 def test_covered_all_strokes_in_one_span():
