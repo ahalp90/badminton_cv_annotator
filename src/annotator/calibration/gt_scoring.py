@@ -12,6 +12,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
+from annotator.fps_constants import ScalingKind
 from annotator.calibration.fixtures import (
     FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file, verify_fixture,
 )
@@ -21,7 +22,13 @@ from annotator import point_winner
 from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
 from annotator.replay_mask import _read_homography_rows
 from annotator.calibration.scoring import (
-    RallyBoundary, classify_all, greedy_match, load_gt_rallies, score_boundaries, score_contacts,
+    RallyBoundary,
+    classify_all,
+    greedy_match,
+    load_gt_rallies,
+    safe_f1,
+    score_boundaries,
+    score_contacts,
 )
 from shared.court import load_all_court_info
 
@@ -370,7 +377,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def canonical_tolerance(fps: float) -> int:
-    return max(1, math.floor(5.0 * fps / 30.0 + 0.5))
+    return int(ScalingKind.FRAME_COUNT.scale(5.0, fps))
 
 
 def _norm_half(side: str) -> str:
@@ -668,7 +675,7 @@ def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
         values.update({f"{name}_recall": _ratio(*pair), f"{name}_matched": pair[0], f"{name}_total": pair[1]})
     precision = _ratio(scoring.contact_matches, scoring.contact_filtered_total)
     recall = _ratio(scoring.contact_matches, scoring.contact_gt_total)
-    f1 = None if precision is None or recall is None else (0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall))
+    f1 = None if precision is None or recall is None else safe_f1(precision, recall)
     values.update(contact_f1=f1, contact_precision=precision, contact_recall=recall, contact_matches=scoring.contact_matches, contact_filtered_total=scoring.contact_filtered_total, contact_gt_total=scoring.contact_gt_total, n_raw_contacts=scoring.n_raw_contacts, n_filtered_contacts=scoring.n_filtered_contacts, hit_height_failures=len(scoring.hit_height_failures))
     return values
 

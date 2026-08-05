@@ -32,6 +32,9 @@ SCENE_ROW_COLUMNS = (
     'downleft_x', 'downleft_y', 'downright_x', 'downright_y',
 )
 DETECTOR_RESOLUTION = (512.0, 288.0)
+COURT_SCENE_SAMPLE_LIMIT = 10
+PERSON_COURT_MARGIN = 0.10
+SCENE_VALID_MIN_FRACTION = 0.5
 UNIT_COURT_CORNERS = np.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
     dtype=np.float32,
@@ -191,7 +194,7 @@ def scene_sample_indices(start_frame: int, end_frame: int) -> list[int]:
     scene_length = end_frame - start_frame
     if scene_length <= 0:
         raise ValueError('scene interval must be non-empty')
-    sample_count = min(10, scene_length)
+    sample_count = min(COURT_SCENE_SAMPLE_LIMIT, scene_length)
     return [
         start_frame + ((2 * sample_index + 1) * scene_length // (2 * sample_count))
         for sample_index in range(sample_count)
@@ -387,10 +390,10 @@ def build_keep_vote(
             inside = (
                 finite_scores
                 & finite_boxes
-                & (normalised[:, 0] >= -0.10)
-                & (normalised[:, 0] <= 1.10)
-                & (normalised[:, 1] >= -0.10)
-                & (normalised[:, 1] <= 1.10)
+                & (normalised[:, 0] >= -PERSON_COURT_MARGIN)
+                & (normalised[:, 0] <= 1.0 + PERSON_COURT_MARGIN)
+                & (normalised[:, 1] >= -PERSON_COURT_MARGIN)
+                & (normalised[:, 1] <= 1.0 + PERSON_COURT_MARGIN)
             )
             keep_vote[frame] = int(inside.sum()) == 2
     return keep_vote
@@ -542,7 +545,10 @@ def build_static_court_evidence(
     keep_vote = build_keep_vote(
         bboxes, scores, ndet, resolution, intervals, provisional_infos,
     )
-    scene_valid = [_scene_fraction(keep_vote, interval) >= 0.5 for interval in intervals]
+    scene_valid = [
+        _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
+        for interval in intervals
+    ]
     court_present = build_court_present(keep_vote, intervals, scene_valid)
     static_corners_refpx = inputs.active_corners_refpx
     static_corners_px = _as_native_corners(static_corners_refpx)
@@ -596,7 +602,8 @@ def build_detected_court_evidence(
         bboxes, scores, ndet, resolution, intervals, provisional_infos,
     )
     scene_valid = [
-        corners is not None and _scene_fraction(keep_vote, interval) >= 0.5
+        corners is not None
+        and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
         for corners, interval in zip(native_corners, intervals)
     ]
     court_present = build_court_present(keep_vote, intervals, scene_valid)

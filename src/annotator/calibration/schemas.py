@@ -10,6 +10,8 @@ from enum import Enum
 from numbers import Real
 from typing import Any, Mapping
 
+from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
+
 
 FROZEN_ROW_COLUMNS = (
     "label",
@@ -140,7 +142,7 @@ WINNER_JSON_META_KEYS = (
     "tolerances_base30",
 )
 WINNER_JSON_VERDICT_ISSUED = "issued"
-WINNER_JSON_TOLERANCES_BASE30 = (1, 2, 5, 10)
+WINNER_JSON_TOLERANCES_BASE30 = CONTACT_TOLERANCES_BASE30
 WINNER_SPEC_OVERRIDES_KEY = "overrides_base30"
 WINNER_SPEC_STRATEGIES_KEY = "strategies"
 WINNER_SPEC_KEYS = (WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY)

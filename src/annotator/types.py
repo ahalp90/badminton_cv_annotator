@@ -5,7 +5,6 @@ by rally segmentation and point-winner attribution.
 """
 from __future__ import annotations
 
-import math
 import warnings
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, NamedTuple
@@ -13,33 +12,10 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from .fps_constants import BASE_FPS
+from .fps_constants import ScalingKind as ScalingKind
 
 if TYPE_CHECKING:
     from .rally_segmentation import ServeStartClose, ServeStartMode
-
-
-class ScalingKind(StrEnum):
-    """Describe how a base-30 value scales with the video's frame rate.
-
-    Per-frame speeds shrink as fps rises, frame counts grow, dimensionless
-    values never scale; arithmetic must stay identical to ``scale_for_fps``
-    until the config-threading pass rewires the table onto these declarations.
-    """
-
-    PER_FRAME_SPEED = 'per_frame_speed'
-    FRAME_COUNT = 'frame_count'
-    DIMENSIONLESS = 'dimensionless'
-
-    def scale(self, value: float, fps: float) -> float | int:
-        """Scale one base-30 value, requiring a positive finite frame rate."""
-        if not math.isfinite(fps) or fps <= 0:
-            raise ValueError(f'fps must be positive and finite, got {fps!r}')
-        if self is ScalingKind.PER_FRAME_SPEED:
-            return value * BASE_FPS / fps
-        if self is ScalingKind.FRAME_COUNT:
-            return max(1, math.floor(value * fps / BASE_FPS + 0.5))
-        return value
 
 
 class DeadMaskMode(StrEnum):

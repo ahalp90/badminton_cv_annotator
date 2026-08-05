@@ -1,7 +1,7 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, fields, replace
 import subprocess
 
 import numpy as np
@@ -11,7 +11,13 @@ import pytest
 from src.annotator.config import SHIPPED_THRESHOLDS
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import resolve
-from src.annotator.fps_constants import probe_fps, scale_for_fps
+from src.annotator.fps_constants import (
+    FPS_CONSTANT_FIELD_NAMES,
+    FpsConstants,
+    ScalingKind,
+    probe_fps,
+    scale_for_fps,
+)
 from annotator.point_winner import (
     Half,
     LandingFilterOptions,
@@ -102,6 +108,44 @@ def test_scale_for_fps_visible_sample_rows_floor_at_two_frames() -> None:
     assert scale_for_fps(60.0).reentry_min_visible_frames == 5
 
 
+@pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
+def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> None:
+    overrides = {
+        field.name: float(index) + 0.25
+        for index, field in enumerate(fields(FpsConstants), start=1)
+    }
+    constants = scale_for_fps(fps, overrides)
+    speed_fields = {'rest_speed', 'start_speed'}
+    minimum_two_fields = {
+        'high_shot_oob_min_visible_frames',
+        'reentry_min_visible_frames',
+    }
+    for field_name, base30_value in overrides.items():
+        scaling = (
+            ScalingKind.PER_FRAME_SPEED
+            if field_name in speed_fields
+            else ScalingKind.FRAME_COUNT
+        )
+        expected = scaling.scale(base30_value, fps)
+        if field_name in minimum_two_fields:
+            expected = max(2, expected)
+        assert getattr(constants, field_name) == expected
+
+
+def test_resolve_accepts_every_fps_field_and_explicit_contact_threshold() -> None:
+    overrides = {
+        field.name: float(index) + 0.25
+        for index, field in enumerate(fields(FpsConstants), start=1)
+    }
+    overrides['contact_impulse_multiple'] = 5.5
+
+    resolved = resolve(BaseAnnotatorConfig(overrides_base30=overrides), 30.0)
+
+    assert FPS_CONSTANT_FIELD_NAMES == frozenset(field.name for field in fields(FpsConstants))
+    assert asdict(resolved.constants) == asdict(scale_for_fps(30.0, overrides))
+    assert resolved.thresholds.contact_impulse_multiple == 5.5
+
+
 def test_probe_fps_rejects_vfr_and_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: subprocess.CompletedProcess(
         args, 0, '{"streams": [{"r_frame_rate": "25/1", "avg_frame_rate": "30/1"}]}', '',
@@ -139,6 +183,29 @@ def test_landing_options_are_converted_once() -> None:
     assert (scaled.settle_win, scaled.settle_thr, scaled.settle_min, scaled.carry_win, scaled.carry_thr) == (
         12, 0.0024, 8, 12, 0.75,
     )
+
+
+@pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
+def test_landing_options_use_shared_scaling_rules(fps: float) -> None:
+    options = LandingFilterOptions(
+        7,
+        0.004,
+        5,
+        7,
+        0.75,
+        use_settle=False,
+        use_carry=True,
+        null_if_all_carried=True,
+        use_ankle_rule=False,
+    )
+    expected = options._replace(
+        settle_win=int(ScalingKind.FRAME_COUNT.scale(options.settle_win, fps)),
+        settle_thr=float(ScalingKind.PER_FRAME_SPEED.scale(options.settle_thr, fps)),
+        settle_min=int(ScalingKind.FRAME_COUNT.scale(options.settle_min, fps)),
+        carry_win=int(ScalingKind.FRAME_COUNT.scale(options.carry_win, fps)),
+    )
+
+    assert convert_landing_options(options, fps) == expected
 
 
 def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(

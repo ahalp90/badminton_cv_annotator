@@ -4,16 +4,19 @@ import json
 import csv
 import argparse
 import sys
+from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from annotator.calibration import sweep
 from annotator.calibration.fixtures import SSET_01
 from annotator.calibration.gt_scoring import RunVideoInputs
+from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.calibration.schemas import CSV_COLUMNS_BY_FILENAME
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.types import SpanOpen
+from annotator.types import ContactCandidate, SpanOpen
 from annotator.resolve import resolve
 
 
@@ -29,6 +32,31 @@ def _row(spec: sweep.CandidateSpec, *, covered: int = 100) -> dict[str, object]:
     }
     row.update(spec.overrides_base30)
     return row
+
+
+def test_sweep_uses_the_shared_contact_tolerances() -> None:
+    assert sweep.CONTACT_TOLERANCES_BASE30 is CONTACT_TOLERANCES_BASE30
+
+
+def test_sweep_row_preserves_the_legacy_speed_schema_value() -> None:
+    master = pd.DataFrame(
+        {
+            "vid": [SSET_01.video_id] * 3,
+            "set_id": ["synthetic"] * 3,
+            "rally": [1, 1, 1],
+            "frame_num": [10, 20, 30],
+        }
+    )
+    result = SimpleNamespace(
+        spans=[(5, 35)],
+        filtered_contacts=[
+            ContactCandidate(0, frame, True, True, False)
+            for frame in (10, 20, 30)
+        ],
+    )
+    row = sweep._row_for_result(SSET_01, sweep.shipped_spec(), result, master)
+    assert row["min_contact_speed"] == sweep.LEGACY_MIN_CONTACT_SPEED == 0.005
+    assert row["rest_speed"] == 0.002
 
 
 def test_boundary_values_resolve_to_frozen_25fps_literals() -> None:
@@ -61,6 +89,14 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     assert base.gap_state_demotion_bound == 2
     assert serve is not None and serve.threshold_bh == 0.1
     assert sweep.serialise_spec(spec)["overrides_base30"]["threshold_bh"] == 0.1
+
+
+@pytest.mark.parametrize("key", ("unrelated_field", "rest_widnow"))
+def test_sweep_rejects_unrelated_and_misspelled_fps_fields(key: str) -> None:
+    spec = sweep.CandidateSpec("invalid", {key: 1.0}, {})
+
+    with pytest.raises(ValueError, match=f"cannot route numeric sweep key {key!r}"):
+        sweep._base_and_serve(spec)
 
 
 def test_quality_floor_uses_greatest_coverage(tmp_path, monkeypatch, capsys) -> None:

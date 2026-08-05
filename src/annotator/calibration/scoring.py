@@ -10,9 +10,10 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.types import ContactCandidate, ScalingKind
+from annotator.fps_constants import ScalingKind
+from annotator.types import ContactCandidate
 
-DEFAULT_TOLERANCES = (1, 2, 5, 10)
+CONTACT_TOLERANCES_BASE30 = (1, 2, 5, 10)
 
 # Replay masking is not applied in sset_01, so replay spans (which
 # carry no GT strokes) count as spurious by design. Surfaced in the output so a
@@ -51,6 +52,12 @@ class GtRally(NamedTuple):
     @property
     def n_strokes(self) -> int:
         return len(self.stroke_frames)
+
+
+def safe_f1(precision: float, recall: float) -> float:
+    """Return the harmonic mean, including zero when both inputs are zero."""
+    denominator = precision + recall
+    return 0.0 if denominator == 0 else 2 * precision * recall / denominator
 
 
 # ---------------------------------------------------------------------------
@@ -433,12 +440,7 @@ def _prf(matched: int, n_gt: int, n_candidates: int) -> dict:
     """Recall/precision/F1 from raw counts; None where a denominator is zero."""
     recall = matched / n_gt if n_gt else None
     precision = matched / n_candidates if n_candidates else None
-    if recall is None or precision is None:
-        f1 = None
-    elif recall + precision == 0:
-        f1 = 0.0
-    else:
-        f1 = 2 * precision * recall / (precision + recall)
+    f1 = None if recall is None or precision is None else safe_f1(precision, recall)
     return {
         'recall': recall,
         'precision': precision,
@@ -535,7 +537,7 @@ def score_contacts(
     spans: Sequence[tuple[int, int]],
     contacts: Sequence[tuple[int, int, bool | None, bool | None]],
     gt_rallies: Sequence[GtRally],
-    tolerances: Sequence[int] = DEFAULT_TOLERANCES,
+    tolerances: Sequence[int] = CONTACT_TOLERANCES_BASE30,
 ) -> dict:
     """Contact-side metrics: count gate and per-tolerance credit, overall + per set.
 

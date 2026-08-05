@@ -97,6 +97,7 @@ def test_standard_tail_deterministically_settles_key_ties() -> None:
 def test_raw_f1_propagates_missing_metrics_and_uses_raw_precision() -> None:
     assert f1_raw_5(make_row(recall_5=None)) is None
     assert f1_raw_5(make_row(precision_raw_5=None)) is None
+    assert f1_raw_5(make_row(recall_5=0.0, precision_raw_5=0.0)) == 0.0
     assert f1_raw_5(make_row(recall_5=0.5, precision_raw_5=0.25)) == 1 / 3
 
 

@@ -28,7 +28,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-import math
 from typing import NamedTuple
 
 import numpy as np
@@ -53,7 +52,7 @@ from .types import (
     rolling_nanmedian,
     true_runs,
 )
-from .fps_constants import FpsConstants
+from .fps_constants import FpsConstants, ScalingKind
 
 
 class Half(StrEnum):
@@ -365,14 +364,14 @@ class LandingFilterOptions(NamedTuple):
 
 def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
     """Convert base-30 landing options once; returned fields are final fps values."""
-    if fps <= 0 or not math.isfinite(fps):
-        raise ValueError(f'fps must be positive and finite, got {fps!r}')
-    time = lambda value: max(1, math.floor(value * fps / 30.0 + 0.5))
+    def frame_count(value: int) -> int:
+        return int(ScalingKind.FRAME_COUNT.scale(value, fps))
+
     return opts._replace(
-        settle_win=time(opts.settle_win),
-        settle_thr=opts.settle_thr * 30.0 / fps,
-        settle_min=time(opts.settle_min),
-        carry_win=time(opts.carry_win),
+        settle_win=frame_count(opts.settle_win),
+        settle_thr=float(ScalingKind.PER_FRAME_SPEED.scale(opts.settle_thr, fps)),
+        settle_min=frame_count(opts.settle_min),
+        carry_win=frame_count(opts.carry_win),
     )
 
 

@@ -21,6 +21,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from annotator.calibration.scoring import safe_f1
+
 
 ScoreRow = dict[str, Any]
 SortKey = tuple[Any, ...]
@@ -117,8 +119,7 @@ def f1_raw_5(row: ScoreRow) -> float | None:
     precision = row["precision_raw_5"]
     if recall is None or precision is None:
         return None
-    denominator = recall + precision
-    return 0.0 if denominator == 0 else (2 * recall * precision) / denominator
+    return safe_f1(precision, recall)
 
 
 def contact_meets_floors(

@@ -12,12 +12,54 @@ import pandas as pd
 import pytest
 
 import annotator.e2e_court_annotator as runner
-from annotator.court_evidence import CourtEvidenceResult, CourtInputs, CourtSceneRecord
+from annotator.court_evidence import (
+    COURT_SCENE_SAMPLE_LIMIT,
+    PERSON_COURT_MARGIN,
+    SCENE_VALID_MIN_FRACTION,
+    CourtEvidenceResult,
+    CourtInputs,
+    CourtSceneRecord,
+)
 from annotator.run_video import AnnotatorResult
+
+
+@pytest.mark.parametrize(
+    ('matched', 'unmatched_gt', 'unmatched_candidate', 'expected_f1'),
+    ((0, 0, 0, None), (0, 1, 1, 0.0), (1, 1, 3, 1 / 3)),
+)
+def test_strict_metrics_preserve_missing_zero_and_ordinary_f1(
+    matched: int,
+    unmatched_gt: int,
+    unmatched_candidate: int,
+    expected_f1: float | None,
+) -> None:
+    rows: list[dict[str, object]] = []
+    for row_kind, count in (
+        ('matched', matched),
+        ('unmatched_gt', unmatched_gt),
+        ('unmatched_candidate', unmatched_candidate),
+    ):
+        for _index in range(count):
+            rows.append(
+                {
+                    'tolerance_base30': 5,
+                    'tolerance_frames': 4,
+                    'row_kind': row_kind,
+                    'offset_frames': 0 if row_kind == 'matched' else None,
+                }
+            )
+    assert runner._strict_metrics(rows, tolerance_base30=5, fps=25.0)['f1'] == expected_f1
 
 
 def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
     return {"path": path, "md5": "0" * 32, "root": root}
+
+
+def test_configuration_reports_the_executable_court_policy() -> None:
+    configuration = runner._configuration_values()
+    assert configuration['court_samples'] == COURT_SCENE_SAMPLE_LIMIT
+    assert configuration['person_margin'] == PERSON_COURT_MARGIN
+    assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
 
 
 def _manifest_payload() -> dict[str, object]:

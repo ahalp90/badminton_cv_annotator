@@ -6,21 +6,11 @@ defaults it.
 from __future__ import annotations
 
 from .config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
-from .fps_constants import scale_for_fps
+from .fps_constants import FPS_CONSTANT_FIELD_NAMES, ScalingKind, scale_for_fps
 from .rally_segmentation import scale_thresholds
-from .types import ScalingKind
 
 
-_OVERRIDABLE_BASE30_ROWS = frozenset({
-    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',
-    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',
-    'contact_dedup_radius_frames', 'contact_suppression_radius_frames',
-    'serve_start_lookback_frames', 'serve_stillness_window_frames', 'sustained_loss_frames',
-    'min_descend_samples', 'body_unit_half_window', 'composition_min_scene_len',
-    'blip_max_frames', 'high_shot_oob_lookback_frames', 'high_shot_oob_min_visible_frames',
-    'high_shot_oob_extrap_frames', 'reentry_lookahead_frames', 'reentry_min_visible_frames',
-    'contact_impulse_multiple',
-})
+_OVERRIDABLE_BASE30_ROWS = FPS_CONSTANT_FIELD_NAMES | frozenset({'contact_impulse_multiple'})
 
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
