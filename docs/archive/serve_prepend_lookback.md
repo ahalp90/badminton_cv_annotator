@@ -32,7 +32,7 @@ labelled sections say so.
 The handover was moved here on 2026-07-31 because replay-event labelling is
 the first dependency in its replay family. The current replay-labelling
 assessment is at
-[`non_play_manual_labelling_20260731-095201.md`](../scraper_pipeline/broadcast_nonstandard_camera_id/non_play_manual_labelling_20260731-095201.md);
+[`broadcast_timeline_labelling_20260731-095201.md`](../scraper_pipeline/broadcast_nonstandard_camera_id/broadcast_timeline_labelling_20260731-095201.md);
 that note supersedes stale claims about current measurements, but preserves
 this handover as historical design context.
 
