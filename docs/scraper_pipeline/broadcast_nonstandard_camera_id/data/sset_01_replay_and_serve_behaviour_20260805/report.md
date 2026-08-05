@@ -1,6 +1,6 @@
-# sset_01 non-play behaviour measurement
+# sset_01 replay and serve behaviour measurement
 
-Generated: 2026-08-05T04:38:02.948125+00:00
+Generated: 2026-08-05T05:15:49.885858+00:00
 
 Fixture profile: `une-189c5af-static-stride8` from source commit `189c5af58e45d23ae827dde516924194eb238e18`.
 
@@ -18,7 +18,9 @@ The unchanged velocity signal uses a rally-speed median of 0.01388889 and thresh
 
 ## Replay duplicate margin
 
-Killed: The reviewed timeline labels replay footage but does not independently pair any replay interval with its earlier live source interval. A retrieval margin needs that positive pair and a different-rally negative, so this study is killed without building a detector.
+Supported for follow-up: 61 short replay intervals have a human-adjudicated immediately preceding live source. The long replay montage `[147049, 148312)` is excluded by human adjudication. 113 GT rallies provide different-rally negatives.
+
+Retrieval margin unmeasured: The review establishes interval-level source relations but does not annotate exact live-source frame pairs. A retrieval margin remains follow-up work.
 
 ## Serve lookback
 

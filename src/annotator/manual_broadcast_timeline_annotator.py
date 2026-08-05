@@ -1,11 +1,11 @@
-"""OpenCV timeline tool for human review of non-play scene intervals.
+"""OpenCV tool for manually labelling a broadcast scene timeline.
 
 Run from the repository root::
 
-    PYTHONPATH=src python -m annotator.non_play_annotation \
+    PYTHONPATH=src python -m annotator.manual_broadcast_timeline_annotator \
         --video path/to/sset_01_288p.mp4 --video-id sset_01 \
         --out-csv local_scratch/autograder_architecture/measurements/\
-sset_01_non_play_manual_labelling.csv
+sset_01_broadcast_timeline_labels.csv
 
 The current frame is inclusive when a number key commits a new interval. The
 saved end is therefore ``current_frame + 1`` and remains half-open.
@@ -25,7 +25,7 @@ from typing import TextIO
 import cv2
 import numpy as np
 
-from annotator.non_play_labels import (
+from annotator.broadcast_timeline_labels import (
     LabelInterval,
     SceneTruth,
     VideoMetadata,
@@ -39,7 +39,7 @@ from annotator.non_play_labels import (
 )
 
 
-WINDOW_NAME = "non-play interval review"
+WINDOW_NAME = "Manual broadcast timeline annotator"
 LABEL_KEYS = {
     ord("1"): SceneTruth.LIVE,
     ord("2"): SceneTruth.LIVE_NON_STANDARD,

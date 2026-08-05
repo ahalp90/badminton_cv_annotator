@@ -360,19 +360,19 @@ the sibling and court tool contain real duplicate behaviour that would drift if
 maintained separately. Do not build a web UI, a general annotation framework,
 or an annotation service for this one-video pilot.
 
-### Issue 29 timeline tool
+### Issue 29 manual broadcast timeline annotator
 
-The bounded sibling tool is `annotator.non_play_annotation`. It keeps its
+The bounded sibling tool is `annotator.manual_broadcast_timeline_annotator`. It keeps its
 interval state and CSV contract separate from the corner-specific annotator and
 does not import the production replay pipeline.
 
 Run it from the repository root:
 
 ```bash
-PYTHONPATH=src python -m annotator.non_play_annotation \
+PYTHONPATH=src python -m annotator.manual_broadcast_timeline_annotator \
   --video /path/to/sset_01_288p.mp4 \
   --video-id sset_01 \
-  --out-csv local_scratch/autograder_architecture/measurements/sset_01_non_play_manual_labelling.csv \
+  --out-csv local_scratch/autograder_architecture/measurements/sset_01_broadcast_timeline_labels.csv \
   --proposal-csv /path/to/proposals.csv \
   --gt-csv /path/to/gt_rally_extents.csv
 ```
@@ -394,13 +394,13 @@ human truth.
 
 Use one CSV per selected video. A suggested name is:
 
-`<video_id>_non_play_manual_labelling.csv`
+`<video_id>_broadcast_timeline_labels.csv`
 
 During Issue 29, the editable plain CSV stays under the gitignored
 `local_scratch/` measurement path. After human review and validation, the one
 canonical tracked copy is:
 
-`docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_non_play_manual_labelling.csv.gz`
+`docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_broadcast_timeline_labels.csv.gz`
 
 Readers use that tracked gzip file. The local plain file remains temporary
 working output and must not become a second maintained truth artefact.

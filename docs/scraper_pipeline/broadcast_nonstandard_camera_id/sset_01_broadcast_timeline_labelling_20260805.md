@@ -1,10 +1,10 @@
-# `sset_01` non-play manual labelling record
+# `sset_01` broadcast timeline labelling record
 
 ## Result
 
 Curtis completed a full first pass on 4 August 2026 and a visual checking pass
 on 5 August 2026. The canonical human timeline is
-[`data/sset_01_non_play_manual_labelling.csv.gz`](data/sset_01_non_play_manual_labelling.csv.gz).
+[`data/sset_01_broadcast_timeline_labels.csv.gz`](data/sset_01_broadcast_timeline_labels.csv.gz).
 It contains 491 zero-based, half-open intervals covering every source frame in
 `[0, 154393)`.
 
@@ -26,7 +26,7 @@ It contains 491 zero-based, half-open intervals covering every source frame in
 
 The five classes are `live`, `live-non-standard`, `replay`, `cutaway`, and
 `other`. Curtis reviewed the full video with
-`annotator.non_play_annotation`. Normal court footage remained `live` between
+`annotator.manual_broadcast_timeline_annotator`. Normal court footage remained `live` between
 rallies. Unusual views became `live-non-standard` only when they showed actual
 live action or warm-up activity. Graphics and broadcast stings were `other`.
 

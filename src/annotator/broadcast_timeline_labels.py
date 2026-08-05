@@ -1,4 +1,4 @@
-"""Truth contract for manually reviewed non-play video intervals."""
+"""Truth contract for manually reviewed broadcast-timeline intervals."""
 
 from __future__ import annotations
 

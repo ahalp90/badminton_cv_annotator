@@ -1,4 +1,4 @@
-"""Focused tests for the recording-only non-play measurements."""
+"""Focused tests for the recording-only replay and serve measurements."""
 
 from __future__ import annotations
 
@@ -11,14 +11,14 @@ import numpy as np
 import pytest
 
 from annotator.calibration.scoring import GtRally
-from annotator.non_play_labels import SceneTruth, VideoMetadata, make_interval
+from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval
 
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
-    / "docs/scraper_pipeline/broadcast_nonstandard_camera_id/measure_non_play_behaviour.py"
+    / "docs/scraper_pipeline/broadcast_nonstandard_camera_id/measure_replay_and_serve_behaviour.py"
 )
-SPEC = importlib.util.spec_from_file_location("measure_non_play_behaviour", SCRIPT_PATH)
+SPEC = importlib.util.spec_from_file_location("measure_replay_and_serve_behaviour", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 measurement = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(measurement)
@@ -53,12 +53,12 @@ def test_expand_truth_and_binary_metrics_exclude_other() -> None:
     }
 
 
-def test_nearest_non_play_distance_uses_replay_and_cutaway() -> None:
+def test_nearest_replay_or_cutaway_distance_uses_both_classes() -> None:
     truth = np.array([
         "live", "replay", "replay", "live", "live", "cutaway", "other",
     ])
 
-    assert measurement.nearest_non_play_distance(truth).tolist() == [1, 0, 0, 1, 1, 0, 1]
+    assert measurement.nearest_replay_or_cutaway_distance(truth).tolist() == [1, 0, 0, 1, 1, 0, 1]
 
 
 def test_slow_motion_details_reconstruct_current_signal() -> None:
@@ -232,6 +232,13 @@ def test_report_uses_each_replay_mask_count() -> None:
             "slow_threshold": 0.01,
             "signal_frames": 2,
         },
+        "replay_duplicate_margin": {
+            "status": "supported-for-follow-up",
+            "eligible_preceding_live_source_relations": 1,
+            "excluded_long_replay_montage": {"start_frame": 80, "end_frame": 100},
+            "same_video_gt_rallies": 3,
+            "retrieval_margin_limit": "Exact source-frame pairs are not annotated.",
+        },
         "serve_lookback": {
             "target_serve_misses": 4,
             "evidence_only": {"selected_triggers": 1},
@@ -263,5 +270,23 @@ def test_report_uses_each_replay_mask_count() -> None:
     assert "e2e court-invalid union flags 9 scored frames" in report
 
 
-def test_duplicate_study_has_a_scoped_kill_reason() -> None:
-    assert "does not independently pair" in measurement.DUPLICATE_KILL_REASON
+def test_duplicate_study_records_supported_interval_relations() -> None:
+    metadata = VideoMetadata("sset_01", 25.0, 20)
+    intervals = [
+        make_interval(metadata, 0, 5, SceneTruth.LIVE),
+        make_interval(metadata, 5, 8, SceneTruth.REPLAY),
+        make_interval(metadata, 8, 15, SceneTruth.LIVE),
+        make_interval(metadata, 15, 20, SceneTruth.REPLAY),
+    ]
+
+    result = measurement.replay_duplicate_feasibility(
+        intervals,
+        3,
+        excluded_long_montage=(15, 20),
+    )
+
+    assert result["status"] == "supported-for-follow-up"
+    assert result["replay_intervals"] == 2
+    assert result["eligible_preceding_live_source_relations"] == 1
+    assert result["same_video_gt_rallies"] == 3
+    assert result["retrieval_margin_status"] == "unmeasured"

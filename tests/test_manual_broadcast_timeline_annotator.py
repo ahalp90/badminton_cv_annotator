@@ -1,12 +1,17 @@
-"""Tests for non-play timeline state and guide loading."""
+"""Tests for manual broadcast-timeline state and guide loading."""
 
 from pathlib import Path
 
 import cv2
 import pytest
 
-from annotator.non_play_annotation import TimelineSession, build_parser, read_guides, video_metadata
-from annotator.non_play_labels import SceneTruth, VideoMetadata, make_interval
+from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval
+from annotator.manual_broadcast_timeline_annotator import (
+    TimelineSession,
+    build_parser,
+    read_guides,
+    video_metadata,
+)
 
 
 METADATA = VideoMetadata("sset_01", 25.0, 10)

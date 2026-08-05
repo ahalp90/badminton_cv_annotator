@@ -3,15 +3,15 @@
 Run from the repository root with the digest-pinned external fixture available::
 
     PYTHONPATH=src python \
-      docs/scraper_pipeline/broadcast_nonstandard_camera_id/measure_non_play_behaviour.py \
+      docs/scraper_pipeline/broadcast_nonstandard_camera_id/measure_replay_and_serve_behaviour.py \
       --fixture-root /path/to/autograder_architecture \
       --fixture-profile historical-calibration \
       --out /path/to/issue29-results
 
 The command does not change production output. It writes reload-checked gzip
 tables, a gzip summary, and a concise Markdown report. The replay duplicate
-study is killed explicitly because the reviewed labels do not pair replay
-intervals with their earlier live source intervals.
+study records the reviewer's interval-level source adjudication while leaving
+exact frame-pair margin measurement to follow-up work.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from annotator.calibration.gt_scoring import build_run_video_inputs, canonical_t
 from annotator.calibration.scoring import GtRally, classify_all, greedy_match, load_gt_rallies
 from annotator.config import BaseAnnotatorConfig, SLOWMO_SPEED_FRAC
 from annotator.inpaint_guard import CODE_NAMES, NO_FLAG
-from annotator.non_play_labels import (
+from annotator.broadcast_timeline_labels import (
     LabelInterval,
     SceneTruth,
     VideoMetadata,
@@ -69,13 +69,13 @@ from annotator.run_video import RunCapture, run_video
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_LABELS = SCRIPT_DIR / "data/sset_01_non_play_manual_labelling.csv.gz"
+DEFAULT_LABELS = SCRIPT_DIR / "data/sset_01_broadcast_timeline_labels.csv.gz"
 TRUTH_ORDER = tuple(SceneTruth)
 POSITIVE_TRUTHS = (SceneTruth.REPLAY.value, SceneTruth.CUTAWAY.value)
-DUPLICATE_KILL_REASON = (
-    "The reviewed timeline labels replay footage but does not independently pair any replay "
-    "interval with its earlier live source interval. A retrieval margin needs that positive "
-    "pair and a different-rally negative, so this study is killed without building a detector."
+DUPLICATE_EXCLUDED_LONG_MONTAGE = (147049, 148312)
+DUPLICATE_REVIEWER_ADJUDICATION = (
+    "The human reviewer confirmed that each short replay shows live footage from immediately "
+    "before it. The long end-of-match replay montage is excluded from this source relation."
 )
 
 MASK_COLUMNS = (
@@ -93,7 +93,7 @@ CANDIDATE_COLUMNS = (
     "track_visible", "sticky_analysed", "sticky_distance_bh", "sticky_top_pick",
     "sticky_bottom_pick", "wrist_gate_pass", "evidence_pass", "definitive_mask",
     "raw_mask", "policy_pass", "selected_evidence", "selected_policy", "reject_reasons",
-    "nearest_non_play_distance", "nearest_gt_rally_index", "nearest_gt_serve_frame",
+    "nearest_replay_or_cutaway_distance", "nearest_gt_rally_index", "nearest_gt_serve_frame",
     "nearest_gt_serve_delta", "tolerance_frames", "gt_serve_match",
     "nearest_gt_status", "natural_raw_contact",
     "natural_accepted_contact",
@@ -204,7 +204,7 @@ def mask_metric_rows(detectors: dict[str, np.ndarray], truth: np.ndarray) -> lis
     return rows
 
 
-def nearest_non_play_distance(truth: np.ndarray) -> np.ndarray:
+def nearest_replay_or_cutaway_distance(truth: np.ndarray) -> np.ndarray:
     """Return distance in frames to the nearest replay or cutaway frame."""
     positive = np.isin(truth, POSITIVE_TRUTHS)
     n_frames = len(truth)
@@ -221,6 +221,45 @@ def nearest_non_play_distance(truth: np.ndarray) -> np.ndarray:
             following = frame
         distance[frame] = min(distance[frame], following - frame)
     return distance
+
+
+def replay_duplicate_feasibility(
+    intervals: Sequence[LabelInterval],
+    gt_rally_count: int,
+    *,
+    excluded_long_montage: tuple[int, int] = DUPLICATE_EXCLUDED_LONG_MONTAGE,
+) -> dict[str, Any]:
+    """Record the human-adjudicated replay-pair feasibility result."""
+    replays = [interval for interval in intervals if interval.truth is SceneTruth.REPLAY]
+    excluded = [
+        interval
+        for interval in replays
+        if (interval.start_frame, interval.end_frame) == excluded_long_montage
+    ]
+    if len(excluded) != 1:
+        raise ValueError(
+            f"expected one excluded long replay montage {excluded_long_montage}, "
+            f"found {len(excluded)}"
+        )
+    eligible_count = len(replays) - 1
+    if eligible_count < 1 or gt_rally_count < 2:
+        raise ValueError("duplicate feasibility needs a replay pair and a different-rally negative")
+    return {
+        "status": "supported-for-follow-up",
+        "reviewer_adjudication": DUPLICATE_REVIEWER_ADJUDICATION,
+        "replay_intervals": len(replays),
+        "eligible_preceding_live_source_relations": eligible_count,
+        "excluded_long_replay_montage": {
+            "start_frame": excluded_long_montage[0],
+            "end_frame": excluded_long_montage[1],
+        },
+        "same_video_gt_rallies": gt_rally_count,
+        "retrieval_margin_status": "unmeasured",
+        "retrieval_margin_limit": (
+            "The review establishes interval-level source relations but does not annotate exact "
+            "live-source frame pairs. A retrieval margin remains follow-up work."
+        ),
+    }
 
 
 def slow_motion_details(
@@ -359,7 +398,7 @@ def evaluate_serve_candidates(
     """Measure one fixed recording-only serve-lookback candidate rule."""
     resolved = resolve(BaseAnnotatorConfig(), fps)
     tolerance = canonical_tolerance(fps)
-    distance = nearest_non_play_distance(truth)
+    distance = nearest_replay_or_cutaway_distance(truth)
     gt_serve_frames = [rally.stroke_frames[0] for rally in gt_rallies]
     target_indexes = [int(row["rally_index"]) for row in statuses if row["target_miss"]]
     target_frames = [gt_serve_frames[index] for index in target_indexes]
@@ -427,7 +466,7 @@ def evaluate_serve_candidates(
                 "selected_evidence": False,
                 "selected_policy": False,
                 "reject_reasons": ";".join(reasons),
-                "nearest_non_play_distance": int(distance[frame]),
+                "nearest_replay_or_cutaway_distance": int(distance[frame]),
                 "nearest_gt_rally_index": nearest_gt,
                 "nearest_gt_serve_frame": gt_serve_frames[nearest_gt],
                 "nearest_gt_serve_delta": nearest_delta,
@@ -613,10 +652,11 @@ def _build_report(summary: dict[str, Any]) -> str:
     e2e_definitive = components["e2e_definitive"]
     gt_loss = summary["replay_mask"]["gt_extent_loss"]["e2e_definitive"]
     profile = summary["fixture_profile"]
+    duplicate = summary["replay_duplicate_margin"]
     serve = summary["serve_lookback"]["current_mask_policy"]
     serve_truth = serve["selected_by_manual_truth"]
     return "\n".join([
-        "# sset_01 non-play behaviour measurement",
+        "# sset_01 replay and serve behaviour measurement",
         "",
         f"Generated: {summary['generated_at_utc']}",
         "",
@@ -648,7 +688,14 @@ def _build_report(summary: dict[str, Any]) -> str:
         "",
         "## Replay duplicate margin",
         "",
-        f"Killed: {DUPLICATE_KILL_REASON}",
+        f"Supported for follow-up: {duplicate['eligible_preceding_live_source_relations']} "
+        f"short replay intervals have a human-adjudicated immediately preceding live source. "
+        f"The long replay montage `[{duplicate['excluded_long_replay_montage']['start_frame']}, "
+        f"{duplicate['excluded_long_replay_montage']['end_frame']})` is excluded by human "
+        f"adjudication. "
+        f"{duplicate['same_video_gt_rallies']} GT rallies provide different-rally negatives.",
+        "",
+        f"Retrieval margin unmeasured: {duplicate['retrieval_margin_limit']}",
         "",
         "## Serve lookback",
         "",
@@ -830,10 +877,7 @@ def run_measurement(
             "slow_threshold": details.slow_threshold,
             "signal_frames": int(details.signal.sum()),
         },
-        "replay_duplicate_margin": {
-            "status": "killed",
-            "reason": DUPLICATE_KILL_REASON,
-        },
+        "replay_duplicate_margin": replay_duplicate_feasibility(intervals, len(gt_rallies)),
         "serve_lookback": serve_summary,
         "natural_run": {
             "spans": len(result.spans),

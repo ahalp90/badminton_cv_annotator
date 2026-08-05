@@ -1,10 +1,10 @@
-"""Tests for the manual non-play interval contract."""
+"""Tests for the manual broadcast-timeline interval contract."""
 
 from pathlib import Path
 
 import pytest
 
-from annotator.non_play_labels import (
+from annotator.broadcast_timeline_labels import (
     LABEL_CSV_HEADER,
     LabelInterval,
     SceneTruth,
@@ -123,7 +123,7 @@ def test_failed_temporary_validation_preserves_existing_destination(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import annotator.non_play_labels as labels_module
+    import annotator.broadcast_timeline_labels as labels_module
 
     path = tmp_path / "labels.csv"
     write_label_csv(path, _partition(), METADATA)
