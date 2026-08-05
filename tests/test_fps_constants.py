@@ -185,6 +185,29 @@ def test_landing_options_are_converted_once() -> None:
     )
 
 
+@pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
+def test_landing_options_use_shared_scaling_rules(fps: float) -> None:
+    options = LandingFilterOptions(
+        7,
+        0.004,
+        5,
+        7,
+        0.75,
+        use_settle=False,
+        use_carry=True,
+        null_if_all_carried=True,
+        use_ankle_rule=False,
+    )
+    expected = options._replace(
+        settle_win=int(ScalingKind.FRAME_COUNT.scale(options.settle_win, fps)),
+        settle_thr=float(ScalingKind.PER_FRAME_SPEED.scale(options.settle_thr, fps)),
+        settle_min=int(ScalingKind.FRAME_COUNT.scale(options.settle_min, fps)),
+        carry_win=int(ScalingKind.FRAME_COUNT.scale(options.carry_win, fps)),
+    )
+
+    assert convert_landing_options(options, fps) == expected
+
+
 def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
 ) -> None:
     """One resolved config crosses every promoted FPS-sensitive boundary exactly once."""
