@@ -53,6 +53,9 @@ from annotator.calibration.scoring import (
 from annotator.config import BaseAnnotatorConfig
 from annotator.experiment_records import clean_run, human_bytes, utc_run_directory, write_summary_and_report
 from annotator.court_evidence import (
+    COURT_SCENE_SAMPLE_LIMIT,
+    PERSON_COURT_MARGIN,
+    SCENE_VALID_MIN_FRACTION,
     CourtConsensusError,
     CourtEvidenceResult,
     CourtSceneRecord,
@@ -72,9 +75,6 @@ PARENTS = (
     "detected_ckn_opencv_consensus",
 )
 LANDING_HORIZONS = (1.0, 2.0, 3.0)
-COURT_SAMPLES = 10
-PERSON_MARGIN = 0.10
-SCENE_THRESHOLD = 0.5
 REF_ERR_PX = 3.5
 LANDING_OPTIONS = LandingFilterOptions(7, 0.004, 5, 7, 0.75)
 
@@ -638,9 +638,9 @@ def _configuration_values() -> dict[str, object]:
         "injected_contacts": False,
         "serve_start": None,
         "court_invalid_is_excluded": True,
-        "person_margin": PERSON_MARGIN,
-        "scene_threshold": SCENE_THRESHOLD,
-        "court_samples": COURT_SAMPLES,
+        "person_margin": PERSON_COURT_MARGIN,
+        "scene_threshold": SCENE_VALID_MIN_FRACTION,
+        "court_samples": COURT_SCENE_SAMPLE_LIMIT,
         "landing_horizons_s": list(LANDING_HORIZONS),
     }
 

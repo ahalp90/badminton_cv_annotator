@@ -4,8 +4,10 @@ import json
 import csv
 import argparse
 import sys
+from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from annotator.calibration import sweep
@@ -14,7 +16,7 @@ from annotator.calibration.gt_scoring import RunVideoInputs
 from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.calibration.schemas import CSV_COLUMNS_BY_FILENAME
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.types import SpanOpen
+from annotator.types import ContactCandidate, SpanOpen
 from annotator.resolve import resolve
 
 
@@ -34,6 +36,27 @@ def _row(spec: sweep.CandidateSpec, *, covered: int = 100) -> dict[str, object]:
 
 def test_sweep_uses_the_shared_contact_tolerances() -> None:
     assert sweep.CONTACT_TOLERANCES_BASE30 is CONTACT_TOLERANCES_BASE30
+
+
+def test_sweep_row_preserves_the_legacy_speed_schema_value() -> None:
+    master = pd.DataFrame(
+        {
+            "vid": [SSET_01.video_id] * 3,
+            "set_id": ["synthetic"] * 3,
+            "rally": [1, 1, 1],
+            "frame_num": [10, 20, 30],
+        }
+    )
+    result = SimpleNamespace(
+        spans=[(5, 35)],
+        filtered_contacts=[
+            ContactCandidate(0, frame, True, True, False)
+            for frame in (10, 20, 30)
+        ],
+    )
+    row = sweep._row_for_result(SSET_01, sweep.shipped_spec(), result, master)
+    assert row["min_contact_speed"] == sweep.LEGACY_MIN_CONTACT_SPEED == 0.005
+    assert row["rest_speed"] == 0.002
 
 
 def test_boundary_values_resolve_to_frozen_25fps_literals() -> None:

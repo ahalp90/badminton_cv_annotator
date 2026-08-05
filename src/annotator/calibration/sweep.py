@@ -54,6 +54,9 @@ LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
 WINNER_FILENAME = "config_winner.json"
 WINNER_SCHEMA_VERSION = 1
+# Persisted compatibility field from the retired direction-and-speed detector.
+# Live contact detection does not read this value.
+LEGACY_MIN_CONTACT_SPEED = 0.005
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
 DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound", "quiet_start_window"})
@@ -349,7 +352,10 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     }
     contacts = [(contact.rally_id, contact.contact_frame, contact.proximity_ok, contact.wrist_near) for contact in result.filtered_contacts]
     contact = score_contacts(spans, contacts, gt, tuple(tolerances.values()))
-    row: dict[str, Any] = {"label": spec.label, **_display_config(spec), "min_contact_speed": 0.005,
+    row: dict[str, Any] = {
+        "label": spec.label,
+        **_display_config(spec),
+        "min_contact_speed": LEGACY_MIN_CONTACT_SPEED,
         "n_spans": len(spans), **boundary, "clean_covered": len(clean), "swallowed_rallies": sum(max(0, count - 1) for count in contained), "max_rallies_in_one_span": max(contained, default=0),
         "strict_align_median": float(np.median(offsets)) if offsets else None, "strict_align_p90": float(np.percentile(offsets, 90)) if offsets else None,
         "total_candidates": len(result.filtered_contacts), "changed_from_defaults": _changed_from_defaults(spec), "settings": _settings(spec)}

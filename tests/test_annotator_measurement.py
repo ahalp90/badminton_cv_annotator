@@ -12,7 +12,14 @@ import pandas as pd
 import pytest
 
 import annotator.e2e_court_annotator as runner
-from annotator.court_evidence import CourtEvidenceResult, CourtInputs, CourtSceneRecord
+from annotator.court_evidence import (
+    COURT_SCENE_SAMPLE_LIMIT,
+    PERSON_COURT_MARGIN,
+    SCENE_VALID_MIN_FRACTION,
+    CourtEvidenceResult,
+    CourtInputs,
+    CourtSceneRecord,
+)
 from annotator.run_video import AnnotatorResult
 
 
@@ -46,6 +53,13 @@ def test_strict_metrics_preserve_missing_zero_and_ordinary_f1(
 
 def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
     return {"path": path, "md5": "0" * 32, "root": root}
+
+
+def test_configuration_reports_the_executable_court_policy() -> None:
+    configuration = runner._configuration_values()
+    assert configuration['court_samples'] == COURT_SCENE_SAMPLE_LIMIT
+    assert configuration['person_margin'] == PERSON_COURT_MARGIN
+    assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
 
 
 def _manifest_payload() -> dict[str, object]:

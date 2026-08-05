@@ -77,6 +77,11 @@ def test_centred_bin_samples(start, end, expected) -> None:
     assert evidence.scene_sample_indices(start, end) == expected
 
 
+def test_scene_sample_limit_is_the_executable_cap() -> None:
+    samples = evidence.scene_sample_indices(0, evidence.COURT_SCENE_SAMPLE_LIMIT + 5)
+    assert len(samples) == evidence.COURT_SCENE_SAMPLE_LIMIT
+
+
 def test_detect_scene_evidence_decodes_once_in_scene_order(monkeypatch) -> None:
     class FakeCapture:
         def __init__(self) -> None:
@@ -174,7 +179,8 @@ def test_keep_vote_ignores_outside_people_and_includes_margin_boundaries() -> No
     bboxes = np.zeros((1, 4, 4), dtype=float)
     scores = np.full((1, 4), 0.9, dtype=float)
     ndet = np.array([4], dtype=int)
-    centres = [(-0.1, 0.5), (1.1, 1.1), (0.5, 0.5), (-0.2, 0.5)]
+    margin = evidence.PERSON_COURT_MARGIN
+    centres = [(-margin, 0.5), (1.0 + margin, 1.0 + margin), (0.5, 0.5), (-margin - 0.1, 0.5)]
     for slot, (x, y) in enumerate(centres):
         pixel_x, pixel_y = x * 1280.0, y * 720.0
         bboxes[0, slot] = (pixel_x - 1.0, pixel_y - 2.0, pixel_x + 1.0, pixel_y)
@@ -207,7 +213,7 @@ def test_parent_evidence_applies_inclusive_scene_majority() -> None:
         ndet,
     )
     first_record, second_record = result.scene_records
-    assert first_record.exactly_two_fraction == pytest.approx(0.5)
+    assert first_record.exactly_two_fraction == pytest.approx(evidence.SCENE_VALID_MIN_FRACTION)
     assert first_record.scene_valid is True
     assert second_record.exactly_two_fraction == pytest.approx(1 / 3)
     assert second_record.scene_valid is False
