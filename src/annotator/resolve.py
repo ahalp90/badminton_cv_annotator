@@ -6,9 +6,8 @@ defaults it.
 from __future__ import annotations
 
 from .config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
-from .fps_constants import scale_for_fps
+from .fps_constants import ScalingKind, scale_for_fps
 from .rally_segmentation import scale_thresholds
-from .types import ScalingKind
 
 
 _OVERRIDABLE_BASE30_ROWS = frozenset({

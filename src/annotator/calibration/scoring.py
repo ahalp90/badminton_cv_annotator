@@ -10,7 +10,8 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.types import ContactCandidate, ScalingKind
+from annotator.fps_constants import ScalingKind
+from annotator.types import ContactCandidate
 
 DEFAULT_TOLERANCES = (1, 2, 5, 10)
 

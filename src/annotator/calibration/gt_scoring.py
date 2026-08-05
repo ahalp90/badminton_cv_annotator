@@ -12,6 +12,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
+from annotator.fps_constants import ScalingKind
 from annotator.calibration.fixtures import (
     FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file, verify_fixture,
 )
@@ -370,7 +371,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def canonical_tolerance(fps: float) -> int:
-    return max(1, math.floor(5.0 * fps / 30.0 + 0.5))
+    return int(ScalingKind.FRAME_COUNT.scale(5.0, fps))
 
 
 def _norm_half(side: str) -> str:

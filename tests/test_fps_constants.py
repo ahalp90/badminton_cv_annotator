@@ -1,7 +1,7 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 import subprocess
 
 import numpy as np
@@ -11,7 +11,7 @@ import pytest
 from src.annotator.config import SHIPPED_THRESHOLDS
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import resolve
-from src.annotator.fps_constants import probe_fps, scale_for_fps
+from src.annotator.fps_constants import FpsConstants, ScalingKind, probe_fps, scale_for_fps
 from annotator.point_winner import (
     Half,
     LandingFilterOptions,
@@ -100,6 +100,30 @@ def test_scale_for_fps_visible_sample_rows_floor_at_two_frames() -> None:
     assert scale_for_fps(60.0).high_shot_oob_min_visible_frames == 5
     assert scale_for_fps(25.0).reentry_min_visible_frames == 2
     assert scale_for_fps(60.0).reentry_min_visible_frames == 5
+
+
+@pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
+def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> None:
+    overrides = {
+        field.name: float(index) + 0.25
+        for index, field in enumerate(fields(FpsConstants), start=1)
+    }
+    constants = scale_for_fps(fps, overrides)
+    speed_fields = {'rest_speed', 'start_speed'}
+    minimum_two_fields = {
+        'high_shot_oob_min_visible_frames',
+        'reentry_min_visible_frames',
+    }
+    for field_name, base30_value in overrides.items():
+        scaling = (
+            ScalingKind.PER_FRAME_SPEED
+            if field_name in speed_fields
+            else ScalingKind.FRAME_COUNT
+        )
+        expected = scaling.scale(base30_value, fps)
+        if field_name in minimum_two_fields:
+            expected = max(2, expected)
+        assert getattr(constants, field_name) == expected
 
 
 def test_probe_fps_rejects_vfr_and_invalid(monkeypatch: pytest.MonkeyPatch) -> None:

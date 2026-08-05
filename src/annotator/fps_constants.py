@@ -11,12 +11,31 @@ import json
 import math
 import subprocess
 from dataclasses import dataclass
+from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
 
 BASE_FPS = 30.0
 REST_SPEED_BASE30 = 0.002
 START_SPEED_BASE30 = 0.015
+
+
+class ScalingKind(StrEnum):
+    """Describe how a base-30 value scales with the video's frame rate."""
+
+    PER_FRAME_SPEED = 'per_frame_speed'
+    FRAME_COUNT = 'frame_count'
+    DIMENSIONLESS = 'dimensionless'
+
+    def scale(self, value: float, fps: float) -> float | int:
+        """Scale one base-30 value, requiring a positive finite frame rate."""
+        if not math.isfinite(fps) or fps <= 0:
+            raise ValueError(f'fps must be positive and finite, got {fps!r}')
+        if self is ScalingKind.PER_FRAME_SPEED:
+            return value * BASE_FPS / fps
+        if self is ScalingKind.FRAME_COUNT:
+            return max(1, math.floor(value * fps / BASE_FPS + 0.5))
+        return value
 
 
 @dataclass(frozen=True)
@@ -51,21 +70,16 @@ class FpsConstants:
     reentry_lookahead_frames: int
     reentry_min_visible_frames: int
 
-
-def _time(base30: float, fps: float) -> int:
-    return max(1, math.floor(base30 * fps / BASE_FPS + 0.5))
-
-
 def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) -> FpsConstants:
     """Scale the base-30 table for a positive finite CFR frame rate."""
     if not math.isfinite(fps) or fps <= 0:
         raise ValueError(f'fps must be positive and finite, got {fps!r}')
     base30 = {} if overrides_base30 is None else overrides_base30
     def frame_count(name: str, shipped: float) -> int:
-        return _time(base30.get(name, shipped), fps)
+        return int(ScalingKind.FRAME_COUNT.scale(base30.get(name, shipped), fps))
 
     def speed(name: str, shipped: float) -> float:
-        return base30.get(name, shipped) * BASE_FPS / fps
+        return float(ScalingKind.PER_FRAME_SPEED.scale(base30.get(name, shipped), fps))
 
     return FpsConstants(
         rest_speed=speed('rest_speed', REST_SPEED_BASE30),

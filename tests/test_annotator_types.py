@@ -11,7 +11,7 @@ from annotator.config import (
     ResolvedAnnotatorConfig,
     SHIPPED_THRESHOLDS,
 )
-from annotator.fps_constants import scale_for_fps
+from annotator.fps_constants import ScalingKind as FpsScalingKind, scale_for_fps
 from annotator.rally_segmentation import scale_thresholds
 from annotator.resolve import resolve
 from annotator.types import DeadMaskMode, ReentryGuardVariant, ScalingKind, Slot, SmoothingMode
@@ -36,6 +36,10 @@ _FIELDS = {
     'body_unit_half_window': (12.0, ScalingKind.FRAME_COUNT),
     'composition_min_scene_len': (15.0, ScalingKind.FRAME_COUNT),
 }
+
+
+def test_scaling_kind_remains_reexported_from_types() -> None:
+    assert ScalingKind is FpsScalingKind
 
 
 def test_scaling_kind_matches_every_fps_constant_field() -> None:
