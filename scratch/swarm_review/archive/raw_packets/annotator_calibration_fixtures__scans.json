@@ -1,0 +1,138 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 58,
+    "category": "docs-prose",
+    "claim": "Fixture docstring sentence violates single-sub-clause rule by joining two independent clauses with semicolon.",
+    "quote": "The ``court_present_path`` property is a pose-derived court-view proxy (True = court view); the scene-gated tracker's producer choice is re-approved at its activation commit.",
+    "chunk_id": "whole",
+    "suggested_fix": "Split into two sentences: \"The `court_present_path` property is a pose-derived court-view proxy (True = court view). The scene-gated tracker's producer choice is re-approved at its activation commit.\""
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 30,
+    "category": "docs-orientation",
+    "claim": "CalibrationGeometry docstring uses undefined jargon and does not explain tuple structure.",
+    "quote": "\"\"\"Derived camera geometry and the tracked source resolution for one fixture.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify what \"camera geometry\" is and document structure: \"Derived camera geometry (x/y bounds and net band) and tracked video resolution for one fixture.\""
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 247,
+    "category": "docs-orientation",
+    "claim": "Docstring references undefined term \"Wave 1\" and obscures actual scope; function loads only for _CALIBRATION_VIDEO_IDS (1, 15, 21).",
+    "quote": "\"\"\"Load and derive calibration geometry for every Wave 1 fixture.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Replace with scope-aware description: \"Load and derive calibration geometry for configured video IDs (1, 15, 21).\""
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 220,
+    "category": "missing-shape-annotation",
+    "claim": "Numpy array creation lacks inline shape annotation comment.",
+    "quote": "court_band_points = np.array(\n        [[x_centre, x_centre], [y_centre - net_half_band, y_centre + net_half_band]],\n        dtype=float,\n    )",
+    "chunk_id": "whole",
+    "suggested_fix": "Add shape comment: `# (2, 2); x,y centre and band bounds`"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 207,
+    "category": "missing-shape-annotation",
+    "claim": "Matrix result from numpy.linalg.inv lacks shape annotation.",
+    "quote": "inverse_homography = np.linalg.inv(homography)",
+    "chunk_id": "whole",
+    "suggested_fix": "Add inline comment documenting shape, e.g., `# (3, 3) inverse homography`"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 55,
+    "category": "docs-prose",
+    "claim": "Fixture docstring sentence combines multiple distinct ideas violating single-sub-clause rule.",
+    "quote": "``name`` is the fixture's sole local identity: every operational path and pin path below is a derived property of it (the stem-plus-role grammar), so copying a fixture with a new ``name`` (e.g. via ``dataclasses.replace``) moves every path consistently.",
+    "chunk_id": "whole",
+    "suggested_fix": "Split into logical statements: \"name is the sole local identity; paths are derived properties of it. Copying a fixture with a new name updates all paths consistently.\""
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 68,
+    "category": "docs-orientation",
+    "claim": "Fixture class fields use complex nested tuple types without documentation of structure or semantic meaning.",
+    "quote": "court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]\n    net_band: tuple[float, float]\n    resolution: tuple[float, float]",
+    "chunk_id": "whole",
+    "suggested_fix": "Document in class docstring what each field represents; e.g., 'court_geo: (x_bounds, y_bounds, net_band) in camera coordinates'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 54,
+    "category": "unclear-name",
+    "claim": "The term 'stem-plus-role grammar' appears without definition, making it impossible for an unfamiliar reader to understand what naming pattern is meant.",
+    "quote": "``name`` is the fixture's sole local identity: every operational path and\npin path below is a derived property of it (the stem-plus-role grammar),",
+    "chunk_id": "whole",
+    "suggested_fix": "Define the pattern plainly (e.g., 'where the name appears as a prefix and role-based suffixes form the full path')"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 60,
+    "category": "docs-prose",
+    "claim": "Phrases like 'pose-derived court-view proxy' and 'scene-gated tracker's producer choice is re-approved at its activation commit' use undefined jargon that an unfamiliar reader cannot parse.",
+    "quote": "The ``court_present_path`` property is a pose-derived court-view proxy (True = court view); the scene-gated\ntracker's producer choice is re-approved at its activation commit.",
+    "chunk_id": "whole",
+    "suggested_fix": "Replace with plain language (e.g., 'court_present_path is a boolean mask indicating whether the frame shows the court')"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 234,
+    "category": "data-structure",
+    "claim": "The net_band value is stored redundantly inside the court_geo tuple and also as a separate CalibrationGeometry field, creating confusion about the source of truth and risking inconsistency.",
+    "quote": "court_geo = (x_bounds, y_bounds, net_band)\n    resolution = (width, height)\n    court_geo = (x_bounds, y_bounds, net_band)\n    return CalibrationGeometry(court_geo=court_geo, net_band=net_band, resolution=resolution)",
+    "chunk_id": "whole",
+    "suggested_fix": "Store net_band only as a separate field; construct court_geo as (x_bounds, y_bounds) alone"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 32,
+    "category": "docs-orientation",
+    "claim": "The court_geo field's type\u2014a nested tuple of three 2-tuples\u2014lacks explanation of what each sub-tuple represents (x bounds, y bounds, net band bounds).",
+    "quote": "court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]",
+    "chunk_id": "whole",
+    "suggested_fix": "Add an inline comment (e.g., '# (x_bounds, y_bounds, net_band), each (min, max)')"
+   },
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 141,
+    "category": "docs-orientation",
+    "claim": "The docstring describes only reading and validating the 'id column', but omits that the function also validates numeric, finite, integer-valued, and unique rows.",
+    "quote": "def _read_source_frame(path: Path, source_name: str) -> pd.DataFrame:\n    \"\"\"Read and validate the id column in one tracked calibration source.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Expand the docstring to list all validations (e.g., 'Read CSV and validate id: must be numeric, finite, integer, and unique')"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/fixtures.py",
+    "line": 202,
+    "category": "ordering",
+    "claim": "`_rounded_bounds()` is called at lines 202, 203, and 226 but not defined until lines 238\u2013240, breaking top-to-bottom reading coherence.",
+    "quote": "    x_bounds = _rounded_bounds(corner_camera_fixture[0])",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Move `_rounded_bounds()` definition (lines 238\u2013240) before `_derive_calibration_geometry()` to preserve reading order."
+   }
+  ],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,84 @@
+{
+ "module": "src/annotator/court_evidence.py",
+ "purpose": "This module manages court geometry evidence for an annotation pipeline, providing unified handling of both static court geometry (from ShuttleSet homography) and detected court geometry (from CourtKeyNet detector). It builds operational arrays and writer records for court-present frames and player-detection votes within court bounds.",
+ "public_api": [
+  {
+   "name": "CourtInputs",
+   "role": "Frozen dataclass holding court-dependent inputs needed by one parent: court info, net band, resolution, homography rows, and active corner positions. Automatically deep-copies mutable arrays and dictionaries at construction."
+  },
+  {
+   "name": "SceneEvidence",
+   "role": "Frozen dataclass for raw detector evidence of one scene interval: start/end frames, sampled frame indices, and the CourtQuad geometry if detected."
+  },
+  {
+   "name": "CourtSceneRecord",
+   "role": "Frozen dataclass for typed scene evidence ready for the court-scenes writer: combines raw detector outputs, vote statistics, validity flags, and consensus diagnostics."
+  },
+  {
+   "name": "CourtEvidenceResult",
+   "role": "Frozen dataclass for one parent build output: inputs, scene records, keep-vote array, court-present array, and optional consensus repair metadata."
+  },
+  {
+   "name": "CourtConsensusError",
+   "role": "Custom ValueError raised when detected consensus fails after raw evidence and votes are derived; preserves the partial result for debugging."
+  },
+  {
+   "name": "build_raw_cut_intervals",
+   "role": "Runs the composition-based cut detector on a video and returns complete half-open scene intervals covering the full video duration."
+  },
+  {
+   "name": "scene_sample_indices",
+   "role": "Returns deterministic centred-bin sample frame indices for a scene interval (up to 10 samples), used to feed frames to the court detector."
+  },
+  {
+   "name": "detect_scene_evidence",
+   "role": "Streams video frames, samples each raw scene, runs a detector batch on samples, and returns SceneEvidence objects with detected court quads and provenance."
+  },
+  {
+   "name": "detected_court_info",
+   "role": "Builds a court-info dictionary from detected TL/TR/BR/BL corners: computes perspective homography to unit-square court and stores boundaries."
+  },
+  {
+   "name": "build_net_band",
+   "role": "Projects the one-metre centre net band from court space to pose-resolution y-axis pixels, returning a tuple of (min_y, max_y)."
+  },
+  {
+   "name": "build_scene_rows",
+   "role": "Builds a pose-resolution scene table with video_id, frame intervals, and corner coordinates in upleft/upright/downleft/downright order expected by sticky and replay."
+  },
+  {
+   "name": "build_keep_vote",
+   "role": "Returns a per-frame boolean vote indicating exactly two people detected within court margins; used to validate scene geometry and player positions."
+  },
+  {
+   "name": "build_court_present",
+   "role": "Expands scene-level validity into a per-frame court-present boolean array, flagging frames in scenes that passed the exactly-two majority threshold."
+  },
+  {
+   "name": "build_static_court_inputs",
+   "role": "Builds CourtInputs from a ShuttleSet homography row: static court geometry, net band, and corner error tolerance, replicating across all scenes."
+  },
+  {
+   "name": "build_static_court_evidence",
+   "role": "Complete static parent pass: builds inputs, votes, and writer records using homography-based court geometry; returns CourtEvidenceResult."
+  },
+  {
+   "name": "build_detected_court_evidence",
+   "role": "Complete detected parent pass: validates scene evidence, computes consensus court quad, repairs individual scene quads, and returns CourtEvidenceResult with all metadata."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "corner_floor = float(getattr(detector, 'corner_min_peak_conf'))",
+   "why_unclear": "The use of `getattr` with a string key instead of direct attribute access suggests the detector object's type is unknown at compile time. This could be for interface flexibility, defensive programming, or because the detector interface is defined in an external module (courtkeynet), but I cannot tell which without consulting imports or the detector's definition."
+  },
+  {
+   "quote": "pose_corners = _as_ref_corners(corners_refpx, HOMOGRAPHY_RESOLUTION) * np.asarray(\n        [\n            float(resolution[0]) / HOMOGRAPHY_RESOLUTION[0],",
+   "why_unclear": "The parameter is named `corners_refpx` (suggesting reference-space pixels), but the function then calls `_as_ref_corners` with `HOMOGRAPHY_RESOLUTION` as the source resolution. This appears to scale reference-space corners by a resolution ratio, but the logic seems redundant: are the incoming corners not already in reference space, or is the name misleading? The actual coordinate system transformation needs clarification."
+  },
+  {
+   "quote": "prefixes = {'upleft': 0, 'upright': 1, 'downleft': 3, 'downright': 2}",
+   "why_unclear": "The index mapping is non-sequential (0, 1, 3, 2), implying corners are stored in TL/TR/BR/BL order and being reordered for output. The line-252 comment confirms TL/TR/BR/BL input, but why this specific output order? It is likely a downstream API convention for sticky and replay (line 356), but that contract is not visible in this file."
+  }
+ ]
+}

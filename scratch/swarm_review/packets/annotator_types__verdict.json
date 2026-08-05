@@ -1,0 +1,148 @@
+{
+  "module": "src/annotator/types.py",
+  "probe_assessment": "The cold read held up for the module purpose and the listed public API roles. The `scale_for_fps` and future threading-stage stumble is genuine: the docstring names an external helper and a future change without defining or locating either. The COCO stumble is not a comprehension finding: the file names the joint roles, gives the `(t, n_max, 17, 2)` layout, and identifies the consuming code; inability to verify the external COCO numbering is domain background uncertainty rather than a material code-induced misreading.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/types.py",
+      "line": 25,
+      "category": "comprehension-trap",
+      "claim": "ScalingKind's docstring points to an external `scale_for_fps` helper and a future threading stage without defining or locating either, so a new reader cannot verify the intended cross-module relationship from this file alone.",
+      "quote": "arithmetic must stay identical to ``scale_for_fps``\nuntil the threading stage rewires the table onto these declarations.",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/types.py",
+      "line": 104,
+      "category": "comprehension-trap",
+      "claim": "The Slot docstring presents `SLOT_TOP` and `SLOT_BOTTOM` without qualifying them as `sticky_anchor` constants, which can make a reader search for those names on the `Slot` enum even though its members are `TOP` and `BOTTOM`.",
+      "quote": "``SLOT_TOP = 0`` and ``SLOT_BOTTOM = 1`` let annotator code index sticky's\nper-slot arrays directly.",
+      "suggested_fix": "Name both namespaces explicitly, such as `sticky_anchor.SLOT_TOP`/`SLOT_BOTTOM` and `Slot.TOP`/`Slot.BOTTOM`.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Originally suspected `stale-doc`; correction: the text names sticky_anchor's public constants, not members of this enum. The unqualified notation still invites the reported lookup.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 1,
+      "category": "docs-orientation",
+      "claim": "The module docstring labels consumers as `stage 8` and `point-winner` and calls the contents shuttle-track primitives without briefly describing those consumers, so its scope remains only partly clear to a new reader.",
+      "quote": "Shared annotator declarations: fps scaling, storage slots, and the stage\n8/point-winner shuttle-track primitives and pose-array conventions shared\nacross stages.",
+      "suggested_fix": "Describe the shared declarations by their job, and briefly identify what the rally-segmentation and point-winner stages consume.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. It gives a broad inventory, but the internal stage labels and `point-winner` reference require project context for a junior reader to understand the module's scope fully."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 189,
+      "category": "unclear-name",
+      "claim": "`StickyResult.picks` does not say what is being selected, and the file gives no field-level shape or semantics to resolve that ambiguity.",
+      "quote": "picks: np.ndarray",
+      "suggested_fix": "Document the selected entity and array shape, or rename the field to name what the picker selects.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The field name and the surrounding class docstring do not identify the picked object or its axes."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 193,
+      "category": "unclear-name",
+      "claim": "`StickyResult.distances_per_slot` identifies a slot partition but not the entities whose distance is measured or the array axes, so its value is not inferable from this file alone.",
+      "quote": "distances_per_slot: np.ndarray",
+      "suggested_fix": "Document the distance endpoints and slot/frame shape, or use a name that identifies the measured relation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The name communicates only that distances are grouped by slot; no local documentation supplies the missing relation or shape."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 194,
+      "category": "unclear-name",
+      "claim": "`StickyResult.wrist_dist_px` identifies a wrist and pixel units but not the reference point or the array's frame/slot meaning.",
+      "quote": "wrist_dist_px: np.ndarray",
+      "suggested_fix": "Document what the wrist is measured to and the array axes, or name the reference point in the field.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Nothing in the class docstring or field declaration identifies the other endpoint of the distance."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 195,
+      "category": "unclear-name",
+      "claim": "`StickyResult.analysed` does not say whether an entry means processed, valid, available, or another analysis state.",
+      "quote": "analysed: np.ndarray",
+      "suggested_fix": "Document the state represented by each entry and its dtype and shape.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The field name supplies no condition or value convention, so a new reader cannot determine what True or each array value means."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 75,
+      "category": "unclear-name",
+      "claim": "`ReentryGuardVariant` and its one-line docstring leave `high-shot gap` and `re-entry buffer` undefined, so a junior can see that the enum selects a side policy but not what policy is being guarded.",
+      "quote": "class ReentryGuardVariant(StrEnum):\n    \"\"\"Which sides of a high-shot gap the re-entry buffer tests.\"\"\"",
+      "suggested_fix": "Define the high-shot gap and re-entry buffer in the docstring, including what `TWO_SIDED` and `REENTRY_ONLY` test.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The enum values narrow the choice, but the operational terms remain project jargon to a reader without domain context."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 93,
+      "category": "docs-orientation",
+      "claim": "The ServeStartConfig docstring uses the undefined phrase `the sticky lane's only unit`, so it does not explain how that phrase relates to `threshold_bh`.",
+      "quote": "\"\"\"Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit.\"\"\"",
+      "suggested_fix": "State directly that sticky calculations express thresholds in body heights, and define `sticky lane` if the term is retained.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The matching docs-prose finding was merged. The body-height unit is explained, but `sticky lane` and `only unit` are not.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 25,
+      "category": "docs-orientation",
+      "claim": "ScalingKind's docstring references `scale_for_fps`, which is not defined or imported in this module, so a reader cannot verify the cross-module consistency requirement from this file alone.",
+      "quote": "arithmetic must stay identical to ``scale_for_fps``\nuntil the threading stage rewires the table onto these declarations.",
+      "suggested_fix": "Identify the owning module for `scale_for_fps` and explain the current relationship, or remove the future-threading note once the migration is complete.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The requirement to keep the arithmetic identical is stated, so 'unexplained' means not locally verifiable rather than absent. The external helper and future stage still create a genuine file-hopping burden."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 178,
+      "category": "style-house",
+      "claim": "The COCO wrist and ankle indices are hardcoded without sufficient local domain grounding.",
+      "quote": "WRIST_L, WRIST_R = 9, 10\nANKLE_L, ANKLE_R = 15, 16",
+      "verdict": "KILLED",
+      "verifier_note": "The original `magic-numbers` category is not a rubric category. The constants have descriptive names, and the adjacent comment identifies the COCO layout and the joint roles, which is sufficient domain grounding under the house style."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 185,
+      "category": "ordering",
+      "claim": "StickyResult is defined after the shared utility functions and pose constants rather than with the earlier record declarations, but this placement is not a demonstrated ordering failure.",
+      "quote": "class StickyResult(NamedTuple):\n    \"\"\"Cached sticky evidence. ``bbox_height`` is in pixels.\"\"\"",
+      "verdict": "KILLED",
+      "verifier_note": "The class follows the stage 8/9 shared primitives and the immediately relevant pose-index constants, so the top-to-bottom grouping is coherent. The scanner establishes separation but no resulting comprehension cost."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 159,
+      "category": "docs-prose",
+      "claim": "The phrase `nanmedian drops the pad and any NaN steps` is ambiguous about whether NaNs are removed from the output or ignored while computing each window, and `NaN steps` is not the right description of the input values.",
+      "quote": "Pads both ends with NaN so every frame gets a full-width window and the\noutput keeps length t; nanmedian drops the pad and any NaN steps.",
+      "suggested_fix": "Say that `nanmedian` ignores the padded and input NaN values when computing each window's median.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The implementation keeps one output per frame and `np.nanmedian` ignores NaN entries; `drops` obscures that distinction."
+    },
+    {
+      "file": "src/annotator/types.py",
+      "line": 185,
+      "category": "docs-orientation",
+      "claim": "StickyResult documents only that `bbox_height` is in pixels; the other seven fields have no explanation of their meanings or array shapes, leaving the record poorly oriented for a new reader.",
+      "quote": "class StickyResult(NamedTuple):\n    \"\"\"Cached sticky evidence. ``bbox_height`` is in pixels.\"\"\"\n\n    distances: np.ndarray\n    picks: np.ndarray\n    standing_count: np.ndarray\n    ankle_pos: np.ndarray",
+      "suggested_fix": "Add concise field documentation with domain meanings and array shapes, especially for the seven fields beyond `bbox_height`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The annotations identify every field only as `np.ndarray`; they do not supply the semantics or dimensions needed to use the record confidently."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

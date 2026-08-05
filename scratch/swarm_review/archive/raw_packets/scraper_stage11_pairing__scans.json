@@ -1,0 +1,92 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 261,
+    "category": "stale-doc",
+    "claim": "Docstring states function maps 'rally ids' but the function parameter is `video_ids: set[str]`, not rally_ids.",
+    "quote": "\"\"\"Map fps-bearing rally ids to exactly one existing manifest entry.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Change docstring to say 'Map fps-bearing video ids' to match the parameter name."
+   },
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 97,
+    "category": "style-house",
+    "claim": "Function name uses 'believed_replay' terminology but parameter and docstring use 'duration_filtered_replay' for the same concept, violating 'one vocabulary per concept'.",
+    "quote": "def _believed_replay_in_rally_interior(\n    duration_filtered_replay_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,",
+    "chunk_id": "whole",
+    "suggested_fix": "Rename function to `_duration_filtered_replay_in_rally_interior` to match the parameter naming convention."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 138,
+    "category": "docs-prose",
+    "claim": "Sentence embeds multiple sub-clauses, violating single-clause-per-sentence rule",
+    "quote": "A chunk pairs with at most one rally: rallies are processed in id order and a claimed chunk is skipped thereafter, so when two rallies' windows both cover a chunk the earlier rally wins.",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 199,
+    "category": "docs-over-types",
+    "claim": "Docstring describes return structure already captured in type hint dict[str, float]",
+    "quote": "\"\"\"Read video_fps.csv into a `{video_id: fps}` map.\"\"\"",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 207,
+    "category": "docs-over-types",
+    "claim": "Docstring describes return structure already captured in type hint dict[str, list[tuple[int, int, int]]]",
+    "quote": "\"\"\"Group rally spans by video: `{video_id: [(rally_id, start, end), ...]}`.",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 240,
+    "category": "docs-orientation",
+    "claim": "Docstring too brief and omits explanation of validation performed or structure expected",
+    "quote": "\"\"\"Read the validated scraper manifest used by the pairing boundary.\"\"\"",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 261,
+    "category": "docs-orientation",
+    "claim": "Docstring uses unclear terminology 'fps-bearing rally ids' when function processes video_ids",
+    "quote": "\"\"\"Map fps-bearing rally ids to exactly one existing manifest entry.\"\"\"",
+    "chunk_id": "whole",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 267,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Defensive validation pattern 'if invalid, raise if relevant else skip' duplicated in lines 267\u2013270 and 271\u2013276",
+    "quote": "if isinstance(video_id, bool) or not isinstance(video_id, (str, int)):\n    if Path(basename).stem in video_ids and (video_dir / basename).is_file():\n        raise TypeError(...)\n    continue\nif str(Path(basename).stem) != str(video_id):\n    if str(video_id) in video_ids and (video_dir / basename).is_file():\n        raise ValueError(...)\n    continue",
+    "suggested_fix": "Extract the defensive check pattern into a helper function like `_validate_manifest_entry(basename, entry, condition, error_type, error_msg)` to avoid repeating 'if condition then raise (if relevant) else skip' twice"
+   }
+  ],
+  "overflow_note": null
+ }
+]

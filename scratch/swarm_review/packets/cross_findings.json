@@ -1,0 +1,266 @@
+[
+ {
+  "findings": [
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 372,
+    "category": "repetition",
+    "claim": "gt_scoring.py hand-rolls the base-30 half-up frame-scaling rule instead of calling the canonical ScalingKind.FRAME_COUNT.scale that scoring.py wraps and sweep.py calls directly.",
+    "quote": "def canonical_tolerance(fps: float) -> int:\n    return max(1, math.floor(5.0 * fps / 30.0 + 0.5))",
+    "confidence": "high",
+    "suggested_fix": "Call ScalingKind.FRAME_COUNT.scale(5, fps) (as scoring.py's _scale_base30_frames and sweep.py's tolerance dict already do) and wrap the result in max(1, ...) if a floor is still needed, instead of reimplementing the half-up formula by hand."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 638,
+    "category": "repetition",
+    "claim": "gt_scoring.py recomputes the same per-rally candidate-count-equals-stroke-count gate that scoring.py's score_contacts already produces as count_gate, reconciling the two only with a runtime equality assertion instead of sharing one computation.",
+    "quote": "if (contact_gate[\"pass\"], contact_gate[\"total\"]) != (br[2], br[3]):\n    raise ValueError(f\"{fixture.name}: ball_round count-gate mismatch vs score_contacts\")",
+    "confidence": "high",
+    "suggested_fix": "Read the per-rally pass/fail directly from score_contacts' count_gate result inside the score_video loop instead of re-deriving br_ok by hand, and drop the reconciling assertion once there is one source. Also settle on one name: scoring.py, schemas.py, and sweep.py all call this metric count_gate; only gt_scoring.py calls it ball_round."
+   },
+   {
+    "file": "src/annotator/calibration/sweep.py",
+    "line": 49,
+    "category": "repetition",
+    "claim": "The fixed base-30 tolerance tuple (1, 2, 5, 10) is defined independently in three modules with nothing tying them together, so editing one silently desyncs the others.",
+    "quote": "TOLERANCES = (1, 2, 5, 10)",
+    "confidence": "high",
+    "suggested_fix": "Keep one definition (e.g. scoring.py's DEFAULT_TOLERANCES) and have schemas.py's WINNER_JSON_TOLERANCES_BASE30 and sweep.py's TOLERANCES import it, since load_boundary_winner validates a persisted document's tolerances against its own local copy rather than the constant that produced the document."
+   },
+   {
+    "file": "src/annotator/calibration/gt_scoring.py",
+    "line": 671,
+    "category": "repetition",
+    "claim": "The same safe-F1 formula (harmonic mean of precision and recall, 0.0 when their sum is zero) is written out independently in scoring.py, gt_scoring.py, and selection.py.",
+    "quote": "f1 = None if precision is None or recall is None else (0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall))",
+    "confidence": "high",
+    "suggested_fix": "Extract one safe_f1(precision, recall) helper (scoring.py, which already owns _prf, is the natural home) and have gt_scoring.py's flatten_metrics and selection.py's f1_raw_5 call it instead of re-deriving the formula."
+   },
+   {
+    "file": "src/annotator/calibration/sweep.py",
+    "line": 39,
+    "category": "cohesion-coupling",
+    "claim": "The calibration package imports private, underscore-prefixed names from two different annotator submodules, coupling it to unexported internals rather than a public API.",
+    "quote": "from annotator.resolve import _OVERRIDABLE_BASE30_ROWS",
+    "confidence": "medium",
+    "suggested_fix": "Have annotator.resolve and annotator.replay_mask (see gt_scoring.py line 22's _read_homography_rows import) export the names calibration needs, or move the shared routing table/reader into a location both sides are meant to import."
+   },
+   {
+    "file": "src/annotator/calibration/selection.py",
+    "line": 3,
+    "category": "docs-orientation",
+    "claim": "selection.py's module docstring repeatedly references an unexplained internal codename \"B6\" as the module's caller and contract-supplier, without ever stating what B6 is or which file satisfies it.",
+    "quote": "B6 must supply every score row as a dictionary with ``label`` (``\"grid\"`` for\nconfigs that may win), ``changed_from_defaults``, and ``settings``.  It must\nalso supply the existing aggregate fields, including ``covered``,",
+    "confidence": "medium",
+    "suggested_fix": "Name the actual caller (sweep.py) instead of the codename \"B6\", or add one line stating that B6 is sweep.py's candidate-scoring pipeline, so a reader can trace the contract to its consumer without outside context."
+   },
+   {
+    "file": "src/annotator/calibration/sweep.py",
+    "line": 45,
+    "category": "cohesion-coupling",
+    "claim": "The closed set of valid row[\"label\"] values is split across two files: selection.py defines GRID_LABEL and sweep.py separately defines LABEL_SHIPPED, so no single module lists every label a score row can carry.",
+    "quote": "LABEL_SHIPPED = \"shipped_defaults\"",
+    "confidence": "medium",
+    "suggested_fix": "Collect the closed label vocabulary in one place (e.g. a StrEnum in schemas.py, which already owns other fixed row vocabularies) and have both selection.py and sweep.py reference it."
+   },
+   {
+    "file": "src/annotator/calibration/run_cli.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "claim": "run_cli.py's module docstring documents itself as \"the\" calibration entry point but never mentions sweep.py's separate CLI, leaving a newcomer who reads this file first unaware that a second, differently invoked entry point exists for parameter sweeping.",
+    "quote": "\"\"\"Run the committed calibration chain from the fixture manifest.\n\nThe documented entry point is ``PYTHONPATH=src python -m annotator.calibration.run_cli``.",
+    "confidence": "medium",
+    "suggested_fix": "Add a line in run_cli.py (and sweep.py's own docstring) cross-referencing the other: run_cli.py regresses committed fixtures against pinned reference scores, while sweep.py searches a parameter grid for new defaults."
+   }
+  ]
+ },
+ {
+  "findings": [
+   {
+    "file": "src/scraper/stage11_pairing.py",
+    "line": 239,
+    "category": "repetition",
+    "claim": "stage11_pairing.py re-validates sources.toml with its own, looser schema check instead of reusing download_scraped_videos.py's validator, so the two modules can silently disagree about what a valid manifest entry is.",
+    "quote": "def _read_sources_manifest(manifest_path: Path) -> dict[str, dict[str, object]]:\n    \"\"\"Read the validated scraper manifest used by the pairing boundary.\"\"\"\n    if not manifest_path.exists():",
+    "suggested_fix": "Move the manifest reader/validator (download_scraped_videos.py's _read_manifest/_validate_manifest, or a read-only trim of it) into config.py so both the writer (download_scraped_videos.py) and the reader (stage11_pairing.py) call the same parser for the sources.toml contract.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 120,
+    "category": "repetition",
+    "claim": "call_clean_llm's retry-and-backoff loop is a near line-for-line copy of call_triage_llm in stage3_triage.py (same attempt loop, same backoff formula, same retry print), each ported separately from the same poc file instead of sharing one helper.",
+    "quote": "    last_error: Exception | None = None\n    for attempt in range(LLM_MAX_RETRIES):\n        try:",
+    "suggested_fix": "Factor the loop into one shared helper in config.py, e.g. retry_llm_call(fn, *, error_cls, label), and have both stage3_triage.call_triage_llm and stage10_clean.call_clean_llm call it.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 71,
+    "category": "repetition",
+    "claim": "download_scraped_videos.py defines its own private _check_ytdlp doing the exact yt-dlp-on-PATH check config.py already exposes as the public check_ytdlp(), even though config.py's own docstring calls itself the single source of truth for shared behaviour the stages need.",
+    "quote": "    if not shutil.which(config.YTDLP_BIN):\n        raise RuntimeError(\n            f'{config.YTDLP_BIN} not found in PATH. Install with: pip install yt-dlp'",
+    "suggested_fix": "Delete _check_ytdlp and call config.check_ytdlp() instead.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 47,
+    "category": "repetition",
+    "claim": "The video-file extension set {'.mp4', '.mkv', '.webm', '.avi', '.mov'} is defined three separate times: download_scraped_videos.py and stage11_pairing.py both call it VIDEO_EXTENSIONS, and this file calls the same set _VIDEO_EXTS, so a reader can't tell whether the two names mean the same thing or one copy has quietly drifted.",
+    "quote": "_VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}",
+    "suggested_fix": "Move the set into config.py as one named constant (e.g. VIDEO_EXTENSIONS) and import it in all three modules.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 332,
+    "category": "repetition",
+    "claim": "_download_one's yt-dlp call rebuilds --sleep-requests/--limit-rate/--retries by hand instead of calling config.ytdlp_throttle_args(), even though that helper's own docstring says its two omitted flags (--sleep-interval/--max-sleep-interval) 'belong to stage 4's download path' -- i.e. exactly this function.",
+    "quote": "                '--sleep-requests', str(config.SLEEP_REQUESTS_S),\n                '--limit-rate', config.LIMIT_RATE,\n                '--concurrent-fragments', str(config.CONCURRENT_FRAGMENTS),",
+    "suggested_fix": "Call config.ytdlp_throttle_args() for the shared flags and append --sleep-interval/--max-sleep-interval/--concurrent-fragments locally, so the throttle values stay defined once.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 249,
+    "category": "repetition",
+    "claim": "Stages 1, 2, 3 and 10 each implement their own 'block the whole run on mass failure' check with a different shape: stage1 blocks only when every search term returns zero rows, stage2 blocks on a failure fraction gated by a minimum-attempts floor, stage3 (here) blocks on an all-failed count gated by a differently-named floor constant, and stage10's clean pass blocks on all-failed with no floor and no mid-batch check at all.",
+    "quote": "            if failed >= STAGE3_BLOCK_MIN_FAILURES and failed == videos_with_transcript:\n                raise RuntimeError(",
+    "suggested_fix": "If the intent is one policy ('stop when nothing is getting through'), pull it into one config-level circuit-breaker helper the four stages call with their own counts; if the per-stage differences are deliberate, say so in each stage's docstring so a reader isn't left to diff four call sites to find out.",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 26,
+    "category": "style-house",
+    "claim": "Every other stage module imports config with `from .config import NAME, NAME2, ...`; download_scraped_videos.py alone does `from . import config`, then re-exports three of its constants as bare module names while using config.X everywhere else, so the same relationship (a stage script pulling values from config) reads as two different idioms depending which file is open.",
+    "quote": "CANDIDATES_CSV = config.CANDIDATES_CSV\nVIDEOS_DIR = config.VIDEOS_DIR\nSOURCES_MANIFEST_NAME = config.SOURCES_MANIFEST_NAME",
+    "suggested_fix": "Match the rest of the package: import the specific names this module uses with `from .config import (...)`, dropping the config. prefix throughout.",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 229,
+    "category": "docs-orientation",
+    "claim": "config.py's ytdlp_throttle_args docstring says the download-only sleep flags 'belong to stage 4's download path,' but no file in the package is named stage4_*.py -- the downloader is download_scraped_videos.py, breaking the stageN_name.py convention every other scraper file follows, so a newcomer grepping for 'stage4' won't find where the comment is pointing.",
+    "quote": "    --skip-download). Those two constants belong to stage 4's download path;\n    stages 1 and 2 pace their own process spawns from Python instead.",
+    "suggested_fix": "Either rename download_scraped_videos.py to fit the numbered convention (e.g. stage4_download.py) or drop the stage-number language from config.py's comments and name the file directly.",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage10_clean.py",
+    "line": 187,
+    "category": "repetition",
+    "claim": "The `row.get('keep') == 'True'` filter -- the exact string-equality parse config.py's own candidates.csv contract comment insists consumers use -- is written out separately in download_scraped_videos.py and twice more here in stage10_clean.py (run_clean and run_fine), instead of living once as a helper next to that documented invariant.",
+    "quote": "    kept = [row for row in rows if row.get('keep') == 'True']",
+    "suggested_fix": "Add a small kept_rows(rows) or row_is_kept(row) helper to config.py, next to read_candidates/write_candidates, and use it at all three call sites.",
+    "confidence": "medium"
+   }
+  ]
+ },
+ {
+  "findings": [
+   {
+    "file": "src/annotator/e2e_court_annotator.py",
+    "line": 788,
+    "category": "repetition",
+    "claim": "e2e_court_annotator.py retypes court_evidence.py's SCENE_ROW_COLUMNS tuple as a fresh literal instead of importing it, so the two column lists can silently drift apart.",
+    "quote": "(\"video_id\", \"start_frame\", \"end_frame\", \"upleft_x\", \"upleft_y\", \"upright_x\", \"upright_y\",\n         \"downleft_x\", \"downleft_y\", \"downright_x\", \"downright_y\"),",
+    "confidence": "high",
+    "suggested_fix": "Import SCENE_ROW_COLUMNS from annotator.court_evidence and use it directly in _write_scene_evidence instead of a hand-typed duplicate."
+   },
+   {
+    "file": "src/annotator/rally_segmentation.py",
+    "line": 1405,
+    "category": "cohesion-coupling",
+    "claim": "rally_segmentation.py's CLI loads '<video_id>_dead_mask.npy' (composition_mask.py's output name) while replay_mask.py's own CLI writes '<video_id>_replay.npy', so a replay-mask run's output is silently invisible to the segmentation CLI, which logs 'running unmasked' instead of erroring.",
+    "quote": "mask_path = mask_dir / f'{video_id}_dead_mask.npy'",
+    "confidence": "high",
+    "suggested_fix": "Define one shared filename-suffix constant in config.py (e.g. DEAD_MASK_SUFFIX) and have composition_mask.py, replay_mask.py, and this loader all use it, or document explicitly that replay_mask.py's own CLI output is not consumed by this loader."
+   },
+   {
+    "file": "src/annotator/e2e_court_annotator.py",
+    "line": 638,
+    "category": "repetition",
+    "claim": "_configuration_values() hand-types person_margin, scene_threshold and court_samples as manifest metadata that mirror hardcoded literals living in court_evidence.py (the +/-0.10 margin, the >= 0.5 scene-valid fraction, the min(10, ...) sample count) without any code link between them, so the run manifest can silently misreport the actual thresholds used if either side changes.",
+    "quote": "\"person_margin\": PERSON_MARGIN,\n        \"scene_threshold\": SCENE_THRESHOLD,\n        \"court_samples\": COURT_SAMPLES,",
+    "confidence": "high",
+    "suggested_fix": "Pass PERSON_MARGIN/SCENE_THRESHOLD/COURT_SAMPLES into the court_evidence functions as real parameters (replacing their internal literals), so the manifest values are read back from what was actually used rather than asserted independently."
+   },
+   {
+    "file": "src/annotator/court_evidence.py",
+    "line": 177,
+    "category": "repetition",
+    "claim": "build_raw_cut_intervals re-derives the 'prepend 0, append n_frames, zip into half-open intervals' boundary logic that build_composition_mask in composition_mask.py already implements for the same cut_frames.",
+    "quote": "cut_frames = np.asarray(cut_frames, dtype=int)\n    boundaries = np.concatenate((np.array([0], dtype=int), cut_frames, np.array([n_frames], dtype=int)))\n    intervals = [(int(start), int(end)) for start, end in zip(boundaries[:-1], boundaries[1:])]",
+    "confidence": "high",
+    "suggested_fix": "Extract a shared cut_frames_to_intervals(cut_frames, n_frames) helper in composition_mask.py and call it from both build_composition_mask and build_raw_cut_intervals."
+   },
+   {
+    "file": "src/annotator/resolve.py",
+    "line": 14,
+    "category": "repetition",
+    "claim": "_OVERRIDABLE_BASE30_ROWS hand-copies the field names already declared on FpsConstants (fps_constants.py) plus one Stage8Thresholds field, so a new fps-scaled field added there needs a second manual edit here or its override silently fails as 'unknown'.",
+    "quote": "_OVERRIDABLE_BASE30_ROWS = frozenset({\n    'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', 'smooth_window',\n    'end_rest_frames', 'court_absent_window', 'replay_mask_min_frames', 'impulse_floor_half_window_frames',",
+    "confidence": "medium",
+    "suggested_fix": "Build the frozenset from FpsConstants._fields (plus 'contact_impulse_multiple') instead of retyping every name."
+   },
+   {
+    "file": "src/annotator/e2e_court_annotator.py",
+    "line": 522,
+    "category": "misleading-name",
+    "claim": "e2e_court_annotator.py defines its own private _scene_row (builds a court_scenes.csv row from a CourtSceneRecord) with the same name as court_evidence.py's _scene_row (builds a homography scene-table row), even though the two modules are tightly coupled and call into each other constantly.",
+    "quote": "def _scene_row(record: CourtSceneRecord) -> dict[str, object]:",
+    "confidence": "medium",
+    "suggested_fix": "Rename one of the two, e.g. _court_scenes_row in e2e_court_annotator.py, so grepping '_scene_row' does not surface two unrelated row shapes."
+   },
+   {
+    "file": "src/annotator/court_evidence.py",
+    "line": 419,
+    "category": "repetition",
+    "claim": "The corner-error default ref_err_px=3.5 is retyped as a literal default in three court_evidence.py signatures and again in run_video.py, and separately redeclared as REF_ERR_PX=3.5 in e2e_court_annotator.py, with no single named constant any of them import.",
+    "quote": "    ref_err_px: float = 3.5,",
+    "confidence": "medium",
+    "suggested_fix": "Define REF_ERR_PX once (e.g. in config.py) and import it everywhere a default corner-pixel error is needed."
+   },
+   {
+    "file": "src/annotator/e2e_court_annotator.py",
+    "line": 497,
+    "category": "repetition",
+    "claim": "validate_video_metadata hardcodes the detector's native resolution as the literal tuple (512, 288) instead of referencing court_evidence.DETECTOR_RESOLUTION, which already names the same (512.0, 288.0) value.",
+    "quote": "if (metadata.width, metadata.height) != (512, 288):\n        raise ValueError(f\"{fixed.case_id}: video dimensions {(metadata.width, metadata.height)} != (512, 288)\")",
+    "confidence": "medium",
+    "suggested_fix": "Compare against tuple(int(v) for v in DETECTOR_RESOLUTION) imported from court_evidence.py instead of a second literal."
+   },
+   {
+    "file": "src/annotator/config.py",
+    "line": 31,
+    "category": "docs-orientation",
+    "claim": "Stage numbers are cited piecemeal across module docstrings (config.py names Stage 8 and 9, point_winner.py names Stage 10, replay_mask.py and composition_mask.py reference stages 2 and 9) with no single index mapping stage number to module, so a newcomer must grep every file's docstring to reconstruct the pipeline order.",
+    "quote": "# Stage 8: rally segmentation and contact rules (spec s6)",
+    "confidence": "medium",
+    "suggested_fix": "Add a short stage index (a table or a package-level docstring) listing Stage 1-11 and the module that implements each."
+   },
+   {
+    "file": "src/annotator/point_winner.py",
+    "line": 143,
+    "category": "misleading-name",
+    "claim": "The local variable 'half' actually holds a types.Slot array index (0 or 1) used to index sticky.picks, not a point_winner.Half value, which collides with this module's own Half type of the same name used two lines earlier in the same function's signature area.",
+    "quote": "half = int(np.nanargmin(distances))\n    slot = sticky.picks[frame, half]\n    foot_y = float(bboxes[frame, slot][3])",
+    "confidence": "medium",
+    "suggested_fix": "Rename to slot_index (or annotate as Slot) so it cannot be mistaken for a Half value while reading this module."
+   },
+   {
+    "file": "src/annotator/experiment_records.py",
+    "line": 231,
+    "category": "repetition",
+    "claim": "experiment_records.py recomputes hashlib.md5(...).hexdigest() inline for a manifest's md5 field instead of reusing e2e_court_annotator.py's _md5_bytes, which the same module already imports other helpers from.",
+    "quote": "encoded = (json.dumps(leaf, indent=2) + \"\\n\").encode()\n                record[\"manifest\"][\"bytes\"] = len(encoded)\n                record[\"manifest\"][\"md5\"] = hashlib.md5(encoded).hexdigest()",
+    "confidence": "low",
+    "suggested_fix": "Move _md5_bytes to a shared location both modules import, or accept the duplication as a one-line intentional exception."
+   }
+  ]
+ }
+]

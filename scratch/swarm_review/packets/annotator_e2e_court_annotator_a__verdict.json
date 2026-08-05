@@ -1,0 +1,259 @@
+{
+  "module": "src/annotator/e2e_court_annotator.py",
+  "probe_assessment": "The claude-sonnet effort-low cold read held up for the module's purpose and listed public API: the code does run four fixed cases through two parents, validates pinned inputs, extracts court evidence, performs inference, scores successful configurations, and writes terminal artefacts. Three listed stumbles are genuine comprehension traps. The module docstring refers to an undefined 'shared contract'; the setup temporarily replaces a module-level SHARED_FILES global and explains only at a high level why the first three entries are used; and an inline comment introduces 'non-sset' runs and a 'no-GT path' that have no corresponding case or branch here. The probe's uncertainty about loader internals is an appropriate signal for the second trap, not a material misreading of the module's behaviour.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 3,
+      "category": "comprehension-trap",
+      "claim": "The module docstring says the fixed fixture list is in a 'shared contract', but this file never defines or identifies that contract, so a junior cannot resolve what external document or invariant the phrase names from the file alone.",
+      "quote": "The command currently runs builds and reads or writes outputs for the hard-coded\nfixture list in the shared contract.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1148,
+      "category": "comprehension-trap",
+      "claim": "The setup temporarily replaces gt_scoring_module.SHARED_FILES, but the file does not establish what SHARED_FILES[:3] contains or how load_gt_tables uses that global, so a junior cannot verify the reason for this temporary verification boundary from the file alone.",
+      "quote": "    original_shared_files = gt_scoring_module.SHARED_FILES\n    # NB NOT THREADSAFE\n    gt_scoring_module.SHARED_FILES = tuple(SHARED_FILES[:3])",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1152,
+      "category": "comprehension-trap",
+      "claim": "The inline comment introduces 'Non-sset runs' and a 'no-GT path', but this module has only sset cases and no visible branch for that path, so a junior cannot tell whether the comment describes current behaviour or an unimplemented future case.",
+      "quote": "        master, homo_df, courts, resolution = load_gt_tables()  # Non-sset runs need a no-GT path.",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 209,
+      "category": "unclear-name",
+      "claim": "Field name 'master' is opaque at the RunDriver declaration; a skim reader cannot tell that it stores the master ground-truth object used for scoring.",
+      "quote": "    master: Any = None,",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is absent: the source line is `master: Any = None` without the trailing comma."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 210,
+      "category": "unclear-name",
+      "claim": "Field name 'homo_df' relies on an abbreviation for a homography dataframe that a fresh reader cannot confidently expand from this module alone.",
+      "quote": "    homo_df: Any = None,",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is absent: the source line is `homo_df: Any = None` without the trailing comma."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 211,
+      "category": "unclear-name",
+      "claim": "RunDriver.courts has an untyped dict[Any, Any] representation, so a skim reader cannot infer what its keys and values contain or why the driver retains the mapping.",
+      "quote": "    courts: dict[Any, Any] | None = None,",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is absent: the source line is `courts: dict[Any, Any] | None = None` without the trailing comma."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 212,
+      "category": "unclear-name",
+      "claim": "Field name 'resolution' does not say whether it is a video, calibration, or court-resolution value, so its role in RunDriver is unclear from the declaration.",
+      "quote": "    resolution: Any = None,",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is absent: the source line is `resolution: Any = None` without the trailing comma."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 321,
+      "category": "needless-abstraction",
+      "claim": "_relative_pin_path wraps one .as_posix() call and has a single visible caller, so it adds a helper hop without adding validation or transformation beyond the call itself.",
+      "quote": "def _relative_pin_path(pin: FilePin) -> str:\n    return pin.path.as_posix()",
+      "suggested_fix": "Inline pin.path.as_posix() at the record-building call site unless the named serialisation boundary is intentionally retained.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The name does communicate the desired output form, but this single-caller wrapper contains no additional domain rule."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 440,
+      "category": "needless-abstraction",
+      "claim": "_fixture_by_name wraps one simple dict comprehension and has one visible use, so it adds indirection without hiding meaningful logic.",
+      "quote": "def _fixture_by_name() -> dict[str, Fixture]:\n    return {fixture.name: fixture for fixture in FIXTURES}",
+      "suggested_fix": "Build the mapping at its one use site, or retain a module-level mapping if the lookup is intended to be shared.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The mapping operation is short and self-explanatory; the private single-caller helper does not earn a separate definition."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 444,
+      "category": "needless-abstraction",
+      "claim": "_load_array is not a needless wrapper around np.load because it centralises pinned-path resolution and the allow_pickle=False invariant.",
+      "quote": "def _load_array(pin: FilePin) -> np.ndarray:\n    return np.load(_pin_path(pin), allow_pickle=False)",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim is wrong: the helper enforces both the repository/fixture path boundary and safe NumPy loading. Inlining it would duplicate those invariants across the five array loads."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 428,
+      "category": "repetition",
+      "claim": "_array_pin_record and _plain_pin_record repeat the same _pin_record-then-set-role pattern, so a role argument on _pin_record could remove the duplicated wrapper logic.",
+      "quote": "def _array_pin_record(role: str, pin: FilePin, producer: str, array: np.ndarray) -> dict[str, Any]:\n    record = _pin_record(pin, producer, array.shape, str(array.dtype))\n    record[\"role\"] = role",
+      "suggested_fix": "Let _pin_record accept role while retaining optional shape and dtype, then remove the two near-identical wrappers.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the repetition report and the wrapper-layer report from the two lenses; both point to the same duplicated role-assignment pattern.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 74,
+      "category": "style-house",
+      "claim": "LANDING_OPTIONS supplies five positional literals without showing what each value means at the declaration site, so a skim reader must find the later serialised names to interpret the configuration.",
+      "quote": "LANDING_OPTIONS = LandingFilterOptions(7, 0.004, 5, 7, 0.75)",
+      "suggested_fix": "Use named arguments or named constants for settle_win, settle_thr, settle_min, carry_win, and carry_thr, with a why-comment where the values are domain-specific.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "_configuration_values later names the five fields, but the active constructor still presents them as unexplained positional literals."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 497,
+      "category": "style-house",
+      "claim": "The required video dimensions are repeated as the magic tuple (512, 288) without a named canonical-resolution constant or a reason for that fixture-specific requirement.",
+      "quote": "if (metadata.width, metadata.height) != (512, 288):\n        raise ValueError(f\"video dimensions {(metadata.width, metadata.height)} != (512, 288)\")",
+      "verdict": "KILLED",
+      "verifier_note": "Merged the duplicate style-house reports, but the supplied quote is absent: the source ValueError includes the `fixed.case_id` prefix that the quote omits.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 626,
+      "category": "style-house",
+      "claim": "The literal string \"BaseAnnotatorConfig()\" is a magic representation with no context.",
+      "quote": "        \"base_annotator_config\": \"BaseAnnotatorConfig()\",",
+      "suggested_fix": "Define a constant for this output label or explain why this exact representation is required.",
+      "verdict": "KILLED",
+      "verifier_note": "The key names the field and the module constructs BaseAnnotatorConfig() directly in the execution path, so the output representation is clear. This is a string label, not an ungrounded magic number; a constant would add indirection without meaning."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 258,
+      "category": "repetition",
+      "claim": "The recursive _json_ready comprehensions at the ndarray, set, and sequence branches repeat a pattern that could be collapsed into one helper.",
+      "quote": "    if isinstance(value, np.ndarray):\n        return [_json_ready(item) for item in value.tolist()]\n    if is_dataclass(value) and not isinstance(value, type):",
+      "suggested_fix": "No change recommended from this claim.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the three comprehensions encode different container semantics: ndarray uses tolist(), sets are sorted, and tuples/lists preserve sequence order. Each is a simple one-line comprehension, so a shared helper would obscure rather than clarify the branches."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 522,
+      "category": "interleaving",
+      "claim": "_scene_row interleaves extraction and output construction.",
+      "quote": "def _scene_row(record: CourtSceneRecord) -> dict[str, object]:\n    raw = _corner_values(record.raw_corners_px)\n    active = _corner_values(record.active_corners_native_px)",
+      "suggested_fix": "No change recommended from this claim.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim is wrong: the function first prepares raw, active, peak, source, and diagnostic values, then constructs the returned dict in a separate return expression. The raw scanner's interleaving category is not a rubric category and the alleged structure is not present."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 560,
+      "category": "interleaving",
+      "claim": "_horizon_row interleaves field extraction and output construction.",
+      "quote": "def _horizon_row(row: LandingHorizonRow) -> dict[str, object]:\n    strict_winner = row.strict_winner\n    capped_winner = row.capped_winner\n    strict_verdict = row.strict_verdict",
+      "suggested_fix": "No change recommended from this claim.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the extraction assignments are grouped before the separate dict(zip(...)) return. The raw scanner's interleaving category is not a rubric category and the claimed interleaving is not in the code."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 533,
+      "category": "comprehension-trap",
+      "claim": "_scene_row builds its CSV row by zipping a long column tuple with a long positional value list, so a reader must verify many field alignments across separate lists instead of seeing each output key beside its value.",
+      "quote": "    return dict(zip(\n        COURT_SCENES_COLUMNS,\n        [\n            record.video_id, record.case_id, record.parent, record.scene_index, record.start_frame,",
+      "suggested_fix": "Build the row with explicit key/value pairs or use a named row structure so column and value alignment is visible and cannot silently drift.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: overloaded-one-liner. Correction: the expression spans multiple lines, so it is not literally a one-liner; the material issue is the long positional data-structure mapping, which still invites alignment mistakes and comprehension friction."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 4,
+      "category": "docs-prose",
+      "claim": "The module docstring uses metaphorical and vague planning language that makes the module's current scope harder to parse.",
+      "quote": "This maintained module is the conceptual skeleton for a true end-to-end runner in the near future. It deliberately keeps the fixed eight-configuration measurement procedural and does not provide\na general experiment-axis or resume framework.",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is absent: the source docstring wraps the sentence across lines and contains two spaces after the full stop before `It`, so the scanner's single-line quote is not verbatim."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 394,
+      "category": "docs-orientation",
+      "claim": "verify_selected_pins documents 'a fixture's old file bundle' without defining that term, so the scope of what the function avoids loading is unclear to an unfamiliar reader.",
+      "quote": "def verify_selected_pins(pins: Sequence[FilePin]) -> None:\n    \"\"\"Verify exactly the selected pins, without loading a fixture's old file bundle.\"\"\"",
+      "suggested_fix": "Say that the function verifies only the supplied pins without loading other fixture data, or explain the bundle term.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The function body makes the selected-pin loop clear, but 'old file bundle' is not defined anywhere in this module and adds an unnecessary file-hopping question."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 325,
+      "category": "docs-orientation",
+      "claim": "_pin_from_json has a substantial validation body but no docstring summarising the accepted JSON keys and path, hash, and root constraints, so a skimmer must reconstruct the schema from branches and error strings.",
+      "quote": "def _pin_from_json(value: object, field: str) -> FilePin:\n    if not isinstance(value, dict) or set(value) != {\"path\", \"md5\", \"root\"}:",
+      "suggested_fix": "Add a short docstring stating that the function parses a FilePin from exactly path, md5, and root, with a relative POSIX path, lower-case MD5, and allowed root.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The validation rules are recoverable by reading the body, but they are important schema constraints and are not summarised for a reader deciding how to construct a manifest."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 448,
+      "category": "docs-orientation",
+      "claim": "_validate_arrays has no documentation of the expected frame, slot, bounding-box, keypoint, and detection-count shapes, leaving a reader to reverse-engineer the array contract from the checks.",
+      "quote": "def _validate_arrays(fixed: FixedCase, track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray,\n                    kps: np.ndarray, ndet: np.ndarray) -> None:",
+      "suggested_fix": "Add a succinct docstring or shape annotations describing track (n_frames, 3), bboxes (n_frames, n_slots, 4), scores (n_frames, n_slots), kps (n_frames, n_slots, 17, 2), and ndet (n_frames), plus the finite-value invariant.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The checks establish the contract, but the domain-shaped dimensions and the ndet/finite-score relationship are sufficiently non-obvious to warrant a compact orientation note."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 522,
+      "category": "docs-orientation",
+      "claim": "_scene_row has no docstring explaining how CourtSceneRecord geometry, peaks, fallback diagnostics, and consensus fields map to the court-scenes output columns.",
+      "quote": "def _scene_row(record: CourtSceneRecord) -> dict[str, object]:\n    raw = _corner_values(record.raw_corners_px)",
+      "suggested_fix": "Add a short docstring stating that the function converts CourtSceneRecord into a court-scenes CSV row covering geometry, detections, fallback diagnostics, and consensus status.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The function is a long domain-specific row adapter with a positional output mapping; a brief description would help a junior understand why the local lists exist."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 560,
+      "category": "docs-orientation",
+      "claim": "_horizon_row has no docstring explaining the strict and capped landing fields, verdicts, and change flags represented in the landing-horizon output row.",
+      "quote": "def _horizon_row(row: LandingHorizonRow) -> dict[str, object]:\n    strict_winner = row.strict_winner",
+      "suggested_fix": "Add a short docstring stating that the function converts a LandingHorizonRow into the landing-horizon CSV representation for strict and capped outcomes.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The row contains two parallel landing interpretations and several derived verdict fields; the output column tuple alone does not explain that relationship."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 581,
+      "category": "docs-orientation",
+      "claim": "_strict_metrics has no docstring explaining its tolerance_base30 filter, row-kind accounting, or precision, recall, F1, and offset outputs.",
+      "quote": "def _strict_metrics(rows: Sequence[Mapping[str, object]], tolerance_base30: int, fps: float) -> dict[str, object]:\n    selected = [row for row in rows if row[\"tolerance_base30\"] == tolerance_base30]",
+      "suggested_fix": "Document that the function filters contact rows by base-30 tolerance, counts matched and unmatched categories, and returns contact metrics plus mean absolute offset in frames and seconds.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The field names reveal some outputs, but tolerance_base30 and the row-kind accounting are domain-specific and not explained at the helper boundary."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 298,
+      "category": "docs-orientation",
+      "claim": "_csv_value lacks a docstring even though _json_ready has one.",
+      "quote": "def _csv_value(value: object) -> object:\n    if value is None:",
+      "suggested_fix": "No change recommended from this claim.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but documentation inconsistency alone is not a material orientation failure here. _csv_value is short, its name and branches directly state the conversion rules, and _json_ready has substantially more complex recursive behaviour."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

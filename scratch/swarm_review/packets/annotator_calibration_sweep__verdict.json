@@ -1,0 +1,286 @@
+{
+  "module": "src/annotator/calibration/sweep.py",
+  "probe_assessment": "The cold read held up for the module purpose and every listed public API item. Three listed stumbles are genuine comprehension traps: the live boundary row delegates eligibility and ranking to selection helpers whose criteria are not defined here; _settings encodes an implicit presence/rank/value ordering contract with no local explanation or consumer; and the clean/contained calculations depend on return and ground-truth shapes supplied by imported functions. These are file-hopping or implicit-contract problems, not material errors in the probe's purpose or API summary.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 88,
+      "category": "comprehension-trap",
+      "claim": "The live boundary row's eligibility filter and ranking rule are delegated to selection helpers whose criteria are not defined in sweep.py, so a junior cannot resolve this choice from the file alone.",
+      "quote": "    live = min(\n        selection.coverage_allowance_rows(rows, n_rallies),\n        key=lambda row: selection.boundary_live_key_rally_id_f1(row, n_rallies),",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 263,
+      "category": "comprehension-trap",
+      "claim": "The purpose and ordering contract of _settings are not recoverable from sweep.py: the function builds presence and hard-coded strategy-rank pairs, but the file does not explain why those ranks exist or where the tuple is consumed.",
+      "quote": "def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:\n    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, \"gap_state_demotion_bound\", \"quiet_start_window\", \"threshold_bh\", \"stillness_threshold_bh\", \"serve_stillness_window_frames\", \"span_open\", \"mode\", \"close\")\n    ranks = {\"span_open\": {None: 0, \"REGION_START\": 1, \"BACK_FILL\": 2}, \"mode\": {None: 0, \"TRIM\": 1, \"REJECT\": 2}, \"close\": {None: 0, \"BURST\": 1, \"LAST_REST\": 2}}",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 336,
+      "category": "comprehension-trap",
+      "claim": "The clean and contained calculations rely on the undocumented return shape of classify_all and the extent tuple shape of ground-truth rallies; a junior cannot fully resolve what those counts mean from this file alone.",
+      "quote": "    clean = [(index, rally, span) for index, (rally, (kind, span)) in enumerate(zip(gt, classifications)) if kind is RallyBoundary.COVERED and span not in merged]\n    offsets = [abs(spans[span][0] - rally.extent[0]) for _index, rally, span in clean]\n    contained = [sum(start <= first and last < end for first, last in (r.extent for r in gt)) for start, end in spans]",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 521,
+      "category": "misleading-name",
+      "claim": "The private helper _withheld has an opaque name: it prints the supplied message to both stdout and stderr when a calibration verdict is withheld, but the name does not describe that reporting side effect.",
+      "quote": "def _withheld(message: str) -> None:\n    print(message)\n    print(message, file=sys.stderr)",
+      "suggested_fix": "Rename it to _report_withheld_verdict or _print_to_both so the output behaviour is explicit.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The naming and style-lens claims concern the same helper and are merged. The call sites explain that the verdict is withheld, but the helper name still does not signal that it emits the message twice.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 330,
+      "category": "docs-orientation",
+      "claim": "The 52-line _row_for_result has no docstring to orient a reader while it loads ground truth and assembles boundary, alignment, contact and split-log metrics into one result row.",
+      "quote": "def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: Any) -> dict[str, Any]:\n    gt = load_gt_rallies(master, fixture.video_id)",
+      "suggested_fix": "Add a short docstring naming the result-row metric groups and the private diagnostic fields it adds.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The two identical row-orientation findings are merged. The function spans 52 physical lines and returns a broad report row, so the missing orientation is material.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 263,
+      "category": "unclear-name",
+      "claim": "The private name _settings does not tell a reader that the function builds a presence and rank/value tuple for candidate settings, and the ordering contract is undocumented.",
+      "quote": "def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:\n    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, \"gap_state_demotion_bound\", \"quiet_start_window\", \"threshold_bh\", \"stillness_threshold_bh\", \"serve_stillness_window_frames\", \"span_open\", \"mode\", \"close\")",
+      "suggested_fix": "Rename it to _settings_sort_key and add a brief docstring explaining missing-value ordering and strategy ranks.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The tuple shape suggests a sort key, but no local name or docstring states that contract. The separate style-lens quote for this function is killed because its ellipses are not source text."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 342,
+      "category": "style-house",
+      "claim": "The 0.005 min_contact_speed value has no domain grounding in the module because it has neither a named constant nor a comment stating its units or rationale.",
+      "quote": "row: dict[str, Any] = {\"label\": spec.label, **_display_config(spec), \"min_contact_speed\": 0.005,",
+      "suggested_fix": "Extract the threshold to a named constant or add a short comment with its units and selection rationale.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The literal is present exactly and no nearby code gives it domain meaning. This meets the rubric's magic-number exception test."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 526,
+      "category": "unclear-name",
+      "claim": "Function _fixture is too generic a name for an argparse type converter that looks up a fixture by name string.",
+      "quote": "def _fixture(value: str) -> Fixture:\n    matches = [fixture for fixture in FIXTURES if fixture.name == value]",
+      "verdict": "KILLED",
+      "verifier_note": "The function body and the type=_fixture registration at line 643 make its converter role clear within this file. A longer name is an optional preference, not a material unclear-name finding."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 568,
+      "category": "docs-prose",
+      "claim": "The load_boundary_winner docstring uses the unexplained term closed boundary spec, so a fresh reader cannot tell whether closed means complete, fixed or otherwise validated.",
+      "quote": "def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:\n    \"\"\"Load the one closed boundary spec accepted by contact-only sweeps.\"\"\"",
+      "suggested_fix": "Say that the function loads a previously computed boundary specification whose five grid values have been validated for a contact-only run.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The implementation validates an exact, complete boundary grid specification, but the docstring does not define closed in those terms."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 85,
+      "category": "docs-orientation",
+      "claim": "The one-line _boundary_report_rows docstring does not explain what pinned means or that the function selects named report rows by several boundary criteria and adds coverage gaps.",
+      "quote": "def _boundary_report_rows(rows: list[dict[str, Any]], n_rallies: int) -> list[dict[str, Any]]:\n    \"\"\"Return every pinned boundary report rule from grid rows only.\"\"\"",
+      "suggested_fix": "Explain that the function selects the rally_id_f1, merge, coverage and frontier report rows from the boundary grid and computes each row's coverage gap.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The naming-lens docs-prose claim and style-lens docs-orientation claim are duplicates. The word pinned is not defined and the selection criteria are absent from this docstring.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 263,
+      "category": "docs-orientation",
+      "claim": "Function _settings lacks a docstring explaining the purpose of its hard-coded strategy ranks and its tuple contract.",
+      "quote": "def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:\n    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, ...)\n    ranks = {\"span_open\": {None: 0, \"REGION_START\": 1, \"BACK_FILL\": 2}, ...",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: the source has complete key and rank expressions rather than the ellipses shown here. The literal-quote gate therefore kills this finding even though the underlying documentation concern is plausible."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 420,
+      "category": "docs-orientation",
+      "claim": "The run_sweep docstring uses the unexplained jargon fake-score seam for its candidate_runner injection point.",
+      "quote": "def run_sweep(*, fixture: Fixture, out_dir: Path, phase: str = \"both\", boundary_spec: CandidateSpec | None = None,\n              candidate_runner: Callable[..., dict[str, Any]] = production_candidate_runner,\n    \"\"\"Execute the requested phases; the keyword runner is the fake-score seam.\"\"\"",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied excerpt is not verbatim: the source includes the fixture_inputs and workers signature line between candidate_runner and the docstring. The quote gate kills the finding."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 130,
+      "category": "docs-orientation",
+      "claim": "The _alignment_rows docstring calls the keys runner-supplied identities without stating their shape or explaining the own versus shared summaries.",
+      "quote": "def _alignment_rows(report_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:\n    \"\"\"Build own and shared alignment summaries from runner-supplied identities.\"\"\"",
+      "suggested_fix": "State that identities are (set_id, rally) keys in _clean_offsets and that shared summaries use the intersection present in every report row.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The identity producer appears later in the same file, so this is a minor orientation gap rather than an unavoidable external dependency. The docstring still leaves the identity shape and summary distinction implicit."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 542,
+      "category": "docs-orientation",
+      "claim": "The 25-line _validate_provenance function has no docstring explaining that it checks winner metadata, schema, fixture video IDs, input digests and pinned files.",
+      "quote": "def _validate_provenance(meta: dict[str, Any], fixture: Fixture) -> None:\n    expected_keys = {\"fixture\", \"phases_run\", \"verdict\", \"tolerances_base30\", \"schema_version\", \"tuning_video_ids\", \"input_digests\"}",
+      "suggested_fix": "Add a short docstring listing the metadata, fixture identity and input-file checks performed before a winner is accepted.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The scanner's 23-line count is off; lines 542-566 span 25 physical lines. The substantive claim holds because the function checks several provenance invariants with no summary of the contract."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 257,
+      "category": "docs-prose",
+      "claim": "The serialise_spec docstring uses the unexplained jargon closed routing validation for the validation performed before serialisation.",
+      "quote": "def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:\n    \"\"\"Serialise using the same closed routing validation as application.\"\"\"",
+      "suggested_fix": "Say that serialisation first validates every numeric and strategy key against the routing rules in _base_and_serve.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The module explains the routing destinations, but it does not explain closed routing validation as a term. The docstring can use the concrete rejection behaviour instead."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 273,
+      "category": "docs-orientation",
+      "claim": "Function _shipped_base30_values lacks a docstring explaining that it extracts the default FPS-scaled constants and thresholds used for comparison.",
+      "quote": "def _shipped_base30_values() -> dict[str, float]:\n    constants = scale_for_fps(30.0)",
+      "verdict": "KILLED",
+      "verifier_note": "The name, return type and direct body make the extraction purpose clear: it reads the 30 FPS constants and shipped thresholds. A docstring would mostly restate the code."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 322,
+      "category": "docs-orientation",
+      "claim": "Function _display_config lacks a docstring explaining that it returns the boundary and contact values used for CSV reporting.",
+      "quote": "def _display_config(spec: CandidateSpec) -> dict[str, object]:\n    shipped = _shipped_base30_values()",
+      "verdict": "KILLED",
+      "verifier_note": "The function's name and six-line dictionary comprehension make its display mapping clear, and the caller shows the reporting context. The missing docstring is not a material orientation gap."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 631,
+      "category": "docs-orientation",
+      "claim": "Function _replace_mask lacks a docstring explaining that it validates and injects a frame-aligned boolean exclusion mask into fixture inputs.",
+      "quote": "def _replace_mask(inputs: RunVideoInputs, path: Path) -> RunVideoInputs:\n    mask = np.load(path, allow_pickle=False)",
+      "verdict": "KILLED",
+      "verifier_note": "The --mask-npy call site and the explicit validation error state the input contract in this file. The short helper is readable without a separate docstring."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 398,
+      "category": "docs-orientation",
+      "claim": "The _write_csv helper lacks a docstring explaining that it writes rows with the requested columns and ignores extra fields.",
+      "quote": "def _write_csv(path: Path, columns: Iterable[str], rows: Iterable[Mapping[str, Any]]) -> None:\n    with path.open(\"w\", newline=\"\", encoding=\"utf-8\") as handle:",
+      "verdict": "KILLED",
+      "verifier_note": "The signature, DictWriter construction and extrasaction=ignore call make this standard CSV wrapper's behaviour clear. The proposed docstring would restate the implementation."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 406,
+      "category": "docs-orientation",
+      "claim": "The _csv_value helper lacks a docstring explaining its conversion of None, non-finite numbers and enum-like values for CSV output.",
+      "quote": "def _csv_value(value: Any) -> Any:\n    if value is None:\n        return \"\"\n    if isinstance(value, Real) and not math.isfinite(value):",
+      "verdict": "KILLED",
+      "verifier_note": "Each conversion rule is directly visible in this six-line helper, and its name plus caller establish the CSV context. No material orientation problem remains."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 414,
+      "category": "docs-orientation",
+      "claim": "The _empty_outputs helper lacks a docstring explaining that it creates the output directory and initialises the expected empty CSV files.",
+      "quote": "def _empty_outputs(out_dir: Path) -> None:\n    out_dir.mkdir(parents=True, exist_ok=True)",
+      "verdict": "KILLED",
+      "verifier_note": "The helper name and four-line loop over CSV_COLUMNS_BY_FILENAME make the behaviour immediately clear. A docstring would add no useful orientation."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 526,
+      "category": "docs-orientation",
+      "claim": "The _fixture argparse type converter lacks a docstring explaining that it looks up a fixture by name and raises ArgumentTypeError when absent.",
+      "quote": "def _fixture(value: str) -> Fixture:\n    matches = [fixture for fixture in FIXTURES if fixture.name == value]",
+      "verdict": "KILLED",
+      "verifier_note": "The body and the argparse type registration show both the lookup and conversion role, while the error branch is explicit. This short helper does not need a separate orientation docstring."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 154,
+      "category": "repetition",
+      "claim": "_run_candidates duplicates the candidate-failure logging and None handling in its sequential helper and its ProcessPoolExecutor future loop.",
+      "quote": "try:\n            return candidate_runner(fixture_inputs=fixture_inputs, candidate_spec=spec)\n        except Exception as error:\n            print(f\"{phase} grid index {index} failed for {serialise_spec(spec)!r}: {error}\", file=sys.stderr)",
+      "suggested_fix": "Extract the shared failure-reporting operation so both execution paths use the same helper.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The two paths need different success handling, but the exception message and failure policy are duplicated text and logic."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 196,
+      "category": "repetition",
+      "claim": "build_boundary_grid and build_contact_grid repeat the same product-and-CandidateSpec construction pattern with only different key/value mappings.",
+      "quote": "return [CandidateSpec(selection.GRID_LABEL, dict(zip(BOUNDARY_KEYS, values)), {})\n            for values in product(*(BOUNDARY_VALUES[key] for key in BOUNDARY_KEYS))]\n        \n        \n        def build_contact_grid(boundary: Mapping[str, float]) -> list[CandidateSpec]:\n        \"\"\"Build the pinned 108-cell contact grid with its boundary frozen.\"\"\"\n        return [CandidateSpec(selection.GRID_LABEL, {**boundary, **dict(zip(CONTACT_KEYS, values))}, {})",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied block is not verbatim: the source has top-level indentation for build_contact_grid and different blank-line indentation. The quote gate kills the finding, even though the two functions are structurally analogous."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 269,
+      "category": "overloaded-one-liner",
+      "claim": "The values.append line combines the None case, the strategy-rank lookup and the numeric fallback in a nested conditional expression.",
+      "quote": "values.append((0, 0) if value is None else (1, ranks[key][value] if key in ranks else value))",
+      "suggested_fix": "Use explicit local branches for missing values, strategy ranks and numeric values before appending the pair.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The exact line performs the append plus two conditional decisions, including a guarded mapping lookup. It meets the rubric's overloaded-one-liner test."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 467,
+      "category": "repetition",
+      "claim": "run_sweep repeats the CandidateSpec construction that copies boundary and contact keys at lines 467 and 495.",
+      "quote": "contact_spec = CandidateSpec(contact_winner[\"label\"], {key: contact_winner[key] for key in (*BOUNDARY_KEYS, *CONTACT_KEYS)}, {})",
+      "suggested_fix": "Add a small helper that builds a CandidateSpec from a winner row and the fixed boundary/contact key set.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The same row-to-CandidateSpec construction appears again inside the same_winner_as_live expression at line 495."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 330,
+      "category": "cohesion-coupling",
+      "claim": "_row_for_result combines ground-truth loading, boundary scoring, alignment calculations, contact scoring, report-row construction and split-log generation in one broad helper.",
+      "quote": "def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: Any) -> dict[str, Any]:\n    gt = load_gt_rallies(master, fixture.video_id)\n    spans = result.spans\n    boundary = score_boundaries(spans, gt)\n    classifications = classify_all(spans, gt)\n    merged = merged_span_indices(spans, gt)",
+      "suggested_fix": "Group metric calculations behind a few focused helpers or document the result-row sections so the related and diagnostic outputs are easy to distinguish.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "All work feeds one candidate result row, so the concern is breadth rather than wholly unrelated module responsibilities. The boundary, contact, alignment and split-log sections are nevertheless distinct enough to create onboarding friction."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 495,
+      "category": "overloaded-one-liner",
+      "claim": "The same_winner_as_live expression performs a None check, CandidateSpec construction, nested dict comprehension, two serialisations and an equality comparison on one line.",
+      "quote": "\"same_winner_as_live\": auxiliary_winner is not None and serialise_spec(CandidateSpec(auxiliary_winner[\"label\"], {key: auxiliary_winner[key] for key in (*BOUNDARY_KEYS, *CONTACT_KEYS)}, {})) == serialise_spec(contact_spec),",
+      "suggested_fix": "Build and serialise the auxiliary spec in named intermediate variables before comparing it with contact_spec.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted line contains all of the operations claimed and is materially harder to scan than the surrounding code."
+    },
+    {
+      "file": "src/annotator/calibration/sweep.py",
+      "line": 364,
+      "category": "deep-nesting",
+      "claim": "The pieces expression nests a list comprehension around sorted(set(...)) and a set comprehension with two for clauses and an indexed span predicate.",
+      "quote": "pieces = [\n        (span_index, spans[span_index])\n        for span_index in sorted({\n            span_index\n            for stroke_frame in rally.stroke_frames\n            for span_index in range(len(spans))\n            if spans[span_index][0] <= stroke_frame < spans[span_index][1]\n        })",
+      "suggested_fix": "Extract the span-index collection into a named loop or helper before building the sorted pieces list.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The nested comprehensions and repeated spans indexing create more than three logical traversal layers for a skim reader."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,6 +1,7 @@
-"""Shared annotator declarations: fps scaling, storage slots, and the stage
-8/point-winner shuttle-track primitives and pose-array conventions shared
-across stages.
+"""Shared annotator declarations for FPS scaling and storage slots.
+
+This module also owns shuttle-track primitives and pose-array conventions used
+by rally segmentation and point-winner attribution.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ class ScalingKind(StrEnum):
 
     Per-frame speeds shrink as fps rises, frame counts grow, dimensionless
     values never scale; arithmetic must stay identical to ``scale_for_fps``
-    until the threading stage rewires the table onto these declarations.
+    until the config-threading pass rewires the table onto these declarations.
     """
 
     PER_FRAME_SPEED = 'per_frame_speed'
@@ -112,7 +113,7 @@ class Slot(IntEnum):
 
 
 # ---------------------------------------------------------------------------
-# Shared shuttle-track primitives (stage 8 and stage 9 both import these)
+# Shared shuttle-track primitives (rally segmentation and replay masking both import these)
 # ---------------------------------------------------------------------------
 def compute_speed(track: np.ndarray) -> np.ndarray:
     """Per-frame shuttle speed, NaN where the step is not fully visible.
@@ -140,7 +141,7 @@ def true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Maximal runs of True in a boolean mask, as half-open `[start, end)` ranges.
 
     Vectorised via edge detection on the zero-padded int mask: +1 marks a run
-    start, -1 marks one-past a run end. Shared with stage 9's court-absence
+    start, -1 marks one-past a run end. Shared with replay masking's court-absence
     signal, which masks whole absent runs.
 
     :param mask: `(t,)` boolean.
@@ -158,7 +159,7 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
 
     Pads both ends with NaN so every frame gets a full-width window and the
     output keeps length t; nanmedian drops the pad and any NaN steps. Shared
-    with stage 9's slow-motion signal.
+    with replay masking's slow-motion signal.
 
     :param values: `(t,)` values, may contain NaN.
     :param window: window width in frames.
@@ -175,7 +176,7 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
         return np.nanmedian(windows, axis=1)
 
 
-# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Stage 8
+# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Rally segmentation
 # (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution
 # and landing kinematics.
 WRIST_L, WRIST_R = 9, 10

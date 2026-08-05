@@ -353,7 +353,7 @@ The links below are relative to this document.
 - [gt_scoring.py](../../../src/annotator/calibration/gt_scoring.py):
   `canonical_tolerance`, `build_run_video_inputs`,
   `score_video` and the existing `--no-replay-mask` precedent
-- [stage11_pairing.py](../../../src/scraper/stage11_pairing.py):
+- [commentary_pairing.py](../../../src/scraper/commentary_pairing.py):
   `_believed_replay_in_rally_interior` and the span-end pairing window
 
 ## 9. Lean definition of done

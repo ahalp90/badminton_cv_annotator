@@ -1,0 +1,35 @@
+{
+ "module": "src/scraper/stage2_transcripts.py",
+ "purpose": "Acquires transcripts for YouTube videos by pulling native captions (preferring json3 format ASR tracks) and falls back to WhisperX GPU transcription when no English caption track exists. Each video gets a JSON sidecar file containing the transcript source and timestamp-aligned segments.",
+ "public_api": [
+  {
+   "name": "pull_subtitles",
+   "role": "Pulls captions for one video from YouTube via yt-dlp; prefers json3 and falls back to VTT. Returns the local caption file path or None."
+  },
+  {
+   "name": "parse_json3",
+   "role": "Parses a YouTube json3 caption file into a list of {start, end, text} segments with times in seconds. Used when a json3 file is downloaded."
+  },
+  {
+   "name": "parse_vtt",
+   "role": "Parses a WebVTT caption file into {start, end, text} segments. Used as fallback when json3 is unavailable."
+  },
+  {
+   "name": "whisperx_fallback",
+   "role": "Runs WhisperX coarse-pass transcription on a GPU when no English caption exists. Returns segment list or None. GPU-only; logs and returns None if CUDA unavailable."
+  },
+  {
+   "name": "acquire_transcript",
+   "role": "Orchestrates the full transcript acquisition pipeline: tries YouTube captions first, falls back to WhisperX. Returns {source, segments} dict or None if unresolved."
+  },
+  {
+   "name": "run_stage2",
+   "role": "Main batch processor: acquires transcripts for all candidate videos and writes per-video JSON sidecars. Blocks (raises) when failure fraction exceeds 50% threshold, both mid-batch and at end."
+  },
+  {
+   "name": "main",
+   "role": "Entry point when run as a module (python -m scraper.stage2_transcripts)."
+  }
+ ],
+ "stumbles": []
+}

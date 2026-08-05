@@ -1,0 +1,123 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 51,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Parameter name 'homography_rows' conveys no meaning to an unfamiliar reader; cannot infer what a homography row is or why it's a list of dicts.",
+    "quote": "homography_rows: list[dict] | None = None,",
+    "suggested_fix": "Add type clarification to the parameter docstring or rename to indicate the rows contain court-homography matrices or transformation data."
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 52,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Parameter 'track' is too generic; cannot infer what entity is being tracked (player, shuttle, ball).",
+    "quote": "track: np.ndarray | None = None,",
+    "suggested_fix": "Rename to indicate the tracked entity (e.g., 'shuttle_track', 'player_track', or 'ball_track') or add axis/shape detail to the docstring."
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 56,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Parameter 'vote' as a float type doesn't convey what it represents (threshold, weight, confidence level).",
+    "quote": "vote: float | None = None,",
+    "suggested_fix": "Rename to indicate the semantic value (e.g., 'composition_threshold', 'vote_weight') or add explicit docstring explaining what the float represents."
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 19,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Docstring is too brief to orient an unfamiliar reader; does not explain what 'composition' means in this context or what validations are performed.",
+    "quote": "\"\"\"Validate composition inputs before calling the existing mask builder.\"\"\"",
+    "suggested_fix": "Expand to explain that this validates inputs for building a composition-based dead-time mask; describe what each input represents and the bounds/type checks applied."
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 74,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Same concept under different names: input parameter is 'keep_vote' (line 55) but after validation it is stored and used as 'votes', violating the house rule 'One vocabulary per concept'.",
+    "quote": "cuts, votes = _validate_composition_inputs(n_frames, keep_vote, cut_frames)",
+    "suggested_fix": "Consistently name the variable 'keep_vote' after unpacking, or rename the parameter to 'votes' in the function signature for alignment with downstream usage."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 69,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Identical combine_mask() call appears in both REPLAY branch (line 69) and UNION fallback (line 80) with same arguments, creating duplicate code path.",
+    "quote": "return combine_mask(\n    court_present, homography_rows, track, rally_spans, n_frames, fps,\n    non_evidence=shuttle_hallucination_mask,\n)",
+    "suggested_fix": "Refactor to compute replay once before the mode dispatch, or add an explanatory comment clarifying why duplication is necessary for the REPLAY vs UNION dispatch."
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 40,
+    "category": "overloaded-one-liner",
+    "chunk_id": "whole",
+    "claim": "Bounds check chains four operations (two comparisons, OR, np.any reduction) on one line, exceeding the two-operation exception.",
+    "quote": "if np.any((cut_array < 0) | (cut_array > n_frames)):",
+    "suggested_fix": "Split into intermediate variable or separate lines: `out_of_bounds = (cut_array < 0) | (cut_array > n_frames)` then `if np.any(out_of_bounds):` for junior readability."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 59,
+    "category": "docs-orientation",
+    "claim": "Docstring for build_dead_mask doesn't explain which parameters are required for each mode (REPLAY vs COMPOSITION vs UNION).",
+    "quote": "\"\"\"Build a boolean dead-time mask using the selected producer policy.\n\n    ``REPLAY`` delegates to the existing replay signal union. ``COMPOSITION``\n    delegates to the existing cut-segment builder after validating its inputs.",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 19,
+    "category": "docs-orientation",
+    "claim": "Docstring for _validate_composition_inputs is too vague; it doesn't explain what inputs are validated or what the function returns.",
+    "quote": "\"\"\"Validate composition inputs before calling the existing mask builder.\"\"\"",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 50,
+    "category": "style-house",
+    "claim": "Missing shape annotation on court_present numpy array parameter.",
+    "quote": "court_present: np.ndarray | None = None,",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 52,
+    "category": "style-house",
+    "claim": "Missing shape annotation on track numpy array parameter.",
+    "quote": "track: np.ndarray | None = None,",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/dead_mask.py",
+    "line": 57,
+    "category": "style-house",
+    "claim": "Missing shape annotation on shuttle_hallucination_mask numpy array parameter.",
+    "quote": "shuttle_hallucination_mask: np.ndarray | None = None,",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ }
+]

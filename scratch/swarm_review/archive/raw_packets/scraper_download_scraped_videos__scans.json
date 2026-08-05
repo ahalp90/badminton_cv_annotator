@@ -1,0 +1,90 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 3,
+    "category": "docs-prose",
+    "claim": "Module docstring has grammatical errors and vague references that fail to clearly orient a junior reader.",
+    "quote": "Scraper downloads request and verify audio. The explicit video-only mode serves ShuttleSet matches that do not require commentary audio.",
+    "chunk_id": "whole",
+    "suggested_fix": "Use clear grammar: 'Scraper downloads and verifies audio streams for selected videos. The video-only mode is available for matches that do not require commentary.'"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 524,
+    "category": "docs-orientation",
+    "claim": "Function docstring uses undefined jargon that a junior cannot interpret without reading implementation.",
+    "quote": "\"\"\"Run the scraper downloader CLI and return its mass-failure status.\"\"\"",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify what status means: 'Return 0 if fewer than half the selected videos fail to download, or 2 if half or more fail.'"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 280,
+    "category": "unclear-name",
+    "claim": "Variable name uses domain jargon ('gate' as a checkpoint concept) without introducing its meaning; purpose not inferable on first read.",
+    "quote": "skip_audio_gate = allow_missing_audio or video_only",
+    "chunk_id": "whole",
+    "suggested_fix": "Rename to `skip_audio_verification` or add a brief comment: `# Bypass audio-stream check if we're allowing missing audio or video-only mode`"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 282,
+    "category": "repetition",
+    "claim": "Check for multiple outputs duplicated: lines 282\u2013287 and 349\u2013354 are identical except for variable names (existing vs. downloaded).",
+    "quote": "if len(existing) > 1:\n    raise RuntimeError(\n        f'video {video_id} has multiple completed outputs: '",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 369,
+    "category": "repetition",
+    "claim": "Audio verification error handling in _download_one (369\u2013383) and _verify_existing (401\u2013424) duplicates the same try/except structure; only differences are unlink() call and _failure_outcome arguments.",
+    "quote": "try:\n    has_audio = _probe_audio(output_path)\nexcept _UnreadableMedia as exc:",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 48,
+    "category": "misleading-name",
+    "chunk_id": "whole",
+    "claim": "The regex pattern is used to filter out yt-dlp format selectors from filenames, but the name suggests it identifies stems.",
+    "quote": "_YTDLP_FORMAT_STEM = re.compile(r'\\.f\\d+$')",
+    "suggested_fix": "Rename to something like `_YTDLP_TEMP_FORMAT_SUFFIX` or `_YTDLP_FORMAT_SELECTOR_PATTERN` to clarify that it excludes intermediate files."
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 244,
+    "category": "data-structure",
+    "chunk_id": "whole",
+    "claim": "The task tuple (url, video_id, title, output_dir) is unpacked by position throughout the module; a NamedTuple would make positions explicit and self-documenting.",
+    "quote": "task: tuple[str, str, str, Path],\n    *,\n    allow_missing_audio: bool,",
+    "suggested_fix": "Define a NamedTuple like `DownloadTask = NamedTuple('DownloadTask', [('url', str), ('video_id', str), ('title', str), ('output_dir', Path)])` and use it consistently."
+   },
+   {
+    "file": "src/scraper/download_scraped_videos.py",
+    "line": 3,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "The second sentence 'Scraper downloads request and verify audio' is grammatically unclear and difficult to parse.",
+    "quote": "Scraper downloads request and verify audio. The explicit video-only mode serves\nShuttleSet matches that do not require commentary audio.",
+    "suggested_fix": "Rephrase to 'Scraper downloads and verifies audio.' or 'Downloads are verified for audio.' for clarity."
+   }
+  ],
+  "overflow_note": null
+ }
+]

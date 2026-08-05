@@ -1,0 +1,101 @@
+[
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 6,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Jargon 'spec s4' is used throughout the module without ever being defined, violating the rule that technical terms must have their significance explained.",
+    "quote": "then decide keep per video by the three-legged D9\nrule and write keep back into the candidates.csv column.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 174,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Acronym 'D9' appears in docstring but is never defined; reader cannot infer what it stands for or why it has that name.",
+    "quote": "\"\"\"Three-legged keep rule (D9, spec s4): keep when ANY leg passes.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 50,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Domain jargon 'yt-dlp id' used without explanation; unfamiliar reader cannot infer that yt-dlp is a video-downloading tool.",
+    "quote": ":param video_id: yt-dlp id.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 209,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Magic string prefix 'c' in chunk_id construction lacks explanation; unclear whether it denotes 'chunk', 'count', or something else.",
+    "quote": "'chunk_id': f'{video_id}_c{len(chunks)}',",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 180,
+    "category": "docs-over-types",
+    "chunk_id": "whole",
+    "claim": "Docstring redundantly restates type information; ':param duration_s: duration in seconds as a string' duplicates what the type hint 'duration_s: str' already conveys.",
+    "quote": ":param duration_s: duration in seconds as a string; blank when unknown.",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 176,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Jargon 'enrichment' introduced without explanation in docstring; unfamiliar reader cannot understand what enrichment process is being referenced.",
+    "quote": "A duration-less row (rare; enrichment fills nearly all) can be judged",
+    "confidence": "medium"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 189,
+    "category": "stale-doc",
+    "chunk_id": "whole",
+    "claim": "Comment references variable `duration_min` which does not exist; the actual variable is `density_per_min`",
+    "quote": "    # Long branch: seconds > SHORT_VIDEO_MIN_S > 0, so duration_min is never zero.\n    density_per_min = n_chunks / (seconds / 60.0)",
+    "suggested_fix": "Change comment to reference the actual variable: `# Long branch: seconds > SHORT_VIDEO_MIN_S > 0, so the denominator (seconds / 60) is never zero.`"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 271,
+    "category": "ordering",
+    "claim": "Helper function _write_keep_back is called before it is defined, breaking the established pattern of defining helpers before their callers.",
+    "quote": "        _write_keep_back(rows, keep_by_id)",
+    "chunk_id": "whole",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/stage3_triage.py",
+    "line": 189,
+    "category": "stale-doc",
+    "claim": "Comment refers to undefined variable 'duration_min'; should reference the actual variable 'seconds' or explain the denominator invariant more clearly.",
+    "quote": "    # Long branch: seconds > SHORT_VIDEO_MIN_S > 0, so duration_min is never zero.",
+    "chunk_id": "whole",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ }
+]

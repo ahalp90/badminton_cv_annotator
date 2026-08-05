@@ -1,0 +1,56 @@
+{
+ "module": "src/annotator/calibration/sweep.py",
+ "purpose": "Performs single-fixture, base-30 calibration sweeps for the annotator pipeline. Defines routing rules for parameters to configuration objects, builds and runs parameter grids for boundary and contact detection, scores candidates against ground-truth data, and produces calibration verdict files.",
+ "public_api": [
+  {
+   "name": "CandidateSpec",
+   "role": "Dataclass representing a serializable candidate configuration with base-30 overrides and strategy choices. Used to express parameter combinations for testing."
+  },
+  {
+   "name": "build_boundary_grid",
+   "role": "Builds the 3,000-cell pinned boundary parameter grid as CandidateSpecs. Called to generate all combinations of boundary detection parameters (rest_speed, rest_window, etc.) for evaluation."
+  },
+  {
+   "name": "build_contact_grid",
+   "role": "Builds the 108-cell pinned contact parameter grid with boundary parameters frozen. Called after selecting best boundary parameters to optimize contact detection settings."
+  },
+  {
+   "name": "shipped_spec",
+   "role": "Returns the unmodified default configuration reference row. Called to include the shipped baseline in sweep comparisons."
+  },
+  {
+   "name": "serialise_spec",
+   "role": "Serializes a CandidateSpec to a JSON-ready dictionary using the same routing validation as application. Called to convert internal spec representation to persistent form."
+  },
+  {
+   "name": "production_candidate_runner",
+   "role": "Runs and scores one candidate configuration against fixture ground truth. Called by the executor pool as the main worker function for each parameter combination."
+  },
+  {
+   "name": "run_sweep",
+   "role": "Executes the requested calibration phases (boundary, contact, or both) and writes results. Called as the main driver to perform a complete calibration sweep."
+  },
+  {
+   "name": "load_boundary_winner",
+   "role": "Loads the boundary specification from a previous sweep's winner file. Called in contact-only phase runs to load frozen boundary parameters."
+  },
+  {
+   "name": "main",
+   "role": "Command-line entry point parsing arguments and invoking run_sweep. Called when the module is executed as a script."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "live = min(\n    selection.coverage_allowance_rows(rows, n_rallies),\n    key=lambda row: selection.boundary_live_key_rally_id_f1(row, n_rallies),\n)",
+   "why_unclear": "Cannot determine what 'coverage_allowance_rows' filters for or what 'boundary_live_key_rally_id_f1' ranks without inspecting the selection module. The function names suggest F1 scoring but the exact metric and filtering criteria are opaque."
+  },
+  {
+   "quote": "ranks = {\"span_open\": {None: 0, \"REGION_START\": 1, \"BACK_FILL\": 2}, \"mode\": {None: 0, \"TRIM\": 1, \"REJECT\": 2}, \"close\": {None: 0, \"BURST\": 1, \"LAST_REST\": 2}}",
+   "why_unclear": "Unclear why these three specific strategy keys receive hardcoded rank mappings but others in the keys list do not. The purpose of the rank tuple produced by _settings() is also not obvious from this context\u2014it appears to support sorting but the intent is implicit."
+  },
+  {
+   "quote": "clean = [(index, rally, span) for index, (rally, (kind, span)) in enumerate(zip(gt, classifications)) if kind is RallyBoundary.COVERED and span not in merged]\ncontained = [sum(start <= first and last < end for first, last in (r.extent for r in gt)) for start, end in spans]",
+   "why_unclear": "Cannot confidently parse what classifications contains or what the nested tuple unpacking represents without inspecting classify_all(). The 'contained' comprehension logic appears to count rallies fitting within spans but requires the gt module to verify the extent structure and intent."
+  }
+ ]
+}

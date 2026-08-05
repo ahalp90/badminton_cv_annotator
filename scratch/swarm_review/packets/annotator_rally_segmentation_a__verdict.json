@@ -1,0 +1,211 @@
+{
+  "module": "src/annotator/rally_segmentation.py",
+  "probe_assessment": "The cold read mostly held up. The purpose and nearly all public API roles match the module. One material omission is that assemble_contacts applies wrist gating and suppression only when sticky_distances is supplied; its no-sticky branch returns every raw candidate with blank gate fields. Two listed stumbles are genuine file-local limits: the TODO invokes unexplained historical close-up and standing-count semantics, and build_sticky_result relies on the imported sticky_anchor result contract and EMA parameters. The impulse multiple's empirical provenance cannot be checked from this file, but its operational rule and default are explicit, so that is not a comprehension finding. The duplicate serve_setup_still entry is probe bookkeeping rather than a code finding.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1270,
+      "category": "comprehension-trap",
+      "claim": "The public_api description of assemble_contacts implies that every call performs wrist gating and suppression, but the no-sticky branch returns all raw flags and leaves both gate fields blank; those stages are conditional on sticky_distances.",
+      "quote": "    if sticky_distances is None:\n        return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)\n                for r, f, _ in raw_flags]",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 743,
+      "category": "comprehension-trap",
+      "claim": "The serve-start lane's intended close-up semantics cannot be settled from this file: the TODO invokes prior size-banded behaviour and an implied position/count contract that is not defined here.",
+      "quote": "    # TODO: position-based count means a tight close-up CAN read 1 and route partial; the old\n    # \"close-ups read zero\" claim was size-banded and does not describe the permanent\n    # court-scale box and slot paths.",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1162,
+      "category": "comprehension-trap",
+      "claim": "build_sticky_result assumes the imported sticky_anchor.analyse_frame result fields and EMA contract without defining them in this module, so a cold reader cannot resolve that integration contract from the file alone.",
+      "quote": "            analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)\n            standing_count[frame] = analysis.standing_in_court_count\n            if analysis.picks is None:",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 402,
+      "category": "docs-orientation",
+      "claim": "Function lacks docstring to orient reader on non-trivial trajectory extrapolation logic.",
+      "quote": "def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int, constants: FpsConstants) -> bool:\n    run_start = gap_start\n    while (run_start > 0 and track[run_start - 1, 2] == 1\n           and gap_start - run_start < constants.high_shot_oob_lookback_frames):",
+      "suggested_fix": "Add docstring explaining that the function detects whether a visibility gap represents a shuttle trajectory consistent with a high shot exiting bounds, using backwards-tracking and frame extrapolation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper walks a preceding visible run and extrapolates its y trajectory beyond the frame. Its name and call site do not explain that decision or the threshold inputs."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 416,
+      "category": "docs-orientation",
+      "claim": "Function lacks docstring on complex conditional gate checking shuttle re-entry after visibility gap.",
+      "quote": "def _gap_passes_reentry_guard(\n    track: np.ndarray, gap_start: int, gap_end: int, variant: ReentryGuardVariant, buffer: float,\n    constants: FpsConstants,\n) -> bool:",
+      "suggested_fix": "Add docstring explaining the re-entry guard gate and how it validates shuttle visibility before and after a gap.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper has separate visible-run, minimum-count, near-top, direction, and two-sided checks. No local documentation explains what the variant or buffer mean."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 436,
+      "category": "docs-orientation",
+      "claim": "Function lacks docstring on substantial logic computing rest mask with gap state demotion bounds.",
+      "quote": "def _gap_state_rest_mask(\n    speed: np.ndarray, track: np.ndarray, thresholds: Stage8Thresholds, constants: FpsConstants, demotion_bound: int,\n    reentry_guard_variant: ReentryGuardVariant | None, reentry_guard_buffer: float | None,\n) -> np.ndarray:",
+      "suggested_fix": "Add docstring explaining the gap-state path and how it applies high-shot and reentry logic to construct rest mask.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "This helper combines rolling speed, visibility-gap classification, optional re-entry validation, demotion, dead ranges, and the final rest mask without a docstring."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 255,
+      "category": "docs-orientation",
+      "claim": "Docstring too terse to orient reader on gate logic: does not explain what 'still' means (drift/body-height check) or window mechanics.",
+      "quote": "def serve_setup_still(\n    inputs: ServeSetupInputs,\n    claimed_serve_frame: int,\n    window_frames: int,\n    threshold_bh: float,\n    slots: tuple[Slot, ...],\n) -> bool:\n    \"\"\"Return whether every requested player is still through the serve frame.\"\"\"",
+      "suggested_fix": "Expand docstring to explain the drift/body-height ratio gate and why the window ends at claimed_serve_frame+1.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The implementation computes median-half ankle drift, divides by mean body height, and includes the claimed frame in the window. The one-line docstring does not expose those mechanics."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 670,
+      "category": "docs-orientation",
+      "claim": "Docstring too terse for 76-line function with three distinct code paths (median_count >= 2, >= 1, else); does not orient reader on the three serve-setup lanes or routing logic.",
+      "quote": "def _sticky_serve_setup_before(\n    setup: ServeSetupInputs, burst: int, threshold: float, lookback_frames: int,\n    stillness_threshold_bh: float | None, stillness_window_frames: int | None,\n) -> bool:\n    \"\"\"Apply the sticky coverage gate and its three serve-setup lanes.\"\"\"",
+      "suggested_fix": "Expand docstring to explain presence floor, the three player-count lanes, and how each path applies distance and stillness gates.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper has distinct two-player, partial-one-player, and zero-player paths, plus coverage and optional stillness checks. The docstring names the lanes but does not explain their routing."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 592,
+      "category": "style-house",
+      "claim": "Complex generator expression with slicing and method calls violates comprehension rule; should unpack to explicit for-loop for top-to-bottom readability.",
+      "quote": "        quiet_burst = next(\n            (start for start in bursts if len(at_rest[max(0, start - window):start])\n             and at_rest[max(0, start - window):start].mean() >= QUIET_START_REST_FRACTION),\n            None,\n        )",
+      "suggested_fix": "Unpack the generator to an explicit loop that caches the lookback slice once, then assigns quiet_burst and breaks on the first qualifying burst.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The predicate contains a slice, len(), a repeated slice, and mean() inside a multi-line generator. The merged structure finding also identifies the duplicated slice computation.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 583,
+      "category": "docs-orientation",
+      "claim": "Function lacks docstring; variant of span-finding logic with quiet-start filter is unexplained.",
+      "quote": "def _find_rally_spans_quiet_start(\n    speed: np.ndarray, at_rest: np.ndarray, thresholds: Stage8Thresholds, window: int,\n) -> list[tuple[int, int]]:\n    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)",
+      "suggested_fix": "Add docstring explaining that this variant filters bursts to those preceded by high rest fraction in a lookback window.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper's distinctive quiet-start rule and the frame units of window are only visible by reading its body. This entry merges the duplicate no-docstring report from the naming lens.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 296,
+      "category": "docs-orientation",
+      "claim": "Docstring too terse; does not explain key normalizations (height-fraction scaling) or the role of the validate() call.",
+      "quote": "def build_serve_setup_inputs(\n    sticky: 'StickyResult', resolution: tuple[float, float],\n) -> ServeSetupInputs:\n    \"\"\"Build validated sticky-sourced evidence for the serve-setup gate.\"\"\"",
+      "suggested_fix": "Expand to explain that wrist distance and box heights are normalised by image height, and that the function validates dimensions and invariants before returning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The body divides pixel distances and heights by resolution[1], fills slot-specific evidence, and calls validate(). The current sentence does not orient a reader to those transformations."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 225,
+      "category": "style-house",
+      "claim": "Docstring uses inline prose instead of :param/:return format; violates house style for docstring structure.",
+      "quote": "def series_drift(points: np.ndarray) -> tuple[float, int]:\n    \"\"\"Return median-half drift for a sentinel-coded point series.\n\n    ``points`` may contain NaN rows and the paired-zero ``(0, 0)`` sentinel;",
+      "suggested_fix": "Reformat with :param and :return lines: :param points: (n, 2) real numeric array with the sentinel contract; :return: (drift, detected_count).",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring explains the sentinel contract, but it has no fielded parameter or return entries. The rubric's house digest explicitly calls for that structure."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 623,
+      "category": "style-house",
+      "claim": "Docstring lacks :param/:return structure; explanatory comment at line 628 belongs in docstring, not inline.",
+      "quote": "def _serve_distance_ratio_passes(\n    window_dist: np.ndarray, window_height: np.ndarray, threshold_bh: float,\n) -> bool:\n    \"\"\"Return whether paired distance evidence passes the body-height threshold.\n\n    The finite-distance mask selects the matching heights. Sticky setup construction writes both\n    values for a picked slot on the same frame.\n    \"\"\"",
+      "suggested_fix": "Add :param and :return lines; retain the mask-pairing invariant in the docstring rather than treating it as a separate inline comment.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The missing :param/:return structure is confirmed. Line 628 is already docstring prose rather than an inline comment, so that subclaim is incorrect and does not require moving the text."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 396,
+      "category": "style-house",
+      "claim": "Magic number 12 lacks domain grounding; comment explains it is a Stage 6 bridge value but does not explain why the value is 12.",
+      "quote": "# Stage 6 bridge fixed body-height window. The resolved path supplies this explicitly.\nBODY_UNIT_HALF_WINDOW = 12",
+      "verdict": "KILLED",
+      "verifier_note": "The rubric requires a named constant or why-comment for a magic number. BODY_UNIT_HALF_WINDOW is named and the adjacent comment gives its Stage 6 body-height-window role; the absence of empirical provenance is not a style finding."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 101,
+      "category": "unclear-name",
+      "claim": "Name FLOOR_EPS does not clearly convey what 'FLOOR' represents or the purpose of this epsilon threshold.",
+      "quote": "FLOOR_EPS = 1e-4",
+      "verdict": "KILLED",
+      "verifier_note": "The name is used immediately in the impulse-to-floor division, beside rolling_floor and the impulse threshold. A skim reader can infer that it is an epsilon lower bound for the impulse floor."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 334,
+      "category": "docs-prose",
+      "claim": "Docstring uses awkward double-negative phrasing that obscures intent ('whose bursts are none of them serve-setup-preceded').",
+      "quote": "\"\"\"What a region whose bursts are none of them serve-setup-preceded does.",
+      "suggested_fix": "Use a direct positive phrasing such as: 'Fallback for a region with no serve-setup-qualified burst.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The opening sentence makes the reader parse both 'none' and 'serve-setup-preceded' before reaching the subject. A direct description of the no-qualifying-burst fallback is clearer."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 384,
+      "category": "misleading-name",
+      "claim": "Field named `dist` but required to be None; the name misleads about the field's purpose and suggests it carries distance data.",
+      "quote": "dist: np.ndarray | None\n    ...retired raw-distance carrier. It must remain None.",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: the file has the field declaration at line 384 and the separate docstring text ':param dist: retired raw-distance carrier. It must remain None.' The literal '...retired' sequence does not appear, so the scan finding is killed under the quote-presence rule."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 464,
+      "category": "docs-orientation",
+      "claim": "Docstring omits documentation for new parameters (constants, gap_state_demotion_bound, reentry_guard_variant, reentry_guard_buffer), preventing a reader from understanding the function's full interface.",
+      "quote": ":param speed: `(t,)` per-frame speed (NaN on non-visible steps).\n    :param track: `(t, 3)` track, for the visibility column.\n    :param thresholds: a preset to read rest_window / rest_speed from; None reads the",
+      "suggested_fix": "Document constants and the gap-state parameters, including that the demotion bound selects the alternate gap-state path and the re-entry variant and buffer must be supplied together.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The signature exposes four additional controls, and the body asserts or branches on them. The docstring documents only speed, track, thresholds, and return shape."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 126,
+      "category": "repetition",
+      "claim": "`_rolling_mean` and `_nan_rolling_mean` duplicate the rolling-mean scaffolding using identical convolution patterns",
+      "quote": "    kernel = np.ones(window)\n    counts = np.convolve(np.ones_like(values), kernel, mode='same')  # samples per position\n    sums = np.convolve(values, kernel, mode='same')",
+      "suggested_fix": "Unify the shared convolution into one helper parameterised by the valid-sample mask, while retaining clear wrappers for zero-inclusive and NaN-ignoring semantics.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The two helpers intentionally differ in NaN handling, but both repeat the kernel, rolling count, and rolling sum scaffold. A small shared primitive can remove that duplication without merging the two public semantics."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 520,
+      "category": "repetition",
+      "claim": "Three span-finder functions (`_find_rally_spans`, `_find_rally_spans_span_open`, `_find_rally_spans_quiet_start`) all call `_rally_regions` and iterate regions with identical loop scaffolding",
+      "quote": "fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)\n\n    spans: list[tuple[int, int]] = []\n    for region_start, region_end in regions:",
+      "verdict": "KILLED",
+      "verifier_note": "The shared scaffold is short, while each loop contains the central and materially different span-opening policy. A callback-based common loop would add indirection without a clearly cleaner reading path."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 252,
+      "category": "ordering",
+      "claim": "Module constants are scattered (main block at 89–103, then PLAYER_PRESENT_MIN_FRAC at 252, then BODY_UNIT_HALF_WINDOW at 396), disrupting top-to-bottom coherence",
+      "quote": "# Presence floor per required player in the serve-setup gate.\nPLAYER_PRESENT_MIN_FRAC = 0.5",
+      "verdict": "KILLED",
+      "verifier_note": "The later constants sit beside the sections that use them: the presence floor precedes serve_setup_still, and the Stage 6 bridge window precedes the rally/sticky section. A single top block is not required for a coherent read."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,202 @@
+{
+  "module": "src/annotator/run_video.py",
+  "probe_assessment": "The cold read mostly held up. The scoring_filter, serve-option, result-record, capture, and landing-horizon summaries match the module. The description of run_video as always running the complete chain overstates the API because court_optional and stop_after_segmentation return after segmentation with downstream fields empty; the function docstring and the early-return branches state that behaviour explicitly, so I treat this as a probe omission rather than a comprehension-trap. The probe's rejected_grades question is genuine: the file shows how grades become a mask but not what the grades mean or why they are rejected. Its homography_rows question is also genuine because the accepted input representations are not stated. The window_end argument asymmetry is recoverable from the names window_end_without_events and window_end_without_exclusion_mask and the surrounding counterfactual comparison, so that uncertainty is a probe-model miss rather than a finding.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 28,
+      "category": "comprehension-trap",
+      "claim": "The helper exposes rejected_grades as the source of the inpaint mask, but this module never explains what a grade represents or why particular grades are rejected. A junior can follow the np.isin conversion but cannot recover that domain contract from the file alone.",
+      "quote": "def _build_shuttle_hallucination_mask(\n    n_frames: int, rejected_grades: frozenset[int],\n    inpaint_codes: np.ndarray | None, shuttle_hallucination_mask: np.ndarray | None,",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 327,
+      "category": "comprehension-trap",
+      "claim": "The untyped homography_rows input is conditionally normalised from an object with to_dict('records') or passed through as an already record-like value, but the accepted representations and their contract are not stated in this module.",
+      "quote": "        if hasattr(homography_rows, 'to_dict'):\n            homography_rows = homography_rows.to_dict('records')",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 568,
+      "category": "misleading-name",
+      "claim": "Variable name 'shipped_winner' is unexplained jargon; the logic shows it records the verdict winner, but 'shipped' gives no clue what it represents.",
+      "quote": "        shipped_winner = None\n        if verdict.verdict == point_winner.Verdict.WON:\n            shipped_winner = striker",
+      "suggested_fix": "Rename the variable to a name such as verdict_winner or strict_winner.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The value is derived from the rally verdict and later becomes the strict winner used by the horizon comparison. No shipping concept is defined in the module."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 32,
+      "category": "stale-doc",
+      "claim": "Docstring claims the function returns 'the one boolean mask' but actually returns a tuple (mask, source_codes_or_None); the second element is undocumented.",
+      "quote": "    \"\"\"Adapt source grades into the one boolean mask read by event rules.\"\"\"\n    if inpaint_codes is not None and shuttle_hallucination_mask is not None:\n        raise ValueError('inpaint_codes and shuttle_hallucination_mask are mutually exclusive')",
+      "verdict": "KILLED",
+      "verifier_note": "The docstring describes the boolean mask consumed by event rules; it does not state that the function returns only that value. The tuple return annotation and the unpacking at line 330 make source_codes visible, so a stale-doc contradiction is not established."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 97,
+      "category": "docs-orientation",
+      "claim": "Docstring references 'sset_21', 'decontamination commit', and 'sticky cache' without explaining these concepts; unusable for a reader unfamiliar with the codebase.",
+      "quote": "    \"\"\"Build sticky-sourced serve-start evidence from the unmasked cache.\n\n    Serve evidence deliberately comes from the sticky cache built before any masking; the\n    committed mask demonstrably eats live serves on sset_21, and masking policy belongs to the",
+      "suggested_fix": "State the input, output, and relevant ordering plainly, and move the sset_21 and redesign history out of the function contract.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring partly explains sticky as a pre-mask cache, but sset_21, decontamination commit, and parked redesign are unexplained project history. The word 'unusable' is stronger than necessary; the orientation gap itself is real."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 480,
+      "category": "unclear-name",
+      "claim": "Variable 'kin' abbreviates 'kinematics' but inside a 419-line function with many tracking variables, the abbreviation is unclear and could be misspelled or misread.",
+      "quote": "    kin = point_winner.build_landing_kinematics(\n        track, sticky, kps, resolution,\n    )",
+      "verdict": "KILLED",
+      "verifier_note": "The right-hand side spells out build_landing_kinematics and the local is used only as that landing-kinematics argument. Its role is inferable by a skim, so the name does not meet the rubric's material unclear-name threshold."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 483,
+      "category": "unclear-name",
+      "claim": "Variable 'band_m' is an unclear abbreviation; the 'm' suffix is never explained (metres? measure?), and 'landing_error_band_m' is already the parameter name a few lines up.",
+      "quote": "    band_m = (\n        landing_error_band_m\n        if landing_error_band_m is not None",
+      "verdict": "KILLED",
+      "verifier_note": "Both source expressions use the explicit landing-error-band name, including the same _m suffix, and the local is passed as the band to rally_verdict. The local alias is short but not materially ambiguous in context."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 327,
+      "category": "comprehension-trap",
+      "claim": "The untyped homography_rows boundary accepts either a record-producing object or an already record-like value, but run_video does not state that input contract; the conversion's purpose and caller variation have to be inferred from the duck-typing branch.",
+      "quote": "        if hasattr(homography_rows, 'to_dict'):\n            homography_rows = homography_rows.to_dict('records')",
+      "suggested_fix": "Document or type-normalise homography_rows at the run_video boundary, including the record shape expected after normalisation.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: comment-noise. Correction: absence of a comment is not comment noise. The real comprehension issue is the undocumented dual input representation; the branch itself is mechanically clear, but a junior cannot recover the accepted type contract from this file."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 77,
+      "category": "needless-abstraction",
+      "claim": "Function '_record_trusted_mask_contact_rejection' is called only once (line 497) and could be inlined or merged with '_record_rejection' to reduce indirection.",
+      "quote": "def _record_trusted_mask_contact_rejection(\n    rows: list[dict[str, object]] | None, rally_id: int,\n    span: tuple[int, int], contact_frames: list[int],\n) -> None:",
+      "verdict": "KILLED",
+      "verifier_note": "The helper isolates a distinct diagnostic row schema and its optional-output guard from the complex rally loop. A single caller is not enough to make that non-core extraction needless, and merging it with _record_rejection would obscure the different rule payloads."
+      ,"duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 544,
+      "category": "comment-noise",
+      "claim": "Creating 'all_false_exclusion_mask' for counterfactual analysis lacks a comment; the intent (detecting window closure caused by masking itself) is not immediately clear to a skim reader.",
+      "quote": "        all_false_exclusion_mask = np.zeros_like(definitive_exclusion_mask)\n        window_end_without_exclusion_mask = point_winner.window_end(\n            final_contact, next_start, track, all_false_exclusion_mask,",
+      "verdict": "KILLED",
+      "verifier_note": "There is no comment to classify as comment noise, and the variable name plus window_end_without_exclusion_mask state the counterfactual intent directly."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 1,
+      "category": "docs-orientation",
+      "claim": "The module docstring uses unclear terminology without explaining what the module does to a fresh reader.",
+      "quote": "\"\"\"GT-free annotation-chain composition for one video.\"\"\"",
+      "suggested_fix": "Describe the module as the GT-free pipeline that segments a video, filters contacts, assigns strikers, computes verdicts and landings, and measures hit height.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "GT-free and annotation-chain are not defined here, and the one-line docstring does not name the stages or outputs that a fresh reader needs for orientation.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 22,
+      "category": "style-house",
+      "claim": "Function signature missing all type hints on parameter and return.",
+      "quote": "def scoring_filter(contacts):\n    \"\"\"Rows the scorer reads: wrist gate not failed, not suppressed.\"\"\"",
+      "suggested_fix": "Add parameter and return annotations using the contact row types established by this module.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The signature has neither a parameter annotation nor a return annotation, contrary to the supplied house style."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 94,
+      "category": "style-house",
+      "claim": "Function parameters config, sticky, constants, and resolution lack type annotations.",
+      "quote": "def build_serve_options(\n    config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,",
+      "suggested_fix": "Annotate the untyped inputs, including span_open, with the concrete configuration and cache types used by the function.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The listed parameters are unannotated while the function has an annotated return type."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 187,
+      "category": "style-house",
+      "claim": "Function parameter final_half lacks type annotation.",
+      "quote": "def _first_stroke_half(final_half, n_strokes: int):",
+      "suggested_fix": "Annotate final_half and the return value with the half type used by point_winner.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "final_half and the return value are unannotated; n_strokes is the only annotated parameter."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 199,
+      "category": "style-house",
+      "claim": "Entry-point function run_video missing type hints on positional parameters track, bboxes, scores, kps, ndet.",
+      "quote": "def run_video(\n    track, bboxes=None, scores=None, kps=None, ndet=None,",
+      "suggested_fix": "Annotate the untyped positional inputs and document the injected-data and normal-pipeline contracts alongside the signature.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Those five positional parameters are unannotated in the entry-point signature."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 190,
+      "category": "docs-prose",
+      "claim": "Docstring paragraph violates one-sub-clause-per-sentence rule; contains unexplained jargon 'Brief H'.",
+      "quote": "Same parity formula as point_winner's private `_phase_assignment` at index 0 (last =\n    n_strokes - 1; step back from the last stroke, flipping each step): duplicated here as a\n    one-line arithmetic fact rather than reaching into that module-private helper, since",
+      "suggested_fix": "Split the parity explanation into short sentences and either explain Brief H or remove that report-specific reference from the code contract.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted sentence carries the formula, implementation rationale, private-helper reference, and dependency rationale across several clauses. The following sentence also refers to Brief H without defining it."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 194,
+      "category": "style-house",
+      "claim": "Em-dash used in docstring prose; CLAUDE.md instructs avoiding em-dashes unless essential.",
+      "quote": "never a rally's own — Brief H's \"server\" column needs the latter for every rally.",
+      "suggested_fix": "Replace the em dash with a comma or split the sentence.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The em dash is present, and the supplied house agreements discourage it where ordinary punctuation is sufficient. The scanner's external file reference is not needed for this code-level check."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 232,
+      "category": "comprehension-trap",
+      "claim": "The large run_video entry point documents only a handful of mode and geometry constraints in prose and supplies no structured :param/:return: contract for its many inputs and outputs.",
+      "quote": "\"\"\"Run segmentation, attribution, verdict, landing, and hit-height for one video.\n\n`court_optional` is only valid with `stop_after_segmentation`.",
+      "suggested_fix": "Add concise :param and :return: documentation for the major input groups, early-return modes, capture outputs, and result fields.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: docs-orientation. Correction: the exact claim that only three parameters are documented is wrong because the prose names several mode and geometry parameters. The underlying orientation problem remains: a roughly 30-parameter entry point has no structured parameter or return contract, and the important input groups are not summarised."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 242,
+      "category": "repetition",
+      "claim": "Pattern 'if capture is not None: capture.X = ...' repeats at multiple locations (lines 242-245, 349-350, 356-357, 420-421, 429-430), suggesting a helper would collapse the redundancy.",
+      "quote": "if capture is not None:\n        capture.raw_exclusion_mask = raw_exclusion_mask.copy()",
+      "verdict": "KILLED",
+      "verifier_note": "The guard is repeated, but the assignments capture different lifecycle points and different fields in separate early-return and normal branches. A generic helper would need dynamic field selection or extra wrapper methods, so the claim that one clean helper would simplify this code is not established."
+    },
+    {
+      "file": "src/annotator/run_video.py",
+      "line": 196,
+      "category": "overloaded-one-liner",
+      "claim": "Return statement combines arithmetic, modulo, comparison, and dictionary lookup in one ternary expression; extracting the parity calculation would clarify intent.",
+      "quote": "return final_half if (n_strokes - 1) % 2 == 0 else OTHER_HALF[final_half]",
+      "suggested_fix": "Assign the parity test to a named boolean before returning the selected half.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The surrounding docstring explains the formula, so this is a low-severity finding, but the return line still combines the parity arithmetic, comparison, conditional selection, and mapping lookup."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

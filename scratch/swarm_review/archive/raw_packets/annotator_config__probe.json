@@ -1,0 +1,100 @@
+{
+ "module": "src/annotator/config.py",
+ "purpose": "Defines constants and configuration dataclasses for the annotation pipeline. Bundles stage-8 rally segmentation/contact-detection thresholds, stage-9 replay/off-rally rules, doubles guards, and two preset classes (BaseAnnotatorConfig and ResolvedAnnotatorConfig) that callers pass to video annotation runs.",
+ "public_api": [
+  {
+   "name": "SCRAPE_DIR",
+   "role": "Module-level constant. Path to scrape-output root (flat CSVs + per-video sidecars). Reads from BADMINTON_SCRAPE_DIR env var or defaults to repo data/scrape_output."
+  },
+  {
+   "name": "MASKS_DIR",
+   "role": "Module-level constant. Path to masks subdirectory under SCRAPE_DIR (schema s2 stage 9)."
+  },
+  {
+   "name": "RALLY_SPANS_CSV",
+   "role": "Module-level constant. Path to rally_spans.csv in SCRAPE_DIR (spec s6 stage 8)."
+  },
+  {
+   "name": "CONTACT_FRAMES_CSV",
+   "role": "Module-level constant. Path to contact_frames.csv in SCRAPE_DIR (spec s6 stage 8)."
+  },
+  {
+   "name": "REST_SPEED",
+   "role": "Module-level constant. Speed threshold in norm-units/frame; a span is at rest below this (stage 8)."
+  },
+  {
+   "name": "REST_WINDOW",
+   "role": "Module-level constant. Window size in frames (~0.16s at 25fps) for rest detection (stage 8)."
+  },
+  {
+   "name": "START_SPEED",
+   "role": "Module-level constant. Speed threshold to detect rally start; speed above this triggers detection (stage 8)."
+  },
+  {
+   "name": "START_MIN_FRAMES",
+   "role": "Module-level constant. Minimum consecutive frames above START_SPEED to confirm rally start (stage 8)."
+  },
+  {
+   "name": "SMOOTH_WINDOW",
+   "role": "Module-level constant. Moving-average window size for trajectory smoothing to survive TrackNetV3 jitter (stage 8)."
+  },
+  {
+   "name": "END_REST_FRAMES",
+   "role": "Module-level constant. Minimum extended rest duration in frames (~3.0s) to mark rally end (stage 8)."
+  },
+  {
+   "name": "PROXIMITY_MAX",
+   "role": "Module-level constant. Max player-proximity distance in norm court units; used as guardrail cross-check (stage 8)."
+  },
+  {
+   "name": "PERSPECTIVE_SHIFT_THRESHOLD",
+   "role": "Module-level constant. Reprojected-corner displacement fraction of frame size; detects perspective shifts between segment homographies (stage 9)."
+  },
+  {
+   "name": "SLOWMO_SPEED_FRAC",
+   "role": "Module-level constant. Speed threshold as fraction of rally median to detect slow motion (stage 9)."
+  },
+  {
+   "name": "COMPOSITION_CONTENT_THRESHOLD",
+   "role": "Module-level constant. PySceneDetect ContentDetector threshold for composition dead-mask (stage 9)."
+  },
+  {
+   "name": "COMPOSITION_KEEP_VOTE",
+   "role": "Module-level constant. Fraction of frames voting court-view needed to keep a cut segment in composition mask (stage 9)."
+  },
+  {
+   "name": "DOUBLES_SPAN_FRACTION",
+   "role": "Module-level constant. Fraction of rally frames (>0.5) where over-count >2 must hold to fire doubles flag (stage 8)."
+  },
+  {
+   "name": "Stage8Thresholds",
+   "role": "NamedTuple bundling the 10 stage-8 trajectory-rule thresholds. Allows passing a preset threshold set to segment_video instead of relying on module globals. Default preset: SHIPPED_THRESHOLDS."
+  },
+  {
+   "name": "SHIPPED_THRESHOLDS",
+   "role": "Module-level constant. Pre-built Stage8Thresholds instance with the default shipped stage-8 values; equivalent to passing no thresholds override."
+  },
+  {
+   "name": "BaseAnnotatorConfig",
+   "role": "Frozen dataclass holding non-fps-sensitive configuration for an annotator run (thresholds, dead-mask mode, smoothing strategy, span-opening, reentry guard, rejected grades). Validates invariants in __post_init__; fps-sensitive fields are scaled at resolution time."
+  },
+  {
+   "name": "ResolvedAnnotatorConfig",
+   "role": "Frozen dataclass for the final per-video configuration after fps scaling. Holds fps, FpsConstants, scaled thresholds, and strategy fields ready to pass to run_video (marked never to be rescaled)."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "constants: FpsConstants\n    thresholds: Stage8Thresholds\n    ...\n    \"\"\"Final per-video configuration, built once and never rescaled.\n\n    ``thresholds`` is the run_video-ready value (run_video declares the\n    already-scaled precondition). ``constants`` is deliberately unwired until\n    threading.",
+   "why_unclear": "The phrase 'deliberately unwired until threading' is opaque. I don't know whether 'threading' refers to concurrent execution, data-threading (threading values through a pipeline), or some local terminology, nor do I understand what 'unwired' means in this context \u2014 whether constants is left null/unset, deferred to a later step, or decoupled from some other mechanism."
+  },
+  {
+   "quote": "thresholds: Stage8Thresholds = SHIPPED_THRESHOLDS\n    dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY\n    # Measured together in W2.9: ignore invisible coordinates during smoothing,\n    # then classify sustained gaps with the ruled two-sided re-entry guard.",
+   "why_unclear": "The reference 'W2.9' is unexplained \u2014 it appears to be a section or iteration identifier, but without reading upstream docs I cannot confirm what it refers to or whether it's a design doc, test fixture, or experimental phase."
+  },
+  {
+   "quote": "guard_specified = self.reentry_guard_variant is not None or self.reentry_guard_buffer is not None\n        if guard_specified and self.gap_state_demotion_bound is None:\n            raise ValueError('reentry guard requires gap_state_demotion_bound')",
+   "why_unclear": "The validation enforces that a reentry guard (variant or buffer) requires gap_state_demotion_bound to be set, but without seeing the types or how these fields are used downstream, I cannot fully grasp the invariant \u2014 why does the guard _require_ demotion bound to be non-None? Is it because the bound gates the guard's activation, or is there a shared underlying computation?"
+  }
+ ]
+}

@@ -1,0 +1,104 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/scraper/config.py",
+    "line": 154,
+    "category": "docs-orientation",
+    "claim": "Comment references 's29 chain' without defining what it is, leaving a skim reader unable to infer its purpose.",
+    "quote": "The current hand-run s29 chain is the scrape-lane consumer. A promoted wrapper",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify what 's29 chain' refers to (stage 29, checkpoint, specific tool name, etc.) or replace with a self-documenting name if used elsewhere in the codebase."
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 157,
+    "category": "docs-orientation",
+    "claim": "Comment references 'streaming' without explaining whether it's a module, pipeline stage, or component name.",
+    "quote": "# streaming builds its median background image from a capped sample of frames (1800) instead of all of them",
+    "chunk_id": "whole",
+    "suggested_fix": "Clarify what 'streaming' refers to; if it's a stage or module name, name it explicitly (e.g., 'the streaming stage builds' or 'the streaming module builds')."
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 145,
+    "category": "docs-orientation",
+    "claim": "Comment references checkpoint 'B5' without explaining what it represents (version, batch, audit checkpoint).",
+    "quote": "# OPEN (spec s4, s12): exact flash ID pinned at B5; tier decided (low-cost",
+    "chunk_id": "whole",
+    "suggested_fix": "Either define what 'B5' means in the module docstring alongside the 'spec sN' explanation (lines 9\u201311), or replace with a self-documenting identifier."
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 5,
+    "category": "stale-doc",
+    "claim": "Module docstring claims to contain 'stage 8/9 trajectory-rule constants', but no such constants are defined in this module.",
+    "quote": "Single source of truth for the file contracts and named constants the stages share: output paths, the candidates.csv column set, yt-dlp throttle flags, the metadata screens, chunking and keep thresholds, LLM settings, and the stage 8/9 trajectory-rule constants.",
+    "chunk_id": "whole",
+    "suggested_fix": "Remove 'stage 8/9 trajectory-rule constants' from the list, or add those constants to the module if they belong here."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/scraper/config.py",
+    "line": 177,
+    "category": "ordering",
+    "chunk_id": "whole",
+    "claim": "Stage 4 rate-limiting constants appear after stages 10\u201311, breaking sequential stage organization and coherent narrative flow.",
+    "quote": "PAIR_WINDOW_S = 8\n\n# Rate limiting / IP-ban mitigation (D22, spec s5)",
+    "confidence": "high"
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 4,
+    "category": "stale-doc",
+    "chunk_id": "whole",
+    "claim": "Module docstring claims to contain 'stage 8/9 trajectory-rule constants' that do not exist anywhere in the module.",
+    "quote": "metadata screens, chunking and keep thresholds, LLM settings, and the stage 8/9\ntrajectory-rule constants.",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/scraper/config.py",
+    "line": 149,
+    "category": "docs-prose",
+    "claim": "Comment uses unexplained notation and jargon (`:free` suffix, `<` operator) without explaining significance",
+    "quote": "# gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960 (hard error above it)",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "suggested_fix": "Split into multiple sentences explaining each model comparison: 'Models are ranked by max token support: Groq's qwen3-32b (40,960), OpenRouter's free-tier gemma (32,768), and Google/Nemotron flash (65,536). Free-tier limits apply to OpenRouter routes.' Explain abbreviations on first use."
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 194,
+    "category": "docs-prose",
+    "claim": "Comment joins two independent clauses with a semicolon, violating the single-sub-clause-per-sentence rule",
+    "quote": "# Mid-batch circuit-breaker floors. The spec's block rules (s3: over 50% fail;\n# s4: every call fails) say when to block, not when to evaluate; checking\n# mid-loop once past these floors stops a banned or dead-endpoint run from",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Split into two sentences: 'The spec's block rules (s3: over 50% fail; s4: every call fails) say when to block, not when to evaluate. Checking mid-loop once past these floors stops a banned or dead-endpoint run.'"
+   },
+   {
+    "file": "src/scraper/config.py",
+    "line": 229,
+    "category": "docs-prose",
+    "claim": "Docstring joins two independent clauses with a semicolon, violating the single-sub-clause-per-sentence rule",
+    "quote": "    --skip-download). Those two constants belong to stage 4's download path;\n    stages 1 and 2 pace their own process spawns from Python instead.",
+    "chunk_id": "whole",
+    "confidence": "medium",
+    "suggested_fix": "Split into two sentences: 'Those two constants belong to stage 4's download path. Stages 1 and 2 pace their own process spawns from Python instead.'"
+   }
+  ],
+  "overflow_note": null
+ }
+]

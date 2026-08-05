@@ -1,0 +1,217 @@
+{
+  "module": "src/annotator/e2e_court_annotator.py",
+  "probe_assessment": null,
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1015,
+      "category": "repetition",
+      "claim": "_write_scene_evidence_partial() duplicates the court_scenes.csv and mask-writing logic from _write_scene_evidence()",
+      "quote": "_write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult) -> None:\n    _write_rows(\n        directory / \"court_scenes.csv\",\n        COURT_SCENES_COLUMNS,\n        (_scene_row(record) for record in result.scene_records),\n    )\n    _save_mask(directory / \"keep_vote.npy\", result.keep_vote)\n    _save_mask(directory / \"court_present.npy\", result.court_present)",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The full writer additionally emits scene_rows.csv, so the partial path has a deliberate output difference. It still repeats the three shared writes verbatim."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 958,
+      "category": "repetition",
+      "claim": "Generic exception handler at line 958 is identical to the one at line 1005 except for the stage name, duplicating error path handling",
+      "quote": "except Exception as error:\n    failure_path = state.directory / \"failure.json\"\n    _write_failure(failure_path, \"configuration\", case.fixed.case_id, parent, \"court_evidence\", error)\n    state.failure_path = failure_path\n    state.status = \"failed\"\n    _write_terminal_configuration_manifest(state, driver, _artifact_record(driver.output_root, failure_path))\n    return",
+      "verdict": "KILLED",
+      "verifier_note": "The claim describes the two handlers accurately, but this supplied quote is de-indented: the file has four spaces before `except` and eight before the body. Because the quote does not appear verbatim, the finding is killed."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 878,
+      "category": "overloaded-one-liner",
+      "claim": "Sorting lambda performs conditional, set membership check, and .index() lookup, combining multiple operations",
+      "quote": "inputs.sort(key=lambda record: [\n    \"video\", \"track\", \"bboxes\", \"scores\", \"kps\", \"ndet\", \"resolution_csv\", \"homography_csv\",\n    \"courtkeynet_config\", \"courtkeynet_weights\", \"shots_master\",\n].index(record[\"role\"]) if record[\"role\"] in {\n    \"video\", \"track\", \"bboxes\", \"scores\", \"kps\", \"ndet\", \"resolution_csv\", \"homography_csv\",\n    \"courtkeynet_config\", \"courtkeynet_weights\", \"shots_master\",\n} else 99)",
+      "verdict": "KILLED",
+      "verifier_note": "The claim describes the expression accurately, but this supplied quote is de-indented relative to the file and does not appear verbatim. The exact style-lens quote below carries the separate confirmed role-list issue."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1332,
+      "category": "overloaded-one-liner",
+      "claim": "Single line combines conditional check with tuple construction and unpacking",
+      "quote": "command = sys.argv if argv is None else (sys.argv[0], *argv)",
+      "verdict": "KILLED",
+      "verifier_note": "The conditional expression selects between the existing argv tuple and a conventional tuple built from sys.argv[0] plus the supplied arguments. It is a clear, single-purpose normalisation and does not meet the overloaded-one-liner threshold."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 796,
+      "category": "needless-abstraction",
+      "claim": "_write_annotations() is a single-caller wrapper that directly passes through to _write_json() without adding semantic value",
+      "quote": "def _write_annotations(directory: Path, result: AnnotatorResult) -> None:\n    _write_json(directory / \"annotations.json\", result)",
+      "verdict": "KILLED",
+      "verifier_note": "The wrapper names the annotations artefact and gives the large configuration runner a semantic output-writing step. Its one call site does not make the boundary needless."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 845,
+      "category": "needless-abstraction",
+      "claim": "_gt_rallies_for_fixture() imports a function, then immediately calls and returns it as a single-caller wrapper",
+      "quote": "def _gt_rallies_for_fixture(master: Any, fixture: Fixture) -> list[GtRally]:\n    from annotator.calibration.scoring import load_gt_rallies\n\n    return load_gt_rallies(master, fixture.video_id)",
+      "verdict": "KILLED",
+      "verifier_note": "The helper gives a clear domain name to the fixture-to-video-id mapping and keeps the lazy import out of _write_scoring_outputs. The matching naming-lens finding is merged here. The naming-lens quote omitted the blank line present in the source.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 916,
+      "category": "docs-orientation",
+      "claim": "Function `_run_one_configuration` (98 code lines) lacks a docstring to orient a reader on its purpose, scope, and control flow through multiple exception handlers.",
+      "quote": "def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None:\n    state.started_at_utc = utc_now()",
+      "suggested_fix": "Add a docstring explaining that this function runs court-evidence detection and annotator inference for one configuration, writes intermediate outputs and failure records, and leaves successful states for the scoring stage.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1136,
+      "category": "docs-orientation",
+      "claim": "Function `_setup` (63 code lines) lacks a docstring; it performs complex state initialization across cases, manifests, and shared geometry data without orienting a new reader.",
+      "quote": "def _setup(driver: RunDriver) -> None:\n    driver.source_commit = _source_commit()",
+      "suggested_fix": "Add a docstring explaining that _setup initializes the driver with manifests, loads ground-truth tables and shared pins, validates inputs, and prepares cases and configurations for execution.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 851,
+      "category": "docs-orientation",
+      "claim": "Function `_configuration_manifest` (55 code lines) lacks a docstring; the name does not clearly signal that it returns a nested dict, making the function's purpose opaque to a skimmer.",
+      "quote": "def _configuration_manifest(\n    state: ConfigurationState,\n    driver: RunDriver,\n    failure_record: dict[str, Any] | None,\n) -> dict[str, object]:",
+      "suggested_fix": "Add a docstring explaining that this function assembles the output manifest dict for a single configuration run, including artifacts, inputs, timing, and resolved settings.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The name and return annotation do signal a configuration manifest dictionary, so that part of the scanner's rationale is overstated. The 55-line assembly still lacks a concise orientation of its artefacts, inputs, timing and failure fields."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 809,
+      "category": "docs-orientation",
+      "claim": "Function `_write_scoring_outputs` (9 parameters, 34 code lines) lacks a docstring to explain what scoring outputs are written and why multiple related functions are called.",
+      "quote": "def _write_scoring_outputs(\n    directory: Path,\n    fixture: Fixture,\n    case: CaseData,\n    result: AnnotatorResult,\n    capture: RunCapture,\n    master: Any,\n    court_info: dict[str, object],\n) -> dict[str, object]:",
+      "suggested_fix": "Add a docstring explaining that this function scores the annotator output against ground truth, computes contact and court-validity metrics, writes CSV and JSON results, and returns the metrics dict.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1201,
+      "category": "docs-orientation",
+      "claim": "Function `_score_configurations` (37 code lines) lacks a docstring; the scope of scoring, conditions that trigger skipping, and failure handling are not immediately clear.",
+      "quote": "def _score_configurations(driver: RunDriver) -> None:\n    if driver.configurations is None or driver.master is None or driver.courts is None:",
+      "suggested_fix": "Add a docstring explaining that this function scores each successful inference configuration against ground truth, verifies GT files, handles scoring failures, and updates configuration status.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 752,
+      "category": "docs-orientation",
+      "claim": "Function `_load_case` (19 code lines) lacks a docstring; it validates and loads multiple array files and probes video metadata but no summary guides a new reader.",
+      "quote": "def _load_case(fixed: FixedCase, manifest: InputManifest, fixture: Fixture) -> CaseData:\n    video_pin = manifest.videos[fixture.name]",
+      "suggested_fix": "Add a docstring explaining that this function loads a case's video, tracking, and pose data from pins, validates array shapes and video properties, and returns a populated CaseData record.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 757,
+      "category": "style-house",
+      "claim": "Magic indices into `fixture.files` (skipping index 4) lack an explanation; a reader cannot infer the semantic meaning of each index.",
+      "quote": "    bboxes_pin, scores_pin, kps_pin, ndet_pin = fixture.files[1], fixture.files[2], fixture.files[3], fixture.files[5]",
+      "suggested_fix": "Add an inline comment mapping indices to semantics, e.g. `# fixture.files: [0]=track, [1]=bboxes, [2]=scores, [3]=kps, [4]=unused, [5]=ndet`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The assigned names explain four selected positions and the track assignment explains index 0, but the skipped index 4 and the positional fixture contract still require a reader to look elsewhere."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1149,
+      "category": "comprehension-trap",
+      "claim": "The terse `# NB NOT THREADSAFE` comment leaves the reason for the temporary module-level override of `gt_scoring_module.SHARED_FILES` to inference; concurrent calls can observe the shared mutation.",
+      "quote": "    # NB NOT THREADSAFE\n    gt_scoring_module.SHARED_FILES = tuple(SHARED_FILES[:3])",
+      "suggested_fix": "Expand the comment to name `gt_scoring_module.SHARED_FILES` and explain that the temporary module-level override is restored in `finally` but is not safe during concurrent calls.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Originally suspected category: comment-noise. Correction: keep the warning, but explain the module-level mutation and its restoration in finally. The comment is not noise because it flags a real thread-safety invariant; its brevity leaves the hazard and reason under-explained."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1145,
+      "category": "comprehension-trap",
+      "claim": "The setup comment refers to an unnamed 'existing helper' and 'old calibration loader' instead of naming `load_gt_tables` and `gt_scoring_module.SHARED_FILES`, so the reason for the temporary verification-view change requires inference.",
+      "quote": "    # The existing helper shares one pin tuple with its old calibration loader. Restrict its\n    # verification view for this call so eligible per-set CSVs stay at the post-inference gate.",
+      "suggested_fix": "Name `load_gt_tables` and `gt_scoring_module.SHARED_FILES`, and explain that the first three shared pins are exposed during setup while per-set CSV verification remains at the scoring boundary.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Originally suspected category: comment-noise. Correction: name load_gt_tables and gt_scoring_module.SHARED_FILES while retaining the sequencing rationale. The comment carries non-obvious coupling information, so it is not noise, but its historical wording makes the relationship harder to follow."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1299,
+      "category": "docs-prose",
+      "claim": "Docstring phrase \"into its one timestamped in-repository directory\" is awkward; grammatically unclear what \"its\" refers to and phrasing is indirect.",
+      "quote": "    \"\"\"Run the real CLI into its one timestamped in-repository directory.\"\"\"",
+      "suggested_fix": "Revise to e.g. \"Run the full CLI pipeline, writing results to a timestamped directory in the repository, then generate summary reports.\"",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 878,
+      "category": "style-house",
+      "claim": "Sorting key with repeated hardcoded role list across predicate and index lookup is fragile and could diverge if either list is modified.",
+      "quote": "    inputs.sort(key=lambda record: [\n        \"video\", \"track\", \"bboxes\", \"scores\", \"kps\", \"ndet\", \"resolution_csv\", \"homography_csv\",\n        \"courtkeynet_config\", \"courtkeynet_weights\", \"shots_master\",\n    ].index(record[\"role\"]) if record[\"role\"] in {\n        \"video\", \"track\", \"bboxes\", \"scores\", \"kps\", \"ndet\", \"resolution_csv\", \"homography_csv\",\n        \"courtkeynet_config\", \"courtkeynet_weights\", \"shots_master\",\n    } else 99)",
+      "suggested_fix": "Extract the role ordering to a module-level constant or named tuple, use it in both the predicate and index lookup, and define a default sort key once.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Merged the matching naming-lens repetition finding. The overloaded-lambda finding remains separate because it concerns expression density rather than only the duplicated role vocabulary.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1330,
+      "category": "docs-orientation",
+      "claim": "Function `main` (6 code lines) lacks a docstring; entry point behavior is not documented for a reader new to the module.",
+      "quote": "def main(argv: Sequence[str] | None = None) -> int:\n    args = build_parser().parse_args(argv)\n    command = sys.argv if argv is None else (sys.argv[0], *argv)",
+      "verdict": "KILLED",
+      "verifier_note": "The conventional six-line entry point visibly parses arguments, builds the command record and delegates to _run_cli_measurement with standard error handling. A docstring would repeat behaviour that is already clear."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 675,
+      "category": "needless-abstraction",
+      "claim": "Single-caller helper that joins path components without justifying the indirection.",
+      "quote": "def _configuration_path(root: Path, parent: str, case_id: str) -> Path:\n    return root / parent / Path(case_id)",
+      "suggested_fix": "Inline at the single call site (line 1194) where it would be clearer than hopping to a one-liner definition.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 884,
+      "category": "style-house",
+      "claim": "The fallback sort key value 99 has no domain grounding or named constant to explain why this number.",
+      "quote": "        \"video\", \"track\", \"bboxes\", \"scores\", \"kps\", \"ndet\", \"resolution_csv\", \"homography_csv\",\n        \"courtkeynet_config\", \"courtkeynet_weights\", \"shots_master\",\n    } else 99)",
+      "suggested_fix": "Define as a named constant like `UNMATCHED_ROLE_SORT_KEY = 99` at module level with a comment explaining it sorts unmatched roles to the end.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The raw category magic-number is represented as style-house because magic-number is not a rubric category. The surrounding expression shows the intended fallback, but 99 is still an unexplained arbitrary value."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1150,
+      "category": "style-house",
+      "claim": "The slice [:3] restricts SHARED_FILES without naming or explaining why exactly the first three items.",
+      "quote": "    original_shared_files = gt_scoring_module.SHARED_FILES\n    # NB NOT THREADSAFE\n    gt_scoring_module.SHARED_FILES = tuple(SHARED_FILES[:3])",
+      "suggested_fix": "Define a named constant like `GEOMETRY_TABLE_COUNT = 3` or add an inline comment: `# Keep only geometry tables (resolution, homography, shots_master)`. ",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The nearby comments explain the sequencing purpose, and other code identifies the first three shared roles. The literal count still leaves the exact selected-table contract implicit in this assignment. The raw category magic-number is represented as style-house because magic-number is not a rubric category."
+    },
+    {
+      "file": "src/annotator/e2e_court_annotator.py",
+      "line": 1177,
+      "category": "style-house",
+      "claim": "Array shape tuples (0,3), (0,0,4), etc. are hard-coded with no naming or explanation of what array types they represent.",
+      "quote": "                np.empty((0, 3)),\n                np.empty((0, 0, 4)),\n                np.empty((0, 0)),",
+      "suggested_fix": "Define named shape constants at module level (e.g., `EMPTY_TRACK_SHAPE = (0, 3)`) and add a comment explaining each field's expected type and role in CaseData.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "These are placeholder arrays in a positional CaseData construction after a failed load. The CaseData fields and validation logic provide context elsewhere, but the empty shapes are not grounded at this use site. The raw category magic-number is represented as style-house because magic-number is not a rubric category."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

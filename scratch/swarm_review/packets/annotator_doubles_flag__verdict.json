@@ -1,0 +1,29 @@
+{
+  "module": "src/annotator/doubles_flag.py",
+  "probe_assessment": "The cold read holds up. The purpose and all three public API roles match the module: the fraction rule, whole-video filtering, and CLI inputs and output are described accurately. The probe listed no stumbles, so there are no comprehension-trap findings.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/doubles_flag.py",
+      "line": 95,
+      "category": "data-structure",
+      "claim": "Return type `list[dict]` hides the dict structure; rows always have keys 'video_id', 'rally_id', 'doubles_flag' with string values.",
+      "quote": "def _whole_video_verdicts(overcount_paths: dict[str, Path]) -> list[dict]:\n    \"\"\"One whole-video verdict per over-count file; rally_id blank (no spans given).\"\"\"\n    rows.append({'video_id': video_id, 'rally_id': '', 'doubles_flag': str(flag)})",
+      "verdict": "KILLED",
+      "verifier_note": "The submitted quote is not present verbatim as one contiguous excerpt: source lines 97-99 occur between the docstring and rows.append. The underlying data-structure claim is accurate, but an absent quote must be killed."
+    },
+    {
+      "file": "src/annotator/doubles_flag.py",
+      "line": 104,
+      "category": "data-structure",
+      "claim": "Return type `list[dict]` hides the expected dict structure with keys 'video_id', 'rally_id', 'doubles_flag' and string values.",
+      "quote": "def _span_verdicts(rally_spans_csv: Path, overcount_paths: dict[str, Path]) -> list[dict]:\n    \"\"\"One verdict per rally span, reading (video_id, rally_id, start_frame, end_frame).",
+      "suggested_fix": "Define a TypedDict for the fixed three-column CSV row and use it instead of `dict` in the row-producing and writing functions.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present verbatim, and the claim holds. The row literals and fixed CSV header establish a stable three-key, string-valued record that `list[dict]` does not expose in the type signature. This merges the equivalent report anchored at line 135.",
+      "duplicates_merged": 1
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,244 @@
+{
+  "module": "src/annotator/calibration/scoring.py",
+  "probe_assessment": "The cold read mostly held up. The purpose and most public API roles are accurate. Two API summaries need correction: `RallyBoundary.COVERED` also requires every stroke to be in exactly one containing span, and `strict_contact_rows` emits unmatched GT rows for split and missed rallies even though only covered rallies receive candidates. The scaling helper's formula and half-up rounding remain unresolved locally, and `_raw_precision_curve` does not define the 'real input' invariant behind its unique-frame assumption. The midpoint stumble is a probe-model miss: half-open membership is visible in the module and `floor(...)+1` assigns an exact integer midpoint to the earlier target. Probe seat: claude-haiku, low effort.",
+  "probe_findings": [
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 131,
+      "category": "comprehension-trap",
+      "claim": "The probe's `RallyBoundary` summary omits a second condition for `COVERED`: every stroke must be contained by exactly one span. With overlapping spans, a rally can have all strokes in one span yet be classified as `SPLIT`.",
+      "quote": "    every_stroke_in_exactly_one = all(len(containing) == 1 for containing in containing_per_stroke)\n    all_in_one_span = len(span_indices) == 1\n    if every_stroke_in_exactly_one and all_in_one_span:",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 288,
+      "category": "comprehension-trap",
+      "claim": "The probe says `strict_contact_rows` generates rows for covered rallies only, but the loop processes every GT rally and emits unmatched GT rows for split and missed rallies; only candidate pooling is restricted to covered rallies.",
+      "quote": "    for gt_index, (rally, (boundary, span_idx)) in enumerate(zip(gt_rallies, classifications)):\n        gt_frames = list(rally.stroke_frames)\n        candidate_frames = candidates_by_span.get(span_idx, []) if boundary is RallyBoundary.COVERED else []",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 260,
+      "category": "comprehension-trap",
+      "claim": "The frame conversion and half-up rounding are delegated to imported `ScalingKind.FRAME_COUNT.scale`, whose formula and rounding behaviour are not defined in this module; a junior cannot resolve them from this file alone.",
+      "quote": "def _scale_base30_frames(base_frames: float, fps: float) -> int:\n    \"\"\"Scale a base-30 frame count with the annotator's half-up rule.\"\"\"\n    return int(ScalingKind.FRAME_COUNT.scale(base_frames, fps))",
+      "confidence": "high"
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 488,
+      "category": "comprehension-trap",
+      "claim": "The docstring states, but does not define or locally enforce, the disjoint-span and unique-frame invariant behind the phrase 'real input'. A junior cannot tell from this file which accepted inputs guarantee that the raw denominator equals `len(contacts)`.",
+      "quote": "        them, including contacts in spurious spans that no rally pools. Spans are\n        disjoint in frame range, so distinct contacts carry distinct frames and the\n        set size equals ``len(contacts)`` on real input.",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 83,
+      "category": "docs-over-types",
+      "claim": "Function `_spans_containing` lacks a return type hint; without it, a caller cannot quickly infer the structure.",
+      "quote": "def _spans_containing(frame: int, spans: Sequence[tuple[int, int]]) -> list[int]:\n    \"\"\"Indices of the spans that contain ``frame`` (start <= frame < end).\"\"\"\n    return [idx for idx, (start, end) in enumerate(spans) if start <= frame < end]",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted definition already has the explicit `-> list[int]` return annotation."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 88,
+      "category": "docs-over-types",
+      "claim": "Function `_spans_overlapping_extent` lacks a return type hint.",
+      "quote": "def _spans_overlapping_extent(\n    extent: tuple[int, int], spans: Sequence[tuple[int, int]]\n) -> list[int]:",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted definition explicitly returns `list[int]`."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 138,
+      "category": "docs-over-types",
+      "claim": "Function `classify_all` lacks a return type hint.",
+      "quote": "def classify_all(\n    spans: Sequence[tuple[int, int]], gt_rallies: Sequence[GtRally]\n) -> list[tuple[RallyBoundary, int | None]]:",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted definition explicitly has `-> list[tuple[RallyBoundary, int | None]]`."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 163,
+      "category": "docs-over-types",
+      "claim": "Function `score_boundaries` returns bare `dict` instead of a typed dict or specific structure; a skimmer cannot infer the keys without reading the function body.",
+      "quote": "def score_boundaries(\n    spans: Sequence[tuple[int, int]], gt_rallies: Sequence[GtRally]\n) -> dict:",
+      "suggested_fix": "Use a TypedDict or named record for the fixed boundary-metric fields.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The return structure has stable named fields, but the signature exposes only `dict` and the docstring points the reader to keys inline rather than stating them."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 432,
+      "category": "comprehension-trap",
+      "claim": "Function `_prf` uses only a bare `-> dict` annotation, so a caller skimming the signature cannot infer the fixed result keys.",
+      "quote": "def _prf(matched: int, n_gt: int, n_candidates: int) -> dict:\n    \"\"\"Recall/precision/F1 from raw counts; None where a denominator is zero.\"\"\"\n    recall = matched / n_gt if n_gt else None",
+      "suggested_fix": "Use a TypedDict or named record for `recall`, `precision`, `f1`, `gt`, `candidates`, and `matched`.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Originally suspected category: `docs-over-types`. The scan's wording that the function lacks a return type hint is false because `-> dict` is present. The bare annotation is still under-specified and hides the fixed six-field mapping, which is the corrected comprehension finding."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 452,
+      "category": "docs-over-types",
+      "claim": "Function `_tolerance_curve` declares return type `dict[str, dict]` without specifying the inner dict structure; a caller must read the docstring or code to understand the shape.",
+      "quote": "def _tolerance_curve(\n    rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]], tolerances: Sequence[int]\n) -> dict[str, dict]:",
+      "suggested_fix": "Specify the fixed inner metric structure with a TypedDict or equivalent named record.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring names the inner fields, but the return annotation still leaves their structure untyped."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 474,
+      "category": "docs-over-types",
+      "claim": "Function `_raw_precision_curve` declares return type `dict[str, dict]` but does not specify inner structure.",
+      "quote": "def _raw_precision_curve(\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],\n    rally_pairs: Sequence[tuple[Sequence[int], Sequence[int]]],\n    tolerances: Sequence[int],\n) -> dict[str, dict]:",
+      "suggested_fix": "Specify the fixed inner raw-precision structure with a TypedDict or equivalent named record.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The return mapping has stable fields `precision_raw`, `matched`, and `candidates`, but the annotation leaves them opaque."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 525,
+      "category": "comprehension-trap",
+      "claim": "Function `_count_gate` uses only a bare `-> dict` annotation, so a caller skimming the signature cannot infer the fixed keys `pass`, `total`, and `fraction`.",
+      "quote": "def _count_gate(passes: int, total: int) -> dict:\n    \"\"\"Pass/total/fraction for the per-rally count gate (candidates == strokes).\"\"\"\n    return {",
+      "suggested_fix": "Use a TypedDict or named record for `pass`, `total`, and `fraction`.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Originally suspected category: `docs-over-types`. The scan's wording that the function lacks a return type hint is false because `-> dict` is present. The bare annotation is still under-specified and hides the fixed three-field mapping, which is the corrected comprehension finding."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 534,
+      "category": "docs-over-types",
+      "claim": "Function `score_contacts` returns bare `dict` without type information; the structure requires reading the body or extensive docstring.",
+      "quote": "def score_contacts(\n    spans: Sequence[tuple[int, int]],\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],\n    gt_rallies: Sequence[GtRally],\n    tolerances: Sequence[int] = DEFAULT_TOLERANCES,\n) -> dict:",
+      "suggested_fix": "Specify the fixed result structure with TypedDicts or named records.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The return value has stable top-level fields and nested structures, but the signature exposes only bare `dict`."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 569,
+      "category": "style-house",
+      "claim": "Nested comprehension with method call and default argument makes the traversal order hard to follow right-to-left; the rubric favours explicit loops for comprehensions with method calls.",
+      "quote": "candidates = [frame for idx in overlapping for frame in contacts_by_span.get(idx, [])]",
+      "suggested_fix": "Build `candidates` with an explicit loop and `extend` for each overlapping span.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The nested comprehension calls `.get(...)` inside the expression and flattens two loops, which meets the rubric's explicit-loop case."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 152,
+      "category": "docs-over-types",
+      "claim": "Array `values` is created from a sequence of floats but lacks a shape annotation; the axis semantics are not documented for clarity.",
+      "quote": "values = np.asarray(offsets, dtype=float)\n    p10, p90 = np.percentile(values, [10, 90])",
+      "verdict": "KILLED",
+      "verifier_note": "`offsets` is annotated as a one-dimensional `Sequence[int]`, so this conversion's one-dimensional shape and lack of multiple axes are clear; the claim also misstates the input as floats."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 185,
+      "category": "docs-over-types",
+      "claim": "Array `all_stroke_frames` is constructed by flattening nested lists but lacks a shape annotation.",
+      "quote": "all_stroke_frames = np.array(\n        [frame for rally in gt_rallies for frame in rally.stroke_frames], dtype=int\n    )",
+      "verdict": "KILLED",
+      "verifier_note": "The comprehension produces one flat one-dimensional array, and the immediately preceding comment explicitly calls it a flat array; no non-obvious axis is left undocumented."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 298,
+      "category": "repetition",
+      "claim": "Row dictionary building logic is repeated three times (matched, unmatched_gt, unmatched_candidate) with identical keys.",
+      "quote": "rows.append({\n                    'rally_id': gt_index,\n                    'tolerance_base30': tolerance_base30,",
+      "suggested_fix": "Factor the shared row fields into a small row builder or shared base mapping while keeping row-specific values explicit.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The matched, unmatched-GT, and unmatched-candidate branches repeat the same seven-key record layout; the row-specific values do not remove the repeated structure."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 479,
+      "category": "docs-orientation",
+      "claim": "Docstring is too verbose for the function size, spanning 30 lines while the code is 14 lines.",
+      "quote": "    \"\"\"Per-tolerance precision over PHYSICAL candidates, not merge-pooled ones.\n\n    The ``tolerances`` curve above counts a candidate once per GT rally its span",
+      "suggested_fix": "Condense the rationale to the metric distinction and keep the parameter and return descriptions succinct, or move the longer explanation to module-level documentation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "Confirmed as a docs-orientation judgement under the rubric. The explanation is substantive and preserves important metric semantics, so the concern is reader load rather than needless prose."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 551,
+      "category": "stale-doc",
+      "claim": "Parameter docstring describes a 3-tuple but type hint shows a 4-tuple with undocumented 4th element.",
+      "quote": "    :param contacts: detected contacts as ``(rally_id, contact_frame, proximity_ok)``;\n        ``proximity_ok`` is not used here.\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],",
+      "verdict": "KILLED",
+      "verifier_note": "The underlying mismatch is visible, but the supplied three-line quote is not a verbatim contiguous excerpt: the signature appears before this docstring in the file, not after it."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 501,
+      "category": "stale-doc",
+      "claim": "Parameter docstring describes a 3-tuple but type hint shows a 4-tuple with undocumented 4th element.",
+      "quote": "    :param contacts: detected contacts ``(rally_id, contact_frame, proximity_ok)``;\n        the full list, so spurious-span candidates land in the denominator.\n    contacts: Sequence[tuple[int, int, bool | None, bool | None]],",
+      "verdict": "KILLED",
+      "verifier_note": "The underlying mismatch is visible, but the supplied three-line quote is not a verbatim contiguous excerpt: the signature appears before this docstring in the file, not after it."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 347,
+      "category": "style-house",
+      "claim": "Magic number 90 (half-width in base-30 frames) lacks domain grounding or explanation.",
+      "quote": "    half_width = _scale_base30_frames(90, fps)",
+      "suggested_fix": "Name the diagnostic half-width or add a why-comment explaining that 90 base-30 frames is the wide edge-analysis window.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The helper name gives the unit but the literal's diagnostic duration and selection rationale are not explained at the call site."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 15,
+      "category": "style-house",
+      "claim": "DEFAULT_TOLERANCES values (1, 2, 5, 10) lack domain grounding or explanation.",
+      "quote": "DEFAULT_TOLERANCES = (1, 2, 5, 10)",
+      "verdict": "KILLED",
+      "verifier_note": "The rubric accepts a named constant as domain grounding. `DEFAULT_TOLERANCES` is a clear module-level name, and the function documentation identifies these as frame tolerances; an absent rationale for the exact selection is optional polish."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 272,
+      "category": "docs-orientation",
+      "claim": "strict_contact_rows docstring lacks parameter documentation and does not describe the structure of returned dicts.",
+      "quote": "def strict_contact_rows(\n    spans: Sequence[tuple[int, int]],\n    filtered_contacts: Sequence[ContactCandidate],\n    gt_rallies: Sequence[GtRally],\n    fps: float,\n    tolerances_base30: Sequence[int] = (5, 10),\n) -> list[dict[str, int | str | None]]:\n    \"\"\"Build strict GT contact rows for covered rallies only.\n\n    A covered GT rally receives candidates from its one associated predicted span.\n    Split and missed rallies therefore have unmatched GT rows but no candidates.\n    ``greedy_match`` supplies the matched-row order and its deterministic ties.\n    \"\"\"",
+      "suggested_fix": "Document the parameter meanings and the returned row keys: `rally_id`, `tolerance_base30`, `tolerance_frames`, `row_kind`, `gt_frame`, `candidate_frame`, and `offset_frames`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring explains the high-level behaviour but omits parameter descriptions and the stable row schema."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 341,
+      "category": "docs-orientation",
+      "claim": "wide_edge_contact_rows docstring lacks parameter documentation and does not describe the structure of returned dicts.",
+      "quote": "def wide_edge_contact_rows(\n    gt_rallies: Sequence[GtRally],\n    filtered_contacts: Sequence[ContactCandidate],\n    fps: float,\n    n_frames: int,\n) -> list[dict[str, int | str | None]]:\n    \"\"\"Build the diagnostic first/last-GT-contact report with wide edge windows.\n\n    Windows are clipped to the video and split at the deterministic midpoint of\n    adjacent targets. Matching is global and one-to-one, even though final windows\n    are normally disjoint.\n    \"\"\"",
+      "suggested_fix": "Document the parameter meanings and the returned row keys: `window_id`, `rally_id`, `edge`, `window_start`, `window_end`, `row_kind`, `gt_frame`, `candidate_frame`, and `offset_frames`.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring describes the window and matching policy but omits parameter meanings and the stable row schema."
+    },
+    {
+      "file": "src/annotator/calibration/scoring.py",
+      "line": 393,
+      "category": "style-house",
+      "claim": "Redundant tuple unpacking: _gt_frame is unpacked but never used; code accesses target[0] instead.",
+      "quote": "        _gt_frame, source_order, edge, _start, _end = target\n        common = {\n            'window_id': target_idx,\n            'rally_id': source_order,\n            'edge': edge,\n            'window_start': window_start,\n            'window_end': window_end,\n        }\n        if target_idx in matches:\n            candidate_frame = candidate_frames[matches[target_idx]]\n            rows.append({\n                **common,\n                'row_kind': 'matched',\n                'gt_frame': target[0],",
+      "suggested_fix": "Use `_gt_frame` for the later frame and offset accesses, or remove it from the unpacking and use tuple indices consistently.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "`_gt_frame` is unpacked at line 393 but the matched and unmatched rows read `target[0]` instead."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

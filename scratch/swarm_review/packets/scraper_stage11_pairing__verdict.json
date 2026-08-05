@@ -1,0 +1,91 @@
+{
+  "module": "src/scraper/stage11_pairing.py",
+  "probe_assessment": "The cold read held up. The purpose and all three public-API roles match the module's actual flow, including the FPS sidecar, replay-mask handling, manifest boundary, and one-claim-per-chunk pairing. The wording that each rally 'matches' and that main writes 'paired' rows omits the keep-with-flag output: unmatched, masked, and commentary-ineligible rallies are still written with blank commentary fields. The module states that contract explicitly at lines 3-5 and 132-133, so the omission is probe compression rather than a code-invited comprehension trap. There were no listed stumbles.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 261,
+      "category": "stale-doc",
+      "claim": "Docstring states function maps 'rally ids' but the function parameter is `video_ids: set[str]`, not rally_ids.",
+      "quote": "\"\"\"Map fps-bearing rally ids to exactly one existing manifest entry.\"\"\"",
+      "suggested_fix": "Change docstring to say 'Map fps-bearing video ids' to match the parameter name.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. `video_ids` contains video ids and the returned index is keyed by those ids, so 'rally ids' is stale terminology. The same line-261 docs-orientation finding is merged here.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 97,
+      "category": "style-house",
+      "claim": "Function name uses 'believed_replay' terminology but parameter and docstring use 'duration_filtered_replay' for the same concept, violating 'one vocabulary per concept'.",
+      "quote": "def _believed_replay_in_rally_interior(\n    duration_filtered_replay_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,",
+      "suggested_fix": "Rename function to `_duration_filtered_replay_in_rally_interior` to match the parameter naming convention.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The helper names the replay classification 'believed' while its input and explanatory prose call the same filtered mask 'duration-filtered replay'. The distinction between a mask and the predicate does not remove the vocabulary switch for a junior reader."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 138,
+      "category": "docs-prose",
+      "claim": "Sentence embeds multiple sub-clauses, violating single-clause-per-sentence rule",
+      "quote": "A chunk pairs with at most one rally: rallies are processed in id order and a claimed chunk is skipped thereafter, so when two rallies' windows both cover a chunk the earlier rally wins.",
+      "suggested_fix": "Split the invariant and tie rule into short sentences. For example: 'A chunk pairs with at most one rally. Rallies are processed in id order, and claimed chunks are skipped. The earlier rally wins when windows overlap.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quoted sentence is present in the docstring across wrapped source lines. It combines the one-chunk invariant, processing order, skip behaviour, overlap condition, and tie outcome in one sentence, so the docs-prose finding holds."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 199,
+      "category": "docs-over-types",
+      "claim": "Docstring describes return structure already captured in type hint dict[str, float]",
+      "quote": "\"\"\"Read video_fps.csv into a `{video_id: fps}` map.\"\"\"",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the claim is wrong. `dict[str, float]` gives only the Python types; the docstring adds the input filename and the meaning of the keys and values."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 207,
+      "category": "docs-over-types",
+      "claim": "Docstring describes return structure already captured in type hint dict[str, list[tuple[int, int, int]]]",
+      "quote": "\"\"\"Group rally spans by video: `{video_id: [(rally_id, start, end), ...]}`.",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: it omits the closing triple quotes present in the file's docstring. The underlying docs-over-types claim would also be wrong because the return annotation does not say that the outer key is a video id or that the tuple fields are rally id, start frame, and end frame, but the finding is killed on the quote check."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 240,
+      "category": "docs-orientation",
+      "claim": "Docstring too brief and omits explanation of validation performed or structure expected",
+      "quote": "\"\"\"Read the validated scraper manifest used by the pairing boundary.\"\"\"",
+      "suggested_fix": "State that the manifest must have `dataset = 'scraped'`, a `videos` table, and table-valued entries, and that invalid structure raises an error.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The function checks the dataset value, requires a videos table, and requires each video entry to be a table, but the docstring does not describe that input shape or validation boundary. The body is readable, yet a skim reader must inspect it to learn what makes the manifest valid."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 267,
+      "category": "repetition",
+      "claim": "Defensive validation pattern 'if invalid, raise if relevant else skip' duplicated in lines 267–270 and 271–276",
+      "quote": "if isinstance(video_id, bool) or not isinstance(video_id, (str, int)):\n    if Path(basename).stem in video_ids and (video_dir / basename).is_file():\n        raise TypeError(...)\n    continue\nif str(Path(basename).stem) != str(video_id):\n    if str(video_id) in video_ids and (video_dir / basename).is_file():\n        raise ValueError(...)\n    continue",
+      "suggested_fix": "Extract the defensive check pattern into a helper function like `_validate_manifest_entry(basename, entry, condition, error_type, error_msg)` to avoid repeating 'if condition then raise (if relevant) else skip' twice",
+      "verdict": "KILLED",
+      "verifier_note": "The supplied quote is not verbatim: the file contains full f-string error messages, not the literal `...` placeholders in both raise calls. The two branches do have a similar shape, but this finding cannot survive the required quote check."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 222,
+      "quote": "if not chunk_path.exists():\n        return []",
+      "note": "A missing chunk sidecar becomes an empty chunk list without a warning, so an unexpected absence for a commentary-eligible video leaves rallies unpaired without surfacing the missing input."
+    },
+    {
+      "file": "src/scraper/stage11_pairing.py",
+      "line": 231,
+      "quote": "if not mask_path.exists():\n        return None",
+      "note": "A missing replay mask silently disables replay exclusion, so an unexpected absent mask allows pairing to proceed without that data."
+    }
+  ]
+}

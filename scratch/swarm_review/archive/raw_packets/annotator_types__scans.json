@@ -1,0 +1,154 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/types.py",
+    "line": 104,
+    "category": "stale-doc",
+    "claim": "Docstring refers to enum members SLOT_TOP and SLOT_BOTTOM but the actual enum defines TOP and BOTTOM.",
+    "quote": "``SLOT_TOP = 0`` and ``SLOT_BOTTOM = 1`` let annotator code index sticky's",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior reading the docstring will look for SLOT_TOP and SLOT_BOTTOM attributes but find only TOP and BOTTOM, causing confusion about what the code actually provides."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "claim": "Module docstring uses unexplained jargon (stage 8, point-winner, shuttle-track primitives) without orienting a reader unfamiliar with the codebase.",
+    "quote": "Shared annotator declarations: fps scaling, storage slots, and the stage\n8/point-winner shuttle-track primitives and pose-array conventions shared\nacross stages.",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior developer cannot understand the scope or purpose of this module from the docstring alone without external context."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 189,
+    "category": "unclear-name",
+    "claim": "Field name 'picks' does not convey what is being picked or selected.",
+    "quote": "picks: np.ndarray",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior reading StickyResult cannot infer the purpose of the picks field from its name alone."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 193,
+    "category": "unclear-name",
+    "claim": "Field name 'distances_per_slot' omits what entities the distances measure between.",
+    "quote": "distances_per_slot: np.ndarray",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot determine what distances are being stored (e.g., from wrist to court, player to shuttle) or how slot relates to the calculation."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 194,
+    "category": "unclear-name",
+    "claim": "Field name 'wrist_dist_px' omits the reference point for the distance measurement.",
+    "quote": "wrist_dist_px: np.ndarray",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot determine what the wrist distance is measured to (e.g., contact point, court boundary, shuttle)."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 195,
+    "category": "unclear-name",
+    "claim": "Field name 'analysed' does not convey what state or condition it represents.",
+    "quote": "analysed: np.ndarray",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot infer what the analysed field indicates (e.g., frames that were processed, passed checks, or are valid) from the name alone."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 75,
+    "category": "unclear-name",
+    "claim": "Enum class name ReentryGuardVariant uses domain jargon without explaining what 'reentry guard' means or why it has variants.",
+    "quote": "class ReentryGuardVariant(StrEnum):\n    \"\"\"Which sides of a high-shot gap the re-entry buffer tests.\"\"\"",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot understand the purpose or semantics of this enum from the name and brief docstring without domain knowledge."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 93,
+    "category": "docs-orientation",
+    "claim": "ServeStartConfig docstring introduces undefined jargon 'sticky lane's only unit' without explanation.",
+    "quote": "\"\"\"Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit.\"\"\"",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot understand why threshold_bh is 'the sticky lane's only unit' or what a sticky lane is."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 25,
+    "category": "docs-orientation",
+    "claim": "ScalingKind docstring references scale_for_fps function that is not defined or imported in this module, leaving the cross-module consistency constraint unexplained.",
+    "quote": "arithmetic must stay identical to ``scale_for_fps``\nuntil the threading stage rewires the table onto these declarations.",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot locate or understand the constraint that scale() must match scale_for_fps because that function is not visible in this file."
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 181,
+    "category": "magic-numbers",
+    "claim": "Hardcoded COCO keypoint indices (9, 10, 15, 16) have minimal grounding; 'COCO' itself is not explained.",
+    "quote": "WRIST_L, WRIST_R = 9, 10\nANKLE_L, ANKLE_R = 15, 16",
+    "chunk_id": "whole",
+    "failure_scenario": "A junior cannot understand why these specific numbers are correct or what COCO standard defines without external knowledge."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/types.py",
+    "line": 185,
+    "category": "ordering",
+    "claim": "StickyResult NamedTuple is defined after utility functions and constants, separated from other type definitions.",
+    "quote": "class StickyResult(NamedTuple):\n    \"\"\"Cached sticky evidence. ``bbox_height`` is in pixels.\"\"\"",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/types.py",
+    "line": 104,
+    "category": "stale-doc",
+    "chunk_id": "whole",
+    "claim": "Docstring refers to enum values 'SLOT_TOP' and 'SLOT_BOTTOM', but the actual enum defines 'TOP' and 'BOTTOM'.",
+    "quote": "``SLOT_TOP = 0`` and ``SLOT_BOTTOM = 1`` let annotator code index sticky's\nper-slot arrays directly.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 93,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "The phrase 'the sticky lane's only unit' is unclear and non-idiomatic; a reader cannot easily infer that this means body-height is the sole measurement unit throughout the sticky code.",
+    "quote": "Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 159,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "The statement 'nanmedian drops the pad and any NaN steps' is ambiguous; 'drops' could mean removes from output or ignores in computation, and 'NaN steps' is vague when the intent is to ignore any NaN values.",
+    "quote": "Pads both ends with NaN so every frame gets a full-width window and the\noutput keeps length t; nanmedian drops the pad and any NaN steps.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/types.py",
+    "line": 185,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "The NamedTuple has eight fields, but the docstring documents only 'bbox_height'; seven fields lack explanation of what they represent or their array shapes, leaving a junior skimmer without orientation.",
+    "quote": "class StickyResult(NamedTuple):\n    \"\"\"Cached sticky evidence. ``bbox_height`` is in pixels.\"\"\"\n\n    distances: np.ndarray\n    picks: np.ndarray\n    standing_count: np.ndarray\n    ankle_pos: np.ndarray",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ }
+]

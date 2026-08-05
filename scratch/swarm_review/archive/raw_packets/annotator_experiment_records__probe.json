@@ -1,0 +1,39 @@
+{
+ "module": "src/annotator/experiment_records.py",
+ "purpose": "Provides utilities for managing annotator experiment run records. Builds summaries and human-readable reports from measurement results, and cleans completed runs by sanitizing sensitive paths in JSON manifests and deleting files containing leaked credentials.",
+ "public_api": [
+  {
+   "name": "utc_run_directory",
+   "role": "Returns a new UTC-formatted directory path below experiments/annotator/runs. Called to create timestamped output directories for experiment runs."
+  },
+  {
+   "name": "count_ignored_npy",
+   "role": "Counts and totals byte size of .npy files in a run directory. Used to report ignored array artifacts in summaries."
+  },
+  {
+   "name": "human_bytes",
+   "role": "Formats byte totals into readable units (bytes/KiB/MiB/GiB). Used in reports and terminal output."
+  },
+  {
+   "name": "build_summary",
+   "role": "Collects root and configuration manifests plus metrics from a completed run into a structured dict. Called to assemble data for summary.json after a successful measurement."
+  },
+  {
+   "name": "format_report",
+   "role": "Renders a markdown table report showing performance metrics across configurations. Called to produce human-readable output from a summary."
+  },
+  {
+   "name": "write_summary_and_report",
+   "role": "Writes summary.json and report.md files after a successful run. Called after measurement completes to record results."
+  },
+  {
+   "name": "clean_run",
+   "role": "Backs up and cleans a completed run by sanitizing sensitive paths in JSON and deleting files with leaked credentials. Returns the archive path if cleanup was needed; called to prepare runs for version control."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point that accepts a run directory path and calls clean_run. Used when invoking the module as a standalone script."
+  }
+ ],
+ "stumbles": []
+}

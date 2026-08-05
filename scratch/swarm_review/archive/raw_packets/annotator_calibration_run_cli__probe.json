@@ -1,0 +1,36 @@
+{
+ "module": "src/annotator/calibration/run_cli.py",
+ "purpose": "This module runs a calibration fixture chain from a committed manifest, providing a command-line entry point and managing path setup for dependency modules. It validates fixtures, runs each one through a scoring pipeline, and optionally writes metrics to CSV files, returning an exit code based on failure rates.",
+ "public_api": [
+  {
+   "name": "FixtureRunner",
+   "role": "Type alias for a callable that executes a fixture and returns an object to be flattened into metrics."
+  },
+  {
+   "name": "build_parser",
+   "role": "Creates and returns an argparse.ArgumentParser configured to accept --fixtures (selected fixture names), --out (output directory for CSV files), and --no-replay-mask flags."
+  },
+  {
+   "name": "run_manifest",
+   "role": "Runs selected fixtures from a registry, collects scores, catches and logs per-fixture failures, optionally writes CSV metrics, and returns exit code 0 (fewer than half failed) or 3 (half or more failed)."
+  },
+  {
+   "name": "main",
+   "role": "Entry point that parses command-line arguments and delegates to run_manifest; called by the if __name__ == '__main__' guard to produce process exit code."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "FixtureRunner = Callable[..., object]",
+   "why_unclear": "The ellipsis hides the parameter signature. From usage I can infer it takes a Fixture and optionally no_replay_mask=bool, but I cannot confirm this is complete or correct without seeing actual runner implementations."
+  },
+  {
+   "quote": "if not root.is_dir() or not os.access(root, os.R_OK):\n        raise RuntimeError(f\"ANNOTATOR_FIXTURES_ROOT is unreadable: {root}\")",
+   "why_unclear": "The fixtures_root() function is imported from another module; I don't know how it determines the root path, what ANNOTATOR_FIXTURES_ROOT means, or whether it's an environment variable."
+  },
+  {
+   "quote": "flattener: Callable[[object], dict[str, int | float | None]] = flatten_metrics,",
+   "why_unclear": "The type annotation declares input as generic object. Neither the docstring nor this file documents what object the runner returns or what structure the flattener expects."
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-"""Pure scoring functions for stage-8 rally and contact detection."""
+"""Pure scoring functions for rally and contact detection."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -14,11 +14,11 @@ from annotator.types import ContactCandidate, ScalingKind
 
 DEFAULT_TOLERANCES = (1, 2, 5, 10)
 
-# Stage 9 replay masking is not applied in sset_01, so replay spans (which
+# Replay masking is not applied in sset_01, so replay spans (which
 # carry no GT strokes) count as spurious by design. Surfaced in the output so a
 # reader does not misread the spurious count as pure false positives.
 SPURIOUS_NOTE = (
-    'stage 9 replay masking not applied in sset_01; replays inflate the '
+    'replay masking not applied in sset_01; replays inflate the '
     'spurious-span count by design'
 )
 

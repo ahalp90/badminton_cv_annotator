@@ -1,0 +1,120 @@
+{
+  "module": "src/annotator/dead_mask.py",
+  "probe_assessment": "The cold read held up. DeadMaskMode defines REPLAY, COMPOSITION, and UNION; build_dead_mask returns the per-frame boolean mask, delegates replay signals to combine_mask, builds composition segments from cuts and keep votes, and ORs the two masks for UNION. The probe listed no stumbles and made no material misreading, so there are no probe findings.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 51,
+      "category": "unclear-name",
+      "claim": "Parameter name 'homography_rows' conveys no meaning to an unfamiliar reader; cannot infer what a homography row is or why it's a list of dicts.",
+      "quote": "homography_rows: list[dict] | None = None,",
+      "suggested_fix": "Document that the value contains per-segment court-homography rows and identify the frame fields and corner fields, or use a named row type.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The name gives a useful domain clue, so 'conveys no meaning' is overstated. The wrapper still leaves the row's per-segment role and dictionary schema unexplained to a skim reader."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 52,
+      "category": "unclear-name",
+      "claim": "Parameter 'track' is too generic; cannot infer what entity is being tracked (player, shuttle, ball).",
+      "quote": "track: np.ndarray | None = None,",
+      "suggested_fix": "Rename it to indicate the shuttle track, or document its `(n_frames, 3)` shuttle-track shape and meaning.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The downstream replay contract identifies this as a shuttle track, but that information is outside this module. A skim of this public wrapper cannot identify the tracked entity."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 56,
+      "category": "unclear-name",
+      "claim": "Parameter 'vote' as a float type doesn't convey what it represents (threshold, weight, confidence level).",
+      "quote": "vote: float | None = None,",
+      "suggested_fix": "Rename it to `composition_vote_threshold` or document that it is the live court-view fraction threshold for each cut segment.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The value is used as a segment keep-fraction threshold, but the short name does not distinguish that threshold from a vote value or weight."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 19,
+      "category": "docs-orientation",
+      "claim": "The `_validate_composition_inputs` docstring is too vague to orient an unfamiliar reader: it does not identify the required `cut_frames` and `keep_vote` forms, the bounds and dtype checks, or the normalised arrays it returns.",
+      "quote": "\"\"\"Validate composition inputs before calling the existing mask builder.\"\"\"",
+      "suggested_fix": "Document the two required inputs, their one-dimensional shapes and types, the cut-index bounds, and the returned normalised cut indices and boolean votes.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The implementation and error messages expose the checks after a reader follows the body, but the docstring does not state the helper's input or return contract. The two overlapping docs-orientation findings were merged.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 59,
+      "category": "docs-orientation",
+      "claim": "Docstring for build_dead_mask doesn't explain which parameters are required for each mode (REPLAY vs COMPOSITION vs UNION).",
+      "quote": "\"\"\"Build a boolean dead-time mask using the selected producer policy.\n\n    ``REPLAY`` delegates to the existing replay signal union. ``COMPOSITION``\n    delegates to the existing cut-segment builder after validating its inputs.",
+      "suggested_fix": "State that replay inputs are optional for REPLAY, while cut_frames and keep_vote are required for COMPOSITION and UNION, and explain that UNION ORs the two masks.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The docstring names all three policies but leaves the mode-specific input contract to the validation branch and imported functions."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 50,
+      "category": "style-house",
+      "claim": "Missing shape annotation on court_present numpy array parameter.",
+      "quote": "court_present: np.ndarray | None = None,",
+      "suggested_fix": "Document the frame-aligned `(n_frames,)` boolean court-present mask in the parameter documentation or an inline shape annotation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The wrapper passes this opaque array through without showing its frame axis or boolean dtype. Those details are not guaranteed by `np.ndarray` alone."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 52,
+      "category": "style-house",
+      "claim": "Missing shape annotation on track numpy array parameter.",
+      "quote": "track: np.ndarray | None = None,",
+      "suggested_fix": "Document the `(n_frames, 3)` shuttle-track shape and axis meaning in the parameter documentation or an inline shape annotation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The track's dimensions and visibility column are non-obvious in this wrapper, which only declares `np.ndarray`."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 57,
+      "category": "style-house",
+      "claim": "Missing shape annotation on shuttle_hallucination_mask numpy array parameter.",
+      "quote": "shuttle_hallucination_mask: np.ndarray | None = None,",
+      "suggested_fix": "Document the frame-aligned `(n_frames,)` boolean non-evidence mask in the parameter documentation or an inline shape annotation.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The parameter name gives the purpose but not the required one-value-per-frame shape or boolean dtype."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 69,
+      "category": "repetition",
+      "claim": "Identical combine_mask() call appears in both REPLAY branch (line 69) and UNION fallback (line 80) with same arguments, creating duplicate code path.",
+      "quote": "return combine_mask(\n    court_present, homography_rows, track, rally_spans, n_frames, fps,\n    non_evidence=shuttle_hallucination_mask,\n)",
+      "suggested_fix": "Compute the replay mask once in a shared REPLAY-or-UNION path, while keeping composition validation out of the REPLAY path.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The call is textually duplicated. Branch-specific ordering explains why it cannot simply run before every mode's validation, but it does not remove the repeated call logic."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 40,
+      "category": "overloaded-one-liner",
+      "claim": "Bounds check chains four operations (two comparisons, OR, np.any reduction) on one line, exceeding the two-operation exception.",
+      "quote": "if np.any((cut_array < 0) | (cut_array > n_frames)):",
+      "suggested_fix": "Assign the combined out-of-bounds mask to a named variable, then apply `np.any` in the `if` statement.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The line performs two comparisons, combines them, and reduces the result. That exceeds the rubric's two-operation one-line exception."
+    },
+    {
+      "file": "src/annotator/dead_mask.py",
+      "line": 74,
+      "category": "style-house",
+      "claim": "Same concept under different names: input parameter is 'keep_vote' (line 55) but after validation it is stored and used as 'votes', violating the house rule 'One vocabulary per concept'.",
+      "quote": "cuts, votes = _validate_composition_inputs(n_frames, keep_vote, cut_frames)",
+      "suggested_fix": "Keep the validated array named `keep_vote` after unpacking, or rename the parameter consistently if `votes` is the chosen vocabulary.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "`votes` is the same frame-level court-view array as the `keep_vote` parameter. The shorter local name remains understandable, but it creates a real vocabulary change in the same call path."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

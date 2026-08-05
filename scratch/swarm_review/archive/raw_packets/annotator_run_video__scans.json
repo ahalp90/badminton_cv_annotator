@@ -1,0 +1,200 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 568,
+    "category": "misleading-name",
+    "chunk_id": "whole",
+    "claim": "Variable name 'shipped_winner' is unexplained jargon; the logic shows it records the verdict winner, but 'shipped' gives no clue what it represents.",
+    "quote": "        shipped_winner = None\n        if verdict.verdict == point_winner.Verdict.WON:\n            shipped_winner = striker",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 32,
+    "category": "stale-doc",
+    "chunk_id": "whole",
+    "claim": "Docstring claims the function returns 'the one boolean mask' but actually returns a tuple (mask, source_codes_or_None); the second element is undocumented.",
+    "quote": "    \"\"\"Adapt source grades into the one boolean mask read by event rules.\"\"\"\n    if inpaint_codes is not None and shuttle_hallucination_mask is not None:\n        raise ValueError('inpaint_codes and shuttle_hallucination_mask are mutually exclusive')",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 97,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Docstring references 'sset_21', 'decontamination commit', and 'sticky cache' without explaining these concepts; unusable for a reader unfamiliar with the codebase.",
+    "quote": "    \"\"\"Build sticky-sourced serve-start evidence from the unmasked cache.\n\n    Serve evidence deliberately comes from the sticky cache built before any masking; the\n    committed mask demonstrably eats live serves on sset_21, and masking policy belongs to the",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 480,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Variable 'kin' abbreviates 'kinematics' but inside a 419-line function with many tracking variables, the abbreviation is unclear and could be misspelled or misread.",
+    "quote": "    kin = point_winner.build_landing_kinematics(\n        track, sticky, kps, resolution,\n    )",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 483,
+    "category": "unclear-name",
+    "chunk_id": "whole",
+    "claim": "Variable 'band_m' is an unclear abbreviation; the 'm' suffix is never explained (metres? measure?), and 'landing_error_band_m' is already the parameter name a few lines up.",
+    "quote": "    band_m = (\n        landing_error_band_m\n        if landing_error_band_m is not None",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 327,
+    "category": "comment-noise",
+    "chunk_id": "whole",
+    "claim": "Duck-typing check for hasattr(homography_rows, 'to_dict') lacks a comment explaining which types have this method or why the conversion is needed.",
+    "quote": "        if hasattr(homography_rows, 'to_dict'):\n            homography_rows = homography_rows.to_dict('records')",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 77,
+    "category": "needless-abstraction",
+    "chunk_id": "whole",
+    "claim": "Function '_record_trusted_mask_contact_rejection' is called only once (line 497) and could be inlined or merged with '_record_rejection' to reduce indirection.",
+    "quote": "def _record_trusted_mask_contact_rejection(\n    rows: list[dict[str, object]] | None, rally_id: int,\n    span: tuple[int, int], contact_frames: list[int],\n) -> None:",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 544,
+    "category": "comment-noise",
+    "chunk_id": "whole",
+    "claim": "Creating 'all_false_exclusion_mask' for counterfactual analysis lacks a comment; the intent (detecting window closure caused by masking itself) is not immediately clear to a skim reader.",
+    "quote": "        all_false_exclusion_mask = np.zeros_like(definitive_exclusion_mask)\n        window_end_without_exclusion_mask = point_winner.window_end(\n            final_contact, next_start, track, all_false_exclusion_mask,",
+    "confidence": "medium"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Module docstring uses unexplained jargon: 'GT-free' (Ground Truth?) and 'annotation-chain composition' do not orient an unfamiliar reader to what the module does.",
+    "quote": "\"\"\"GT-free annotation-chain composition for one video.\"\"\"",
+    "confidence": "low"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 22,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Function signature missing all type hints on parameter and return.",
+    "quote": "def scoring_filter(contacts):",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 94,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Function parameters config, sticky, constants, and resolution lack type annotations.",
+    "quote": "def build_serve_options(\n    config, sticky, constants, resolution, span_open=stage8_seg.SpanOpen.BACK_FILL,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 187,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Function parameter final_half lacks type annotation.",
+    "quote": "def _first_stroke_half(final_half, n_strokes: int):",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 199,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Entry-point function run_video missing type hints on positional parameters track, bboxes, scores, kps, ndet.",
+    "quote": "def run_video(\n    track, bboxes=None, scores=None, kps=None, ndet=None,",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 190,
+    "category": "docs-prose",
+    "chunk_id": "whole",
+    "claim": "Docstring paragraph violates one-sub-clause-per-sentence rule; contains unexplained jargon 'Brief H'.",
+    "quote": "Same parity formula as point_winner's private `_phase_assignment` at index 0 (last =\n    n_strokes - 1; step back from the last stroke, flipping each step): duplicated here as a\n    one-line arithmetic fact rather than reaching into that module-private helper, since",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 194,
+    "category": "style-house",
+    "chunk_id": "whole",
+    "claim": "Em-dash used in docstring prose; CLAUDE.md instructs avoiding em-dashes unless essential.",
+    "quote": "never a rally's own \u2014 Brief H's \"server\" column needs the latter for every rally.",
+    "confidence": "high"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 1,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "Module docstring uses unclear terminology without explaining what the module does to a fresh reader.",
+    "quote": "\"\"\"GT-free annotation-chain composition for one video.\"\"\"",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 232,
+    "category": "docs-orientation",
+    "chunk_id": "whole",
+    "claim": "run_video docstring does not follow :param/:return: style; function has ~30 parameters but only 3 are documented.",
+    "quote": "\"\"\"Run segmentation, attribution, verdict, landing, and hit-height for one video.\n\n`court_optional` is only valid with `stop_after_segmentation`.",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 242,
+    "category": "repetition",
+    "chunk_id": "whole",
+    "claim": "Pattern 'if capture is not None: capture.X = ...' repeats at multiple locations (lines 242-245, 349-350, 356-357, 420-421, 429-430), suggesting a helper would collapse the redundancy.",
+    "quote": "if capture is not None:\n        capture.raw_exclusion_mask = raw_exclusion_mask.copy()",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 77,
+    "category": "needless-abstraction",
+    "chunk_id": "whole",
+    "claim": "_record_trusted_mask_contact_rejection is a single-caller helper that appends one specific dict to a list; inlining at line 497-499 would simplify the module.",
+    "quote": "def _record_trusted_mask_contact_rejection(\n    rows: list[dict[str, object]] | None, rally_id: int,\n    span: tuple[int, int], contact_frames: list[int],",
+    "confidence": "high"
+   },
+   {
+    "file": "src/annotator/run_video.py",
+    "line": 196,
+    "category": "overloaded-one-liner",
+    "chunk_id": "whole",
+    "claim": "Return statement combines arithmetic, modulo, comparison, and dictionary lookup in one ternary expression; extracting the parity calculation would clarify intent.",
+    "quote": "return final_half if (n_strokes - 1) % 2 == 0 else OTHER_HALF[final_half]",
+    "confidence": "medium"
+   }
+  ],
+  "overflow_note": null
+ }
+]

@@ -1,0 +1,19 @@
+{
+  "module": "src/annotator/composition_mask.py",
+  "probe_assessment": "The cold-read probe held up. Its purpose and all four public API descriptions match the module: cuts are detected on the 288p scale-only downsample, precomputed court-view votes classify cut-to-cut segments, the returned mask uses True for dead frames, and the CLI saves the mask. It reported no stumbles, and the module does not contain a material code-caused comprehension trap for the listed points.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/composition_mask.py",
+      "line": 105,
+      "category": "docs-prose",
+      "claim": "Docstring sentence violates the rule 'no more than a single sub-clause per sentence' by combining multiple dependent clauses and parenthetical reasoning.",
+      "quote": "Fail loud on an all-dead result: no live segment means nothing for the\nsegmenter to anchor to (apply_replay_mask rejects an all-True mask anyway), so\na fully-dead mask is almost always a bad vote input rather than a real answer.",
+      "suggested_fix": "Split into simpler sentences: 'Fail loud on an all-dead result: no live segment means nothing for the segmenter to anchor to. The apply_replay_mask function rejects an all-True mask anyway. A fully-dead mask is almost always a bad vote input rather than a real answer.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is verbatim at lines 105-107. It is one long sentence with a colon, a parenthetical clause, and a concluding 'so' clause, which exceeds the rubric's single-sub-clause guidance for docs-prose."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

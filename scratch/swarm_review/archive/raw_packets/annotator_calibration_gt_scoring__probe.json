@@ -1,0 +1,76 @@
+{
+ "module": "src/annotator/calibration/gt_scoring.py",
+ "purpose": "Scores video annotation results against ground-truth ShuttleSet rally and stroke metadata, producing comparative metrics and diagnostics for calibration.",
+ "public_api": [
+  {
+   "name": "canonical_tolerance",
+   "role": "Computes frame-tolerance threshold from fps for stroke-timing matching"
+  },
+  {
+   "name": "load_fixture_arrays",
+   "role": "Loads persisted numpy arrays (track, poses, masks) from fixture storage"
+  },
+  {
+   "name": "load_gt_tables",
+   "role": "Reads ground-truth CSV tables (shots master, homography, courts, resolution)"
+  },
+  {
+   "name": "build_run_video_inputs",
+   "role": "Assembles complete positional and keyword arguments for one run_video invocation"
+  },
+  {
+   "name": "load_set_tables",
+   "role": "Reads per-rally stroke metadata CSVs for each set in a fixture"
+  },
+  {
+   "name": "reconcile_sets",
+   "role": "Validates and matches predicted rally spans against ground truth; extracts winner and landing info"
+  },
+  {
+   "name": "score_video",
+   "role": "Scores detected rallies against ground truth; computes per-rally and aggregate metrics"
+  },
+  {
+   "name": "flatten_metrics",
+   "role": "Converts VideoScoring tuple into flat dict of scalar metric values"
+  },
+  {
+   "name": "render_table",
+   "role": "Formats scored metrics as human-readable text table with optional baseline references"
+  },
+  {
+   "name": "run_fixture",
+   "role": "End-to-end: loads fixture, runs annotator pipeline, scores result, writes diagnostics"
+  },
+  {
+   "name": "write_rallies_csv",
+   "role": "Exports RallyRow records to CSV file"
+  },
+  {
+   "name": "write_geometric_verdicts_csv",
+   "role": "Exports per-rally geometric-winner diagnostics to CSV"
+  },
+  {
+   "name": "write_guard_diagnostics",
+   "role": "Exports inpaint filter codes and rejection-rule diagnostics for one video"
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point; processes all fixtures with --capture, --out, and --no-replay-mask options"
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "for values, ok in ((player, p_ok),):\n    values[0] += int(ok)\n    values[1] += 1",
+   "why_unclear": "A single tuple is wrapped in parentheses and iterated over to unpack one pair. The pattern repeats for server, height, landing, and winner; the design rationale (defensive future expansion? template structure?) is not evident from the code."
+  },
+  {
+   "quote": "projected = point_winner.project_pixels_to_court(np.array([[gt_landing[0]], [gt_landing[1]]]), point_winner.HOMOGRAPHY_RESOLUTION, court_info[fixture.video_id])\nlanding_half = Half.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else Half.BOT",
+   "why_unclear": "The indexing `projected[1, 0]` and the constant `point_winner.NET_COURT_Y` assume knowledge of the homography coordinate system; what the second row represents and the court-space meaning of the threshold are not established in this file."
+  },
+  {
+   "quote": "if verdict.verdict == Verdict.LOST:\n    pred_winner = OTHER_HALF[verdict.striker_half]",
+   "why_unclear": "OTHER_HALF is imported from point_winner but not defined in this file; whether it is a dict, mapping function, or other data structure cannot be determined from this context."
+  }
+ ]
+}

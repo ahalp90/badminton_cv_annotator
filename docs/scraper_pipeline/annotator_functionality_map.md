@@ -166,7 +166,7 @@ Failure semantics, per slot (a deliberate tightening of today's whole-frame bund
   result covers tracker-segment frames only
 
 Today's contract, for contrast: the count exists only inside a success-only return
-(every failure path discards it, and even stage8 discards it on success), an unpicked
+(every failure path discards it, and even rally_segmentation discards it on success), an unpicked
 slot resets immediately, and a partially-picked frame is flagged failed as a whole.
 Returning the count on every population-bearing frame is the one additive API change
 sticky needs; every existing bst_x call path keeps its current signatures and
@@ -188,11 +188,11 @@ ONE public builder produces it. A config strategy field chooses the producer:
   strictly above threshold; velocity-drop (slow motion) fires on visible frames
   whose rolling-median speed is strictly below the slow-mo fraction of the in-rally
   median speed while at or above rest_speed (this is the signal that needs the
-  bootstrap spans). (today: stage9_replay_mask.combine_mask)
+  bootstrap spans). (today: replay_mask.combine_mask)
 - composition vote: broadcast-cut boundaries segment the timeline; each cut-to-cut
   segment is live when the fraction of its frames whose homography vote says "court
   view" is at or above the vote threshold (equality is deliberately live), dead
-  otherwise. (today: stage9_composition_mask.build_composition_mask)
+  otherwise. (today: composition_mask.build_composition_mask)
 - union of the two
 
 Hard failure states, kept: a composition result where NO segment clears the vote
@@ -407,7 +407,7 @@ spans, contacts, per-rally halves, verdict rows, landings, and hit heights, whil
 the winner half is derived downstream by the scorer and the doubles flag lives in a
 separate CLI. The target bundle folds both in.
 
-The GT scoring harness (Stage 1 of the migration) reads this bundle and scores every
+The initial migration GT scoring harness reads this bundle and scores every
 column against ShuttleSet labels. Its two primary metrics, boundary covered_fraction
 and contact F1 at the standard matching tolerance (+/-5 base-30 frames, scaled per
 fixture fps), carry the collapse floors: the harness FAILS a fixture when either
@@ -440,8 +440,8 @@ non-finite score fails outright. Everything else is display-only there.
   only)
 - acquisition: search, download, filtering, pose/track extraction, court fitting,
   commentary transcription (src/scraper)
-- commentary cleaning and the rally-to-commentary join (today: stage10_clean,
-  stage11_pairing): downstream consumers of the annotator's spans, not part of
+- commentary cleaning and the rally-to-commentary join (today: commentary_cleaning,
+  commentary_pairing): downstream consumers of the annotator's spans, not part of
   run_video
 - the vision-lane overcount producer on HPC
 - GT files, fixtures, and scoring internals (the harness owns them)

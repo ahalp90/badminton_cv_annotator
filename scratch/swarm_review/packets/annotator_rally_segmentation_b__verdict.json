@@ -1,0 +1,192 @@
+{
+  "module": "src/annotator/rally_segmentation.py",
+  "probe_assessment": null,
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1006,
+      "category": "needless-abstraction",
+      "claim": "detect_contact_flags is a single-line wrapper that only forwards arguments to impulse_cell_candidates without adding value",
+      "quote": "def detect_contact_flags(\n    track: np.ndarray, start: int, end: int, thresholds: Stage8Thresholds | None = None, *,\n    smoothing_mode: SmoothingMode = SmoothingMode.ZERO_FILL,\n) -> list[tuple[int, float]]:\n    \"\"\"Independently invoke the raw contact finder and retain ``(frame, impulse)`` flags.\"\"\"\n    return impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The body only forwards to impulse_cell_candidates and adds no behaviour; its name provides a label, but the wrapper still makes the reader hop through a single-call layer. Tests use the name as a seam, so it could be an intentional public boundary, but that does not add runtime value.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1266,
+      "category": "style-house",
+      "claim": "Multi-line comprehension with method call should unpack to explicit for loop per rubric style guidance",
+      "quote": "raw_flags = [(rally_id, frame, impulse) for rally_id, (start, end) in enumerate(spans)\n             for frame, impulse in detect_contact_flags(\n                 track, start, end, thresholds, smoothing_mode=smoothing_mode,\n             )]",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source uses different indentation for the nested comprehension lines, so the packet rule kills this finding before the claim can be assessed."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1274,
+      "category": "overloaded-one-liner",
+      "claim": "Nested three-level ternary does more than two operations and is hard to parse in one logical unit",
+      "quote": "radius = ((CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)\n          if suppression_radius is None else suppression_radius)",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source uses different indentation on the continuation line, so the packet rule kills this finding before the claim can be assessed."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1357,
+      "category": "repetition",
+      "claim": "assemble_contacts called twice with identical arguments except one parameter (None vs sticky_distances) could be unified",
+      "quote": "gate_ran = sticky_distances is not None\nif not gate_ran:\n    return spans, assemble_contacts(\n        track, positions, spans, thresholds, None, suppression_radius,\n        smoothing_mode=smoothing_mode,\n    )\nreturn spans, assemble_contacts(\n    track, positions, spans, thresholds, sticky_distances, suppression_radius,",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source includes indentation on the if/return continuation lines that the scanner quote omits, so the packet rule kills this finding before the claim can be assessed."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1474,
+      "category": "comprehension-trap",
+      "claim": "Imports for batch reporting and run_video are deferred inside main, which hides the module's runtime dependencies and makes the import boundary hard to discover",
+      "quote": "from .batch_report import VideoOutcome, publish_batch_report\nfrom .run_video import run_video",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source keeps both imports indented inside main, while the scanner quote omits that indentation, so the packet rule kills this finding before the claim can be assessed."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1071,
+      "category": "unclear-name",
+      "claim": "Function lacks type hints on parameters and return type; docstring does not specify what homography_rows should contain or its type.",
+      "quote": "def tracker_segments(homography_rows, court_present, n_frames):",
+      "suggested_fix": "Add type hint: e.g., `Iterable[Mapping[str, int]]` or clarify the expected dict-like structure.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. None of the three parameters or the return value is annotated, and the docstring only says that rows have named bounds without identifying a mapping or row type. The missing contract makes the helper harder to orient from a skim.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1299,
+      "category": "docs-orientation",
+      "claim": "Docstring is approximately 30 lines long with verbose parameter descriptions, too lengthy to hold in working memory and buries the main point.",
+      "quote": "    \"\"\"Full stage-8 pass over one video's shuttle track.\n\n    Every keyword option is off by default and each default preserves today's behaviour\n    exactly. `thresholds=None` reads the module globals through the low-level opt-out path.\n\n    :param track: `(t, 3)` whole-video track.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the complete docstring is about 30 lines. Its purpose and defaults are front-loaded, so the claim that it literally buries the main point is debatable; the many option-specific caveats still make the contract bulky for a skim reader under the rubric."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 922,
+      "category": "comment-noise",
+      "claim": "Docstring restates implementation detail instead of conveying domain meaning.",
+      "quote": "Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.",
+      "suggested_fix": "Remove or replace with domain-level explanation of what a junction represents in the contact-detection pipeline.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but it records the non-obvious local-frame and three-frame alignment invariant used to map impulse junctions to contact frames. That is useful shape/index grounding under the rubric, not a comment that merely restates an operator."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 970,
+      "category": "docs-prose",
+      "claim": "Docstring sentence has multiple clauses, violating house style of one sub-clause per sentence.",
+      "quote": "It uses the three-frame visibility mask, a rolling impulse floor, and largest-impulse-first de-duplication at the three-frame boundary used at 25 fps.",
+      "suggested_fix": "Split into multiple sentences: one per major operation or constraint.",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source wraps the sentence across three docstring lines, while the scanner quote collapses it to one line, so the packet rule kills this finding."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1061,
+      "category": "docs-prose",
+      "claim": "Docstring uses unexplained jargon 'base-30 nine' without defining what it means.",
+      "quote": "The default radius is the base-30 nine, eight frames at the 25 fps surface.",
+      "suggested_fix": "Explain the term: 'base-30 nine' refers to [explanation], which scales to...",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The phrase does not explain that nine is the base-30 table value which scales to eight frames at the module's 25 fps surface, so a junior reader must infer the term from another file or from the constant setup."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1040,
+      "category": "docs-prose",
+      "claim": "Docstring uses unexplained domain jargon and unclear phrasing ('measured arm's behaviour').",
+      "quote": "The single-frame body-unit wrist gate on one contact, in player-box-height units.\n    Mirrors `contact_proximity_ok`'s three-way verdict. None distances mean the gate never\n    ran (no body-unit or pose/court inputs), which returns None (serialised blank\n    downstream): raw candidates stand, per the recall-first convention. A NaN frame is\n    measured-but-unconfirmed and fails closed to False, the measured arm's behaviour.",
+      "suggested_fix": "Explain 'body-unit wrist gate' at first mention. Replace 'measured arm's behaviour' with clearer phrasing.",
+      "verdict": "KILLED",
+      "verifier_note": "The quoted text does not appear verbatim. The source has a blank line after the first sentence, while the scanner quote has only one newline, so the packet rule kills this finding before the claim can be assessed."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1127,
+      "category": "docs-orientation",
+      "claim": "106-line function with 10 complex parameters but only 3-line docstring; no `:param:` or `:return:` documentation.",
+      "quote": "def build_sticky_result(\n    track: np.ndarray, segments: list[tuple[int, int]],\n    pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,\n    pose_ndet: np.ndarray, gate_video_id: str,\n    gate_court_info: dict[str, dict], gate_resolution_table: object,\n    resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,\n) -> StickyResult:\n    \"\"\"Run one sticky analysis loop over the supplied tracker segments.",
+      "suggested_fix": "Add parameter documentation explaining what each input represents (not just types). Document the return StickyResult structure.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The function has a large domain-heavy signature, while its short docstring explains only the loop's sequencing and does not describe the inputs or StickyResult fields."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1235,
+      "category": "docs-orientation",
+      "claim": "Terse docstring for complex function with many mutually-exclusive optional parameters and validation logic; caller cannot infer valid parameter combinations.",
+      "quote": "\"\"\"Span-only segmentation; deliberately performs no contact extraction.\"\"\"",
+      "suggested_fix": "Document which parameter combinations are valid. Explain the roles of gap_state_demotion_bound, reentry_guard_variant/buffer, quiet_start_window.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. find_rally_spans validates paired re-entry arguments, requires a demotion bound for the guard, asserts thresholds for quiet-start mode, and dispatches several optional span rules. The one-line docstring does not orient a caller to those combinations."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1417,
+      "category": "style-house",
+      "claim": "Chained ternary is hard to parse; should use if/elif/else for readability.",
+      "quote": "id_column = 'id' if 'id' in table.columns else 'video_id' if 'video_id' in table.columns else None",
+      "suggested_fix": "Replace with: if 'id' in table.columns: id_column = 'id'; elif 'video_id' in table.columns: id_column = 'video_id'; else: id_column = None",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The nested conditional encodes three branches on one line, so an explicit if/elif/else would make the selection order easier to scan."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1435,
+      "category": "comprehension-trap",
+      "claim": "main is a long CLI coordinator with no docstring describing its parsing, filtering, per-video processing, output writing, and report-publication phases.",
+      "quote": "def main() -> None:\n    parser = argparse.ArgumentParser(description='Stage 8: rally spans and contacts from shuttle tracks.')",
+      "suggested_fix": "Add docstring explaining major phases: argument parsing, FPS resolution, filtering (doubles), batch processing, output CSV writing, and report publication.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: docs-orientation. The quote is present, but it is the function definition followed by the first executable statement, not a one-line docstring. The actual code has no main docstring and coordinates the listed phases, so the corrected finding preserves the real orientation gap."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1412,
+      "category": "style-house",
+      "claim": "Missing `:param:` documentation for parameters 'path' and 'label'.",
+      "quote": "def _read_string_id_table(path: Path, label: str):\n    \"\"\"Read a table with unique string IDs and retain the indexed DataFrame.\"\"\"",
+      "suggested_fix": "Add: :param path: Path to CSV file to load. :param label: Label for error messages when validation fails.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The docstring gives neither the input file role nor the label's role in validation errors, so the parameter documentation would add domain meaning beyond the existing type hints."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1427,
+      "category": "style-house",
+      "claim": "Missing `:param:` documentation for parameter 'path'.",
+      "quote": "def _read_fps_table(path: Path):\n    \"\"\"Read a unique string-id FPS table written by stage 11.\"\"\"",
+      "suggested_fix": "Add: :param path: Path to FPS CSV file written by stage 11.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The parameter has a type but the docstring does not identify it as the stage-11 FPS CSV path, which is useful contract information under the house style."
+    },
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1307,
+      "category": "docs-prose",
+      "claim": "Parameter documentation includes implementation history and interaction details (UNMASKED measurement convention) that should be in main docstring, not :param: lines.",
+      "quote": ":param serve_start: `ServeStartOptions` gating rally openings on sticky serve-setup evidence,\n        or None. Its setup inputs are built from the UNMASKED track by the caller (the committed\n        measurement convention); serve-start was only ever measured with masking off, so combining\n        it with `replay_mask` is unmeasured territory.",
+      "suggested_fix": "Move measurement convention and interaction caveats to main docstring. Keep :param: concise: ':param serve_start: ServeStartOptions gating rally openings on serve setup, or None.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The replay-mask interaction matters to callers, but 'committed measurement convention' and 'only ever measured' are implementation history rather than a concise parameter definition. Moving the history and keeping the behavioural caveat at function level would reduce the dense parameter block."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/annotator/rally_segmentation.py",
+      "line": 1535,
+      "quote": "except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch",
+      "note": "A broad per-video catch logs the exception, records a skipped outcome, and continues. The inline rationale and explicit outcome make this intentional batch isolation rather than a surviving silent-failure finding under the rubric."
+    }
+  ]
+}

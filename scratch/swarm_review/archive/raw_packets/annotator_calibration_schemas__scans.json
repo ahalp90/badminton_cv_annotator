@@ -1,0 +1,66 @@
+[
+ {
+  "job": "scan:whole:naming",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/schemas.py",
+    "line": 142,
+    "category": "misleading-name",
+    "claim": "Constant name suggests a dictionary key (following WINNER_JSON_*_KEY pattern) but is actually a string value.",
+    "quote": "WINNER_JSON_VERDICT_ISSUED = \"issued\"",
+    "chunk_id": "whole",
+    "confidence": "high",
+    "summary": "WINNER_JSON_VERDICT_ISSUED follows the naming pattern of key constants (WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY) but is actually the string value \"issued\" assigned as the verdict's value, not a key itself.",
+    "failure_scenario": "A developer reading only the constant name concludes it is a JSON key name like WINNER_JSON_META_KEY or a boolean state flag, rather than a string value to be placed in a verdict field.",
+    "suggested_fix": "Rename to WINNER_JSON_VERDICT_VALUE or WINNER_VERDICT_ISSUED_VALUE to clarify it is a value constant, not a key."
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:style",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/schemas.py",
+    "line": 3,
+    "category": "stale-doc",
+    "claim": "Module docstring incorrectly claims frontier rows use raw recall_5 but no recall_raw_* columns exist.",
+    "quote": "Contact frontier rows use raw ``recall_5`` and ``precision_raw_5`` axes.",
+    "chunk_id": "whole",
+    "suggested_fix": "Remove 'raw' from recall_5: 'Contact frontier rows use ``recall_5`` and ``precision_raw_5`` axes.'"
+   },
+   {
+    "file": "src/annotator/calibration/schemas.py",
+    "line": 178,
+    "category": "docs-prose",
+    "claim": "Docstring uses double-negative phrasing (missing/omits) where positive phrasing is required.",
+    "quote": "a missing phase mapping omits its key.",
+    "chunk_id": "whole",
+    "suggested_fix": "Use positive phrasing: 'only present phases appear as keys.'"
+   }
+  ],
+  "overflow_note": null
+ },
+ {
+  "job": "scan:whole:structure",
+  "findings": [
+   {
+    "file": "src/annotator/calibration/schemas.py",
+    "line": 94,
+    "category": "ordering",
+    "claim": "CONTACT_FRONTIER_COLUMNS is placed between BEST_CONFIG_COMPARISON_COLUMNS and CONTACT_STABILITY_COLUMNS, breaking the logical grouping of CONTACT-related constants.",
+    "quote": "BEST_CONFIG_COMPARISON_COLUMNS = (\n    \"rule\",\n    *BOUNDARY_SWEEP_COLUMNS,",
+    "chunk_id": "whole"
+   },
+   {
+    "file": "src/annotator/calibration/schemas.py",
+    "line": 118,
+    "category": "repetition",
+    "claim": "ALIGNMENT_OWN_COVERED_COLUMNS and ALIGNMENT_SHARED_COLUMNS both assign the same constant (ALIGNMENT_COLUMNS), creating identical aliases.",
+    "quote": "ALIGNMENT_OWN_COVERED_COLUMNS = ALIGNMENT_COLUMNS\nALIGNMENT_SHARED_COLUMNS = ALIGNMENT_COLUMNS",
+    "chunk_id": "whole"
+   }
+  ],
+  "overflow_note": null
+ }
+]

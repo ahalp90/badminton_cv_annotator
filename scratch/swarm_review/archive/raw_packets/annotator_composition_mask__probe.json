@@ -1,0 +1,23 @@
+{
+ "module": "src/annotator/composition_mask.py",
+ "purpose": "Builds a dead-time mask for a video by segmenting it at broadcast-cut boundaries (detected via PySceneDetect) and labelling each segment live or dead based on a court-view vote fraction. The mask is fed into the main segmentation pipeline where True indicates a frame is dead (not live court view).",
+ "public_api": [
+  {
+   "name": "detect_cuts",
+   "role": "Find broadcast-cut frame indices in a downsampled video using PySceneDetect's content detector; returns the first frame of each new scene. Caller would use this to segment a video into cut-to-cut intervals."
+  },
+  {
+   "name": "build_composition_mask",
+   "role": "Segment a timeline at cut boundaries, compute the mean court-view vote per segment, mark segments dead if vote falls below a threshold, and return a boolean dead-mask plus metadata for each segment. Caller would use this to convert cut frames and a per-frame vote array into a mask for the segmenter."
+  },
+  {
+   "name": "CompositionSegment",
+   "role": "NamedTuple holding one cut-to-cut segment's bounds, the court-view fraction, and dead/live status. Used internally to track segment-level decisions and to report results."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point to run the full composition-mask pipeline on a video: detect cuts, build the mask from a precomputed court-view vote file, and save the result. Caller would invoke this as a subprocess stage with a video path, vote file, and parameters."
+  }
+ ],
+ "stumbles": []
+}

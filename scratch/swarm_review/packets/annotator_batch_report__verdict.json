@@ -1,0 +1,86 @@
+{
+  "module": "src/annotator/batch_report.py",
+  "probe_assessment": "The cold read held up. Its purpose and all four public API descriptions match the module, and it listed no stumbles. The probe's status vocabulary is a reasonable reading of the statuses explicitly handled by the module; it did not claim that the plain str field enforces those values. No material probe misreading remains.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 22,
+      "category": "misleading-name",
+      "claim": "Function name suggests word-counting, but logic selects singular or plural form based on count.",
+      "quote": "def _count_word(count: int, singular: str, plural: str) -> str:\n    return singular if count == 1 else plural",
+      "suggested_fix": "Rename to `_singular_or_plural` or `_pluralize_word` to clarify the selection logic.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The helper selects a grammatical form and does not count words, so `_count_word` can invite the claimed misreading."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 26,
+      "category": "needless-abstraction",
+      "claim": "Single-caller helper wrapping two standard string operations without reducing complexity.",
+      "quote": "def _format_reason(reason: str) -> str:\n    return re.sub(r'\\s+', ' ', reason).strip()",
+      "suggested_fix": "Inline at line 65: `reason = re.sub(r'\\s+', ' ', outcome.reason or '').strip()`",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the private helper has one caller. Hiding the regular-expression detail and naming the normalisation gives the helper some readability value, so the claim that it does not reduce complexity is debatable; it remains a valid single-caller wrapper candidate under the rubric."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 40,
+      "category": "repetition",
+      "claim": "Five independent iterations over outcomes sequence compute aggregations where a single pass could gather all counts.",
+      "quote": "processed_count = sum(outcome.status == 'processed' for outcome in outcomes)\nexcluded_count = sum(outcome.status == 'excluded' for outcome in outcomes)\nskipped_count = sum(outcome.status == 'skipped' for outcome in outcomes)",
+      "suggested_fix": "Collapse into one pass that accumulates all counts in a single loop over outcomes.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The following two sums over `outcomes` bring the total to five independent passes. The separate expressions are easy to skim for a small sequence, so changing to one accumulator loop is a readability and performance trade-off rather than an unambiguous improvement."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 49,
+      "category": "repetition",
+      "claim": "Identical _count_word() call with same arguments computed in both if-elif-else branches instead of once.",
+      "quote": "elif all_excluded:\n    video_word = _count_word(video_count, 'video', 'videos')\n    headline = f'batch failed: all {video_count} {video_word} excluded'\nelse:\n    video_word = _count_word(video_count, 'video', 'videos')",
+      "suggested_fix": "Compute video_word before the conditional; both branches need the same value.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The same `_count_word(video_count, 'video', 'videos')` call appears in both non-empty branches and can be computed once before the conditional."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 35,
+      "category": "docs-prose",
+      "claim": "The docstring uses \"shuttle-track file\" without explaining its significance to a reader unfamiliar with the project.",
+      "quote": ":param outcomes: One outcome for each input shuttle-track file.",
+      "suggested_fix": "Add brief explanation: \"One outcome for each input shuttle-track file (a matched video track with trajectory data).\"",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The module uses `shuttle-track file` as a domain term but does not explain what the file contains or how it relates to an input video."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 36,
+      "category": "docs-prose",
+      "claim": "The docstring references \"doubles filter\" without explaining what filtering behaviour this refers to or why it matters.",
+      "quote": ":param all_excluded: Whether the doubles filter excluded every input video.",
+      "suggested_fix": "Clarify what the filter does: \"Whether the doubles/singles match filter excluded every input video.\"",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. A reader can infer that the filter excludes inputs, but the module does not define what makes an input a doubles match or how that filter produces the flag."
+    },
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 89,
+      "category": "docs-prose",
+      "claim": "The docstring uses \"rally-spans CSV path\" without defining what a rally-span record represents.",
+      "quote": "\"Return the report path beside a configured rally-spans CSV path.\"",
+      "suggested_fix": "Add clarification: \"Return the report path beside the rally-spans CSV file (rally time bounds and outcomes).\"",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The function only uses the path for sibling-file naming, and the module does not explain what rally spans represent."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/annotator/batch_report.py",
+      "line": 65,
+      "quote": "reason = _format_reason(outcome.reason or '')",
+      "note": "For a non-processed outcome with reason=None, the report silently substitutes an empty reason and emits a blank field. If an exclusion or skip reason is expected, the missing reason is not surfaced to the reader."
+    }
+  ]
+}

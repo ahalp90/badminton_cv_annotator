@@ -1,0 +1,50 @@
+{
+  "module": "src/annotator/replay_mask.py",
+  "probe_assessment": "The cold read held up, so there are no probe comprehension findings. The court-absence description says a run is longer than the window, while the implementation and its docstring use >=; that is a minor probe wording error which the file resolves explicitly. The velocity description is high-level and omits that the per-frame test uses a rolling median, but the function docstring and lines 213-217 state that behaviour clearly. The baseline_exclude stumble is understandable because the parameter has no docstring entry, but the file resolves its mechanics: non_evidence turns speed steps touching graded frames into NaN, baseline_exclude removes frames from in_rally before rally_median is computed, and combine_mask shows the caller. None of these is a material code-caused misreading or a question a junior could not resolve by reading the file.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/replay_mask.py",
+      "line": 177,
+      "category": "docs-prose",
+      "claim": "Docstring sentence exceeds single-sub-clause limit with multiple semicolons and chained conditions.",
+      "quote": "Speed steps touching a non_evidence frame are unmeasured: they feed neither the baseline nor the rolling median; edge frames of a graded run can still fire on neighbouring measured evidence, and a window with no measured step reads not-slow.",
+      "suggested_fix": "Split into separate sentences: 'Speed steps touching a non_evidence frame are unmeasured and feed neither the baseline nor the rolling median. Edge frames of a graded run can still fire on neighbouring measured evidence. A window with no measured step reads not-slow.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present verbatim. The sentence combines a colon, semicolon, and chained conjunctions across several independent points, which breaches the rubric's single-sub-clause prose rule. The two scanner findings are duplicates.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/annotator/replay_mask.py",
+      "line": 179,
+      "category": "docs-orientation",
+      "claim": "Parameter documentation for track omits axis semantics; index-2 visibility is used in code but unexplained in docstring.",
+      "quote": ":param track: `(t, 3)` whole-video shuttle track, or None.",
+      "suggested_fix": "Clarify axes: ':param track: `(t, 3)` whole-video shuttle track where each row is `[x, y, visibility]` (1=visible, 0=occluded), or None.'",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present verbatim. The function uses track[:, 2] == 1 as visibility, but the parameter text does not identify the three columns or explain that encoding, so the shape alone does not orient a new reader."
+    },
+    {
+      "file": "src/annotator/replay_mask.py",
+      "line": 293,
+      "category": "needless-abstraction",
+      "claim": "_cli_non_evidence is a single-caller wrapper that chains grade_track, logging, and config lookup without encapsulating complex logic.",
+      "quote": "def _cli_non_evidence(track: np.ndarray | None) -> np.ndarray | None:\n    \"\"\"Grade a CLI track and return frames rejected by the resolved policy.\"\"\"\n    if track is None:\n        return None\n    codes, _guard_info = grade_track(track)\n    log.info('inpaint grade counts: %s', code_counts(codes))\n    return np.isin(codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))",
+      "suggested_fix": "Inline the helper's track check, grade_track call, logging, and rejected-grade lookup into main() at the current call site.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the helper has one in-module caller. It performs a short sequence of track handling, grading, logging, and policy lookup rather than a complex algorithm. The named CLI policy boundary is arguably useful, so the severity is a judgement call, but the finding fits the rubric's single-caller-wrapper category."
+    },
+    {
+      "file": "src/annotator/replay_mask.py",
+      "line": 286,
+      "category": "style-house",
+      "claim": "Multi-line list comprehension with method call in predicate violates comprehension house style rule.",
+      "quote": "return [\n            (int(row['start_frame']), int(row['end_frame']))\n            for row in csv.DictReader(handle)\n            if row.get('video_id') == video_id\n        ]",
+      "suggested_fix": "Replace the comprehension with an explicit result list and for loop, appending the converted start and end frames when row.get('video_id') == video_id.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present verbatim. The comprehension spans multiple lines and uses method calls in its iterable and predicate, both of which the rubric's Python house style directs readers to unpack into an explicit loop."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

@@ -1,0 +1,143 @@
+{
+  "module": "src/scraper/stage1_index.py",
+  "probe_assessment": "The cold read mostly held up. Its material public-API error is enrich_row: the probe says True means a metadata call actually hit YouTube, but timeout, non-zero exit, and JSON parse failure all return True after an enrichment attempt, so the caller also sleeps after failed attempts. The wording that the pipeline applies screening filters is loose: build_candidates records suspect flags and retains the rows, but the probe does not explicitly say rows are dropped, so this is not a separate material finding. The B5 and OPEN labels are genuinely undefined in this module. The sleep stumble is not a finding because the local comment explains that SLEEP_REQUESTS_S paces metadata extraction and identifies the other pause as stage 2 caption pulling; the other stage's implementation is not needed to understand stage 1.",
+  "probe_findings": [
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 113,
+      "category": "comprehension-trap",
+      "claim": "The probe's enrich_row API description says True is returned only when a metadata call actually hit YouTube, but the function returns True for a timeout, non-zero exit, or JSON parse failure after an attempted pull. The return value therefore means an enrichment request was attempted, not that it succeeded or reached YouTube.",
+      "quote": "    except subprocess.TimeoutExpired:\n        print(f\"  TIMEOUT enrich {row['video_id']}\")\n        return True",
+      "confidence": "high"
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 212,
+      "category": "comprehension-trap",
+      "claim": "The per-term logging comment uses the label B5 without defining what the external spec label denotes. A junior can understand the keep-rate metric from the parenthesis, but cannot resolve the B5 reference from this module alone.",
+      "quote": "            # Per-term logging (spec s2): the count each term returns feeds the B5\n            # per-term keep-rate read-out (stage-3 keeps over rows surfaced).",
+      "confidence": "high"
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 176,
+      "category": "comprehension-trap",
+      "claim": "The upload-date docstring uses OPEN as an external status label without defining whether it denotes an unresolved design decision, an optional screen, or another spec convention. The default-off behaviour is clear, but the label itself is not resolvable from this module alone.",
+      "quote": "    \"\"\"True if the upload predates the floor. OPEN (spec s2): default off.",
+      "confidence": "high"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 72,
+      "category": "style-house",
+      "claim": "Magic number 200 for stderr truncation lacks domain grounding or explanation.",
+      "quote": "    print(f\"  ERROR term '{term}': {result.stderr.strip()[:200]}\")",
+      "suggested_fix": "Use a named log-display limit or add a why-comment explaining that the slice bounds error output.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present, and 200 is a presentation limit with no explanation or name in the module."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 81,
+      "category": "style-house",
+      "claim": "The warning truncates an unexpected --print line at 120 characters without naming or explaining that display limit, so the limit has no domain grounding.",
+      "quote": "            print(f\"  WARNING term '{term}': unexpected --print line, skipping: {line[:120]}\")",
+      "suggested_fix": "Use a named log-display limit or add a why-comment explaining that the slice keeps warning output bounded.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The style and naming scans raised the same issue, so this entry represents both findings.",
+      "duplicates_merged": 2
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 86,
+      "category": "style-house",
+      "claim": "Dict comprehension replacing 'NA' with '' lacks explanation of the yt-dlp quirk; comment says why, but the transformation itself could use a helper function for clarity.",
+      "quote": "        row = {key: ('' if value == 'NA' else value) for key, value in row.items()}",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but lines 84-85 explain the yt-dlp normalisation. The single-line comprehension is simple and does not need a helper under the rubric."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 101,
+      "category": "stale-doc",
+      "claim": "The docstring claims True indicates a metadata call actually hit YouTube, but the code also returns True on timeout and error; the condition is actually that a request was attempted.",
+      "quote": "    :return: True when a metadata call actually hit YouTube, so the caller paces\n        only real requests.",
+      "suggested_fix": "Document the return value as True when an enrichment request was attempted, including attempts that fail or time out.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and contradicts the timeout, non-zero-exit, and JSON-decode branches, which return True after failed attempts."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 125,
+      "category": "repetition",
+      "claim": "The field assignment at line 125 repeats the same fill-missing-from-metadata pattern used at line 128 and could be unified.",
+      "quote": "    row['channel'] = row['channel'] or (meta.get('channel') or '')",
+      "suggested_fix": "Extract the repeated fill-missing-field operation only if a small local helper is clearer than the two explicit assignments.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The same assignment shape appears for upload_date at line 128. The duplication is real, although a helper may not pay for two short assignments."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 127,
+      "category": "overloaded-one-liner",
+      "claim": "The duration assignment combines a default fallback, a conditional expression, and type conversion on one line, exceeding the rubric's two-operation threshold.",
+      "quote": "    row['duration_s'] = row['duration_s'] or ('' if duration is None else str(duration))",
+      "suggested_fix": "Split the missing-duration fallback from the None check and string conversion so each step is visible.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and contains the assignment, or fallback, conditional, and conversion in one expression."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 147,
+      "category": "comment-noise",
+      "claim": "The regex pattern `[^a-z0-9]+` splits by non-alphanumeric characters but lacks a comment explaining that tokenisation isolates whole tokens for doubles keywords.",
+      "quote": "    tokens = re.split(r'[^a-z0-9]+', text)",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the function docstring immediately explains whole-token matching and gives the md/wd/xd examples. The claimed missing explanation is demonstrably present."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 165,
+      "category": "style-house",
+      "claim": "The two-step conversion int(float(duration_s)) lacks a comment explaining why float() is needed for decimal strings; it is unclear why int() alone is not used.",
+      "quote": "        seconds = int(float(duration_s))",
+      "suggested_fix": "Add a short why-comment stating that yt-dlp can provide decimal seconds and the screen compares whole seconds.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. The surrounding enrichment code can produce decimal duration text, so the float step has a plausible purpose; the finding is a readability judgment rather than a behaviour error."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 176,
+      "category": "docs-prose",
+      "claim": "The term 'OPEN' in the docstring has no explanation; an unfamiliar reader won't know it signals a design-decision placeholder or optional feature.",
+      "quote": "    \"\"\"True if the upload predates the floor. OPEN (spec s2): default off.",
+      "suggested_fix": "Replace OPEN with plain wording that states the screen is optional and disabled when UPLOAD_DATE_FLOOR is unset.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present. Default-off behaviour is explained, but OPEN remains an unexplained external status label."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 205,
+      "category": "data-structure",
+      "claim": "Type annotation `dict[str, dict]` omits the inner dict's structure, so readers cannot tell what fields candidate rows carry from the annotation.",
+      "quote": "    by_id: dict[str, dict] = {}",
+      "suggested_fix": "Define a TypedDict for candidate rows and annotate by_id as a mapping from video IDs to that row type.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and the row mapping has stable fields used throughout the module. TypedDict is appropriate; dict[str, dict[str, str]] would still be incomplete because later suspect fields are bools."
+    },
+    {
+      "file": "src/scraper/stage1_index.py",
+      "line": 250,
+      "category": "style-house",
+      "claim": "Boolean values row['duration_suspect'] and row['upload_date_suspect'] are added directly to integer counters; implicit bool-to-int coercion should be explicit for clarity.",
+      "quote": "        flagged_duration += row['duration_suspect']\n        flagged_upload += row['upload_date_suspect']",
+      "suggested_fix": "Wrap each boolean in int(...) when incrementing the counters to make the count conversion explicit.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote is present and relies on Python's bool-as-int behaviour. The operation is valid and fairly readable, but an explicit cast would make the counter semantics clearer."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

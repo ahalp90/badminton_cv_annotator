@@ -1,0 +1,24 @@
+{
+ "module": "src/annotator/resolve.py",
+ "purpose": "Composes a base preset configuration with a probed frames-per-second value to produce a fully resolved configuration. Validates overrides against allowed base-30 fields, scales constants and thresholds to the target fps, and converts timing values to frame counts.",
+ "public_api": [
+  {
+   "name": "resolve",
+   "role": "Accepts a base config and fps value, validates field overrides, scales all fps-dependent parameters (constants, thresholds, frame counts), and returns a concrete ResolvedAnnotatorConfig. Caller must have already probed fps; this function never defaults it."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "int(ScalingKind.FRAME_COUNT.scale(value, fps))",
+   "why_unclear": "I cannot confidently explain what ScalingKind.FRAME_COUNT.scale() does or how it scales the value with fps. It appears to be an enum method, but without seeing the ScalingKind definition, the mechanism is opaque."
+  },
+  {
+   "quote": "thresholds = scale_thresholds(base.thresholds, fps, constants=constants, overrides_base30=overrides)",
+   "why_unclear": "The interaction between the constants dict and overrides_base30 parameter is unclear\u2014I cannot confidently explain how scale_thresholds uses both or why constants needs to be passed separately from the overrides that went into generating it."
+  },
+  {
+   "quote": "'rest_speed', 'rest_window', 'start_speed', 'start_min_frames', ...",
+   "why_unclear": "The frozenset _OVERRIDABLE_BASE30_ROWS lists field names, but without seeing their downstream usage, I cannot confidently explain why these specific fields are overridable while others are not, or what 'base-30' semantically means in this context."
+  }
+ ]
+}

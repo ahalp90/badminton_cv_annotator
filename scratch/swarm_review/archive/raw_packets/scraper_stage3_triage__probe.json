@@ -1,0 +1,52 @@
+{
+ "module": "src/scraper/stage3_triage.py",
+ "purpose": "Stage 3 of a video triage pipeline that uses an LLM (Gemini) to extract qualitative commentary chunks from badminton match transcripts. It windows transcripts into overlapping segments, sends each window to the LLM for filtering, aggregates the results into JSON sidecars, and applies a three-part decision rule to determine which videos to keep based on chunk density.",
+ "public_api": [
+  {
+   "name": "TriageError",
+   "role": "Exception raised when an LLM triage call fails after exhausting all retry attempts, allowing the caller to move that video to a retry list."
+  },
+  {
+   "name": "load_transcript",
+   "role": "Loads a transcript JSON sidecar from the transcripts directory for a given video ID, returning the parsed transcript or None if no file exists."
+  },
+  {
+   "name": "chunk_windows",
+   "role": "Splits transcript segments into overlapping time windows of CHUNK_WINDOW_S seconds with CHUNK_OVERLAP_S overlap, so segments at boundaries appear in multiple windows."
+  },
+  {
+   "name": "build_triage_prompt",
+   "role": "Constructs a (system_prompt, user_prompt) tuple for the LLM, instructing it to filter commentary for qualitative assessments and format the reply as JSON."
+  },
+  {
+   "name": "call_triage_llm",
+   "role": "Calls the Gemini LLM for one window with exponential backoff retry logic, raising TriageError if all retries fail."
+  },
+  {
+   "name": "triage_video",
+   "role": "Process a single video by windowing its transcript, calling the LLM per window, and aggregating chunks into a list; returns (keep_decision, chunks) or None if no transcript exists."
+  },
+  {
+   "name": "run_stage3",
+   "role": "Main orchestrator that processes all videos with transcripts, writes chunk sidecars, detects a dead endpoint if all triage calls fail, and updates the keep column in candidates.csv."
+  },
+  {
+   "name": "main",
+   "role": "Command-line entry point that parses arguments and invokes run_stage3()."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "# Long branch: seconds > SHORT_VIDEO_MIN_S > 0, so duration_min is never zero.\n    density_per_min = n_chunks / (seconds / 60.0)",
+   "why_unclear": "The comment refers to a variable `duration_min` that does not appear in the code; the actual variable is `density_per_min`. This mismatch makes it unclear whether the comment is outdated, or whether I am misunderstanding the intended logic."
+  },
+  {
+   "quote": "    client = genai.Client()\n    response = client.models.generate_content(\n        model=TRIAGE_MODEL,\n        contents=user_prompt,\n        config={\n            'system_instruction': system_prompt,\n            'max_output_tokens': TRIAGE_MAX_TOKENS,\n            'response_mime_type': 'application/json',\n        },",
+   "why_unclear": "The exact API surface of the google-genai SDK is not visible; I infer the structure from context, but cannot confidently verify that `genai.Client()` and the `config` dictionary with `response_mime_type` match the actual SDK contract without reading its documentation."
+  },
+  {
+   "quote": "            chunks.append({\n                'chunk_id': f'{video_id}_c{len(chunks)}',",
+   "why_unclear": "The chunk ID increments as `len(chunks)` during the loop across multiple windows. This works because all chunks are appended to one list, but a reader might initially wonder whether chunk IDs are reliable when aggregating from separate window calls, or whether there is any risk of collision or mis-sequencing."
+  }
+ ]
+}

@@ -1,0 +1,75 @@
+{
+ "module": "src/annotator/calibration/schemas.py",
+ "purpose": "Defines fixed column schemas for calibration output CSV files and helper functions to construct JSON winner/config documents. The module supplies canonical headers for multiple output formats (boundary sweep, contact sweep, alignment metrics, etc.) and provides utilities to assemble structured winner-selection payloads.",
+ "public_api": [
+  {
+   "name": "FROZEN_ROW_COLUMNS",
+   "role": "Tuple of core column names appearing in most calibration outputs (performance metrics, detection counts, parameter values)"
+  },
+  {
+   "name": "TOLERANCE_FRAME_COLUMNS",
+   "role": "Tuple of tolerance-based frame thresholds (1, 2, 5, 10 frame variants)"
+  },
+  {
+   "name": "BOUNDARY_DIAGNOSTIC_COLUMNS",
+   "role": "Tuple of diagnostic columns specific to boundary detection (coverage, alignment, merge metrics)"
+  },
+  {
+   "name": "BOUNDARY_SWEEP_COLUMNS",
+   "role": "Complete column schema for boundary_sweep.csv; combines frozen rows, diagnostics, and tolerance columns"
+  },
+  {
+   "name": "CONTACT_SWEEP_COLUMNS",
+   "role": "Complete column schema for contact_sweep.csv; frozen rows plus impulse/dedup/smoothing parameters and tolerances"
+  },
+  {
+   "name": "BEST_CONFIG_COMPARISON_COLUMNS",
+   "role": "Column schema for best_config_comparison.csv; includes rule name and coverage gaps"
+  },
+  {
+   "name": "CONTACT_FRONTIER_COLUMNS",
+   "role": "Alias for CONTACT_SWEEP_COLUMNS; used for contact_frontier.csv output"
+  },
+  {
+   "name": "CONTACT_STABILITY_COLUMNS",
+   "role": "Column schema for contact_stability.csv; contact sweep columns plus a winner-stability flag"
+  },
+  {
+   "name": "SPLIT_LOG_COLUMNS",
+   "role": "Column schema for split_log.csv; tracks rally pieces and their spans across videos"
+  },
+  {
+   "name": "ALIGNMENT_COLUMNS",
+   "role": "Base column schema for alignment metrics (rule, rally count, median and p90 offset)"
+  },
+  {
+   "name": "ALIGNMENT_OWN_COVERED_COLUMNS",
+   "role": "Column schema for alignment_own_covered.csv; alias for ALIGNMENT_COLUMNS"
+  },
+  {
+   "name": "ALIGNMENT_SHARED_COLUMNS",
+   "role": "Column schema for alignment_shared.csv; alias for ALIGNMENT_COLUMNS"
+  },
+  {
+   "name": "CSV_COLUMNS_BY_FILENAME",
+   "role": "Dict mapping output filenames to their column tuples; allows code to look up the schema for a given CSV file"
+  },
+  {
+   "name": "serialise_winner_strategy",
+   "role": "Converts strategy enum values to their string names for JSON serialisation; passes through non-enum values unchanged"
+  },
+  {
+   "name": "winner_spec",
+   "role": "Builds a single phase's winner config from numeric overrides and strategy choices; returns a dict with 'overrides_base30' and 'strategies' keys"
+  },
+  {
+   "name": "winner_document",
+   "role": "Constructs the complete config_winner.json payload; assembles metadata and optional boundary/contact phase specs with provenance tracking"
+  },
+  {
+   "name": "WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY, WINNER_JSON_CONTACT_KEY, WINNER_JSON_PHASE_KEYS, WINNER_JSON_META_KEYS, WINNER_JSON_VERDICT_ISSUED, WINNER_JSON_TOLERANCES_BASE30, WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY, WINNER_SPEC_KEYS",
+   "role": "String constants defining JSON document structure and keys used by winner/config serialisation"
+  }
+ ],
+ "stumbles": []
+}

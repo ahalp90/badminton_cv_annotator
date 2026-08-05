@@ -1,0 +1,32 @@
+{
+ "module": "src/scraper/download_scraped_videos.py",
+ "purpose": "Downloads selected videos from URLs using yt-dlp and verifies audio presence via ffprobe. Maintains a TOML manifest to track source information and commentary eligibility for each downloaded file.",
+ "public_api": [
+  {
+   "name": "DownloadOutcome",
+   "role": "Dataclass holding the result for one video download: video_id, filename (if downloaded), manifest entry, and failure flag. Returned by download_all_videos()."
+  },
+  {
+   "name": "download_all_videos",
+   "role": "Main entry point. Downloads kept candidates from a CSV file using parallel workers, verifies audio with ffprobe (configurable), and writes or updates the sources.toml manifest. Parameters control candidate path, output directory, worker count, and whether to skip audio checks. Returns list of DownloadOutcome."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point. Parses command-line arguments (--candidates-csv, --output-dir, --workers, --allow-missing-audio, --video-only) and calls download_all_videos(). Returns 0 for success, 2 if \u226550% of tasks failed."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "lines.append(f'[videos.{json.dumps(str(basename), ensure_ascii=False)}]')",
+   "why_unclear": "The same function uses _toml_key() for top-level keys (line 203), which conditionally quotes bare keys to avoid needless escaping. But section headers at line 212 always use unconditional json.dumps(). The asymmetry in quoting strategy is not explained\u2014whether it's a TOML correctness requirement, a consistency choice, or an oversight."
+  },
+  {
+   "quote": "if 'video_id' in entry and (isinstance(entry['video_id'], bool) or not isinstance(entry['video_id'], (str, int)))",
+   "why_unclear": "The explicit bool check compensates for Python's isinstance(True, int) == True. However, the error message says \"must be a string or integer\" without mentioning bool rejection. The intent is opaque without either Python-version knowledge or familiarity with this int-subclass gotcha."
+  },
+  {
+   "quote": "_YTDLP_FORMAT_STEM = re.compile(r'\\.f\\d+$') ... not _YTDLP_FORMAT_STEM.search(path.stem)",
+   "why_unclear": "The code filters completed outputs to exclude paths matching .f followed by digits. The variable name and context hint at yt-dlp format IDs, but without yt-dlp documentation or repository context, it is unclear whether these represent temporary format choices, partial/incomplete downloads, or intermediate merger artifacts\u2014or why they should be excluded from the completed-outputs list."
+  }
+ ]
+}

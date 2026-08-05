@@ -1,0 +1,44 @@
+{
+ "module": "src/annotator/run_video.py",
+ "purpose": "Orchestrates the complete annotation pipeline for a single badminton video, coordinating segmentation (finding rally spans), contact detection, rally verdict determination, landing prediction, and hit-height measurement to produce a comprehensive analysis without ground truth.",
+ "public_api": [
+  {
+   "name": "scoring_filter",
+   "role": "Filters contacts to keep only rows the scorer reads: wrist gate not failed, not suppressed."
+  },
+  {
+   "name": "build_serve_options",
+   "role": "Builds serve-start detection options from the unmasked sticky cache, used to configure serve evidence collection."
+  },
+  {
+   "name": "run_video",
+   "role": "Main entry point that runs the full annotation pipeline for one video, returning AnnotatorResult with all detected spans, contacts, verdicts, landings, and measurements."
+  },
+  {
+   "name": "AnnotatorResult",
+   "role": "NamedTuple holding all outputs from the pipeline: rally spans, raw and filtered contacts, striker assignments, verdicts, landings, and hit-height data."
+  },
+  {
+   "name": "RunCapture",
+   "role": "Dataclass for caller-owned copies of exclusion masks and landing diagnostics generated during one run."
+  },
+  {
+   "name": "LandingHorizonRow",
+   "role": "Frozen dataclass representing a single GT-free comparison of landing outcomes at different time horizons."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "def _build_shuttle_hallucination_mask(\n    n_frames: int, rejected_grades: frozenset[int],\n    inpaint_codes: np.ndarray | None, shuttle_hallucination_mask: np.ndarray | None,",
+   "why_unclear": "What is a 'grade' in the context of inpaint_codes? The function converts grades into a boolean mask, but the domain meaning of grade values and why certain grades are 'rejected' is unclear without domain context."
+  },
+  {
+   "quote": "if hasattr(homography_rows, 'to_dict'):\n            homography_rows = homography_rows.to_dict('records')",
+   "why_unclear": "The conditional check suggests homography_rows can be either a DataFrame-like object (with to_dict method) or already a dict/list. Why is the type ambiguous? What are the valid input types and when would each be used?"
+  },
+  {
+   "quote": "window_end_without_events = point_winner.window_end(\n            final_contact, next_start, track, definitive_exclusion_mask,\n            resolved.constants.sustained_loss_frames,\n        )\n        # ... later ...\n        window_end_without_exclusion_mask = point_winner.window_end(\n            final_contact, next_start, track, all_false_exclusion_mask,\n            resolved.constants.sustained_loss_frames, shuttle_hallucination_mask,\n        )",
+   "why_unclear": "The shuttle_hallucination_mask is passed as a sixth argument to the second call but omitted from the first call to window_end(). Why is it conditionally passed? When should it be included or excluded?"
+  }
+ ]
+}

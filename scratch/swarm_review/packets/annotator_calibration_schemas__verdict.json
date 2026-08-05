@@ -1,0 +1,58 @@
+{
+  "module": "src/annotator/calibration/schemas.py",
+  "probe_assessment": "The cold read held up overall: its purpose and listed APIs match the module, and it reported no stumbles. The final grouped description is slightly overbroad because WINNER_JSON_VERDICT_ISSUED is the value \"issued\" and WINNER_JSON_TOLERANCES_BASE30 is a tuple, not a set of string key constants. The assignments make those roles clear in the file, so this is a probe summarisation error rather than a code-caused comprehension trap.",
+  "probe_findings": [],
+  "verdicts": [
+    {
+      "file": "src/annotator/calibration/schemas.py",
+      "line": 142,
+      "category": "comprehension-trap",
+      "claim": "The WINNER_JSON_* block mixes JSON key constants with the verdict value \"issued\", so WINNER_JSON_VERDICT_ISSUED is less explicit as a value constant than the nearby *_KEY names.",
+      "quote": "WINNER_JSON_VERDICT_ISSUED = \"issued\"",
+      "suggested_fix": "Rename to WINNER_JSON_VERDICT_VALUE or WINNER_VERDICT_ISSUED_VALUE to mark the constant as a value.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: misleading-name. The quote is present and confirms a string value, so the scanner's claim that the name follows a key naming pattern is too strong: the actual key constants carry the explicit _KEY suffix. The shared WINNER_JSON_* block and lack of a VALUE marker still leave a mild role distinction for a skimmer. The original correction was to use a value-marked name such as WINNER_JSON_VERDICT_VALUE."
+    },
+    {
+      "file": "src/annotator/calibration/schemas.py",
+      "line": 3,
+      "category": "comprehension-trap",
+      "claim": "The phrase \"raw ``recall_5``` can make a reader expect a raw-recall header, although the frontier schema names recall_5; the documentation should clarify what raw means for that axis.",
+      "quote": "Contact frontier rows use raw ``recall_5`` and ``precision_raw_5`` axes.",
+      "suggested_fix": "Clarify the metric semantics, or remove \"raw\" before ``recall_5`` if raw applies only to precision.",
+      "verdict": "MISREAD_BUT_TELLING",
+      "verifier_note": "Original suspected category: stale-doc. The quote is present, but CONTACT_FRONTIER_COLUMNS aliases CONTACT_SWEEP_COLUMNS, whose frozen columns include recall_5 and precision_raw_5. The source does not establish a contradiction, because raw is a prose qualifier rather than a claim that a recall_raw_5 header exists. Its placement still invites the scanner's inference. The original correction was to remove raw before ``recall_5``."
+    },
+    {
+      "file": "src/annotator/calibration/schemas.py",
+      "line": 178,
+      "category": "docs-prose",
+      "claim": "Docstring uses double-negative phrasing (missing/omits) where positive phrasing is required.",
+      "quote": "a missing phase mapping omits its key.",
+      "suggested_fix": "Use positive phrasing: \"only present phases appear as keys.\"",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote appears verbatim. winner_document adds boundary and contact keys only for non-None mappings, so the sentence accurately describes the behaviour. The original wording is understandable, but the rubric's positive-phrasing rule supports the suggested rewrite."
+    },
+    {
+      "file": "src/annotator/calibration/schemas.py",
+      "line": 87,
+      "category": "ordering",
+      "claim": "CONTACT_FRONTIER_COLUMNS is placed between BEST_CONFIG_COMPARISON_COLUMNS and CONTACT_STABILITY_COLUMNS, breaking the logical grouping of CONTACT-related constants.",
+      "quote": "BEST_CONFIG_COMPARISON_COLUMNS = (\n    \"rule\",\n    *BOUNDARY_SWEEP_COLUMNS,",
+      "suggested_fix": "Place CONTACT_FRONTIER_COLUMNS immediately after CONTACT_SWEEP_COLUMNS, followed by CONTACT_STABILITY_COLUMNS, or otherwise group the three contact schemas together.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The quote appears verbatim at lines 87-89; the scanner's reported line 94 points to the following frontier alias. BEST_CONFIG_COMPARISON_COLUMNS currently separates CONTACT_SWEEP_COLUMNS from the frontier and stability schemas. This is a mild reading-order issue rather than a functional problem, and the grouping judgement is retained under the rubric."
+    },
+    {
+      "file": "src/annotator/calibration/schemas.py",
+      "line": 118,
+      "category": "repetition",
+      "claim": "ALIGNMENT_OWN_COVERED_COLUMNS and ALIGNMENT_SHARED_COLUMNS both assign the same constant (ALIGNMENT_COLUMNS), creating identical aliases.",
+      "quote": "ALIGNMENT_OWN_COVERED_COLUMNS = ALIGNMENT_COLUMNS\nALIGNMENT_SHARED_COLUMNS = ALIGNMENT_COLUMNS",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the repetition category does not hold. These are intentional named aliases for two distinct CSV filenames, and both names are used in CSV_COLUMNS_BY_FILENAME. No duplicated schema logic is written out."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": []
+}

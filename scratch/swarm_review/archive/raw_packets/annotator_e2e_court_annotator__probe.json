@@ -1,0 +1,80 @@
+{
+ "module": "src/annotator/e2e_court_annotator.py",
+ "purpose": "This module runs a fixed, hard-coded measurement of the badminton court annotator: four video cases crossed with two court-detection methods (static homography vs detected CourtKeyNet consensus), producing eight configurations. It verifies pinned input files, runs inference and scene/court evidence extraction for each configuration, scores results against ground truth, and writes structured JSON/CSV manifests, metrics, and failure records for each stage, plus a final run-level manifest.",
+ "public_api": [
+  {
+   "name": "FixedCase",
+   "role": "Frozen dataclass describing one fixed video/track case (case_id, fixture name, tracknet stride/mode, fps, frame count); instantiated for the four CASES."
+  },
+  {
+   "name": "InputManifest",
+   "role": "Frozen dataclass holding the parsed strict input manifest (video/track/config/weights pins plus producer labels); returned by parse_input_manifest."
+  },
+  {
+   "name": "CaseData",
+   "role": "Mutable dataclass holding loaded arrays (track/bboxes/scores/kps/ndet), pins, raw cuts, and status for one case; built by an internal loader and consumed when running configurations."
+  },
+  {
+   "name": "ConfigurationState",
+   "role": "Mutable dataclass tracking the terminal state of one parent/case configuration run (result, court evidence, capture, status, manifest path)."
+  },
+  {
+   "name": "RunDriver",
+   "role": "Mutable dataclass holding overall run state (device, manifest, detector, cases, configurations, failure paths); threaded through setup/run/score/manifest steps."
+  },
+  {
+   "name": "VideoMetadata",
+   "role": "NamedTuple of fps/n_frames/width/height returned by probe_video for validating a pinned video file."
+  },
+  {
+   "name": "utc_now",
+   "role": "Returns the current UTC time as an RFC 3339 string; used for timestamping manifests and logs."
+  },
+  {
+   "name": "parse_input_manifest",
+   "role": "Parses and strictly validates a JSON input manifest (bytes/str/dict) into an InputManifest; call before running a measurement."
+  },
+  {
+   "name": "verify_selected_pins",
+   "role": "Verifies a given list of FilePin objects (path safety and hash) without loading a fixture's whole file bundle; used when only specific pins are needed."
+  },
+  {
+   "name": "probe_video",
+   "role": "Opens a video with OpenCV and reads fps/frame count/width/height without running inference; used to sanity-check a pinned video before use."
+  },
+  {
+   "name": "validate_video_metadata",
+   "role": "Raises ValueError if a probed video's metadata does not match the fixed case's expected fps, frame count, or dimensions."
+  },
+  {
+   "name": "verify_eligible_gt_files",
+   "role": "Verifies that each fixture's ground-truth CSV directory contains exactly the expected pinned files and that their hashes match, at the scoring boundary."
+  },
+  {
+   "name": "run_annotator_measurement",
+   "role": "Top-level entry point: given a manifest path and an output root, runs the full fixed eight-configuration measurement, writing all artefacts, and returns a process exit code; called by the CLI or tests with a chosen output directory."
+  },
+  {
+   "name": "build_parser",
+   "role": "Builds the argparse.ArgumentParser for the CLI (--manifest, --device flags)."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point: parses args, resolves an output directory automatically, runs the measurement, writes a summary/report, and cleans the run; used when the module is run as a script."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "The command currently runs builds and reads or writes outputs for the hard-coded\nfixture list in the shared contract.",
+   "why_unclear": "The module docstring's opening sentence is grammatically awkward ('runs builds and reads or writes'), and I could not determine what 'the shared contract' refers to without opening another file (likely annotator.calibration.fixtures, but that is only a guess from the import list, not confirmed by this file alone)."
+  },
+  {
+   "quote": "original_shared_files = gt_scoring_module.SHARED_FILES\n# NB NOT THREADSAFE\ngt_scoring_module.SHARED_FILES = tuple(SHARED_FILES[:3])",
+   "why_unclear": "This mutates a module-level global on gt_scoring_module to narrow which files load_gt_tables() verifies, then restores it. I cannot confirm from this file alone why SHARED_FILES[:3] is the correct slice, or why load_gt_tables cannot take an explicit file list instead; that depends on gt_scoring.py, which I did not open."
+  },
+  {
+   "quote": "Non-sset runs need a no-GT path.",
+   "why_unclear": "This inline comment references a 'non-sset' run scenario not otherwise visible in this module (all CASES here are sset_01/15/21); I cannot tell if this is forward-looking documentation for a future caller or refers to existing behaviour elsewhere in the codebase."
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+{
+ "module": "src/scraper/stage1_index.py",
+ "purpose": "Indexes YouTube search results for seed terms to build a candidates dataset. Runs yt-dlp flat-mode searches on configured terms grouped by substream, deduplicates videos by ID while tracking cross-family provenance, enriches missing metadata fields (channel, duration, upload_date) via per-video pulls, applies three screening filters (doubles detection, duration band, upload date), and writes a fixed-column candidates.csv with keep and triage_verdict fields left blank for later stages.",
+ "public_api": [
+  {
+   "name": "search_term_rows(term, substream)",
+   "role": "Run flat metadata index for one search term; return list of row dicts per hit, stamped with search_term and substream. Called once per seed term."
+  },
+  {
+   "name": "enrich_row(row)",
+   "role": "Fill empty channel/duration_s/upload_date fields via per-video --dump-json pull (mutates row in place); return True only if a metadata call actually hit YouTube to pace real requests."
+  },
+  {
+   "name": "flag_doubles(title)",
+   "role": "Detect if title looks like a doubles match using case-insensitive substring phrases and whole-token abbreviations; used to flag (not drop) likely doubles videos."
+  },
+  {
+   "name": "duration_out_of_band(duration_s, substream)",
+   "role": "Check if a known duration sits outside the sane match-length band; instructional substream skips the short-duration check since coach clips run short by design."
+  },
+  {
+   "name": "upload_before_floor(upload_date)",
+   "role": "Check if upload predates the configured floor date (YYYYMMDD); returns False by default when floor is unset, so this screen is opt-in."
+  },
+  {
+   "name": "build_candidates(search_terms)",
+   "role": "Main pipeline: index all search families, deduplicate by video_id, enrich metadata, apply three screens (doubles, duration, upload date), write candidates.csv, return rows."
+  },
+  {
+   "name": "main()",
+   "role": "Entry point; parse arguments and call build_candidates()."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "# Per-term logging (spec s2): the count each term returns feeds the B5\n# per-term keep-rate read-out (stage-3 keeps over rows surfaced).",
+   "why_unclear": "The term 'B5' is opaque without external context \u2014 it appears to be a label or section reference in a design doc, but its meaning (a specific review stage, a requirement ID, a milestone?) is not explained in this module."
+  },
+  {
+   "quote": "# SLEEP_REQUESTS_S, not the 5-15 s interval pause: enrichment is a\n# metadata extraction request, matching --sleep-requests semantics.\n# The randomised pre-download pause belongs to stage 2's caption pull.",
+   "why_unclear": "The comment contrasts SLEEP_REQUESTS_S with a '5-15 s interval pause' and mentions a 'randomised pre-download pause', but without reading stage 2 (stage2_captions.py), the origin and purpose of these pause patterns is unclear."
+  },
+  {
+   "quote": "def upload_before_floor(upload_date: str) -> bool:\n    \"\"\"True if the upload predates the floor. OPEN (spec s2): default off.",
+   "why_unclear": "The label 'OPEN' is used to tag this feature as optional or incomplete, but what 'OPEN' conventionally signifies in this project's issue/spec system (unfinished work, disabled by default, awaiting design decision?) is not evident from the code alone."
+  }
+ ]
+}

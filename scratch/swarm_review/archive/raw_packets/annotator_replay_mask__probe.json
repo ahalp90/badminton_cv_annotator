@@ -1,0 +1,36 @@
+{
+ "module": "src/annotator/replay_mask.py",
+ "purpose": "Generates a per-frame boolean mask marking replay, slow-motion, or off-rally frames by combining three independent signals: court absence, perspective shift in court homography, and shuttle velocity drop below rally norm. The combined mask is saved as a numpy array per video.",
+ "public_api": [
+  {
+   "name": "court_absence_signal",
+   "role": "Produces a boolean mask that fires across sustained court-absent runs (longer than an fps-scaled window), used as the first replay detector signal."
+  },
+  {
+   "name": "perspective_shift_signal",
+   "role": "Produces a boolean mask that fires on segments whose court corners deviate from the dominant broadcast view (by more than PERSPECTIVE_SHIFT_THRESHOLD relative to the reference court diagonal), used as the second replay detector signal."
+  },
+  {
+   "name": "velocity_drop_signal",
+   "role": "Produces a boolean mask that fires where visible shuttle speed drops below SLOWMO_SPEED_FRAC of the rally median speed but remains above REST_SPEED, used as the third replay detector signal (slow-motion detection)."
+  },
+  {
+   "name": "combine_mask",
+   "role": "Unifies the three detector signals with logical OR, passing court and perspective masks as baseline_exclude to velocity_drop_signal to refine the speed baseline."
+  },
+  {
+   "name": "filter_short_exclusion_runs",
+   "role": "Post-processes a boolean mask to remove isolated detector noise by dropping runs shorter than min_frames, keeping only durations long enough to be credible."
+  },
+  {
+   "name": "main",
+   "role": "CLI entry point that loads per-video inputs (shuttle track, court mask, homography segments, rally spans), computes the replay mask, and saves it as video_id_replay.npy."
+  }
+ ],
+ "stumbles": [
+  {
+   "quote": "velocity = velocity_drop_signal(\n    track, rally_spans, n_frames, fps,\n    non_evidence=non_evidence, baseline_exclude=court | perspective,\n)",
+   "why_unclear": "The function call at line 239\u2013242 passes `baseline_exclude=court | perspective` to velocity_drop_signal, but the function's docstring (lines 166\u2013182) does not document what the `baseline_exclude` parameter does or why excluding court/perspective frames is necessary for computing the rally speed baseline. This makes it unclear whether baseline_exclude filters the rally median calculation, how it interacts with non_evidence, or what the intent is."
+  }
+ ]
+}

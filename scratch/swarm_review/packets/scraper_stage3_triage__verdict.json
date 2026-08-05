@@ -1,0 +1,100 @@
+{
+  "module": "src/scraper/stage3_triage.py",
+  "probe_assessment": "The cold read mostly held up. The purpose and public API correctly captured the pipeline, return shapes, retries, sidecars, and keep-column write. One purpose summary compresses the keep rule into density even though the code has a duration-independent absolute count leg and a short-video count leg. The SDK stumble is genuine: this module cannot establish the installed google-genai version's exact Client().models.generate_content and config contract without external SDK documentation. The duration_min comment is stale, but the live seconds / 60.0 expression and seconds > SHORT_VIDEO_MIN_S > 0 condition resolve the intended denominator from the file. The chunk-ID concern is resolved by one list and append order. The boundary wording is an imprecise probe summary rather than a trap because the function documents and implements start-based half-open membership.",
+  "probe_findings": [
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 187,
+      "category": "comprehension-trap",
+      "claim": "The probe's purpose summary treats the keep rule as density-based, but the implementation uses a raw chunk-count threshold for short videos as well as a duration-independent absolute count leg.",
+      "quote": "    if seconds <= SHORT_VIDEO_MIN_S:\n        return absolute_safe or n_chunks >= CHUNKS_MIN_SHORT",
+      "confidence": "medium"
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 135,
+      "category": "comprehension-trap",
+      "claim": "The exact google-genai SDK contract behind genai.Client().models.generate_content and its config mapping cannot be verified from this file alone, so a junior cannot resolve whether this call shape is valid without external documentation.",
+      "quote": "    client = genai.Client()\n    response = client.models.generate_content(\n        model=TRIAGE_MODEL,",
+      "confidence": "medium"
+    }
+  ],
+  "verdicts": [
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 174,
+      "category": "docs-prose",
+      "claim": "Acronyms/project shorthand 'D9' and 'spec s4' appear in the keep-rule documentation without definitions; an unfamiliar reader cannot tell what they refer to.",
+      "quote": "\"\"\"Three-legged keep rule (D9, spec s4): keep when ANY leg passes.",
+      "suggested_fix": "Define D9 and spec s4 at first use, or replace both references with a plain description of the keep rule and stage contract.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The line-6 overview finding is the same unexplained-shorthand issue and is folded in. Its quote contains D9 rather than the claimed spec s4, but the module uses spec s4 elsewhere; both references remain unexplained.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 50,
+      "category": "docs-prose",
+      "claim": "Domain jargon 'yt-dlp id' used without explanation; unfamiliar reader cannot infer that yt-dlp is a video-downloading tool.",
+      "quote": ":param video_id: yt-dlp id.",
+      "suggested_fix": "Explain that video_id is the identifier produced by yt-dlp, or use 'video ID' if the source tool is not important here.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 209,
+      "category": "style-house",
+      "claim": "Magic string prefix 'c' in chunk_id construction lacks explanation; unclear whether it denotes 'chunk', 'count', or something else.",
+      "quote": "'chunk_id': f'{video_id}_c{len(chunks)}',",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but the surrounding chunk_id field, chunks list, and len(chunks) make the c prefix readily inferable as 'chunk'. The rubric's magic-value rule concerns domain-significant numbers, and this delimiter does not create a material house-style or comprehension issue."
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 180,
+      "category": "docs-over-types",
+      "claim": "Docstring redundantly restates type information; ':param duration_s: duration in seconds as a string' duplicates what the type hint 'duration_s: str' already conveys.",
+      "quote": ":param duration_s: duration in seconds as a string; blank when unknown.",
+      "verdict": "KILLED",
+      "verifier_note": "The quote is present, but 'duration in seconds' and 'blank when unknown' add domain and sentinel semantics that str cannot express. It is not redundant type prose under the rubric."
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 176,
+      "category": "docs-prose",
+      "claim": "Jargon 'enrichment' introduced without explanation in docstring; unfamiliar reader cannot understand what enrichment process is being referenced.",
+      "quote": "A duration-less row (rare; enrichment fills nearly all) can be judged",
+      "suggested_fix": "Replace enrichment with a plain description such as 'Earlier processing fills nearly all duration values', or name the stage that supplies them.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 189,
+      "category": "stale-doc",
+      "claim": "Comment references variable `duration_min` which does not exist; the actual variable is `density_per_min`",
+      "quote": "    # Long branch: seconds > SHORT_VIDEO_MIN_S > 0, so duration_min is never zero.\n    density_per_min = n_chunks / (seconds / 60.0)",
+      "suggested_fix": "Change the comment to say that seconds / 60 is positive, or name the denominator explicitly.",
+      "verdict": "CONFIRMED",
+      "verifier_note": "The comment names no actual variable, while the following expression uses seconds / 60.0. The duplicate structure finding is folded into this entry.",
+      "duplicates_merged": 1
+    },
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 271,
+      "category": "ordering",
+      "claim": "Helper function _write_keep_back is called before it is defined, breaking the established pattern of defining helpers before their callers.",
+      "quote": "        _write_keep_back(rows, keep_by_id)",
+      "verdict": "KILLED",
+      "verifier_note": "The submitted quote is not verbatim: the source line has four leading spaces, while this quote has eight. The underlying source-order observation may be reasonable, but the raw finding must be killed because its quote is absent exactly as supplied."
+    }
+  ],
+  "overflow_notes": null,
+  "incidental_notes": [
+    {
+      "file": "src/scraper/stage3_triage.py",
+      "line": 163,
+      "quote": "        except Exception as error:  # noqa: BLE001 - retry SDK + JSON-parse errors alike",
+      "note": "The broad catch retries every exception, including programming errors, as if it were a transient SDK or JSON failure. The error is eventually re-raised as TriageError, so this is not swallowed, but non-transient faults can be obscured until retries finish."
+    }
+  ]
+}
