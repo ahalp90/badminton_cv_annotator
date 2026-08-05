@@ -300,6 +300,14 @@ class Reconciliation(NamedTuple):
 
 
 class RallyRow(NamedTuple):
+    """One ground-truth rally's boundary mapping and column-level scores.
+
+    Identity and boundary fields run from ``gt_index`` through ``mapped_span``.
+    Ball-round and timing fields compare stroke counts and matched frame error.
+    Player, server, hit-height, getpoint, and landing fields then hold each
+    column's eligible ground truth, prediction, and correctness values.
+    """
+
     gt_index: int
     set_id: str
     rally: int
@@ -330,6 +338,12 @@ class RallyRow(NamedTuple):
 
 
 class ColumnAgg(NamedTuple):
+    """Correct and eligible counts for primary and covered-only views.
+
+    Primary totals include every eligible ground-truth item. Secondary totals
+    include only items whose rally has a covered boundary mapping.
+    """
+
     primary_correct: int
     primary_total: int
     secondary_correct: int
@@ -337,6 +351,14 @@ class ColumnAgg(NamedTuple):
 
 
 class VideoScoring(NamedTuple):
+    """All per-video calibration rows, aggregates, counts, and diagnostics.
+
+    ``rows`` and ``boundary_metrics`` retain rally-level and boundary results.
+    ``ColumnAgg`` fields and timing pairs hold primary and covered-only counts.
+    Contact totals support precision and recall, while the remaining lists and
+    mappings retain hit-height failures, absolute errors, and verdict details.
+    """
+
     name: str
     rows: list[RallyRow]
     boundary_metrics: dict
@@ -439,7 +461,13 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         raise ValueError(f"{fixture.name}: homography_rows are missing or empty")
     keyword: dict[str, object] = {
         "fps": fixture.fps,
-        "landing_options": LandingFilterOptions(7, 0.004, 5, 7, 0.75),
+        "landing_options": LandingFilterOptions(
+            settle_win=7,
+            settle_thr=0.004,
+            settle_min=5,
+            carry_win=7,
+            carry_thr=0.75,
+        ),
         "net_band": fixture.net_band,
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,

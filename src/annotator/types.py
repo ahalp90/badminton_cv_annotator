@@ -160,7 +160,28 @@ ANKLE_L, ANKLE_R = 15, 16
 
 
 class StickyResult(NamedTuple):
-    """Cached sticky evidence. ``bbox_height`` is in pixels."""
+    """Frame-aligned evidence from the sticky player picker.
+
+    The second axis of every per-slot field is ``[TOP, BOTTOM]``.
+
+    :param distances: ``(t,)`` nearest finite wrist gap in body-height units;
+        positive infinity outside analysed segments and NaN when an analysed
+        frame has no finite picked-player gap.
+    :param picks: ``(t, 2)`` raw pose-slot indices; ``-1`` means no accepted
+        player for that court half.
+    :param standing_count: ``(t,)`` number of standing in-court detections.
+    :param ankle_pos: ``(t, 2, 2)`` mean ankle ``[x, y]`` normalised by video
+        resolution; NaN where no player was picked.
+    :param bbox_height: ``(t, 2)`` picked-player box heights in pixels; NaN
+        where no player was picked.
+    :param distances_per_slot: ``(t, 2)`` wrist gaps in body-height units before
+        the nearest-slot collapse, with the same infinity and NaN sentinels as
+        ``distances``.
+    :param wrist_dist_px: ``(t, 2)`` wrist gaps in pixels on visible shuttle
+        frames; positive infinity outside analysed segments and NaN when
+        unavailable inside them.
+    :param analysed: ``(t,)`` boolean mask of frames visited by the picker.
+    """
 
     distances: np.ndarray
     picks: np.ndarray

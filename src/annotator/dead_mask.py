@@ -58,9 +58,15 @@ def build_dead_mask(
 ) -> np.ndarray:
     """Build a boolean dead-time mask using the selected producer policy.
 
-    ``REPLAY`` delegates to the existing replay signal union. ``COMPOSITION``
-    delegates to the existing cut-segment builder after validating its inputs.
-    ``UNION`` combines both masks elementwise.
+    All modes consume ``n_frames``. ``REPLAY`` also consumes ``fps`` and the
+    optional ``court_present``, ``homography_rows``, ``track``, ``rally_spans``,
+    and ``shuttle_hallucination_mask`` signals. A missing replay signal
+    contributes an all-False component. ``COMPOSITION`` requires ``cut_frames``
+    and the frame-aligned boolean ``keep_vote``; ``vote`` overrides its default
+    threshold. It ignores the replay inputs and ``fps``. ``UNION`` consumes both
+    input groups and combines the resulting masks elementwise.
+
+    :return: ``(n_frames,)`` boolean mask, True for excluded dead-time frames.
     """
     # Normalising here keeps the dispatch below on identity checks; a junk mode
     # string fails loudly in the cast.

@@ -1,11 +1,13 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import math
 from typing import Any, NamedTuple
 
 import numpy as np
+import pandas as pd
 
 import annotator.rally_segmentation as rally_segmentation
 from annotator import point_winner as point_winner
@@ -118,20 +120,20 @@ class RunCapture:
 class _CourtInputs:
     """Court and player evidence used only by court-dependent modes."""
 
-    bboxes: Any
-    scores: Any
-    kps: Any
-    ndet: Any
+    bboxes: np.ndarray | None
+    scores: np.ndarray | None
+    kps: np.ndarray | None
+    ndet: np.ndarray | None
     resolution: tuple[float, float] | None
     video_id: int | None
-    court_info: dict | None
-    homo_df: Any
-    gate_court_info: dict | None
-    gate_resolution_table: Any
-    court_present: Any
-    homography_rows: Any
-    cut_frames: Any
-    keep_vote: Any
+    court_info: dict[str, object] | None
+    homo_df: pd.DataFrame | None
+    gate_court_info: dict[str, dict[str, object]] | None
+    gate_resolution_table: pd.DataFrame | None
+    court_present: np.ndarray | None
+    homography_rows: pd.DataFrame | list[dict[str, object]] | None
+    cut_frames: Sequence[int] | np.ndarray | None
+    keep_vote: np.ndarray | None
 
 
 @dataclass(frozen=True)
@@ -426,25 +428,29 @@ def _run_court_segmentation(
 
 
 def run_video(
-    track, bboxes=None, scores=None, kps=None, ndet=None,
+    track: np.ndarray,
+    bboxes: np.ndarray | None = None,
+    scores: np.ndarray | None = None,
+    kps: np.ndarray | None = None,
+    ndet: np.ndarray | None = None,
     *,
     fps: float,
     base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
-    landing_options=None,
+    landing_options: point_winner.LandingFilterOptions | None = None,
     net_band: tuple[float, float] | None = None,
     resolution: tuple[float, float] | None = None,
     video_id: int | None = None,
-    court_info: dict | None = None,
-    homo_df=None,
-    gate_court_info: dict | None = None,
-    gate_resolution_table=None,
+    court_info: dict[str, object] | None = None,
+    homo_df: pd.DataFrame | None = None,
+    gate_court_info: dict[str, dict[str, object]] | None = None,
+    gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
     raw_exclusion_mask: np.ndarray | None = None,
     positions: np.ndarray | None = None,
-    court_present=None,
-    homography_rows=None,
-    cut_frames=None,
-    keep_vote=None,
+    court_present: np.ndarray | None = None,
+    homography_rows: pd.DataFrame | list[dict[str, object]] | None = None,
+    cut_frames: Sequence[int] | np.ndarray | None = None,
+    keep_vote: np.ndarray | None = None,
     serve_start: ServeStartConfig | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
@@ -460,13 +466,37 @@ def run_video(
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
 
-    `court_optional` is only valid with `stop_after_segmentation`. That mode does not build
-    sticky or enter downstream court-dependent work, so it accepts only the track, fps,
-    positions, and optional raw exclusion mask.
+    Core arrays are ``track`` as ``(t, 3)`` normalised shuttle ``[x, y,
+    visibility]``; ``bboxes`` as ``(t, n_max, 4)`` xyxy pose boxes; ``scores``
+    as ``(t, n_max)`` detection scores; ``kps`` as ``(t, n_max, 17, 2)`` pose
+    coordinates; and ``ndet`` as ``(t,)`` detection counts. ``fps`` and ``base``
+    select the resolved frame-rate policy.
 
-    ``court_invalid_is_excluded`` is opt-in so existing calibration callers keep
-    their supplied mask semantics. ``landing_error_band_m`` lets a parent pass
-    its active geometry's uncertainty without opening a static homography table.
+    Court-dependent mode also requires ``resolution``, ``video_id``,
+    ``gate_court_info``, ``gate_resolution_table``, ``court_present`` as
+    ``(t,)`` booleans, and scene ``homography_rows``. The full chain additionally
+    requires ``landing_options``, ``net_band``, ``court_info``, and either the
+    static ``homo_df`` or a parent-supplied ``landing_error_band_m``.
+
+    ``raw_exclusion_mask`` injects the ``(t,)`` dead-time producer output.
+    Otherwise the resolved dead-mask mode consumes replay inputs plus
+    composition ``cut_frames`` and ``keep_vote`` as needed. ``inpaint_codes``
+    and ``shuttle_hallucination_mask`` are mutually exclusive frame-aligned
+    sources for event rejection. ``positions`` is the optional ``(t, 2, 2)``
+    player-position evidence used by contact diagnostics.
+
+    ``spans`` and ``contacts`` inject prior stage results. ``serve_start`` cannot
+    accompany injected spans. ``court_optional`` is valid only with
+    ``stop_after_segmentation``. It rejects scene and court-presence inputs, all
+    four pose arrays, ``resolution``, ``video_id``, both sticky-gate inputs, and
+    ``serve_start``; other full-chain arguments are unused in that mode.
+
+    ``capture`` is caller-owned, cleared at entry, and receives mask copies.
+    Full-chain mode also appends to caller-owned ``rejection_diagnostics`` and
+    records requested ``landing_horizons_s`` in ``capture``. Horizons require a
+    capture and must be finite, positive, and strictly increasing.
+    ``court_invalid_is_excluded`` adds invalid-court frames only in full-chain
+    mode, not when stopping after segmentation.
     """
     court = _CourtInputs(
         bboxes=bboxes, scores=scores, kps=kps, ndet=ndet, resolution=resolution,
