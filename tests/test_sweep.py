@@ -91,6 +91,14 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     assert sweep.serialise_spec(spec)["overrides_base30"]["threshold_bh"] == 0.1
 
 
+@pytest.mark.parametrize("key", ("unrelated_field", "rest_widnow"))
+def test_sweep_rejects_unrelated_and_misspelled_fps_fields(key: str) -> None:
+    spec = sweep.CandidateSpec("invalid", {key: 1.0}, {})
+
+    with pytest.raises(ValueError, match=f"cannot route numeric sweep key {key!r}"):
+        sweep._base_and_serve(spec)
+
+
 def test_quality_floor_uses_greatest_coverage(tmp_path, monkeypatch, capsys) -> None:
     low = sweep.CandidateSpec("grid", {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}, {})
     high = sweep.CandidateSpec("grid", {key: values[-1] for key, values in sweep.BOUNDARY_VALUES.items()}, {})

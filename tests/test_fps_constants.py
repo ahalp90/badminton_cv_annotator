@@ -1,7 +1,7 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-from dataclasses import fields, replace
+from dataclasses import asdict, fields, replace
 import subprocess
 
 import numpy as np
@@ -11,7 +11,13 @@ import pytest
 from src.annotator.config import SHIPPED_THRESHOLDS
 from annotator.config import BaseAnnotatorConfig
 from annotator.resolve import resolve
-from src.annotator.fps_constants import FpsConstants, ScalingKind, probe_fps, scale_for_fps
+from src.annotator.fps_constants import (
+    FPS_CONSTANT_FIELD_NAMES,
+    FpsConstants,
+    ScalingKind,
+    probe_fps,
+    scale_for_fps,
+)
 from annotator.point_winner import (
     Half,
     LandingFilterOptions,
@@ -124,6 +130,20 @@ def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> No
         if field_name in minimum_two_fields:
             expected = max(2, expected)
         assert getattr(constants, field_name) == expected
+
+
+def test_resolve_accepts_every_fps_field_and_explicit_contact_threshold() -> None:
+    overrides = {
+        field.name: float(index) + 0.25
+        for index, field in enumerate(fields(FpsConstants), start=1)
+    }
+    overrides['contact_impulse_multiple'] = 5.5
+
+    resolved = resolve(BaseAnnotatorConfig(overrides_base30=overrides), 30.0)
+
+    assert FPS_CONSTANT_FIELD_NAMES == frozenset(field.name for field in fields(FpsConstants))
+    assert asdict(resolved.constants) == asdict(scale_for_fps(30.0, overrides))
+    assert resolved.thresholds.contact_impulse_multiple == 5.5
 
 
 def test_probe_fps_rejects_vfr_and_invalid(monkeypatch: pytest.MonkeyPatch) -> None:

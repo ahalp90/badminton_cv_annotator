@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
@@ -69,6 +69,10 @@ class FpsConstants:
     high_shot_oob_extrap_frames: int
     reentry_lookahead_frames: int
     reentry_min_visible_frames: int
+
+
+FPS_CONSTANT_FIELD_NAMES = frozenset(field.name for field in fields(FpsConstants))
+
 
 def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) -> FpsConstants:
     """Scale the base-30 table for a positive finite CFR frame rate."""
