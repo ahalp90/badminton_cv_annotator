@@ -59,8 +59,8 @@ def boundary_live_key_rally_id_f1(row: ScoreRow, n_gt_rallies: int) -> SortKey:
     return (-f1, sortable_median, *standard_tail(row))
 
 
-def boundary_report_key_fewest_merges(row: ScoreRow) -> SortKey:
-    """Return the fewest-merges report key, with an exact tie settled by the tail.
+def boundary_report_key_fewest_swallowed_rallies(row: ScoreRow) -> SortKey:
+    """Return the fewest-swallowed-rallies key, with an exact tie settled by the tail.
 
     All inputs are supplied counts, so this key has no ``None`` conversion.
     """
@@ -143,7 +143,7 @@ def contact_meets_floors(
     return True
 
 
-def contact_live_key_floored_f1(row: ScoreRow) -> SortKey:
+def contact_live_key_raw_f1(row: ScoreRow) -> SortKey:
     """Return the live contact key, with an exact tie settled by the tail.
 
     Callers pass only rows that clear configured floors and have a raw +/-5 F1.
@@ -204,7 +204,7 @@ def select_contact_live_winner(
     ]
     if not candidates:
         return None
-    return min(candidates, key=contact_live_key_floored_f1)
+    return min(candidates, key=contact_live_key_raw_f1)
 
 
 def best_config_clears_quality_floor(

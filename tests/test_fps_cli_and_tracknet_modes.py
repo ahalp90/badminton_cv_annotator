@@ -11,6 +11,17 @@ from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 from annotator.resolve import resolve
 from annotator.run_video import AnnotatorResult
 
+
+def test_rally_dead_mask_loader_keeps_dead_mask_filename(tmp_path: Path) -> None:
+    from annotator.rally import cli
+
+    expected = np.array([True, False, True], dtype=bool)
+    np.save(tmp_path / 'video-1_dead_mask.npy', expected)
+
+    np.testing.assert_array_equal(cli._load_dead_mask(tmp_path, 'video-1'), expected)
+    assert cli._load_dead_mask(tmp_path, 'missing') is None
+
+
 def test_composition_mask_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
     import annotator.composition_mask as composition_mask
 

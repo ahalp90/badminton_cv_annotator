@@ -101,13 +101,21 @@ def _boundary_report_rows(rows: list[dict[str, Any]], n_rallies: int) -> list[di
     )
     rules = [
         ("rally_id_f1", live),
-        ("fewest_merges", min(grid, key=selection.boundary_report_key_fewest_merges)),
+        (
+            "fewest_merges",
+            min(grid, key=selection.boundary_report_key_fewest_swallowed_rallies),
+        ),
         ("coverage_first", min(grid, key=selection.boundary_report_key_coverage_first)),
         ("tightest_start", min(grid, key=selection.boundary_report_key_tightest_start)),
     ]
     for covered in sorted({row["covered"] for row in grid}, reverse=True):
         at_coverage = [row for row in grid if row["covered"] == covered]
-        rules.append((f"frontier_cov_{covered}", min(at_coverage, key=selection.boundary_report_key_fewest_merges)))
+        rules.append(
+            (
+                f"frontier_cov_{covered}",
+                min(at_coverage, key=selection.boundary_report_key_fewest_swallowed_rallies),
+            )
+        )
     return [
         {
             "rule": rule,

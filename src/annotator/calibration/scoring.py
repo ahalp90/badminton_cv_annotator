@@ -500,8 +500,9 @@ def _raw_precision_curve(
     (the sweep CSV's committed columns depend on it) more than the one extra pass,
     which is over the overall rally pairs only and cheap next to segmentation.
 
-    :param contacts: detected contacts ``(rally_id, contact_frame, proximity_ok)``;
-        the full list, so spurious-span candidates land in the denominator.
+    :param contacts: detected contacts as
+        ``(rally_id, contact_frame, proximity_ok, wrist_near)``. The full list
+        ensures spurious-span candidates land in the denominator.
     :param rally_pairs: one ``(gt_frames, candidate_frames)`` per rally, the same
         pooled pairs ``_tolerance_curve`` scores.
     :param tolerances: frame tolerances to score at.
@@ -550,8 +551,9 @@ def score_contacts(
     frames. The ``_raw_precision_curve`` docstring summarises the detail.
 
     :param spans: detected rally spans.
-    :param contacts: detected contacts as ``(rally_id, contact_frame, proximity_ok)``;
-        ``proximity_ok`` is not used here.
+    :param contacts: detected contacts as
+        ``(rally_id, contact_frame, proximity_ok, wrist_near)``. The two
+        verdict fields are not used here.
     :param gt_rallies: ground-truth rallies for one video.
     :param tolerances: frame tolerances for the credit curve.
     :return: dict of contact metrics (see keys inline).

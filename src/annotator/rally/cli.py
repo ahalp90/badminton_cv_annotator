@@ -39,7 +39,7 @@ def _load_positions(pos_dir: Path | None, video_id: str) -> np.ndarray | None:
     return np.load(pos_path)
 
 
-def _load_replay_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None:
+def _load_dead_mask(mask_dir: Path | None, video_id: str) -> np.ndarray | None:
     """Load `<video_id>_dead_mask.npy` from mask_dir if present, else None.
 
     A missing file means the video runs unmasked. A present-but-invalid mask hits
@@ -211,14 +211,14 @@ def main() -> None:
                 fps = fps_by_id[video_id]
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
-            replay_mask = _load_replay_mask(args.mask_dir, video_id)
+            dead_mask = _load_dead_mask(args.mask_dir, video_id)
             result = run_video(
                 track,
                 fps=fps,
                 base=BaseAnnotatorConfig(span_open=span_open),
                 positions=positions,
                 raw_exclusion_mask=(
-                    replay_mask if replay_mask is not None
+                    dead_mask if dead_mask is not None
                     else np.zeros(len(track), dtype=bool)
                 ),
                 court_optional=True,

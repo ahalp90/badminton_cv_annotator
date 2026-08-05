@@ -6,9 +6,9 @@ from annotator.calibration.selection import (
     best_config_clears_quality_floor,
     boundary_live_key_rally_id_f1,
     boundary_report_key_coverage_first,
-    boundary_report_key_fewest_merges,
+    boundary_report_key_fewest_swallowed_rallies,
     boundary_report_key_tightest_start,
-    contact_live_key_floored_f1,
+    contact_live_key_raw_f1,
     contact_meets_floors,
     coverage_allowance_rows,
     f1_raw_5,
@@ -61,9 +61,17 @@ def test_boundary_live_key_none_alignment_sorts_last() -> None:
 
 
 def test_boundary_report_keys_follow_their_exact_ordering() -> None:
-    fewest_merges = make_row(swallowed_rallies=0, split=9, missed=9, spurious_spans=9)
+    fewest_swallowed_rallies = make_row(
+        swallowed_rallies=0, split=9, missed=9, spurious_spans=9,
+    )
     lower_split = make_row(swallowed_rallies=1, split=0, missed=0, spurious_spans=0)
-    assert min([lower_split, fewest_merges], key=boundary_report_key_fewest_merges) is fewest_merges
+    assert (
+        min(
+            [lower_split, fewest_swallowed_rallies],
+            key=boundary_report_key_fewest_swallowed_rallies,
+        )
+        is fewest_swallowed_rallies
+    )
 
     coverage = make_row(covered_fraction=0.9, split=9, missed=9, spurious_spans=9)
     lower_split = make_row(covered_fraction=0.8, split=0, missed=0, spurious_spans=0)
@@ -87,11 +95,17 @@ def test_report_keys_handle_missing_measurements() -> None:
 def test_standard_tail_deterministically_settles_key_ties() -> None:
     more_changed = make_row(changed_from_defaults=1, settings=(1, 0.1))
     fewer_changed = make_row(changed_from_defaults=0, settings=(9, 0.9))
-    assert min([more_changed, fewer_changed], key=boundary_report_key_fewest_merges) is fewer_changed
+    assert (
+        min([more_changed, fewer_changed], key=boundary_report_key_fewest_swallowed_rallies)
+        is fewer_changed
+    )
 
     later_settings = make_row(settings=(9, 0.9))
     earlier_settings = make_row(settings=(1, 0.1))
-    assert min([later_settings, earlier_settings], key=boundary_report_key_fewest_merges) is earlier_settings
+    assert (
+        min([later_settings, earlier_settings], key=boundary_report_key_fewest_swallowed_rallies)
+        is earlier_settings
+    )
 
 
 def test_raw_f1_propagates_missing_metrics_and_uses_raw_precision() -> None:
@@ -108,11 +122,11 @@ def test_contact_floors_fail_closed_and_accept_exact_threshold() -> None:
     assert contact_meets_floors(make_row(recall_5=0.5, precision_raw_5=0.5), 0.5, 0.5)
 
 
-def test_contact_live_key_and_selection_use_floored_raw_f1() -> None:
+def test_contact_live_key_uses_raw_f1_after_floor_filter() -> None:
     high_f1 = make_row(recall_5=0.8, precision_raw_5=0.8, settings=(7, 0.2))
     low_f1 = make_row(recall_5=0.9, precision_raw_5=0.4)
     reference = make_row(label="reference", recall_5=1.0, precision_raw_5=1.0)
-    assert min([low_f1, high_f1], key=contact_live_key_floored_f1) is high_f1
+    assert min([low_f1, high_f1], key=contact_live_key_raw_f1) is high_f1
     assert select_contact_live_winner([reference, low_f1, high_f1], 0.5) is high_f1
     assert select_contact_live_winner([low_f1], minimum_precision=0.5) is None
 
@@ -150,24 +164,33 @@ def test_live_key_pins_exact_f1_formula_and_tail() -> None:
     assert winner is fewer_changed
 
 
-def test_fewest_merges_key_orders_every_position() -> None:
+def test_fewest_swallowed_rallies_key_orders_every_position() -> None:
     lower_split = make_row(split=0, missed=9, spurious_spans=9)
     higher_split = make_row(split=1, missed=0, spurious_spans=0)
-    assert min([higher_split, lower_split], key=boundary_report_key_fewest_merges) is lower_split
+    assert (
+        min([higher_split, lower_split], key=boundary_report_key_fewest_swallowed_rallies)
+        is lower_split
+    )
 
     lower_missed = make_row(missed=0, spurious_spans=9)
     higher_missed = make_row(missed=1, spurious_spans=0)
-    assert min([higher_missed, lower_missed], key=boundary_report_key_fewest_merges) is lower_missed
+    assert (
+        min([higher_missed, lower_missed], key=boundary_report_key_fewest_swallowed_rallies)
+        is lower_missed
+    )
 
     lower_spurious = make_row(spurious_spans=0, settings=(9, 0.9))
     higher_spurious = make_row(spurious_spans=1, settings=(1, 0.1))
-    assert min([higher_spurious, lower_spurious], key=boundary_report_key_fewest_merges) is lower_spurious
+    assert (
+        min([higher_spurious, lower_spurious], key=boundary_report_key_fewest_swallowed_rallies)
+        is lower_spurious
+    )
 
 
 def test_contact_tail_settles_equal_f1() -> None:
     later_settings = make_row(settings=(9, 0.9))
     earlier_settings = make_row(settings=(1, 0.1))
-    assert min([later_settings, earlier_settings], key=contact_live_key_floored_f1) is earlier_settings
+    assert min([later_settings, earlier_settings], key=contact_live_key_raw_f1) is earlier_settings
 
 
 def test_contact_missing_f1_rows_are_ineligible_without_floors() -> None:
