@@ -135,8 +135,8 @@ in `local_scratch/autograder_architecture/TODO.md`.
 
 The handover records 136 missed serves, a 113/23 track split, and 17 of 34
 sset_21 misses inside the believed mask. Those counts came from the chain
-before the W2.9 code changes. They explain why labels matter, but they are not
-current baselines.
+before the 2026-07-28 smoothing and re-entry policy change. They explain why
+labels matter, but they are not current baselines.
 
 The project overview dated 2026-07-30 reaches the same planning conclusion:
 replay and cutaway labels on one fixture are the clearest evidence before

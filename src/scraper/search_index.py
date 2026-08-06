@@ -209,8 +209,8 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
         for term in terms:
             print(f'Searching [{substream}]: {term}')
             rows = search_term_rows(term, substream)
-            # Per-term logging (spec s2): the count each term returns feeds the B5
-            # per-term keep-rate read-out (relevance-triage keeps over rows surfaced).
+            # Per-term logging (spec s2): each count feeds the per-term keep-rate
+            # report (relevance-triage keeps over rows surfaced).
             print(f'  {term!r}: {len(rows)} rows')
             if rows:
                 terms_with_hits += 1

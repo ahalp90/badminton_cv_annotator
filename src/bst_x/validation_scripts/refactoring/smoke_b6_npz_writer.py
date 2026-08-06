@@ -27,9 +27,9 @@ Run locally:
 
 Expect one OK line. Failure: per-key printout of the diverging field.
 
-Originally landed as B6 in the simplification pass. The inline block being
+Originally landed in the June 2026 simplification pass. The inline block being
 compared against was lifted verbatim from ``bst_x_infer.py`` lines 256-269 and
-``bst_x_train.py`` lines 1076-1087 at the pre-B6 tip.
+``bst_x_train.py`` lines 1076-1087 at the pre-refactor tip.
 """
 from __future__ import annotations
 
@@ -69,8 +69,8 @@ def fake_inputs():
 
 
 def old_inline_savez(out_path, dump, dataset, taxonomy, run_id, serial):
-    """Verbatim from bst_x_train.py pre-B6 (lines 1076-1087); identical
-    payload to bst_x_infer.py pre-B6 lines 256-269."""
+    """Verbatim from pre-refactor bst_x_train.py (lines 1076-1087); identical
+    payload to pre-refactor bst_x_infer.py lines 256-269."""
     assert dataset.clip_stems is not None
     np.savez(
         out_path,

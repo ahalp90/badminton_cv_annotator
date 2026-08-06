@@ -35,8 +35,10 @@ from shared.court import load_all_court_info
 log = logging.getLogger(__name__)
 
 
-# Re-pinned after the measured W2.9 default flip (eee3e29). The reviewed
-# pre/post record is in the W2.9 Opus-checkpoint artefact. Floors read from here.
+# Re-pinned after the measured 2026-07-28 smoothing and re-entry default change
+# (eee3e29). The tracked pre/post record is in
+# docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff.
+# Floors read from here.
 REFERENCE_SCORES = {
     'sset_01': {
         'covered_fraction': 0.9734513274336283,

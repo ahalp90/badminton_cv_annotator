@@ -135,14 +135,14 @@ CHUNK_WINDOW_S = 10 * 60
 CHUNK_OVERLAP_S = 60
 
 # Three-legged keep rule (D9, spec s4): keep when ANY leg passes. Starting
-# values, tuned at B5.
+# values from the mid-July 2026 amateur-footage scoping.
 CHUNKS_ABS_SAFE = 15  # enough absolute material regardless of length
 SHORT_VIDEO_MIN_S = 20 * 60  # the short/long boundary
 CHUNKS_MIN_SHORT = 3  # shorts judged on count
 DENSITY_MIN_PER_MIN = 0.15  # longs judged on chunks per minute
 
-# OPEN (spec s4, s12): exact flash ID pinned at B5; tier decided (low-cost
-# fast, Gemini flash via GEMINI_API_KEY, 2026-07-05). gemini-2.5-flash is the
+# OPEN (spec s4, s12): exact flash ID and low-cost fast tier selected on
+# 2026-07-05. Gemini flash uses GEMINI_API_KEY; gemini-2.5-flash is the
 # known-stable ID at write time.
 TRIAGE_MODEL = 'gemini-2.5-flash'
 # The documented floor across the candidate seats, kept at the min for fair comparison:

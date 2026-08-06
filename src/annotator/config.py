@@ -49,9 +49,9 @@ class RallySegmentationThresholds(NamedTuple):
     One field per swept constant above, so a caller can hand ``segment_video`` a
     whole threshold set instead of leaning on the module globals. ``thresholds=None``
     reads the globals (the default path); a preset here reads its fields instead.
-    One preset ships: SHIPPED_THRESHOLDS (the constants above, the block-2 sweep
-    pick). PROXIMITY_MAX is not swept, so it stays a plain global and is not
-    carried here.
+    One preset ships: SHIPPED_THRESHOLDS (the constants above, selected by the
+    segmentation sweep). PROXIMITY_MAX is not swept, so it stays a plain global
+    and is not carried here.
     """
 
     rest_speed: float
@@ -83,7 +83,7 @@ SHIPPED_THRESHOLDS = RallySegmentationThresholds(
 # ---------------------------------------------------------------------------
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
-# the build's starting value, tuned at B5.
+# the build's starting value from the mid-July 2026 amateur-footage scoping.
 PERSPECTIVE_SHIFT_THRESHOLD = 0.05
 # Median speed under this fraction of rally median = slow-mo. 0.15 is swept
 # against the decontaminated baseline (records/decontam_frac_sweep, autograder
@@ -122,8 +122,9 @@ class BaseAnnotatorConfig:
 
     thresholds: RallySegmentationThresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
-    # Measured together in W2.9: ignore invisible coordinates during smoothing,
-    # then classify sustained gaps with the ruled two-sided re-entry guard.
+    # Chosen together on 2026-07-28: ignore invisible coordinates during
+    # smoothing, then classify sustained gaps with the ruled two-sided re-entry
+    # guard.
     smoothing_mode: SmoothingMode = SmoothingMode.IGNORE_INVISIBLE
     overrides_base30: Mapping[str, float] | None = None
     span_open: SpanOpen | None = SpanOpen.BACK_FILL
@@ -131,9 +132,10 @@ class BaseAnnotatorConfig:
     reentry_guard_variant: ReentryGuardVariant | None = ReentryGuardVariant.TWO_SIDED
     reentry_guard_buffer: float | None = 0.05
     quiet_start_window: float | None = None
-    # Shipping default from the three-arm remeasure (2026-07-22): rejecting all three
-    # inpaint grades scored best on every fixture; record in the campaign docs at
-    # records/commit12_default_pick.md. frozenset() disables event rejection entirely.
+    # Shipping default selected in commit 3f7621b (2026-07-22): rejecting all
+    # three grades raised recorded correct landing calls from 59 to 72 of 287;
+    # rejecting only proven-fabricated frames produced 46. frozenset() disables
+    # event rejection entirely.
     rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
     def __post_init__(self) -> None:
@@ -156,8 +158,8 @@ class ResolvedAnnotatorConfig:
     """Final per-video configuration, built once and never rescaled.
 
     ``thresholds`` is the run_video-ready value (run_video declares the
-    already-scaled precondition). ``constants`` is deliberately unwired until
-    threading.
+    already-scaled precondition). ``constants`` holds the resolved per-FPS
+    policy used throughout the run.
     """
 
     fps: float

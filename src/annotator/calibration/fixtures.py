@@ -244,7 +244,7 @@ def _load_calibration_geometry(
     homography_path: Path = _HOMOGRAPHY_SOURCE,
     resolution_path: Path = _RESOLUTION_SOURCE,
 ) -> dict[int, CalibrationGeometry]:
-    """Load and derive calibration geometry for every Wave 1 fixture."""
+    """Load and derive calibration geometry for every pinned ShuttleSet fixture."""
     homography_frame = _read_source_frame(homography_path, "homography")
     resolution_frame = _read_source_frame(resolution_path, "resolution")
     required_homography_columns = {"homography_matrix", *_CORNER_COLUMNS}
@@ -290,7 +290,8 @@ def _build_fixture(
 
 
 # External digest provenance and pre/post move equality are recorded in the
-# Wave 3 state packet under "Core external move map and pre-move MD5s". All
+# 2026-07-29 fixture-move state packet under "Core external move map and
+# pre-move MD5s". All
 # values below match that 2026-07-29 evidence.
 SSET_01 = _build_fixture(
     "sset_01",

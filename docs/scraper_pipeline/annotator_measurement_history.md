@@ -2,8 +2,9 @@
 
 Chronological record of the contact-detection and rally-segmentation
 measurement campaigns behind today's annotator. Every headline number below
-was measured against the pre-W2.9 sticky build; treat them as historical
-context, not current chain behaviour. The current live reference is
+was measured before the 2026-07-28 smoothing and re-entry policy change
+(W2.9); treat them as historical context, not current chain behaviour. The
+current live reference is
 `tests/data/annotator_calibration/reference/`, generated after W2.9 by
 `annotator.calibration.gt_scoring --capture`. The W2.9 behavioural delta
 is preserved in

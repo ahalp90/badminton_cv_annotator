@@ -1,19 +1,19 @@
 """Pure best-config selection rules for calibration score rows.
 
-B6 must supply every score row as a dictionary with ``label`` (``"grid"`` for
-configs that may win), ``changed_from_defaults``, and ``settings``.  It must
-also supply the existing aggregate fields, including ``covered``,
-``covered_fraction``, ``split``, ``missed``, ``spurious_spans``, ``recall_5``,
-``precision_raw_5``, and ``start_alignment_median``.  The strict boundary
+The calibration sweep must supply every score row as a dictionary with
+``label`` (``"grid"`` for configs that may win), ``changed_from_defaults``,
+and ``settings``. It must also supply the existing aggregate fields, including
+``covered``, ``covered_fraction``, ``split``, ``missed``, ``spurious_spans``,
+``recall_5``, ``precision_raw_5``, and ``start_alignment_median``. The strict boundary
 fields are ``clean_covered`` (the strict true-positive count),
 ``swallowed_rallies`` (the sum, over merged spans, of contained rallies minus
 one), ``max_rallies_in_one_span``, ``strict_align_median``, and
 ``strict_align_p90``.  Strict alignment fields are both ``None`` when no rally
 is cleanly identified.
 
-B6 computes those diagnostics and orchestrates selection.  If its quality
-floor fails, it withholds the best-config verdict and reports no winner.  An
-empty requested grid is instead a B6 configuration error before either phase.
+The sweep computes those diagnostics and orchestrates selection. If its quality
+floor fails, it withholds the best-config verdict and reports no winner. An
+empty requested grid is instead a sweep configuration error before either phase.
 """
 
 from __future__ import annotations
@@ -37,7 +37,8 @@ def standard_tail(row: ScoreRow) -> SortKey:
     """Return the deterministic final tie rule for every selection key.
 
     Fewer changed settings win first.  The supplied settings tuple settles an
-    otherwise exact tie, so B6 must provide values that have a total order.
+    otherwise exact tie, so the caller must provide values that have a total
+    order.
     """
     return (row["changed_from_defaults"], row["settings"])
 
@@ -213,8 +214,8 @@ def best_config_clears_quality_floor(
 ) -> bool:
     """Return whether the supplied best grid row clears the quality floor.
 
-    A missing covered fraction fails closed.  Equality clears the floor; B6
-    withholds the verdict when this predicate is false.
+    A missing covered fraction fails closed. Equality clears the floor; the
+    caller withholds the verdict when this predicate is false.
     """
     covered_fraction = best_grid_row["covered_fraction"]
     return (
