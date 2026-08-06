@@ -98,8 +98,8 @@ def enrich_row(row: dict) -> bool:
     extraction each. Mutates the row in place; log-and-skip on failure.
 
     :param row: the candidate row to fill (mutated in place).
-    :return: True when a metadata call actually hit YouTube, so the caller paces
-        only real requests.
+    :return: True when a metadata subprocess was attempted, including failed
+        attempts, so the caller paces every request attempt.
     """
     needs_enrich = not row['channel'] or not row['duration_s'] or not row['upload_date']
     if not needs_enrich:
@@ -209,8 +209,8 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
         for term in terms:
             print(f'Searching [{substream}]: {term}')
             rows = search_term_rows(term, substream)
-            # Per-term logging (spec s2): the count each term returns feeds the B5
-            # per-term keep-rate read-out (relevance-triage keeps over rows surfaced).
+            # Per-term logging (spec s2): each count feeds the per-term keep-rate
+            # report (relevance-triage keeps over rows surfaced).
             print(f'  {term!r}: {len(rows)} rows')
             if rows:
                 terms_with_hits += 1
@@ -239,7 +239,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     flagged_duration = 0
     flagged_upload = 0
     for row in rows:
-        if enrich_row(row):  # mutates in place; True when a call hit YouTube
+        if enrich_row(row):  # mutates in place; True when an enrichment attempt ran
             # SLEEP_REQUESTS_S, not the 5-15 s interval pause: enrichment is a
             # metadata extraction request, matching --sleep-requests semantics.
             # The randomised pre-download pause belongs to transcript acquisition's caption pull.

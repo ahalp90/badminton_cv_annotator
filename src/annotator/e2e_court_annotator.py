@@ -76,7 +76,13 @@ PARENTS = (
 )
 LANDING_HORIZONS = (1.0, 2.0, 3.0)
 REF_ERR_PX = 3.5
-LANDING_OPTIONS = LandingFilterOptions(7, 0.004, 5, 7, 0.75)
+LANDING_OPTIONS = LandingFilterOptions(
+    settle_win=7,
+    settle_thr=0.004,
+    settle_min=5,
+    carry_win=7,
+    carry_thr=0.75,
+)
 
 COURT_SCENES_COLUMNS = (
     "video_id", "case_id", "court_parent", "scene_index", "start_frame", "end_frame", "n_frames",

@@ -86,7 +86,7 @@ First validate a smaller source-aware stride-8 guard, split grade 3 into its act
 | The live guard performs independent split-half discovery. | **Prior opinion that needed checking — rejected** | The historical script did independent discovery on each half. The live guard discovers on the full track and only checks presence in both halves. A midpoint-crossing window can count for both. [R6] [R22] |
 | The guard threshold is data-derived and therefore not threshold-dependent. | **Prior opinion that needed checking — rejected** | The ratio gap is data-derived, but acceptance still requires two distinct counts, at least 30 episodes, and at least a 10x margin. [R6] [R21] |
 | Grade 3 is safe to reject as event evidence. | **Open question** | Grade 3 combines a local halo with global exact coordinate reuse. It accounts for roughly 14–19% of valid frames and 26–28% of all rejected valid frames on the three fixtures. Its two components are not reported separately. [R6] [R7] |
-| Rejecting grades `{1,2,3}` scored best on every fixture. | **Prior opinion that needs checking** | The source comment cites `records/commit12_default_pick.md`, which is not tracked. The live default is established; the supporting comparison is not independently auditable from tracked material. [R15] |
+| Rejecting grades `{1,2,3}` scored best on every fixture. | **Prior opinion that needs checking** | Commit `3f7621b` supports the shipped default with headline aggregate and pilot landing counts, but points to an untracked per-arm record. Fixture-wide superiority and the full comparison remain unauditable. [R15] |
 | RANSAC candidates are missed hallucinations. | **Rejected interpretation** | They are departures from a local quadratic model. The candidate rate is about 31–33% of valid frames and includes real contacts, cuts, edges, and other non-quadratic motion. [R7] [R8] |
 | RANSAC and guard overlap validates either detector. | **Measured result with limits** | Conditional overlap is 67–80%, but only 12.8–13.9 percentage points above the guard's high base marking rate. Temporal clustering prevents an independent-frame significance claim. [R7] |
 | High sidecar span coverage means high hallucination recall. | **Rejected interpretation** | A span is counted as covered after one hit. This is length-biased and sidecar status is not error truth. [R9] |
@@ -330,13 +330,19 @@ It also does not require balanced evidence. Twenty-nine episodes in one half and
 
 Finally, a failed presence check raises `ValueError` for the entire guard instead of dropping the unstable pattern. That is a brittle runtime policy for unseen domains.
 
-### 4. The default grade policy is not auditable from the tracked repository
+### 4. The default grade policy is only partly auditable from the tracked repository
 
-`BaseAnnotatorConfig` rejects `{1,2,3}` and says a three-arm remeasure found that choice best on every fixture. The cited record is `records/commit12_default_pick.md`. [R15]
+`BaseAnnotatorConfig` rejects `{1,2,3}` and cites commit `3f7621b` from
+2026-07-22. Its message reports correct landing calls rising from 59 to 72 of
+287, with the pilot rising from 22 to 31 of 113, at the cost of two winner
+calls. It reports 46 correct landing calls when only proven-fabricated frames
+were rejected. [R15]
 
-That file is not tracked at the reviewed commit. Repository search finds only the comment that refers to it.
+The commit points to `records/commit12_default_pick.md` for the full comparison
+and per-rally tables. That file is not tracked at the reviewed commit.
 
-This does not prove the measurement was wrong. It means the source-backed review cannot check:
+The tracked evidence supports the headline policy selection. It does not let a
+source-backed review check:
 
 - which metrics selected the arm;
 - whether the run used a pre-existing exclusion mask;

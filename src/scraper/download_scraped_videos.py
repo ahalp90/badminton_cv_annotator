@@ -1,7 +1,9 @@
-"""Download selected videos and record their source and audio status.
+"""Download selected videos and record accepted sources and audio status.
 
-Scraper downloads request and verify audio. The explicit video-only mode serves
-ShuttleSet matches that do not require commentary audio.
+Normal per-video failures produce outcomes, and accepted files reach
+``sources.toml`` before the CLI chooses its status. Unexpected worker errors are
+re-raised after successful sibling entries are written. The explicit video-only
+mode accepts files without commentary audio.
 """
 
 from __future__ import annotations
@@ -538,7 +540,10 @@ def download_all_videos(
 
 
 def main() -> int:
-    """Run the scraper downloader CLI and return its mass-failure status."""
+    """Run the downloader and return 2 when at least half the outcomes fail.
+
+    An empty selection and any run below that failure threshold return 0.
+    """
     parser = argparse.ArgumentParser(description='Download kept scraper videos.')
     parser.add_argument(
         '--candidates-csv',

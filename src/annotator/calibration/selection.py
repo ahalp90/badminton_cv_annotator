@@ -1,19 +1,19 @@
 """Pure best-config selection rules for calibration score rows.
 
-B6 must supply every score row as a dictionary with ``label`` (``"grid"`` for
-configs that may win), ``changed_from_defaults``, and ``settings``.  It must
-also supply the existing aggregate fields, including ``covered``,
-``covered_fraction``, ``split``, ``missed``, ``spurious_spans``, ``recall_5``,
-``precision_raw_5``, and ``start_alignment_median``.  The strict boundary
+The calibration sweep must supply every score row as a dictionary with
+``label`` (``"grid"`` for configs that may win), ``changed_from_defaults``,
+and ``settings``. It must also supply the existing aggregate fields, including
+``covered``, ``covered_fraction``, ``split``, ``missed``, ``spurious_spans``,
+``recall_5``, ``precision_raw_5``, and ``start_alignment_median``. The strict boundary
 fields are ``clean_covered`` (the strict true-positive count),
 ``swallowed_rallies`` (the sum, over merged spans, of contained rallies minus
 one), ``max_rallies_in_one_span``, ``strict_align_median``, and
 ``strict_align_p90``.  Strict alignment fields are both ``None`` when no rally
 is cleanly identified.
 
-B6 computes those diagnostics and orchestrates selection.  If its quality
-floor fails, it withholds the best-config verdict and reports no winner.  An
-empty requested grid is instead a B6 configuration error before either phase.
+The sweep computes those diagnostics and orchestrates selection. If its quality
+floor fails, it withholds the best-config verdict and reports no winner. An
+empty requested grid is instead a sweep configuration error before either phase.
 """
 
 from __future__ import annotations
@@ -37,7 +37,8 @@ def standard_tail(row: ScoreRow) -> SortKey:
     """Return the deterministic final tie rule for every selection key.
 
     Fewer changed settings win first.  The supplied settings tuple settles an
-    otherwise exact tie, so B6 must provide values that have a total order.
+    otherwise exact tie, so the caller must provide values that have a total
+    order.
     """
     return (row["changed_from_defaults"], row["settings"])
 
@@ -59,8 +60,8 @@ def boundary_live_key_rally_id_f1(row: ScoreRow, n_gt_rallies: int) -> SortKey:
     return (-f1, sortable_median, *standard_tail(row))
 
 
-def boundary_report_key_fewest_merges(row: ScoreRow) -> SortKey:
-    """Return the fewest-merges report key, with an exact tie settled by the tail.
+def boundary_report_key_fewest_swallowed_rallies(row: ScoreRow) -> SortKey:
+    """Return the fewest-swallowed-rallies key, with an exact tie settled by the tail.
 
     All inputs are supplied counts, so this key has no ``None`` conversion.
     """
@@ -143,7 +144,7 @@ def contact_meets_floors(
     return True
 
 
-def contact_live_key_floored_f1(row: ScoreRow) -> SortKey:
+def contact_live_key_raw_f1(row: ScoreRow) -> SortKey:
     """Return the live contact key, with an exact tie settled by the tail.
 
     Callers pass only rows that clear configured floors and have a raw +/-5 F1.
@@ -204,7 +205,7 @@ def select_contact_live_winner(
     ]
     if not candidates:
         return None
-    return min(candidates, key=contact_live_key_floored_f1)
+    return min(candidates, key=contact_live_key_raw_f1)
 
 
 def best_config_clears_quality_floor(
@@ -213,8 +214,8 @@ def best_config_clears_quality_floor(
 ) -> bool:
     """Return whether the supplied best grid row clears the quality floor.
 
-    A missing covered fraction fails closed.  Equality clears the floor; B6
-    withholds the verdict when this predicate is false.
+    A missing covered fraction fails closed. Equality clears the floor; the
+    caller withholds the verdict when this predicate is false.
     """
     covered_fraction = best_grid_row["covered_fraction"]
     return (

@@ -530,7 +530,7 @@ The focused guard, dead-mask, and run-video tests passed:
 
 The test suite covers the adaptive threshold, weak-evidence refusal,
 split-half failure, blank-frame handling, code-to-mask conversion, event-mask
-threading, final-contact rejection, and landing-candidate rejection
+propagation, final-contact rejection, and landing-candidate rejection
 (`tests/test_inpaint_guard.py:37-110`;
 `tests/test_dead_mask.py:123-157`;
 `tests/test_annotator_run_video.py:335-380, 408-450, 844-875`;

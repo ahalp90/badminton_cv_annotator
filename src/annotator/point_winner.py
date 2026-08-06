@@ -90,6 +90,7 @@ SINGLES_INSET_M = 0.46
 SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
 SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
 NET_COURT_Y = 0.5
+SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER = (0, 1, 3, 2)
 
 # Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
@@ -665,7 +666,7 @@ def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_p
     :param err_px: assumed corner-marking error, in the recorded homography's own pixel space.
     """
     source_order = get_corner_camera(homo_df.loc[vid]).T
-    corners = source_order[[0, 1, 3, 2]]
+    corners = source_order[list(SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER)]
     return corner_error_band_from_corners(corners, court_info, err_px)
 
 

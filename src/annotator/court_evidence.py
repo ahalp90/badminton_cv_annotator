@@ -1,8 +1,10 @@
 """Court evidence and parent-specific geometry for the annotator chain.
 
-The adapter keeps the static ShuttleSet prior and the CourtKeyNet parent on the
-same operational interface.  The two parents share only their raw scene
-intervals; scene geometry and person votes are built from the active parent.
+Here, a parent is one alternative court-evidence producer profile for a run,
+not process lineage. The adapter keeps the static ShuttleSet homography and
+detected CourtKeyNet consensus parents on the same operational interface. The
+two parents share only their raw scene intervals; scene geometry and person
+votes are built from the active parent.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from .config import COMPOSITION_CONTENT_THRESHOLD
 from .fps_constants import scale_for_fps
 from .point_winner import (
     COURT_LENGTH_M,
+    SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER,
     corner_error_band_from_corners,
     project_pixels_to_court,
 )
@@ -30,6 +33,12 @@ SCENE_ROW_COLUMNS = (
     'video_id', 'start_frame', 'end_frame',
     'upleft_x', 'upleft_y', 'upright_x', 'upright_y',
     'downleft_x', 'downleft_y', 'downright_x', 'downright_y',
+)
+POSE_SCENE_COLUMNS_BY_COURTKEYNET_CORNER = (
+    ('upleft', 0),
+    ('upright', 1),
+    ('downleft', 3),
+    ('downright', 2),
 )
 DETECTOR_RESOLUTION = (512.0, 288.0)
 COURT_SCENE_SAMPLE_LIMIT = 10
@@ -85,7 +94,10 @@ class SceneEvidence:
 
 @dataclass(frozen=True)
 class CourtSceneRecord:
-    """Typed evidence for one raw scene, ready for the court-scenes writer."""
+    """Typed evidence for one raw scene, ready for the court-scenes writer.
+
+    :param parent: court-evidence producer profile used for this scene.
+    """
 
     video_id: int | str
     case_id: str
@@ -254,7 +266,7 @@ def _as_native_corners(corners_refpx: np.ndarray) -> np.ndarray:
 def _static_corners_refpx(homography_row: pd.Series) -> np.ndarray:
     """Return static row corners in the CourtKeyNet TL/TR/BR/BL order."""
     source_order = get_corner_camera(homography_row).T
-    return source_order[[0, 1, 3, 2]].copy()
+    return source_order[list(SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER)].copy()
 
 
 def detected_court_info(corners_refpx: np.ndarray) -> dict[str, object]:
@@ -343,8 +355,7 @@ def _scene_row(
         'start_frame': interval[0],
         'end_frame': interval[1],
     }
-    prefixes = {'upleft': 0, 'upright': 1, 'downleft': 3, 'downright': 2}
-    for prefix, corner_index in prefixes.items():
+    for prefix, corner_index in POSE_SCENE_COLUMNS_BY_COURTKEYNET_CORNER:
         row[f'{prefix}_x'] = float(pose_corners[corner_index, 0])
         row[f'{prefix}_y'] = float(pose_corners[corner_index, 1])
     return row
