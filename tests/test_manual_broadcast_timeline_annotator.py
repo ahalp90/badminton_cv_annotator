@@ -7,14 +7,25 @@ import pytest
 
 from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval
 from annotator.manual_broadcast_timeline_annotator import (
+    GuideInterval,
     TimelineSession,
     build_parser,
+    commit_label,
     read_guides,
+    read_scene_partition,
     video_metadata,
 )
 
 
 METADATA = VideoMetadata("sset_01", 25.0, 10)
+
+
+def _scenes() -> list[GuideInterval]:
+    return [
+        GuideInterval(0, 3, "scene 0"),
+        GuideInterval(3, 7, "scene 1"),
+        GuideInterval(7, 10, "scene 2"),
+    ]
 
 
 def test_session_commits_unlabelled_gaps_in_order() -> None:
@@ -27,6 +38,33 @@ def test_session_commits_unlabelled_gaps_in_order() -> None:
     assert (second.start_frame, second.end_frame) == (3, 6)
     assert session.first_gap() == 6
     assert [interval.truth for interval in session.intervals] == [SceneTruth.LIVE, SceneTruth.REPLAY]
+
+
+def test_scene_mode_commits_exact_scenes_and_advances_to_the_next_midpoint() -> None:
+    session = TimelineSession(METADATA, [])
+
+    first, first_target = commit_label(session, 1, SceneTruth.LIVE, _scenes())
+    assert (first.start_frame, first.end_frame, first_target) == (0, 3, 4)
+
+    second, second_target = commit_label(session, 4, SceneTruth.REPLAY, _scenes())
+    assert (second.start_frame, second.end_frame, second_target) == (3, 7, 8)
+
+    third, third_target = commit_label(session, 8, SceneTruth.CUTAWAY, _scenes())
+    assert (third.start_frame, third.end_frame, third_target) == (7, 10, None)
+    session.validate_complete()
+
+
+def test_scene_mode_keeps_explicit_selection_and_existing_interval_semantics() -> None:
+    session = TimelineSession(METADATA, [])
+    session.set_selection_start(0)
+
+    partial, next_target = commit_label(session, 1, SceneTruth.LIVE, _scenes())
+    changed, relabel_target = commit_label(session, 0, SceneTruth.OTHER, _scenes())
+
+    assert partial == make_interval(METADATA, 0, 2, SceneTruth.LIVE)
+    assert next_target is None
+    assert changed == make_interval(METADATA, 0, 2, SceneTruth.OTHER)
+    assert relabel_target is None
 
 
 def test_number_key_semantics_relabel_an_existing_interval() -> None:
@@ -123,6 +161,56 @@ def test_read_guides_requires_named_columns_and_valid_bounds(tmp_path: Path) -> 
         )
 
 
+def test_read_scene_partition_accepts_release_schema_and_clips_review_range(tmp_path: Path) -> None:
+    path = tmp_path / "raw_cuts.csv"
+    path.write_text(
+        "scene_index,start_frame,end_frame\n0,0,3\n1,3,7\n2,7,10\n",
+        encoding="utf-8",
+    )
+
+    scenes = read_scene_partition(
+        path,
+        frame_count=10,
+        covered_start=2,
+        covered_end=8,
+        start_column="start_frame",
+        end_column="end_frame",
+    )
+
+    assert scenes == [
+        GuideInterval(2, 3, "scene 0"),
+        GuideInterval(3, 7, "scene 1"),
+        GuideInterval(7, 8, "scene 2"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ("0,0,3\n1,4,10\n", "gap"),
+        ("0,0,4\n1,3,10\n", "overlap"),
+        ("0,0,3\n1,3,9\n", "ends at 9"),
+    ],
+)
+def test_read_scene_partition_rejects_incomplete_or_overlapping_scenes(
+    tmp_path: Path,
+    rows: str,
+    message: str,
+) -> None:
+    path = tmp_path / "bad_scenes.csv"
+    path.write_text("scene_index,start_frame,end_frame\n" + rows, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        read_scene_partition(
+            path,
+            frame_count=10,
+            covered_start=0,
+            covered_end=10,
+            start_column="start_frame",
+            end_column="end_frame",
+        )
+
+
 def test_parser_pins_required_source_identity_and_output() -> None:
     args = build_parser().parse_args([
         "--video",
@@ -136,8 +224,30 @@ def test_parser_pins_required_source_identity_and_output() -> None:
     assert args.video == Path("video.mp4")
     assert args.video_id == "sset_01"
     assert args.out_csv == Path("labels.csv")
+    assert args.scene_csv is None
     assert args.start_frame == 0
     assert args.end_frame is None
+
+
+def test_parser_accepts_scene_partition_columns() -> None:
+    args = build_parser().parse_args([
+        "--video",
+        "video.mp4",
+        "--video-id",
+        "sset_01",
+        "--out-csv",
+        "labels.csv",
+        "--scene-csv",
+        "raw_cuts.csv",
+        "--scene-start-col",
+        "first",
+        "--scene-end-col",
+        "last_exclusive",
+    ])
+
+    assert args.scene_csv == Path("raw_cuts.csv")
+    assert args.scene_start_col == "first"
+    assert args.scene_end_col == "last_exclusive"
 
 
 class _FakeCapture:

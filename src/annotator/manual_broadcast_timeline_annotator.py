@@ -9,6 +9,9 @@ sset_01_broadcast_timeline_labels.csv
 
 The current frame is inclusive when a number key commits a new interval. The
 saved end is therefore ``current_frame + 1`` and remains half-open.
+
+When ``--scene-csv`` is supplied, a number key on an unlabelled scene commits
+that complete half-open scene and advances to the next unlabelled scene.
 """
 
 from __future__ import annotations
@@ -58,7 +61,7 @@ TRUTH_COLOURS = {
 
 @dataclass(frozen=True)
 class GuideInterval:
-    """One optional proposal or GT interval drawn during review."""
+    """One scene, proposal, or GT interval drawn during review."""
 
     start_frame: int
     end_frame: int
@@ -142,13 +145,26 @@ class TimelineSession:
         if start is None:
             start = self._gap_start_containing(frame)
         end = frame + 1
-        if start >= end:
-            raise ValueError(f"selection [{start}, {end}) is empty or reversed")
-        replacement = make_interval(self.metadata, start, end, truth, note)
+        return self.commit_interval(start, end, truth, note)
+
+    def commit_interval(
+        self,
+        start_frame: int,
+        end_frame: int,
+        truth: SceneTruth,
+        note: str = "",
+    ) -> LabelInterval:
+        """Commit one exact half-open interval without crossing existing labels."""
+        if not self.covered_start <= start_frame < end_frame <= self.covered_end:
+            raise ValueError(
+                f"selection [{start_frame}, {end_frame}) is outside "
+                f"[{self.covered_start}, {self.covered_end})"
+            )
+        replacement = make_interval(self.metadata, start_frame, end_frame, truth, note)
         for interval in self.intervals:
             if replacement.start_frame < interval.end_frame and replacement.end_frame > interval.start_frame:
                 raise ValueError(
-                    f"selection [{start}, {end}) overlaps existing "
+                    f"selection [{start_frame}, {end_frame}) overlaps existing "
                     f"[{interval.start_frame}, {interval.end_frame})"
                 )
         self.intervals.append(replacement)
@@ -233,11 +249,59 @@ def read_guides(
     return guides
 
 
+def read_scene_partition(
+    path: Path,
+    *,
+    frame_count: int,
+    covered_start: int,
+    covered_end: int,
+    start_column: str,
+    end_column: str,
+) -> list[GuideInterval]:
+    """Read a complete half-open scene partition and clip it to the review range."""
+    if not 0 <= covered_start < covered_end <= frame_count:
+        raise ValueError(
+            f"covered range [{covered_start}, {covered_end}) is outside [0, {frame_count})"
+        )
+    source_scenes = read_guides(
+        path,
+        frame_count=frame_count,
+        start_column=start_column,
+        end_column=end_column,
+        label_column=None,
+    )
+    if not source_scenes:
+        raise ValueError(f"{path} contains no scenes")
+
+    expected_start = 0
+    for row_number, scene in enumerate(source_scenes, start=2):
+        if scene.start_frame != expected_start:
+            relation = "gap" if scene.start_frame > expected_start else "overlap"
+            raise ValueError(
+                f"{path} row {row_number} creates a {relation}: "
+                f"starts at {scene.start_frame}, expected {expected_start}"
+            )
+        expected_start = scene.end_frame
+    if expected_start != frame_count:
+        raise ValueError(f"{path} scene partition ends at {expected_start}, expected {frame_count}")
+
+    scenes: list[GuideInterval] = []
+    for scene_index, scene in enumerate(source_scenes):
+        start = max(scene.start_frame, covered_start)
+        end = min(scene.end_frame, covered_end)
+        if start < end:
+            scenes.append(GuideInterval(start, end, f"scene {scene_index}"))
+    return scenes
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--video", type=Path, required=True, help="source video")
     parser.add_argument("--video-id", required=True, help="canonical source identifier")
     parser.add_argument("--out-csv", type=Path, required=True, help="plain or gzip label CSV")
+    parser.add_argument("--scene-csv", type=Path, help="optional complete half-open scene partition")
+    parser.add_argument("--scene-start-col", default="start_frame")
+    parser.add_argument("--scene-end-col", default="end_frame")
     parser.add_argument("--proposal-csv", type=Path, help="optional candidate intervals")
     parser.add_argument("--proposal-start-col", default="start_frame")
     parser.add_argument("--proposal-end-col", default="end_frame")
@@ -274,6 +338,46 @@ def _guide_at(guides: Sequence[GuideInterval], frame: int) -> list[GuideInterval
     return [guide for guide in guides if guide.start_frame <= frame < guide.end_frame]
 
 
+def _scene_at(scenes: Sequence[GuideInterval], frame: int) -> GuideInterval:
+    matches = _guide_at(scenes, frame)
+    if len(matches) != 1:
+        raise ValueError(f"frame {frame} belongs to {len(matches)} scene intervals, expected one")
+    return matches[0]
+
+
+def _scene_preview_frame(scene: GuideInterval) -> int:
+    return (scene.start_frame + scene.end_frame - 1) // 2
+
+
+def _next_unlabelled_scene_preview(
+    session: TimelineSession,
+    scenes: Sequence[GuideInterval],
+    from_frame: int | None = None,
+) -> int | None:
+    gap = session.first_gap(from_frame)
+    if gap is None:
+        return None
+    scene = _scene_at(scenes, gap)
+    if scene.start_frame != gap:
+        return gap
+    return _scene_preview_frame(scene)
+
+
+def commit_label(
+    session: TimelineSession,
+    frame: int,
+    truth: SceneTruth,
+    scenes: Sequence[GuideInterval],
+) -> tuple[LabelInterval, int | None]:
+    """Commit a manual interval or an exact scene, returning an optional next target."""
+    if not scenes or session.selection_start is not None or session.selected_index(frame) is not None:
+        return session.commit_through(frame, truth), None
+
+    scene = _scene_at(scenes, frame)
+    interval = session.commit_interval(scene.start_frame, scene.end_frame, truth)
+    return interval, _next_unlabelled_scene_preview(session, scenes, interval.end_frame)
+
+
 def _timeline_x(frame: int, width: int, start: int, end: int) -> int:
     fraction = (frame - start) / (end - start)
     return int(round(np.clip(fraction, 0.0, 1.0) * (width - 1)))
@@ -283,6 +387,7 @@ def draw_timeline(
     image: np.ndarray,
     session: TimelineSession,
     frame: int,
+    scenes: Sequence[GuideInterval],
     proposals: Sequence[GuideInterval],
     gt_guides: Sequence[GuideInterval],
 ) -> None:
@@ -296,6 +401,9 @@ def draw_timeline(
         left = _timeline_x(interval.start_frame, width, session.covered_start, session.covered_end)
         right = _timeline_x(interval.end_frame, width, session.covered_start, session.covered_end)
         cv2.rectangle(image, (left, top + 8), (max(left, right - 1), height - 1), TRUTH_COLOURS[interval.truth], -1)
+    for scene in scenes[1:]:
+        boundary = _timeline_x(scene.start_frame, width, session.covered_start, session.covered_end)
+        cv2.line(image, (boundary, top + 5), (boundary, height - 1), (0, 200, 255), 1)
     for guide in proposals:
         left = _timeline_x(guide.start_frame, width, session.covered_start, session.covered_end)
         right = _timeline_x(guide.end_frame, width, session.covered_start, session.covered_end)
@@ -312,18 +420,20 @@ def _draw_status(
     image: np.ndarray,
     session: TimelineSession,
     frame: int,
+    scenes: Sequence[GuideInterval],
     proposals: Sequence[GuideInterval],
     gt_guides: Sequence[GuideInterval],
     message: str,
 ) -> None:
     interval_index = session.selected_index(frame)
     truth = session.intervals[interval_index].truth.value if interval_index is not None else "unlabelled"
+    scene_text = ", ".join(guide.label for guide in _guide_at(scenes, frame)) or "none"
     proposal_text = ", ".join(guide.label for guide in _guide_at(proposals, frame)) or "none"
     gt_text = ", ".join(guide.label for guide in _guide_at(gt_guides, frame)) or "none"
     selection = "none" if session.selection_start is None else str(session.selection_start)
     lines = [
         f"frame {frame}/{session.metadata.frame_count - 1}  time {frame / session.metadata.fps:.3f}s",
-        f"truth {truth}  selection_start {selection}  proposal {proposal_text}  GT {gt_text}",
+        f"truth {truth}  selection_start {selection}  scene {scene_text}  proposal {proposal_text}  GT {gt_text}",
         message,
     ]
     for row, line in enumerate(lines):
@@ -332,9 +442,11 @@ def _draw_status(
         cv2.putText(image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
 
 
-def _print_help() -> None:
-    print(
-        "Controls:\n"
+def _print_help(*, scene_mode: bool) -> None:
+    controls = "Controls:\n"
+    if scene_mode:
+        controls += "  scene mode: number labels the full unlabelled scene and advances\n"
+    controls += (
         "  trackbar or ,/.       previous/next frame\n"
         "  </>                   coarse jump\n"
         "  s                     set interval start at current frame\n"
@@ -349,6 +461,7 @@ def _print_help() -> None:
         "  h                     show this help\n"
         "  q                     quit"
     )
+    print(controls)
 
 
 def _read_frame(capture: cv2.VideoCapture, frame: int) -> np.ndarray:
@@ -367,7 +480,21 @@ def _load_intervals(path: Path, metadata: VideoMetadata) -> list[LabelInterval]:
     return intervals
 
 
-def _load_guides(args: argparse.Namespace, metadata: VideoMetadata) -> tuple[list[GuideInterval], list[GuideInterval]]:
+def _load_guides(
+    args: argparse.Namespace,
+    metadata: VideoMetadata,
+    session: TimelineSession,
+) -> tuple[list[GuideInterval], list[GuideInterval], list[GuideInterval]]:
+    scenes = []
+    if args.scene_csv is not None:
+        scenes = read_scene_partition(
+            args.scene_csv,
+            frame_count=metadata.frame_count,
+            covered_start=session.covered_start,
+            covered_end=session.covered_end,
+            start_column=args.scene_start_col,
+            end_column=args.scene_end_col,
+        )
     proposals = []
     if args.proposal_csv is not None:
         proposals = read_guides(
@@ -387,7 +514,7 @@ def _load_guides(args: argparse.Namespace, metadata: VideoMetadata) -> tuple[lis
             label_column=None,
             end_inclusive=True,
         )
-    return proposals, gt_guides
+    return scenes, proposals, gt_guides
 
 
 def run_annotation_tool(args: argparse.Namespace) -> int:
@@ -403,7 +530,7 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
             covered_start=args.start_frame,
             covered_end=args.end_frame,
         )
-        proposals, gt_guides = _load_guides(args, metadata)
+        scenes, proposals, gt_guides = _load_guides(args, metadata, session)
         if args.validate_only:
             session.validate_complete()
             print(
@@ -411,7 +538,7 @@ def run_annotation_tool(args: argparse.Namespace) -> int:
                 f"[{session.covered_start}, {session.covered_end})"
             )
             return 0
-        _run_gui(capture, args.out_csv, session, proposals, gt_guides, args.jump_frames)
+        _run_gui(capture, args.out_csv, session, scenes, proposals, gt_guides, args.jump_frames)
         return 0
     finally:
         capture.release()
@@ -421,11 +548,13 @@ def _run_gui(
     capture: cv2.VideoCapture,
     output_path: Path,
     session: TimelineSession,
+    scenes: Sequence[GuideInterval],
     proposals: Sequence[GuideInterval],
     gt_guides: Sequence[GuideInterval],
     jump_frames: int,
 ) -> None:
-    frame_state = {"index": session.covered_start}
+    initial_scene_frame = _next_unlabelled_scene_preview(session, scenes) if scenes else None
+    frame_state = {"index": session.covered_start if initial_scene_frame is None else initial_scene_frame}
     message_state = {"text": "press h for controls"}
     boundaries = sorted({
         frame
@@ -438,8 +567,8 @@ def _run_gui(
         frame = min(max(frame, session.covered_start), session.covered_end - 1)
         frame_state["index"] = frame
         image = _read_frame(capture, frame)
-        draw_timeline(image, session, frame, proposals, gt_guides)
-        _draw_status(image, session, frame, proposals, gt_guides, message_state["text"])
+        draw_timeline(image, session, frame, scenes, proposals, gt_guides)
+        _draw_status(image, session, frame, scenes, proposals, gt_guides, message_state["text"])
         cv2.imshow(WINDOW_NAME, image)
 
     def save() -> None:
@@ -453,7 +582,7 @@ def _run_gui(
         max(session.metadata.frame_count - 1, 1),
         redraw,
     )
-    _print_help()
+    _print_help(scene_mode=bool(scenes))
     redraw(frame_state["index"])
     try:
         while True:
@@ -478,8 +607,10 @@ def _run_gui(
                     session.set_selection_start(frame)
                     message_state["text"] = f"selection starts at {frame}"
                 elif key in LABEL_KEYS:
-                    interval = session.commit_through(frame, LABEL_KEYS[key])
+                    interval, next_scene_frame = commit_label(session, frame, LABEL_KEYS[key], scenes)
                     save()
+                    if next_scene_frame is not None:
+                        target = next_scene_frame
                     message_state["text"] = (
                         f"saved [{interval.start_frame}, {interval.end_frame}) {interval.truth.value}"
                     )
@@ -493,20 +624,26 @@ def _run_gui(
                     save()
                     message_state["text"] = f"saved note for [{interval.start_frame}, {interval.end_frame})"
                 elif key in (ord("g"), ord("G")):
-                    gap = session.first_gap()
-                    if gap is None:
+                    next_unlabelled = (
+                        _next_unlabelled_scene_preview(session, scenes) if scenes else session.first_gap()
+                    )
+                    if next_unlabelled is None:
                         message_state["text"] = "covered range has no gaps"
                     else:
-                        target = gap
-                        message_state["text"] = f"first gap starts at {gap}"
+                        target = next_unlabelled
+                        destination = "scene preview" if scenes else "gap start"
+                        message_state["text"] = f"first unlabelled {destination} {next_unlabelled}"
                 elif key in (ord("j"), ord("J")):
-                    target = next((boundary for boundary in boundaries if boundary > frame), boundaries[0] if boundaries else frame)
+                    target = next(
+                        (boundary for boundary in boundaries if boundary > frame),
+                        boundaries[0] if boundaries else frame,
+                    )
                     message_state["text"] = f"guide boundary {target}"
                 elif key in (ord("v"), ord("V")):
                     session.validate_complete()
                     message_state["text"] = "complete partition is valid"
                 elif key in (ord("h"), ord("H")):
-                    _print_help()
+                    _print_help(scene_mode=bool(scenes))
                     message_state["text"] = "controls printed in terminal"
             except (ValueError, IndexError) as exc:
                 message_state["text"] = f"error: {exc}"
