@@ -340,8 +340,8 @@ or corner-specific state.
 Implement a sibling only if manual review with existing video tools is too
 slow. Keep the first version to these behaviours:
 
-1. Accept `--video`, `--out-csv`, optional `--proposal-csv`, and optional
-   `--start-frame` and `--end-frame` arguments
+1. Accept `--video`, `--out-csv`, optional `--scene-csv`, optional
+   `--proposal-csv`, and optional `--start-frame` and `--end-frame` arguments
 2. Show the frame index, timestamp, FPS, current label, GT contact markers,
    and optional detector/VLM proposal spans
 3. Support single-frame stepping, coarse jumps, jump-to-next-proposal, and
@@ -373,16 +373,25 @@ PYTHONPATH=src python -m annotator.manual_broadcast_timeline_annotator \
   --video /path/to/sset_01_288p.mp4 \
   --video-id sset_01 \
   --out-csv local_scratch/autograder_architecture/measurements/sset_01_broadcast_timeline_labels.csv \
+  --scene-csv /path/to/raw_cuts.csv \
   --proposal-csv /path/to/proposals.csv \
   --gt-csv /path/to/gt_rally_extents.csv
 ```
 
-The number keys assign the five classes. A new interval ends after the
-displayed frame, so its stored end remains exclusive. Existing intervals can
-be relabelled, deleted, noted, and replaced. The `g` key jumps to the first
-gap, `j` jumps to the next proposal or GT boundary, and `v` validates the
-declared range. Use `--validate-only` for the final non-GUI source-metadata and
-partition check.
+The number keys assign the five classes. With `--scene-csv`, a number labels
+the complete unlabelled cut-to-cut scene and advances to the next unlabelled
+scene. An explicit `s` selection retains the manual frame-range behaviour for
+semantic changes inside a detected scene. Without `--scene-csv`, a new
+interval ends after the displayed frame, so its stored end remains exclusive.
+Existing intervals can be relabelled, deleted, noted, and replaced. The `g`
+key jumps to the first gap or unlabelled scene preview, `j` jumps to the next
+proposal or GT boundary, and `v` validates the declared range. Use
+`--validate-only` for the final non-GUI source-metadata and partition check.
+
+Scene CSVs default to zero-based half-open `start_frame` and `end_frame`
+columns. They must form a complete ordered partition of the exact review
+video. PySceneDetect supplies these mechanistic boundaries but does not assign
+human truth.
 
 Proposal CSVs default to zero-based half-open `start_frame`, `end_frame`, and
 `truth` columns. The column names can be changed with CLI flags. GT guide CSVs
