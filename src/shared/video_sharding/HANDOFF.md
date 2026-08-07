@@ -1,294 +1,427 @@
-# RTMLib long-video sharding PoC — handoff
+# RTMLib long-video sharding PoC — readable report
 
-## 1. Executive result
+## Executive summary — BLUF
 
-| Question | Verdict | Scope / condition |
+This proof of concept tested whether a long match video can be split by frame range, processed by several independent RTMLib workers, and then stitched back into the same five raw pose arrays that the existing pipeline already expects. The answer is **yes for the setup tested**. The PoC produced the same output as the current sequential path, handled worker and shard failures without publishing bad output, and reduced processing time substantially on the A100 GPU.
+
+The most important result is that OpenCV frame seeking worked correctly on the production-style source that was tested. The source was a 1920×1080 H.264 video at a constant 30 fps with 100,349 frames. A full sequential decode was hashed frame by frame, then the PoC sought directly to awkward frame ranges, shard boundaries, the end of the file, and ranges that crossed EOF. Every requested frame matched the sequential decode exactly on both the local laptop and the Bourbaki A100 host. The full sequential decodes on those two machines were also identical for all 100,349 frames. That matters because it means workers do not have to decode from frame zero just to reach their own section of the video.
+
+The sharded extraction itself also matched the existing sequential output in the tests that were run. A deterministic fake extractor matched byte-for-byte on both synthetic video and a real 1080p cut. Real RTMLib on CPU was deterministic across repeated runs and produced byte-exact results when sequential processing was compared with four shards. CUDA on the A100 also produced byte-exact results across repeated sequential runs and between sequential and four-shard runs. The CUDA result should still be treated as specific to the tested stack: A100 plus onnxruntime-gpu 1.27 and the current driver/runtime. It should be rechecked after GPU, driver, ONNX Runtime, or similar environment changes.
+
+Performance improved enough to justify the approach. On a 14,401-frame 1080p test, one worker took 711.5 seconds. Eight workers took 299.3 seconds. That is a 2.38× speed-up, with throughput rising from 20.2 frames per second to 48.1 frames per second. The test includes worker startup, model loading, decoding, inference, compressed shard writes, and final stitching. Based on that measurement, a roughly 100,000-frame match would take about 35 minutes at eight workers instead of about 83 minutes sequentially. The PoC did not establish whether more than eight workers helps, and previous work on this GPU suggests gains flatten around that point.
+
+The failure behaviour is also good enough to carry forward. Workers write temporary files and only mark a shard complete after its data is safely written. The stitch step checks the planned frame ranges, run ID, source MD5, shapes, dtypes, `n_max`, and shard completeness before creating the final output. Ten deliberately corrupted shard cases were rejected. A live-worker SIGKILL test also caused the run to fail rather than leaving output that looked complete. The last shard reads one frame past its expected end so a bad container frame count cannot silently truncate the result.
+
+The final stitched output is compatible with the existing downstream loader and both tested heuristics without changing those components. The PoC deliberately reused the current `extract_raw_frame` logic and the existing five-array file contract rather than creating a new pose format. One important naming trap was found: `apply_heuristic` expects a stem beginning with a numeric video ID. A name such as `sset_21_*` can be silently skipped; a stem such as `21_full_*` is required.
+
+The recommended production change is therefore small. Add optional `start` and `end` frame arguments to `RtmlibPoseExtractor.iter_video`, then add one sharded extraction module under `preparing_data/` to plan ranges, launch workers, track shard state, validate the results, and stitch the five final arrays. Keep `raw_extract`, the heuristics, and downstream consumers unchanged. Keep the existing sequential path as a fallback, and make one shard behave like the sequential version.
+
+What is **not** yet proved is just as important. Frame-exact seeking has only been checked on one full H.264 constant-frame-rate match. Variable-frame-rate video, other codecs, re-encoded sources, and the other full matches have not been checked. CUDA exactness is also only demonstrated on the current A100/software stack. Per-shard resume is not implemented yet; a failed run currently starts again. Full-match heuristic runs still need the real court-context input. Memory use for much longer sources or larger `n_max` values has not been measured, and scaling on the L40 host has not been tested.
+
+**Next steps:** first, run the cheap decode-identity check on the other full matches. If those pass, move the tested planner/worker/stitch logic into production code, add frame-range support to `iter_video`, and port the PoC tests. Then rerun CPU and CUDA parity on the production version, use it on one real full-match extraction, and inspect the published output before making it the normal path. Keep the decode and parity checks as regression gates for new source types and environment changes. If a future source fails frame-accurate OpenCV seeking, use ffmpeg pre-segmentation as the fallback rather than weakening the correctness checks.
+
+## Table of contents
+
+1. [What was built](#what-was-built)
+2. [What the PoC showed](#what-the-poc-showed)
+3. [Frame decoding: can each worker read the right frames?](#frame-decoding)
+4. [Does sharding change the RTMLib output?](#output-parity)
+5. [Performance](#performance)
+6. [What happens when something fails?](#failure-handling)
+7. [Does the output still work downstream?](#downstream-compatibility)
+8. [How the PoC works](#how-the-poc-works)
+9. [How to put this into the real pipeline](#production-change)
+10. [What is still unknown](#remaining-unknowns)
+11. [Recommended next steps](#recommended-next-steps)
+12. [Fallback if OpenCV seeking fails](#fallback)
+13. [Test environment](#test-environment)
+14. [Test and repository evidence](#test-evidence)
+15. [Commands that were run](#commands-run)
+16. [PoC files: keep, move, or archive](#poc-files)
+
+<a id="what-was-built"></a>
+## 1. What was built
+
+The PoC adds a second way to process a long video. Instead of one process reading the whole video from start to finish, the video is divided into contiguous frame ranges. Each worker:
+
+1. opens the same source video independently;
+2. seeks to the first frame in its assigned range;
+3. runs the existing RTMLib pose extraction for that range;
+4. writes the same five raw arrays used by the current pipeline; and
+5. writes a small manifest saying what it produced.
+
+After every worker finishes, a stitch step checks that all shards are valid and cover the video exactly once. Only then does it concatenate them and publish the normal five output files.
+
+The PoC does **not** introduce a new pose representation. It reuses `raw_extract.extract_raw_frame`, `RAW_SUFFIXES`, and the existing RTMLib model configuration. The goal was to change how work is divided, not what the pipeline produces.
+
+<a id="what-the-poc-showed"></a>
+## 2. What the PoC showed
+
+| Question | Plain answer | Important limit |
 |---|---|---|
-| Frame-range decode correct? | ESTABLISHED | h264 1080p CFR match video, cv2 5.0, both hosts; VFR/other codecs untested |
-| Independent shard execution sound? | ESTABLISHED | multiprocess spawn workers, per-process sessions; SIGKILL and short-read abort loudly |
-| Stitch/final-publication sound? | ESTABLISHED | 10 corruption modes refused before publication; ndet-last marker semantics |
-| Sequential-vs-sharded parity? | ESTABLISHED (CPU/fake), SUPPORTED (CUDA) | byte-exact everywhere tested; CUDA verdict scoped to onnxruntime-gpu 1.27 on the A100 |
-| Useful multiprocess scaling? | ESTABLISHED | 2.38x wall at 8 workers on the A100, one shared 1080p file, 14.4k-frame probe |
-| Clean downstream compatibility? | ESTABLISHED | production loader + both heuristics on stitched output, unmodified; numeric-prefix stem required |
-| Production integration ready to plan? | SUPPORTED | plan in section 9; per-shard resume and multi-source identity remain unimplemented/untested |
+| Can a worker seek directly to its frame range? | **Yes, on the tested source.** Every probed frame matched the sequential decode exactly. | Tested on H.264, 1080p, constant frame rate, OpenCV 5.0. |
+| Can several workers safely process one video? | **Yes.** Each process owns its own video capture and RTMLib/ONNX session. | Tested with multiprocessing on the A100 host. |
+| Does stitching protect against bad shards? | **Yes.** Ten corruption cases were rejected before final output was published. | Covers the corruption cases implemented in the PoC tests. |
+| Does sharding change the output? | **No difference was seen.** CPU and the tested CUDA stack were byte-exact. | CUDA result is specific to this A100/software stack. |
+| Does it make the job faster? | **Yes.** Eight workers were 2.38× faster than one worker in the scaling test. | Scaling beyond eight workers was not measured here. |
+| Will current downstream code read the result? | **Yes.** The existing loader and both tested heuristics worked unchanged. | Output stem must start with a numeric video ID. |
+| Is it ready to move toward production? | **Yes, with more source validation first.** | Other full matches, VFR, and other codecs are still untested. |
 
-- Most important positive finding: cv2 `CAP_PROP_POS_FRAMES` seek is frame-exact on the
-  production codec, and whole-video decode is bit-identical across the laptop and the
-  A100 node, so sharded extraction can be validated by exact equality end to end.
-- Most important limitation: every identity/parity claim is scoped to h264 CFR
-  ShuttleSet-style sources and cv2 5.0; VFR or other codecs re-open the seek question.
-- Biggest remaining uncertainty: whether seek identity and CUDA exactness hold across
-  other source videos (all evidence is one match) and future build/driver changes.
-- Recommended next action: run the decode-identity gate over the other full matches
-  (cheap, CPU-only), then plan the small production integration in section 9.
+<a id="frame-decoding"></a>
+## 3. Frame decoding: can each worker read the right frames?
 
-## 2. Environment
+This was the first thing that had to be proved. If seeking lands on the wrong frame, everything after it is unreliable.
+
+The tested source, `sset_21_gloiZ_gTJaE.mp4`, is H.264, 1920×1080, constant 30 fps, with 100,349 frames. A full sequential decode was used as the reference. Every frame was hashed. The PoC then sought directly to a set of difficult positions, including:
+
+- frame 0;
+- awkward mid-video positions;
+- every production-style shard boundary;
+- unaligned ranges;
+- the tail of the video; and
+- a range that deliberately ran past EOF.
+
+The requested frames matched the sequential hashes exactly on both the local machine and Bourbaki. The two full sequential decodes were also identical to each other for all 100,349 frames.
+
+The EOF test behaved correctly: a range that asked for frames past the end came back short, and the worker refused to publish the shard. The final shard also probes one frame past the planned end so an incorrect container frame count cannot silently cut off real frames.
+
+### Decoding options considered
+
+| Method | Result | Use |
+|---|---|---|
+| OpenCV `CAP_PROP_POS_FRAMES` seek, then read forward | Exact on every tested range; seek cost was small compared with inference. | **Use this for workers.** |
+| Decode from frame 0 and discard frames until the range starts | Correct, and kept as a control. | Too wasteful for normal sharding. |
+| Pre-split the video with ffmpeg | Not needed for this PoC. | Keep as a fallback for source types where OpenCV seek fails. |
+
+<a id="output-parity"></a>
+## 4. Does sharding change the RTMLib output?
+
+No difference was found in the tests that were run.
+
+| Test | Result |
+|---|---|
+| Deterministic fake extractor on synthetic video | All five arrays byte-exact. |
+| Deterministic fake extractor on a real 2,401-frame 1080p cut | All five arrays byte-exact. |
+| Full-video frame decode hashes | Exact. |
+| Real RTMLib CPU, repeated sequential runs | Byte-exact. |
+| Real RTMLib CPU, sequential vs four shards on 721 frames | Byte-exact. |
+| Real RTMLib CUDA, repeated sequential runs on 3,601 frames | Byte-exact. |
+| Real RTMLib CUDA, sequential vs four shards on the same cut | Byte-exact. |
+
+The CPU result is strong for the tested configuration. The CUDA result is also exact in this experiment, but it should not be treated as a permanent promise. It was measured on an A100 using `onnxruntime-gpu 1.27.0`. Re-run the CUDA parity check after changing the GPU, driver, ONNX Runtime, or other relevant runtime pieces.
+
+<a id="performance"></a>
+## 5. Performance
+
+The scaling test used a 14,401-frame 1080p section of the match on Bourbaki's A100. Each worker had its own model/session. Timing includes process startup, model loading, video decode, inference, compressed shard writes, and stitching.
+
+| Workers | Wall time | Time per frame | Throughput |
+|---:|---:|---:|---:|
+| 1 | 711.5 s | 49.41 ms | 20.2 fps |
+| 2 | 508.8 s | 35.33 ms | 28.3 fps |
+| 4 | 387.9 s | 26.93 ms | 37.1 fps |
+| 8 | 299.3 s | 20.78 ms | 48.1 fps |
+
+Eight workers were **2.38× faster** than one worker. Importantly, having all workers read different ranges from the same 1080p file did not create a new bottleneck at these worker counts.
+
+A rough extrapolation from this test puts a 100,000-frame match at about **35 minutes with eight workers**, compared with about **83 minutes sequentially**. This is an estimate, not a full-match timing result.
+
+The PoC did not isolate the next bottleneck or test more than eight workers. Existing A100 measurements from the clip-level path suggest returns flatten after roughly eight workers.
+
+<a id="failure-handling"></a>
+## 6. What happens when something fails?
+
+The design is deliberately conservative: a bad or incomplete shard should stop the run, not create output that looks valid.
+
+| Failure | What the PoC does |
+|---|---|
+| Worker dies or shard is missing | The run fails. Stitching refuses to continue. A live SIGKILL test confirmed this. |
+| Gap or overlap in frame ranges | Rejected before publication. |
+| Shard from another run | Rejected using `run_id`. |
+| Shard from another source file | Rejected using source MD5. |
+| Partial file write | Data is written to a temporary file and renamed only when complete. |
+| Incomplete shard | The shard manifest is written last and acts as the completion marker. |
+| Wrong array shape, dtype, or `n_max` | Recomputed expectations are checked; the manifest is not blindly trusted. |
+| Bad container frame count | Final shard probes past the expected end and aborts if the plan was too short. |
+| Corrupt final publication | Final files are only written after all shard checks pass; `_raw_ndet` is written last, matching the current completion convention. |
+
+Ten deliberate stitch-corruption cases were tested and refused.
+
+One thing the PoC does **not** do yet is resume individual completed shards after a failed run. The manifests contain enough information to support this, but the current PoC starts the run again from scratch.
+
+<a id="downstream-compatibility"></a>
+## 7. Does the output still work downstream?
+
+Yes. After stitching, the result is the same five raw arrays the current code already loads:
+
+- `_raw_kps`
+- `_raw_bboxes`
+- `_raw_scores`
+- `_raw_kp_scores`
+- `_raw_ndet`
+
+The existing `RawClip` loader and both `current` and `sticky_anchor` heuristics were run against stitched output without changing them.
+
+### Important naming gotcha
+
+`apply_heuristic` expects the file stem to begin with a numeric video ID. A name such as `sset_21_full_*` can be silently skipped. Use a stem such as `21_full_*`.
+
+This is not a sharding problem, but the PoC exposed it and the production path needs to respect it.
+
+<a id="how-the-poc-works"></a>
+## 8. How the PoC works
+
+```text
+run_sharded
+  |
+  +-- split [0, total_frames) into contiguous frame ranges
+  |
+  +-- write run manifest
+  |
+  +-- start N worker processes
+  |     |
+  |     +-- each worker opens the source video
+  |     +-- seeks to its start frame
+  |     +-- runs RTMLib over [start, end)
+  |     +-- uses extract_raw_frame for the normal five-array format
+  |     +-- writes shard data
+  |     +-- writes shard manifest last
+  |
+  +-- wait for all workers
+  |
+  +-- validate every shard
+  |
+  +-- concatenate shards in frame order
+  |
+  +-- publish the normal {stem}_raw_*.npy files
+```
+
+### PoC components
+
+| Component | Job |
+|---|---|
+| `shard_plan` | Splits the frame range into contiguous, non-overlapping shards. |
+| `range_decode` | Reads an exact frame range and provides file/frame hashes for checks. |
+| `fake_pose` | Deterministic test extractor used to prove ordering and assembly. |
+| `shard_worker` | Runs one shard in one process. |
+| `stitch` | Validates all shard data before combining it. |
+| `run_sharded` | Plans, launches workers, checks exits, and stitches. |
+| `gate_decode_identity` | Checks frame seek against a sequential hash ledger. |
+| `gate_parity` | Compares sequential and sharded extraction. |
+| `gate_downstream` | Checks the existing loader and heuristics against stitched output. |
+| `bench_worker_scaling` | Measures 1/2/4/8-worker performance. |
+
+<a id="production-change"></a>
+## 9. How to put this into the real pipeline
+
+The recommended change is additive. Do not replace or rewrite the existing extraction and heuristic logic.
+
+### Change 1: allow `iter_video` to read a frame range
+
+```python
+def iter_video(self, video_path, start: int = 0, end: int | None = None):
+    ...
+```
+
+Default behaviour stays the same: start at frame 0 and read to the end. Sharded workers pass `start` and `end`.
+
+### Change 2: add one sharded extraction module
+
+Suggested location:
+
+```text
+preparing_data/extract_sharded_video.py
+```
+
+Its job is to:
+
+- plan the ranges;
+- write the run manifest;
+- launch and join worker processes;
+- check worker exit codes;
+- manage shard manifests;
+- validate shard data; and
+- stitch and publish the final five arrays.
+
+A suitable public entry point is:
+
+```python
+def extract_sharded(
+    video_path,
+    save_dir,
+    stem,
+    n_shards,
+    n_max=16,
+    device="cuda",
+) -> Path:
+    ...
+```
+
+### Leave these alone
+
+- `raw_extract.extract_raw_frame`
+- the five-array raw file contract
+- `apply_heuristic`
+- `current` and `sticky_anchor`
+- court logic
+- clip generation
+- TrackNet
+- downstream consumers
+
+The sharded path should simply produce the files those components already expect.
+
+### Keep the sequential path
+
+Do not remove the current path during rollout. One shard should behave like sequential processing through the new code, and the old extraction path remains available as a fallback until the sharded version has been used successfully on real full-match jobs.
+
+<a id="remaining-unknowns"></a>
+## 10. What is still unknown
+
+These are the real gaps left by the PoC:
+
+- **Other source videos:** frame seeking was proved on one full match only. Run the identity check on the other full matches.
+- **VFR and other codecs:** variable-frame-rate video, different codecs, and re-encoded sources may behave differently. They must pass the seek check before using sharding.
+- **Future CUDA environments:** exact CUDA parity should be rechecked after GPU, driver, ONNX Runtime, or similar changes.
+- **Per-shard resume:** not implemented. A failed run currently restarts.
+- **Real court context for full-match heuristics:** the downstream gate used a synthetic identity court. Production needs the real `all_court_info`/resolution row.
+- **L40 performance:** not tested on Carmack.
+- **More than eight workers:** not measured in this PoC.
+- **Stitch memory on larger jobs:** about 0.5 GiB was estimated for a 56-minute match at `n_max=16`; growth is linear and larger cases were not measured.
+
+<a id="recommended-next-steps"></a>
+## 11. Recommended next steps
+
+1. **Run frame-identity checks on the other full matches.** This is CPU-only and is the cheapest way to find source-specific seek problems before changing production code.
+2. **Add `start`/`end` support to `RtmlibPoseExtractor.iter_video`.** Keep the current default behaviour unchanged.
+3. **Move the tested planner, worker, and stitch logic into `preparing_data/extract_sharded_video.py`.** Port the PoC tests with it.
+4. **Add per-shard resume while moving the code.** The manifest design already supports identifying completed shards; implement and test the skip/reuse behaviour.
+5. **Rerun CPU and CUDA parity on the production version.** Record the environment with the result.
+6. **Run one real full-match extraction.** Keep the shard/run artefacts until the final output has been inspected and downstream processing has succeeded.
+7. **Keep the decode/parity/downstream checks.** Run them again for new source types and after relevant runtime changes.
+8. **Only then make sharded extraction the normal full-video path.** Keep sequential processing available as a fallback.
+
+<a id="fallback"></a>
+## 12. Fallback if OpenCV seeking fails
+
+The best fallback is ffmpeg pre-segmentation into chunk files, then processing those files through the existing clip-style machinery.
+
+It is not the first choice because it adds another disk pass, another set of intermediate files and provenance, and keyframe-aligned boundaries can be less precise. The PoC found no measured benefit that would justify those costs while direct OpenCV seeking is frame-exact.
+
+If a future video fails the frame-identity check—for example because it is VFR or uses a different codec—then ffmpeg segmentation becomes the safer option for that source rather than accepting uncertain seeks.
+
+<a id="test-environment"></a>
+## 13. Test environment
 
 | Item | Value |
 |---|---|
-| BASE_SHA | 95f812be8af0a05c364e810823ab085fbc113391 |
-| PoC branch | `poc/rtmlib-video-sharding` (worktree `wt_rtmlib_sharding_poc`) |
-| Host / GPU | local laptop (CPU only; no onnxruntime) and bourbaki A100-PCIE-40GB, driver 610.57.04 |
-| Python | 3.12 local (`badminton-cicd` venv), 3.11.13 bourbaki (`venv-rtmlib`) |
-| RTMLib / ONNXRuntime | bourbaki: onnxruntime-gpu 1.27.0 (CUDA EP), rtmlib RTMDet-M@640 + RTMPose-L@256 |
-| Tested video / codec | `sset_21_gloiZ_gTJaE.mp4`: h264 1920x1080, CFR 30 fps, 100,349 frames (file MD5 identical on both hosts) |
+| Base commit | `95f812be8af0a05c364e810823ab085fbc113391` |
+| PoC branch | `poc/rtmlib-video-sharding` |
+| Worktree | `wt_rtmlib_sharding_poc` |
+| Local host | CPU only; Python 3.12; OpenCV 5.0; no usable ONNX Runtime/RTMLib GPU stack |
+| Bourbaki | A100-PCIE-40GB; driver 610.57.04; Python 3.11.13 |
+| ONNX Runtime | `onnxruntime-gpu 1.27.0` with CUDA provider |
+| RTMLib models | RTMDet-M@640 + RTMPose-L@256 |
+| Main test video | `sset_21_gloiZ_gTJaE.mp4` |
+| Video format | H.264, 1920×1080, CFR 30 fps |
+| Frame count | 100,349 |
+| Source identity | File MD5 matched on local and Bourbaki |
 
-## 3. Evidence that changed the conclusion
+<a id="test-evidence"></a>
+## 14. Test and repository evidence
 
-| Question | Experiment | Result | Verdict |
-|---|---|---|---|
-| Frame count trustable? | full sequential decode vs container metadata, both hosts | 100,349 == metadata | ESTABLISHED |
-| Seek identity | per-frame MD5 vs sequential ledger: 5 awkward probes, all 8 production shard boundaries, tail, EOF-crossing; repeated on bourbaki with 5 more unaligned ranges | all frame-exact; EOF-crossing reads short, loudly | ESTABLISHED |
-| Cross-host decode | local vs bourbaki sequential MD5 ledgers | identical for all 100,349 frames | ESTABLISHED |
-| Deterministic parity | fake extractor, sequential (production `extract_one_clip`) vs sharded, synthetic 4-GOP video + real 2,401-frame 1080p cut, seek and scan | all five arrays byte-exact | ESTABLISHED |
-| CPU determinism | real RTMLib CPU sequential run A vs B, OMP_NUM_THREADS=2, ~600-frame cut | byte-exact | ESTABLISHED |
-| CPU parity | real RTMLib CPU, sequential vs 4-shard, 721-frame real cut | byte-exact | ESTABLISHED |
-| CUDA self-variance / parity | seq A vs B, then seq vs 4-shard, 3,601-frame real cut on the A100 | both byte-exact | SUPPORTED (build/card-scoped) |
-| Worker scaling | 1/2/4/8 workers, CUDA, 14.4k-frame 1080p cut | 711 -> 299 s wall (2.38x) | ESTABLISHED |
-| Failure containment | SIGKILL live workers; 10 stitch corruption tests | run aborts, no publication looks complete | ESTABLISHED |
+### PoC tests
 
-## 4. Frame-range decoding
+- 18 `tests/test_video_sharding.py` tests passed locally.
+- These covered planning, deterministic seek/scan parity, worker short-read/overrun handling, ten stitch corruption cases, and downstream loader/heuristic checks.
 
-| Approach | Identity evidence | Cost / limitation | Disposition |
-|---|---|---|---|
-| cv2 seek (`CAP_PROP_POS_FRAMES`) then sequential read | frame-exact vs full-decode MD5 ledger at every probed boundary, both hosts | seek cost trivial vs inference; unproven off h264/CFR/cv2-5.0 | adopt for workers |
-| scan (decode from 0, discard) | exact by construction; verified on a mid-video range | O(F) per shard — late shards pay near-full decode | keep as correctness control only |
-| ffmpeg pre-segmentation | not exercised | extra disk pass + copies; keyframe-aligned boundaries only | fallback if seek ever fails on a source |
+### Repository regression run
 
-Known failing case: none observed. A range crossing EOF reads short and the worker
-refuses to write; the last shard also probes one frame past its planned end so an
-undercounting container header cannot silently truncate a run.
+- 1,380 tests passed in the PoC worktree.
+- Four `test_namespace_migration` failures were already present; main had six failures in the same file.
+- No existing tracked production files were modified by the PoC.
 
-## 5. Sequential vs sharded parity
+### Static checks
 
-| Test | Exact? | Detection-count differences | Ordering differences | Numeric difference | Verdict |
-|---|---:|---:|---:|---:|---|
-| Deterministic fake (synthetic + real 1080p cut) | yes | 0 | 0 | 0 | ESTABLISHED |
-| Decode identity (frame MD5, full match) | yes | — | — | — | ESTABLISHED |
-| RTMLib CPU (self-variance control) | yes | 0 | 0 | 0 | ESTABLISHED |
-| RTMLib CPU (seq vs sharded, 721-frame real cut, 4 shards) | yes | 0 | 0 | 0 | ESTABLISHED |
-| RTMLib CUDA (self-variance, 3,601-frame real cut) | yes | 0 | 0 | 0 | ESTABLISHED |
-| RTMLib CUDA (seq vs sharded, same cut, 4 shards) | yes | 0 | 0 | 0 | SUPPORTED* |
+- Ruff was clean on the new PoC files.
+- Pyrefly was clean on the new PoC files; the reported repo-level issues pre-existed on main.
 
-\* Byte-exact on this build+card (onnxruntime-gpu 1.27.0, A100), consistent with the
-G7 zero-self-variance measurement. Kept at SUPPORTED, not ESTABLISHED: zero variance
-on one build/card is not a guarantee, so CUDA parity should be re-gated after any
-onnxruntime/driver/GPU change (command in section 11).
+### Specific experiments
 
-## 6. Performance
+- Full sequential decode: 100,349 decoded frames, matching container metadata.
+- Local seek checks: 14/14 tested ranges were frame-exact, including EOF behaviour.
+- Bourbaki seek checks: default probes plus five extra unaligned ranges passed.
+- Cross-host sequential decode: all 100,349 frame hashes matched.
+- SIGKILL test: worker death was visible through exit status and no final output was published.
+- CPU self-variance: byte-exact.
+- CPU sequential vs four shards: byte-exact.
+- CUDA self-variance: byte-exact on the tested stack.
+- CUDA sequential vs four shards: byte-exact on the tested stack.
+- 1/2/4/8-worker scaling: 711.5 / 508.8 / 387.9 / 299.3 seconds.
 
-Bourbaki A100, CUDA, 14,401-frame 1080p cut of sset_21, workers == shards,
-`OMP_NUM_THREADS=2`. Wall time includes worker spawn, per-worker model load, decode,
-inference, compressed shard IO and stitch.
+### Useful gotchas found during the PoC
 
-| Workers | Frames | Wall time | ms/frame | Throughput |
-|---:|---:|---:|---:|---:|
-| 1 | 14,401 | 711.5 s | 49.41 | 20.2 fps |
-| 2 | 14,401 | 508.8 s | 35.33 | 28.3 fps |
-| 4 | 14,401 | 387.9 s | 26.93 | 37.1 fps |
-| 8 | 14,401 | 299.3 s | 20.78 | 48.1 fps |
+- `apply_heuristic` can silently skip output whose stem does not start with a numeric video ID.
+- `np.save(path)` appends `.npy` to filenames with unfamiliar extensions. For atomic `.tmp` writes, writing through an open file handle avoids accidental filename changes.
 
-Concurrency materially helps: 2.38x at 8 workers, the same scaling shape as the
-clip-level extraction-saturation runbook measured on this card (2.2x), so decoding one
-shared 1080p file instead of many clips introduces no new bottleneck at these counts.
-Single-worker cost is lower than the runbook's clip workload (49.4 vs 83.7 ms/frame)
-because there is no per-clip open/teardown. Extrapolated: a full 100k-frame match takes
-roughly 35 min at 8 workers vs roughly 83 min sequentially. Next bottleneck was not
-isolated here; the runbook's GPU-pinning evidence says past 8 workers gains stop.
+<a id="commands-run"></a>
+## 15. Commands that were run
 
-## 7. Meaningful failure handling
+The package was moved from `src/bst_x/validation_scripts/video_sharding/` to `src/shared/video_sharding/` after the runs. The commands below use the final module path.
 
-All demonstrated by tests (`tests/test_video_sharding.py`) unless noted.
+Run from the worktree root with `PYTHONPATH=src:src/bst_x`. `$V21` is the full `sset_21` match and `$LEDGER` is its sequential frame-MD5 ledger.
 
-| Failure | Behaviour | Demonstrated? |
-|---|---|---|
-| Missing/failed shard | stitch refuses: "shard incomplete"; worker death observable via exit code (SIGKILL run: no publish) | yes |
-| Gap/overlap/duplicate | plan validation refuses; duplicate range impossible under filename scheme, unplanned manifests refused | yes |
-| Stale or mixed run | per-shard `run_id` + source MD5 checked against run manifest | yes |
-| Partial write | all writes `.tmp`+rename; manifest written last; publication writes ndet last (production marker convention) | yes |
-| Source mismatch | shard `source_md5` vs run manifest | yes |
-| Schema / `n_max` mismatch | per-shard shape/dtype recomputed from expectation formula, not trusted from manifest | yes |
-| Undercounting container metadata | last shard probes past planned end and aborts | yes |
-
-## 8. PoC architecture
-
-```
-run_sharded (orchestrator)
-  ├─ plan_frame_shards ── [0,F) -> contiguous [start,end) shards
-  ├─ run manifest (run_id, source MD5, n_frames, n_max, plan)   [written first]
-  ├─ spawn N x shard_worker (own cv2 capture + own extractor/session)
-  │     range_decode.iter_frame_range (seek) -> raw_extract.extract_raw_frame
-  │     -> five .npy.xz + shard manifest [manifest last = complete marker]
-  └─ stitch: validate everything -> concat -> publish {stem}_raw_*.npy [ndet last]
-```
-
-| Added component | Responsibility |
-|---|---|
-| `shard_plan` | contiguous exact-cover partition of the frame index space |
-| `range_decode` | exact-range seek/scan decode; file/frame MD5 |
-| `fake_pose` | deterministic frame-content-derived extractor (parity control) |
-| `shard_worker` | one process: decode range, reuse production array assembly, persist shard |
-| `stitch` | refuse-then-publish; owns every integrity check |
-| `run_sharded` | plan, spawn, join, stitch (CLI + library entry) |
-| `gate_decode_identity` / `gate_parity` / `gate_downstream` / `bench_worker_scaling` | evidence CLIs |
-
-Production array semantics (`extract_raw_frame`), the raw file contract
-(`RAW_SUFFIXES`) and model configuration are imported from their existing owners, not
-duplicated.
-
-## 9. Recommended production integration
-
-### Recommended flow
-
-```
-extract_sharded_video (new, preparing_data/)          raw_extract.py (unchanged)
-  plan -> run manifest -> N worker processes                 |
-     worker: seek-decode [s,e) -> RtmlibPoseExtractor        |  same five-array
-             -> extract_raw_frame -> shard + manifest        |  contract
-  stitch: validate -> publish {vid}_full_raw_*.npy  ---------+--> apply_heuristic /
-                                                                  heuristics (unchanged)
-```
-
-### Responsibility boundaries
-
-| Responsibility | Recommended owner |
-|---|---|
-| RTMLib inference | `preparing_data.rtmlib_pose` (unchanged) |
-| Video decoding | `rtmlib_pose.iter_video` grows optional `start`/`end` (seek), default unchanged |
-| Shard planning | new `preparing_data/extract_sharded_video.py` |
-| Worker lifecycle | same new module (spawn, join, exit-code check) |
-| Run/shard state | same new module (run manifest + per-shard manifest, as in the PoC) |
-| Stitching | same new module (refuse-then-publish) |
-| Canonical pose representation | `raw_extract.extract_raw_frame` + `heuristics.base.RAW_SUFFIXES` (unchanged) |
-| Downstream consumption | `apply_heuristic` (unchanged; stems must be numeric-prefixed) |
-| Mode/config orchestration | the new module's CLI: `--video --stem --n-shards --n-max --device --save-dir` |
-
-### Proposed interfaces
-
-```python
-# rtmlib_pose.py — only production edit of substance
-def iter_video(self, video_path, start: int = 0, end: int | None = None): ...
-
-# preparing_data/extract_sharded_video.py (graduated from the PoC)
-def extract_sharded(video_path, save_dir, stem, n_shards, n_max=16,
-                    device="cuda") -> Path: ...   # publishes five {stem}_raw_*.npy
-```
-
-### Minimal existing-code changes
-
-| Existing file/function | Recommended change | Must NOT own |
-|---|---|---|
-| `rtmlib_pose.iter_video` | optional frame-range args (seek) | shard state, padding, n_max |
-| `preparing_data/` | add one module (above) | heuristics, court logic, clip pipeline, TrackNet |
-
-Nothing else changes: `raw_extract`, `apply_heuristic`, heuristics and all consumers
-stay byte-for-byte as they are — that is what the parity gates demonstrated.
-
-### Sequential/sharded relationship
-
-The sharded module is an additive front-end producing the identical artefact set
-(proven byte-exact on CPU, and on CUDA for this build). `raw_extract` remains the
-canonical clip path and the fallback: `--n-shards 1` degenerates to sequential
-behaviour through the same code, and the old path is never removed during migration.
-
-### Migration sequence
-
-1. Land the `iter_video` range parameters + the decode-identity test on the tiny
-   synthetic video (pure addition, CI-safe).
-2. Graduate planner/worker/stitch into `preparing_data/extract_sharded_video.py`,
-   porting the PoC tests.
-3. Re-run the CPU parity gate + CUDA parity gate on the HPC once, record results.
-4. Use it for the first real full-match extraction; keep `run_dir` artefacts until
-   the publication is spot-checked.
-5. Keep the gates in `src/shared/video_sharding/` for maintenance use; delete PoC leftovers.
-
-### Strongest alternative
-
-ffmpeg keyframe-aligned pre-segmentation into chunk files, fed through the existing
-clip-level machinery (the extraction-saturation runbook flow). Second choice because
-it adds a disk copy pass, boundary imprecision (keyframe-aligned only), and a second
-provenance layer for no measured benefit — in-process seek is frame-exact here. It
-becomes first choice if a future source (VFR, other codec) fails the decode-identity
-gate, which is exactly what the gate exists to detect cheaply.
-
-### PoC disposition
-
-| PoC piece | Graduate / rewrite / test-only / delete | Why |
-|---|---|---|
-| `shard_plan`, `stitch`, `shard_worker`, `run_sharded` | graduate (light rename/merge into one module) | proven logic, already reuses production owners |
-| `range_decode` | graduate into `rtmlib_pose.iter_video` + a small helper | one decode surface, not two |
-| `fake_pose`, `tests/test_video_sharding.py` | keep test-only | deterministic CI coverage |
-| `gate_decode_identity`, `gate_parity`, `gate_downstream`, `bench_worker_scaling` | keep as gates in `src/shared/video_sharding/` | re-run after env changes / new sources |
-| `run_remote_bourbaki.sh`, `INVESTIGATION.md`, this report | archive with the PoC branch | record only |
-
-## 10. Remaining unknowns
-
-- Seek identity on the other full matches and on any VFR/re-encoded source: run
-  `gate_decode_identity baseline` + `check` per source (CPU-only, ~15 min each).
-- CUDA exactness across onnxruntime/driver/GPU changes: re-run `gate_parity
-  --extractor cuda` after any environment change; fall back to reporting the
-  difference distribution it prints.
-- Per-shard resume: manifests support skip-completed-shards, but the PoC re-runs a
-  failed run from scratch; implement + test during graduation (section 9, step 2).
-- Court-context wiring for full-match heuristic runs: the gate used a synthetic
-  identity court; production needs the real `all_court_info`/resolution row for the
-  match, an `apply_heuristic` input question, not an extraction one.
-- Scaling on carmack (L40) and past 8 workers: same bench command, different host.
-- Stitch memory at much larger `n_max` or multi-hour sources: ~0.5 GiB held for a
-  56-min match at n_max=16; linear growth, unmeasured beyond that.
-
-## 11. Commands actually run
-
-Note: the package moved from `src/bst_x/validation_scripts/video_sharding/` to
-`src/shared/video_sharding/` after these runs; module paths below reflect the new
-name (`shared.video_sharding`), results are unchanged.
-
-All from the worktree root with `PYTHONPATH=src:src/bst_x`; `$V21` is the sset_21
-full match, `$LEDGER` its sequential MD5 ledger.
-
-```
-# tests (local): 18 passed; full repo suite: 1380 passed, 4 pre-existing failures
+```bash
+# Tests
 python -m pytest tests/test_video_sharding.py -q
 python -m pytest -q
 
-# frame identity (run on both hosts; ledgers byte-identical, MD5 0a3e82e3...)
+# Frame identity
 python -m shared.video_sharding.gate_decode_identity baseline $V21 $LEDGER
 python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER --mode seek
 python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER \
-  --mode seek --ranges 0:40,12544:12584,...,100309:100349        # all PASS
+  --mode seek --ranges 0:40,12544:12584,...,100309:100349
 python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER \
-  --mode scan --ranges 50176:50216                               # PASS (control)
+  --mode scan --ranges 50176:50216
 
-# parity (local fake; bourbaki cpu/cuda; all "PASS (exact)")
+# Parity
 python -m shared.video_sharding.gate_parity --video $V21 --workdir W \
   --extractor fake --n-shards 6 --limit-frames 2000
-OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --self-variance
-OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --n-shards 4
+OMP_NUM_THREADS=2 ... gate_parity --extractor cpu --limit-frames 600 --self-variance
+OMP_NUM_THREADS=2 ... gate_parity --extractor cpu --limit-frames 600 --n-shards 4
 ... gate_parity --extractor cuda --limit-frames 3000 --self-variance
 ... gate_parity --extractor cuda --limit-frames 3000 --n-shards 4
 
-# downstream + scaling
+# Downstream compatibility and scaling
 python -m shared.video_sharding.gate_downstream --video $V21 --workdir W \
-  --stem 21_full_poc --limit-frames 300                          # PASS
+  --stem 21_full_poc --limit-frames 300
 ... bench_worker_scaling --extractor cuda --limit-frames 12000 --worker-counts 1,2,4,8
 
-# bourbaki ladder driver (tmux session shard_poc; ended itself, verified gone)
+# Bourbaki test ladder
 bash src/shared/video_sharding/run_remote_bourbaki.sh
 ```
 
-## 12. Diff hygiene
+<a id="poc-files"></a>
+## 16. PoC files: keep, move, or archive
 
-- BASE_SHA: 95f812be8af0a05c364e810823ab085fbc113391
-- Branch: `poc/rtmlib-video-sharding`
-- Added files: `src/shared/video_sharding/` (14 files: 9 modules,
-  2 gates docs — this report and INVESTIGATION.md — plus `__init__.py`,
-  `run_remote_bourbaki.sh`) and `tests/test_video_sharding.py`; verified all `A`
-  status against BASE_SHA
-- Existing tracked files modified: **0**
-- Existing tracked files deleted/renamed: **0**
-- Pushed: **no**
-- Off-repo state: bourbaki logs + frame ledger kept at
-  `/scratch/comp320a/ahalperi/rtmlib_sharding_poc_out/` (3.3 MB); synced code tree
-  and heavy artefacts removed; tmux session `shard_poc` ended. Bourbaki video
-  renames done as instructed: `pilot*` -> `sset_01*`, `vid15*` -> `sset_15*`
-  (MD5-verified against the local 288p copies before renaming).
+| PoC piece | Recommendation | Reason |
+|---|---|---|
+| `shard_plan`, `shard_worker`, `stitch`, `run_sharded` | Move into the production sharded extraction module, with light cleanup. | This is the core logic that was tested. |
+| `range_decode` | Fold frame-range reading into `rtmlib_pose.iter_video` plus a small helper if needed. | Avoid maintaining two separate video-decoding surfaces. |
+| `fake_pose` | Keep for tests only. | Gives deterministic end-to-end parity coverage. |
+| `tests/test_video_sharding.py` | Keep and port with the production code. | Covers the important correctness and failure cases. |
+| `gate_decode_identity` | Keep as a maintenance check. | Use for new sources and decoder changes. |
+| `gate_parity` | Keep as a maintenance check. | Use after RTMLib/ONNX/GPU/runtime changes. |
+| `gate_downstream` | Keep as a maintenance check. | Confirms the five published files still work with downstream code. |
+| `bench_worker_scaling` | Keep as a benchmark tool. | Useful for other GPUs and worker counts. |
+| `run_remote_bourbaki.sh` | Archive with the PoC. | Test driver, not production code. |
+| Original `INVESTIGATION.md` and handoff report | Archive with the PoC branch. | Useful history, but this report is the readable decision record. |
+
+### Current repository state
+
+- Added: `src/shared/video_sharding/` and `tests/test_video_sharding.py`.
+- Existing tracked files modified: **0**.
+- Existing tracked files deleted or renamed: **0**.
+- Branch pushed: **no**.
+- Bourbaki logs and frame ledger remain under `/scratch/comp320a/ahalperi/rtmlib_sharding_poc_out/` (about 3.3 MB).
+- Synced code and heavy temporary artefacts on Bourbaki were removed and the `shard_poc` tmux session ended.
+- Bourbaki video renames `pilot* -> sset_01*` and `vid15* -> sset_15*` were MD5-checked against the local 288p copies before rename.
