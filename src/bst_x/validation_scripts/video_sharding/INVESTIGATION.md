@@ -62,6 +62,14 @@ Append rows as experiments finish. Do not rewrite earlier expectations to match 
 
 | Experiment | Result | Decision / implication |
 |---|---|---|
+| PoC test suite (18 tests: plan, fake parity seek+scan on synthetic 4-GOP video, worker short-read/overrun, 10 stitch corruption cases, downstream loader+heuristics) | all pass locally | Stitch guards and deterministic end-to-end behaviour demonstrated |
+| Fake-extractor parity on real 1080p h264 match (sset_21 cut, 2401 frames, 6 shards, seek) | all five arrays byte-exact vs sequential control | Decode+assembly path is order/content-identical under multiprocess seek sharding on the real codec |
+| Existing repo suite as regression in worktree | 1380 passed; 4 pre-existing `test_namespace_migration` failures (main fails 6 of same file) | No regression from PoC additions |
+| ruff + pyrefly on new files | clean (repo-wide ruff noise is local 0.16.1 vs CI-pinned 0.15.12; pyrefly's 3 errors pre-exist on main) | — |
+| sset_21 source properties | h264 1920x1080, CFR 30/1 (r == avg rate), metadata nb_frames=100349 | VFR seek hazard absent for this source; VFR inputs remain untested scope |
+| Sequential full decode of sset_21 (local, cv2 5.0 headless) | 100,349 frames decoded == container metadata | Metadata frame count is a sound plan basis for this source |
+| Seek identity vs sequential MD5 ledger (local): 5 default awkward probes + all 8 production shard boundaries + tail [100309,100349) + EOF-crossing | 14/14 frame-exact; EOF-crossing read detectably short | `CAP_PROP_POS_FRAMES` seek is frame-accurate on this codec/build; slow scan control also exact |
+| SIGKILL live shard workers mid-run (real bounded video, 4 shards) | orchestrator raised "4 shard worker(s) failed ... exit=-9"; no publish dir created | Hard worker death is observable and cannot yield a silent short shard |
 
 ## Material surprises
 
