@@ -13,7 +13,7 @@ SP=$($VENVPY -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 # Required for the CUDA provider: no system cuDNN on the node (see
 # docs/architecture_notes/rtmlib_migration/extraction_saturation_runbook.md).
 export LD_LIBRARY_PATH="$SP/nvidia/cudnn/lib:$SP/nvidia/cublas/lib:$SP/nvidia/cuda_nvrtc/lib:/usr/local/cuda-13.3/lib64"
-export PYTHONPATH=src/bst_x
+export PYTHONPATH=src:src/bst_x
 
 V21=/scratch/comp320a/ahalperi/s31_fps_eval/sset_21_gloiZ_gTJaE.mp4
 OUT=/scratch/comp320a/ahalperi/rtmlib_sharding_poc_out
