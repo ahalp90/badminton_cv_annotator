@@ -1,0 +1,68 @@
+# RTMLib long-video sharding — investigation ledger
+
+Keep this short. It exists to structure the experiments, not to become a design essay.
+
+## Context
+
+- `BASE_SHA`: 95f812be8af0a05c364e810823ab085fbc113391
+- PoC branch: `poc/rtmlib-video-sharding` (worktree `wt_rtmlib_sharding_poc`)
+- Host/runtime: local laptop (no usable GPU, cv2 5.0 / numpy 2.4.4, **no onnxruntime/rtmlib**)
+  plus bourbaki A100-PCIE-40GB (`~/.venvs/venv-rtmlib`: py3.11.13, cv2 5.0.0, numpy 2.4.6,
+  onnxruntime-gpu 1.27.0 with CUDA provider)
+- Relevant source entrypoints inspected: `preparing_data/rtmlib_pose.py`,
+  `preparing_data/raw_extract.py`, `preparing_data/prepare_train_on_shuttleset.py`,
+  `preparing_data/heuristics/base.py` (`RawClip`, `RAW_SUFFIXES`),
+  `preparing_data/apply_heuristic.py`, `pipeline/config.py`,
+  `docs/architecture_notes/rtmlib_migration/extraction_saturation_runbook.md`
+- Prior design notes inspected: `shard_stitch_pose_spec.md`, `STALE.md`,
+  `note_tracknet_efficiency_sharding.md` exist only under `local_scratch/`, which the user
+  has ruled off-limits as grossly outdated. Treated as unavailable; all assumptions
+  re-derived from current source.
+
+## Current data flow
+
+1. Full match videos live at `data/shuttleset/raw_video/`; `pipeline/clip_generator.py`
+   cuts them into per-rally clips under `data/shuttleset/clips/`.
+2. `raw_extract.py` iterates clip mp4s with `RtmlibPoseExtractor.iter_video`
+   (cv2 read-to-EOF; no seek/range surface exists anywhere in the adapter).
+3. Per frame, `RTMDetScored` (640x640) + `RTMPose` (192x256) return the real
+   detections; `extract_raw_frame` NaN-pads to `n_max` (CLI default 16, int8 cap 127)
+   with top-`n_max`-by-`bbox_score` truncation.
+4. Five arrays are saved per clip stem: `_raw_kps` (F,N_max,J,2) f32, `_raw_bboxes`
+   (F,N_max,4), `_raw_scores` (F,N_max), `_raw_kp_scores` (F,N_max,J), `_raw_ndet` (F,)
+   int8 — `_raw_ndet` written last as the resume marker.
+5. `apply_heuristic.py` loads all five per stem from one flat dir (`RAW_SUFFIXES`,
+   `RawClip`) and runs `current` or `sticky_anchor` (stateful across frames: EMA anchors),
+   emitting `_pos/_joints/_overcount/_failed` npys consumed by collation.
+6. Existing HPC parallelism is clip-level: N processes, disjoint clip stem lists, one
+   shared save dir (extraction saturation runbook; 8 workers saturate the A100).
+
+## Questions and discriminating experiments
+
+| Question | What current source/evidence suggests | What must actually be established | Cheapest useful experiment |
+|---|---|---|---|
+| Frame-range identity | `iter_video` never seeks; cv2 `CAP_PROP_POS_FRAMES` seek is frame-accurate for some codecs/builds, unproven here | That seek-then-read yields byte-identical frames to a full sequential decode at awkward boundaries, per host | MD5 every frame of a sequential decode of a 1080p h264 full match; seek-decode assorted ranges (mid-GOP, near-EOF, frame 0) and compare digests |
+| Independent process extraction | Runbook already runs 8 disjoint rtmlib processes per GPU safely (clip-level); per-process ONNX sessions | Same holds for frame-range workers on ONE file: exit status + produced frame count observable, no silent short shard | Multiprocess run with a killed/short worker; assert stitch refuses |
+| Stitch integrity | No existing stitcher; production resume marker is `_raw_ndet`-last convention | Gap/overlap/duplicate/stale/mixed-run/partial-write/`n_max`-mismatch all rejected before publication | Unit tests corrupting one shard artefact each way; assert loud failure, no final output |
+| Sequential parity | CPU deterministic at fixed threads (module docstring + retired determinism gate); CUDA policy-nondeterministic though G7 measured zero self-variance on this stack | Sharded == sequential byte-exact for deterministic paths; observed difference distribution for CUDA with a self-variance control | Fake deterministic extractor end-to-end equality; then real CPU on a bounded segment; CUDA seq-twice vs seq-vs-sharded on bourbaki |
+| Useful scaling | Runbook: clip-level scaling 1→8 workers cuts wall 209→95 s (A100); decode+Python binds, not GPU | That the same shape holds when workers decode ONE shared 1080p file (seek cost, page-cache and IO contention are new) | 1/2/4/8-worker probe over a fixed span of a full match on bourbaki |
+| Downstream compatibility | `apply_heuristic` needs five flat `{stem}_raw_*.npy`, stem starting with numeric video id; `sticky_anchor` is cross-frame stateful | Stitched output loads through `RawClip` unchanged and heuristics run on it; stitch must precede heuristic | Run `apply_heuristic`'s load path + both heuristics on stitched fake-extractor output |
+
+## Candidate approaches
+
+| Approach | Main advantage | Main risk/unknown | What would decide |
+|---|---|---|---|
+| cv2 seek per worker (`CAP_PROP_POS_FRAMES`), each worker owns its own capture + ONNX session | Reuses the exact production decoder; no new deps | Seek frame-accuracy on this codec/build; cost of seek on long GOPs | Decode-identity experiment vs sequential MD5 ledger |
+| Sequential-skip per worker (decode from 0, discard until start) | Trivially identical to sequential decode | O(n_shards * F) decode waste; late shards pay near-full decode cost | Only needed if seek fails identity; timing shows if waste is tolerable |
+| Pre-split video into shard files (ffmpeg segment) then existing clip path | Reuses clip-level machinery end-to-end | Re-encode changes pixels (parity broken) or keyframe-aligned copy changes range boundaries; extra disk pass | Only if both in-process approaches fail; parity requirements likely rule out re-encode |
+
+## Experiment results / decisions
+
+Append rows as experiments finish. Do not rewrite earlier expectations to match results.
+
+| Experiment | Result | Decision / implication |
+|---|---|---|
+
+## Material surprises
+
+(max 5 bullets; only findings that changed the design or conclusion)
