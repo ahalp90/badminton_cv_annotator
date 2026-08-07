@@ -168,6 +168,8 @@ The existing `RawClip` loader and both `current` and `sticky_anchor` heuristics 
 
 This is not a sharding problem, but the PoC exposed it and the production path needs to respect it.
 
+The rule comes from one function: `apply_heuristic._vid_from_stem`, which runs `int(stem.split("_", 1)[0])` and uses that number to look up the video's court calibration and resolution. To allow stems like `sset_21`, change that one function, or pass the video ID in directly. If you do touch it, also make an unparseable stem raise an error — right now it is skipped silently.
+
 <a id="how-the-poc-works"></a>
 ## 8. How the PoC works
 
