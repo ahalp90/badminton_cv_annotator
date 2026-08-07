@@ -28,7 +28,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -192,7 +191,7 @@ def test_t8_perclass_stats_schema(fe_dir):
         assert set(data) == PERCLASS_TOP_KEYS
         assert data['split'] == split
         assert isinstance(data['per_class'], dict) and data['per_class']
-        for cls, stats in data['per_class'].items():
+        for stats in data['per_class'].values():
             assert set(stats) == PERCLASS_ENTRY_KEYS
         _check_no_model_name_key(data)
 
@@ -205,7 +204,7 @@ def test_t8_clip_index_schema(fe_dir):
     assert set(data) == CLIP_INDEX_TOP_KEYS
     clips = data['clips']
     if isinstance(clips, dict):
-        for stem, meta in clips.items():
+        for meta in clips.values():
             assert set(meta) == CLIP_INDEX_ENTRY_KEYS
     else:
         for clip in clips:
@@ -298,6 +297,9 @@ EXPLICIT_TEXT_NAMES = {'.gitignore', '.env.example'}
 
 GLOBAL_EXCLUDE_PREFIXES = (
     'local_scratch/',
+    # Agentic working docs and archived review evidence quote old names as
+    # historical record; the stale-name guards police live surfaces only.
+    'scratch/',
 )
 
 
@@ -452,9 +454,7 @@ def _stage6_in_scope(rel: str) -> bool:
         return True
     if rel.startswith('experiments/bst_x/shuttleset/run_'):
         return True
-    if rel.startswith('experiments/bst_x/shuttleset/foundation_chang_baseline'):
-        return True
-    return False
+    return rel.startswith('experiments/bst_x/shuttleset/foundation_chang_baseline')
 
 
 def test_t11_stage6_bst_cg_ap_filename_prose():

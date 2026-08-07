@@ -19,7 +19,7 @@ matplotlib==3.10.9
 scikit-learn==1.8.0
 opencv-python==5.0.0.93      # cv2; classifier video metadata and video tests
 ultralytics==8.4.50          # YOLO11 + ByteTrack; perception/players.py + scripts/preprocess_videos.py
-positional-encodings==6.0.3  # Positional encoding layers used by BST-X transformer model (bst_x/model/)
+positional-encodings==6.0.4  # Positional encoding layers used by BST-X transformer model (bst_x/model/)
 torchinfo==1.8.0             # Model summary utility used by tempose.py in the BST-X model module
 tensorboard==2.20.0          # Backs torch.utils.tensorboard.SummaryWriter (imported at module load in bst_x_train.py)
 torcheval==0.0.7             # multiclass_f1_score used in the bst_x_train training loop
@@ -32,7 +32,7 @@ parse==1.22.0                # TrackNetV3 vendor dep (src/shared/tracknetv3)
 pytest==9.0.3
 
 # bst_x subproject has complex dependencies; so requires 2-3 separate venvs depending on how you run it.
-# Requires Python 3.11.x.
+# No longer requires Python <=3.11 since pose moved to RTMLib.
 
 jaxtyping
 beartype
