@@ -76,7 +76,24 @@ Append rows as experiments finish. Do not rewrite earlier expectations to match 
 | Real RTMLib CPU sequential vs 4-shard sharded (bourbaki, 721-frame real cut) | all five arrays byte-exact | Frame-range sharding with real inference reproduces the production sequential path exactly on CPU |
 | Real RTMLib CUDA self-variance (bourbaki A100, onnxruntime-gpu 1.27, 3,601-frame cut, seq A vs B) | byte-exact | Reproduces the G7 zero-self-variance finding on this stack; still not treated as a guarantee across builds/cards |
 | Real RTMLib CUDA sequential vs 4-shard sharded (same cut) | all five arrays byte-exact | On this build+card, CUDA sharded parity is exact — no numeric-drift tolerance needed; runbook's disjoint-shard provenance rule stays |
+| Worker scaling 1/2/4/8 (bourbaki A100, CUDA, 14,401-frame 1080p cut) | 711.5 / 508.8 / 387.9 / 299.3 s wall (49.4 -> 20.8 ms/frame) | 2.38x at 8 workers, matching the clip-level runbook's shape; one shared source file adds no new bottleneck at these counts |
+
+## Decision
+
+The cv2-seek-per-worker approach (candidate 1) is adopted; the scan path stays as a
+correctness control and the ffmpeg pre-segmentation alternative stays unimplemented
+(see HANDOFF.md section 9 for the graduation plan).
 
 ## Material surprises
 
-(max 5 bullets; only findings that changed the design or conclusion)
+- CUDA inference was byte-exact both run-to-run and sequential-vs-sharded on this
+  stack, so parity needed no tolerance at all (the prompt anticipated a difference
+  distribution; there was none to report).
+- Whole-video cv2 decode is bit-identical across the two hosts and cv2 builds —
+  cross-host shard provenance can be checked with plain frame MD5s.
+- `apply_heuristic` silently skips stems without a numeric video-id prefix, so a
+  sharded publication named `sset_21_*` would vanish downstream without error; the
+  publish stem must be `21_...`.
+- `np.save(path)` appends `.npy` to unknown extensions, which broke the atomic
+  `.tmp`-then-rename publish; writing through a file handle fixed it (worth knowing
+  for any future atomic-write of npys).

@@ -8,9 +8,9 @@
 | Independent shard execution sound? | ESTABLISHED | multiprocess spawn workers, per-process sessions; SIGKILL and short-read abort loudly |
 | Stitch/final-publication sound? | ESTABLISHED | 10 corruption modes refused before publication; ndet-last marker semantics |
 | Sequential-vs-sharded parity? | ESTABLISHED (CPU/fake), SUPPORTED (CUDA) | byte-exact everywhere tested; CUDA verdict scoped to onnxruntime-gpu 1.27 on the A100 |
-| Useful multiprocess scaling? | PENDING | probe running |
+| Useful multiprocess scaling? | ESTABLISHED | 2.38x wall at 8 workers on the A100, one shared 1080p file, 14.4k-frame probe |
 | Clean downstream compatibility? | ESTABLISHED | production loader + both heuristics on stitched output, unmodified; numeric-prefix stem required |
-| Production integration ready to plan? | SUPPORTED | pending CUDA/scaling numbers |
+| Production integration ready to plan? | SUPPORTED | plan in section 9; per-shard resume and multi-source identity remain unimplemented/untested |
 
 - Most important positive finding: cv2 `CAP_PROP_POS_FRAMES` seek is frame-exact on the
   production codec, and whole-video decode is bit-identical across the laptop and the
@@ -44,7 +44,7 @@
 | CPU determinism | real RTMLib CPU sequential run A vs B, OMP_NUM_THREADS=2, ~600-frame cut | byte-exact | ESTABLISHED |
 | CPU parity | real RTMLib CPU, sequential vs 4-shard, 721-frame real cut | byte-exact | ESTABLISHED |
 | CUDA self-variance / parity | seq A vs B, then seq vs 4-shard, 3,601-frame real cut on the A100 | both byte-exact | SUPPORTED (build/card-scoped) |
-| Worker scaling | (pending) | | |
+| Worker scaling | 1/2/4/8 workers, CUDA, 14.4k-frame 1080p cut | 711 -> 299 s wall (2.38x) | ESTABLISHED |
 | Failure containment | SIGKILL live workers; 10 stitch corruption tests | run aborts, no publication looks complete | ESTABLISHED |
 
 ## 4. Frame-range decoding
@@ -77,7 +77,24 @@ onnxruntime/driver/GPU change (command in section 11).
 
 ## 6. Performance
 
-(pending scaling probe)
+Bourbaki A100, CUDA, 14,401-frame 1080p cut of sset_21, workers == shards,
+`OMP_NUM_THREADS=2`. Wall time includes worker spawn, per-worker model load, decode,
+inference, compressed shard IO and stitch.
+
+| Workers | Frames | Wall time | ms/frame | Throughput |
+|---:|---:|---:|---:|---:|
+| 1 | 14,401 | 711.5 s | 49.41 | 20.2 fps |
+| 2 | 14,401 | 508.8 s | 35.33 | 28.3 fps |
+| 4 | 14,401 | 387.9 s | 26.93 | 37.1 fps |
+| 8 | 14,401 | 299.3 s | 20.78 | 48.1 fps |
+
+Concurrency materially helps: 2.38x at 8 workers, the same scaling shape as the
+clip-level extraction-saturation runbook measured on this card (2.2x), so decoding one
+shared 1080p file instead of many clips introduces no new bottleneck at these counts.
+Single-worker cost is lower than the runbook's clip workload (49.4 vs 83.7 ms/frame)
+because there is no per-clip open/teardown. Extrapolated: a full 100k-frame match takes
+roughly 35 min at 8 workers vs roughly 83 min sequentially. Next bottleneck was not
+isolated here; the runbook's GPU-pinning evidence says past 8 workers gains stop.
 
 ## 7. Meaningful failure handling
 
@@ -206,17 +223,68 @@ gate, which is exactly what the gate exists to detect cheaply.
 
 ## 10. Remaining unknowns
 
-(pending)
+- Seek identity on the other full matches and on any VFR/re-encoded source: run
+  `gate_decode_identity baseline` + `check` per source (CPU-only, ~15 min each).
+- CUDA exactness across onnxruntime/driver/GPU changes: re-run `gate_parity
+  --extractor cuda` after any environment change; fall back to reporting the
+  difference distribution it prints.
+- Per-shard resume: manifests support skip-completed-shards, but the PoC re-runs a
+  failed run from scratch; implement + test during graduation (section 9, step 2).
+- Court-context wiring for full-match heuristic runs: the gate used a synthetic
+  identity court; production needs the real `all_court_info`/resolution row for the
+  match, an `apply_heuristic` input question, not an extraction one.
+- Scaling on carmack (L40) and past 8 workers: same bench command, different host.
+- Stitch memory at much larger `n_max` or multi-hour sources: ~0.5 GiB held for a
+  56-min match at n_max=16; linear growth, unmeasured beyond that.
 
 ## 11. Commands actually run
 
-(final list compiled at close-out)
+All from the worktree root with `PYTHONPATH=src:src/bst_x`; `$V21` is the sset_21
+full match, `$LEDGER` its sequential MD5 ledger.
+
+```
+# tests (local): 18 passed; full repo suite: 1380 passed, 4 pre-existing failures
+python -m pytest tests/test_video_sharding.py -q
+python -m pytest -q
+
+# frame identity (run on both hosts; ledgers byte-identical, MD5 0a3e82e3...)
+python -m validation_scripts.video_sharding.gate_decode_identity baseline $V21 $LEDGER
+python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER --mode seek
+python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER \
+  --mode seek --ranges 0:40,12544:12584,...,100309:100349        # all PASS
+python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER \
+  --mode scan --ranges 50176:50216                               # PASS (control)
+
+# parity (local fake; bourbaki cpu/cuda; all "PASS (exact)")
+python -m validation_scripts.video_sharding.gate_parity --video $V21 --workdir W \
+  --extractor fake --n-shards 6 --limit-frames 2000
+OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --self-variance
+OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --n-shards 4
+... gate_parity --extractor cuda --limit-frames 3000 --self-variance
+... gate_parity --extractor cuda --limit-frames 3000 --n-shards 4
+
+# downstream + scaling
+python -m validation_scripts.video_sharding.gate_downstream --video $V21 --workdir W \
+  --stem 21_full_poc --limit-frames 300                          # PASS
+... bench_worker_scaling --extractor cuda --limit-frames 12000 --worker-counts 1,2,4,8
+
+# bourbaki ladder driver (tmux session shard_poc; ended itself, verified gone)
+bash src/bst_x/validation_scripts/video_sharding/run_remote_bourbaki.sh
+```
 
 ## 12. Diff hygiene
 
 - BASE_SHA: 95f812be8af0a05c364e810823ab085fbc113391
 - Branch: `poc/rtmlib-video-sharding`
-- Added files: (final list at close-out)
+- Added files: `src/bst_x/validation_scripts/video_sharding/` (14 files: 9 modules,
+  2 gates docs — this report and INVESTIGATION.md — plus `__init__.py`,
+  `run_remote_bourbaki.sh`) and `tests/test_video_sharding.py`; verified all `A`
+  status against BASE_SHA
 - Existing tracked files modified: **0**
 - Existing tracked files deleted/renamed: **0**
 - Pushed: **no**
+- Off-repo state: bourbaki logs + frame ledger kept at
+  `/scratch/comp320a/ahalperi/rtmlib_sharding_poc_out/` (3.3 MB); synced code tree
+  and heavy artefacts removed; tmux session `shard_poc` ended. Bourbaki video
+  renames done as instructed: `pilot*` -> `sset_01*`, `vid15*` -> `sset_15*`
+  (MD5-verified against the local 288p copies before renaming).
