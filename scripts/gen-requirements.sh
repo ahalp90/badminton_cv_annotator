@@ -25,9 +25,12 @@ EXPORT="$(mktemp)"
 trap 'rm -f "$EXPORT"' EXIT
 
 # Resolve the full CI install (every extra except the pose-extraction subprocess venv).
+# The lock can list one package twice, split on a python-version marker
+# (e.g. positional-encodings 6.0.3 / 6.0.4). CI runs 3.12, so drop the
+# below-3.12 entries; keep this filter in step with ci.yml's python-version.
 uv export --frozen --no-hashes --no-emit-project \
   --extra bric-runtime --extra bric-train --extra bst-x-runtime --extra dev \
-  > "$EXPORT"
+  | grep -v "python_full_version < '3.12'" > "$EXPORT"
 
 # Normalise a distribution name the way PyPI does (lowercase; -, _ and . equivalent).
 norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr '._' '--'; }
