@@ -70,6 +70,12 @@ Append rows as experiments finish. Do not rewrite earlier expectations to match 
 | Sequential full decode of sset_21 (local, cv2 5.0 headless) | 100,349 frames decoded == container metadata | Metadata frame count is a sound plan basis for this source |
 | Seek identity vs sequential MD5 ledger (local): 5 default awkward probes + all 8 production shard boundaries + tail [100309,100349) + EOF-crossing | 14/14 frame-exact; EOF-crossing read detectably short | `CAP_PROP_POS_FRAMES` seek is frame-accurate on this codec/build; slow scan control also exact |
 | SIGKILL live shard workers mid-run (real bounded video, 4 shards) | orchestrator raised "4 shard worker(s) failed ... exit=-9"; no publish dir created | Hard worker death is observable and cannot yield a silent short shard |
+| Sequential decode on bourbaki (cv2 5.0.0, A100 node) vs local (cv2 5.0.0.93 headless) | per-frame MD5 ledgers identical for all 100,349 frames (ledger file MD5s equal; same source file) | Whole-video decode is bit-identical across the two hosts/builds in play |
+| Seek identity on bourbaki: default probes + 5 extra unaligned ranges incl. [100000,100349) | PASS | Seek accuracy holds on the extraction host |
+| Real RTMLib CPU self-variance (bourbaki, OMP_NUM_THREADS=2, ~600-frame bounded cut, run A vs B) | all five arrays byte-exact | CPU inference is deterministic here; exact equality is the right bar for CPU parity |
+| Real RTMLib CPU sequential vs 4-shard sharded (bourbaki, 721-frame real cut) | all five arrays byte-exact | Frame-range sharding with real inference reproduces the production sequential path exactly on CPU |
+| Real RTMLib CUDA self-variance (bourbaki A100, onnxruntime-gpu 1.27, 3,601-frame cut, seq A vs B) | byte-exact | Reproduces the G7 zero-self-variance finding on this stack; still not treated as a guarantee across builds/cards |
+| Real RTMLib CUDA sequential vs 4-shard sharded (same cut) | all five arrays byte-exact | On this build+card, CUDA sharded parity is exact — no numeric-drift tolerance needed; runbook's disjoint-shard provenance rule stays |
 
 ## Material surprises
 
