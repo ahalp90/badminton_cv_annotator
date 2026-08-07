@@ -200,7 +200,7 @@ behaviour through the same code, and the old path is never removed during migrat
 3. Re-run the CPU parity gate + CUDA parity gate on the HPC once, record results.
 4. Use it for the first real full-match extraction; keep `run_dir` artefacts until
    the publication is spot-checked.
-5. Fold the gates into `validation_scripts/` maintenance use; delete PoC leftovers.
+5. Keep the gates in `src/shared/video_sharding/` for maintenance use; delete PoC leftovers.
 
 ### Strongest alternative
 
@@ -218,7 +218,7 @@ gate, which is exactly what the gate exists to detect cheaply.
 | `shard_plan`, `stitch`, `shard_worker`, `run_sharded` | graduate (light rename/merge into one module) | proven logic, already reuses production owners |
 | `range_decode` | graduate into `rtmlib_pose.iter_video` + a small helper | one decode surface, not two |
 | `fake_pose`, `tests/test_video_sharding.py` | keep test-only | deterministic CI coverage |
-| `gate_decode_identity`, `gate_parity`, `gate_downstream`, `bench_worker_scaling` | keep as validation_scripts gates | re-run after env changes / new sources |
+| `gate_decode_identity`, `gate_parity`, `gate_downstream`, `bench_worker_scaling` | keep as gates in `src/shared/video_sharding/` | re-run after env changes / new sources |
 | `run_remote_bourbaki.sh`, `INVESTIGATION.md`, this report | archive with the PoC branch | record only |
 
 ## 10. Remaining unknowns
@@ -239,6 +239,10 @@ gate, which is exactly what the gate exists to detect cheaply.
 
 ## 11. Commands actually run
 
+Note: the package moved from `src/bst_x/validation_scripts/video_sharding/` to
+`src/shared/video_sharding/` after these runs; module paths below reflect the new
+name (`shared.video_sharding`), results are unchanged.
+
 All from the worktree root with `PYTHONPATH=src:src/bst_x`; `$V21` is the sset_21
 full match, `$LEDGER` its sequential MD5 ledger.
 
@@ -248,15 +252,15 @@ python -m pytest tests/test_video_sharding.py -q
 python -m pytest -q
 
 # frame identity (run on both hosts; ledgers byte-identical, MD5 0a3e82e3...)
-python -m validation_scripts.video_sharding.gate_decode_identity baseline $V21 $LEDGER
-python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER --mode seek
-python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER \
+python -m shared.video_sharding.gate_decode_identity baseline $V21 $LEDGER
+python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER --mode seek
+python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER \
   --mode seek --ranges 0:40,12544:12584,...,100309:100349        # all PASS
-python -m validation_scripts.video_sharding.gate_decode_identity check $V21 $LEDGER \
+python -m shared.video_sharding.gate_decode_identity check $V21 $LEDGER \
   --mode scan --ranges 50176:50216                               # PASS (control)
 
 # parity (local fake; bourbaki cpu/cuda; all "PASS (exact)")
-python -m validation_scripts.video_sharding.gate_parity --video $V21 --workdir W \
+python -m shared.video_sharding.gate_parity --video $V21 --workdir W \
   --extractor fake --n-shards 6 --limit-frames 2000
 OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --self-variance
 OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --n-shards 4
@@ -264,19 +268,19 @@ OMP_NUM_THREADS=2 ... gate_parity --extractor cpu  --limit-frames 600 --n-shards
 ... gate_parity --extractor cuda --limit-frames 3000 --n-shards 4
 
 # downstream + scaling
-python -m validation_scripts.video_sharding.gate_downstream --video $V21 --workdir W \
+python -m shared.video_sharding.gate_downstream --video $V21 --workdir W \
   --stem 21_full_poc --limit-frames 300                          # PASS
 ... bench_worker_scaling --extractor cuda --limit-frames 12000 --worker-counts 1,2,4,8
 
 # bourbaki ladder driver (tmux session shard_poc; ended itself, verified gone)
-bash src/bst_x/validation_scripts/video_sharding/run_remote_bourbaki.sh
+bash src/shared/video_sharding/run_remote_bourbaki.sh
 ```
 
 ## 12. Diff hygiene
 
 - BASE_SHA: 95f812be8af0a05c364e810823ab085fbc113391
 - Branch: `poc/rtmlib-video-sharding`
-- Added files: `src/bst_x/validation_scripts/video_sharding/` (14 files: 9 modules,
+- Added files: `src/shared/video_sharding/` (14 files: 9 modules,
   2 gates docs — this report and INVESTIGATION.md — plus `__init__.py`,
   `run_remote_bourbaki.sh`) and `tests/test_video_sharding.py`; verified all `A`
   status against BASE_SHA

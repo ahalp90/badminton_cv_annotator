@@ -6,7 +6,7 @@ and downstream compatibility of the published arrays with the production
 loader + heuristics.
 
 Real-video decode identity and real-inference parity are gated separately in
-``validation_scripts/video_sharding/gate_*`` (they need a match video / GPU).
+``shared/video_sharding/gate_*`` (they need a match video / GPU).
 """
 
 from __future__ import annotations
@@ -22,17 +22,18 @@ from preparing_data.apply_heuristic import _load_raw_clip, _raw_files_present
 from preparing_data.heuristics import REGISTRY
 from preparing_data.heuristics.base import RAW_SUFFIXES, ClipContext
 from preparing_data.raw_extract import extract_one_clip
-from validation_scripts.video_sharding.fake_pose import DeterministicFakeExtractor
-from validation_scripts.video_sharding.run_sharded import extract_sharded
-from validation_scripts.video_sharding.shard_plan import plan_frame_shards
-from validation_scripts.video_sharding.shard_worker import (
+
+from shared.video_sharding.fake_pose import DeterministicFakeExtractor
+from shared.video_sharding.run_sharded import extract_sharded
+from shared.video_sharding.shard_plan import plan_frame_shards
+from shared.video_sharding.shard_worker import (
     load_gz_json,
     run_shard,
     save_gz_json,
     save_npy_xz,
     shard_stem,
 )
-from validation_scripts.video_sharding.stitch import (
+from shared.video_sharding.stitch import (
     RUN_MANIFEST_NAME,
     StitchError,
     stitch_and_publish,
@@ -164,7 +165,7 @@ def test_failed_worker_aborts_run(
     The lying plan comes from patching the parent's frame-count probe; the
     worker's failure is genuine (it short-reads in its own process).
     """
-    from validation_scripts.video_sharding import run_sharded as run_sharded_module
+    from shared.video_sharding import run_sharded as run_sharded_module
 
     monkeypatch.setattr(run_sharded_module, "metadata_frame_count", lambda _: N_FRAMES + 8)
     with pytest.raises(RuntimeError, match="worker"):

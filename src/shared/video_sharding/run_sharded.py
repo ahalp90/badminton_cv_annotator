@@ -8,7 +8,7 @@ refuse the manifest-less shard anyway.
 
 Run from the repo root::
 
-    PYTHONPATH=src/bst_x python -m validation_scripts.video_sharding.run_sharded \
+    PYTHONPATH=src:src/bst_x python -m shared.video_sharding.run_sharded \
         --video <match.mp4> --stem 21_full --out-root <dir> --n-shards 4 \
         --extractor fake
 
@@ -25,16 +25,16 @@ import sys
 import uuid
 from pathlib import Path
 
-from validation_scripts.video_sharding.range_decode import (
+from shared.video_sharding.range_decode import (
     md5_file,
     metadata_frame_count,
 )
-from validation_scripts.video_sharding.shard_plan import (
+from shared.video_sharding.shard_plan import (
     NDET_INT8_CAP,
     plan_frame_shards,
 )
-from validation_scripts.video_sharding.shard_worker import EXTRACTOR_SPECS, worker_entry
-from validation_scripts.video_sharding.stitch import (
+from shared.video_sharding.shard_worker import EXTRACTOR_SPECS, worker_entry
+from shared.video_sharding.stitch import (
     stitch_and_publish,
     write_run_manifest,
 )

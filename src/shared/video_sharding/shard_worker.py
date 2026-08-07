@@ -33,7 +33,8 @@ from pathlib import Path
 
 import numpy as np
 from preparing_data.raw_extract import extract_raw_frame
-from validation_scripts.video_sharding.range_decode import iter_frame_range
+
+from shared.video_sharding.range_decode import iter_frame_range
 
 # Ordered to match heuristics.base.RAW_SUFFIXES / RawClip field order.
 ARRAY_KINDS = ("raw_kps", "raw_bboxes", "raw_scores", "raw_kp_scores", "raw_ndet")
@@ -48,7 +49,7 @@ def build_extractor(spec: str):
     adapter (matching the lazy-import convention in raw_extract).
     """
     if spec == "fake":
-        from validation_scripts.video_sharding.fake_pose import (
+        from shared.video_sharding.fake_pose import (
             DeterministicFakeExtractor,
         )
         return DeterministicFakeExtractor()

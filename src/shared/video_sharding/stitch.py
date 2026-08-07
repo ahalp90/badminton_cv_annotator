@@ -25,7 +25,8 @@ from pathlib import Path
 import numpy as np
 from pipeline.config import COCO_N_JOINTS
 from preparing_data.heuristics.base import RAW_SUFFIXES
-from validation_scripts.video_sharding.shard_worker import (
+
+from shared.video_sharding.shard_worker import (
     ARRAY_KINDS,
     load_gz_json,
     load_npy_xz,

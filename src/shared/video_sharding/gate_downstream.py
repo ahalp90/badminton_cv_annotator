@@ -30,8 +30,9 @@ from preparing_data.apply_heuristic import (
 )
 from preparing_data.heuristics import REGISTRY
 from preparing_data.heuristics.base import ClipContext
-from validation_scripts.video_sharding.range_decode import iter_frame_range
-from validation_scripts.video_sharding.run_sharded import extract_sharded
+
+from shared.video_sharding.range_decode import iter_frame_range
+from shared.video_sharding.run_sharded import extract_sharded
 
 
 def identity_ctx(vid: int, width: int, height: int) -> ClipContext:

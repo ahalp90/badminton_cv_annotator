@@ -32,8 +32,9 @@ from pathlib import Path
 import numpy as np
 from preparing_data.heuristics.base import RAW_SUFFIXES
 from preparing_data.raw_extract import extract_one_clip
-from validation_scripts.video_sharding.run_sharded import extract_sharded
-from validation_scripts.video_sharding.shard_worker import (
+
+from shared.video_sharding.run_sharded import extract_sharded
+from shared.video_sharding.shard_worker import (
     EXTRACTOR_SPECS,
     build_extractor,
 )

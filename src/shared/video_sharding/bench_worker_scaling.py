@@ -9,7 +9,7 @@ real re-extract.
 Intended for the CUDA host; run inside tmux. Example::
 
     OMP_NUM_THREADS=2 PYTHONPATH=src/bst_x python -m \
-        validation_scripts.video_sharding.bench_worker_scaling \
+        shared.video_sharding.bench_worker_scaling \
         --video <match.mp4> --workdir /scratch/.../bench --extractor cuda \
         --limit-frames 12000 --worker-counts 1,2,4,8
 """
@@ -23,9 +23,10 @@ import time
 from pathlib import Path
 
 import numpy as np
-from validation_scripts.video_sharding.gate_parity import cut_first_frames
-from validation_scripts.video_sharding.run_sharded import extract_sharded
-from validation_scripts.video_sharding.shard_worker import EXTRACTOR_SPECS
+
+from shared.video_sharding.gate_parity import cut_first_frames
+from shared.video_sharding.run_sharded import extract_sharded
+from shared.video_sharding.shard_worker import EXTRACTOR_SPECS
 
 
 def main() -> int:

@@ -2,7 +2,7 @@
 # Bourbaki experiment ladder for the video-sharding PoC. Host-specific paths.
 #
 # Run inside tmux from the synced PoC tree root:
-#   tmux new-session -d -s shard_poc 'bash src/bst_x/validation_scripts/video_sharding/run_remote_bourbaki.sh'
+#   tmux new-session -d -s shard_poc 'bash src/shared/video_sharding/run_remote_bourbaki.sh'
 #
 # Each step logs to $OUT/<step>.log and writes its exit code to $OUT/<step>.exit;
 # "ALL_STEPS_LAUNCHED" in $OUT/driver.done marks the ladder finishing.
@@ -26,7 +26,7 @@ step() {
   echo $? > "$OUT/$name.exit"
 }
 
-MOD=validation_scripts.video_sharding
+MOD=shared.video_sharding
 
 # A. Frame-range identity on the full 1080p match (sequential MD5 ledger, then
 #    seek-mode checks at default awkward boundaries plus extra unaligned cuts).

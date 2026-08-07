@@ -23,7 +23,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from validation_scripts.video_sharding.range_decode import (
+from shared.video_sharding.range_decode import (
     iter_frame_range,
     md5_frame,
     metadata_frame_count,
