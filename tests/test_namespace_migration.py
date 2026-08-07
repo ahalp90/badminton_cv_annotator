@@ -80,7 +80,13 @@ EXPERIMENTS = _experiments_dir()
 # ---------------------------------------------------------------------------
 
 def _retained_weights() -> list[Path]:
-    return sorted(EXPERIMENTS.glob('run_*/weights/*.pt'))
+    """Git-tracked weights only: local machines hold extra untracked run
+    weights, and 'retained' means the tracked set a CI clone receives."""
+    out = subprocess.check_output(
+        ['git', '-C', str(REPO_ROOT), 'ls-files',
+         'experiments/bst_x/shuttleset/run_*/weights/*.pt'], text=True,
+    ).splitlines()
+    return sorted(REPO_ROOT / rel for rel in out)
 
 
 def _run_dir_for_weight(weight_path: Path) -> Path:

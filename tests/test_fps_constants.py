@@ -1,17 +1,15 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-from dataclasses import asdict, fields, replace
 import subprocess
+from dataclasses import asdict, fields, replace
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from src.annotator.config import SHIPPED_THRESHOLDS
-from annotator.config import BaseAnnotatorConfig
-from annotator.resolve import resolve
-from src.annotator.fps_constants import (
+from annotator.config import SHIPPED_THRESHOLDS, BaseAnnotatorConfig
+from annotator.fps_constants import (
     FPS_CONSTANT_FIELD_NAMES,
     FpsConstants,
     ScalingKind,
@@ -28,8 +26,13 @@ from annotator.point_winner import (
     pick_landing_to_end,
     window_end,
 )
-from annotator.rally_segmentation import build_sticky_result, scale_thresholds, segment_video
+from annotator.rally_segmentation import (
+    build_sticky_result,
+    scale_thresholds,
+    segment_video,
+)
 from annotator.replay_mask import combine_mask, court_absence_signal
+from annotator.resolve import resolve
 
 
 def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:

@@ -100,7 +100,7 @@ def find_source_video(vid: int) -> Path | None:
     return matches[0] if matches else None
 
 
-def compute_rally_extents(strokes: pd.DataFrame) -> list[tuple[int, int, int, pd.DataFrame]]:
+def compute_rally_extents(strokes: pd.DataFrame) -> list[tuple[int, int, int, int, pd.DataFrame]]:
     """Group strokes by (set, rally); return per-rally (set, rally, start_f, end_f, strokes).
 
     Extent = ``[min(shuttle_start_f, min(frame_num) - 16) - buffer,
@@ -323,7 +323,7 @@ def extract_stroke_rgb(
 
 
 def process_rally(
-    extent: tuple[int, str, int, int, int, pd.DataFrame],
+    extent: tuple[int, int, int, int, pd.DataFrame],
     cap: cv2.VideoCapture,
     yolo_model,
     frame_w: int,
