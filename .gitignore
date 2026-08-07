@@ -110,6 +110,9 @@ scratch/bst_x_inputs/
 # Private dev scribbles. Outside the tracked scratch/README.md contract.
 local_scratch/
 
+# Machine-local Pyrefly profile for Serena. CI uses [tool.pyrefly] in pyproject.toml.
+pyrefly.toml
+
 CLAUDE.md
 
 # --- Heavy ML artifacts: keep new ones out of git (see MODELS.md) ---
