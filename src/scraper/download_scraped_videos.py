@@ -29,7 +29,6 @@ CANDIDATES_CSV = config.CANDIDATES_CSV
 VIDEOS_DIR = config.VIDEOS_DIR
 SOURCES_MANIFEST_NAME = config.SOURCES_MANIFEST_NAME
 
-VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 DEFAULT_DATASET_LABEL = 'scraped'
 
 _H264_WITH_M4A = 'bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]'
@@ -91,7 +90,7 @@ def _completed_outputs(output_dir: Path, video_id: str) -> list[Path]:
         if path.is_file()
         and (path.stem == video_id or path.stem.startswith(f'{video_id} '))
         and not _YTDLP_FORMAT_STEM.search(path.stem)
-        and path.suffix.lower() in VIDEO_EXTENSIONS
+        and path.suffix.lower() in config.VIDEO_EXTENSIONS
     ]
 
 
@@ -540,7 +539,7 @@ def download_all_videos(
 
 
 def main() -> int:
-    """Run the downloader and return 2 when at least half the outcomes fail.
+    """Run the downloader and return 2 at the configured failure fraction.
 
     An empty selection and any run below that failure threshold return 0.
     """
@@ -583,7 +582,7 @@ def main() -> int:
         return 0
 
     failures = sum(outcome.failed for outcome in outcomes)
-    if failures / len(outcomes) >= 0.5:
+    if failures / len(outcomes) >= config.DOWNLOAD_FAIL_FRACTION_BLOCK:
         print(f'Failure summary: {failures}/{len(outcomes)} selected videos failed.')
         return 2
     return 0

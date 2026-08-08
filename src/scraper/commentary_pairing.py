@@ -33,15 +33,15 @@ from .config import (
     RALLY_SPANS_CSV,
     SCRAPE_DIR,
     SOURCES_MANIFEST_NAME,
+    VIDEO_EXTENSIONS,
     VIDEOS_DIR,
 )
 
 log = logging.getLogger(__name__)
 
-# Not in config: a local path built from SCRAPE_DIR, and the video extensions
-# build_video_fps_csv scans. Neither is a tunable rule constant.
+# This path is local to the pairing stage, while supported extensions are
+# shared with the downloader and commentary cleaner.
 VIDEO_FPS_CSV = SCRAPE_DIR / 'video_fps.csv'
-VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 
 PAIRS_COLUMNS = [
     'video_id', 'rally_id',

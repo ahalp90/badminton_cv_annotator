@@ -25,6 +25,7 @@ from annotator.config import CONTACT_FRAMES_CSV, MASKS_DIR, RALLY_SPANS_CSV, SCR
 # own consumers keep the same names and values.
 CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'
 VIDEOS_DIR = SCRAPE_DIR / 'videos'
+VIDEO_EXTENSIONS = frozenset({'.mp4', '.mkv', '.webm', '.avi', '.mov'})
 SOURCES_MANIFEST_NAME = 'sources.toml'
 TRANSCRIPTS_DIR = SCRAPE_DIR / 'transcripts'
 CHUNKS_DIR = SCRAPE_DIR / 'chunks'
@@ -178,6 +179,7 @@ SLEEP_REQUESTS_S = 10  # between extraction requests
 LIMIT_RATE = '2M'  # byte-transfer cap
 CONCURRENT_FRAGMENTS = 1
 DOWNLOAD_WORKERS = 2
+DOWNLOAD_FAIL_FRACTION_BLOCK = 0.5
 SLEEP_SUBTITLES_S = 2  # between subtitle pulls
 YTDLP_RETRIES = 3  # existing downloader convention
 

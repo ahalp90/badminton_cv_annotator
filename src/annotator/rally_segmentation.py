@@ -201,13 +201,6 @@ def segment_video(
             quiet_start_window=quiet_start_window,
         )
 
-    gate_ran = sticky_distances is not None
-    if not gate_ran:
-        return spans, assemble_contacts(
-            track, positions, spans, thresholds, None, suppression_radius,
-            smoothing_mode=smoothing_mode,
-        )
-
     return spans, assemble_contacts(
         track, positions, spans, thresholds, sticky_distances, suppression_radius,
         smoothing_mode=smoothing_mode,

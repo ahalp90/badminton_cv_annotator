@@ -39,17 +39,17 @@ from .config import (
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
     TRIAGE_MAX_TOKENS,
+    VIDEO_EXTENSIONS,
     WHISPERX_FINE_MODEL,
     read_candidates,
 )
 
-# Video extensions the fine pass will accept for a <video_id>.<ext> lookup.
-_VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
+BERTSCORE_BATCH_SIZE = 16
 
-# WhisperX fine-pass settings signed off in whisperx_settings_proposal.md s2.
-# Not in config: whisperx is remote-GPU only and nothing else reads these.
+# WhisperX fine-pass settings stay local because only the remote-GPU pass reads
+# them.
 FINE_PAD_S = 2.0  # pad each span so VAD does not clip the first/last word
-FINE_BATCH_SIZE = 16  # batched inference batch size (settings doc s2)
+FINE_BATCH_SIZE = 16
 FINE_COMPUTE_TYPE = 'float16'
 
 # The clean and paraphrase instructions share one call. The JSON shape is
@@ -165,7 +165,9 @@ def _score_chunks(chunks: list[dict]) -> dict[int, float]:
     )
     candidates = [chunk['text_clean'] for chunk in chunks]
     references = [chunk['text'] for chunk in chunks]
-    _, _, f1_scores = scorer.score(candidates, references, batch_size=16)
+    _, _, f1_scores = scorer.score(
+        candidates, references, batch_size=BERTSCORE_BATCH_SIZE,
+    )
     return {index: float(score) for index, score in enumerate(f1_scores)}
 
 
@@ -387,7 +389,7 @@ def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> lis
 def _find_video(video_dir: Path, video_id: str) -> Path | None:
     """Return the <video_id>.<ext> file in video_dir, or None when absent."""
     for candidate in sorted(video_dir.glob(f'{video_id}.*')):
-        if candidate.suffix.lower() in _VIDEO_EXTS:
+        if candidate.suffix.lower() in VIDEO_EXTENSIONS:
             return candidate
     return None
 

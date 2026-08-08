@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from annotator.calibration.scoring import (
+    CANONICAL_CONTACT_TOLERANCE_BASE30,
     CONTACT_TOLERANCES_BASE30,
     GtRally,
     RallyBoundary,
@@ -21,6 +22,7 @@ def _rally(set_id: str, rally: int, frames: tuple[int, ...]) -> GtRally:
 
 
 def test_contact_tolerances_keep_the_persisted_base30_order() -> None:
+    assert CANONICAL_CONTACT_TOLERANCE_BASE30 == 5
     assert CONTACT_TOLERANCES_BASE30 == (1, 2, 5, 10)
 
 
