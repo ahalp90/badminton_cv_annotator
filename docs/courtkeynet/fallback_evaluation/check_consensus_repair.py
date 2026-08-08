@@ -1,7 +1,7 @@
 """Reproduce the recorded CourtKeyNet cross-scene consensus ship check."""
 
 # The standalone script adds the repository's src directory before importing it.
-# ruff: noqa: I001
+# ruff: noqa: E402, I001
 
 import csv
 import gzip
