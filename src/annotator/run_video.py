@@ -190,6 +190,8 @@ def _validate_run_inputs(
     """Validate mode-specific inputs and normalise scene rows."""
     if serve_start is not None and spans is not None:
         raise ValueError('serve_start cannot be combined with injected spans')
+    if resolved.quiet_start_window is not None and resolved.span_open is not None:
+        raise ValueError('quiet_start_window cannot be combined with span_open')
     if serve_start is not None and resolved.quiet_start_window is not None:
         raise ValueError('quiet_start_window cannot be combined with serve_start')
     if court_optional and not stop_after_segmentation:
@@ -325,7 +327,7 @@ def _run_court_optional_segmentation(
         final_spans, raw_contacts = rally_segmentation.segment_video(
             track,
             positions=positions,
-            replay_mask=definitive_exclusion_mask,
+            exclusion_mask=definitive_exclusion_mask,
             sticky_distances=None,
             spans=spans,
             smoothing_mode=resolved.smoothing_mode,
@@ -417,7 +419,7 @@ def _run_court_segmentation(
         final_spans, raw_contacts = rally_segmentation.segment_video(
             track,
             positions=positions,
-            replay_mask=definitive_exclusion_mask,
+            exclusion_mask=definitive_exclusion_mask,
             sticky_distances=sticky.distances,
             serve_start=serve_options,
             spans=final_spans,

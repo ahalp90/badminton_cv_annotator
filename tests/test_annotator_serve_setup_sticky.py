@@ -1,4 +1,4 @@
-"""Stage 5 B2 sticky-sourced serve setup coverage."""
+"""Sticky-sourced serve-setup coverage."""
 from __future__ import annotations
 
 import numpy as np

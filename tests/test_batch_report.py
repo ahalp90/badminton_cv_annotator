@@ -62,6 +62,14 @@ def test_format_batch_report_empty_batch():
     )
 
 
+def test_format_batch_report_none_processed_failure():
+    outcomes = [VideoOutcome('vid', 'skipped', reason='ValueError')]
+
+    assert format_batch_report(outcomes).startswith(
+        'batch failed: 0 of 1 video processed\n'
+    )
+
+
 def test_publish_path_uses_custom_rally_spans_path(tmp_path):
     assert derive_batch_report_path(tmp_path / 'results' / 'rally_spans.csv') == (
         tmp_path / 'results' / 'rally_spans_batch_report.txt'
@@ -129,19 +137,28 @@ def test_cli_publishes_report_with_custom_path_and_default_doubles_mode(
 def test_cli_uses_exception_name_when_processing_failure_has_no_message(
     tmp_path, monkeypatch,
 ):
+    spans_path = tmp_path / 'custom' / 'rally_spans.csv'
+    contacts_path = tmp_path / 'custom' / 'contact_frames.csv'
+    spans_path.parent.mkdir()
+    spans_path.write_text('stale rally output\n', encoding='utf-8')
+    contacts_path.write_text('stale contact output\n', encoding='utf-8')
+
     def fail_without_message(*args, **kwargs):
         raise ValueError()
 
-    spans_path, _ = _run_cli(
-        tmp_path,
-        monkeypatch,
-        extra_args=[],
-        run_video=fail_without_message,
-    )
+    with pytest.raises(RuntimeError, match='processed 0 of 1 video'):
+        _run_cli(
+            tmp_path,
+            monkeypatch,
+            extra_args=[],
+            run_video=fail_without_message,
+        )
 
     report_text = derive_batch_report_path(spans_path).read_text(encoding='utf-8')
-    assert 'batch completed: 0 of 1 video processed\n' in report_text
+    assert 'batch failed: 0 of 1 video processed\n' in report_text
     assert '- vid: skipped; ValueError\n' in report_text
+    assert not spans_path.exists()
+    assert not contacts_path.exists()
 
 
 def test_all_excluded_publishes_before_raising_and_writes_no_output_csv(

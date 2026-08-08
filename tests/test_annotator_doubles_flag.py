@@ -1,4 +1,4 @@
-"""Tests for the windowed doubles verdict (``scraper.doubles_flag``, spec s8).
+"""Tests for the annotator's windowed doubles verdict.
 
 Pins the fraction-only rule: the strict-greater boundary at
 ``DOUBLES_SPAN_FRACTION``, the half-open span slicing, and the CLI round-trip.

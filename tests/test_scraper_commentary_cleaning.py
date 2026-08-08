@@ -10,21 +10,25 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.scraper import commentary_cleaning
+from src.scraper import commentary_cleaning, config
 
 
 @pytest.fixture(autouse=True)
 def fake_bert_score(monkeypatch):
     """Keep commentary-cleaning tests independent of the optional scorer model."""
+    batch_sizes: list[int] = []
+
     class FakeBERTScorer:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
         def score(self, candidates, references, batch_size):
-            del references, batch_size
+            del references
+            batch_sizes.append(batch_size)
             return ([0.9] * len(candidates), [0.9] * len(candidates), [0.9] * len(candidates))
 
     monkeypatch.setitem(sys.modules, 'bert_score', SimpleNamespace(BERTScorer=FakeBERTScorer))
+    return batch_sizes
 
 
 def _phrasings():
@@ -37,6 +41,18 @@ def _write_sidecar(chunks_dir, video_id, chunks):
     path = chunks_dir / f'{video_id}.json'
     path.write_text(json.dumps(chunks), encoding='utf-8')
     return path
+
+
+def test_bertscore_uses_its_own_batch_size(fake_bert_score) -> None:
+    commentary_cleaning._score_chunks([{'text': 'raw', 'text_clean': 'clean'}])
+    assert fake_bert_score == [commentary_cleaning.BERTSCORE_BATCH_SIZE]
+
+
+def test_fine_video_lookup_uses_shared_extensions(tmp_path) -> None:
+    video = tmp_path / 'clip.webm'
+    video.write_bytes(b'video')
+    assert commentary_cleaning.VIDEO_EXTENSIONS is config.VIDEO_EXTENSIONS
+    assert commentary_cleaning._find_video(tmp_path, 'clip') == video
 
 
 # -- Clean pass --------------------------------------------------------------

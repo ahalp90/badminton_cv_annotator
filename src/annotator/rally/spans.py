@@ -95,7 +95,7 @@ def _rest_mask(
     constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
     reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
 ) -> np.ndarray:
-    """Per-frame rest flag: slow OR mostly untracked across the window (spec s6).
+    """Per-frame rest flag: slow or mostly untracked across the window.
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param track: `(t, 3)` track, for the visibility column.

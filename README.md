@@ -124,7 +124,8 @@ This environment supports code-quality checks and CPU tests. Full extraction
 also needs component-specific model weights and large local inputs. The
 search-to-dataset orchestrator is still being integrated, so `run_video` is a
 Python API for prepared evidence rather than a standalone video command. See
-the [project overview](docs/project_overview_20260730-214831.md) and
+the [provisional rally dataset contract](docs/rally_dataset_contract.md),
+[project overview](docs/project_overview_20260730-214831.md), and
 [TrackNetV3 guide](src/shared/tracknetv3/README.md) for the current execution
 paths and shuttle-tracking weights.
 
@@ -153,6 +154,9 @@ See [data attribution](data/ATTRIBUTION.md) and the
 
 ## Documentation
 
+- [Provisional rally dataset contract](docs/rally_dataset_contract.md): record
+  identity, timing, provenance, primitive evidence, and the planned assembly
+  boundary.
 - [Current project overview](docs/project_overview_20260730-214831.md):
   present architecture, measurement, open problems, and next steps.
 - [Measurement verification](experiments/annotator/runs/20260730-041328/measurement_verification.md):

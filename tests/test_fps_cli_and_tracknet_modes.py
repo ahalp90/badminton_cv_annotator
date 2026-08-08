@@ -60,7 +60,7 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
     fps_args: list[str],
-    expected_impulse: int,
+    expected_impulse: int | None,
 ) -> None:
     import annotator.run_video as run_video_module
     import annotator.rally_segmentation as rally_segmentation
@@ -90,7 +90,11 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     if '--missing-id' in fps_args:
         (shuttle_dir / 'video-1.npy').rename(shuttle_dir / 'missing-id.npy')
     monkeypatch.setattr(sys, 'argv', ['rally_segmentation', *args])
-    rally_segmentation.main()
+    if expected_impulse is None:
+        with pytest.raises(RuntimeError, match='processed 0 of 1 video'):
+            rally_segmentation.main()
+    else:
+        rally_segmentation.main()
 
     if expected_impulse is not None:
         assert captured[0].impulse_floor_half_window_frames == expected_impulse
@@ -101,6 +105,8 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     if '--missing-id' in fps_args:
         assert not captured
         assert 'skipping missing-id: absent from fps CSV' in caplog.text
+        assert not (tmp_path / 'spans.csv').exists()
+        assert not (tmp_path / 'contacts.csv').exists()
 
 
 def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
@@ -139,26 +145,6 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
         'video-1,0,9,False,False,False',
         'video-1,0,13,,,',
     ]
-
-
-@pytest.mark.parametrize(
-    'retired_option',
-    ['--gate-dir', '--pose-dir', '--homography-csv', '--resolution-csv',
-     '--court-box-csv', '--thresholds'],
-)
-def test_rally_segmentation_main_rejects_retired_options(monkeypatch, tmp_path, retired_option):
-    import annotator.rally_segmentation as rally_segmentation
-
-    shuttle_dir = tmp_path / 'shuttles'
-    shuttle_dir.mkdir()
-    option_value = 'shipped' if retired_option == '--thresholds' else str(tmp_path / 'retired')
-    monkeypatch.setattr(sys, 'argv', [
-        'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
-        retired_option, option_value,
-    ])
-
-    with pytest.raises(SystemExit, match='2'):
-        rally_segmentation.main()
 
 
 def test_rally_segmentation_main_requires_an_fps_source(

@@ -487,6 +487,9 @@ contact and commentary evidence.
 
 - The [repository README](../README.md) gives the classifier, BRIC and web
   application context.
+- The [provisional rally dataset contract](rally_dataset_contract.md) defines
+  record identity, provenance, primitive evidence, and the planned assembly
+  boundary.
 - The [annotator functionality map](scraper_pipeline/annotator_functionality_map.md)
   is the pre-migration target contract.
 - The [annotator measurement history](scraper_pipeline/annotator_measurement_history.md)

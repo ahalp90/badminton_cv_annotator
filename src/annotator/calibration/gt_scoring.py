@@ -19,9 +19,10 @@ from annotator.calibration.fixtures import (
 from annotator.run_video import AnnotatorResult, run_video
 from annotator.inpaint_guard import code_counts, grade_track
 from annotator import point_winner
-from annotator.point_winner import Half, LandingFilterOptions, OTHER_HALF, Verdict
+from annotator.point_winner import Half, OTHER_HALF, SHIPPED_LANDING_FILTER_OPTIONS, Verdict
 from annotator.replay_mask import _read_homography_rows
 from annotator.calibration.scoring import (
+    CANONICAL_CONTACT_TOLERANCE_BASE30,
     RallyBoundary,
     classify_all,
     greedy_match,
@@ -401,7 +402,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def canonical_tolerance(fps: float) -> int:
-    return int(ScalingKind.FRAME_COUNT.scale(5.0, fps))
+    return int(ScalingKind.FRAME_COUNT.scale(CANONICAL_CONTACT_TOLERANCE_BASE30, fps))
 
 
 def _norm_half(side: str) -> str:
@@ -463,13 +464,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         raise ValueError(f"{fixture.name}: homography_rows are missing or empty")
     keyword: dict[str, object] = {
         "fps": fixture.fps,
-        "landing_options": LandingFilterOptions(
-            settle_win=7,
-            settle_thr=0.004,
-            settle_min=5,
-            carry_win=7,
-            carry_thr=0.75,
-        ),
+        "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
         "net_band": fixture.net_band,
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,

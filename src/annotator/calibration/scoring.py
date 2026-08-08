@@ -13,7 +13,8 @@ import pandas as pd
 from annotator.fps_constants import ScalingKind
 from annotator.types import ContactCandidate
 
-CONTACT_TOLERANCES_BASE30 = (1, 2, 5, 10)
+CANONICAL_CONTACT_TOLERANCE_BASE30 = 5
+CONTACT_TOLERANCES_BASE30 = (1, 2, CANONICAL_CONTACT_TOLERANCE_BASE30, 10)
 
 # Replay masking is not applied in sset_01, so replay spans (which
 # carry no GT strokes) count as spurious by design. Surfaced in the output so a

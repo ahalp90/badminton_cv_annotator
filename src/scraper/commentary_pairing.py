@@ -36,15 +36,15 @@ from .config import (
     RALLY_SPANS_CSV,
     SCRAPE_DIR,
     SOURCES_MANIFEST_NAME,
+    VIDEO_EXTENSIONS,
     VIDEOS_DIR,
 )
 
 log = logging.getLogger(__name__)
 
-# Not in config: a local path built from SCRAPE_DIR, and the video extensions
-# build_video_fps_csv scans. Neither is a tunable rule constant.
+# This path is local to the pairing stage, while supported extensions are
+# shared with the downloader and commentary cleaner.
 VIDEO_FPS_CSV = SCRAPE_DIR / 'video_fps.csv'
-VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.avi', '.mov'}
 
 PAIRS_COLUMNS = [
     'video_id', 'rally_id',
@@ -137,8 +137,8 @@ def pair_video(
 
     A chunk pairs with at most one rally: rallies are processed in id order and a
     claimed chunk is skipped thereafter, so when two rallies' windows both cover
-    a chunk the earlier rally wins. The spec is silent on this tie; earlier-rally
-    -wins matches the "immediately succeeds" intent (the nearer rally in time).
+    a chunk the earlier rally wins. This is a deterministic processing-order
+    tie-break and does not compare which rally is nearer to the chunk.
 
     :param video_id: the video id.
     :param rally_spans: `[(rally_id, start_frame, end_frame), ...]`.
@@ -223,6 +223,11 @@ def _load_chunks(chunks_dir: Path, video_id: str) -> list[dict]:
     """Load `<video_id>.json` chunk sidecar, or [] if absent."""
     chunk_path = chunks_dir / f'{video_id}.json'
     if not chunk_path.exists():
+        log.warning(
+            '%s: commentary-eligible but chunks sidecar is missing: %s',
+            video_id,
+            chunk_path,
+        )
         return []
     with chunk_path.open(encoding='utf-8') as handle:
         return json.load(handle)
@@ -232,6 +237,11 @@ def _load_replay_mask(masks_dir: Path, video_id: str) -> np.ndarray | None:
     """Load a one-dimensional boolean `<video_id>_replay.npy`, or None if absent."""
     mask_path = masks_dir / f'{video_id}_replay.npy'
     if not mask_path.exists():
+        log.info(
+            '%s: replay mask is missing; pairing without replay filtering: %s',
+            video_id,
+            mask_path,
+        )
         return None
     replay_mask = np.load(mask_path)
     if replay_mask.ndim != 1 or replay_mask.dtype != np.bool_:

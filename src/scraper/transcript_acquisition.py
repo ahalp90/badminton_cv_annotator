@@ -9,10 +9,10 @@ youtube_asr or whisper.
 
 Run as: python -m scraper.transcript_acquisition (PYTHONPATH=src).
 
-Failure behaviour (spec s3): log-and-skip per video; block when more than 50% of a
-batch fails transcript acquisition (an IP-ban or systemic break, not scattered
-missing captions). Checked mid-batch once past a small floor, so a banned run
-stops early instead of hammering through the rest of the batch.
+Failure behaviour is log-and-skip per video. The batch blocks when more than
+50% fails transcript acquisition, which signals an IP ban or systemic break.
+This is checked mid-batch once past a small floor, so a banned run stops early
+instead of hammering through the rest of the batch.
 """
 import argparse
 import json
@@ -66,10 +66,10 @@ def pull_subtitles(video_id: str, url: str, work_dir: str) -> Path | None:
     output_template = str(Path(work_dir) / f'{video_id}.%(ext)s')
     cmd = [
         YTDLP_BIN, url,
-        '--write-auto-subs',  # spec s3: YouTube ASR track
-        '--write-subs',  # spec s3: human track where one exists
+        '--write-auto-subs',  # YouTube ASR track
+        '--write-subs',  # human track where one exists
         '--sub-langs', SUB_LANGS,
-        '--sub-format', SUB_FORMAT,  # spec s3: prefer timestamped json3
+        '--sub-format', SUB_FORMAT,
         '--skip-download',
         '--output', output_template,
         *ytdlp_throttle_args(include_subtitles=True),
@@ -252,7 +252,7 @@ def acquire_transcript(video_id: str, url: str) -> dict | None:
 
     Caption files are pulled into a throwaway temp dir; only the parsed JSON
     sidecar is kept. Any YouTube caption (human or ASR) is flagged youtube_asr
-    for the coarse pass; distinguishing the two is out of scope here (spec s3).
+    for the coarse pass; distinguishing the two is out of scope here.
     A None WhisperX fallback counts as unresolved.
 
     :param video_id: yt-dlp id.
@@ -280,7 +280,7 @@ def acquire_transcript(video_id: str, url: str) -> dict | None:
 def run_transcript_acquisition(rows: list[dict] | None = None) -> None:
     """Acquire a transcript per candidate and write the per-video sidecars.
 
-    Blocks (raises) when the failure fraction crosses the spec's 50% threshold,
+    Blocks when the failure fraction crosses the configured 50% threshold,
     both mid-batch (past a small floor) and at the end of the run.
 
     :param rows: candidate rows; read from candidates.csv when None.
@@ -303,9 +303,8 @@ def run_transcript_acquisition(rows: list[dict] | None = None) -> None:
             print(f'  Skipping {video_id} (sidecar exists)')
             continue
         attempted += 1
-        # Randomised pause before each video, per spec s5's --sleep-interval /
-        # --max-sleep-interval intent, applied Python-side (we pass --skip-download,
-        # so the yt-dlp flags of the same name would not fire).
+        # Apply the randomised pre-video pause in Python. We pass --skip-download,
+        # so yt-dlp's --sleep-interval and --max-sleep-interval would not fire.
         time.sleep(random.uniform(SLEEP_INTERVAL_S, MAX_SLEEP_INTERVAL_S))
 
         transcript = acquire_transcript(video_id, url)
@@ -336,7 +335,7 @@ def run_transcript_acquisition(rows: list[dict] | None = None) -> None:
     fail_fraction = failures / attempted
     print(f'Transcript acquisition: {failures}/{attempted} attempted failed ({fail_fraction:.0%})')
     if fail_fraction > TRANSCRIPT_FAIL_FRACTION_BLOCK:
-        # Mass failure signals an IP-ban or a systemic break (spec s3).
+        # Mass failure signals an IP ban or a systemic break.
         raise RuntimeError(
             f'Transcript acquisition: {fail_fraction:.0%} of the batch failed transcript acquisition, '
             f'over the {TRANSCRIPT_FAIL_FRACTION_BLOCK:.0%} block threshold.'

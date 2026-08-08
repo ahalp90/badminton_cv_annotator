@@ -50,10 +50,11 @@ from annotator.calibration.scoring import (
     strict_contact_rows,
     wide_edge_contact_rows,
 )
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
 from annotator.experiment_records import clean_run, human_bytes, utc_run_directory, write_summary_and_report
 from annotator.court_evidence import (
     COURT_SCENE_SAMPLE_LIMIT,
+    DETECTOR_RESOLUTION,
     PERSON_COURT_MARGIN,
     SCENE_VALID_MIN_FRACTION,
     CourtConsensusError,
@@ -64,9 +65,10 @@ from annotator.court_evidence import (
     build_static_court_evidence,
     detect_scene_evidence,
 )
-from annotator.point_winner import Landing, LandingFilterOptions
+from annotator.point_winner import Landing, SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.resolve import resolve
 from annotator.run_video import AnnotatorResult, LandingHorizonRow, RunCapture, run_video
+from annotator.types import DeadMaskMode
 from courtkeynet.wrapper import CONFIG_PATH, CourtKeyNetDetector
 
 
@@ -76,13 +78,8 @@ PARENTS = (
 )
 LANDING_HORIZONS = (1.0, 2.0, 3.0)
 REF_ERR_PX = 3.5
-LANDING_OPTIONS = LandingFilterOptions(
-    settle_win=7,
-    settle_thr=0.004,
-    settle_min=5,
-    carry_win=7,
-    carry_thr=0.75,
-)
+BASE_ANNOTATOR_CONFIG = BaseAnnotatorConfig()
+LANDING_OPTIONS = SHIPPED_LANDING_FILTER_OPTIONS
 
 COURT_SCENES_COLUMNS = (
     "video_id", "case_id", "court_parent", "scene_index", "start_frame", "end_frame", "n_frames",
@@ -199,7 +196,7 @@ class ConfigurationState:
     result: AnnotatorResult | None = None
     court_result: CourtEvidenceResult | None = None
     capture: RunCapture | None = None
-    resolved_config: object | None = None
+    resolved_config: ResolvedAnnotatorConfig | None = None
     status: str = "not_run"
     failure_path: Path | None = None
     manifest_path: Path | None = None
@@ -505,8 +502,11 @@ def validate_video_metadata(fixed: FixedCase, metadata: VideoMetadata) -> None:
         raise ValueError(f"{fixed.case_id}: video FPS {metadata.fps} != {fixed.fps}")
     if metadata.n_frames != fixed.n_frames:
         raise ValueError(f"{fixed.case_id}: video frame count {metadata.n_frames} != {fixed.n_frames}")
-    if (metadata.width, metadata.height) != (512, 288):
-        raise ValueError(f"{fixed.case_id}: video dimensions {(metadata.width, metadata.height)} != (512, 288)")
+    if (metadata.width, metadata.height) != DETECTOR_RESOLUTION:
+        raise ValueError(
+            f"{fixed.case_id}: video dimensions {(metadata.width, metadata.height)} "
+            f"!= {DETECTOR_RESOLUTION}"
+        )
 
 
 def _raw_cut_rows(raw_cuts: Sequence[tuple[int, int]]) -> list[dict[str, int]]:
@@ -630,13 +630,16 @@ def _landing_metrics(rows: Sequence[LandingHorizonRow]) -> dict[str, dict[str, i
     return result
 
 
-def _configuration_values() -> dict[str, object]:
+def _configuration_values(dead_mask_mode: DeadMaskMode) -> dict[str, object]:
     return {
         "base_annotator_config": "BaseAnnotatorConfig()",
-        "dead_mask_mode": "replay",
+        "dead_mask_mode": dead_mask_mode.value,
         "landing_filter_options": {
-            "settle_win": 7, "settle_thr": 0.004, "settle_min": 5,
-            "carry_win": 7, "carry_thr": 0.75,
+            "settle_win": LANDING_OPTIONS.settle_win,
+            "settle_thr": LANDING_OPTIONS.settle_thr,
+            "settle_min": LANDING_OPTIONS.settle_min,
+            "carry_win": LANDING_OPTIONS.carry_win,
+            "carry_thr": LANDING_OPTIONS.carry_thr,
         },
         "ref_err_px": REF_ERR_PX,
         "injected_positions": False,
@@ -862,6 +865,8 @@ def _configuration_manifest(
     driver: RunDriver,
     failure_record: dict[str, Any] | None,
 ) -> dict[str, object]:
+    if state.resolved_config is None:
+        raise ValueError(f"{state.fixed.case_id}: resolved annotator configuration is missing")
     finished = utc_now()
     artefacts = []
     for path in sorted(state.directory.rglob("*")):
@@ -906,7 +911,7 @@ def _configuration_manifest(
         "started_at_utc": state.started_at_utc,
         "finished_at_utc": finished,
         "elapsed_seconds": max(0.0, time.monotonic() - state.started_clock),
-        "configuration": _configuration_values(),
+        "configuration": _configuration_values(state.resolved_config.dead_mask_mode),
         "resolved_annotator_config": state.resolved_config,
         "inputs": inputs,
         "shared_artifacts": [state.case.raw_cuts_artifact] if state.case.raw_cuts_artifact else [],
@@ -925,6 +930,7 @@ def _write_terminal_configuration_manifest(state: ConfigurationState, driver: Ru
 def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None:
     state.started_at_utc = utc_now()
     state.started_clock = time.monotonic()
+    state.resolved_config = resolve(BASE_ANNOTATOR_CONFIG, state.fixed.fps)
     if state.case.status != "succeeded":
         state.status = "failed"
         state.failure_path = state.case.failure_path
@@ -975,7 +981,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if court_result.inputs is None:
             raise ValueError("court evidence has no operational inputs")
-        state.resolved_config = resolve(BaseAnnotatorConfig(), case.fixed.fps)
         capture = RunCapture()
         state.capture = capture
         input_values = court_result.inputs
@@ -984,7 +989,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         result = run_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
             fps=case.fixed.fps,
-            base=BaseAnnotatorConfig(),
+            base=BASE_ANNOTATOR_CONFIG,
             landing_options=LANDING_OPTIONS,
             net_band=input_values.net_band,
             resolution=input_values.resolution,
@@ -1084,6 +1089,19 @@ def _run_manifest(
     setup_failure: dict[str, Any] | None,
 ) -> dict[str, object]:
     states = driver.configurations or []
+    resolved_dead_mask_modes: set[DeadMaskMode] = set()
+    for state in states:
+        if state.resolved_config is not None:
+            resolved_dead_mask_modes.add(state.resolved_config.dead_mask_mode)
+    if not resolved_dead_mask_modes:
+        for case in CASES:
+            resolved_dead_mask_modes.add(
+                resolve(BASE_ANNOTATOR_CONFIG, case.fps).dead_mask_mode
+            )
+    if len(resolved_dead_mask_modes) != 1:
+        values = ", ".join(sorted(mode.value for mode in resolved_dead_mask_modes))
+        raise ValueError(f"fixed cases resolved to multiple dead-mask modes: {values}")
+    dead_mask_mode = next(iter(resolved_dead_mask_modes))
     successful_inference = sum(state.status in {"inference_only", "succeeded"} for state in states)
     succeeded = sum(state.status == "succeeded" for state in states)
     if setup_failure is not None:
@@ -1121,7 +1139,7 @@ def _run_manifest(
         "input_manifest": _artifact_record(driver.output_root, driver.input_manifest_output_path)
         if driver.input_manifest_output_path else None,
         "run_log": _artifact_record(driver.output_root, driver.run_log_path) if driver.run_log_path else None,
-        "configuration": _configuration_values(),
+        "configuration": _configuration_values(dead_mask_mode),
         "environment": _environment(driver),
         "cases": cases,
         "configurations": configurations,

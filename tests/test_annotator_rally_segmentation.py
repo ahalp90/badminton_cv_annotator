@@ -417,13 +417,13 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
         assert frozen[frame, 2] == 0.0
 
 
-def test_segment_video_replay_mask_freezes_masked_region_to_rest():
+def test_segment_video_exclusion_mask_freezes_masked_region_to_rest():
     # A whole sustained raw run freezes the complete rally region to rest.
     track, rally_start, rally_end, _contacts = _build_rally_track()
     assert len(segment_video(track)[0]) == 1
     mask = np.zeros(len(track), dtype=bool)
     mask[rally_start:rally_end] = True
-    spans_masked, contacts_masked = segment_video(track, replay_mask=mask)
+    spans_masked, contacts_masked = segment_video(track, exclusion_mask=mask)
     assert spans_masked == []
     assert contacts_masked == []
 

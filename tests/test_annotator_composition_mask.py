@@ -1,4 +1,4 @@
-"""Composition dead-mask tests: the per-segment court-view vote in isolation.
+"""Annotator composition-mask tests for the per-segment court-view vote.
 
 Synthetic cut frames and keep votes so each segment has an obvious live/dead
 verdict. No video IO: the scenedetect cut pass is exercised elsewhere, these pin

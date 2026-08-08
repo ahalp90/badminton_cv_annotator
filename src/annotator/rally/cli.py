@@ -246,18 +246,34 @@ def main() -> None:
         log.info('%s: %d rallies, %d contacts', video_id, len(spans), len(contacts))
 
     outcomes = [outcomes_by_path[track_path] for track_path in input_track_paths]
-    if all_excluded_error is None:
+    processed_count = 0
+    for outcome in outcomes:
+        if outcome.status == 'processed':
+            processed_count += 1
+    none_processed = bool(outcomes) and processed_count == 0 and all_excluded_error is None
+    none_processed_error = None
+    if none_processed:
+        none_processed_error = RuntimeError(
+            f'batch processed 0 of {len(outcomes)} videos; refusing to write empty outputs'
+        )
+    terminal_error = all_excluded_error or none_processed_error
+
+    if terminal_error is None:
         _write_segmentation_csvs(
             args.rally_spans_csv, args.contact_frames_csv, span_rows, contact_rows,
         )
+    else:
+        args.rally_spans_csv.unlink(missing_ok=True)
+        args.contact_frames_csv.unlink(missing_ok=True)
 
     try:
         publish_batch_report(
-            outcomes, args.rally_spans_csv, all_excluded=all_excluded_error is not None,
+            outcomes, args.rally_spans_csv,
+            all_excluded=all_excluded_error is not None,
         )
     except Exception as publication_error:
-        if all_excluded_error is not None:
-            raise all_excluded_error from publication_error
+        if terminal_error is not None:
+            raise terminal_error from publication_error
         raise
-    if all_excluded_error is not None:
-        raise all_excluded_error
+    if terminal_error is not None:
+        raise terminal_error
