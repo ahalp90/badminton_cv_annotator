@@ -12,9 +12,9 @@ duration flag since coach-review clips run short by design.
 
 Run as: python -m scraper.search_index (PYTHONPATH=src).
 
-Failure behaviour (spec s2): log-and-skip per term (a term returning nothing logs
-and moves on); block only if every term returns empty, which signals a broken
-binary or a network block rather than a thin result.
+Failure behaviour is log-and-skip per term. A term returning nothing logs and
+moves on. The batch blocks only if every term returns empty, which signals a
+broken binary or a network block rather than a thin result.
 """
 import argparse
 import json
@@ -48,7 +48,7 @@ def search_term_rows(term: str, substream: str) -> list[dict]:
     """Run the flat metadata index for one term; return one row dict per hit.
 
     On any failure (timeout, non-zero exit) this logs and returns an empty list,
-    per the spec's log-and-skip-per-term rule.
+    under the search index's log-and-skip-per-term rule.
 
     :param term: the seed search term to index.
     :param substream: the family the term belongs to; stamped onto every row.
@@ -93,8 +93,8 @@ def search_term_rows(term: str, substream: str) -> list[dict]:
 def enrich_row(row: dict) -> bool:
     """Fill empty channel/duration_s/upload_date via one --dump-json pull.
 
-    Spec s2: flat mode reliably returns id/url/title but channel, duration and
-    upload_date can come back empty, so rows with gaps get one full metadata
+    Flat mode reliably returns id/url/title, but channel, duration and
+    upload_date can be empty, so rows with gaps get one full metadata
     extraction each. Mutates the row in place; log-and-skip on failure.
 
     :param row: the candidate row to fill (mutated in place).
@@ -130,7 +130,7 @@ def enrich_row(row: dict) -> bool:
 
 
 def flag_doubles(title: str) -> bool:
-    """True if the title looks like a doubles match (spec s8 keyword screen).
+    """True if the title looks like a doubles match.
 
     Flag not drop: cheap and sometimes wrong, so it flags for the section 7 late
     guard and the human packet rather than dropping. Long phrases match as
@@ -173,7 +173,7 @@ def duration_out_of_band(duration_s: str, substream: str) -> bool:
 
 
 def upload_before_floor(upload_date: str) -> bool:
-    """True if the upload predates the floor. OPEN (spec s2): default off.
+    """True if the upload predates the optional floor, which is off by default.
 
     Both dates are YYYYMMDD strings, which sort lexically the same as by date.
     Returns False whenever the floor is unset (the default), so this screen is a
@@ -194,7 +194,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     term's metadata AND substream win; later terms comma-join into search_term so
     provenance survives. INVARIANT: a video surfaced by both families therefore
     keeps whichever family indexed it first, while its cross-family provenance
-    stays auditable through the joined search_term (spec s2).
+    stays auditable through the joined search_term.
 
     :param search_terms: substream -> list of seed terms; defaults to config.
     :return: the written candidate rows.
@@ -209,7 +209,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
         for term in terms:
             print(f'Searching [{substream}]: {term}')
             rows = search_term_rows(term, substream)
-            # Per-term logging (spec s2): each count feeds the per-term keep-rate
+            # Each count feeds the per-term keep-rate
             # report (relevance-triage keeps over rows surfaced).
             print(f'  {term!r}: {len(rows)} rows')
             if rows:
@@ -228,7 +228,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
             time.sleep(SLEEP_REQUESTS_S)  # pace our own process spawns
 
     if terms_with_hits == 0:
-        # Every term returned nothing: block loud (spec s2 failure rule).
+        # Every term returned nothing, so fail loudly.
         raise RuntimeError(
             'Search indexing: every search term returned zero rows. Check yt-dlp and network.'
         )

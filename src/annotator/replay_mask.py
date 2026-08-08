@@ -1,4 +1,4 @@
-"""Replay masking: replay and off-rally mask (scraper_spec.md section 7).
+"""Build the replay and off-rally mask.
 
 Three independent per-frame boolean signals unioned into one `(frames,)` mask,
 true where the frame is a replay or otherwise off-rally. Saved per video to
@@ -53,9 +53,8 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
     """Fire across court-absent runs that reach the fps-scaled window.
 
     A sustained absence (>= the window) masks its whole run; a one- or two-frame
-    detector blip does not. This reads the spec's "court-present false across a
-    window" as a run-length gate, which masks the entire absence rather than a
-    single window-sized slice of it.
+    detector blip does not. The run-length gate masks the entire sustained
+    absence rather than a single window-sized slice.
 
     :param court_present: `(frames,)` bool court-present flag, or None.
     :param n_frames: video frame count (the mask length).
@@ -104,9 +103,8 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
     from it (normalised by the reference court's bounding-box diagonal) exceeds
     PERSPECTIVE_SHIFT_THRESHOLD is a replay or cutaway angle and its frames fire.
 
-    Comparing every segment to the dominant view (not to its neighbour) realises
-    the spec's adjacent-shift intent without masking the whole tail after one
-    legitimate camera change: it is the deviant minority view that is the replay,
+    Comparing every segment to the dominant view avoids masking the whole tail
+    after one legitimate camera change. The deviant minority view is the replay,
     and the normalisation is self-contained (diagonal of the reference corners),
     so no frame resolution is needed.
 
@@ -230,7 +228,7 @@ def combine_mask(
     fps: float,
     *, non_evidence: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Union the three replay/off-rally signals (any-of, the spec's default).
+    """Union the three replay/off-rally signals using an any-of rule.
 
     :return: `(n_frames,)` bool mask, True where any signal fires.
     """

@@ -1,4 +1,4 @@
-"""Clean commentary, generate alternate phrasing, and refine timestamps (spec s9).
+"""Clean commentary, generate alternate phrasing, and refine timestamps.
 
 Two passes over the relevance-triage chunk sidecars (`chunks/<video_id>.json`, a list of
 `{chunk_id, start, end, text}`), run for every video whose `candidates.csv` keep
@@ -7,7 +7,7 @@ column parses True:
   1. Clean pass (LLM): one call per chunk returns cleaned text plus a small pool
      of meaning-preserving paraphrases. Both extend the chunk dict in place
      (`text_clean`, `alt_phrasings`) and the sidecar is rewritten. The clean and
-     paraphrase share one call budget per chunk (dataset_schema s5). Idempotent:
+     paraphrase share one call budget per chunk. Idempotent:
      a chunk already carrying `text_clean` is skipped unless `--force`.
 
   2. Fine-timestamp pass (WhisperX): re-runs alignment on the audio span of each
@@ -52,9 +52,8 @@ FINE_PAD_S = 2.0  # pad each span so VAD does not clip the first/last word
 FINE_BATCH_SIZE = 16  # batched inference batch size (settings doc s2)
 FINE_COMPUTE_TYPE = 'float16'
 
-# Merged system prompt: the clean and paraphrase instructions from spec s9 in one
-# call (dataset_schema s5 shares the budget). Both spec phrasings are kept
-# recognisable; the JSON shape is pinned so the response parses deterministically.
+# The clean and paraphrase instructions share one call. The JSON shape is
+# pinned so the response parses deterministically.
 CLEAN_SYSTEM_PROMPT = (
     'You process one badminton commentary chunk at a time. Do two things and '
     'return them together as one JSON object.\n'
@@ -174,9 +173,9 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
     """Run the clean+paraphrase pass over every kept video's chunk sidecar.
 
     Kept videos are those whose ``keep`` column parses ``== 'True'`` (parse, never
-    truth-test: any non-empty cell is truthy, 'False' included, per config s2).
+    truth-test: any non-empty cell is truthy, including 'False').
     Failure is log-and-skip per video; the run blocks (raises) only when every
-    LLM call attempted failed, which signals a dead endpoint (mirrors spec s4).
+    LLM call attempted failed, which signals a dead endpoint.
 
     :param rows: candidate rows; read from candidates.csv when None.
     :param force: re-clean chunks that already carry ``text_clean``.
@@ -233,7 +232,7 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
 
     if attempted > 0 and failed == attempted:
         # Every call that was attempted failed: a dead endpoint, not scattered
-        # errors (spec s4). failed counts one per dead video, attempted counts
+        # errors. failed counts one per dead video, attempted counts
         # every chunk call, so this fires only when the first call of every video
         # died and nothing got through.
         raise RuntimeError(
@@ -342,12 +341,12 @@ def load_fine_models() -> tuple | None:
 
 
 def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> list[dict]:
-    """Snap each chunk's coarse start/end to WhisperX word boundaries (spec s9).
+    """Snap each chunk's coarse start/end to WhisperX word boundaries.
 
     Chunk-local by default: only the padded audio span of each kept chunk is
     re-aligned, so compute scales with kept-chunk minutes not full runtime. The
-    documented fallback if span extraction proves fiddly is a single whole-video
-    WhisperX pass (spec s9, whisperx_settings_proposal.md s2); not built here.
+    fallback if span extraction proves unreliable is a single whole-video
+    WhisperX pass, which is not built here.
 
     :param video_path: source video file for the kept chunks.
     :param chunks: chunk dicts carrying coarse 'start'/'end'; mutated in place.

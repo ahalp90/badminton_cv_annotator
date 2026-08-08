@@ -1,10 +1,9 @@
-"""Rally segmentation and contact detection (scraper_spec.md section 6).
+"""Rally segmentation and contact detection.
 
-Trajectory rules over a whole-video TrackNetV3 shuttle track, the `(t, 3)`
-`[x_norm, y_norm, visibility]` npy that `shuttle_extractor.py:244-249` writes
-(x, y already normalised to [0, 1] by video resolution, visibility passed
-through). Speed everywhere below is per-frame L2 displacement of `(x, y)` on
-frames where visibility is 1.
+Trajectory rules operate on a whole-video TrackNetV3 shuttle track shaped
+`(t, 3)` as `[x_norm, y_norm, visibility]`. Coordinates are already normalised
+to video resolution, while visibility passes through. Speed everywhere below
+is per-frame L2 displacement of `(x, y)` on frames where visibility is 1.
 
 Three primitives (`compute_speed`, `true_runs`, `rolling_nanmedian`) are
 re-exported from `annotator.types` because replay masking reuses them. Its slow-motion
@@ -22,8 +21,8 @@ today's behaviour exactly when left at their default:
     second before the burst).
   - `span_open`: a `SpanOpen` rule that changes where a span opens (region start
     vs the qualifying burst).
-  - `replay_mask`: a `(t,)` bool dead-time mask applied at entry (via
-    `apply_replay_mask`), freezing replay/off-rally frames to rest before speed.
+  - `exclusion_mask`: a `(t,)` bool dead-time mask applied at entry (via
+    `apply_replay_mask`), freezing excluded frames to rest before speed.
 
 The contact chain keeps raw impulse candidates, applies a body-unit wrist gate,
 then applies greedy suppression. The three operations are separate helpers and
@@ -133,7 +132,7 @@ def segment_video(
     thresholds: RallySegmentationThresholds | None = None,
     serve_start: ServeStartOptions | None = None,
     span_open: SpanOpen | None = None,
-    replay_mask: np.ndarray | None = None,
+    exclusion_mask: np.ndarray | None = None,
     sticky_distances: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
     suppression_radius: int | None = None,
@@ -155,11 +154,11 @@ def segment_video(
     :param serve_start: `ServeStartOptions` gating rally openings on sticky serve-setup evidence,
         or None. Its setup inputs are built from the UNMASKED track by the caller (the committed
         measurement convention); serve-start was only ever measured with masking off, so combining
-        it with `replay_mask` is unmeasured territory.
+        it with `exclusion_mask` is unmeasured territory.
     :param span_open: a `SpanOpen` rule (REGION_START / BACK_FILL) changing where a span opens,
         or None (today's burst-open rule). `serve_start` with REGION_START raises ValueError, and
         `serve_start.close` (a split) with BACK_FILL raises too (BACK_FILL is one span per region).
-    :param replay_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
+    :param exclusion_mask: `(t,)` bool dead-time mask (True = dead), applied at entry via
         `apply_replay_mask` before speed is computed, or None.
     :param sticky_distances: optional `(t,)` body-unit shuttle-to-nearest-wrist gaps. NaN fails
         closed. Production callers supply the cached sticky distances.
@@ -191,8 +190,8 @@ def segment_video(
     if sticky_distances is not None:
         if sticky_distances.shape != (len(track),):
             raise ValueError('sticky_distances must have shape (len(track),)')
-    if replay_mask is not None:
-        track = apply_replay_mask(track, replay_mask)
+    if exclusion_mask is not None:
+        track = apply_replay_mask(track, exclusion_mask)
 
     if spans is None:
         spans = find_rally_spans(

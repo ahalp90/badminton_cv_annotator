@@ -317,10 +317,6 @@ def pick_one_frame(
     )
 
 
-# Compatibility alias for frozen callers; remove at Stage 7.
-_pick_one_frame = pick_one_frame
-
-
 def _run_clip(
     raw: RawClip, ctx: ClipContext, normalize_joints, params: StickyAnchorParams,
 ) -> tuple[HeuristicOutput, np.ndarray]:

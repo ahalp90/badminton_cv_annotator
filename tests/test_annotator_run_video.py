@@ -272,7 +272,7 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
     real_segment_video = rally_segmentation.segment_video
 
     def spy_segment_video(track, *args, **kwargs):
-        segment_tracks.append((track.copy(), kwargs['replay_mask'].copy()))
+        segment_tracks.append((track.copy(), kwargs['exclusion_mask'].copy()))
         return real_segment_video(track, *args, **kwargs)
 
     monkeypatch.setattr(rally_segmentation, 'build_sticky_result', spy_build_sticky)

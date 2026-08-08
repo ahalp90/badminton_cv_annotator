@@ -246,7 +246,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     present[45:75] = False
     replay = combine_mask(present, None, None, None, n_frames, resolved.fps)
     plain_spans, _ = segment_video(track, thresholds=resolved.thresholds)
-    masked_spans, _ = segment_video(track, thresholds=resolved.thresholds, replay_mask=replay)
+    masked_spans, _ = segment_video(track, thresholds=resolved.thresholds, exclusion_mask=replay)
     assert plain_spans[0][0] == 45
     assert masked_spans[0][0] == 75
 
