@@ -125,7 +125,7 @@ class _CourtInputs:
     kps: np.ndarray | None
     ndet: np.ndarray | None
     resolution: tuple[float, float] | None
-    video_id: int | None
+    video_id: int | str | None
     court_info: dict[str, object] | None
     homo_df: pd.DataFrame | None
     gate_court_info: dict[str, dict[str, object]] | None
@@ -441,7 +441,7 @@ def run_video(
     landing_options: point_winner.LandingFilterOptions | None = None,
     net_band: tuple[float, float] | None = None,
     resolution: tuple[float, float] | None = None,
-    video_id: int | None = None,
+    video_id: int | str | None = None,
     court_info: dict[str, object] | None = None,
     homo_df: pd.DataFrame | None = None,
     gate_court_info: dict[str, dict[str, object]] | None = None,

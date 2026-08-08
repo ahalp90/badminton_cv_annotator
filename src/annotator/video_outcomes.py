@@ -451,7 +451,7 @@ def build_verdict_data(
     resolved: ResolvedAnnotatorConfig,
     kps: Any,
     resolution: tuple[float, float],
-    video_id: int | None,
+    video_id: int | str | None,
     homo_df: Any,
     court_info: dict,
     landing_options: Any,
