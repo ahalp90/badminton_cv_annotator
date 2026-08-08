@@ -55,11 +55,20 @@ def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
     return {"path": path, "md5": "0" * 32, "root": root}
 
 
-def test_configuration_reports_the_executable_court_policy() -> None:
-    configuration = runner._configuration_values()
+def test_configuration_reports_the_executable_measurement_policy() -> None:
+    resolved = runner.resolve(runner.BASE_ANNOTATOR_CONFIG, runner.CASES[0].fps)
+    configuration = runner._configuration_values(resolved.dead_mask_mode)
     assert configuration['court_samples'] == COURT_SCENE_SAMPLE_LIMIT
     assert configuration['person_margin'] == PERSON_COURT_MARGIN
     assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
+    assert configuration['dead_mask_mode'] == resolved.dead_mask_mode.value
+    assert configuration['landing_filter_options'] == {
+        'settle_win': runner.LANDING_OPTIONS.settle_win,
+        'settle_thr': runner.LANDING_OPTIONS.settle_thr,
+        'settle_min': runner.LANDING_OPTIONS.settle_min,
+        'carry_win': runner.LANDING_OPTIONS.carry_win,
+        'carry_thr': runner.LANDING_OPTIONS.carry_thr,
+    }
 
 
 def _manifest_payload() -> dict[str, object]:
@@ -361,6 +370,7 @@ def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
     state = runner.ConfigurationState(
         fixed, runner.PARENTS[0], fixture, case, output_root / runner.PARENTS[0] / fixed.case_id,
         [], "now", 0.0, result=AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, []),
+        resolved_config=runner.resolve(runner.BASE_ANNOTATOR_CONFIG, fixed.fps),
         status="inference_only",
     )
     state.directory.mkdir(parents=True)
@@ -569,10 +579,14 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
 
     monkeypatch.setattr(runner, "verify_eligible_gt_files", fake_verify_gt_files)
 
-    def fake_run_video(*_args, capture: runner.RunCapture, **_kwargs) -> AnnotatorResult:
+    def fake_run_video(
+        *_args, capture: runner.RunCapture, base, landing_options, **_kwargs,
+    ) -> AnnotatorResult:
         nonlocal inference_calls
         inference_calls += 1
         assert not gt_verified
+        assert base is runner.BASE_ANNOTATOR_CONFIG
+        assert landing_options is runner.LANDING_OPTIONS
         capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
         return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
@@ -610,6 +624,9 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     assert payload["environment"]["packages"]["opencv"] == runner.cv2.__version__
     for manifest_path in manifests:
         config_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert config_payload["configuration"]["dead_mask_mode"] == (
+            config_payload["resolved_annotator_config"]["dead_mask_mode"]
+        )
         for artifact in config_payload["artifacts"]:
             path = output_root / artifact["path"]
             assert path.read_bytes().__class__ is bytes
