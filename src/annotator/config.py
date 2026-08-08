@@ -1,7 +1,8 @@
 """Annotation-chain constants separated from scraper configuration.
 
-Constant provenance is cited inline as "spec sN" against the section of
-local_scratch/autograder_architecture/scraper_spec.md it came from.
+Historical constant provenance remains cited inline as ``spec sN``. See
+``docs/scraper_pipeline/scraper_architecture.md`` for the current public file
+contracts.
 
 SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are also defined
 here (annotator-owned) because the annotator package consumes them directly;
@@ -17,7 +18,7 @@ from .fps_constants import FpsConstants, scale_for_fps
 from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
-# Scrape-output paths (dataset_schema.md section 2 tree)
+# Scrape-output paths; see docs/scraper_pipeline/scraper_architecture.md
 # ---------------------------------------------------------------------------
 # One scrape root holds the flat CSVs plus the per-video sidecar dirs. Default
 # sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.

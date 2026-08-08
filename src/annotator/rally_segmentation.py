@@ -1,4 +1,6 @@
-"""Rally segmentation and contact detection (scraper_spec.md section 6).
+"""Rally segmentation and contact detection.
+
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the pipeline context.
 
 Trajectory rules over a whole-video TrackNetV3 shuttle track, the `(t, 3)`
 `[x_norm, y_norm, visibility]` npy that `shuttle_extractor.py:244-249` writes

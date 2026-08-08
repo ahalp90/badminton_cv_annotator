@@ -1,4 +1,4 @@
-"""Pair rallies with commentary chunks (scraper_spec.md section 9).
+"""Pair rallies with commentary chunks.
 
 A mechanical time-range join: each rally span pairs with the commentary chunk
 that immediately follows it. Replay-masked rallies and chunks are held out of
@@ -11,6 +11,9 @@ silently converted; downstream assembly derives seconds from frames via the
 per-video fps when it wants both on one clock.
 
 Run as `python -m scraper.commentary_pairing` with PYTHONPATH=src.
+
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the stage and file
+contracts.
 """
 import argparse
 import csv

@@ -6,9 +6,9 @@ metadata screens, chunking and keep thresholds, LLM settings, and the rally-segm
 and replay-mask trajectory rules. Every component imports from here so the column order,
 sidecar layout and rate-limit values live in one place.
 
-Constant provenance is cited inline as "spec sN" against the section of
-local_scratch/autograder_architecture/scraper_spec.md it came from. OPEN: marks
-judgement calls awaiting Ariel; each implements the spec's default.
+Historical constant provenance remains cited inline as ``spec sN``. See
+``docs/scraper_pipeline/scraper_architecture.md`` for the current public file
+contracts. ``OPEN:`` marks judgement calls awaiting Ariel.
 
 Descended from the agy-passed poc (local_scratch/autograder_architecture/poc/),
 reconciled to the spec's decided values: D22 throttle stack, D23 WhisperX
@@ -21,7 +21,7 @@ from pathlib import Path
 from annotator.config import CONTACT_FRAMES_CSV, MASKS_DIR, RALLY_SPANS_CSV, SCRAPE_DIR  # noqa: F401
 
 # ---------------------------------------------------------------------------
-# Output layout (dataset_schema.md section 2 tree)
+# Output layout; see docs/scraper_pipeline/scraper_architecture.md
 # ---------------------------------------------------------------------------
 # One scrape root holds the flat CSVs plus the per-video sidecar dirs.
 # SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are
