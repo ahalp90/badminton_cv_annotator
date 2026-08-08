@@ -363,6 +363,15 @@ class LandingFilterOptions(NamedTuple):
     use_ankle_rule: bool = True
 
 
+SHIPPED_LANDING_FILTER_OPTIONS = LandingFilterOptions(
+    settle_win=7,
+    settle_thr=0.004,
+    settle_min=5,
+    carry_win=7,
+    carry_thr=0.75,
+)
+
+
 def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
     """Convert base-30 landing options once; returned fields are final fps values."""
     def frame_count(value: int) -> int:

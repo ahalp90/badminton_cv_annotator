@@ -4,15 +4,22 @@ import os
 
 import pytest
 
+from annotator.calibration import gt_scoring
 from annotator.calibration.fixtures import FIXTURES
 from annotator.calibration.gt_scoring import REFERENCE_SCORES, flatten_metrics, render_table, run_fixture
 from annotator.calibration.scoring import GtRally, strict_contact_rows, wide_edge_contact_rows
+from annotator.point_winner import LandingFilterOptions, SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.types import ContactCandidate
 
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
 # raised from the drafted 0.5).
 FLOOR_MULTIPLIER = 0.75
+
+
+def test_calibration_uses_shipped_landing_filter_options() -> None:
+    assert gt_scoring.SHIPPED_LANDING_FILTER_OPTIONS is SHIPPED_LANDING_FILTER_OPTIONS
+    assert SHIPPED_LANDING_FILTER_OPTIONS == LandingFilterOptions(7, 0.004, 5, 7, 0.75)
 
 
 def _assert_floors(fixture, metrics: dict[str, int | float | None]) -> None:
