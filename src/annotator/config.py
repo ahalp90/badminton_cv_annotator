@@ -1,5 +1,8 @@
 """Annotation-chain constants separated from scraper configuration.
 
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the current public
+file contracts.
+
 SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are also defined
 here (annotator-owned) because the annotator package consumes them directly;
 scraper.config imports them inward so its own consumers keep the same names

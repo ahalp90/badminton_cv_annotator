@@ -7,6 +7,9 @@ rally-segmentation and replay-mask trajectory rules. Every component imports
 from here so the column order, sidecar layout, and rate-limit values live in
 one place.
 
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the current public
+file contracts.
+
 Comments describe the current contract and identify provisional values that
 still need tuning.
 """

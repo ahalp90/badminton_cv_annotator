@@ -1004,8 +1004,9 @@ class ConsensusRepair:
     boards-alias failure this targets fits a self-consistent-looking homography
     through the whole quad (both far corners move together), so per-corner
     patching would leave a mismatched blend of real and aliased geometry. A
-    corners-only variant was measured beside this and is not shipped (see
-    local_scratch/autograder_architecture/courtkeynet_eval/ckn_consensus_ship_check.py).
+    corners-only variant was measured beside this and is not shipped. See
+    ``docs/courtkeynet/fallback_evaluation/README.md`` for the evaluation and
+    reproducible check.
     """
 
     consensus_quad: np.ndarray  # (4, 2) float64, per-corner median over all scenes

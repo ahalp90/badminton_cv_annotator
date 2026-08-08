@@ -1,5 +1,7 @@
 """Build the replay and off-rally mask.
 
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the pipeline context.
+
 Three independent per-frame boolean signals unioned into one `(frames,)` mask,
 true where the frame is a replay or otherwise off-rally. Saved per video to
 `config.MASKS_DIR / f'{video_id}_replay.npy'`, the same 1-D bool-over-frames

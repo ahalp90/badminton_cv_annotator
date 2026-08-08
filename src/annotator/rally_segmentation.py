@@ -1,5 +1,7 @@
 """Rally segmentation and contact detection.
 
+See ``docs/scraper_pipeline/scraper_architecture.md`` for the pipeline context.
+
 Trajectory rules operate on a whole-video TrackNetV3 shuttle track shaped
 `(t, 3)` as `[x_norm, y_norm, visibility]`. Coordinates are already normalised
 to video resolution, while visibility passes through. Speed everywhere below
