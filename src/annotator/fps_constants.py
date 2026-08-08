@@ -7,13 +7,12 @@ are assumed CFR; :func:`probe_fps` rejects variable-frame-rate files loudly.
 """
 from __future__ import annotations
 
-import json
 import math
-import subprocess
 from dataclasses import dataclass, fields
 from enum import StrEnum
-from fractions import Fraction
 from pathlib import Path
+
+from annotator.video_metadata import probe_video_fps
 
 BASE_FPS = 30.0
 REST_SPEED_BASE30 = 0.002
@@ -108,19 +107,5 @@ def scale_for_fps(fps: float, overrides_base30: dict[str, float] | None = None) 
 
 
 def probe_fps(video_path: Path) -> float:
-    """Read a CFR rate with ffprobe, rejecting missing, invalid, and VFR streams."""
-    try:
-        completed = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
-             'stream=r_frame_rate,avg_frame_rate', '-of', 'json', str(video_path)],
-            check=True, capture_output=True, text=True,
-        )
-        stream = json.loads(completed.stdout)['streams'][0]
-        rates = [float(Fraction(stream[key])) for key in ('r_frame_rate', 'avg_frame_rate')]
-    except (KeyError, IndexError, ValueError, ZeroDivisionError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
-        raise ValueError(f'{video_path}: ffprobe could not read a valid video fps') from exc
-    if any(not math.isfinite(rate) or rate <= 0 for rate in rates):
-        raise ValueError(f'{video_path}: ffprobe returned a missing or invalid fps')
-    if abs(rates[0] - rates[1]) > 1e-6:
-        raise ValueError(f'{video_path}: variable frame rate is unsupported')
-    return rates[0]
+    """Return the canonical CFR rate as a float for existing annotator callers."""
+    return float(probe_video_fps(video_path))

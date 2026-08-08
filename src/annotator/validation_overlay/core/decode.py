@@ -1,182 +1,22 @@
-"""Exact metadata probing and bounded raw-video span decoding."""
+"""Bounded raw-video span decoding using caller-owned canonical metadata."""
 
 from __future__ import annotations
 
-import json
 import shlex
 import subprocess
 from collections.abc import Iterator
-from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
-
-@dataclass(frozen=True)
-class VideoInfo:
-    """Validated metadata needed by the overlay renderer."""
-
-    path: Path
-    fps: Fraction
-    nb_frames: int
-    width: int
-    height: int
-    # Pixel width over pixel height. 1 for every ordinary file; anything else is
-    # anamorphic footage whose coded frame is stored at the wrong shape.
-    sample_aspect_ratio: Fraction = Fraction(1)
+from annotator.video_metadata import VideoMetadata, probe_video_metadata
 
 
-def _parse_fraction(value: object, field_name: str) -> Fraction:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"video metadata {field_name} is missing")
-    try:
-        result = Fraction(value.strip())
-    except (ValueError, ZeroDivisionError) as exc:
-        raise ValueError(f"video metadata {field_name} is unparseable: {value!r}") from exc
-    if result <= 0:
-        raise ValueError(f"video metadata {field_name} must be positive: {value!r}")
-    return result
-
-
-def _parse_start_time(value: object, field_name: str) -> Fraction:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"video metadata {field_name} is missing")
-    try:
-        return Fraction(value.strip())
-    except (ValueError, ZeroDivisionError) as exc:
-        raise ValueError(f"video metadata {field_name} is unparseable: {value!r}") from exc
-
-
-def _parse_positive_int(value: object, field_name: str) -> int:
-    if value is None or (isinstance(value, str) and not value.strip()):
-        raise ValueError(f"video metadata {field_name} is missing")
-    try:
-        result = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"video metadata {field_name} is unparseable: {value!r}") from exc
-    if result <= 0:
-        raise ValueError(f"video metadata {field_name} must be positive: {value!r}")
-    return result
-
-
-def _parse_sample_aspect_ratio(value: object) -> Fraction:
-    """Read a sample aspect ratio, treating "unspecified" as square.
-
-    Three spellings all mean unspecified and all become 1:1: the key absent
-    entirely, the string "N/A", and ffmpeg's own "0:1". Absent is the common
-    case, since a plain libx264 encode with no ``-aspect`` records nothing and
-    neither does this tool's output. A malformed or negative ratio still fails,
-    because that is a corrupt file rather than a silent one.
-    """
-    if value is None or (isinstance(value, str) and value.strip().upper() in {"", "N/A"}):
-        return Fraction(1)
-    if not isinstance(value, str):
-        raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
-    parts = value.strip().split(":")
-    if len(parts) != 2:
-        raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
-    try:
-        numerator, denominator = (int(part) for part in parts)
-        result = Fraction(numerator, denominator)
-    except (TypeError, ValueError, ZeroDivisionError) as exc:
-        raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}") from exc
-    if result == 0:
-        return Fraction(1)
-    if result < 0:
-        raise ValueError(f"video metadata sample_aspect_ratio must be positive: {value!r}")
-    return result
-
-
-def _has_rotation_metadata(stream: dict[str, Any]) -> bool:
-    tags = stream.get("tags")
-    if isinstance(tags, dict) and "rotate" in tags:
-        return True
-    side_data = stream.get("side_data_list")
-    if not isinstance(side_data, list):
-        return False
-    for entry in side_data:
-        if not isinstance(entry, dict):
-            continue
-        if "rotation" in entry or "displaymatrix" in entry:
-            return True
-        side_data_type = entry.get("side_data_type")
-        if isinstance(side_data_type, str) and "display matrix" in side_data_type.lower():
-            return True
-    return False
-
-
-def _run_ffprobe(video: Path) -> dict[str, Any]:
-    command = [
-        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_streams",
-        "-show_format", "-of", "json", str(video),
-    ]
-    try:
-        completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    except OSError as exc:
-        raise RuntimeError(f"could not run ffprobe for {video}: {exc}") from exc
-    if completed.returncode != 0:
-        stderr = completed.stderr.strip()
-        raise RuntimeError(
-            f"ffprobe failed for {video} with exit status {completed.returncode}: {stderr}"
-        )
-    try:
-        metadata = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"ffprobe returned unparseable metadata for {video}") from exc
-    if not isinstance(metadata, dict):
-        raise ValueError(f"ffprobe returned malformed metadata for {video}")
-    return metadata
-
-
-def probe_video(video: Path) -> VideoInfo:
-    """Read and validate exact video metadata without decoding frames.
-
-    :param video: Source video path.
-    :return: Validated source dimensions, frame count and exact frame rate.
-    :raises FileNotFoundError: if ``video`` is not a regular file.
-    :raises ValueError: if required metadata violates the CFR contract.
-    :raises RuntimeError: if ffprobe cannot inspect the file.
-    """
-    video = Path(video)
-    if not video.is_file():
-        raise FileNotFoundError(f"video is not a regular file: {video}")
-    metadata = _run_ffprobe(video)
-    streams = metadata.get("streams")
-    if not isinstance(streams, list) or not streams:
-        raise ValueError(f"video has no video stream: {video}")
-    stream = streams[0]
-    if not isinstance(stream, dict) or stream.get("codec_type") != "video":
-        raise ValueError(f"ffprobe returned a malformed video stream: {video}")
-    formats = metadata.get("format")
-    if not isinstance(formats, dict):
-        raise ValueError(f"video format metadata is missing: {video}")
-
-    nb_frames = _parse_positive_int(stream.get("nb_frames"), "nb_frames")
-    width = _parse_positive_int(stream.get("width"), "width")
-    height = _parse_positive_int(stream.get("height"), "height")
-    rate = _parse_fraction(stream.get("r_frame_rate"), "r_frame_rate")
-    average_rate = _parse_fraction(stream.get("avg_frame_rate"), "avg_frame_rate")
-    if rate != average_rate:
-        raise ValueError(
-            f"video has unequal exact frame rates: r_frame_rate={rate}, avg_frame_rate={average_rate}"
-        )
-
-    stream_start = _parse_start_time(stream.get("start_time"), "stream start_time")
-    format_start = _parse_start_time(formats.get("start_time"), "format start_time")
-    if stream_start != 0 or format_start != 0:
-        raise ValueError(
-            f"video start_time must be exactly zero: stream={stream_start}, format={format_start}"
-        )
-    if _has_rotation_metadata(stream):
-        raise ValueError(f"video has rotation metadata: {video}")
-    # Non-square pixels are carried, not rejected. Marks are fractions of the
-    # coded frame, so their placement is unaffected; the ratio only decides the
-    # shape the output is written at. See make_render_plan.
-    sample_aspect_ratio = _parse_sample_aspect_ratio(stream.get("sample_aspect_ratio"))
-
-    return VideoInfo(video, rate, nb_frames, width, height, sample_aspect_ratio)
+# Kept as import-compatible names for existing overlay consumers. The probing
+# implementation and canonical field contract live outside this namespace.
+VideoInfo = VideoMetadata
+probe_video = probe_video_metadata
 
 
 def _decode_command(

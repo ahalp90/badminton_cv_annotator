@@ -136,13 +136,14 @@ own output included. Treating absent as an error refuses ordinary files.
 **Frame rate must be constant, and `--verify` will not save you here.** The
 whole timestamp model assumes frame `n` sits at `n/fps`. On variable-frame-rate
 input that stops being true, and the identity gate rests on the same assumption,
-so it can miss the resulting misalignment rather than catching it. `probe_video`
-rejects VFR by comparing `r_frame_rate` against `avg_frame_rate` as exact
-fractions. That test is conservative rather than a proof of constant rate: it
-catches real VFR (a measured sample reports `25/1` against `150/11`) but a file
-could in principle pass it and still drift. Supporting VFR properly means
-indexing by presentation timestamp instead of by ordinal, which rawvideo does
-not carry through the pipe. Worth knowing before this meets phone footage.
+so it can miss the resulting misalignment rather than catching it. The canonical
+metadata probe first compares `r_frame_rate` against `avg_frame_rate` as exact
+fractions. It then requires one presentation timestamp per counted frame and
+proves that frame `n` lands exactly at `n/fps` in the stream time base. Missing,
+duplicate, or irregular timestamps fail before rendering. Supporting VFR properly
+would mean indexing by presentation timestamp instead of by ordinal, which
+rawvideo does not carry through the pipe. Worth knowing before this meets phone
+footage.
 
 **The identity gate compares pixels, not indices.** `--verify` hashes each
 planned frame and compares against a decode-from-zero reference. Any shift onto

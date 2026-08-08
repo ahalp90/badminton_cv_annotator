@@ -12,8 +12,9 @@ import cv2
 import numpy as np
 import pytest
 
+import annotator.video_metadata as video_metadata_module
 from annotator.validation_overlay.core.cli import make_render_plan, render
-from annotator.validation_overlay.core.decode import iter_span_frames, probe_video
+from annotator.validation_overlay.core.decode import VideoInfo, iter_span_frames, probe_video
 from annotator.validation_overlay.core.timeline import (
     Segment,
     SegmentPlan,
@@ -21,6 +22,7 @@ from annotator.validation_overlay.core.timeline import (
     SpanState,
     build_timeline,
 )
+from annotator.video_metadata import VideoMetadata, probe_video_metadata
 
 
 SOURCE_FPS = Fraction(25)
@@ -78,7 +80,7 @@ def test_anamorphic_sources_render_at_true_shape_without_shrinking(
     the ratio by shrinking the other axis and discarding real detail.
     """
     video = _make_video(tmp_path / "anamorphic.mp4", "25", sar=sar)
-    info = probe_video(video)
+    info = probe_video_metadata(video)
     plan = make_render_plan(
         info, (Segment(1, 3),), tmp_path / "out.mp4",
         render_width=SOURCE_WIDTH, lead_in=0, lead_out=0, spacer=0,
@@ -113,9 +115,9 @@ def test_decode_is_exact_at_broadcast_frame_rates(tmp_path: Path, rate: str) -> 
     a frame period is not representable in decimal. 30000/1001 does not.
     """
     video = _make_video(tmp_path / "rate.mp4", rate)
-    info = probe_video(video)
+    info = probe_video_metadata(video)
     assert info.fps == Fraction(rate)
-    for first, last in [(0, 2), (9, 13), (info.nb_frames - 3, info.nb_frames - 1)]:
+    for first, last in [(0, 2), (9, 13), (info.frame_count - 3, info.frame_count - 1)]:
         decoded = [
             hashlib.sha256(frame.tobytes()).hexdigest()
             for frame in iter_span_frames(
@@ -137,7 +139,90 @@ def test_video_without_aspect_metadata_reads_as_square(tmp_path: Path) -> None:
         capture_output=True, text=True, check=True,
     ).stdout
     assert "sample_aspect_ratio" not in json.loads(probed)["streams"][0]
-    assert probe_video(video).fps == Fraction(25)
+    assert probe_video_metadata(video).fps == Fraction(25)
+
+
+def test_canonical_metadata_round_trips_exact_values(tmp_path: Path) -> None:
+    video = _make_video(tmp_path / "fractional.mp4", "30000/1001")
+    metadata = probe_video_metadata(video)
+
+    assert metadata.source_path == video.resolve()
+    assert metadata.fps == Fraction(30000, 1001)
+    assert metadata.frame_count == 24
+    assert (metadata.width, metadata.height) == (SOURCE_WIDTH, SOURCE_HEIGHT)
+    assert VideoMetadata.from_dict(metadata.to_dict()) == metadata
+
+
+def test_validation_overlay_metadata_names_remain_compatible() -> None:
+    assert VideoInfo is VideoMetadata
+    assert probe_video is probe_video_metadata
+
+
+def test_canonical_metadata_rejects_conflicting_frame_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = tmp_path / "conflict.mp4"
+    video.touch()
+    payload = {
+        "streams": [{
+            "codec_type": "video",
+            "nb_frames": "24",
+            "nb_read_frames": "23",
+            "width": SOURCE_WIDTH,
+            "height": SOURCE_HEIGHT,
+            "r_frame_rate": "25/1",
+            "avg_frame_rate": "25/1",
+            "start_time": "0",
+        }],
+        "format": {"start_time": "0"},
+    }
+    monkeypatch.setattr(
+        video_metadata_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, json.dumps(payload), ""),
+    )
+
+    with pytest.raises(ValueError, match="conflicting frame counts"):
+        probe_video_metadata(video)
+
+
+def test_canonical_metadata_rejects_equal_rate_vfr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = tmp_path / "equal-rate-vfr.mp4"
+    video.touch()
+    payload = {
+        "frames": [
+            {"best_effort_timestamp": 0},
+            {"best_effort_timestamp": 1},
+            {"best_effort_timestamp": 3},
+        ],
+        "streams": [{
+            "codec_type": "video",
+            "nb_frames": "3",
+            "nb_read_frames": "3",
+            "width": SOURCE_WIDTH,
+            "height": SOURCE_HEIGHT,
+            "r_frame_rate": "25/1",
+            "avg_frame_rate": "25/1",
+            "time_base": "1/25",
+            "start_time": "0",
+        }],
+        "format": {"start_time": "0"},
+    }
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+
+    monkeypatch.setattr(video_metadata_module.subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="frame 2 timestamp"):
+        probe_video_metadata(video)
+    assert "-show_frames" in commands[0]
+    entries = commands[0][commands[0].index("-show_entries") + 1]
+    assert "frame=best_effort_timestamp" in entries
 
 
 def test_seek_regression_pins_exact_frame_and_half_frame_behaviour(validation_video: Path) -> None:
@@ -212,7 +297,7 @@ def test_short_read_raises_and_exact_eof_span_succeeds(validation_video: Path) -
 def test_identity_gate_verifies_distinct_indices_before_rendering(
     validation_video: Path, tmp_path: Path
 ) -> None:
-    info = probe_video(validation_video)
+    info = probe_video_metadata(validation_video)
     segments = (Segment(1, 3), Segment(2, 5))
     plan = make_render_plan(
         info,
