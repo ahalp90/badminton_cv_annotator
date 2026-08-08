@@ -134,8 +134,8 @@ def pair_video(
 
     A chunk pairs with at most one rally: rallies are processed in id order and a
     claimed chunk is skipped thereafter, so when two rallies' windows both cover
-    a chunk the earlier rally wins. This matches the "immediately succeeds"
-    intent by assigning the chunk to the nearer rally in time.
+    a chunk the earlier rally wins. This is a deterministic processing-order
+    tie-break and does not compare which rally is nearer to the chunk.
 
     :param video_id: the video id.
     :param rally_spans: `[(rally_id, start_frame, end_frame), ...]`.

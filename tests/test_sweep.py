@@ -273,6 +273,12 @@ def test_routing_depth_enums_and_changed_defaults() -> None:
     assert base.span_open is SpanOpen.BACK_FILL
     assert serve == sweep.ServeStartConfig(0.1, ServeStartMode.TRIM, ServeStartClose.BURST, 0.2)
     assert sweep._base_and_serve(sweep.CandidateSpec("grid", {}, {}))[0].span_open is SpanOpen.BACK_FILL
+    quiet_base, quiet_serve = sweep._base_and_serve(
+        sweep.CandidateSpec("quiet", {"quiet_start_window": 3}, {})
+    )
+    assert quiet_base.quiet_start_window == 3
+    assert quiet_base.span_open is None
+    assert quiet_serve is None
     for strategies in ({"unknown": "TRIM"}, {"mode": "bad"}, {"close": "bad"}, {"span_open": "bad"}):
         with pytest.raises(ValueError):
             sweep._base_and_serve(sweep.CandidateSpec("grid", {}, strategies))

@@ -263,6 +263,8 @@ def _base_and_serve(spec: CandidateSpec) -> tuple[BaseAnnotatorConfig, ServeStar
     base_kwargs: dict[str, Any] = {"overrides_base30": overrides or None, **direct}
     if "span_open" in strategies:
         base_kwargs["span_open"] = span_open
+    elif "quiet_start_window" in direct:
+        base_kwargs["span_open"] = None
     base = BaseAnnotatorConfig(**base_kwargs)
     if not serve and "mode" not in spec.strategies and "close" not in spec.strategies:
         return base, None

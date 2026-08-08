@@ -24,19 +24,24 @@ schema.
 One logical record represents one detected rally. Its stable composite key is:
 
 ```text
-(source_dataset, video_id, rally_id)
+(run_id, source_dataset, video_id, rally_id)
 ```
 
+- `run_id` is a non-empty string that identifies the exact immutable
+  extraction, annotation, and assembly run.
 - `source_dataset` is the non-empty dataset label from `sources.toml`, or an
   equivalent explicit label for externally supplied inputs.
 - `video_id` is a non-empty string. Readers and writers must preserve it
   exactly and must never coerce it through a numeric type. For example, `0012`
   and `12` are different identifiers.
 - `rally_id` is a zero-based integer. It is the rally span's list position and
-  is unique within one `(source_dataset, video_id)` pair.
+  is unique within one `(run_id, source_dataset, video_id)` group.
 
 File basenames and paths are provenance. They are not record keys because a
 file may be renamed or copied without changing the source video identity.
+List-position rally IDs must not be used for cross-run joins because a changed
+configuration or model can insert or remove an earlier detected span. A future
+cross-run rally identity needs a separate matching rule.
 
 ## Time and interval rules
 
@@ -68,7 +73,7 @@ extraction run.
 | Source video | Manifest basename, exact string `video_id`, title, URL, and commentary eligibility | Per-video entry in `sources.toml` |
 | Video timing | Probed `fps` and `frame_count` for the decoded source used by every lane | Video probe and frame-aligned extraction outputs |
 | Code version | Git commit used for extraction, annotation, pairing, and assembly | Planned section 2.3 run manifest |
-| Run identity | Stable trial or extraction run identifier | Planned section 2.3 run manifest |
+| Run identity | Immutable non-empty `run_id` for the exact trial or extraction run | Planned section 2.3 run manifest |
 | Stage configuration | Model, weights, resolution, mode, thresholds, and other settings that affect an output | Stage configuration and planned run manifest |
 | Input artefacts | Paths or stable references for shuttle, pose, court, mask, transcript, and commentary inputs | Existing stage outputs |
 | Integrity | Digest for persisted inputs and outputs when a digest is available | Release metadata or planned run manifest |
@@ -199,7 +204,7 @@ then, consumers must use this origin table and the recorded stage provenance.
 | Rally annotator | Vision evidence, `fps`, configuration | Rally spans, raw and accepted contacts, and rally-level derived values |
 | Commentary triage and cleaning | Source transcript, video timing, cleaning configuration | Timestamped chunks, raw and cleaned text, alternatives, and cleaning diagnostics |
 | Commentary pairing | Rally spans, chunks, replay mask, `fps`, source manifest | One pair row per rally, with nullable chunk and commentary times |
-| Rally-record assembler, planned for section 2.3 | Validated outputs from all earlier stages and their run metadata | Records keyed by `(source_dataset, video_id, rally_id)` plus dataset-level provenance |
+| Rally-record assembler, planned for section 2.3 | Validated outputs from all earlier stages and their run metadata | Records keyed by `(run_id, source_dataset, video_id, rally_id)` plus dataset-level provenance |
 
 The assembler owns validation and joining. It must not rerun extraction,
 change rally boundaries, choose different contacts, or reinterpret a stage's
