@@ -220,6 +220,11 @@ def _load_chunks(chunks_dir: Path, video_id: str) -> list[dict]:
     """Load `<video_id>.json` chunk sidecar, or [] if absent."""
     chunk_path = chunks_dir / f'{video_id}.json'
     if not chunk_path.exists():
+        log.warning(
+            '%s: commentary-eligible but chunks sidecar is missing: %s',
+            video_id,
+            chunk_path,
+        )
         return []
     with chunk_path.open(encoding='utf-8') as handle:
         return json.load(handle)
@@ -229,6 +234,11 @@ def _load_replay_mask(masks_dir: Path, video_id: str) -> np.ndarray | None:
     """Load a one-dimensional boolean `<video_id>_replay.npy`, or None if absent."""
     mask_path = masks_dir / f'{video_id}_replay.npy'
     if not mask_path.exists():
+        log.info(
+            '%s: replay mask is missing; pairing without replay filtering: %s',
+            video_id,
+            mask_path,
+        )
         return None
     replay_mask = np.load(mask_path)
     if replay_mask.ndim != 1 or replay_mask.dtype != np.bool_:

@@ -5,6 +5,7 @@ fps is fixed at 10 so frame/second arithmetic is easy to read: end_frame 100 is
 """
 import csv
 import json
+import logging
 
 import numpy as np
 import pytest
@@ -291,6 +292,47 @@ def test_commentary_eligible_video_pairs_normally(tmp_path, monkeypatch):
     )
 
     assert _pair_rows(pairs_csv)[0]['chunk_id'] == 'c0'
+
+
+def test_commentary_eligible_video_logs_missing_sidecars(
+    tmp_path, monkeypatch, caplog,
+):
+    video_dir = tmp_path / 'videos'
+    video_dir.mkdir()
+    (video_dir / 'v.mp4').write_bytes(b'video')
+    (video_dir / 'sources.toml').write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."v.mp4"]\n'
+        'video_id = "v"\n'
+        'commentary_eligible = true\n',
+        encoding='utf-8',
+    )
+    fps_csv = tmp_path / 'fps.csv'
+    fps_csv.write_text('video_id,fps\nv,10\n', encoding='utf-8')
+    spans_csv = tmp_path / 'spans.csv'
+    spans_csv.write_text(
+        'video_id,rally_id,start_frame,end_frame\n'
+        'v,0,0,100\n',
+        encoding='utf-8',
+    )
+    chunks_dir = tmp_path / 'chunks'
+    masks_dir = tmp_path / 'masks'
+    pairs_csv = tmp_path / 'pairs.csv'
+    caplog.set_level(logging.INFO)
+
+    _invoke_commentary_pairing(
+        monkeypatch,
+        video_dir=video_dir,
+        fps_csv=fps_csv,
+        spans_csv=spans_csv,
+        pairs_csv=pairs_csv,
+        chunks_dir=chunks_dir,
+        masks_dir=masks_dir,
+    )
+
+    assert f'commentary-eligible but chunks sidecar is missing: {chunks_dir / "v.json"}' in caplog.text
+    assert f'replay mask is missing; pairing without replay filtering: {masks_dir / "v_replay.npy"}' in caplog.text
+    assert _pair_rows(pairs_csv)[0]['chunk_id'] == ''
 
 
 def test_commentary_ineligible_video_leaves_every_rally_blank(tmp_path, monkeypatch):
