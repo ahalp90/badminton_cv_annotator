@@ -48,6 +48,9 @@ def format_batch_report(
     elif all_excluded:
         video_word = _count_word(video_count, 'video', 'videos')
         headline = f'batch failed: all {video_count} {video_word} excluded'
+    elif processed_count == 0:
+        video_word = _count_word(video_count, 'video', 'videos')
+        headline = f'batch failed: 0 of {video_count} {video_word} processed'
     else:
         video_word = _count_word(video_count, 'video', 'videos')
         headline = f'batch completed: {processed_count} of {video_count} {video_word} processed'

@@ -60,7 +60,7 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
     fps_args: list[str],
-    expected_impulse: int,
+    expected_impulse: int | None,
 ) -> None:
     import annotator.run_video as run_video_module
     import annotator.rally_segmentation as rally_segmentation
@@ -90,7 +90,11 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     if '--missing-id' in fps_args:
         (shuttle_dir / 'video-1.npy').rename(shuttle_dir / 'missing-id.npy')
     monkeypatch.setattr(sys, 'argv', ['rally_segmentation', *args])
-    rally_segmentation.main()
+    if expected_impulse is None:
+        with pytest.raises(RuntimeError, match='processed 0 of 1 video'):
+            rally_segmentation.main()
+    else:
+        rally_segmentation.main()
 
     if expected_impulse is not None:
         assert captured[0].impulse_floor_half_window_frames == expected_impulse
@@ -101,6 +105,8 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     if '--missing-id' in fps_args:
         assert not captured
         assert 'skipping missing-id: absent from fps CSV' in caplog.text
+        assert not (tmp_path / 'spans.csv').exists()
+        assert not (tmp_path / 'contacts.csv').exists()
 
 
 def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
