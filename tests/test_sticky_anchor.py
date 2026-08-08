@@ -25,7 +25,6 @@ from src.bst_x.preparing_data.heuristics.sticky_anchor import (
     SLOT_BOTTOM,
     SLOT_TOP,
     StickyAnchorParams,
-    _pick_one_frame,
     _run_clip,
     analyse_frame,
     compute_halfcourt_centres,
@@ -145,7 +144,7 @@ def test_voronoi_partition_picks_correct_side():
     bot_kps = _standing_kps_for_bbox(bot_bbox)
 
     raw = _build_raw_clip([[(top_bbox, top_kps, 0.9), (bot_bbox, bot_kps, 0.9)]])
-    res = _pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
     assert res is not None
     picks, court_base_pos, _, _, _ = res  # 5th element: in-court candidate count
     assert picks[SLOT_TOP] == 0  # candidate 0 is the upper one
@@ -153,7 +152,7 @@ def test_voronoi_partition_picks_correct_side():
 
     # Swap input order: the assignment must not depend on candidate order.
     raw_swapped = _build_raw_clip([[(bot_bbox, bot_kps, 0.9), (top_bbox, top_kps, 0.9)]])
-    res = _pick_one_frame(raw_swapped, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw_swapped, 0, ema, halfcourt_centre, ctx, _params())
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 1
@@ -176,7 +175,7 @@ def test_bottom_first_with_cross_slot_exclusion():
         (bbox_a, _standing_kps_for_bbox(bbox_a), 0.9),
         (bbox_b, _standing_kps_for_bbox(bbox_b), 0.9),
     ]])
-    res = _pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
     assert res is not None
     picks, *_ = res
 
@@ -217,7 +216,7 @@ def test_sitting_tiebreaker_prefers_standing_then_falls_back():
     ]])
     # sanity_ceiling generous so the standing cand at norm y=0.255 stays eligible.
     kw = _params(tiebreaker_tol=0.05)
-    res = _pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, kw)
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, kw)
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 1, "non-sitting candidate should win the tiebreaker"
@@ -231,7 +230,7 @@ def test_sitting_tiebreaker_prefers_standing_then_falls_back():
         (bbox_standing, _sitting_kps_for_bbox(bbox_standing), 0.9),
         (bot_bbox, bot_kps, 0.9),
     ]])
-    res = _pick_one_frame(raw_both_sit, 0, ema, halfcourt_centre, ctx, kw)
+    res = pick_one_frame(raw_both_sit, 0, ema, halfcourt_centre, ctx, kw)
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 0, "fallback should revert to argmin when all candidates sit"
@@ -248,14 +247,14 @@ def test_rally_presence_rejects_when_both_picks_far_off_court():
 
     # Both candidates far outside court but inside the per-slot sanity_ceiling
     # of 0.6 from their respective anchors. Using sanity_ceiling=2.0 below to
-    # widen the picking step; the rally-presence guard fires inside _pick_one_frame.
+    # Widen the picking step; the rally-presence guard fires inside pick_one_frame.
     far_top_bbox = _bbox_for(-0.5, -0.5)
     far_bot_bbox = _bbox_for(1.5, 1.5)
     raw = _build_raw_clip([[
         (far_top_bbox, _standing_kps_for_bbox(far_top_bbox), 0.9),
         (far_bot_bbox, _standing_kps_for_bbox(far_bot_bbox), 0.9),
     ]])
-    res = _pick_one_frame(
+    res = pick_one_frame(
         raw, 0, ema, halfcourt_centre, ctx,
         _params(sanity_ceiling=5.0, generous_margin=0.15),
     )
@@ -377,7 +376,7 @@ def test_analyse_frame_agrees_with_picker_on_success_and_maps_raw_slots():
     ]])
 
     analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
-    picked = _pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
 
     assert picked is not None
     assert analysis.picks == picked[0]
@@ -444,20 +443,12 @@ def test_analyse_frame_empty_and_infinite_projection_cases():
         (inf_bbox, _standing_kps_for_bbox(inf_bbox), 0.9),
     ]])
     analysis = analyse_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
-    picked = _pick_one_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
+    picked = pick_one_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
     assert analysis.picks is None
     assert picked is None
     assert analysis.standing_in_court_count == 0
     assert analysis.court_base_pos is not None
     assert np.isinf(analysis.court_base_pos).all()
-
-
-def test_underscore_helper_aliases_resolve_to_public_helpers():
-    """Frozen consumers retain the Stage-7 compatibility names."""
-    assert sticky_anchor._project_bbox_bottom_centre is sticky_anchor.project_bbox_bottom_centre
-    assert sticky_anchor._compute_halfcourt_centres is sticky_anchor.compute_halfcourt_centres
-    assert sticky_anchor._pick_one_frame is sticky_anchor.pick_one_frame
-    assert sticky_anchor._in_generous_court is sticky_anchor.in_generous_court
 
 
 def test_analyse_frame_score_filter_empty_returns_no_evidence():

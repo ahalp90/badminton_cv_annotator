@@ -10,9 +10,9 @@ Run as: python -m scraper.relevance_triage (PYTHONPATH=src). The LLM call needs 
 GEMINI_API_KEY env var set (referenced by name only, never read or logged) and the
 google-genai SDK installed on the calling machine.
 
-Failure behaviour (spec s4): log-and-skip per video, moving a failed video to a
-retry list; block only if every call fails (a dead endpoint). Checked mid-batch
-once past a small floor, so a dead endpoint stops the run early.
+Failure behaviour is log-and-skip per video, moving a failed video to a retry
+list. The batch blocks only if every call fails. This is checked mid-batch once
+past a small floor, so a dead endpoint stops the run early.
 """
 import argparse
 import json
@@ -60,7 +60,7 @@ def chunk_windows(segments: list[dict]) -> list[dict]:
     """Split segments into overlapping windows keyed by their segment timestamps.
 
     Windows span CHUNK_WINDOW_S seconds and step by (window - overlap), so a chunk
-    landing in the overlap zone appears in two adjacent windows (spec s4). A
+    landing in the overlap zone appears in two adjacent windows. A
     segment joins a window when its start falls inside [window_start, window_end).
 
     :param segments: the transcript segments, each with a start and end in seconds.
@@ -87,11 +87,10 @@ def chunk_windows(segments: list[dict]) -> list[dict]:
 
 
 def build_triage_prompt(window: dict) -> tuple[str, str]:
-    """Build the (system, user) prompt for one window (spec s4 shape).
+    """Build the system and user prompts for one window.
 
-    Prompt shape per spec s4: filter this transcript for qualitative assessments
-    of play; return the commentary chunks and their coarse start and end
-    timestamps as a list.
+    The prompt asks for qualitative assessments of play and returns commentary
+    chunks with coarse start and end timestamps as a list.
 
     :param window: a window dict with a segments list.
     :return: (system_prompt, user_prompt).
@@ -171,7 +170,7 @@ def call_triage_llm(window: dict) -> list[dict]:
 
 
 def _keep_decision(n_chunks: int, duration_s: str) -> bool:
-    """Three-legged keep rule (D9, spec s4): keep when ANY leg passes.
+    """Three-legged keep rule: keep when any leg passes.
 
     A duration-less row (rare; enrichment fills nearly all) can be judged
     neither short nor long, so only the length-independent absolute leg applies.
@@ -218,7 +217,7 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
 def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
     """Triage every video with a transcript; write chunk sidecars and keep flags.
 
-    Blocks (raises) only when every triage call fails (a dead endpoint, spec s4),
+    Blocks only when every triage call fails, which signals a dead endpoint,
     both mid-batch (past a small floor) and at the end of the run.
 
     :param rows: candidate rows; read from candidates.csv when None.
@@ -261,7 +260,7 @@ def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
         print(f'  {video_id}: {len(chunks)} chunks, keep={keep}')
 
     if videos_with_transcript > 0 and failed == videos_with_transcript:
-        # Every call failed: a dead endpoint, not scattered errors (spec s4).
+        # Every call failed: a dead endpoint, not scattered errors.
         raise RuntimeError(
             f'Relevance triage: all {failed} triage calls failed. Check the LLM endpoint.'
         )

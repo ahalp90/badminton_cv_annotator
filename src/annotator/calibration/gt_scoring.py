@@ -22,6 +22,7 @@ from annotator import point_winner
 from annotator.point_winner import Half, OTHER_HALF, SHIPPED_LANDING_FILTER_OPTIONS, Verdict
 from annotator.replay_mask import _read_homography_rows
 from annotator.calibration.scoring import (
+    CANONICAL_CONTACT_TOLERANCE_BASE30,
     RallyBoundary,
     classify_all,
     greedy_match,
@@ -401,7 +402,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def canonical_tolerance(fps: float) -> int:
-    return int(ScalingKind.FRAME_COUNT.scale(5.0, fps))
+    return int(ScalingKind.FRAME_COUNT.scale(CANONICAL_CONTACT_TOLERANCE_BASE30, fps))
 
 
 def _norm_half(side: str) -> str:

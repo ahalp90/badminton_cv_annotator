@@ -21,9 +21,9 @@ unzeroing; the mask design is documented for future revisit.
 Two zeroing operations exist before the model sees data, plus a
 silent visibility-flag drop:
 
-**`sticky_anchor.py:283-323`** (per-frame loop in `_run_clip`).
+**`sticky_anchor.py:320-376`** (per-frame loop in `_run_clip`).
 `pos`, `joints`, and `failed` are initialised to zeros. For each
-frame, `_pick_one_frame` returns `None` (whole frame failed) or
+frame, `pick_one_frame` returns `None` (whole frame failed) or
 `(picks, ...)` with `-1` for any unpicked slot. Per slot: if
 picked, `pos[f, s] = cbp` and `joints[f, s] = normalize_joints(...)`
 write real values; if unpicked, the array stays at the init zero.

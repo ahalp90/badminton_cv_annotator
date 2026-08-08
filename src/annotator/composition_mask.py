@@ -1,7 +1,7 @@
 """Composition dead-mask: broadcast-cut segments filtered by a court-view vote.
 
 A companion producer to replay_mask: a second way to build the same
-`(frames,)` bool dead-time mask that `segment_video(replay_mask=...)` accepts
+`(frames,)` bool dead-time mask that `segment_video(exclusion_mask=...)` accepts
 (True = dead). Where the replay mask unions three per-frame signals, this one
 works per SEGMENT of the broadcast.
 

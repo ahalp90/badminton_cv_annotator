@@ -1,11 +1,11 @@
-"""Windowed doubles verdict from the per-frame in-court over-count (spec s8).
+"""Windowed doubles verdict from the per-frame in-court over-count.
 
 The vision lane records a per-frame over-count bool (True where more than two
 people project inside the court) beside each clip's pose output. A single noisy
 frame is not doubles: a coach or ball-kid can cross the court for a moment. This
 module turns the per-frame signal into a clip- or segment-level verdict.
 
-Rule (spec s8, fraction-only since the 2026-07-07 ruling): over a span, raise
+The fraction-only rule has applied since 2026-07-07: over a span, raise
 the flag when the over-count holds on more than ``DOUBLES_SPAN_FRACTION`` of
 frames. A consecutive-run leg was considered and dropped: any passerby crossing
 the court for half a second would trip it. Starting value lives in
@@ -63,7 +63,7 @@ def read_whole_video_flags(csv_path: Path) -> dict[str, bool]:
 
 
 def doubles_flag(overcount: np.ndarray, span: tuple[int, int] | None = None) -> bool:
-    """Windowed doubles verdict for one span of the per-frame over-count (spec s8).
+    """Windowed doubles verdict for one span of the per-frame over-count.
 
     :param overcount: (F,) bool per-frame over-count; True where >2 people were
         in-court on that frame.

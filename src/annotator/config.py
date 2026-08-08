@@ -1,8 +1,5 @@
 """Annotation-chain constants separated from scraper configuration.
 
-Constant provenance is cited inline as "spec sN" against the section of
-local_scratch/autograder_architecture/scraper_spec.md it came from.
-
 SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are also defined
 here (annotator-owned) because the annotator package consumes them directly;
 scraper.config imports them inward so its own consumers keep the same names
@@ -17,18 +14,18 @@ from .fps_constants import FpsConstants, scale_for_fps
 from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
-# Scrape-output paths (dataset_schema.md section 2 tree)
+# Scrape-output paths
 # ---------------------------------------------------------------------------
 # One scrape root holds the flat CSVs plus the per-video sidecar dirs. Default
 # sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
-MASKS_DIR = SCRAPE_DIR / 'masks'  # schema s2 (replay masking)
-RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'  # spec s6 (rally segmentation)
-CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'  # spec s6 (rally segmentation)
+MASKS_DIR = SCRAPE_DIR / 'masks'
+RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'
+CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'
 
 # ---------------------------------------------------------------------------
-# Rally segmentation and contact rules (spec s6)
+# Rally segmentation and contact rules
 # ---------------------------------------------------------------------------
 # Speed means per-frame L2 displacement of (x_norm, y_norm) on visibility-1
 # frames. fps_constants.py stores the base-30 table; these globals are its
@@ -79,7 +76,7 @@ SHIPPED_THRESHOLDS = RallySegmentationThresholds(
 )
 
 # ---------------------------------------------------------------------------
-# Replay and off-rally masking rules (spec s7)
+# Replay and off-rally masking rules
 # ---------------------------------------------------------------------------
 # Reprojected-corner displacement between adjacent segment homographies, as a
 # fraction of frame size. Spec names the constant without a default; 0.05 is
@@ -99,7 +96,7 @@ COMPOSITION_CONTENT_THRESHOLD = 27.0  # PySceneDetect ContentDetector default
 COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of its frames vote court-view
 
 # ---------------------------------------------------------------------------
-# Doubles guard windowing (spec s8)
+# Doubles guard windowing
 # ---------------------------------------------------------------------------
 # A clip- or segment-level doubles flag fires only when the per-frame
 # over-count (>2 in-court candidates) holds across more than half the frames

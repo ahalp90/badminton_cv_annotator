@@ -727,6 +727,17 @@ def test_fewer_than_half_failed_seeds_exit_zero(tmp_path: Path, monkeypatch) -> 
     assert exit_code == 0
 
 
+def test_main_uses_the_configured_failure_fraction(tmp_path: Path, monkeypatch) -> None:
+    rows = [_candidate(f'v{index}') for index in range(4)]
+    monkeypatch.setattr(downloader.config, 'DOWNLOAD_FAIL_FRACTION_BLOCK', 0.75)
+
+    exit_code, _called_ids, _manifest_path = _run_main_with_fake_outcomes(
+        tmp_path, monkeypatch, rows, {'v0', 'v1'},
+    )
+
+    assert exit_code == 0
+
+
 def test_mass_failure_denominator_excludes_unkept_rows(tmp_path: Path, monkeypatch) -> None:
     rows = [_candidate('excluded', keep='False'), _candidate('failed'), _candidate('good')]
 

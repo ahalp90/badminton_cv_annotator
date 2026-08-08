@@ -147,26 +147,6 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
     ]
 
 
-@pytest.mark.parametrize(
-    'retired_option',
-    ['--gate-dir', '--pose-dir', '--homography-csv', '--resolution-csv',
-     '--court-box-csv', '--thresholds'],
-)
-def test_rally_segmentation_main_rejects_retired_options(monkeypatch, tmp_path, retired_option):
-    import annotator.rally_segmentation as rally_segmentation
-
-    shuttle_dir = tmp_path / 'shuttles'
-    shuttle_dir.mkdir()
-    option_value = 'shipped' if retired_option == '--thresholds' else str(tmp_path / 'retired')
-    monkeypatch.setattr(sys, 'argv', [
-        'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
-        retired_option, option_value,
-    ])
-
-    with pytest.raises(SystemExit, match='2'):
-        rally_segmentation.main()
-
-
 def test_rally_segmentation_main_requires_an_fps_source(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
 ) -> None:

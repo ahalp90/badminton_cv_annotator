@@ -1,4 +1,4 @@
-"""Tests for the additive doubles over-count signal in the pose lane (spec s8).
+"""Tests for the additive doubles over-count signal in the pose lane.
 
 The head count is the D26 semantics: standing detections within
 ``DOUBLES_COUNT_MARGIN`` of the court on both axes, seated candidates exempt. It
@@ -33,8 +33,8 @@ from preparing_data.heuristics.base import (
 )
 from preparing_data.heuristics.sticky_anchor import (
     StickyAnchorParams,
-    _pick_one_frame,
     _run_clip,
+    pick_one_frame,
 )
 from preparing_data.prepare_train_on_shuttleset import _order_two_on_court
 
@@ -203,8 +203,8 @@ def test_sticky_anchor_overcount_flags_doubles_while_picking_two():
         (bot2, _standing_kps_for_bbox(bot2), 0.9),
     ])
 
-    # _pick_one_frame reports the doubles head count as its 5th element.
-    res = _pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, params)
+    # pick_one_frame reports the doubles head count as its 5th element.
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, params)
     assert res is not None
     picks, _court_base_pos, _kps_f, _bboxes_f, n_counted = res
     assert n_counted == 4           # all four standing, inside the count margin
