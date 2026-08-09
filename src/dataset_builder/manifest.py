@@ -55,6 +55,13 @@ def normalise_configuration(configuration: Mapping[str, object]) -> dict[str, Js
     }
 
 
+def run_manifest_sha256(manifest: RunManifest) -> str:
+    """Return the canonical SHA-256 identity of a complete manifest snapshot."""
+    if not isinstance(manifest, RunManifest):
+        raise TypeError("manifest must be RunManifest")
+    return _sha256_json(manifest.to_dict())
+
+
 def redact_configuration(
     configuration: Mapping[str, object],
     *,

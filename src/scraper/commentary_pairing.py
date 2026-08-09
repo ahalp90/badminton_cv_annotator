@@ -14,6 +14,8 @@ Run as `python -m scraper.commentary_pairing` with PYTHONPATH=src.
 """
 import argparse
 import csv
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 import json
 import logging
 import tomllib
@@ -21,10 +23,12 @@ from collections import defaultdict
 from pathlib import Path
 
 import cv2
+from frozendict import frozendict
 import numpy as np
 
 from annotator.fps_constants import scale_for_fps
 from annotator.replay_mask import filter_short_exclusion_runs
+from annotator.video_metadata import VideoMetadata
 from .config import (
     CHUNKS_DIR,
     MASKS_DIR,
@@ -49,6 +53,22 @@ PAIRS_COLUMNS = [
     'chunk_id',
     'commentary_start', 'commentary_end',  # SECONDS (native chunk units)
 ]
+
+
+@dataclass(frozen=True)
+class CanonicalPairing:
+    """Pair rows tied to the exact canonical timing metadata they consumed."""
+
+    video_id: str
+    metadata: VideoMetadata
+    rows: tuple[Mapping[str, object], ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.video_id, str) or not self.video_id:
+            raise ValueError('canonical pairing video_id must be a non-empty string')
+        if not isinstance(self.metadata, VideoMetadata):
+            raise TypeError('canonical pairing metadata must be VideoMetadata')
+        object.__setattr__(self, 'rows', tuple(frozendict(row) for row in self.rows))
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +210,58 @@ def pair_video(
             break
         rows.append(row)
     return rows
+
+
+def pair_video_with_metadata(
+    video_id: str,
+    rally_spans: Sequence[tuple[int, int, int]],
+    chunks: Sequence[Mapping[str, object]],
+    replay_mask: np.ndarray,
+    metadata: VideoMetadata,
+) -> CanonicalPairing:
+    """Pair one video on the canonical CFR timing and frame-count contract."""
+    if not isinstance(metadata, VideoMetadata):
+        raise TypeError('metadata must be canonical VideoMetadata')
+    if not isinstance(video_id, str) or not video_id:
+        raise ValueError('canonical pairing video_id must be a non-empty string')
+    if metadata.source_path.stem != video_id:
+        raise ValueError('canonical pairing video_id differs from the metadata source basename')
+    if (
+        not isinstance(replay_mask, np.ndarray)
+        or replay_mask.ndim != 1
+        or replay_mask.dtype != np.bool_
+    ):
+        raise ValueError('canonical replay mask must be a one-dimensional boolean array')
+    if len(replay_mask) != metadata.frame_count:
+        raise ValueError(
+            f'replay mask length {len(replay_mask)} does not match canonical '
+            f'frame_count {metadata.frame_count}'
+        )
+    seen_rallies: set[int] = set()
+    for rally_id, start_frame, end_frame in rally_spans:
+        if any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in (rally_id, start_frame, end_frame)
+        ):
+            raise ValueError('canonical rally ids and frame bounds must be integers')
+        if rally_id in seen_rallies:
+            raise ValueError(f'canonical pairing rally_id is duplicated: {rally_id}')
+        if not 0 <= start_frame < end_frame <= metadata.frame_count:
+            raise ValueError(
+                f'canonical rally span [{start_frame}, {end_frame}) is outside '
+                f'frame_count {metadata.frame_count}'
+            )
+        seen_rallies.add(rally_id)
+    if seen_rallies != set(range(len(rally_spans))):
+        raise ValueError('canonical pairing rally_ids must be contiguous from zero')
+    rows = pair_video(
+        video_id,
+        list(rally_spans),
+        [dict(chunk) for chunk in chunks],
+        replay_mask,
+        float(metadata.fps),
+    )
+    return CanonicalPairing(video_id, metadata, tuple(rows))
 
 
 # ---------------------------------------------------------------------------
