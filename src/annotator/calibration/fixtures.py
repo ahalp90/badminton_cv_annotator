@@ -111,6 +111,12 @@ class Fixture:
             FilePin(self.scene_rows_path, self.digests.scene_rows, "fixtures"),
         )
 
+    @property
+    def run_video_files(self) -> tuple[FilePin, ...]:
+        """The eight pinned files consumed by ``build_run_video_inputs``."""
+        unused_path = self.pose_path("kp_scores")
+        return tuple(pin for pin in self.files if pin.path != unused_path)
+
 
 def fixtures_root() -> Path:
     """Return the configured external fixture root."""
@@ -387,4 +393,10 @@ def verify_file(pin: FilePin) -> None:
 def verify_fixture(fixture: Fixture) -> None:
     """Assert every external file named by a fixture."""
     for pin in fixture.files:
+        verify_file(pin)
+
+
+def verify_run_video_fixture(fixture: Fixture) -> None:
+    """Assert the external files read while assembling ``run_video`` inputs."""
+    for pin in fixture.run_video_files:
         verify_file(pin)

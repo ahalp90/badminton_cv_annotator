@@ -21,20 +21,37 @@ from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import replace
 from datetime import datetime, timezone
 import gzip
+import hashlib
+import io
 import json
 import lzma
 import math
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, NamedTuple, Sequence
 
 import numpy as np
 
-from annotator.calibration.fixtures import FIXTURES, Fixture, fixtures_root
+from annotator.broadcast_timeline_labels import VideoMetadata
+from annotator.calibration import serve_prepend_measurement as candidate_measurement
+from annotator.calibration.fixtures import (
+    FIXTURES,
+    SSET_01,
+    SSET_15,
+    SSET_21,
+    Fixture,
+    fixtures_root,
+)
 from annotator.calibration.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.calibration.scoring import RallyBoundary, classify_all, greedy_match, load_gt_rallies
+from annotator.calibration.scoring import (
+    RallyBoundary,
+    classify_all,
+    greedy_match,
+    load_gt_rallies,
+)
 from annotator.fps_constants import scale_for_fps
 from annotator.inpaint_guard import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
 from annotator.run_video import RunCapture, run_video
@@ -43,6 +60,77 @@ from annotator.run_video import RunCapture, run_video
 WINDOW_SECONDS = 1.0
 CLEAN_RUN_BASE30_FRAMES = 5
 MASK_MODES = ("committed", "no_replay")
+PROFILE_SOURCE_COMMIT = "189c5af58e45d23ae827dde516924194eb238e18"
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_LABELS_DIR = SCRIPT_DIR.parent / "broadcast_nonstandard_camera_id/data"
+POSE_BANDS = candidate_measurement.POSE_BANDS
+CANDIDATE_COLUMNS = candidate_measurement.CANDIDATE_COLUMNS
+OPPORTUNITY_COLUMNS = candidate_measurement.OPPORTUNITY_COLUMNS
+expand_truth = candidate_measurement.expand_truth
+central_pose_evidence = candidate_measurement.central_pose_evidence
+evaluate_serve_candidates = candidate_measurement.evaluate_serve_candidates
+run_contact_injection_counterfactual = (
+    candidate_measurement.run_contact_injection_counterfactual
+)
+
+
+class FixtureSetProfile(NamedTuple):
+    fixtures: tuple[Fixture, ...]
+    source: str
+    source_commit: str | None
+
+
+def _release_fixture(
+    fixture: Fixture,
+    *,
+    dead_mask: str,
+    court_present: str,
+    scene_rows: str,
+) -> Fixture:
+    return replace(
+        fixture,
+        digests=replace(
+            fixture.digests,
+            dead_mask=dead_mask,
+            court_present=court_present,
+            scene_rows=scene_rows,
+        ),
+    )
+
+
+UNE_189C5AF_STATIC_STRIDE8 = (
+    _release_fixture(
+        SSET_01,
+        dead_mask="70a2a4e9cbd7c6c02b497b468682c462",
+        court_present="65f4e28d0556c0e5422f569ad4b69fac",
+        scene_rows="7d781f33e29804ef8363bbbd1b60d772",
+    ),
+    _release_fixture(
+        SSET_15,
+        dead_mask="281562f7933f1fd24301bdba48bb26b9",
+        court_present="9b3ab966ef6d357a70ec4541410046a5",
+        scene_rows="15f3d6751e75f3c68bab520186096c25",
+    ),
+    _release_fixture(
+        SSET_21,
+        dead_mask="4d2dfde901ccb5253a54542e60585d71",
+        court_present="0c51f0e894c3addfc576c140805fd96f",
+        scene_rows="06386f0b6d604819c18b3dd1c3097bef",
+    ),
+)
+
+FIXTURE_PROFILES = {
+    "historical-calibration": FixtureSetProfile(
+        FIXTURES,
+        "maintained calibration pins",
+        None,
+    ),
+    "une-189c5af-static-stride8": FixtureSetProfile(
+        UNE_189C5AF_STATIC_STRIDE8,
+        "UNE sset_measure_189c5af static_shuttleset_homography stride-8",
+        PROFILE_SOURCE_COMMIT,
+    ),
+}
 
 ARRAY_DTYPE = np.dtype([
     ("rally_index", "<i4"),
@@ -355,6 +443,194 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     return rows, array, metadata
 
 
+def measure_candidate_fixture(
+    fixture: Fixture,
+    labels_path: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Run the committed baseline and both recording-only candidate variants."""
+    inputs = build_run_video_inputs(fixture)
+    track, _bboxes, _scores, _kps, _ndet = inputs.positional
+    metadata = VideoMetadata(fixture.name, fixture.fps, len(track))
+    truth, interval_count = expand_truth(labels_path, metadata)
+    keyword = dict(inputs.keyword)
+    capture = RunCapture()
+    keyword["capture"] = capture
+    natural_result = run_video(*inputs.positional, **keyword)
+    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
+        raise RuntimeError(f"{fixture.name}: committed run did not capture replay masks")
+
+    gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
+    tolerance = canonical_tolerance(fixture.fps)
+    raw_by_span = candidate_measurement.contacts_by_span(natural_result.contacts)
+    accepted_by_span = {
+        int(span_id): sorted(map(int, frames))
+        for span_id, frames in natural_result.filtered_by_rally.items()
+    }
+    statuses = candidate_measurement.gt_statuses(
+        gt_rallies,
+        natural_result.spans,
+        accepted_by_span,
+        tolerance,
+    )
+    inpaint_codes = np.asarray(inputs.keyword["inpaint_codes"])
+    court_present = np.asarray(inputs.keyword["court_present"])
+    all_candidates: list[dict[str, Any]] = []
+    all_opportunities: list[dict[str, Any]] = []
+    band_summaries: dict[str, Any] = {}
+    for band, fraction in POSE_BANDS.items():
+        candidates, opportunities, summary = evaluate_serve_candidates(
+            fixture=fixture,
+            band=band,
+            band_fraction=fraction,
+            arrays=inputs.positional,
+            truth=truth,
+            inpaint_codes=inpaint_codes,
+            court_present=court_present,
+            raw_mask=capture.raw_exclusion_mask,
+            definitive_mask=capture.definitive_exclusion_mask,
+            spans=natural_result.spans,
+            raw_by_span=raw_by_span,
+            accepted_by_span=accepted_by_span,
+            gt_rallies=gt_rallies,
+            statuses=statuses,
+        )
+        summary["contact_injection"] = {
+            "evidence_only_mask_exemption": run_contact_injection_counterfactual(
+                inputs=inputs,
+                natural_result=natural_result,
+                gt_rallies=gt_rallies,
+                natural_statuses=statuses,
+                candidate_rows=candidates,
+                tolerance=tolerance,
+                selection_field="selected_evidence",
+                exempt_selected_from_raw_mask=True,
+            ),
+            "current_mask_policy": run_contact_injection_counterfactual(
+                inputs=inputs,
+                natural_result=natural_result,
+                gt_rallies=gt_rallies,
+                natural_statuses=statuses,
+                candidate_rows=candidates,
+                tolerance=tolerance,
+                selection_field="selected_policy",
+                exempt_selected_from_raw_mask=False,
+            ),
+        }
+        all_candidates.extend(candidates)
+        all_opportunities.extend(opportunities)
+        band_summaries[band] = summary
+
+    summary = {
+        "fixture": fixture.name,
+        "video_id": fixture.video_id,
+        "fps": fixture.fps,
+        "frame_count": len(track),
+        "labels": {
+            "path": str(labels_path),
+            "sha256": hashlib.sha256(labels_path.read_bytes()).hexdigest(),
+            "interval_count": interval_count,
+        },
+        "fixture_inputs": [
+            {"path": pin.path.as_posix(), "md5": pin.md5}
+            for pin in fixture.run_video_files
+        ],
+        "natural_run": {
+            "spans": len(natural_result.spans),
+            "raw_contacts": len(natural_result.contacts),
+            "accepted_contacts": len(natural_result.filtered_contacts),
+            "gt_rallies": len(gt_rallies),
+            "target_serve_misses": sum(row["target_miss"] for row in statuses),
+            "serve_matched": sum(row["serve_matched"] for row in statuses),
+            "whole_rally_or_unresolved_misses": sum(
+                not row["serve_matched"] and not row["later_strokes_matched"]
+                for row in statuses
+            ),
+        },
+        "bands": band_summaries,
+    }
+    return all_candidates, all_opportunities, summary
+
+
+def _sum_named_counts(values: Sequence[dict[str, int]]) -> dict[str, int]:
+    keys = values[0] if values else {}
+    return {key: sum(value[key] for value in values) for key in keys}
+
+
+def _pool_trigger(summaries: Sequence[dict[str, Any]], arm: str) -> dict[str, Any]:
+    triggers = [value["trigger_metrics"][arm] for value in summaries]
+    true_positives = sum(value["true_positives"] for value in triggers)
+    false_positives = sum(value["false_positives"] for value in triggers)
+    false_negatives = sum(value["false_negatives"] for value in triggers)
+    return {
+        "selected_triggers": sum(value["selected_triggers"] for value in triggers),
+        "true_positives": true_positives,
+        "false_positives": false_positives,
+        "false_negatives": false_negatives,
+        "precision": (
+            true_positives / (true_positives + false_positives)
+            if true_positives + false_positives else None
+        ),
+        "recall": (
+            true_positives / (true_positives + false_negatives)
+            if true_positives + false_negatives else None
+        ),
+        "selected_by_manual_truth": _sum_named_counts([
+            value["selected_by_manual_truth"] for value in triggers
+        ]),
+        "selected_by_nearest_gt_status": _sum_named_counts([
+            value["selected_by_nearest_gt_status"] for value in triggers
+        ]),
+    }
+
+
+def _pool_injection(summaries: Sequence[dict[str, Any]], arm: str) -> dict[str, int]:
+    injections = [value["contact_injection"][arm] for value in summaries]
+    fields = (
+        "selected_candidates",
+        "new_selected_candidates",
+        "accepted_selected_candidates",
+        "exempted_raw_mask_frames",
+        "target_serves_recovered",
+        "target_serves_still_missed",
+        "all_unmatched_serves_recovered",
+        "all_unmatched_serves_still_missed",
+        "accepted_contact_delta",
+        "span_delta",
+        "stroke_count_rows_changed",
+        "next_server_rows_changed",
+    )
+    return {field: sum(value[field] for value in injections) for field in fields}
+
+
+def _pool_candidate_summaries(per_fixture: dict[str, Any]) -> dict[str, Any]:
+    pooled: dict[str, Any] = {}
+    for band in POSE_BANDS:
+        summaries = [value["bands"][band] for value in per_fixture.values()]
+        pooled[band] = {
+            "n_opportunities": sum(value["n_opportunities"] for value in summaries),
+            "n_candidate_rows": sum(value["n_candidate_rows"] for value in summaries),
+            "n_evidence_pass": sum(value["n_evidence_pass"] for value in summaries),
+            "n_candidate_pass": sum(value["n_candidate_pass"] for value in summaries),
+            "n_policy_pass": sum(value["n_policy_pass"] for value in summaries),
+            "target_serve_misses": sum(value["target_serve_misses"] for value in summaries),
+            "trigger_metrics": {
+                arm: _pool_trigger(summaries, arm)
+                for arm in ("evidence_only", "current_mask_policy")
+            },
+            "target_outcomes": {
+                arm: _sum_named_counts([
+                    value["target_outcomes"][arm] for value in summaries
+                ])
+                for arm in ("evidence_only", "current_mask_policy")
+            },
+            "contact_injection": {
+                arm: _pool_injection(summaries, arm)
+                for arm in ("evidence_only_mask_exemption", "current_mask_policy")
+            },
+        }
+    return pooled
+
+
 def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     misses = [row for row in rows if row["status"] == "serve_missed_later_strokes_matched"]
     serve_misses = [row for row in rows if not row["serve_matched"]]
@@ -387,21 +663,43 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _write_csv_gz(rows: list[dict[str, Any]], path: Path) -> None:
-    fieldnames = list(rows[0])
-    with gzip.open(path, "wt", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    _write_schema_csv_gz(rows, tuple(rows[0]), path)
+
+
+def _write_schema_csv_gz(
+    rows: Sequence[dict[str, Any]],
+    fieldnames: Sequence[str],
+    path: Path,
+) -> None:
+    expected = set(fieldnames)
+    for index, row in enumerate(rows):
+        if set(row) != expected:
+            raise ValueError(
+                f"CSV row {index} keys differ: "
+                f"missing={sorted(expected - set(row))}, extra={sorted(set(row) - expected)}"
+            )
+    with path.open("wb") as raw_handle:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
+            with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=list(fieldnames),
+                    extrasaction="raise",
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+                writer.writerows(rows)
     with gzip.open(path, "rt", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        if reader.fieldnames != fieldnames or sum(1 for _ in reader) != len(rows):
+        if reader.fieldnames != list(fieldnames) or sum(1 for _ in reader) != len(rows):
             raise RuntimeError(f"gzip CSV reload changed schema or row count for {path}")
 
 
 def _write_json_gz(value: object, path: Path) -> None:
-    with gzip.open(path, "wt", encoding="utf-8") as handle:
-        json.dump(value, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+    with path.open("wb") as raw_handle:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
+            compressed.write(payload)
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         if json.load(handle) != value:
             raise RuntimeError(f"gzip JSON reload changed value for {path}")
@@ -423,6 +721,98 @@ def _default_output_root() -> Path:
     return Path(__file__).resolve().parent / "data" / f"serve_prepend_lookback_{stamp}"
 
 
+def _git_state() -> dict[str, Any]:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return {"sha": _git_sha(), "dirty": bool(status)}
+
+
+def _fmt_ratio(value: float | None) -> str:
+    return "unavailable" if value is None else f"{value:.3f}"
+
+
+def _build_candidate_report(summary: dict[str, Any]) -> str:
+    analysis = summary["candidate_analysis"]
+    lines = [
+        "# Serve-lookback candidate measurement",
+        "",
+        f"Generated: {summary['generated_at_utc']}",
+        "",
+        f"Fixture profile: `{summary['fixture_profile']['name']}` from source commit "
+        f"`{summary['fixture_profile']['source_commit'] or 'unrecorded'}`.",
+        "",
+        "This is a recording-only measurement. It does not change production output.",
+        "",
+        "## Results",
+        "",
+        "| Pose band | Arm | Target misses | Selected | Target recovered | False positives | Precision | Recall | All unmatched recovered |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for band in POSE_BANDS:
+        pooled = analysis["pooled"][band]
+        for arm, injection_arm in (
+            ("evidence_only", "evidence_only_mask_exemption"),
+            ("current_mask_policy", "current_mask_policy"),
+        ):
+            trigger = pooled["trigger_metrics"][arm]
+            injection = pooled["contact_injection"][injection_arm]
+            lines.append(
+                f"| {band} | {arm} | {pooled['target_serve_misses']} | "
+                f"{trigger['selected_triggers']} | {trigger['true_positives']} | "
+                f"{trigger['false_positives']} | {_fmt_ratio(trigger['precision'])} | "
+                f"{_fmt_ratio(trigger['recall'])} | "
+                f"{injection['all_unmatched_serves_recovered']} |"
+            )
+
+    lines.extend([
+        "",
+        "## Per-video results",
+        "",
+        "| Video | Pose band | Arm | Target misses | Target recovered | False positives | All unmatched recovered |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+    ])
+    for fixture, fixture_summary in analysis["per_fixture"].items():
+        for band in POSE_BANDS:
+            band_summary = fixture_summary["bands"][band]
+            for arm, injection_arm in (
+                ("evidence_only", "evidence_only_mask_exemption"),
+                ("current_mask_policy", "current_mask_policy"),
+            ):
+                trigger = band_summary["trigger_metrics"][arm]
+                injection = band_summary["contact_injection"][injection_arm]
+                lines.append(
+                    f"| {fixture} | {band} | {arm} | "
+                    f"{band_summary['target_serve_misses']} | "
+                    f"{trigger['true_positives']} | {trigger['false_positives']} | "
+                    f"{injection['all_unmatched_serves_recovered']} |"
+                )
+
+    lines.extend([
+        "",
+        "## Interpretation guardrails",
+        "",
+        "- A true positive is a selected candidate within the canonical tolerance of a target missed serve.",
+        "- A false positive is a selected candidate that does not match a target missed serve.",
+        "- Contact injection copies accepted contacts, adds selected candidates, and keeps spans fixed.",
+        "- The evidence-only injection clears the raw mask only at selected candidate frames.",
+        "- `live-non-standard` labels identify unusual live views. They do not by themselves prove a serve contact.",
+        "- The two pose bands are sensitivity variants. Neither is a production configuration.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _write_text(path: Path, value: str) -> None:
+    payload = value if value.endswith("\n") else value + "\n"
+    path.write_text(payload, encoding="utf-8")
+    if path.read_text(encoding="utf-8") != payload:
+        raise RuntimeError(f"text reload changed value for {path}")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=None, help="dated output directory")
@@ -430,20 +820,33 @@ def _parse_args() -> argparse.Namespace:
         "--mask-mode", choices=("committed", "no_replay", "both"), default="both",
         help="run the committed mask, the no_replay sensitivity control, or both",
     )
+    parser.add_argument(
+        "--fixture-profile",
+        choices=tuple(FIXTURE_PROFILES),
+        default="historical-calibration",
+        help="digest-pinned three-video input profile",
+    )
+    parser.add_argument(
+        "--labels-dir",
+        type=Path,
+        default=DEFAULT_LABELS_DIR,
+        help="directory containing reviewed <fixture>_broadcast_timeline_labels.csv.gz files",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+    profile = FIXTURE_PROFILES[args.fixture_profile]
     output_root = (args.out or _default_output_root()).resolve()
-    output_root.mkdir(parents=True, exist_ok=True)
+    output_root.mkdir(parents=True, exist_ok=False)
     selected_modes = MASK_MODES if args.mask_mode == "both" else (args.mask_mode,)
     all_summaries: dict[str, Any] = {}
     files: list[str] = []
     for mask_mode in selected_modes:
         mode_summaries: dict[str, Any] = {}
         pooled_rows: list[dict[str, Any]] = []
-        for fixture in FIXTURES:
+        for fixture in profile.fixtures:
             rows, array, run_metadata = _measure_variant(fixture, mask_mode)
             csv_path = output_root / f"{fixture.name}_{mask_mode}_rallies.csv.gz"
             array_path = output_root / f"{fixture.name}_{mask_mode}_evidence.npy.xz"
@@ -455,26 +858,74 @@ def main() -> None:
         mode_summaries["pooled"] = _summary(pooled_rows)
         all_summaries[mask_mode] = mode_summaries
 
+    candidate_summaries: dict[str, Any] = {}
+    labels_dir = args.labels_dir.resolve()
+    for fixture in profile.fixtures:
+        labels_path = labels_dir / f"{fixture.name}_broadcast_timeline_labels.csv.gz"
+        candidates, opportunities, candidate_summary = measure_candidate_fixture(
+            fixture,
+            labels_path,
+        )
+        candidate_path = output_root / f"{fixture.name}_serve_candidates.csv.gz"
+        opportunity_path = output_root / f"{fixture.name}_serve_opportunities.csv.gz"
+        _write_schema_csv_gz(candidates, CANDIDATE_COLUMNS, candidate_path)
+        _write_schema_csv_gz(opportunities, OPPORTUNITY_COLUMNS, opportunity_path)
+        files.extend([
+            str(candidate_path.relative_to(output_root)),
+            str(opportunity_path.relative_to(output_root)),
+        ])
+        candidate_summaries[fixture.name] = candidate_summary
+
     summary = {
+        "schema_version": 2,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "git_sha": _git_sha(),
+        "measurement_code": {
+            "path": str(Path(__file__).resolve()),
+            "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "candidate_module": {
+                "path": str(Path(candidate_measurement.__file__).resolve()),
+                "sha256": hashlib.sha256(
+                    Path(candidate_measurement.__file__).read_bytes()
+                ).hexdigest(),
+            },
+            "git": _git_state(),
+        },
         "fixture_root": str(fixtures_root()),
-        "fixtures": [fixture.name for fixture in FIXTURES],
+        "fixture_profile": {
+            "name": args.fixture_profile,
+            "source": profile.source,
+            "source_commit": profile.source_commit,
+        },
+        "fixtures": [fixture.name for fixture in profile.fixtures],
         "mask_modes": list(selected_modes),
         "window_seconds_each_side": WINDOW_SECONDS,
         "notes": [
-            "Rows describe the current baseline and evidence around GT serves; they do not run a serve-prepend trigger.",
+            "Rally rows describe the current baseline and evidence around GT serves.",
             "The no_replay variant passes raw_exclusion_mask=False for every frame through the existing calibration precedent.",
+            "Candidate and injection results are recording-only and do not change production output.",
+            "Contact injection copies accepted contacts, adds selected frames, and keeps spans fixed.",
             "The array files are native NumPy .npy streams wrapped with lzma XZ preset 9.",
         ],
         "variants": all_summaries,
-        "files": sorted(files),
+        "candidate_analysis": {
+            "per_fixture": candidate_summaries,
+            "pooled": _pool_candidate_summaries(candidate_summaries),
+        },
+        "files": [],
     }
     summary_path = output_root / "summary.json.gz"
+    report_path = output_root / "report.md"
+    files.extend([
+        str(report_path.relative_to(output_root)),
+        str(summary_path.relative_to(output_root)),
+    ])
+    summary["files"] = sorted(files)
     _write_json_gz(summary, summary_path)
-    print(json.dumps(summary["variants"], indent=2, sort_keys=True))
+    _write_text(report_path, _build_candidate_report(summary))
+    print(json.dumps(summary["candidate_analysis"]["pooled"], indent=2, sort_keys=True))
     print(f"\nWrote current serve-prepend evidence to {output_root}")
     print(f"Summary: {summary_path}")
+    print(f"Report: {report_path}")
 
 
 if __name__ == "__main__":
