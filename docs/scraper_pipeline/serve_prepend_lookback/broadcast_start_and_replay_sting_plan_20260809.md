@@ -2,17 +2,22 @@
 
 ## Resume block
 
-- **Next action:** report the Phase 1 adversarial review and verified fixes to
-  Curtis. After acceptance, run the guide package on the laptop using
-  disposable timeline copies.
-- **Current state:** Phase 0 is accepted. Phase 1 guide extraction and the
-  laptop runbook are implemented in the issue-32 worktree. No production
-  behaviour, GitHub issue, commit, push, or pull request changed.
+- **Next action:** Curtis and Ari review the
+  [`issue_28_serve_lookback_decision_20260809.md`](issue_28_serve_lookback_decision_20260809.md)
+  closeout recommendation. Do not begin Phase 3 until Curtis records whether
+  the optional Issue 32 audit should continue.
+- **Current state:** Curtis accepted the completed Phase 1 pilot and chose the
+  full 136-row rally-start audit. Phase 2 Batches 4 and 5 are implemented. Each
+  independent review found one low-severity stale resume instruction and no
+  code or data-contract defect. Both stale instructions are corrected. No
+  production behaviour, replay-sting audit, or GitHub issue changed. The
+  evidence-backed Issue 28 decision brief is ready for Ari's review.
 - **Verified:** complete source joins reproduce 136 targets, 26 flaw rows, and
-  25 unknown first types. Focused tests cover both tied-frame source rows,
-  exact counts, deterministic gzip output, viewer-guide loading, and timeline
-  byte safety.
-- **Runbook in play:** Phase 1 below and
+  25 unknown first types. The 32 reviewed decisions contain 19 visible, 4
+  broadcast-omitted, 8 off-frame, and 1 uncertain row. The related suite passes
+  with 142 tests and 6 skips. The three decision seeds contain 136 rows, with
+  32 reviewed and 104 pending, while generated files reproduce byte-for-byte.
+- **Runbook in play:** Phase 2 below and
   [`rally_start_visibility_audit_runbook_20260809.md`](rally_start_visibility_audit_runbook_20260809.md).
 - **Working tree:** `worktrees/issue-32-rally-start-replay-sting`.
 - **External worklog:**
@@ -87,7 +92,7 @@ gt_first_frame
 gt_first_type
 gt_first_flaw
 review_status             pending | reviewed
-serve_visibility          visible | broadcast-omitted | uncertain
+serve_visibility          visible | broadcast-omitted | off-frame | uncertain
 visible_serve_frame       nullable
 first_visible_rally_frame nullable
 broadcast_return_frame    nullable
@@ -101,6 +106,8 @@ Required rules:
 - `visible` requires a visually observable service contact.
 - `broadcast-omitted` requires evidence that live rally footage begins after
   the physical service action.
+- `off-frame` requires evidence that current-rally footage includes the service
+  action while the physical contact falls outside the camera image.
 - `uncertain` is retained in the output and excluded from prototype recovery
   on visible targets.
 - Frame fields use the review video's zero-based frame numbering.
@@ -116,6 +123,8 @@ Required rules:
 - `broadcast-omitted` requires both omitted-start markers, leaves
   `visible_serve_frame` blank, and requires
   `broadcast_return_frame <= first_visible_rally_frame`.
+- `off-frame` leaves all three frame markers blank, uses certain confidence,
+  and requires a note explaining the camera boundary.
 - `uncertain` leaves all three frame markers blank, uses uncertain confidence,
   and requires a note.
 - Every recorded marker must lie inside its row's review window and video
@@ -151,17 +160,17 @@ disposable copy of each canonical timeline. Record decisions in the separate
 rally-start table. The GUI has no enforced read-only mode, so its `--out-csv`
 must never point at a canonical timeline during this audit.
 
-If the pilot justifies reviewing all 136 target starts and 179 replay
-intervals, build a small event-audit companion. It should reuse shared video
-and drawing helpers when that reduces code, but it should own an event-row
-state model rather than `TimelineSession` interval surgery.
+The pilot justifies reviewing all 136 target starts. It does not yet justify
+reviewing all 179 replay intervals. Build a small rally-start event companion
+first. It may reuse read-only video and drawing helpers, but it owns an
+event-row state model rather than `TimelineSession` interval surgery.
 
-The companion tool must provide:
+The rally-start companion must provide:
 
 - proposal-row navigation and resume at the first unreviewed row;
-- keys for visible, omitted, and uncertain serve states;
-- explicit cursor capture for visible serve, first visible rally, broadcast
-  return, and sting bounds;
+- keys for visible, omitted, off-frame, and uncertain serve states;
+- explicit cursor capture for visible serve, first visible rally, and broadcast
+  return;
 - atomic row save and one-step undo;
 - a status overlay showing all pending exact bounds;
 - validation-only mode; and
@@ -228,14 +237,45 @@ Pilot exit decision:
 - Decide whether to review all 136 targets from the value of a complete target
   composition and the measured review cost.
 
-### Phase 2: event-audit companion, if justified
+Completed pilot result:
 
-- Implement the separate event-row state and CSV readers/writers.
-- Add the minimum GUI controls listed above.
-- Cover resume, atomic save, undo, invalid bounds, nullable markers, metadata
-  mismatch, and validation in unit tests.
-- Prove the canonical timeline files are byte-identical before and after a
-  tool session.
+- The 32 reviewed rows contain 19 visible contacts, 4 broadcast-omitted starts,
+  8 off-frame contacts, and 1 uncertain transition-obscured contact.
+- These counts describe the 26-row quality stratum and six workflow controls.
+  They do not estimate omission prevalence among all 136 targets.
+- The pilot justifies keeping `off-frame` separate from uncertainty. It also
+  confirms that the complete 136-row audit is required before reporting target
+  visibility composition.
+- Human review time was not recorded, so this pilot cannot support a reliable
+  estimate for the remaining 104 rows.
+
+### Phase 2: rally-start event-audit companion, accepted
+
+- Treat the full target rows and canonical timeline as immutable inputs. Write
+  only compact decision rows keyed by `(video_id, set_id, rally)`.
+- Add deterministic per-video decision seeds that preserve the 32 reviewed
+  pilot rows and expose the remaining 104 rows as pending.
+- Extract one shared four-state decision contract for the guide builder and
+  companion. It must validate pending blanks, reviewed notes, confidence,
+  nullable markers, marker ordering, review-window bounds, and video bounds.
+- Use a strict atomic writer: write a sibling candidate, reload and compare it,
+  then replace the destination. A failed save must not change the destination,
+  in-memory rows, cursor, or undo state.
+- Resume at the first pending key. Keep proposal navigation independent of
+  frame position because review windows overlap.
+- Reject any decision output that aliases an input or uses a canonical
+  broadcast-timeline filename.
+- Validation-only must create no output and open no OpenCV window.
+- Cover resume, atomic save, one-step saved-row undo, invalid bounds, nullable
+  markers, metadata mismatch, path protection, and validation in unit tests.
+- Prove the canonical timeline files are byte-identical before and after
+  initialization, save, undo, resume, and validation-only paths.
+- Run a fresh adversarial review after the state/persistence batch and again
+  after the GUI batch. Report detailed verified findings before Phase 3.
+
+Replay-sting state remains outside Phase 2. It needs a separate pilot because
+its interval key, four sting bounds, paired-presence states, template decision,
+and post-replay state differ from rally-start decisions.
 
 ### Phase 3: complete human audit
 
@@ -301,6 +341,10 @@ Do not use one global sting template across tournaments or broadcasters.
 - Forced labels for uncertain human cases.
 - Threshold tuning on the same rows used for final evaluation without a
   declared split.
+- Replay-sting GUI or detector work before a separate replay pilot is accepted.
+- Refactoring the mutable timeline editor into a generic event framework.
+- Automatically inferred human decisions, copied notes, or event prefill from
+  nearby rows.
 
 ## Proposed commit batches
 
@@ -308,7 +352,11 @@ These messages are drafts for Curtis to approve before execution:
 
 1. `Clarify observable serve targets in the issue 28 measurement`
 2. `Add deterministic rally-start visibility audit guides`
-3. `Measure replay-sting pairing and partial-rally continuation`
+3. `Record rally-start visibility pilot decisions`
+4. `Add safe rally-start event audit state`
+5. `Add rally-start event review companion`
+6. `Measure replay-sting pairing and partial-rally continuation`, only after a
+   separate replay pilot and scope decision.
 
 Do not combine production replay-mask changes with these recording-only
 batches.
@@ -325,7 +373,9 @@ The next agent should read, in order:
 5. [`serve_prepend_lookback_20260808_measurement.md`](serve_prepend_lookback_20260808_measurement.md);
 6. [`serve_prepend_annotation_audit_runbook_20260809.md`](serve_prepend_annotation_audit_runbook_20260809.md); and
 7. [`issue_32_rally_start_replay_sting_update_draft_20260809.md`](issue_32_rally_start_replay_sting_update_draft_20260809.md).
+8. [`issue_28_serve_lookback_decision_20260809.md`](issue_28_serve_lookback_decision_20260809.md).
 
-Phase 0 is accepted. Resume from the worklog gate in play. Do not create a new
-issue, edit a canonical timeline, or begin a replay-sting detector without a
-new recorded decision.
+Phase 0 and Phase 1 are accepted. Phase 2 implementation and both independent
+reviews are complete. The Issue 28 decision brief is ready for Curtis and Ari.
+Do not begin Phase 3, create a new issue, edit a canonical timeline, or begin
+replay-sting annotation or detector work without a new recorded decision.

@@ -35,6 +35,14 @@ partial-rally continuation measurement. This work does not replace the complete
 - The same adjacency is not established in `sset_15` or `sset_21`. Their
   scene-assisted labels may have merged brief stings into cutaway intervals,
   or their broadcast packages may differ.
+- The completed 32-row visibility pilot contains 19 visible contacts, 4
+  broadcast-omitted starts, 8 off-frame contacts, and 1 uncertain contact.
+- The pilot contains all 26 flaw-marked targets and six deterministic controls.
+  It does not estimate visibility or omission prevalence for all 136 targets.
+- `off-frame` is now separate from uncertainty. It means current-rally service
+  action is present while physical contact falls outside the camera image.
+- The accepted full-audit seeds contain all 136 rally-start keys. They preserve
+  the 32 reviewed pilot rows and leave 104 rows pending.
 
 Full evidence and methods:
 `docs/scraper_pipeline/serve_prepend_lookback/broadcast_omitted_start_and_sting_evidence_20260809.md`.
@@ -57,11 +65,14 @@ Full evidence and methods:
 Use separate event-level truth for rally-start visibility and sting pairs.
 Keep the canonical broadcast timeline unchanged.
 
-The first pilot should use the existing tool against disposable timeline
-copies and record event decisions separately. If a full 136-start and
-179-replay audit is justified, add a small event-audit companion with atomic
-row saves, resume, undo, exact markers, and validation. It must not edit
-`TimelineSession` intervals.
+The completed first pilot used the existing tool against disposable timeline
+copies and recorded event decisions separately. It justified the full
+136-start audit, so a rally-start companion now provides atomic compact-row
+saves, first-pending resume, one-step undo, exact markers, and validation. It
+reads the canonical timeline without importing or calling its writer.
+
+The pilot did not justify a full 179-replay audit. Replay-sting event state and
+sampling remain a separate later decision.
 
 Issue #73 remains closed while this separation holds. If the implementation
 requires timeline splitting or range replacement, stop and reopen or replace
@@ -70,8 +81,8 @@ requires timeline splitting or range replacement, stop and reopen or replace
 ### Deliverables
 
 - A pinned event-truth schema and reload-checked gzip files.
-- A 32-row quality/control pilot covering all 26 flaw-marked issue 28 targets
-  plus two unflagged transition controls per video.
+- A completed 32-row quality/control pilot covering all 26 flaw-marked issue 28
+  targets plus two unflagged transition controls per video.
 - The existing 17-window candidate and practice audit retained in the human
   review package.
 - A recording-only sting-pair measurement stratified by video and negative

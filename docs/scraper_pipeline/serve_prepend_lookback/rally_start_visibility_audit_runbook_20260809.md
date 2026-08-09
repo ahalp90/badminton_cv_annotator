@@ -2,16 +2,17 @@
 
 ## Purpose and limits
 
-This Phase 1 audit checks whether issue 28 target starts show a physical serve,
-begin after the broadcast omitted the serve, or remain uncertain. It does not
-estimate omission prevalence from the pilot and does not change the canonical
-broadcast timeline.
+Sections 1 through 10 record the completed Phase 1 pilot. Sections 11 through
+15 run the accepted full 136-row audit with the read-only Phase 2 companion.
+Neither workflow changes the canonical broadcast timeline.
 
 The generated package contains:
 
 - 136 complete target rows: 63 `sset_01`, 39 `sset_15`, and 34 `sset_21`;
 - all 26 flaw-marked targets as a source-quality audit stratum; and
-- two unflagged transition controls per video.
+- two unflagged transition controls per video; and
+- per-video compact decision seeds that preserve the 32 reviewed pilot rows
+  and leave 104 rows pending.
 
 The 32-row pilot is distributed as follows:
 
@@ -34,7 +35,9 @@ Use one of these values:
 
 - `visible`: the physical service contact is visibly observable;
 - `broadcast-omitted`: live rally footage begins after the physical service;
-- `uncertain`: the available footage does not support either conclusion.
+- `off-frame`: current-rally footage shows the service action, but physical
+  contact falls outside the camera image;
+- `uncertain`: the available footage does not support a resolved outcome.
 
 Record:
 
@@ -58,9 +61,10 @@ For `visible`, record `visible_serve_frame` within the review window and leave
 both omitted-start markers blank. For `broadcast-omitted`, leave
 `visible_serve_frame` blank and require both omitted-start markers within the
 review window, with
-`broadcast_return_frame <= first_visible_rally_frame`. For `uncertain`, leave
-all three frame markers blank, use `confidence=uncertain`, and explain the
-uncertainty in `review_note`.
+`broadcast_return_frame <= first_visible_rally_frame`. For `off-frame`, leave
+all three frame markers blank, use `confidence=certain`, and explain the camera
+boundary in `review_note`. For `uncertain`, leave all three frame markers blank,
+use `confidence=uncertain`, and explain the uncertainty in `review_note`.
 
 ## 1. Open the laptop worktree
 
@@ -84,11 +88,12 @@ test -f "$GUIDES/summary.json.gz" || echo "Missing rally-start guide package"
 ## 2. Set and verify the review videos
 
 ```bash
-VIDEO_01="$(find "$REPO/local_scratch/broadcast_timeline_annotation/sset_01" -maxdepth 1 -type f -iname '*288p*.mp4' -print -quit 2>/dev/null)"
-VIDEO_15="$REPO/local_scratch/broadcast_timeline_annotation/sset_15/vid15_288p.mp4"
-VIDEO_21="$REPO/local_scratch/broadcast_timeline_annotation/sset_21/sset_21_288p.mp4"
+VIDEO_LIBRARY=/home/clm/Work/MOIT/sset15-annotation/local_scratch/broadcast_timeline_annotation
+VIDEO_01="$REPO/local_scratch/autograder_architecture/videos_288p/sset_01_288p.mp4"
+VIDEO_15="$VIDEO_LIBRARY/sset_15/vid15_288p.mp4"
+VIDEO_21="$VIDEO_LIBRARY/sset_21/sset_21_288p.mp4"
 
-test -n "$VIDEO_01" && test -f "$VIDEO_01" || echo "Locate the sset_01 review video"
+test -f "$VIDEO_01" || echo "Missing sset_01 review video"
 test -f "$VIDEO_15" || echo "Missing sset_15 review video"
 test -f "$VIDEO_21" || echo "Missing sset_21 review video"
 ```
@@ -124,6 +129,13 @@ a07863d2acae6353ef158cf3576a1a9d  sset_21
 
 The exact encoded `sset_01` review-copy hash was not recorded. Check its FPS,
 frame count, and source identity.
+
+The completed review used `sset_21` encode MD5
+`2cf358b9ac3f16baaefb3ebe0943d69f`, which differs from the recorded reference
+encode. Its 512 by 288 size, 30 FPS, and 100349 decoded frames matched. A
+distributed cut-pair check compared shifts from -2 through +2 at all 20
+canonical cut boundaries. Every pair aligned best at shift 0. This supports the
+same zero-based frame index despite the encoded-byte difference.
 
 ## 3. Protect the canonical timeline
 
@@ -264,3 +276,183 @@ columns are validated and written deterministically into the tracked package.
 
 The Phase 1 report may state the pilot's reviewed decisions and workflow time.
 It must not report an omission-prevalence percentage from these 32 rows.
+
+## 10. Completed pilot result
+
+The three returned decision files passed protected-column, key, enum, marker,
+bound, confidence, and note validation. The tracked primary decision table is
+`data/rally_start_visibility_review_20260809/pilot_decisions.csv.gz`. Fresh
+source joins produce the reviewed per-video files in the audit package.
+
+| Video | Visible | Broadcast omitted | Off-frame | Uncertain | Rows |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sset_01` | 0 | 2 | 2 | 0 | 4 |
+| `sset_15` | 2 | 0 | 0 | 0 | 2 |
+| `sset_21` | 17 | 2 | 6 | 1 | 26 |
+| **Pooled** | **19** | **4** | **8** | **1** | **32** |
+
+The eight off-frame rows are resolved camera-boundary cases. They are not
+broadcast omissions or epistemic uncertainty. The remaining uncertain row is
+`sset_21` set 2 rally 32, where a scene transition obscures contact.
+
+These 32 rows are a stratified workflow and source-quality pilot. They do not
+estimate visibility or omission prevalence for all 136 targets.
+
+## 11. Phase 2 companion safety boundary
+
+The Phase 2 companion reads the canonical timeline and full target table as
+immutable context. It writes only the compact decision table. It has no import
+or call to the timeline writer.
+
+The tool enforces these checks before the window opens:
+
+- the video ID, FPS, and decoded frame count must match both target rows and
+  the complete canonical timeline;
+- the target, seed, timeline, and decision output must be distinct resolved
+  paths;
+- canonical timeline filenames are rejected as decision outputs;
+- existing decision files require the exact compact header, row widths, full
+  key set, and valid rows; and
+- a missing decision file is initialized atomically from the tracked seed only
+  in normal mode. Existing human work is never reinitialized.
+
+`--validate-only` opens no GUI and writes nothing. It requires an existing
+decision file with every row reviewed. Ordinary startup validates a partial
+file and resumes at its first pending row.
+
+## 12. Set the Phase 2 paths
+
+Reuse `REPO`, `PY`, `LABELS`, `GUIDES`, `AUDIT`, and the three `VIDEO_*`
+variables from sections 1 and 2. Phase 2 stores compressed compact decisions:
+
+```bash
+mkdir -p "$AUDIT"
+
+DECISIONS_01="$AUDIT/sset_01_rally_start_decisions.csv.gz"
+DECISIONS_15="$AUDIT/sset_15_rally_start_decisions.csv.gz"
+DECISIONS_21="$AUDIT/sset_21_rally_start_decisions.csv.gz"
+
+for video_id in sset_01 sset_15 sset_21; do
+  test -f "$GUIDES/${video_id}_rally_start_targets.csv.gz" || echo "Missing $video_id targets"
+  test -f "$GUIDES/${video_id}_rally_start_decision_seed.csv.gz" || echo "Missing $video_id seed"
+  test -f "$LABELS/${video_id}_broadcast_timeline_labels.csv.gz" || echo "Missing $video_id timeline"
+done
+```
+
+Do not manually copy the seed over a decision file. The companion creates only
+a missing output and refuses malformed or aliased paths.
+
+## 13. Run the full rally-start audit
+
+Run one video at a time. The first command creates the missing compact output
+from its seed. Later runs preserve it and resume at the first pending key.
+
+`sset_01`:
+
+```bash
+QT_QPA_PLATFORM=xcb PYTHONPATH="$REPO/src" "$PY" -m annotator.rally_start_event_annotator \
+  --video "$VIDEO_01" \
+  --video-id sset_01 \
+  --timeline-csv "$LABELS/sset_01_broadcast_timeline_labels.csv.gz" \
+  --targets-csv "$GUIDES/sset_01_rally_start_targets.csv.gz" \
+  --seed-csv "$GUIDES/sset_01_rally_start_decision_seed.csv.gz" \
+  --decisions-csv "$DECISIONS_01" \
+  --jump-frames 250
+```
+
+`sset_15`:
+
+```bash
+QT_QPA_PLATFORM=xcb PYTHONPATH="$REPO/src" "$PY" -m annotator.rally_start_event_annotator \
+  --video "$VIDEO_15" \
+  --video-id sset_15 \
+  --timeline-csv "$LABELS/sset_15_broadcast_timeline_labels.csv.gz" \
+  --targets-csv "$GUIDES/sset_15_rally_start_targets.csv.gz" \
+  --seed-csv "$GUIDES/sset_15_rally_start_decision_seed.csv.gz" \
+  --decisions-csv "$DECISIONS_15" \
+  --jump-frames 250
+```
+
+`sset_21`:
+
+```bash
+QT_QPA_PLATFORM=xcb PYTHONPATH="$REPO/src" "$PY" -m annotator.rally_start_event_annotator \
+  --video "$VIDEO_21" \
+  --video-id sset_21 \
+  --timeline-csv "$LABELS/sset_21_broadcast_timeline_labels.csv.gz" \
+  --targets-csv "$GUIDES/sset_21_rally_start_targets.csv.gz" \
+  --seed-csv "$GUIDES/sset_21_rally_start_decision_seed.csv.gz" \
+  --decisions-csv "$DECISIONS_21" \
+  --jump-frames 300
+```
+
+The window is clamped to the active row's half-open review range. `[` and `]`
+move by row key even when review windows overlap. A dirty draft must be saved
+or cleared before row navigation.
+
+## 14. Phase 2 controls
+
+| Key | Action |
+| --- | --- |
+| `1` | Select `visible` |
+| `2` | Select `broadcast-omitted` |
+| `3` | Select `off-frame` |
+| `4` | Select `uncertain` |
+| `c` | Capture `visible_serve_frame` at the cursor |
+| `r` | Capture `broadcast_return_frame` at the cursor |
+| `f` | Capture `first_visible_rally_frame` at the cursor |
+| `n` | Enter or replace the review note in the terminal |
+| `Enter` | Validate and atomically save the current draft |
+| `u` | Clear an unsaved draft, or restore the last saved row in this process |
+| `[` / `]` | Previous or next proposal row |
+| `,` / `.` | Previous or next frame |
+| `<` / `>` | Coarse frame jump |
+| `Esc` | Clear the current unsaved draft |
+| `v` | Validate the current draft without saving |
+| `h` | Print controls in the terminal |
+| `q` | Quit |
+
+Select the outcome before capturing its markers. Changing the outcome clears
+markers that are invalid for the new state. `n` reads the note from the same
+terminal that launched the GUI; return to the window after pressing Enter.
+
+The overlay always shows the row number, `(video_id, set_id, rally)`, inclusive
+display bounds, cursor, GT first frame, live transition, decision state, all
+three markers, confidence, and whether a note is present. The bottom timeline
+is read-only scene context. It also shows GT, live-transition, event-marker,
+and cursor ticks.
+
+Undo stores one saved action in memory. It does not survive a process restart.
+The saved compact CSV does survive and is validated on the next launch.
+
+## 15. Validate and return the completed decisions
+
+After every row is reviewed, run the same command for each video with
+`--validate-only`. For example:
+
+```bash
+PYTHONPATH="$REPO/src" "$PY" -m annotator.rally_start_event_annotator \
+  --video "$VIDEO_01" \
+  --video-id sset_01 \
+  --timeline-csv "$LABELS/sset_01_broadcast_timeline_labels.csv.gz" \
+  --targets-csv "$GUIDES/sset_01_rally_start_targets.csv.gz" \
+  --seed-csv "$GUIDES/sset_01_rally_start_decision_seed.csv.gz" \
+  --decisions-csv "$DECISIONS_01" \
+  --validate-only
+```
+
+Repeat for `sset_15` and `sset_21` with their matching variables and paths.
+Each successful command reports every row reviewed and zero pending.
+
+Re-run the canonical hashes from section 3. They must still match exactly.
+Return these three human-work files:
+
+```text
+sset_01_rally_start_decisions.csv.gz
+sset_15_rally_start_decisions.csv.gz
+sset_21_rally_start_decisions.csv.gz
+```
+
+Do not copy them over a tracked seed, target, reviewed pilot, or canonical
+timeline file. They remain local until their exact keys and decision values are
+reviewed and imported as the full-audit primary table.
