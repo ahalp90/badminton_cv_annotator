@@ -55,6 +55,22 @@ def test_fine_video_lookup_uses_shared_extensions(tmp_path) -> None:
     assert commentary_cleaning._find_video(tmp_path, 'clip') == video
 
 
+def test_fine_video_lookup_accepts_legacy_spaced_basename(tmp_path) -> None:
+    video = tmp_path / '0012 Match Name.mkv'
+    video.write_bytes(b'video')
+    (tmp_path / '0012 Match Name.f137.mp4').write_bytes(b'partial')
+
+    assert commentary_cleaning._find_video(tmp_path, '0012') == video
+
+
+def test_fine_video_lookup_rejects_duplicate_exact_and_legacy_sources(tmp_path) -> None:
+    (tmp_path / '0012.mp4').write_bytes(b'exact')
+    (tmp_path / '0012 Match Name.mkv').write_bytes(b'legacy')
+
+    with pytest.raises(ValueError, match='multiple source videos'):
+        commentary_cleaning._find_video(tmp_path, '0012')
+
+
 # -- Clean pass --------------------------------------------------------------
 
 

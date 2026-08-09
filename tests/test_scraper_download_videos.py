@@ -48,8 +48,9 @@ def _run_main_with_fake_outcomes(
         allow_missing_audio: bool,
         video_only: bool,
         existing_videos: dict[str, object],
+        accept_silent_video: bool = False,
     ) -> downloader.DownloadOutcome:
-        del allow_missing_audio, video_only, existing_videos
+        del allow_missing_audio, video_only, existing_videos, accept_silent_video
         url, video_id, title, _output_dir = task
         called_ids.append(video_id)
         if video_id in failed_ids:
@@ -651,8 +652,9 @@ def test_unexpected_worker_exception_propagates_after_sibling_manifest_update(
         allow_missing_audio: bool,
         video_only: bool,
         existing_videos: dict[str, object],
+        accept_silent_video: bool = False,
     ) -> downloader.DownloadOutcome:
-        del allow_missing_audio, video_only, existing_videos
+        del allow_missing_audio, video_only, existing_videos, accept_silent_video
         url, video_id, title, _output_dir = task
         called_ids.append(video_id)
         if video_id == 'boom':
@@ -805,3 +807,59 @@ def test_produced_mkv_uses_actual_basename_and_ignores_stale_manifest_file(
         videos = tomllib.load(handle)['videos']
     assert 'abc.mkv' in videos
     assert 'abc.mp4' in videos
+
+
+def test_explicit_selected_ids_override_keep_without_mutating_candidates(tmp_path: Path) -> None:
+    rows = [
+        {'video_id': 'first', 'url': 'https://x/first', 'title': 'First', 'keep': 'False'},
+        {'video_id': 'second', 'url': 'https://x/second', 'title': 'Second', 'keep': ''},
+        {'video_id': 'third', 'url': 'https://x/third', 'title': 'Third', 'keep': 'True'},
+    ]
+
+    tasks = downloader._tasks_from_rows(rows, tmp_path, {'second', 'first'})
+
+    assert [task[1] for task in tasks] == ['first', 'second']
+    assert [row['keep'] for row in rows] == ['False', '', 'True']
+
+
+def test_explicit_selected_ids_reject_unknown_or_duplicate_values(tmp_path: Path) -> None:
+    rows = [{'video_id': 'known', 'url': 'https://x/known', 'title': 'Known', 'keep': ''}]
+
+    with pytest.raises(ValueError, match='absent from candidates'):
+        downloader._tasks_from_rows(rows, tmp_path, {'missing'})
+    with pytest.raises(ValueError, match='duplicate values'):
+        downloader._tasks_from_rows(rows, tmp_path, ['known', 'known'])
+    with pytest.raises(ValueError, match='not one string'):
+        downloader._tasks_from_rows(rows, tmp_path, 'known')
+
+
+def test_explicit_selection_can_keep_a_verified_silent_visual_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    candidates_path = tmp_path / 'candidates.csv'
+    _write_candidates(candidates_path, [_candidate('silent')])
+    output_dir = tmp_path / 'videos'
+
+    monkeypatch.setattr(downloader.shutil, 'which', lambda name: f'/bin/{name}')
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        (output_dir / 'silent.mp4').write_bytes(b'silent')
+        return subprocess.CompletedProcess(argv, 0, '', '')
+
+    monkeypatch.setattr(downloader.subprocess, 'run', fake_run)
+    monkeypatch.setattr(downloader, '_probe_audio', lambda _path: False)
+
+    outcomes = downloader.download_all_videos(
+        candidates_path,
+        output_dir,
+        max_workers=1,
+        selected_video_ids=['silent'],
+        accept_silent_video=True,
+    )
+
+    assert not outcomes[0].failed
+    assert (output_dir / 'silent.mp4').is_file()
+    assert outcomes[0].entry is not None
+    assert outcomes[0].entry['commentary_eligible'] is False

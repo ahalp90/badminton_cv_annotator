@@ -44,7 +44,12 @@ from .config import (
 )
 
 
-def search_term_rows(term: str, substream: str) -> list[dict]:
+def search_term_rows(
+    term: str,
+    substream: str,
+    *,
+    search_count: int = YTSEARCH_COUNT,
+) -> list[dict]:
     """Run the flat metadata index for one term; return one row dict per hit.
 
     On any failure (timeout, non-zero exit) this logs and returns an empty list,
@@ -54,9 +59,10 @@ def search_term_rows(term: str, substream: str) -> list[dict]:
     :param substream: the family the term belongs to; stamped onto every row.
     :return: one row dict per search hit, each carrying search_term and substream.
     """
+    count = _validated_search_count(search_count)
     cmd = [
         YTDLP_BIN,
-        f'ytsearch{YTSEARCH_COUNT}:{term}',
+        f'ytsearch{count}:{term}',
         '--flat-playlist',
         '--print', FLAT_PRINT_TEMPLATE,
         *ytdlp_throttle_args(),
@@ -187,7 +193,11 @@ def upload_before_floor(upload_date: str) -> bool:
     return upload_date < UPLOAD_DATE_FLOOR
 
 
-def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[dict]:
+def build_candidates(
+    search_terms: dict[str, list[str]] = SEARCH_TERMS,
+    *,
+    search_count: int = YTSEARCH_COUNT,
+) -> list[dict]:
     """Index every search family into candidates.csv and return the rows.
 
     Dedup: a video_id found by two or more terms collapses to one row. The first
@@ -199,6 +209,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     :param search_terms: substream -> list of seed terms; defaults to config.
     :return: the written candidate rows.
     """
+    count = _validated_search_count(search_count)
     check_ytdlp()
     ensure_dirs()
 
@@ -208,7 +219,7 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     for substream, terms in search_terms.items():
         for term in terms:
             print(f'Searching [{substream}]: {term}')
-            rows = search_term_rows(term, substream)
+            rows = search_term_rows(term, substream, search_count=count)
             # Each count feeds the per-term keep-rate
             # report (relevance-triage keeps over rows surfaced).
             print(f'  {term!r}: {len(rows)} rows')
@@ -266,11 +277,20 @@ def build_candidates(search_terms: dict[str, list[str]] = SEARCH_TERMS) -> list[
     return rows
 
 
+def _validated_search_count(value: int) -> int:
+    """Return one positive per-term search cap."""
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f'search_count must be a positive integer, got {value!r}')
+    return value
+
+
 def main() -> None:
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description='Search indexing: index the seed search families into candidates.csv.',
-    ).parse_args()
-    build_candidates()
+    )
+    parser.add_argument('--search-count', type=int, default=YTSEARCH_COUNT)
+    arguments = parser.parse_args()
+    build_candidates(search_count=arguments.search_count)
 
 
 if __name__ == '__main__':

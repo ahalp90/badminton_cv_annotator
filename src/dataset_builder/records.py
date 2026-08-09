@@ -303,8 +303,6 @@ def _validate_source_metadata(
 ) -> None:
     if source_reference.basename != metadata.source_path.name:
         raise ValueError("source reference basename conflicts with canonical video metadata")
-    if metadata.source_path.stem != source_reference.video_id:
-        raise ValueError("source reference video_id differs from the metadata source basename")
 
 
 def _validate_spans(
@@ -552,7 +550,11 @@ def _validate_server_predictions(annotation: AnnotatorResult) -> None:
             raise ValueError(
                 f"server prediction for rally {rally_id} conflicts with striker parity"
             )
-    expected_next_servers = [*annotation.fitted_first_all[1:], None]
+    expected_next_servers = (
+        [*annotation.fitted_first_all[1:], None]
+        if annotation.fitted_first_all
+        else []
+    )
     if annotation.next_servers != expected_next_servers:
         raise ValueError("next_servers conflict with the following rallies' server predictions")
 

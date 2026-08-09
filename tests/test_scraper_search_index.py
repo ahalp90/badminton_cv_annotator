@@ -98,6 +98,22 @@ def test_search_term_rows_nonzero_exit_returns_empty(monkeypatch):
     assert search_index.search_term_rows('term', config.SUBSTREAM_MATCH) == []
 
 
+def test_search_term_rows_accepts_a_per_run_result_count(monkeypatch):
+    received = []
+
+    def fake_run(cmd, **_kwargs):
+        received.append(cmd)
+        return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+    monkeypatch.setattr(search_index.subprocess, 'run', fake_run)
+
+    search_index.search_term_rows('term', config.SUBSTREAM_MATCH, search_count=5)
+
+    assert received[0][1] == 'ytsearch5:term'
+    with pytest.raises(ValueError, match='positive integer'):
+        search_index.search_term_rows('term', config.SUBSTREAM_MATCH, search_count=0)
+
+
 # ---------------------------------------------------------------------------
 # Doubles keyword screen
 # ---------------------------------------------------------------------------

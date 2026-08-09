@@ -224,8 +224,6 @@ def pair_video_with_metadata(
         raise TypeError('metadata must be canonical VideoMetadata')
     if not isinstance(video_id, str) or not video_id:
         raise ValueError('canonical pairing video_id must be a non-empty string')
-    if metadata.source_path.stem != video_id:
-        raise ValueError('canonical pairing video_id differs from the metadata source basename')
     if (
         not isinstance(replay_mask, np.ndarray)
         or replay_mask.ndim != 1

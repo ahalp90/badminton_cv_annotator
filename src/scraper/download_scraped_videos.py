@@ -17,10 +17,10 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
+from collections.abc import Collection, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 from . import config
 
@@ -290,6 +290,7 @@ def _download_one(
     allow_missing_audio: bool,
     video_only: bool,
     existing_videos: Mapping[str, object],
+    accept_silent_video: bool = False,
 ) -> DownloadOutcome:
     """Download and verify one candidate without catching programming errors."""
     url, video_id, title, output_dir = task
@@ -302,37 +303,13 @@ def _download_one(
         )
 
     if existing:
-        output_path = existing[0]
-        raw_entry = existing_videos.get(output_path.name)
-        if raw_entry is not None and not isinstance(raw_entry, dict):
-            raise TypeError(f"sources.toml entry for {output_path.name!r} must be a table")
-        existing_entry = raw_entry if isinstance(raw_entry, dict) else None
-        recorded_eligibility = (
-            existing_entry.get('commentary_eligible')
-            if existing_entry is not None
-            else None
+        return _existing_download_outcome(
+            task,
+            existing[0],
+            existing_videos,
+            skip_audio_gate=skip_audio_gate,
+            accept_silent_video=accept_silent_video,
         )
-
-        if recorded_eligibility is False:
-            print(f'  Skipping video {video_id} (already marked commentary-ineligible)')
-            return DownloadOutcome(
-                video_id,
-                output_path.name,
-                _source_entry(task, False, existing_entry),
-                False,
-            )
-        if skip_audio_gate:
-            eligibility = recorded_eligibility is True
-            print(f'  Skipping video {video_id} (already exists: {output_path.name})')
-            return DownloadOutcome(
-                video_id,
-                output_path.name,
-                _source_entry(task, eligibility, existing_entry),
-                False,
-            )
-
-        print(f'  Checking existing video {video_id}: {output_path.name}')
-        return _verify_existing(task, output_path, existing_entry)
 
     output_template = str(output_dir / f'{video_id}.%(ext)s')
     try:
@@ -394,9 +371,17 @@ def _download_one(
         return _failure_outcome(task)
 
     if not has_audio:
-        print(f'  ERROR video {video_id}: no audio stream')
-        output_path.unlink()
-        return _failure_outcome(task)
+        if not accept_silent_video:
+            print(f'  ERROR video {video_id}: no audio stream')
+            output_path.unlink()
+            return _failure_outcome(task)
+        print(f'  Downloaded video {video_id}: {output_path.name} (no audio stream)')
+        return DownloadOutcome(
+            video_id,
+            output_path.name,
+            _source_entry(task, False, None),
+            False,
+        )
 
     print(f'  Downloaded video {video_id}: {output_path.name}')
     return DownloadOutcome(
@@ -407,10 +392,57 @@ def _download_one(
     )
 
 
+def _existing_download_outcome(
+    task: tuple[str, str, str, Path],
+    output_path: Path,
+    existing_videos: Mapping[str, object],
+    *,
+    skip_audio_gate: bool,
+    accept_silent_video: bool,
+) -> DownloadOutcome:
+    """Resolve one already-downloaded file without changing legacy gates."""
+    _url, video_id, _title, _output_dir = task
+    raw_entry = existing_videos.get(output_path.name)
+    if raw_entry is not None and not isinstance(raw_entry, dict):
+        raise TypeError(f"sources.toml entry for {output_path.name!r} must be a table")
+    existing_entry = raw_entry if isinstance(raw_entry, dict) else None
+    recorded_eligibility = (
+        existing_entry.get('commentary_eligible')
+        if existing_entry is not None
+        else None
+    )
+    if recorded_eligibility is False:
+        print(f'  Skipping video {video_id} (already marked commentary-ineligible)')
+        return DownloadOutcome(
+            video_id,
+            output_path.name,
+            _source_entry(task, False, existing_entry),
+            False,
+        )
+    if skip_audio_gate:
+        eligibility = recorded_eligibility is True
+        print(f'  Skipping video {video_id} (already exists: {output_path.name})')
+        return DownloadOutcome(
+            video_id,
+            output_path.name,
+            _source_entry(task, eligibility, existing_entry),
+            False,
+        )
+    print(f'  Checking existing video {video_id}: {output_path.name}')
+    return _verify_existing(
+        task,
+        output_path,
+        existing_entry,
+        accept_silent_video=accept_silent_video,
+    )
+
+
 def _verify_existing(
     task: tuple[str, str, str, Path],
     output_path: Path,
     existing_entry: Mapping[str, object] | None,
+    *,
+    accept_silent_video: bool = False,
 ) -> DownloadOutcome:
     """Verify an existing file, retaining it when the audio gate fails."""
     _url, video_id, _title, _output_dir = task
@@ -432,12 +464,15 @@ def _verify_existing(
         )
 
     if not has_audio:
-        print(f'  ERROR video {video_id}: no audio stream')
-        return _failure_outcome(
-            task,
-            filename=output_path.name,
-            entry=_source_entry(task, False, existing_entry),
+        outcome = DownloadOutcome(
+            video_id,
+            output_path.name,
+            _source_entry(task, False, existing_entry),
+            not accept_silent_video,
         )
+        level = 'Skipping' if accept_silent_video else 'ERROR'
+        print(f'  {level} video {video_id}: no audio stream')
+        return outcome
 
     print(f'  Skipping video {video_id} (already exists: {output_path.name})')
     return DownloadOutcome(
@@ -448,18 +483,36 @@ def _verify_existing(
     )
 
 
-def _tasks_from_rows(rows: list[dict], output_dir: Path) -> list[tuple[str, str, str, Path]]:
-    """Filter kept candidates and reject duplicate download seeds."""
+def _tasks_from_rows(
+    rows: list[dict],
+    output_dir: Path,
+    selected_video_ids: Collection[str] | None = None,
+) -> list[tuple[str, str, str, Path]]:
+    """Resolve legacy kept rows or one explicit, source-ordered ID selection."""
+    explicit: set[str] | None = None
+    if selected_video_ids is not None:
+        if isinstance(selected_video_ids, str):
+            raise ValueError('selected_video_ids must be a collection, not one string')
+        values = list(selected_video_ids)
+        if any(not isinstance(value, str) or not value for value in values):
+            raise ValueError('selected_video_ids must contain non-empty strings')
+        if len(values) != len(set(values)):
+            raise ValueError('selected_video_ids contains duplicate values')
+        explicit = set(values)
     tasks: list[tuple[str, str, str, Path]] = []
     seen_ids: set[str] = set()
     for row in rows:
-        if row['keep'] != 'True':
-            continue
         video_id = str(row['video_id'])
+        selected = row['keep'] == 'True' if explicit is None else video_id in explicit
+        if not selected:
+            continue
         if video_id in seen_ids:
-            raise ValueError(f'duplicate kept video_id: {video_id}')
+            label = 'kept' if explicit is None else 'selected'
+            raise ValueError(f'duplicate {label} video_id: {video_id}')
         seen_ids.add(video_id)
         tasks.append((row['url'], video_id, row['title'], output_dir))
+    if explicit is not None and seen_ids != explicit:
+        raise ValueError(f'selected video IDs are absent from candidates: {sorted(explicit - seen_ids)}')
     return tasks
 
 
@@ -468,25 +521,31 @@ def download_all_videos(
     output_dir: Path = VIDEOS_DIR,
     max_workers: int = config.DOWNLOAD_WORKERS,
     *,
+    selected_video_ids: Collection[str] | None = None,
     dataset: str = DEFAULT_DATASET_LABEL,
     allow_missing_audio: bool = False,
     video_only: bool = False,
+    accept_silent_video: bool = False,
 ) -> list[DownloadOutcome]:
     """Download selected scraper candidates and update their source manifest.
 
     :param candidates_path: Candidate CSV, filtered with exact ``keep == 'True'``.
     :param output_dir: Destination for downloaded videos.
     :param max_workers: Number of parallel download threads.
+    :param selected_video_ids: Explicit IDs to download in candidate order. When
+        omitted, preserve the legacy exact ``keep == 'True'`` selection.
     :param dataset: Provenance label written to ``sources.toml``.
     :param allow_missing_audio: Skip ffprobe and mark new files ineligible.
     :param video_only: Request H.264 video without requiring an audio stream.
+    :param accept_silent_video: Verify audio normally, but retain an otherwise
+        readable silent video as commentary-ineligible instead of failing it.
     :return: One outcome per selected seed when workers finish normally.
     """
     manifest_path = output_dir / SOURCES_MANIFEST_NAME
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest = _read_manifest(manifest_path, dataset)
     rows = config.read_candidates(candidates_path)
-    tasks = _tasks_from_rows(rows, output_dir)
+    tasks = _tasks_from_rows(rows, output_dir, selected_video_ids)
 
     if not tasks:
         print('Nothing to download.')
@@ -512,6 +571,7 @@ def download_all_videos(
                 allow_missing_audio=allow_missing_audio,
                 video_only=video_only,
                 existing_videos=videos,
+                accept_silent_video=accept_silent_video,
             )
             for task in tasks
         ]
@@ -553,6 +613,12 @@ def main() -> int:
     parser.add_argument('--output-dir', type=Path, default=config.VIDEOS_DIR)
     parser.add_argument('--workers', type=int, default=config.DOWNLOAD_WORKERS)
     parser.add_argument(
+        '--video-id',
+        dest='selected_video_ids',
+        action='append',
+        help='Download this exact candidate video ID; repeat for multiple IDs.',
+    )
+    parser.add_argument(
         '--dataset',
         default=DEFAULT_DATASET_LABEL,
         help=f'Dataset provenance label written to sources.toml (default: {DEFAULT_DATASET_LABEL})',
@@ -568,15 +634,22 @@ def main() -> int:
         action='store_true',
         help='Use the H.264 video-only selector and mark new files commentary-ineligible.',
     )
+    parser.add_argument(
+        '--accept-silent-video',
+        action='store_true',
+        help='Keep verified videos without audio as commentary-ineligible visual sources.',
+    )
     args = parser.parse_args()
 
     outcomes = download_all_videos(
         candidates_path=args.candidates_path,
         output_dir=args.output_dir,
         max_workers=args.workers,
+        selected_video_ids=args.selected_video_ids,
         dataset=args.dataset,
         allow_missing_audio=args.allow_missing_audio,
         video_only=args.video_only,
+        accept_silent_video=args.accept_silent_video,
     )
     if not outcomes:
         return 0

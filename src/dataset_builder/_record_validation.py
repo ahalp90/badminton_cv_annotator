@@ -282,7 +282,7 @@ def _source(
         reference["commentary_eligible"], "source commentary eligibility",
     )
     metadata = VideoMetadata.from_dict(dict(_object(source["video_metadata"], "video metadata")))
-    if metadata.source_path.name != basename or metadata.source_path.stem != video_id:
+    if metadata.source_path.name != basename:
         raise ValueError("source reference conflicts with canonical video metadata")
     return metadata, commentary_eligible
 

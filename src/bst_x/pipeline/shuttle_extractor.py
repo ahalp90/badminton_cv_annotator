@@ -12,6 +12,7 @@ Usage:
         [--tracknet-python /path/to/bst-venv/bin/python] [--profile {bst,scrape}]
 """
 import argparse
+from collections.abc import Sequence
 from dataclasses import dataclass
 import math
 import subprocess
@@ -173,6 +174,8 @@ def extract_all_shuttles(
     tracknet_stride: int = TRACKNET_STRIDE,
     large_video: bool = TRACKNET_LARGE_VIDEO,
     dry_run: bool = False,
+    video_paths: Sequence[Path] | None = None,
+    enable_inpainting: bool = True,
 ) -> None:
     """Run TrackNetV3 on all clips using batch mode.
 
@@ -186,6 +189,12 @@ def extract_all_shuttles(
 
     :param tracknet_dir: Path to the cloned TrackNetV3 repository.
     :param clips_dir: Root clips directory to scan for .mp4 files.
+    :param video_paths: Optional explicit source paths. This preserves the legacy
+        ``clips_dir`` scan by default while allowing selected whole-video files
+        whose download container is not ``.mp4``.
+    :param enable_inpainting: Whether to resolve and pass InpaintNet weights.
+        Defaults to the legacy enabled behavior; dataset-builder callers can
+        explicitly disable it without falling back to the default checkpoint.
     :param output_csv_dir: Directory for TrackNetV3 CSV outputs.
         Defaults to clips_dir/../shuttle_csv.
     :param model_path: Path to TrackNet weights. Defaults to tracknet_dir/ckpts/TrackNet_best.pt.
@@ -208,17 +217,31 @@ def extract_all_shuttles(
     if not resolved_model.exists():
         raise FileNotFoundError(f'TrackNet weights not found: {resolved_model}')
 
-    resolved_inpaint = inpaintnet_path or (tracknet_dir / _DEFAULT_INPAINTNET_SUBPATH)
-    if not resolved_inpaint.exists():
-        print(f'  WARNING: InpaintNet weights not found: {resolved_inpaint}')
-        print(f'  Running TrackNet only (no inpainting of occluded frames)')
+    if not isinstance(enable_inpainting, bool):
+        raise ValueError('enable_inpainting must be boolean')
+    if not enable_inpainting:
         resolved_inpaint = None
+    else:
+        resolved_inpaint = inpaintnet_path or (tracknet_dir / _DEFAULT_INPAINTNET_SUBPATH)
+        if not resolved_inpaint.exists():
+            print(f'  WARNING: InpaintNet weights not found: {resolved_inpaint}')
+            print(f'  Running TrackNet only (no inpainting of occluded frames)')
+            resolved_inpaint = None
 
     if not output_csv_dir:
         output_csv_dir = _default_csv_dir(clips_dir)
     output_csv_dir.mkdir(parents=True, exist_ok=True)
 
-    all_clips = sorted(clips_dir.rglob('*.mp4'))
+    if video_paths is None:
+        all_clips = sorted(clips_dir.rglob('*.mp4'))
+    else:
+        all_clips = sorted((Path(path) for path in video_paths), key=lambda path: path.name)
+        missing = [path for path in all_clips if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(f'explicit TrackNet videos are not regular files: {missing}')
+        stems = [path.stem for path in all_clips]
+        if len(stems) != len(set(stems)):
+            raise ValueError('explicit TrackNet video paths must have unique stems')
     # Filter to clips that don't already have results (dry_run processes all)
     if dry_run:
         pending = all_clips

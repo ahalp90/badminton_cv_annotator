@@ -387,11 +387,23 @@ def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> lis
 
 
 def _find_video(video_dir: Path, video_id: str) -> Path | None:
-    """Return the <video_id>.<ext> file in video_dir, or None when absent."""
-    for candidate in sorted(video_dir.glob(f'{video_id}.*')):
-        if candidate.suffix.lower() in VIDEO_EXTENSIONS:
-            return candidate
-    return None
+    """Return one exact or legacy spaced-name source, or None when absent."""
+    if not video_dir.is_dir():
+        return None
+    matches = [
+        candidate
+        for candidate in sorted(video_dir.iterdir(), key=lambda path: path.name)
+        if candidate.is_file()
+        and (candidate.stem == video_id or candidate.stem.startswith(f'{video_id} '))
+        and candidate.suffix.lower() in VIDEO_EXTENSIONS
+        and not (
+            '.f' in candidate.stem
+            and candidate.stem.rpartition('.f')[2].isdecimal()
+        )
+    ]
+    if len(matches) > 1:
+        raise ValueError(f'multiple source videos found for {video_id!r}: {matches}')
+    return None if not matches else matches[0]
 
 
 def run_fine(video_dir: Path, rows: list[dict] | None = None) -> None:

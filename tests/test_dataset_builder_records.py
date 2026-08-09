@@ -643,6 +643,34 @@ def test_source_reference_must_match_canonical_metadata_basename(tmp_path: Path)
         _assemble(tmp_path, source_reference=source_reference)
 
 
+def test_source_basename_is_provenance_not_record_identity(tmp_path: Path) -> None:
+    source = (tmp_path / f"{VIDEO_ID} Match Name.mp4").resolve()
+    source.write_bytes(b"video")
+    metadata = VideoMetadata(source, FPS, 100, 100, 50)
+    source_reference = SourceReference(
+        video_id=VIDEO_ID,
+        basename=source.name,
+        title="Professional singles final",
+        url="https://example.test/watch?v=0012",
+        commentary_eligible=True,
+    )
+
+    records = _assemble(
+        tmp_path,
+        metadata=metadata,
+        source_reference=source_reference,
+    )
+
+    key = records[0]["key"]
+    source_payload = records[0]["source"]
+    assert isinstance(key, dict)
+    assert isinstance(source_payload, dict)
+    reference_payload = source_payload["source_reference"]
+    assert isinstance(reference_payload, dict)
+    assert key["video_id"] == VIDEO_ID
+    assert reference_payload["basename"] == source.name
+
+
 def test_persisted_free_form_provenance_is_redacted(tmp_path: Path) -> None:
     provenance = _provenance()
     provenance["transcript_api_token"] = "secret-value"
