@@ -110,6 +110,10 @@ scratch/bst_x_inputs/
 # Private dev scribbles. Outside the tracked scratch/README.md contract.
 local_scratch/
 
+# Local trajectory investigations and delegated-agent records.
+scratch/serve_start_trajectory_exploration/
+**/external_delegate/
+
 # Machine-local Pyrefly profile for Serena. CI uses [tool.pyrefly] in pyproject.toml.
 pyrefly.toml
 
