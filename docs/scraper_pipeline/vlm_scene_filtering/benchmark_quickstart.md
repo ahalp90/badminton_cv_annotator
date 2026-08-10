@@ -7,6 +7,11 @@ This benchmark compares these exact candidates on the same prepared video:
 - `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` at
   `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
 
+The measured Carmack run selected neither model. The
+[benchmark report](benchmark_20260810.md) records the strict-JSON and GPU-memory
+failures. The commands below remain the reproduction path, and the smoke gate
+must stop the full commands when it fails.
+
 The first deployment requirement is one complete 30-minute `sset_15` shard,
 source frames `[18419, 63419)`, sampled at 1 FPS and 512x288. Human timeline
 labels are used only by the separate scoring command.
