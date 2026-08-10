@@ -68,6 +68,7 @@ def _engine_config(model_path: Path) -> dict[str, Any]:
         "gpu_memory_utilization": 0.90,
         "tensor_parallel_size": 1,
         "cpu_offload_gb": 0,
+        "swap_space": 0,
         "limit_mm_per_prompt": {"image": 0, "video": 1},
         "mm_processor_cache_gb": 0,
         "seed": 0,

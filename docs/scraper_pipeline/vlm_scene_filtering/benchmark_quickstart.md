@@ -27,6 +27,8 @@ First require the frozen source identity. The Python check also hashes the
 file, so a replacement with matching container metadata is rejected.
 
 ```bash
+set -euo pipefail
+
 REPO=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/worktrees/issue-38-vlm-benchmark
 SOURCE=/srv/mergerfs/main_pool/Scratch_Backup/Uni/cosc595/issue-31-shuttle-hallucination-audit-assets/downloads/yu9oyMXRGHY.mp4
 ARTIFACTS=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/issue-38-vlm-benchmark/artifacts
@@ -71,6 +73,8 @@ reference video, and the full model video. View all three PNG files and require
 the left, middle, and right images to show the same content before staging.
 
 ```bash
+set -euo pipefail
+
 PREVIEW=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/issue-38-vlm-benchmark/visual-preflight
 REFERENCE="$ARTIFACTS/full/sset_15_f18419_f63419_512x288_reference_25fps.mp4"
 MODEL_INPUT="$ARTIFACTS/full/sset_15_f18419_f63419_512x288_model_1fps.mp4"
@@ -104,6 +108,8 @@ allowlist keeps all Git metadata, documentation, and human truth outside the
 inference snapshot.
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 
 ssh carmack "mkdir -p \
@@ -138,6 +144,8 @@ Run these commands on Carmack. Keep the SIF hashes with the results because OCI
 tags can move.
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 export APPTAINER_CACHEDIR="$REMOTE_ROOT/cache/apptainer"
 
@@ -168,6 +176,8 @@ revision with the model repository's moving `main` branch.
 Create a small writable environment over each immutable image:
 
 ```bash
+set -euo pipefail
+
 apptainer exec \
   --no-mount home,cwd \
   --bind "$REMOTE_ROOT:$REMOTE_ROOT" \
@@ -212,6 +222,8 @@ and write unbuffered logs.
 InternVideo3:
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 MANIFEST="$REMOTE_ROOT/artifacts/smoke/sset_15_f18419_f18669_512x288_manifest.json"
 test -f "$MANIFEST"
@@ -238,6 +250,8 @@ tmux new-session -d -s issue38-intern-smoke \
 Qwen3-VL:
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 MANIFEST="$REMOTE_ROOT/artifacts/smoke/sset_15_f18419_f18669_512x288_manifest.json"
 test -f "$MANIFEST"
@@ -274,6 +288,8 @@ raw-response digest, and prints the processor and runtime telemetry. It does
 not read human truth.
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 
 apptainer exec \
@@ -313,6 +329,8 @@ Keep the models sequential so each receives the same free GPU memory.
 InternVideo3:
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 MANIFEST="$REMOTE_ROOT/artifacts/full/sset_15_f18419_f63419_512x288_manifest.json"
 test -f "$MANIFEST"
@@ -339,6 +357,8 @@ tmux new-session -d -s issue38-intern-full \
 Qwen3-VL, after the InternVideo3 process exits:
 
 ```bash
+set -euo pipefail
+
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
 MANIFEST="$REMOTE_ROOT/artifacts/full/sset_15_f18419_f63419_512x288_manifest.json"
 test -f "$MANIFEST"
@@ -372,6 +392,8 @@ Run scoring outside the model environments. This is the first command that may
 read human labels.
 
 ```bash
+set -euo pipefail
+
 REPO=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/worktrees/issue-38-vlm-benchmark
 TRUTH="$REPO/docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_15_broadcast_timeline_labels.csv.gz"
 

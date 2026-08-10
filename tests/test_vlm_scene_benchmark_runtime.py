@@ -184,7 +184,7 @@ def test_qwen_engine_uses_pinned_local_snapshot_and_available_l40_memory(
     assert QWEN_SPEC.cache_dtype == "bfloat16"
     assert config["tensor_parallel_size"] == 1
     assert config["cpu_offload_gb"] == 0
-    assert "swap_space" not in config
+    assert config["swap_space"] == 0
 
 
 def test_qwen_resolves_the_exact_model_revision(
