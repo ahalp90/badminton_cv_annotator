@@ -3,7 +3,7 @@
 This directory is the current measurement package for the deferred serve-prepend feature.
 
 - [issue_28_serve_lookback_decision_20260809.md](issue_28_serve_lookback_decision_20260809.md)
-  gives the Ari-facing closeout recommendation, verified evidence, remaining-work value, caveats,
+  gives the closeout recommendation, verified evidence, remaining-work value, caveats,
   and source index
 - [serve_prepend_lookback_20260808_measurement.md](serve_prepend_lookback_20260808_measurement.md)
   records the three-video reviewed-truth result and the decision not to build the measured
