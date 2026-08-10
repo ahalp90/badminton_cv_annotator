@@ -196,6 +196,9 @@ TRIAGE_BLOCK_MIN_FAILURES = 5
 # LLM retry/backoff. Exponential backoff base, doubled per attempt.
 LLM_MAX_RETRIES = 3
 LLM_BACKOFF_BASE_S = 2.0
+# Bound each synchronous SDK request so optional commentary cannot hold the
+# visual lane indefinitely when a provider accepts a request but never replies.
+LLM_REQUEST_TIMEOUT_S = 120
 
 
 # ---------------------------------------------------------------------------

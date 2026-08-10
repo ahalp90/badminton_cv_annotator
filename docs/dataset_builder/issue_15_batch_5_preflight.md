@@ -1,7 +1,7 @@
 # Issue 15 Batch 5 preflight handoff
 
-Status: first external attempt stopped; Batch 5A is committed and Batch 5B is
-implemented locally, with the replacement Bourbaki gates still pending.
+Status: two external attempts stopped; Batch 5C bounds optional commentary
+requests before the next exact-commit Bourbaki trial.
 
 This document began as the state freeze immediately before Batch 5 of
 `issue_15_implementation_plan.md`. It now also records the stopped first
@@ -9,6 +9,59 @@ attempt and the exact conditions for starting and accepting its replacement.
 The original pre-launch evidence remains below as a historical record.
 
 ## Current Batch 5 state
+
+The replacement attempt ran from exact commit `8fc7503` under
+`/scratch/cmarti/issue15_8fc7503`. It passed the FFmpeg 5.1.10 preflight, exact
+full-source seek gates for both selected videos, and the fixed A100 one-versus-
+eight pose parity gate before launch. Its guarded two-video trial began at
+2026-08-10T22:41:36+10:00.
+
+Search produced five ordered candidates. YouTube ASR produced transcripts for
+`9WVwZSzixh0` and `P3OcTzwmqeY`; the other three candidates had no available
+transcript fallback. Triage retained `9WVwZSzixh0` with 180 chunks, then hit
+the model's 20-request daily quota on `P3OcTzwmqeY`. The documented fallback
+still selected both videos. Download accepted both sources, at 1,482,034,864
+and 1,322,939,266 bytes. Their exhaustive metadata stages passed in 559.590
+and 583.376 seconds.
+
+At 2026-08-10T23:40:20+10:00, the run entered optional commentary cleaning.
+Google eventually returned one 503 high-demand response; a subsequent
+synchronous request remained outstanding. The wrapper had three application-
+level attempts and backoff but no per-request timeout, so it could not return
+control to the coordinator's reviewed `unavailable` handler. No vision child
+started, no GPU memory was allocated, and no final records or report were
+published.
+
+The user approved a controlled stop. At 2026-08-11T00:07:00+10:00, SIGTERM to
+validated coordinator PID/PGID 661021 ended the exact process group without
+escalation. The supervisor recorded exit 143 and a successful 17-file secret
+scan; no coordinator, child, or supervisor remained, and the A100 was clear.
+The run manifest, downloads, metadata, logs, and preceding gates remain
+untouched. This is failed-gate evidence, not a completed trial.
+
+Batch 5C adds a 120-second client HTTP timeout to both Google GenAI request
+boundaries. Transient failures retain the existing three-attempt backoff; an
+exact structured daily-request-quota error stops immediately. Both stage
+fingerprints record the timeout. A concrete regression requires commentary
+timeout to become `unavailable` while TrackNet input, annotation, assembly,
+and report still execute. The next trial must use a new exact-commit root; do
+not mutate or relaunch `issue15_8fc7503`.
+
+The first independent review found two terminal-failure propagation gaps. A
+cleaning call that timed out after an earlier chunk succeeded could return
+normally and publish partial commentary as reusable `processed` output, while
+both scraper batch loops could consume the daily-quota signal and request a
+later video. Both are corrected: exhausted cleaning attempts now reach the
+coordinator's `unavailable` boundary, and a dedicated daily-quota exception
+bypasses both per-video handlers. A fresh closure review then
+found the same structured daily request quota has a tier-neutral provider ID
+outside the free tier. The classifier now accepts that base ID with or without
+a tier suffix while continuing to reject per-minute quotas. The final post-fix
+gate passes 63 focused tests and the full 1,539-test suite with 29 skips and the
+unchanged 31 warnings; repository-wide Ruff, configured whole-project Pyrefly
+(0 errors, 12 suppressions), and `git diff --check` also pass. The final
+independent focused closure reports zero findings. Batch 5C is ready for its
+guarded local commit before the replacement external trial.
 
 The guarded first attempt ran on Bourbaki from
 2026-08-09T16:06:26+10:00 to 2026-08-10T16:10:05+10:00. It used the clean
@@ -56,11 +109,10 @@ root.
 Local commit `5337163` implements the independently reviewed Batch 5A path:
 an integrity-checked, lossless 512x288 FFV1 AVI made with FFmpeg bicubic
 scaling and explicit square pixels, followed by TrackNet stride 8. The Batch
-5B working tree integrates Issue 37 direct-seek pose sharding while retaining
-the exact sequential producer for `pose_shards = 1`. Its deterministic local
-test and static-analysis gate has passed; the source-specific seek, A100 RTMLib
-parity, and worker-scaling gates remain external prerequisites rather than
-claimed local results.
+5B commit integrates Issue 37 direct-seek pose sharding while retaining the
+exact sequential producer for `pose_shards = 1`. Its deterministic local gate,
+source-specific seek gate, and A100 RTMLib parity gate subsequently passed.
+The separate worker-scaling benchmark remains deferred rather than claimed.
 
 The replacement run must use a new clean execution clone and a new run root
 from the final performance-extension commit. Do not reuse or mutate the
@@ -87,7 +139,9 @@ The completed implementation commits are:
 5. `51fa592 Document the issue 15 Batch 5 preflight`
 6. `7f7bf3c Document dataset-builder throughput research`
 7. `5337163 Speed up full-video shuttle extraction`
-8. `Shard full-video pose extraction` (this Batch 5B commit)
+8. `32dcefa Shard full-video pose extraction`
+9. `8fc7503 Fix FFmpeg version probing`
+10. `Bound optional commentary requests` (this Batch 5C commit)
 
 The post-Batch 4 local acceptance gate passed:
 
@@ -235,12 +289,12 @@ The isolated yt-dlp configuration at
 
 ## Replacement-root template
 
-The live replacement command cannot be made exact inside the Batch 5B commit
+The live replacement command cannot be made exact inside the Batch 5C commit
 because that commit cannot contain its own Git hash. After the local commit,
 record its full hash and create a new root named for that commit, for example
-`/scratch/cmarti/issue15_<short-Batch5B-hash>`. The replacement must use:
+`/scratch/cmarti/issue15_<short-Batch5C-hash>`. The replacement must use:
 
-- a new clean clone at the recorded full Batch 5B commit;
+- a new clean clone at the recorded full Batch 5C commit;
 - a new absent `external/trial-run` path beneath the new root;
 - newly verified wrappers, overlays, caches, configuration, and protected
   credential paths beneath the new root; and
@@ -248,12 +302,12 @@ record its full hash and create a new root named for that commit, for example
   that recorded group and waits for it; during sharded pose, the coordinator
   forwards cancellation into its separately owned pose-worker group and reaps
   the direct child; and
-- the source-specific seek, A100 parity, and worker-scaling gates before the
-  two-video E2E command.
+- the source-specific seek and A100 parity gates before the two-video E2E
+  command. The separate worker-scaling benchmark remains deferred.
 
 Do not substitute `issue15_449d8b1` for the placeholder. That root and its
 2.7 GiB run are preserved evidence. The exact replacement paths and commands
-must be generated after the Batch 5B hash exists and recorded in the external
+must be generated after the Batch 5C hash exists and recorded in the external
 worklog before transfer.
 
 ## Historical first-attempt credential gate (do not rerun)
@@ -325,7 +379,7 @@ Do not loosen those bounds for the acceptance run.
 
 Before the replacement command:
 
-- Confirm repository HEAD is the recorded full Batch 5B commit and tracked
+- Confirm repository HEAD is the recorded full Batch 5C commit and tracked
   state is clean.
 - Recheck all three model MD5 values.
 - Confirm the new run directory is absent and is not beneath
@@ -384,5 +438,5 @@ worktree and committed with the approved Batch 5 message:
 
 `Record the issue 15 end-to-end trial`
 
-Until the performance batches and replacement external gates pass, the correct
-state is “Batch 5 first attempt stopped; final acceptance pending.”
+Until the corrected replacement external gates pass, the correct state is
+“Batch 5 trials stopped; Batch 5C corrected locally; final acceptance pending.”

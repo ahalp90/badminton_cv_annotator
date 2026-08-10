@@ -10,15 +10,17 @@ Run as: python -m scraper.relevance_triage (PYTHONPATH=src). The LLM call needs 
 GEMINI_API_KEY env var set (referenced by name only, never read or logged) and the
 google-genai SDK installed on the calling machine.
 
-Failure behaviour is log-and-skip per video, moving a failed video to a retry
-list. The batch blocks only if every call fails. This is checked mid-batch once
-past a small floor, so a dead endpoint stops the run early.
+Ordinary exhausted calls are logged and skipped per video, moving that video
+to a retry list. The batch blocks when every ordinary call fails, checked once
+past a small floor so a dead endpoint stops early. A structured daily-request-
+quota error instead terminates the batch immediately, before another request.
 """
 import argparse
 import json
 import os
 import time
 
+from ._llm_errors import DailyRequestQuotaError, daily_request_quota_exhausted
 from .config import (
     API_KEY_ENV,
     CHUNK_OVERLAP_S,
@@ -29,6 +31,7 @@ from .config import (
     DENSITY_MIN_PER_MIN,
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
+    LLM_REQUEST_TIMEOUT_S,
     SHORT_VIDEO_MIN_S,
     TRIAGE_BLOCK_MIN_FAILURES,
     TRANSCRIPTS_DIR,
@@ -128,10 +131,13 @@ def _call_once(system_prompt: str, user_prompt: str) -> list[dict]:
     # the real triage. The test/CI venv does not carry it, and a module-level
     # import would break relevance triage there.
     from google import genai
+    from google.genai import types
 
     if API_KEY_ENV not in os.environ:
         raise RuntimeError(f'{API_KEY_ENV} is not set')
-    client = genai.Client()
+    client = genai.Client(http_options=types.HttpOptions(
+        timeout=LLM_REQUEST_TIMEOUT_S * 1000,
+    ))
     response = client.models.generate_content(
         model=TRIAGE_MODEL,
         contents=user_prompt,
@@ -148,8 +154,9 @@ def call_triage_llm(window: dict) -> list[dict]:
     """Call the triage LLM for one window with retry and exponential backoff.
 
     Real SDK calls hit rate limits and transient errors, and a malformed reply
-    fails to parse; both retry. Raises TriageError after LLM_MAX_RETRIES so the
-    caller can retry-list the video.
+    fails to parse; all retry unless the provider reports an exhausted daily
+    quota. Raises ``TriageError`` after retry exhaustion or
+    ``DailyRequestQuotaError`` when the whole batch must stop requesting.
 
     :param window: a window dict with a segments list.
     :return: the returned chunk dicts for the window.
@@ -161,6 +168,10 @@ def call_triage_llm(window: dict) -> list[dict]:
             return _call_once(system_prompt, user_prompt)
         except Exception as error:  # noqa: BLE001 - retry SDK + JSON-parse errors alike
             last_error = error
+            if daily_request_quota_exhausted(error):
+                raise DailyRequestQuotaError(
+                    "triage call stopped because the daily request quota is exhausted"
+                ) from error
             if attempt == LLM_MAX_RETRIES - 1:
                 break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
@@ -196,7 +207,8 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
     :param video_id: yt-dlp id.
     :param duration_s: the video's duration_s cell, for the keep rule.
     :return: (keep, chunks), or None when the video has no acquired transcript.
-        Propagates TriageError so run_relevance_triage can retry-list the video.
+        Propagates ``TriageError`` so the batch can retry-list the video, or
+        ``DailyRequestQuotaError`` when the entire batch must stop requesting.
     """
     transcript = load_transcript(video_id)
     if transcript is None:
@@ -217,8 +229,9 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
 def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
     """Triage every video with a transcript; write chunk sidecars and keep flags.
 
-    Blocks only when every triage call fails, which signals a dead endpoint,
-    both mid-batch (past a small floor) and at the end of the run.
+    Ordinary exhausted calls remain per-video failures; the run blocks when all
+    of them fail, either mid-batch past a small floor or at the end. A structured
+    daily-request-quota error terminates the batch immediately.
 
     :param rows: candidate rows; read from candidates.csv when None.
     :return: the keep decision per video_id.

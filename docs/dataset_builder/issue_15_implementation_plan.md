@@ -1,6 +1,7 @@
 # Issue 15 Dataset Builder Implementation Plan
 
-Status: implemented locally through Batch 5B; external acceptance gates pending
+Status: implemented, gated, and independently accepted locally through Batch
+5C; external acceptance gates pending
 
 Prepared: 2026-08-08
 
@@ -557,6 +558,75 @@ Draft commit: `Shard full-video pose extraction`
   the full pytest suite pass.
 - A fresh adversarial review finds no unresolved correctness issue.
 
+### Batch 5C: Bound optional commentary requests
+
+Approved: 2026-08-11
+
+Draft commit: `Bound optional commentary requests`
+
+The exact-commit `8fc7503` trial completed search, partial commentary triage,
+selection, both downloads, and both exhaustive metadata stages. It then spent
+more than 26 minutes inside optional commentary cleaning after Google returned
+a transient 503 response. The next synchronous SDK request did not return, and
+the A100 remained idle because commentary cleaning precedes the required visual
+lane. The user approved stopping the exact coordinator group and correcting
+this live external-gate failure before another trial.
+
+#### Files
+
+- Update the shared scraper LLM request policy.
+- Apply it at both Google GenAI request boundaries.
+- Include the bound in triage and commentary-cleaning stage configurations.
+- Add focused scraper and concrete coordinator regressions.
+- Update the Batch 5 preflight record with the stopped-run evidence.
+
+#### Changes
+
+1. Give every synchronous Google GenAI request a 120-second timeout through
+   the installed SDK's client-level HTTP options.
+2. Preserve three application-level attempts and exponential backoff for
+   transient provider, transport, and response-parse failures.
+3. Stop after the first structured daily-request-quota error because another
+   attempt cannot succeed during the same quota day.
+4. Preserve the existing optional-stage boundary: exhausted attempts become
+   `unavailable`, while selection and required visual stages continue.
+5. Record the timeout in both affected stage configurations so fingerprints
+   and resume decisions include the effective request policy.
+6. Keep the optional SDK imports function-local so CPU-only test and CLI
+   imports do not acquire a new dependency.
+
+#### Gate
+
+- Boundary tests prove both Google clients receive the exact timeout in
+  milliseconds without passing or recording the credential value.
+- Timeout failures exhaust the existing bounded retry loop; a structured daily
+  quota error performs no backoff or additional request.
+- A concrete coordinator commentary timeout records `unavailable` and still
+  reaches TrackNet input, annotation, assembly, and report publication.
+- The exact Bourbaki `google-genai` version accepts the configured HTTP options
+  without making a content request.
+- Focused tests, repository-wide Ruff, configured whole-project Pyrefly, and
+  the full pytest suite pass.
+- A fresh adversarial review finds no unresolved correctness issue.
+
+The first independent Batch 5C review found that terminal request failures were
+still consumed at the cleaning batch boundary after partial progress, and that
+the structured daily-quota signal was consumed at both per-video boundaries.
+The correction now propagates an exhausted cleaning request so the coordinator
+records the optional stage as `unavailable`, while retaining partial workspace
+state only as diagnostic evidence. A dedicated daily-quota exception bypasses
+both per-video skip handlers, so no later video can issue another request during
+the exhausted quota day. Regressions exercise a successful first cleaning
+chunk followed by three timeouts and two-video daily-quota cases for both
+boundaries.
+
+A fresh closure review then found that the classifier covered only the exact
+free-tier suffix observed in the stopped trial. The same structured daily
+request quota uses a tier-neutral ID for paid projects. Classification now
+accepts the daily-request base ID with either no suffix or a provider tier
+suffix, while still requiring HTTP 429 and structured details and rejecting
+per-minute quotas.
+
 ### Extended OUT-list
 
 - Do not replace or delete the canonical downloaded source. A 288p global
@@ -577,9 +647,15 @@ Draft commit: `Shard full-video pose extraction`
   provider adapters, OpenRouter support, or credential changes.
 - Do not reinterpret or tune rallies, contacts, landings, replay masks, or
   commentary while measuring throughput.
+- Do not reorder or parallelise commentary and vision in Batch 5C. Do not
+  change prompts, models, windowing, cleaning outputs, provider selection, or
+  credential handling; the corrective batch only bounds failure latency.
+- Preserve the stopped `8fc7503` root as evidence. Run corrected code from a
+  new exact-commit execution root rather than editing or relaunching that clone.
 
 ### Extended commit sequence
 
 1. `Speed up full-video shuttle extraction`
 2. `Shard full-video pose extraction`
-3. `Record the issue 15 end-to-end trial`
+3. `Bound optional commentary requests`
+4. `Record the issue 15 end-to-end trial`

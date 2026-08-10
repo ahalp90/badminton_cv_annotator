@@ -6,11 +6,11 @@ the module here (the test venv has no whisperx) must not fail.
 """
 import json
 import sys
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from src.scraper import commentary_cleaning, config
+from src.scraper import _llm_errors, commentary_cleaning, config
 
 
 @pytest.fixture(autouse=True)
@@ -72,6 +72,42 @@ def test_fine_video_lookup_rejects_duplicate_exact_and_legacy_sources(tmp_path) 
 
 
 # -- Clean pass --------------------------------------------------------------
+
+
+def test_clean_client_has_a_bounded_request_timeout(monkeypatch):
+    captured: dict[str, object] = {}
+    google = ModuleType('google')
+    genai = ModuleType('google.genai')
+
+    def http_options(*, timeout):
+        captured['timeout'] = timeout
+        return SimpleNamespace(timeout=timeout)
+
+    def client(**kwargs):
+        captured['client_kwargs'] = kwargs
+        response = SimpleNamespace(text=json.dumps({
+            'text_clean': 'clean',
+            'alt_phrasings': _phrasings(),
+        }))
+        return SimpleNamespace(models=SimpleNamespace(
+            generate_content=lambda **_request: response,
+        ))
+
+    genai.Client = client
+    genai.types = SimpleNamespace(HttpOptions=http_options)
+    google.genai = genai
+    monkeypatch.setitem(sys.modules, 'google', google)
+    monkeypatch.setitem(sys.modules, 'google.genai', genai)
+    monkeypatch.setenv(config.API_KEY_ENV, 'fixture-secret')
+
+    assert commentary_cleaning._clean_once('raw') == {
+        'text_clean': 'clean',
+        'alt_phrasings': _phrasings(),
+    }
+    assert captured['timeout'] == config.LLM_REQUEST_TIMEOUT_S * 1000
+    client_kwargs = captured['client_kwargs']
+    assert isinstance(client_kwargs, dict)
+    assert client_kwargs['http_options'].timeout == captured['timeout']
 
 
 def test_run_clean_extends_in_place_and_keeps_k_phrasings(tmp_path, monkeypatch):
@@ -218,44 +254,75 @@ def test_run_clean_keep_filter_parses_not_truth_tests(tmp_path, monkeypatch):
     assert seen == ['keep_true']
 
 
-def test_run_clean_logs_and_skips_failing_video(tmp_path, monkeypatch):
-    """One dead video is logged and skipped; the others still clean; no raise."""
+def test_run_clean_propagates_failure_after_persisting_partial_work(
+    tmp_path,
+    monkeypatch,
+):
     monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
+    calls: list[str] = []
 
     def fake(text):
-        if text.startswith('BAD'):
+        calls.append(text)
+        if text == 'BAD one':
             raise commentary_cleaning.CleanError('boom')
         return {'text_clean': f'C::{text}', 'alt_phrasings': _phrasings()}
 
     monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
-    good = _write_sidecar(tmp_path, 'good', [
-        {'chunk_id': 'good_c0', 'start': 0.0, 'end': 1.0, 'text': 'good one'},
+    sidecar = _write_sidecar(tmp_path, 'video', [
+        {'chunk_id': 'video_c0', 'start': 0.0, 'end': 1.0, 'text': 'good one'},
+        {'chunk_id': 'video_c1', 'start': 1.0, 'end': 2.0, 'text': 'BAD one'},
     ])
-    bad = _write_sidecar(tmp_path, 'bad', [
-        {'chunk_id': 'bad_c0', 'start': 0.0, 'end': 1.0, 'text': 'BAD one'},
-    ])
-    rows = [{'video_id': 'good', 'keep': 'True'}, {'video_id': 'bad', 'keep': 'True'}]
+    rows = [{'video_id': 'video', 'keep': 'True'}]
 
-    result = commentary_cleaning.run_clean(rows=rows)  # must not raise: not every call failed
-    assert 'text_clean' in json.loads(good.read_text(encoding='utf-8'))[0]
-    assert 'text_clean' not in json.loads(bad.read_text(encoding='utf-8'))[0]
-    assert result == {'good': 1}
+    with pytest.raises(commentary_cleaning.CleanError, match='boom'):
+        commentary_cleaning.run_clean(rows=rows)
+    chunks = json.loads(sidecar.read_text(encoding='utf-8'))
+    assert chunks[0]['text_clean'] == 'C::good one'
+    assert 'text_clean' not in chunks[1]
+    assert calls == ['good one', 'BAD one']
 
 
-def test_run_clean_raises_on_dead_endpoint(tmp_path, monkeypatch):
-    """Every LLM call failing blocks the run (dead endpoint)."""
+def test_run_clean_daily_quota_stops_before_later_video(tmp_path, monkeypatch):
     monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
+    calls: list[str] = []
 
-    def fake(_text):
-        raise commentary_cleaning.CleanError('dead')
+    def fake(text):
+        calls.append(text)
+        raise _llm_errors.DailyRequestQuotaError('daily quota exhausted')
 
     monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
-    _write_sidecar(tmp_path, 'v1', [{'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'a'}])
-    _write_sidecar(tmp_path, 'v2', [{'chunk_id': 'v2_c0', 'start': 0.0, 'end': 1.0, 'text': 'b'}])
+    _write_sidecar(tmp_path, 'v1', [
+        {'chunk_id': 'v1_c0', 'start': 0.0, 'end': 1.0, 'text': 'first'},
+    ])
+    _write_sidecar(tmp_path, 'v2', [
+        {'chunk_id': 'v2_c0', 'start': 0.0, 'end': 1.0, 'text': 'later'},
+    ])
     rows = [{'video_id': 'v1', 'keep': 'True'}, {'video_id': 'v2', 'keep': 'True'}]
 
-    with pytest.raises(RuntimeError, match='all .* LLM calls failed'):
+    with pytest.raises(_llm_errors.DailyRequestQuotaError, match='daily quota'):
         commentary_cleaning.run_clean(rows=rows)
+    assert calls == ['first']
+
+
+def test_run_clean_persists_partial_work_before_daily_quota(tmp_path, monkeypatch):
+    monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
+
+    def fake(text):
+        if text == 'first':
+            return {'text_clean': 'clean first', 'alt_phrasings': _phrasings()}
+        raise _llm_errors.DailyRequestQuotaError('daily quota exhausted')
+
+    monkeypatch.setattr(commentary_cleaning, 'call_clean_llm', fake)
+    sidecar = _write_sidecar(tmp_path, 'video', [
+        {'chunk_id': 'video_c0', 'start': 0.0, 'end': 1.0, 'text': 'first'},
+        {'chunk_id': 'video_c1', 'start': 1.0, 'end': 2.0, 'text': 'quota'},
+    ])
+
+    with pytest.raises(_llm_errors.DailyRequestQuotaError, match='daily quota'):
+        commentary_cleaning.run_clean(rows=[{'video_id': 'video', 'keep': 'True'}])
+    chunks = json.loads(sidecar.read_text(encoding='utf-8'))
+    assert chunks[0]['text_clean'] == 'clean first'
+    assert 'text_clean' not in chunks[1]
 
 
 def test_call_clean_llm_retries_then_raises(monkeypatch):
@@ -264,7 +331,7 @@ def test_call_clean_llm_retries_then_raises(monkeypatch):
 
     def boom(text):
         attempts.append(text)
-        raise RuntimeError('transient')
+        raise TimeoutError('request timed out')
 
     monkeypatch.setattr(commentary_cleaning, '_clean_once', boom)
     monkeypatch.setattr(commentary_cleaning.time, 'sleep', lambda _s: None)
@@ -272,6 +339,42 @@ def test_call_clean_llm_retries_then_raises(monkeypatch):
     with pytest.raises(commentary_cleaning.CleanError):
         commentary_cleaning.call_clean_llm('hi')
     assert len(attempts) == commentary_cleaning.LLM_MAX_RETRIES
+
+
+@pytest.mark.parametrize('quota_suffix', ['', '-FreeTier'])
+def test_call_clean_llm_does_not_retry_exhausted_daily_quota(
+    monkeypatch,
+    quota_suffix,
+):
+    calls = 0
+    sleeps: list[float] = []
+
+    class DailyQuotaError(RuntimeError):
+        code = 429
+        details = {
+            'error': {
+                'details': [{
+                    'violations': [{
+                        'quotaId': (
+                            f'GenerateRequestsPerDayPerProjectPerModel{quota_suffix}'
+                        ),
+                    }],
+                }],
+            },
+        }
+
+    def exhausted(_text):
+        nonlocal calls
+        calls += 1
+        raise DailyQuotaError('daily quota exhausted')
+
+    monkeypatch.setattr(commentary_cleaning, '_clean_once', exhausted)
+    monkeypatch.setattr(commentary_cleaning.time, 'sleep', sleeps.append)
+
+    with pytest.raises(_llm_errors.DailyRequestQuotaError, match='daily request quota'):
+        commentary_cleaning.call_clean_llm('hi')
+    assert calls == 1
+    assert sleeps == []
 
 
 # -- Fine-timestamp pass -----------------------------------------------------

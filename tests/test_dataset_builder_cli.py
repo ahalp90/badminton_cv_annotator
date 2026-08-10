@@ -21,7 +21,7 @@ from dataset_builder.selection import (
     COMMENTARY_UNAVAILABLE_TRANSCRIPT,
     load_selection,
 )
-from scraper import download_scraped_videos
+from scraper import commentary_cleaning, download_scraped_videos
 
 
 def _write_config(
@@ -660,6 +660,12 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
 
     assert [event.name for event in first.events] == fixture.expected_stage_names
     assert first.stopped_after is None
+    stages = {stage.name: stage for stage in first.manifest.stages}
+    for stage_name in ("triage", "commentary_cleaning"):
+        assert (
+            stages[stage_name].configuration["request_timeout_seconds"]
+            == fixture.scraper_config.LLM_REQUEST_TIMEOUT_S
+        )
     selected = load_selection(fixture.run_dir / "selected_videos.csv.gz")
     assert selected[0].commentary_status == COMMENTARY_NO_PAIR
     first_boundary_calls = list(fixture.boundary_calls)
@@ -796,6 +802,66 @@ def test_default_runtime_uses_visual_fallback_when_commentary_is_unavailable(
     assert selected[0].visual_selected is True
     assert selected[0].selection_source == "metadata_fallback"
     assert selected[0].commentary_status == COMMENTARY_UNAVAILABLE_TRANSCRIPT
+
+
+def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_clean = commentary_cleaning.run_clean
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    requests: list[str] = []
+
+    def clean_once(text: str) -> dict[str, object]:
+        requests.append(text)
+        if text == "fixture call":
+            return {
+                "text_clean": "clean fixture call",
+                "alt_phrasings": ["fixture alternative"]
+                * fixture.scraper_config.ALT_PHRASINGS_K,
+            }
+        raise TimeoutError("commentary request timed out")
+
+    def partial_timeout_clean(*, rows: list[dict[str, object]]) -> dict[str, int]:
+        path = fixture.chunk_dir / f"{fixture.video_id}.json"
+        chunks = json.loads(path.read_text(encoding="utf-8"))
+        chunks.append({
+            "chunk_id": f"{fixture.video_id}_c1",
+            "start": 2.0,
+            "end": 3.0,
+            "text": "fixture timeout",
+        })
+        path.write_text(json.dumps(chunks), encoding="utf-8")
+        return run_clean(rows=rows)
+
+    monkeypatch.setattr(
+        fixture.runtime_module.commentary_cleaning,
+        "run_clean",
+        partial_timeout_clean,
+    )
+    monkeypatch.setattr(commentary_cleaning, "CHUNKS_DIR", fixture.chunk_dir)
+    monkeypatch.setattr(commentary_cleaning, "_clean_once", clean_once)
+    monkeypatch.setattr(commentary_cleaning.time, "sleep", lambda _seconds: None)
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    outcomes = {event.name: event.outcome for event in result.events}
+    assert outcomes["commentary_cleaning"] is StageOutcome.UNAVAILABLE
+    assert outcomes[f"tracknet_input:{fixture.video_id}"] is StageOutcome.PROCESSED
+    assert outcomes[f"annotation:{fixture.video_id}"] is StageOutcome.PROCESSED
+    assert outcomes["assembly"] is StageOutcome.PROCESSED
+    assert outcomes["report"] is StageOutcome.PROCESSED
+    assert requests == [
+        "fixture call",
+        "fixture timeout",
+        "fixture timeout",
+        "fixture timeout",
+    ]
+    assert result.stopped_after is None
 
 
 def test_silent_visual_source_records_ineligible_commentary_reason(
