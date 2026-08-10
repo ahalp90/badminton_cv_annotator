@@ -1,5 +1,29 @@
 # Findings for the corrected experiment
 
+## Correction sweep on 11 August 2026
+
+The approved population structure is present in the frozen historical rows when a predicted span is keyed by `(fixture, span_id)`. The 292 GT rallies contain 249 `COVERED` rows over 244 distinct predicted spans. Of those spans, 239 contain one GT rally and five contain two GT rallies. The five merged spans account for 10 covered rows. The one-to-one rows break down as `sset_01=104`, `sset_15=84` and `sset_21=51`.
+
+The current implementation does not satisfy the corrected evaluation contract. `_populate_covered_row` assigns one ±5 category through `canonical_tolerance()`. `build_threshold_rows` then scores every row labelled contact 1 or contact 2 without filtering to one-to-one mappings or unique ±10 matches. `choose_threshold_for` selects each path mask's percentage threshold separately. The saved rally rows do not contain enough span, full-GT-stroke or accepted-sequence detail for `validate_outputs.py` to rebuild those decisions independently.
+
+The smallest correction keeps three plain records in `trajectory_features.py`:
+
+- an anchor alignment with nearest one-based GT ordinal, signed and absolute base-30fps offset, inclusive in-window count, a separate multiple-match flag and a nearest-stroke label;
+- an accepted-contact sequence summary for later GT-serve, first-return and first-matched-rank outcomes;
+- a robust distance trend with pairwise-median slope, median intercept, fitted decrease, residual RMS and diagnostic trend-to-jitter ratio.
+
+`VideoData.gt_rallies` already exposes full ordered `GtRally.stroke_frames`, so Batch 1 needs no new GT loader or truth type. The Batch 2 analysis must retain those frames and accepted contact frames in the compressed row data. It also needs a small predicted-span table so the independent validator can reconstruct `COVERED`, `SPLIT`, `MISSED` and span multiplicity from half-open span bounds. A compressed per-path-point table is the clearest independent input for recomputing robust trends; it avoids importing the analysis or feature module into the validator.
+
+The two trajectory masks already have clean provenance. `recurrence_clean` requires valid tracked coordinates and recurrence guard `NO_FLAG`. `producer_original` adds the frozen producer inpaint sidecar exclusion. The current `_measure_path` combines common eligibility with the historical 0.25-BH total-movement floor. The correction must split those states so the 0.05-BH robust-trend rule can use the same common path gates without inheriting that historical magnitude floor.
+
+Important edge cases are explicit before implementation. Equal-distance nearest GT ties use the lower ordinal. Constant-distance paths are eligible measured evidence and produce a negative incoming call, not an unavailable-evidence state. Zero-residual trend ratios use positive infinity, negative infinity or zero according to the fitted decrease, but non-finite diagnostics must stay out of strict JSON metrics. The validator must distinguish no selected path, a selected path that fails common eligibility, an eligible negative decision and an incoming decision.
+
+Both approved Luna sweeps completed read-only with exit code 0 and no worker-created repository diff. Their artefacts are under `local_scratch/external_delegate/20260811-080252-trajectory-accounting-sweep/` and `local_scratch/external_delegate/20260811-080252-trajectory-motion-sweep/`. Material claims above were checked against the historical row table and the named code paths.
+
+The Opus planning red-team completed read-only with exit code 0 and a clean Git tripwire. It found no Batch 1 blocker. Its useful clarification is that later accepted contacts match GT strokes independently, without consuming a stroke, and the first matched rank is one-based in the full accepted sequence. Its suggestion to freeze a threshold from the primary mask does not apply: the historical and robust-trend decisions are both fixed before corrected scoring and neither is selected from a mask's scores.
+
+The sections below describe the completed historical experiment. Their scores use the old ±5 join and 249 covered-row population, so they are evidence about the old run rather than corrected results.
+
 ## Bottom line
 
 The corrected motion rule found 11 of 16 clear first returns and made 3 false return calls. Across all 16 covered rallies where the rule fired, directly naming the other player as server was right in 13 cases. Adding an unknown-player contact before the alternating fit was right in 8 cases. Adding a contact by the inferred other player was right in 9 cases.

@@ -7,11 +7,14 @@ from itertools import product
 import numpy as np
 import pytest
 from trajectory_features import (
+    align_anchor_to_gt,
     classify_anchor_frame,
     closest_pre_contact_run,
     first_player_from_final_half,
     fit_path,
+    fit_robust_distance_trend,
     measure_incoming_motion,
+    summarise_unmatched_anchor_sequence,
 )
 
 from annotator.point_winner import Half, fit_alternation
@@ -174,6 +177,210 @@ def test_anchor_categories_cover_unique_first_second_later_ambiguous_and_unmatch
     assert classify_anchor_frame(120, gt_frames, 0) == "later"
     assert classify_anchor_frame(105, gt_frames, 5) == "ambiguous"
     assert classify_anchor_frame(130, gt_frames, 2) == "unmatched"
+
+
+def test_alignment_keeps_nearest_stroke_when_tolerance_changes() -> None:
+    gt_frames = [100, 112, 136]
+
+    strict = align_anchor_to_gt(106, gt_frames, fps=30.0, tolerance_base30=5)
+    primary = align_anchor_to_gt(106, gt_frames, fps=30.0, tolerance_base30=10)
+    sanity = align_anchor_to_gt(106, gt_frames, fps=30.0, tolerance_base30=30)
+
+    assert strict == (1, 6.0, 6.0, 0, False, "unmatched")
+    assert primary == (1, 6.0, 6.0, 2, True, "contact_1")
+    assert sanity == (1, 6.0, 6.0, 3, True, "contact_1")
+
+
+@pytest.mark.parametrize(("fps", "source_offset"), [(25.0, 8), (30.0, 10), (60.0, 20)])
+def test_alignment_uses_inclusive_half_up_scaled_tolerance(
+    fps: float, source_offset: int
+) -> None:
+    on_boundary = align_anchor_to_gt(
+        100 + source_offset,
+        [100],
+        fps=fps,
+        tolerance_base30=10,
+    )
+    outside = align_anchor_to_gt(
+        101 + source_offset,
+        [100],
+        fps=fps,
+        tolerance_base30=10,
+    )
+
+    assert on_boundary.label == "contact_1"
+    assert on_boundary.signed_offset_base30 > 0
+    assert outside.label == "unmatched"
+    assert outside.nearest_gt_ordinal == 1
+
+
+def test_alignment_signed_offset_is_anchor_minus_gt_frame() -> None:
+    alignment = align_anchor_to_gt(94, [100, 130], fps=30.0, tolerance_base30=10)
+
+    assert alignment.nearest_gt_ordinal == 1
+    assert alignment.signed_offset_base30 == -6.0
+    assert alignment.absolute_offset_base30 == 6.0
+
+
+@pytest.mark.parametrize(
+    "gt_frames",
+    [[], [100, 100], [110, 100], np.array([[100, 110]])],
+)
+def test_alignment_rejects_invalid_gt_frames(gt_frames: object) -> None:
+    with pytest.raises(ValueError):
+        align_anchor_to_gt(100, gt_frames, fps=30.0, tolerance_base30=10)  # type: ignore[arg-type]
+
+
+def test_unmatched_anchor_sequence_reports_later_serve_and_return() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80, 100, 110],
+        [100, 110, 140],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary == (2, True, True, 2, 1, False, False)
+
+
+def test_unmatched_anchor_sequence_reports_return_without_serve() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80, 130],
+        [100, 130],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary.later_serve_within_tolerance is False
+    assert summary.later_first_return_within_tolerance is True
+    assert summary.first_gt_match_rank == 2
+    assert summary.first_gt_match_ordinal == 2
+
+
+def test_unmatched_anchor_sequence_flags_reused_gt_ordinal() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80, 99, 101],
+        [100, 130],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary.first_gt_match_rank == 2
+    assert summary.reused_gt_ordinal is True
+
+
+def test_unmatched_anchor_sequence_keeps_multiple_flag_on_first_match() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80, 105],
+        [100, 110],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary.first_gt_match_rank == 2
+    assert summary.first_gt_match_ordinal == 1
+    assert summary.first_gt_match_multiple is True
+
+
+def test_unmatched_anchor_sequence_keeps_no_later_match_explicit() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80, 90],
+        [110, 130],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary.later_contacts_checked == 1
+    assert summary.first_gt_match_rank is None
+    assert summary.first_gt_match_ordinal is None
+
+
+def test_unmatched_anchor_sequence_accepts_no_later_contacts() -> None:
+    summary = summarise_unmatched_anchor_sequence(
+        [80],
+        [100, 130],
+        fps=30.0,
+        tolerance_base30=5,
+    )
+
+    assert summary == (0, False, False, None, None, False, False)
+
+
+@pytest.mark.parametrize("accepted", [[], [80, 80], [90, 80]])
+def test_unmatched_anchor_sequence_rejects_missing_or_unordered_anchor(
+    accepted: list[int],
+) -> None:
+    with pytest.raises(ValueError):
+        summarise_unmatched_anchor_sequence(
+            accepted,
+            [100, 130],
+            fps=30.0,
+            tolerance_base30=5,
+        )
+
+
+def test_unmatched_anchor_sequence_rejects_a_matched_anchor() -> None:
+    with pytest.raises(ValueError, match="first accepted contact must be unmatched"):
+        summarise_unmatched_anchor_sequence(
+            [100, 130],
+            [100, 130],
+            fps=30.0,
+            tolerance_base30=5,
+        )
+
+
+def test_robust_distance_trend_handles_inward_outward_and_constant_paths() -> None:
+    inward = fit_robust_distance_trend([5.0, 4.0, 3.0, 2.0, 1.0])
+    outward = fit_robust_distance_trend([1.0, 2.0, 3.0, 4.0, 5.0])
+    constant = fit_robust_distance_trend([2.0] * 5)
+
+    assert inward.fitted_decrease_bh == 4.0
+    assert np.isposinf(inward.trend_to_jitter)
+    assert outward.fitted_decrease_bh == -4.0
+    assert np.isneginf(outward.trend_to_jitter)
+    assert constant.fitted_decrease_bh == 0.0
+    assert constant.residual_rms_bh == 0.0
+    assert constant.trend_to_jitter == 0.0
+
+
+def test_robust_distance_trend_resists_one_bad_endpoint() -> None:
+    trend = fit_robust_distance_trend([5.0, 4.0, 3.0, 2.0, 10.0])
+
+    assert trend.fitted_decrease_bh > 0
+    assert trend.residual_rms_bh > 0
+
+
+def test_robust_distance_trend_accepts_two_samples() -> None:
+    trend = fit_robust_distance_trend([1.0, 0.9])
+
+    assert trend.slope_bh_per_path == pytest.approx(-0.1)
+    assert trend.fitted_decrease_bh == pytest.approx(0.1)
+    assert trend.residual_rms_bh == 0.0
+    assert np.isposinf(trend.trend_to_jitter)
+
+
+def test_robust_distance_trend_reports_noise_without_using_it_for_the_fit() -> None:
+    trend = fit_robust_distance_trend([2.0, 1.90, 1.82, 1.70, 1.62])
+
+    assert trend.fitted_decrease_bh > 0.05
+    assert trend.residual_rms_bh > 0
+    assert np.isfinite(trend.trend_to_jitter)
+
+
+def test_robust_distance_trend_ratio_is_invariant_to_constant_rescaling() -> None:
+    distances = np.array([2.0, 1.90, 1.82, 1.70, 1.62])
+
+    original = fit_robust_distance_trend(distances)
+    scaled = fit_robust_distance_trend(3.0 * distances)
+
+    assert scaled.fitted_decrease_bh == pytest.approx(3.0 * original.fitted_decrease_bh)
+    assert scaled.residual_rms_bh == pytest.approx(3.0 * original.residual_rms_bh)
+    assert scaled.trend_to_jitter == pytest.approx(original.trend_to_jitter)
+
+
+@pytest.mark.parametrize("distances", [[], [1.0], [1.0, np.nan], [[1.0, 0.5]]])
+def test_robust_distance_trend_rejects_invalid_input(distances: object) -> None:
+    with pytest.raises(ValueError):
+        fit_robust_distance_trend(distances)  # type: ignore[arg-type]
 
 
 def test_first_player_reuses_fitted_final_half_phase() -> None:

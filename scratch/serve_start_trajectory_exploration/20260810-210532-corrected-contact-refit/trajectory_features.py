@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
+from itertools import pairwise
 from typing import Literal, NamedTuple
 
 import numpy as np
 
+from annotator.fps_constants import ScalingKind
 from annotator.point_winner import Half, _phase_assignment
 from annotator.types import true_runs
 
@@ -49,6 +52,39 @@ class CurveFit(NamedTuple):
     quadratic_improvement: float
 
 
+class AnchorAlignment(NamedTuple):
+    """Nearest GT stroke and inclusive tolerance membership for one anchor."""
+
+    nearest_gt_ordinal: int
+    signed_offset_base30: float
+    absolute_offset_base30: float
+    in_window_count: int
+    multiple_within_tolerance: bool
+    label: Literal["unmatched", "contact_1", "contact_2", "later"]
+
+
+class AcceptedSequenceSummary(NamedTuple):
+    """Later GT matches after an anchor that is unmatched at the chosen tolerance."""
+
+    later_contacts_checked: int
+    later_serve_within_tolerance: bool
+    later_first_return_within_tolerance: bool
+    first_gt_match_rank: int | None
+    first_gt_match_ordinal: int | None
+    first_gt_match_multiple: bool
+    reused_gt_ordinal: bool
+
+
+class RobustDistanceTrend(NamedTuple):
+    """Robust trend and residual diagnostics for shuttle-to-player distance."""
+
+    slope_bh_per_path: float
+    intercept_bh: float
+    fitted_decrease_bh: float
+    residual_rms_bh: float
+    trend_to_jitter: float
+
+
 AnchorCategory = Literal["unmatched", "ambiguous", "contact_1", "contact_2", "later"]
 
 
@@ -57,6 +93,155 @@ def _integer(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
         raise TypeError(f"{name} must be an integer")
     return int(value)
+
+
+def _ordered_frames(values: Sequence[int] | np.ndarray, name: str) -> tuple[int, ...]:
+    """Return a non-empty, strictly increasing sequence of integer frames."""
+    array = np.asarray(values)
+    if array.ndim != 1:
+        raise ValueError(f"{name} must be one-dimensional")
+    frames = tuple(_integer(value, name) for value in array)
+    if not frames:
+        raise ValueError(f"{name} must not be empty")
+    if any(current <= previous for previous, current in pairwise(frames)):
+        raise ValueError(f"{name} must be strictly increasing")
+    return frames
+
+
+def _scaled_tolerance(tolerance_base30: int, fps: float) -> tuple[int, float]:
+    """Return the inclusive source-frame tolerance and checked frame rate."""
+    tolerance = _integer(tolerance_base30, "tolerance_base30")
+    if tolerance <= 0:
+        raise ValueError("tolerance_base30 must be positive")
+    if isinstance(fps, bool) or not isinstance(fps, (int, float, np.number)):
+        raise TypeError("fps must be numeric")
+    fps_value = float(fps)
+    if not math.isfinite(fps_value) or fps_value <= 0:
+        raise ValueError("fps must be positive and finite")
+    source_tolerance = int(ScalingKind.FRAME_COUNT.scale(tolerance, fps_value))
+    return source_tolerance, fps_value
+
+
+def _alignment_label(nearest_ordinal: int, in_window_count: int) -> Literal[
+    "unmatched", "contact_1", "contact_2", "later"
+]:
+    """Name the nearest stroke when at least one GT stroke is in tolerance."""
+    if in_window_count == 0:
+        return "unmatched"
+    if nearest_ordinal == 1:
+        return "contact_1"
+    if nearest_ordinal == 2:
+        return "contact_2"
+    return "later"
+
+
+def align_anchor_to_gt(
+    anchor_frame: int,
+    gt_stroke_frames: Sequence[int] | np.ndarray,
+    fps: float,
+    tolerance_base30: int,
+) -> AnchorAlignment:
+    """Retain nearest-stroke details separately from tolerance ambiguity."""
+    anchor = _integer(anchor_frame, "anchor_frame")
+    gt_frames = np.asarray(_ordered_frames(gt_stroke_frames, "gt_stroke_frames"), dtype=np.int64)
+    source_tolerance, fps_value = _scaled_tolerance(tolerance_base30, fps)
+
+    signed_source_offsets = anchor - gt_frames
+    absolute_source_offsets = np.abs(signed_source_offsets)
+    nearest_index = int(np.argmin(absolute_source_offsets))
+    in_window_count = int(np.count_nonzero(absolute_source_offsets <= source_tolerance))
+    signed_offset_base30 = float(signed_source_offsets[nearest_index] * 30.0 / fps_value)
+    nearest_ordinal = nearest_index + 1
+    return AnchorAlignment(
+        nearest_ordinal,
+        signed_offset_base30,
+        abs(signed_offset_base30),
+        in_window_count,
+        in_window_count > 1,
+        _alignment_label(nearest_ordinal, in_window_count),
+    )
+
+
+def summarise_unmatched_anchor_sequence(
+    accepted_contact_frames: Sequence[int] | np.ndarray,
+    gt_stroke_frames: Sequence[int] | np.ndarray,
+    fps: float,
+    tolerance_base30: int,
+) -> AcceptedSequenceSummary:
+    """Summarise independent later-contact matches after an unmatched anchor."""
+    accepted = _ordered_frames(accepted_contact_frames, "accepted_contact_frames")
+    gt_frames = np.asarray(_ordered_frames(gt_stroke_frames, "gt_stroke_frames"), dtype=np.int64)
+    source_tolerance, _fps_value = _scaled_tolerance(tolerance_base30, fps)
+
+    anchor_offsets = np.abs(gt_frames - accepted[0])
+    if np.any(anchor_offsets <= source_tolerance):
+        raise ValueError("the first accepted contact must be unmatched at the chosen tolerance")
+
+    later_serve_match = False
+    later_first_return_match = False
+    first_match_rank: int | None = None
+    first_match_ordinal: int | None = None
+    first_match_multiple = False
+    matches_per_ordinal = np.zeros(len(gt_frames), dtype=np.int64)
+
+    for accepted_rank, contact_frame in enumerate(accepted[1:], start=2):
+        absolute_offsets = np.abs(gt_frames - contact_frame)
+        matching_ordinals = np.flatnonzero(absolute_offsets <= source_tolerance)
+        if len(matching_ordinals) == 0:
+            continue
+        matches_per_ordinal[matching_ordinals] += 1
+        later_serve_match |= bool(np.any(matching_ordinals == 0))
+        later_first_return_match |= bool(np.any(matching_ordinals == 1))
+        if first_match_rank is None:
+            first_match_rank = accepted_rank
+            first_match_ordinal = int(np.argmin(absolute_offsets)) + 1
+            first_match_multiple = len(matching_ordinals) > 1
+
+    return AcceptedSequenceSummary(
+        len(accepted) - 1,
+        later_serve_match,
+        later_first_return_match,
+        first_match_rank,
+        first_match_ordinal,
+        first_match_multiple,
+        bool(np.any(matches_per_ordinal > 1)),
+    )
+
+
+def fit_robust_distance_trend(
+    distances_bh: Sequence[float] | np.ndarray,
+) -> RobustDistanceTrend:
+    """Fit the predeclared pairwise-median trend over normalised sample time."""
+    distances = np.asarray(distances_bh, dtype=float)
+    if distances.ndim != 1:
+        raise ValueError("distances_bh must be one-dimensional")
+    if len(distances) < 2:
+        raise ValueError("a distance trend requires at least two samples")
+    if not np.isfinite(distances).all():
+        raise ValueError("distances_bh must contain only finite values")
+
+    sample_time = np.linspace(0.0, 1.0, len(distances))
+    slopes = [
+        (distances[end] - distances[start]) / (sample_time[end] - sample_time[start])
+        for start in range(len(distances) - 1)
+        for end in range(start + 1, len(distances))
+    ]
+    slope = float(np.median(slopes))
+    intercept = float(np.median(distances - slope * sample_time))
+    residuals = distances - (intercept + slope * sample_time)
+    residual_rms = float(np.sqrt(np.mean(residuals**2)))
+    fitted_decrease = -slope
+    if residual_rms == 0.0:
+        trend_to_jitter = math.copysign(math.inf, fitted_decrease) if fitted_decrease else 0.0
+    else:
+        trend_to_jitter = fitted_decrease / residual_rms
+    return RobustDistanceTrend(
+        slope,
+        intercept,
+        fitted_decrease,
+        residual_rms,
+        trend_to_jitter,
+    )
 
 
 def closest_pre_contact_run(

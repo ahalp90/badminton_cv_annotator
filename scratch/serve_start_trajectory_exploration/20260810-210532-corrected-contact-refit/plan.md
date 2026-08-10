@@ -1,6 +1,6 @@
 # Corrected contact and refit experiment
 
-Status: completed. The measured result and limits are in `report.md`.
+Status: the original run is complete at commit `51d6438`. The correction extension and its three commit messages were approved for launch on 11 August 2026. The original plan through “Proposed commits” is historical; the correction extension supersedes its evaluation groups, contact join, threshold selection and reporting requirements.
 
 ## The question
 
@@ -108,4 +108,276 @@ Prepend an order-only server guess when motion identifies a first return. Reuse 
 Explain the corrected serve trajectory results
 
 Add readable plots, checked tables and a plain account of what the two experiments did and did not establish.
+```
+
+---
+
+## Correction extension: evaluation accounting and readable final outputs
+
+### Goal
+
+Repair the investigation so each result has a valid rally mapping, contact-alignment rule, denominator and evidence state, then explain the corrected result in one readable report with plots that are difficult to misread.
+
+### Risk appetite
+
+- Accept corrected result changes when row-level evidence explains them.
+- Accept no silent change to frozen inputs, GT, rally segmentation, accepted-contact reconstruction or production behaviour.
+- Treat the old outputs as a historical baseline, not a numerical target. The correction is expected to replace invalid denominators and the ±5-driven primary labels.
+- Make every headline number reproducible from compressed row-level tables through `validate_outputs.py` without importing the analysis module.
+
+### In scope
+
+- The dedicated Python scripts and tests in this directory
+- Ignored generated tables, metrics, plots and case images under `outputs/`
+- The report, README, findings, handover, plan, decisions and worklog
+- The three user-supplied review records, preserved unchanged
+- Read-only source tracing under `src/**` where the experiment depends on production behaviour
+- Read-only visual spot-checks when they can distinguish a GT-incompatible candidate from a visually confirmed spurious contact
+
+### OUT-list
+
+- `src/**`: production behaviour is frozen for this EDA
+- Frozen release inputs, pose arrays and ShuttleSet GT: source evidence must remain unchanged
+- Rally segmentation and the `classify_all` definition: measure its consequences without changing it
+- `experiments/**`, `.claude/**` and `.env`: unrelated or prohibited material
+- New models, new annotation work and a broad visual labelling exercise: outside the investigation question
+- `main`, published history, rebases and merges: work stays on `investigation/serve-start-trajectory`
+- Existing commits `464b926`, `981baae`, `87805cf` and `51d6438`: preserve the original audit trail
+- Generated inputs or bulky results in Git: keep them ignored and compressed under the repository rules
+
+### Evaluation contract
+
+Use three named populations only:
+
+| Population | Intended count | Use |
+|---|---:|---|
+| One-to-one mapped | 239 | Primary anchor, trajectory and server analyses that require one predicted span/contact sequence per GT rally |
+| Covered under `classify_all` | 249 | Sensitivity showing the effect of retaining merged predicted spans |
+| All GT rallies | 292 | End-to-end view that also includes split and missed rally segmentation |
+
+Verify the intended counts from source rows before scoring. The 249 covered rows should map to 244 distinct predicted spans. Five spans should contain two GT rallies each. Stop and report a conflict if the rebuilt mapping differs.
+
+For every earliest anchor and each tolerance of ±5, ±10 and ±30 base-30fps frames, save:
+
+- nearest GT stroke ordinal
+- signed offset, defined as anchor frame minus GT stroke frame and scaled to base-30fps frames
+- absolute offset
+- count of GT strokes inside the inclusive tolerance
+- separate multiple-within-tolerance flag
+- first, second, later or unmatched label based on the nearest stroke when one lies inside the tolerance
+
+Use ±10 labels for the primary motion threshold and downstream analysis. Use ±5 for strict sensitivity and ±30 for the physical-stroke sanity check. Retain nearest-stroke information at ±30 even when multiple strokes fall inside the window.
+
+For every one-to-one anchor unmatched at ±10, walk the accepted contacts after the anchor. Record whether a later contact matches the GT serve, whether one matches the GT first return, and the accepted-contact rank of the first GT match. Keep cases with no later match separate.
+
+Match each later accepted contact independently against all GT strokes. A match does not consume a GT stroke. Record the first matched contact's one-based rank in the full accepted sequence, so the rank is at least 2 for an unmatched anchor. Retain that contact's nearest ordinal and multiple-match flag, and flag when more than one accepted contact lies within tolerance of the same GT ordinal.
+
+Use an anchor as contact-1/contact-2 threshold truth only when exactly one GT stroke lies inside ±10. Keep the nearest ordinal and offset for multiple-match cases, but report those cases separately from the threshold-scoring set.
+
+### Predeclared motion-rule comparison
+
+The original 0.25-body-height values are investigation-time choices, not established physical cut-offs. A five-point path can need an implausibly large displacement to pass them, their meaning changes with path length, and apparent body height in a monocular image is not physical distance.
+
+Preserve the complete historical rule without retuning:
+
+- at least five points, ending no more than two base-30fps frames before the anchor;
+- recurrence `NO_FLAG`, finite contact-player distances and largest-step ratio at most 4.0;
+- total shuttle movement at least 0.25 apparent player body heights;
+- net closure at least 0.25 apparent player body heights;
+- at least 55% of consecutive distance changes towards the contact player.
+
+Add one alternative called the **0.05-BH robust-trend rule**. It uses the same eligibility gates except for the absolute total-movement floor.
+
+For distances `d[i]` from the shuttle to the contact player's nearest wrist, in locally normalised apparent body heights:
+
+1. set `t[i] = i / (n - 1)`;
+2. set the robust slope to the median of `(d[j] - d[i]) / (t[j] - t[i])` over every `i < j`;
+3. set the intercept to the median of `d[i] - slope * t[i]`;
+4. calculate the residual RMS around that line;
+5. set `fitted_decrease = -slope` and `trend_to_jitter = fitted_decrease / residual_rms`;
+6. call the path incoming only when `fitted_decrease >= 0.05` apparent player body heights.
+
+The `0.05 BH` value is an engineering judgement chosen before corrected scoring. It is not a calibrated physical constant. Do not sweep or retune it. The rule does not inspect horizontal jitter or require every step to approach.
+
+Residual RMS and trend-to-jitter remain continuous diagnostics. When residual RMS is zero, record positive infinity for a positive fitted decrease, negative infinity for a negative decrease and zero for no decrease. Neither diagnostic may change the incoming decision. The diagnostics cannot distinguish a smooth systematic tracking drift from true approach when the observed residual scatter is very small. State that limit and use the planned small visual spot-check only to understand representative cases.
+
+Predeclare these exact formulas and values before reading corrected classification scores. Score both rules on the 239 one-to-one set with unique ±10 contact-1/contact-2 truth, globally and per video. Do not choose a winner from those scores. Explain whether the historical rule loses paths because of its absolute magnitude requirements and how the decision sets overlap.
+
+For the 0.05-BH rule, report fitted decrease, residual RMS and trend-to-jitter:
+
+- for GT serves versus first returns;
+- for correct versus incorrect calls;
+- against sampled path length;
+- in representative false-positive and false-negative case plots.
+
+If a diagnostic pattern is useful, report it as a finding. Do not add a diagnostic threshold or another classifier in this investigation.
+
+Apply both frozen rules unchanged to both path masks. Use the 0.05-BH robust-trend rule as the main controlled inpaint ablation because it directly represents the physical question. Show the historical rule under both masks as a fixed sensitivity result. Do not select or report a separately optimised threshold for either mask.
+
+### Delegate authority and audit
+
+The user carried forward the following read-only permissions from 10 August 2026. Every worker receives a fresh brief plus named files or a named diff. No worker may edit, commit, push, rewrite history or inspect credentials.
+
+| Worker | Effort | Role and context | Budget | Primary audit |
+|---|---|---|---|---|
+| Headless Codex `gpt-5.6-luna` | `max` | Two non-overlapping source sweeps, named files and relevant `src/**` symbols; Serena endpoint supplied | 25,000 tokens per sweep | Verify every material claim against source or row-level data; require a clean worker Git tripwire |
+| Direct-host agy `claude-opus-4-6-thinking` | Model-defined | Planning and Batch 2 adversarial review from named documents or diff | One report under 1,500 words per check-in | Reproduce blocking claims and challenge the 0.05-BH robust-trend formulation before changing the plan or code |
+| Direct-host agy `gemini-3.1-pro-high` | `high` | Batch 1 and final branch audit from named documents, diff and gate results | One report under 1,500 words per check-in | Independently verify numerical or scope findings before accepting them |
+
+All external output is untrusted evidence. The primary agent owns the result and reruns the gates.
+
+### Gate ladder
+
+- **Tier 0, mechanical:** focused tests, dedicated Ruff, pinned whole-project Pyrefly, whole-project pytest and `git diff --check`
+- **Tier 1, structural:** validate row counts, unique GT keys, predicted-span multiplicities, population membership, per-video totals, tolerance fields and accepted-contact match ranks
+- **Tier 2, numerical:** independently rebuild thresholds, evidence-availability counts, confusion counts and all displayed server tables from `rallies.csv.gz`; compare every headline and caption count with the rebuilt values
+- **Final-output gate:** apply both readability audits to the complete report and every supporting plot, then run a fresh-reader WebUI review before the final branch audit
+
+The repository-wide Ruff command currently fails on unrelated existing findings. Run it as required and compare the output with the pre-edit baseline. The dedicated investigation directory must remain clean.
+
+### Runbook
+
+#### Pre-edit capture and sweep
+
+Files: current scripts, tests, documents and ignored `outputs/**`.
+
+1. Run the current analysis and independent validator before editing, then copy the row tables, metrics, report and plots to a timestamped gitignored baseline directory under `local_scratch/`.
+2. Confirm the tracked report did not change. This one fresh validated capture is the Batch 1 reference; a duplicate pre-edit run would add little for this deterministic local analysis.
+3. Record frozen-input checks and the current project-gate baseline.
+4. Run two non-overlapping read-only `gpt-5.6-luna`, effort `max`, sweeps:
+   - rally mapping, tolerance labels, accepted-sequence matching and validation;
+   - motion evidence, threshold selection, inpaint ablation, plots and report generation.
+5. Verify each material delegated claim against source or row-level data.
+6. Update `findings.md` and this runbook if the sweep changes a touch-point. Stop for any conflict with the approved evaluation contract.
+
+Gate: no repository diff from workers; primary verification of every proposed data field and score path.
+
+Red-team check-in: read-only `claude-opus-4-6-thinking`, model-defined effort, receives the updated findings, decisions and runbook. It must try to refute the population, alignment, sequence-diagnostic and fixed-threshold claims in one report under 1,500 words.
+
+#### Batch 1: add checked evaluation records
+
+Files:
+
+- `.serena/project.yml`
+- `trajectory_features.py`
+- `test_trajectory_features.py`
+
+Changes:
+
+- include only this investigation directory in Serena's additional Python workspace scope;
+- add a pure anchor-alignment record that retains nearest ordinal, signed and absolute offsets, in-window count and multiple-match status;
+- add a pure accepted-sequence summary for later serve/first-return matches and first matched rank;
+- add the predeclared robust slope, fitted decrease, residual RMS and diagnostic trend-to-jitter measurement without wiring it into classification;
+- test tolerance boundaries, signed-offset direction, tied nearest strokes, multiple in-window strokes and later-contact ranks;
+- test perfect inward and outward trends, constant paths, noisy trends, one-endpoint outliers, zero residuals and invariance to constant distance rescaling.
+
+`VideoData.gt_rallies` already exposes each rally's full ordered `GtRally.stroke_frames`; do not add another GT loader or truth type. Saving those existing frames for independent validation belongs to Batch 2 when the row schema changes.
+
+Dedicated gates:
+
+```bash
+~/.venvs/badminton-cicd/bin/pytest \
+  scratch/serve_start_trajectory_exploration/20260810-210532-corrected-contact-refit/test_trajectory_features.py
+
+~/.venvs/badminton-cicd/bin/ruff check \
+  scratch/serve_start_trajectory_exploration/20260810-210532-corrected-contact-refit
+```
+
+Then run the unmodified full analysis and validator and compare their outputs with the pre-edit capture. This batch must be bit-exact because it only adds checked primitives. Run the project Ruff, pinned Pyrefly and whole-project pytest commands from the repository instructions.
+
+Adversarial gate: read-only `gemini-3.1-pro-high`, effort `high`, checks the Batch 1 diff, new invariants and bit-exact baseline result against the runbook and OUT-list. The primary agent independently verifies every reported mismatch.
+
+#### Batch 2: rebuild rally, motion and server results
+
+Likely files:
+
+- `analyse_serve_trajectory.py`
+- `validate_outputs.py`
+- `test_trajectory_features.py`
+
+Changes:
+
+- add predicted-span multiplicity and the three evaluation populations;
+- wire the ±5, ±10 and ±30 alignment records into each rally row;
+- add later accepted-contact outcomes for one-to-one anchors unmatched at ±10;
+- preserve the historical 0.25-BH plus 55% rule without retuning;
+- apply the predeclared 0.05-BH robust-trend rule without inspecting classification scores first;
+- apply both frozen rules unchanged to both inpaint-ablation arms;
+- report the trend and jitter diagnostics by GT class, call correctness, sampled path length and representative errors;
+- separate unavailable path, measured serve decision and measured return decision;
+- score anchor identity, motion and server methods on 239 primary rallies;
+- add 249-covered sensitivity and a clearly labelled 292-rally end-to-end view;
+- break major path, motion and server counts out by video;
+- use cautious GT-compatibility language unless a case receives visual confirmation.
+
+For the sequence diagnostic, later accepted contacts match GT strokes independently and do not consume them. Store the first matched contact's one-based rank in the full accepted sequence, its nearest ordinal and multiple flag, and whether several accepted contacts reuse one GT ordinal.
+
+The corrected validator must not import `analyse_serve_trajectory.py` or `trajectory_features.py`. Keep infinite zero-residual trend-to-jitter values in row-level CSV data and out of strict JSON metrics rather than capping them or turning them into another threshold.
+
+Gates: focused tests, dedicated Ruff, analysis run, independent validator, project Ruff, pinned Pyrefly, whole-project pytest and `git diff --check`.
+
+Adversarial gate: read-only `claude-opus-4-6-thinking`, model-defined effort, checks the Batch 2 diff, both frozen rules, the controlled inpaint comparison and claimed interpretation. Any visually checked case remains read-only and is reported as a small spot-check, not a new labelled dataset.
+
+#### Batch 3: rebuild the report and plots
+
+Likely files:
+
+- `analyse_serve_trajectory.py`
+- `validate_outputs.py`
+- `report.md`
+- `README.md`
+- `findings.md`
+- `HANDOVER.md`
+- generated ignored plots and metrics
+
+Changes:
+
+- start `report.md` with an approximately 800-word account that answers the questions in `FINAL_REPORT_READABILITY_AUDIT.md`;
+- define 292, 249 and 239 before using their results;
+- explain the ordinary, non-serve-gated contact anchor;
+- keep segmentation, GT alignment, path availability, motion decision and server correctness separate;
+- give global and per-video counts with visible denominators;
+- define every server method and plot category in ordinary language;
+- apply `write-clearly`, then `de-yuck`, without weakening qualifications;
+- apply `PLOT_READABILITY_AUDIT.md` to every plot that appears in or supports the report;
+- extend the validator so each headline, table and plot caption is tied to regenerated row-level values.
+
+Gates: report validator, focused tests, dedicated Ruff, project Ruff, pinned Pyrefly, whole-project pytest, `git diff --check`, Markdown fence check and primary visual inspection of every plot.
+
+Fresh-reader halt:
+
+1. Build a small tarball containing the report, the original questions, both readability audits and only the plots used by the report.
+2. Give it to a fresh ChatGPT WebUI Pro or Pro Extended session. Do not include the plan, decisions, worklog or implementation notes.
+3. Require the reviewer to explain the report and each plot before using the GitHub connector. Allow the connector only for a second-pass check of a disputed technical claim.
+4. Bring the review response back to this session. Fix comprehension failures in the report or plot itself.
+5. Repeat only if a denominator, category or main conclusion remains misunderstood.
+
+This is the best WebUI checkpoint because visual inspection and a genuinely cold first read matter more here than workspace-wide code navigation.
+
+#### Final audit and close-out
+
+Run a fresh read-only `gemini-3.1-pro-high`, effort `high`, audit over the complete branch diff, runbook, OUT-list, worklog and final gate results. The primary agent reruns every required project gate and independently checks the headline numbers from the row-level outputs.
+
+Do not merge. Stop with the corrected branch, audit records and gate outcomes ready for user review.
+
+### Proposed correction commits
+
+These messages were approved with the correction launch on 11 August 2026.
+
+```text
+Add checked serve trajectory evaluation records
+
+Retain nearest-stroke offsets and ambiguity separately at each contact tolerance. Add accepted-sequence summaries for later serve and first-return matches without changing the existing result.
+```
+
+```text
+Rebuild the serve trajectory motion and server results
+
+Separate one-to-one rally mappings from merged covered spans and make the usable contact tolerance primary. Compare the historical absolute-closure rule with a predeclared 0.05-BH robust-trend rule, then apply both unchanged across the inpaint masks.
+```
+
+```text
+Rewrite the serve trajectory report around checked denominators
+
+Explain the corrected funnel and per-video results in plain language. Add independently checked tables and plots that show their populations and evidence availability directly.
 ```

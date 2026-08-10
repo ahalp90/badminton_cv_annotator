@@ -15,9 +15,10 @@ ls_workspace_folders:
 - "src"
 ls_additional_workspace_folders:
 - "tests"
+- "scratch/serve_start_trajectory_exploration/20260810-210532-corrected-contact-refit"
 ignored_paths:
 - "local_scratch/**"
-- "scratch/**"
+- "scratch/swarm_review/**"
 - "scripts/archive/**"
 - "experiments/**"
 - "data/**"
