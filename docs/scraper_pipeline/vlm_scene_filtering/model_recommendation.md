@@ -13,7 +13,7 @@ complete-shard design. See the
   one correction retry, so it failed the strict response contract.
 - Qwen's exact FP8 checkpoint loaded with official vLLM 0.11.0. The L40 had
   6.30 GiB left for BF16 KV cache, while the full 262,144-token context needs
-  24.00 GiB. Its measured maximum was 68,832 tokens, below the full video's
+  24.00 GiB. Its measured maximum was 68,800 tokens, below the full video's
   129,600 visual tokens.
 - Accuracy and boundary metrics were not calculated because neither candidate
   passed the deployment gate.
