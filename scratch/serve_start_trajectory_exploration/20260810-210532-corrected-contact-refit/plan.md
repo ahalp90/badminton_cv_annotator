@@ -1,5 +1,7 @@
 # Corrected contact and refit experiment
 
+Status: completed. The measured result and limits are in `report.md`.
+
 ## The question
 
 Can shuttle motion before the earliest accepted contact tell us that this contact was the first return rather than the serve?

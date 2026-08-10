@@ -47,3 +47,18 @@ Focused checks so far:
 - full analysis over all three videos: passed.
 
 The full repository gates remain before close-out.
+
+## 2026-08-10: close-out checks
+
+The regenerated report passed a second cold read. The reviewer found the earlier denominator, method-name, abstention, axis and TrackNet-source ambiguities resolved.
+
+Final checks:
+
+- dedicated Ruff check: exit 0;
+- independent output validator: exit 0;
+- pinned whole-project Pyrefly: exit 0, no errors and 20 configured suppressions;
+- whole-project pytest: exit 0, 1,456 passed and 29 skipped;
+- whole-project Ruff: exit 1 on 661 existing findings across unrelated files;
+- `git diff --check`: exit 0.
+
+The dedicated directory has no Ruff findings. The repository-wide Ruff failures are outside this investigation and were left unchanged.

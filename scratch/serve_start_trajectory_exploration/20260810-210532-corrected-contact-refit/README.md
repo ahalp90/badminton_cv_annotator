@@ -15,6 +15,10 @@ When incoming motion is found, the experiment adds one missing shot before the a
 
 The second version is not a separate measurement of player identity. It trusts the first experiment one extra time.
 
+## Result
+
+The motion rule found 11 of 16 clear first returns and made 3 false calls. In all 16 covered rallies where the rule fired, directly naming the other player as server was right 13 times. The two alternating refits were right 8 and 9 times, so the direct motion inference is the useful result. See `report.md` for the denominators, threshold plot and limits.
+
 ## Files
 
 - `plan.md`: exact experiment and exclusions.
