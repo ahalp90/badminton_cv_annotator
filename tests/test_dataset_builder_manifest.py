@@ -291,6 +291,22 @@ def test_resolved_interpreter_captures_absolute_path_and_version() -> None:
     assert identity.version.startswith("Python ")
 
 
+def test_resolved_interpreter_supports_a_single_dash_version_option(tmp_path: Path) -> None:
+    executable = tmp_path / "ffmpeg-fixture"
+    executable.write_text(
+        "#!/bin/sh\n"
+        "test \"$1\" = -version || exit 2\n"
+        "printf 'ffmpeg fixture 1.0\\n'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+
+    identity = resolve_interpreter(executable, version_option="-version")
+
+    assert identity.path == str(executable.resolve())
+    assert identity.version == "ffmpeg fixture 1.0"
+
+
 def test_stage_outcomes_have_the_approved_wire_values() -> None:
     assert {outcome.value for outcome in StageOutcome} == {
         "processed",

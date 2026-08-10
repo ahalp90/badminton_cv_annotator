@@ -121,8 +121,12 @@ def redact_command(
     return tuple(redacted)
 
 
-def resolve_interpreter(executable: str | Path) -> InterpreterIdentity:
-    """Resolve an interpreter executable and capture its version string."""
+def resolve_interpreter(
+    executable: str | Path,
+    *,
+    version_option: str = "--version",
+) -> InterpreterIdentity:
+    """Resolve an executable and capture its version string."""
     requested = os.fspath(executable)
     located = shutil.which(requested)
     if located is None:
@@ -135,7 +139,7 @@ def resolve_interpreter(executable: str | Path) -> InterpreterIdentity:
         raise PermissionError(f"interpreter is not executable: {path}")
     try:
         completed = subprocess.run(
-            [os.fspath(path), "--version"],
+            [os.fspath(path), version_option],
             capture_output=True,
             text=True,
             check=False,
@@ -145,10 +149,13 @@ def resolve_interpreter(executable: str | Path) -> InterpreterIdentity:
         raise RuntimeError(f"could not run interpreter {path}: {exc}") from exc
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout).strip()
-        raise RuntimeError(f"interpreter {path} --version failed with exit status {completed.returncode}: {detail}")
+        raise RuntimeError(
+            f"interpreter {path} {version_option} failed with exit status "
+            f"{completed.returncode}: {detail}"
+        )
     version = (completed.stdout or completed.stderr).strip()
     if not version:
-        raise RuntimeError(f"interpreter {path} --version returned no version text")
+        raise RuntimeError(f"interpreter {path} {version_option} returned no version text")
     return InterpreterIdentity(path=os.fspath(path), version=version)
 
 

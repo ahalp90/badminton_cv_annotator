@@ -120,7 +120,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self.pose_interpreter = resolve_interpreter(
             self._required_environment(self.config.pose_python_environment),
         )
-        self.ffmpeg_interpreter = resolve_interpreter("ffmpeg")
+        self.ffmpeg_interpreter = resolve_interpreter("ffmpeg", version_option="-version")
         required_files = {
             "TrackNet batch predictor": self.config.tracknet_dir / "batch_predict.py",
             "TrackNet weights": self.config.tracknet_model,
