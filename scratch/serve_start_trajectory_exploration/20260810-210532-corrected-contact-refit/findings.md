@@ -2,9 +2,13 @@
 
 ## Bottom line
 
-The earlier EDA started from `fitted_first_all`, which is the result of the rally-wide alternating fit. It then asked whether motion supported reversing that already uncertain label. The EDA did not test the earliest contact's own player attribution, did not add a missing contact, and did not rerun the alternating fit.
+The corrected motion rule found 11 of 16 clear first returns and made 3 false return calls. Across all 16 covered rallies where the rule fired, directly naming the other player as server was right in 13 cases. Adding an unknown-player contact before the alternating fit was right in 8 cases. Adding a contact by the inferred other player was right in 9 cases.
 
-The corrected experiments can reuse most of the extracted data, but they need a new row definition and new scoring. The anchor is the earliest accepted contact. Its player comes from direct geometry at the anchor. The trajectory approaches that player or it does not. A triggered case then supplies one missing server-player guess before the accepted contact sequence and reruns the existing fitter.
+The simple complete motion rule raises covered-rally server accuracy from 61.8% when using the anchor player alone to 65.9%. The alternating refits barely improve on the released alternating fit. The useful result is therefore the direct motion inference, not the recursive refit.
+
+The stricter check that excludes filled or interpolated TrackNet points has 100% precision and 56.2% recall on the 16 clear returns. The main rule has 78.6% precision and 68.8% recall. Both settings were chosen on these same videos, so neither is a held-out estimate.
+
+The earlier EDA started from `fitted_first_all`, which is the result of the rally-wide alternating fit. It then asked whether motion supported reversing that already uncertain label. The corrected experiment instead anchors the trajectory on the earliest contact's own player attribution.
 
 ## Accepted and raw contacts
 
@@ -73,6 +77,8 @@ Sources:
 - `docs/tracknet/evidence/inpaint_fabrications_20260722/detector_options.md`
 - `docs/tracknet/evidence/inpaint_fabrications_20260722/stride1_retrack/summary.txt`
 
-## Verification already done during planning
+## Verification
 
-Read-only reviews traced the contact flow, GT and release loaders, sticky evidence, alternating fitter, and prior inpaint checks. One focused worker ran 54 relevant trajectory, inpaint and sticky tests successfully. Another ran 29 focused fit/contact tests successfully. Gemini and Claude reviews then challenged the design independently. Their main disagreement and its resolution are recorded in `red_team_review.md`. No worker changed repository files.
+Read-only reviews traced the contact flow, GT and release loaders, sticky evidence, alternating fitter, and prior inpaint checks. The focused trajectory tests pass 24 synthetic cases. The output checker independently recalculates every threshold row, server table and headline count from the compressed per-rally results.
+
+An independent audit reproduced the main confusion counts, stricter TrackNet comparison, raw-candidate comparison and all three triggered-rally outcomes. Replacing all stored GT fields left every runtime motion decision unchanged. GT is used to choose the displayed threshold, which the report states plainly.

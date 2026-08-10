@@ -10,7 +10,7 @@ Read-only source tracing established the accepted-contact flow, direct half attr
 
 Independent Gemini and Claude reviews disagreed about the prepend. Direct inspection resolves the disagreement: adding a leading position leaves every original contact's phase assignment unchanged, but changes the first-player parity. A non-missing inferred half adds one phase vote. The plan now compares a `None` prepend with an inferred-half prepend so these effects cannot be conflated.
 
-No implementation has started. No production code will change. The next step is user approval of the remaining choices and commit messages, followed by a WebUI and direct-host red-team review of the plan.
+At this planning point, no implementation had started and no production code was going to change. The next step was user approval of the remaining choices and commit messages, followed by a WebUI and direct-host red-team review of the plan.
 
 ## Checks run by planning reviews
 
@@ -28,3 +28,22 @@ The user approved the 30-frame maximum, raw-candidate diagnostics, both prepend 
 The WebUI review found no circularity. It asked for five exact rules before implementation: choose the nearest path inside the maximum window; keep the path and anchor in one tracker scene; classify GT matches by the literal count within tolerance; keep no-path abstention separate; and choose the displayed setting by first-return F1. These rules are now in `plan.md`.
 
 Implementation may proceed autonomously.
+
+## 2026-08-10: experiment run
+
+The dedicated scripts linked and verified all three frozen releases, TrackNet arrays and pose arrays. The analysis rebuilt direct player attribution for every accepted contact. The unmodified alternating fits matched the frozen results before any counterfactual contact was added.
+
+The full run covered 292 ShuttleSet rallies. One predicted span covered 249 rallies. Clear anchor truth was available for 87 serves and 16 first returns. The main incoming-motion rule found 11 returns, made 3 false calls and missed 5 returns.
+
+The rule fired in 16 covered rallies. Directly naming the other player as server was right in 13. Prepending an unknown-player contact and refitting was right in 8. Prepending a contact by the other player and refitting was right in 9.
+
+The first independent review found unclear denominators and labels in the report and plots. Those labels now say exactly what is counted. The arithmetic audit reproduced the result and confirmed that GT changes do not affect per-rally decisions. It also found that the first validator reused analysis code, so the validator was replaced with an independent recalculation.
+
+Focused checks so far:
+
+- trajectory tests: 24 passed;
+- dedicated Ruff check: passed;
+- independent output validator: passed;
+- full analysis over all three videos: passed.
+
+The full repository gates remain before close-out.
