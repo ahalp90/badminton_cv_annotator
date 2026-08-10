@@ -603,6 +603,8 @@ class BenchmarkRunRecord:
         if self.outcome is RunOutcome.SUCCEEDED:
             if self.attempt_count not in {1, 2}:
                 raise ValueError("a successful run requires one or two attempts")
+            if self.first_attempt_valid_json and self.attempt_count != 1:
+                raise ValueError("a successful run with valid first JSON requires exactly one attempt")
             if not self.first_attempt_valid_json and self.attempt_count != 2:
                 raise ValueError("a successful run with invalid first JSON requires the correction retry")
             if self.failure_reason is not None:

@@ -15,6 +15,10 @@ from typing import Any
 from .contracts import PredictionSegment, ShardSpec, validate_prediction_partition
 
 
+NVIDIA_SMI_TIMEOUT_SECONDS = 5.0
+GPU_MONITOR_STOP_TIMEOUT_SECONDS = 6.0
+
+
 @dataclass(frozen=True)
 class GpuSnapshot:
     """One aggregate NVIDIA device reading."""
@@ -95,16 +99,22 @@ def parse_prediction_response(response: str, shard: ShardSpec) -> tuple[Predicti
 
 def query_nvidia_gpu() -> GpuSnapshot:
     """Read the first GPU name and aggregate device memory from nvidia-smi."""
-    completed = subprocess.run(
-        [
-            "nvidia-smi",
-            "--query-gpu=name,memory.used",
-            "--format=csv,noheader,nounits",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.used",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"nvidia-smi timed out after {NVIDIA_SMI_TIMEOUT_SECONDS:.1f} seconds"
+        ) from error
     if completed.returncode != 0:
         message = completed.stderr.strip() or completed.stdout.strip() or "unknown nvidia-smi failure"
         raise RuntimeError(f"nvidia-smi failed: {message}")
@@ -164,7 +174,12 @@ class GpuMemoryMonitor:
     def stop(self) -> None:
         self._stop.set()
         if self._thread is not None:
-            self._thread.join(timeout=max(1.0, self.interval_seconds * 4))
+            self._thread.join(timeout=GPU_MONITOR_STOP_TIMEOUT_SECONDS)
+            if self._thread.is_alive() and self.error is None:
+                self.error = (
+                    "GPU monitor did not stop within "
+                    f"{GPU_MONITOR_STOP_TIMEOUT_SECONDS:g} seconds"
+                )
 
     def __enter__(self) -> GpuMemoryMonitor:
         self.start()

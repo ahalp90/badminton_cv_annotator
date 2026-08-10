@@ -148,8 +148,11 @@ apptainer pull "$REMOTE_ROOT/images/qwen3-vl-vllm-v0.11.0.sif" \
   docker://vllm/vllm-openai:v0.11.0
 
 sha256sum "$REMOTE_ROOT/images/"*.sif
-test "$(sha256sum "$REMOTE_ROOT/images/qwen3-vl-vllm-v0.11.0.sif" | awk '{print $1}')" = \
-  1ee3797ccb230f937b5235b812265ba8d7e9400c48d30c49168e37515a39f03f
+printf '%s  %s\n' \
+  5861127b58769a2ad413b3ab817d61121f74566c50e8a0edc39226282be283f1 \
+  "$REMOTE_ROOT/images/internvideo3-pytorch-2.8.0-cu129.sif" \
+  1ee3797ccb230f937b5235b812265ba8d7e9400c48d30c49168e37515a39f03f \
+  "$REMOTE_ROOT/images/qwen3-vl-vllm-v0.11.0.sif" | sha256sum --check -
 ```
 
 The Qwen image pins official vLLM 0.11.0, the first stable release documented
@@ -210,7 +213,8 @@ InternVideo3:
 
 ```bash
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
-MANIFEST=$(find "$REMOTE_ROOT/artifacts/smoke" -name '*_manifest.json' -print -quit)
+MANIFEST="$REMOTE_ROOT/artifacts/smoke/sset_15_f18419_f18669_512x288_manifest.json"
+test -f "$MANIFEST"
 
 tmux new-session -d -s issue38-intern-smoke \
   "apptainer exec --nv --no-mount home,cwd --bind '$REMOTE_ROOT:$REMOTE_ROOT' \
@@ -235,7 +239,8 @@ Qwen3-VL:
 
 ```bash
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
-MANIFEST=$(find "$REMOTE_ROOT/artifacts/smoke" -name '*_manifest.json' -print -quit)
+MANIFEST="$REMOTE_ROOT/artifacts/smoke/sset_15_f18419_f18669_512x288_manifest.json"
+test -f "$MANIFEST"
 
 tmux new-session -d -s issue38-qwen-smoke \
   "apptainer exec --nv --no-mount home,cwd --bind '$REMOTE_ROOT:$REMOTE_ROOT' \
@@ -309,7 +314,8 @@ InternVideo3:
 
 ```bash
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
-MANIFEST=$(find "$REMOTE_ROOT/artifacts/full" -name '*_manifest.json' -print -quit)
+MANIFEST="$REMOTE_ROOT/artifacts/full/sset_15_f18419_f63419_512x288_manifest.json"
+test -f "$MANIFEST"
 
 tmux new-session -d -s issue38-intern-full \
   "apptainer exec --nv --no-mount home,cwd --bind '$REMOTE_ROOT:$REMOTE_ROOT' \
@@ -334,7 +340,8 @@ Qwen3-VL, after the InternVideo3 process exits:
 
 ```bash
 REMOTE_ROOT=/scratch/cmarti56/issue38-vlm
-MANIFEST=$(find "$REMOTE_ROOT/artifacts/full" -name '*_manifest.json' -print -quit)
+MANIFEST="$REMOTE_ROOT/artifacts/full/sset_15_f18419_f63419_512x288_manifest.json"
+test -f "$MANIFEST"
 
 tmux new-session -d -s issue38-qwen-full \
   "apptainer exec --nv --no-mount home,cwd --bind '$REMOTE_ROOT:$REMOTE_ROOT' \

@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
+import threading
 
 import pytest
 
@@ -21,6 +23,8 @@ from annotator.vlm_scene_benchmark.backends.qwen3_vl import (
 )
 from annotator.vlm_scene_benchmark.backends import require_complete_frame_grid
 from annotator.vlm_scene_benchmark.runtime import (
+    GpuMemoryMonitor,
+    GpuSnapshot,
     parse_prediction_response,
     query_nvidia_gpu,
     sha256_bytes,
@@ -95,6 +99,49 @@ def test_nvidia_query_parses_name_with_spaces_and_memory(monkeypatch: pytest.Mon
 
     assert snapshot.device_name == "NVIDIA L40"
     assert snapshot.used_memory_mib == 12345.0
+
+
+def test_nvidia_query_rejects_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def time_out(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("nvidia-smi", 5.0)
+
+    monkeypatch.setattr(
+        "annotator.vlm_scene_benchmark.runtime.subprocess.run",
+        time_out,
+    )
+
+    with pytest.raises(RuntimeError, match="timed out after 5.0 seconds"):
+        query_nvidia_gpu()
+
+
+def test_gpu_monitor_rejects_thread_that_does_not_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocked_query() -> GpuSnapshot:
+        entered.set()
+        release.wait(timeout=1.0)
+        return GpuSnapshot("NVIDIA L40", 12345.0)
+
+    monkeypatch.setattr(
+        "annotator.vlm_scene_benchmark.runtime.query_nvidia_gpu",
+        blocked_query,
+    )
+    monkeypatch.setattr(
+        "annotator.vlm_scene_benchmark.runtime.GPU_MONITOR_STOP_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monitor = GpuMemoryMonitor(interval_seconds=0.01)
+    monitor.start()
+    assert entered.wait(timeout=1.0)
+
+    monitor.stop()
+
+    assert monitor.error == "GPU monitor did not stop within 0.01 seconds"
+    release.set()
+    monitor.stop()
 
 
 def test_qwen_metadata_frame_indices_accepts_pinned_utility_mapping() -> None:

@@ -124,6 +124,11 @@ def test_successful_invalid_first_response_requires_correction_retry() -> None:
         replace(valid_record(), first_attempt_valid_json=False, attempt_count=1)
 
 
+def test_successful_valid_first_response_rejects_correction_retry() -> None:
+    with pytest.raises(ValueError, match="requires exactly one attempt"):
+        replace(valid_record(), attempt_count=2)
+
+
 def test_record_rejects_unknown_fields_and_enum_values(tmp_path: Path) -> None:
     value = valid_record().to_json()
     value["unexpected"] = True

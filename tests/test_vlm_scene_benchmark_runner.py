@@ -11,6 +11,7 @@ from annotator.vlm_scene_benchmark.backends import GenerationEvidence
 from annotator.vlm_scene_benchmark.contracts import RunOutcome, ShardSpec, read_run_record
 from annotator.vlm_scene_benchmark.prepare import PreparedShardManifest, VideoFileSpec
 from annotator.vlm_scene_benchmark.run_cli import run_benchmark
+from annotator.vlm_scene_benchmark.scoring import deployment_failures
 
 
 SHA256 = "a" * 64
@@ -56,6 +57,7 @@ def _manifest() -> PreparedShardManifest:
 class FakeMonitor:
     device_name = "NVIDIA L40"
     peak_used_memory_mib = 12345.0
+    error: str | None = None
 
     def start(self) -> None:
         pass
@@ -217,3 +219,33 @@ def test_runner_does_not_claim_cache_dtype_when_backend_load_fails(
     assert record.outcome is RunOutcome.FAILED
     assert record.runtime.cache_dtype is None
     assert record.attempt_count == 0
+
+
+def test_runner_fails_when_gpu_monitoring_is_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = FakeBackend([_valid_response()])
+    manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
+
+    class FailedMonitor(FakeMonitor):
+        error = "nvidia-smi failed after an initial sample"
+
+    monkeypatch.setattr(
+        "annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor",
+        FailedMonitor,
+    )
+
+    record = run_benchmark(
+        "internvideo3",
+        manifest_path,
+        tmp_path / "monitor-failed.json",
+        run_id="internvideo3-monitor-failed",
+    )
+
+    assert record.outcome is RunOutcome.FAILED
+    assert record.runtime.peak_vram_mib == 12345.0
+    assert record.failure_reason == (
+        "GPU monitoring failed: nvidia-smi failed after an initial sample"
+    )
+    assert deployment_failures(record)[0].startswith("backend failed: GPU monitoring failed")

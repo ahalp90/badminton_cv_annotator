@@ -168,6 +168,13 @@ def run_benchmark(
     finally:
         monitor.stop()
 
+    if monitor.error is not None:
+        monitor_failure = f"GPU monitoring failed: {monitor.error}"
+        if failure_reason is None:
+            failure_reason = monitor_failure
+        else:
+            failure_reason = f"{failure_reason}; {monitor_failure}"
+
     elapsed = perf_counter() - started
     installed_versions = package_versions(spec.package_names)
     runtime = RuntimeTelemetry(
