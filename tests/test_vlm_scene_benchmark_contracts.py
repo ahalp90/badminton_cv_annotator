@@ -52,7 +52,9 @@ def valid_record() -> BenchmarkRunRecord:
         run_id="internvideo3-smoke-001",
         outcome=RunOutcome.SUCCEEDED,
         model=ModelIdentity("model/id", "revision", "transformers", "4.57.3"),
-        shard=ShardSpec("sset_15", "sset_15.mp4", SHA256, 25.0, 100, 10, 60),
+        shard=ShardSpec(
+            "sset_15", "sset_15.mp4", SHA256, "sset_15_1fps.mp4", "c" * 64, 25.0, 100, 10, 60
+        ),
         requested_sampling=SamplingRequest(1.0, 512, 288),
         observed_sampling=SamplingObservation((10, 35, 59), 512, 288, 100, 120, True, True),
         runtime=RuntimeTelemetry(

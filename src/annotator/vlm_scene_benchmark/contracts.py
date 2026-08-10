@@ -188,11 +188,13 @@ class ModelIdentity:
 
 @dataclass(frozen=True)
 class ShardSpec:
-    """Source identity and one absolute-frame benchmark range."""
+    """Original source, prepared input, and one absolute-frame range."""
 
     video_id: str
     source_file: str
     source_sha256: str
+    prepared_input_file: str
+    prepared_input_sha256: str
     fps: float
     frame_count: int
     start_frame: int
@@ -202,6 +204,8 @@ class ShardSpec:
         _string(self.video_id, "shard.video_id")
         _string(self.source_file, "shard.source_file")
         _sha256(self.source_sha256, "shard.source_sha256")
+        _string(self.prepared_input_file, "shard.prepared_input_file")
+        _sha256(self.prepared_input_sha256, "shard.prepared_input_sha256")
         _number(self.fps, "shard.fps", minimum=0.0)
         _integer(self.frame_count, "shard.frame_count", minimum=1)
         _integer(self.start_frame, "shard.start_frame", minimum=0)
@@ -214,6 +218,8 @@ class ShardSpec:
             )
         if Path(self.source_file).name != self.source_file:
             raise ValueError("shard.source_file must be a file name without a directory")
+        if Path(self.prepared_input_file).name != self.prepared_input_file:
+            raise ValueError("shard.prepared_input_file must be a file name without a directory")
 
     @classmethod
     def from_json(cls, value: Any) -> ShardSpec:
@@ -224,6 +230,8 @@ class ShardSpec:
                 "video_id",
                 "source_file",
                 "source_sha256",
+                "prepared_input_file",
+                "prepared_input_sha256",
                 "fps",
                 "frame_count",
                 "start_frame",
@@ -235,6 +243,12 @@ class ShardSpec:
             video_id=_string(data["video_id"], "shard.video_id"),
             source_file=_string(data["source_file"], "shard.source_file"),
             source_sha256=str(_sha256(data["source_sha256"], "shard.source_sha256")),
+            prepared_input_file=_string(
+                data["prepared_input_file"], "shard.prepared_input_file"
+            ),
+            prepared_input_sha256=str(
+                _sha256(data["prepared_input_sha256"], "shard.prepared_input_sha256")
+            ),
             fps=_number(data["fps"], "shard.fps", minimum=0.0),
             frame_count=_integer(data["frame_count"], "shard.frame_count", minimum=1),
             start_frame=_integer(data["start_frame"], "shard.start_frame", minimum=0),
@@ -246,6 +260,8 @@ class ShardSpec:
             "video_id": self.video_id,
             "source_file": self.source_file,
             "source_sha256": self.source_sha256,
+            "prepared_input_file": self.prepared_input_file,
+            "prepared_input_sha256": self.prepared_input_sha256,
             "fps": self.fps,
             "frame_count": self.frame_count,
             "start_frame": self.start_frame,

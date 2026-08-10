@@ -85,6 +85,14 @@ def deployment_failures(record: BenchmarkRunRecord) -> list[str]:
         failures.append("backend did not attest complete source coverage")
     if not observed.uniform_frame_grid:
         failures.append("observed frame grid is not uniform")
+    if (observed.width, observed.height) != (
+        record.requested_sampling.width,
+        record.requested_sampling.height,
+    ):
+        failures.append(
+            f"observed resolution {observed.width}x{observed.height} differs from requested "
+            f"{record.requested_sampling.width}x{record.requested_sampling.height}"
+        )
     failures.extend(_sampling_coverage_failures(record))
     if observed.visual_tokens is None:
         failures.append("visual token count is unavailable")
