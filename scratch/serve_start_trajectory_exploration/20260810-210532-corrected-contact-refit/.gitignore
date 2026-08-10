@@ -1,0 +1,7 @@
+assets/
+inputs/
+outputs/
+external_delegate/
+QUESTIONS.md
+*.tar
+!HANDOVER.md
