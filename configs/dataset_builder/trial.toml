@@ -22,7 +22,7 @@ court = "src/courtkeynet/weights/courtkeynet_finetuned.safetensors"
 [vision]
 tracknet_workers = 1
 tracknet_batch_size = 16
-tracknet_stride = 1
+tracknet_stride = 8
 tracknet_large_video = true
 pose_device = "cuda"
 pose_n_max = 10

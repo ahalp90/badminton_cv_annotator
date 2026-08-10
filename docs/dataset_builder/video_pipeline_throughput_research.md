@@ -1,6 +1,6 @@
 # Dataset-builder video requirements and throughput research
 
-Status: exploratory evidence for a follow-up issue
+Status: evidence adopted by the approved Issue 15 Batch 5 extension
 
 Prepared: 2026-08-10
 
@@ -13,11 +13,11 @@ clear bottleneck. The first completed 85-minute video required 12 hours and 45
 minutes for that stage. At this rate, one GPU-day processes about 2.7 hours of
 source video.
 
-The most promising near-term change is TrackNet stride 8. A prior Bourbaki
-experiment measured about an eight-fold reduction in runtime at 512x288, with
-no measured improvement from stride 1 on that test video. The next safe change
-is caching resized frames in the large-video loader. The current stride-1 path
-can resize one decoded 1080p frame once for each overlapping window.
+The approved near-term change is TrackNet stride 8 with a lossless, FFmpeg-
+bicubic 512x288 stage input. A prior Bourbaki experiment measured about an
+eight-fold reduction in runtime at 512x288, with no measured improvement from
+stride 1 on that test video. The current stride-1 path can resize one decoded
+1080p frame once for each overlapping window.
 
 The original 1080p video should remain the master. TrackNet and scene detection
 can use stage-specific lower-resolution inputs while preserving frame count,
@@ -43,6 +43,26 @@ external trial running on Bourbaki. It uses:
 The live process was not interrupted or changed during inspection. Trial
 figures below are a dated snapshot. They are not final trial acceptance
 results.
+
+## Post-snapshot decision and stopped-run outcome
+
+After the evidence capture, the user approved stopping the first attempt and
+adopted its throughput findings. The second stride-1 shuttle process was
+terminated at batch 7,804 of about 10,322, after 10 hours and 23 minutes of
+inference. No second-video CSV or shuttle array had been published. The first
+video's completed output and every partial run artefact remain preserved.
+
+The implementation target is now a TrackNet-only lossless FFV1 AVI proxy made
+with `scale=512:288:flags=bicubic,setsar=1/1`, followed by stride-8 inference.
+The 1080p download remains canonical. A direct format probe rejected FFV1 Matroska for
+this boundary because it did not expose `nb_frames`; FFV1 AVI passed the
+existing exact header/count/timestamp metadata contract. Two independent
+synthetic AVI generations were byte-identical and decoded to identical ordered
+frames.
+
+Issue 37 RTMLib sharding is included as a separate second batch before the next
+full E2E run. It must pass source-specific seek and exact array-parity gates so
+the shuttle and pose numerical changes remain independently attributable.
 
 ## The first video spent 12 hours and 45 minutes in shuttle extraction
 
@@ -75,9 +95,9 @@ Other completed stages were much smaller:
 | Metadata, second video | 547 seconds |
 | Shuttle, first video | 45,897 seconds |
 
-The tracked trial configuration uses one TrackNet worker, batch size 16,
-stride 1, and large-video mode. See
-[trial.toml](../../configs/dataset_builder/trial.toml).
+The stopped `449d8b1` trial configuration used one TrackNet worker, batch size
+16, stride 1, and large-video mode. The current trial configuration belongs to
+the replacement run and now uses stride 8.
 
 The shuttle stage runs TrackNet and Inpaint together, so the live manifest
 does not separate their wall times. An exact tracker versus Inpaint split is
@@ -143,7 +163,7 @@ They are strong enough to justify a fixed comparison on the new trial footage.
 TrackNet writes an Inpaint mask sidecar. The dataset-builder shuttle stage
 records the TrackNet CSV and converted shuttle array, but the conversion keeps
 only frame, position, and visibility data. See
-[the shuttle plan](../../src/dataset_builder/_pipeline_runtime.py) and
+[the shuttle plan](../../src/dataset_builder/_vision_plans.py) and
 [the conversion stage](../../src/dataset_builder/vision.py).
 
 The full annotation entry point supports either frame-level Inpaint codes or a

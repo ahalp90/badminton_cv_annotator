@@ -1,12 +1,68 @@
 # Issue 15 Batch 5 preflight handoff
 
-Status: ready except for the protected commentary credential file on Bourbaki;
-the external trial has not started.
+Status: first external attempt stopped after exposing an unacceptable shuttle
+bottleneck; the approved performance extension is in progress.
 
-This document freezes the state immediately before Batch 5 of
-`issue_15_implementation_plan.md`. It records what is implemented, what the
-Bourbaki preflight established, and the exact conditions for starting and
-accepting the bounded external trial.
+This document began as the state freeze immediately before Batch 5 of
+`issue_15_implementation_plan.md`. It now also records the stopped first
+attempt and the exact conditions for starting and accepting its replacement.
+The original pre-launch evidence remains below as a historical record.
+
+## Current Batch 5 state
+
+The guarded first attempt ran on Bourbaki from
+2026-08-09T16:06:26+10:00 to 2026-08-10T16:10:05+10:00. It used the clean
+execution clone at exact commit `449d8b1`. The run directory is preserved at
+`/scratch/cmarti/issue15_449d8b1/external/trial-run` and occupies about 2.7
+GiB. Bourbaki remains execution-only. Nothing was committed or pushed there.
+
+The supplied protected credential passed file ownership, type, mode-600, and
+non-empty checks. Google rejected it with HTTP 401
+`ACCESS_TOKEN_TYPE_UNSUPPORTED`. Transcript acquisition retained two of five
+candidate transcripts, relevance triage recorded `unavailable`, and the
+reviewed visual fallback still selected and downloaded two videos. This proves
+the unavailable-commentary visual lane, but it does not satisfy the required
+live-commentary acceptance gate. A valid Gemini credential is still required.
+
+The selected canonical sources were:
+
+| Video ID | Resolution | CFR FPS | Frames | Duration |
+| --- | ---: | ---: | ---: | ---: |
+| `9WVwZSzixh0` | 1920x1080 | 30 | 153,600 | 85m20s |
+| `P3OcTzwmqeY` | 1920x1080 | 30 | 165,150 | 91m45s |
+
+The first stride-1 shuttle stage completed in 45,897.246 seconds. Its
+persisted Inpaint mask, TrackNet CSV, and compressed shuttle-array MD5 values
+are respectively:
+
+- `804a5e101f620bc78570d23140a0df22`
+- `84f0d1da6ac70d962987b983eadcf6d6`
+- `c5973aef1f7473b473d30291a0184a49`
+
+The second stride-1 shuttle process reached batch 7,804 of about 10,322 after
+10:23:42 of inference. It had not published a CSV or array. At the user's
+request, the exact coordinator PID received SIGTERM. Its launcher recorded
+exit 143. The third-party TrackNet subprocess became an orphan and was then
+terminated by exact PID. The supervisor recorded
+`resume_not_started=first_run_failed` and exited 1. No resume was launched.
+No dataset-builder, TrackNet, launcher, or supervisor process remained, and
+the A100 was clear after shutdown.
+
+The final pre-stop log snapshot was 505,423 bytes with SHA-256
+`caccf26b1f4301c7359d29101508fbc46448e846d0732c3f89544f02073ac669`.
+All completed and partial run artefacts remain untouched under the old scratch
+root.
+
+The replacement run must use a new clean execution clone and a new run root
+from the final performance-extension commit. Do not reuse or mutate the
+stopped `449d8b1` run. Before restarting the bounded two-video trial:
+
+1. complete and locally gate the FFmpeg bicubic 512x288 TrackNet-input stage;
+2. use TrackNet stride 8 while retaining the canonical 1080p masters;
+3. pass the fixed-source frame and numerical checks on Bourbaki;
+4. integrate issue 37 RTMLib sharding only after its exact parity gate;
+5. provide a valid protected Gemini credential; and
+6. rerun the unchanged-resume and secret-persistence gates from this handoff.
 
 ## Git and implementation state
 
@@ -56,15 +112,16 @@ The writable allocation is `/scratch/cmarti`, not
 | Path | Purpose | Git status |
 | --- | --- | --- |
 | `/scratch/cmarti/issue15_449d8b1/repo` | Exact source clone at `449d8b1` | Clean tracked state |
-| `/scratch/cmarti/issue15_449d8b1/external/trial-run` | First run and unchanged resume | Absent before launch |
+| `/scratch/cmarti/issue15_449d8b1/external/trial-run` | Preserved stopped first attempt | Outside Git; about 2.7 GiB |
 | `/scratch/cmarti/issue15_449d8b1/overlay` | Isolated Python, Deno, and interpreter wrappers | Outside Git |
 | `/scratch/cmarti/issue15_449d8b1/external/config` | Isolated yt-dlp configuration | Outside Git; yt-dlp config mode 600 |
 | `/scratch/cmarti/issue15_449d8b1/external/cache` | Deno, Hugging Face, Torch, and XDG caches | Outside Git |
 | `/scratch/cmarti/issue15_449d8b1/logs` | Setup and trial logs | Outside Git |
-| `/scratch/cmarti/issue15_449d8b1/credentials.env` | Gemini key environment file | Outside Git; currently absent |
+| `/scratch/cmarti/issue15_449d8b1/credentials.env` | Rejected Gemini credential file | Outside Git; protected mode 600 |
 
-The trial run directory is deliberately absent. No search, transcript, model,
-download, annotation, assembly, or resume stage has run against external data.
+Before the first attempt, the trial directory was deliberately absent. The
+current preserved contents and terminal state are recorded in the current
+Batch 5 section above.
 
 ## Transfer and model integrity
 
@@ -163,13 +220,12 @@ The isolated yt-dlp configuration at
 --extractor-args youtubepot-bgutilscript:server_home=/scratch/cmarti/issue15_449d8b1/external/bgutil-ytdlp-pot-provider/server
 ```
 
-## Remaining launch gate
+## Historical remaining launch gate
 
-The only missing runtime prerequisite is a protected Gemini credential file on
-Bourbaki. No key is exported on the execution host, and no standard dotenv or
-shell-profile file there contains an assignment. Commentary must not be
-disabled to bypass this gate because the approved Batch 5 plan requires
-commentary credentials.
+At the pre-launch freeze, the only missing runtime prerequisite was a
+protected Gemini credential file on Bourbaki. The first supplied credential
+was later rejected as described above. Commentary must not be disabled to
+bypass this gate because the approved Batch 5 plan requires live commentary.
 
 Do not paste the key into a command argument, log, issue, pull request, or this
 repository. Create the protected environment file interactively on Bourbaki:
@@ -280,5 +336,5 @@ worktree and committed with the approved Batch 5 message:
 
 `Record the issue 15 end-to-end trial`
 
-Until then, the correct state is “Batch 5 ready, credential pending, trial not
-started.”
+Until the performance batches and replacement external gates pass, the correct
+state is “Batch 5 first attempt stopped; final acceptance pending.”

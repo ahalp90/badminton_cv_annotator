@@ -14,19 +14,18 @@ import numpy as np
 from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
-from bst_x.pipeline.shuttle_extractor import extract_all_shuttles
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
     _load_projection,
     _load_report,
-    _tracknet_code_inputs,
     _valid_candidates,
     _valid_projection,
     _valid_report,
     _valid_selection,
     _write_candidates_snapshot,
 )
+from dataset_builder._vision_plans import pose_plans, shuttle_plans, tracknet_input_plans
 from dataset_builder.cli import BuilderConfig, StageExecution, StagePlan
 from dataset_builder.manifest import load_run_manifest, resolve_interpreter
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
@@ -45,11 +44,10 @@ from dataset_builder.vision import (
     AnnotationOutput,
     CourtVision,
     PoseArrays,
-    convert_tracknet_csv_stage,
-    extract_rtmlib_pose_stage,
     run_full_annotation_stage,
     save_json_gz,
 )
+from dataset_builder.tracknet_input import TrackNetInput
 from scraper import commentary_cleaning, config as scraper_config
 from scraper import download_scraped_videos, relevance_triage, search_index
 from scraper import transcript_acquisition
@@ -73,6 +71,7 @@ class _State:
         self.videos: dict[str, Path] = {}
         self.sources: dict[str, SourceReference] = {}
         self.metadata: dict[str, VideoMetadata] = {}
+        self.tracknet_inputs: dict[str, TrackNetInput] = {}
         self.active_ids: set[str] = set()
         self.chunks: dict[str, list[dict[str, object]]] = {}
         self.tracks: dict[str, np.ndarray] = {}
@@ -99,6 +98,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self.current_interpreter: InterpreterIdentity | None = None
         self.tracknet_interpreter: InterpreterIdentity | None = None
         self.pose_interpreter: InterpreterIdentity | None = None
+        self.ffmpeg_interpreter: InterpreterIdentity | None = None
         self.detector: object | None = None
 
     def preflight(self) -> None:
@@ -110,7 +110,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 "scraper modules were imported before BADMINTON_SCRAPE_DIR was bound "
                 "to this run workspace"
             )
-        for executable in (scraper_config.YTDLP_BIN, "ffprobe"):
+        for executable in (scraper_config.YTDLP_BIN, "ffmpeg", "ffprobe"):
             if shutil.which(executable) is None:
                 raise FileNotFoundError(f"required executable is unavailable: {executable}")
         self.current_interpreter = resolve_interpreter(sys.executable)
@@ -120,6 +120,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self.pose_interpreter = resolve_interpreter(
             self._required_environment(self.config.pose_python_environment),
         )
+        self.ffmpeg_interpreter = resolve_interpreter("ffmpeg")
         required_files = {
             "TrackNet batch predictor": self.config.tracknet_dir / "batch_predict.py",
             "TrackNet weights": self.config.tracknet_model,
@@ -141,8 +142,9 @@ class DefaultPipelineRuntime(RuntimeSupport):
             "download": self._download_plans,
             "metadata": self._metadata_plans,
             "commentary_cleaning": self._cleaning_plans,
-            "shuttle": self._shuttle_plans,
-            "pose": self._pose_plans,
+            "tracknet_input": lambda current: tracknet_input_plans(self, current),
+            "shuttle": lambda current: shuttle_plans(self, current),
+            "pose": lambda current: pose_plans(self, current),
             "court": self._court_plans,
             "annotation": self._annotation_plans,
             "commentary_pairing": self._pairing_plans,
@@ -510,107 +512,6 @@ class DefaultPipelineRuntime(RuntimeSupport):
             secret_values=self._commentary_secret_values(),
             failure_outcome=StageOutcome.UNAVAILABLE,
         ),)
-
-    def _shuttle_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
-        return tuple(self._shuttle_plan(video_id) for video_id in self._active_video_ids())
-
-    def _shuttle_plan(self, video_id: str) -> StagePlan:
-        metadata = self.state.metadata[video_id]
-        output_dir = self._video_dir("shuttle", video_id)
-        csv_path = output_dir / f"{metadata.source_path.stem}_ball.csv"
-        track_path = output_dir / "shuttle_track.npy.xz"
-        weights = {"tracknet": self.config.tracknet_model}
-        if self.config.inpaint_model is not None:
-            weights["inpaintnet"] = self.config.inpaint_model
-
-        def execute() -> StageExecution:
-            self._reset_stage_dir("shuttle", video_id)
-            extract_all_shuttles(
-                tracknet_dir=self.config.tracknet_dir,
-                clips_dir=scraper_config.VIDEOS_DIR,
-                video_paths=[metadata.source_path],
-                output_csv_dir=output_dir,
-                model_path=self.config.tracknet_model,
-                inpaintnet_path=self.config.inpaint_model,
-                tracknet_python=Path(self._tracknet().path),
-                max_workers=self.config.tracknet_workers,
-                batch_size=self.config.tracknet_batch_size,
-                tracknet_stride=self.config.tracknet_stride,
-                large_video=self.config.tracknet_large_video,
-                enable_inpainting=self.config.inpaint_model is not None,
-            )
-            shuttle = convert_tracknet_csv_stage(
-                csv_path,
-                video_id=video_id,
-                metadata=metadata,
-                output_path=track_path,
-            ).require_value()
-            self.state.tracks[video_id] = shuttle.track
-            return StageExecution(
-                StageOutcome.PROCESSED,
-                {"tracknet_csv": csv_path, "shuttle_track": track_path},
-                {"frames": metadata.frame_count},
-            )
-
-        return self._plan(
-            name=self._video_stage("shuttle", video_id),
-            dependencies=(self._video_stage("metadata", video_id),),
-            command=(self._tracknet().path, "TrackNetV3", os.fspath(metadata.source_path)),
-            configuration={
-                "stride": self.config.tracknet_stride,
-                "large_video": self.config.tracknet_large_video,
-                "workers": self.config.tracknet_workers,
-                "batch_size": self.config.tracknet_batch_size,
-                "inpainting": self.config.inpaint_model is not None,
-                "tracknet_directory": os.fspath(self.config.tracknet_dir.resolve(strict=True)),
-            },
-            interpreter=self._tracknet(),
-            model_weights=weights,
-            inputs={
-                "source_video": metadata.source_path,
-                **_tracknet_code_inputs(self.config.tracknet_dir),
-            },
-            execute=execute,
-            restore=lambda: self._restore_track(video_id, track_path),
-            validators={"track_schema": lambda _root: self._validate_track(video_id, track_path)},
-            on_failure=lambda reason: self._exclude(video_id, reason),
-        )
-
-    def _pose_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
-        return tuple(self._pose_plan(video_id) for video_id in self._active_video_ids())
-
-    def _pose_plan(self, video_id: str) -> StagePlan:
-        metadata = self.state.metadata[video_id]
-        output_dir = self._video_dir("pose", video_id)
-
-        def execute() -> StageExecution:
-            self._reset_stage_dir("pose", video_id)
-            extraction = extract_rtmlib_pose_stage(
-                metadata=metadata,
-                output_dir=output_dir,
-                interpreter=self._pose().path,
-                device=self.config.pose_device,
-                n_max=self.config.pose_n_max,
-            ).require_value()
-            self.state.poses[video_id] = extraction.arrays
-            return StageExecution(
-                StageOutcome.PROCESSED,
-                extraction.artifacts.as_mapping(),
-                {"frames": metadata.frame_count},
-            )
-
-        return self._plan(
-            name=self._video_stage("pose", video_id),
-            dependencies=(self._video_stage("metadata", video_id),),
-            command=(self._pose().path, "-m", "dataset_builder.vision", "_extract-rtmlib-pose"),
-            configuration={"device": self.config.pose_device, "n_max": self.config.pose_n_max},
-            interpreter=self._pose(),
-            inputs={"source_video": metadata.source_path},
-            execute=execute,
-            restore=lambda: self._restore_pose(video_id, output_dir),
-            validators={"pose_schema": lambda _root: self._validate_pose(video_id, output_dir)},
-            on_failure=lambda reason: self._exclude(video_id, reason),
-        )
 
     def _court_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
         return tuple(self._court_plan(video_id) for video_id in self._active_video_ids())

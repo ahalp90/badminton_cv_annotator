@@ -37,6 +37,7 @@ PHASE_ORDER = (
     "download",
     "metadata",
     "commentary_cleaning",
+    "tracknet_input",
     "shuttle",
     "pose",
     "court",

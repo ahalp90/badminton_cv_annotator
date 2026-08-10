@@ -1,6 +1,6 @@
 # Issue 15 Dataset Builder Implementation Plan
 
-Status: planned
+Status: implemented through Batch 4; Batch 5 performance extension approved
 
 Prepared: 2026-08-08
 
@@ -396,3 +396,190 @@ Keep downloaded videos and large array artefacts outside Git.
 3. `Assemble provisional rally records`
 4. `Add the end-to-end dataset-builder command`
 5. `Record the issue 15 end-to-end trial`
+
+## Approved Batch 5 performance extension
+
+Approved: 2026-08-10
+
+The first external attempt established that the original stride-1 TrackNet
+configuration is not operationally acceptable for the selected full matches.
+The completed 153,600-frame shuttle stage took 45,897 seconds. The next video
+was stopped after 10 hours and 23 minutes of inference, at batch 7,804 of about
+10,322. The user approved stopping that attempt and applying this extension
+before restarting Batch 5.
+
+The extension goal is to reduce full-video vision wall time while preserving
+canonical frame indexing, source provenance, and reviewed rally/contact
+quality. It adds two independently gated implementation batches before the
+existing external-trial batch.
+
+### Decision record
+
+The current shuttle flow is:
+
+```text
+canonical 1080p CFR source
+  -> TrackNet large-video loader
+  -> repeated Pillow resizing inside temporal windows
+  -> stride-1 weighted inference
+  -> proxy-pixel CSV
+  -> canonical normalised shuttle array
+```
+
+The approved shuttle flow is:
+
+```text
+canonical 1080p CFR source
+  -> FFmpeg bicubic 512x288 lossless TrackNet proxy
+  -> strict proxy frame/FPS/index validation
+  -> stride-8 non-overlapping TrackNet inference
+  -> proxy-pixel CSV
+  -> proxy-dimension normalisation
+  -> canonical normalised shuttle array
+```
+
+The original download remains the canonical video. Pose, court evidence,
+annotation provenance, and future RGB crops continue to reference it. The
+proxy is a stage-specific derived artefact. The normalised shuttle coordinates
+remain in canonical image proportions because proxy X and Y values are divided
+by the exact proxy dimensions before annotation consumes them.
+
+The proxy uses FFmpeg's
+`scale=512:288:flags=bicubic,setsar=1/1` filter chain and a lossless FFV1 AVI
+stream with explicit square pixels. AVI is deliberate: a direct probe showed
+that FFV1 Matroska did not expose `nb_frames`, while FFV1 AVI passed the
+existing exact header/count/timestamp metadata contract. Two independent
+synthetic proxy generations were byte-identical before implementation.
+
+Issue 37 is a separate pose concern. Its tested direct-seek RTMLib sharding
+path follows the shuttle batch. It must preserve the existing five padded raw
+arrays exactly and retain the sequential one-shard path as a fallback.
+
+The effect of doing nothing is about 29 GPU-hours for the two shuttle stages,
+followed by an estimated 7.4 hours of single-worker pose extraction. That does
+not leave a practical iteration loop for the bounded acceptance trial.
+
+### Batch 5A: Full-video shuttle throughput
+
+Draft commit: `Speed up full-video shuttle extraction`
+
+#### Files
+
+- Add a small dataset-builder TrackNet-input module.
+- Add a small coordinator vision-plan module if needed to keep production
+  modules below 1,000 lines.
+- Update the coordinator configuration, runtime dispatch, and trial TOML.
+- Update focused dataset-builder and TrackNet-adapter tests.
+- Update the Batch 5 preflight/throughput record with stopped-run evidence.
+
+#### Changes
+
+1. Add one per-video TrackNet-input stage after canonical metadata.
+2. Run FFmpeg through a resolved, versioned executable identity.
+3. Create the 512x288 FFV1 AVI atomically with bicubic scaling, no audio,
+   subtitles, data streams, or inherited metadata.
+4. Validate the derived video with the existing strict CFR metadata probe.
+5. Require exact source/proxy FPS and frame-count equality, 512x288 dimensions,
+   zero start time, square pixels, and ordered timestamp coverage.
+6. Persist the proxy and its validated metadata as integrity-checked stage
+   outputs so unchanged resume does not regenerate or re-probe it.
+7. Run TrackNet against the proxy with stride 8 and the existing batch size,
+   model weights, Inpaint setting, and large-video mode.
+8. Normalise the TrackNet CSV against proxy dimensions. Do not interpret proxy
+   pixel coordinates as canonical source pixels.
+9. Fingerprint the proxy, FFmpeg identity, interpolation, dimensions, codec,
+   pixel format, TrackNet implementation, models, and effective stride.
+10. Preserve exact source basenames, including legacy spaced basenames.
+
+#### Gate
+
+- Two independent proxy generations decode to the same ordered frames.
+- Proxy metadata has exact source FPS/frame-count parity and 512x288 square-
+  pixel dimensions.
+- FFmpeg failure or metadata mismatch publishes no completed proxy stage.
+- Proxy-pixel TrackNet coordinates produce the expected normalised track and
+  retain exact `0..frame_count-1` CSV coverage.
+- Changing proxy configuration or content invalidates shuttle and all
+  dependants.
+- The existing direct whole-video and ShuttleSet adapters remain covered.
+- A bounded A100 comparison records wall time, source FPS, GPU/CPU/VRAM,
+  direct-detection coverage, Inpaint-selected share, and any material rally or
+  contact change. Every selected reviewed rally must remain represented.
+- Focused tests, repository-wide Ruff, configured whole-project Pyrefly, and
+  the full pytest suite pass.
+- A fresh adversarial review finds no unresolved correctness issue.
+
+### Batch 5B: Full-video RTMLib sharding
+
+Draft commit: `Shard full-video pose extraction`
+
+#### Files
+
+- Promote the existing `shared.video_sharding` proof into the
+  dataset-builder pose boundary with a small production wrapper.
+- Update the coordinator configuration and vision plans.
+- Update the sharding and dataset-builder pose tests.
+- Update the tracked throughput and Batch 5 handoff records.
+
+#### Changes
+
+1. Add a positive configured pose-shard count. Use eight for the bounded A100
+   trial only after the fixed-source parity gate passes.
+2. Keep the current sequential producer when one shard is configured.
+3. For multiple shards, partition canonical `0..frame_count` into contiguous,
+   non-overlapping half-open ranges.
+4. Require the OpenCV plan count to equal canonical metadata before spawning
+   inference workers.
+5. Give every worker its own decoder and RTMLib session, then stitch only after
+   all workers exit successfully.
+6. Validate source identity, exact range coverage, run identity, shapes,
+   dtypes, NaN padding, `n_max`, and final canonical frame count before
+   publishing the existing five compressed pose artefacts.
+7. Keep temporary shard artefacts outside final publications. A failed worker
+   or stitch must not leave a reusable pose stage.
+8. Stream shard compression rather than buffering a whole `.npy.xz` payload.
+9. Record shard count and decode mode in the pose fingerprint and manifest.
+
+#### Gate
+
+- The existing deterministic fake sharding suite passes.
+- Full sequential frame hashes and direct-seek ranges match on both selected
+  Bourbaki source videos, including awkward boundaries and EOF.
+- One-shard and eight-shard RTMLib outputs are byte-exact on the fixed A100
+  clip, or the sharded path is rejected for that environment.
+- Missing, short, overlapping, stale, mixed-source, or failed shards do not
+  publish final pose artefacts.
+- The final five arrays match canonical frame count, shape, dtype, detection
+  count, and NaN-padding contracts.
+- A one/four/eight-worker comparison records wall time and selects the fastest
+  parity-preserving count.
+- Focused tests, repository-wide Ruff, configured whole-project Pyrefly, and
+  the full pytest suite pass.
+- A fresh adversarial review finds no unresolved correctness issue.
+
+### Extended OUT-list
+
+- Do not replace or delete the canonical downloaded source. A 288p global
+  master would risk pose and future RGB detail.
+- Do not reduce FPS or change frame indices. All producers remain aligned to
+  canonical frames.
+- Do not change TrackNet, InpaintNet, RTMLib, or CourtKeyNet weights,
+  thresholds, model precision, or numerical kernels.
+- Do not tune TrackNet batch size in the implementation batch. Keep batch 16
+  so stride and preprocessing are the only shuttle changes.
+- Do not add TrackNet sharding, concurrent-video scheduling, court-first
+  gating, mixed precision, or a cross-run vision cache.
+- Do not add a lossy proxy or use the TrackNet proxy for pose, court evidence,
+  annotation source provenance, or future crops.
+- Do not add per-shard resume in Batch 5B. The outer pose stage remains the
+  retry boundary.
+- Do not add reduced-resolution pose, FFmpeg pose segmentation, VFR support,
+  provider adapters, OpenRouter support, or credential changes.
+- Do not reinterpret or tune rallies, contacts, landings, replay masks, or
+  commentary while measuring throughput.
+
+### Extended commit sequence
+
+1. `Speed up full-video shuttle extraction`
+2. `Shard full-video pose extraction`
+3. `Record the issue 15 end-to-end trial`

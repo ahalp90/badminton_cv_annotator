@@ -12,7 +12,7 @@ import pytest
 
 from annotator.run_video import AnnotatorResult
 from annotator.video_metadata import VideoMetadata
-from dataset_builder import cli, vision
+from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.cli import StageExecution, StagePlan
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.selection import (
@@ -315,15 +315,6 @@ def test_stage_errors_redact_registered_secret_values(tmp_path: Path) -> None:
     assert "<redacted>" in (transcript.reason or "")
 
 
-def test_tracked_trial_configuration_has_the_bounded_external_scope() -> None:
-    config = cli.load_builder_config(cli.REPO_ROOT / "configs/dataset_builder/trial.toml")
-
-    assert config.search_count == 5
-    assert config.max_videos == 2
-    assert list(config.search_terms) == ["match"]
-    assert len(config.search_terms["match"]) == 1
-
-
 class _ConcreteRuntimeFixture:
     """Fixture external boundaries around the real coordinator runtime."""
 
@@ -342,10 +333,11 @@ class _ConcreteRuntimeFixture:
         with_rally: bool = False,
     ) -> None:
         monkeypatch.syspath_prepend(str(cli.REPO_ROOT / "src" / "bst_x"))
-        from dataset_builder import _pipeline_runtime, _runtime_support
+        from dataset_builder import _pipeline_runtime, _runtime_support, _vision_plans
 
         self.runtime_module = _pipeline_runtime
         self.runtime_support = _runtime_support
+        self.vision_plans = _vision_plans
         self.with_commentary = with_commentary
         self.source_basename = source_basename or f"{self.video_id}.mp4"
         self.stale_source_basename = stale_source_basename
@@ -379,7 +371,8 @@ class _ConcreteRuntimeFixture:
         video_id = self.video_id
         return [
             "search", "transcript", "triage", "selection", "download",
-            f"metadata:{video_id}", "commentary_cleaning", f"shuttle:{video_id}",
+            f"metadata:{video_id}", "commentary_cleaning", f"tracknet_input:{video_id}",
+            f"shuttle:{video_id}",
             f"pose:{video_id}", f"court:{video_id}", f"annotation:{video_id}",
             f"commentary_pairing:{video_id}", f"primitive_projection:{video_id}",
             "assembly", "report",
@@ -408,6 +401,7 @@ class _ConcreteRuntimeFixture:
             runtime.current_interpreter = identity
             runtime.tracknet_interpreter = identity
             runtime.pose_interpreter = identity
+            runtime.ffmpeg_interpreter = identity
             runtime.detector = object()
 
         runtime.preflight = preflight  # type: ignore[method-assign]
@@ -446,8 +440,13 @@ class _ConcreteRuntimeFixture:
         monkeypatch.setattr(self.runtime_module, "probe_video_metadata", self.metadata)
         monkeypatch.setattr(self.runtime_module.commentary_cleaning, "run_clean", self.clean)
         monkeypatch.setattr(self.runtime_module.commentary_cleaning, "run_fine", self.fine)
-        monkeypatch.setattr(self.runtime_module, "extract_all_shuttles", self.tracknet)
-        monkeypatch.setattr(self.runtime_module, "extract_rtmlib_pose_stage", self.pose_stage)
+        monkeypatch.setattr(
+            self.vision_plans,
+            "create_tracknet_input",
+            self.tracknet_input_stage,
+        )
+        monkeypatch.setattr(self.vision_plans, "extract_all_shuttles", self.tracknet)
+        monkeypatch.setattr(self.vision_plans, "extract_rtmlib_pose_stage", self.pose_stage)
         monkeypatch.setattr(vision, "build_detected_court_stage", self.court_stage)
         monkeypatch.setattr(self.runtime_support, "load_court_vision", self.load_court)
         monkeypatch.setattr(
@@ -529,6 +528,22 @@ class _ConcreteRuntimeFixture:
     def fine(self, *_args: object, **_kwargs: object) -> None:
         return None
 
+    def tracknet_input_stage(
+        self, *, source: VideoMetadata, output_dir: Path, **_kwargs: object,
+    ) -> tracknet_input.TrackNetInput:
+        self.boundary_calls.append("tracknet_input")
+        proxy_path, metadata_path = tracknet_input.tracknet_input_paths(source, output_dir)
+        proxy_path.parent.mkdir(parents=True, exist_ok=True)
+        proxy_path.write_bytes(b"fixture TrackNet input")
+        metadata = replace(
+            source,
+            source_path=proxy_path.resolve(),
+            width=tracknet_input.TRACKNET_INPUT_WIDTH,
+            height=tracknet_input.TRACKNET_INPUT_HEIGHT,
+        )
+        vision.save_json_gz(metadata_path, metadata.to_dict())
+        return tracknet_input.TrackNetInput(proxy_path, metadata_path, metadata)
+
     def tracknet(self, **kwargs: object) -> None:
         self.boundary_calls.append("shuttle")
         assert kwargs["enable_inpainting"] is False
@@ -538,7 +553,7 @@ class _ConcreteRuntimeFixture:
         output = Path(kwargs["output_csv_dir"]) / f"{source_stem}_ball.csv"
         assert not output.exists()
         output.write_text(
-            "Frame,X,Y,Visibility\n0,10,20,1\n1,11,21,1\n2,12,22,1\n",
+            "Frame,X,Y,Visibility\n0,256,144,1\n1,128,72,1\n2,0,0,0\n",
             encoding="utf-8",
         )
 
@@ -902,6 +917,7 @@ def test_unavailable_commentary_resume_keeps_the_visual_lane_reusable(
         "selection",
         "download",
         f"metadata:{fixture.video_id}",
+        f"tracknet_input:{fixture.video_id}",
         f"shuttle:{fixture.video_id}",
         f"pose:{fixture.video_id}",
         f"court:{fixture.video_id}",

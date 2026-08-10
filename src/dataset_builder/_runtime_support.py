@@ -69,6 +69,7 @@ class RuntimeSupport:
     current_interpreter: InterpreterIdentity | None
     tracknet_interpreter: InterpreterIdentity | None
     pose_interpreter: InterpreterIdentity | None
+    ffmpeg_interpreter: InterpreterIdentity | None
 
     def _plan(
         self,
@@ -120,6 +121,11 @@ class RuntimeSupport:
         if self.pose_interpreter is None:
             raise RuntimeError("runtime preflight did not resolve the pose interpreter")
         return self.pose_interpreter
+
+    def _ffmpeg(self) -> InterpreterIdentity:
+        if self.ffmpeg_interpreter is None:
+            raise RuntimeError("runtime preflight did not resolve FFmpeg")
+        return self.ffmpeg_interpreter
 
     def _required_environment(self, name: str) -> str:
         value = os.environ.get(name)
