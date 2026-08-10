@@ -2,16 +2,19 @@
 
 This workset explains the live guard, records an exploratory motion audit, and
 compares that audit with the producer's stride-8 inpaint sidecars. It contains
-no production-code or detector-policy change. Every audit result is a lead for
-video and provenance review, not a hallucination label.
+no production-code or detector-policy change. Aggregate heuristic results are
+leads rather than hallucination labels. The issue-31 human review is the
+bounded visual ground truth added after that review.
 
 ## TL;DR
 
 The guard catches 66.93%, 79.98%, and 68.07% of the separate RANSAC candidate
 frames in `sset_01`, `sset_15`, and `sset_21`. Those figures are agreement with
-one heuristic, not hallucination recall. The sidecars add provenance, but they
-are not visual ground truth. The obvious next step is a bounded video review of
-at most nine representative chunks before changing the guard or replacing it.
+one heuristic, not hallucination recall. Curtis labelled all 18 selected
+high-risk spans as visual hallucinations. The blind human review corrected one
+provisional label that had mistaken marketing text for a resting shuttle. The
+purposive result supports candidate ranking, not a population precision or
+recall claim.
 
 The event-union pass adds two context views. Union 1 combines the existing
 uncaught-plus-sidecar evidence view with raw contact impulses. Union 2 combines
@@ -54,6 +57,8 @@ more producer provenance covered, not more hallucinations caught.
   measured results, limitations, sidecar comparison, and next action.
 - [Provenance coverage follow-up](inpaint_provenance_coverage_followup_20260731-192654.md):
   the separate frame- and span-level comparison behind the new infographic.
+- [Issue-31 visual audit](shuttle_hallucination_visual_audit_20260809.md):
+  18 reviewed spans, exact source ranges, visual labels, and remaining checks.
 
 External review and planning records are kept outside this committed workset.
 
@@ -73,9 +78,12 @@ ShuttleSet's GT does not actually record the rally's final event, so we only
 ever know it inductively. The GT dataset only ever records the final contact.
 The accepted frame is a current-span close proxy, not direct GT truth.
 
-The obvious next step remains a small visual review of representative uncaught
-chunks. The aggregate data does not justify a second production detector,
-threshold change or guard replacement.
+The bounded human review is complete. All 18 selected spans are hallucinations,
+but the challenge set has no real-shuttle controls. This supports using RANSAC
+for ranking rather than automatic rejection. Nine confirmed hallucinations
+have no sidecar overlap, so producer provenance cannot cover the residual
+problem by itself. The challenge set does not justify a threshold change or
+guard replacement.
 
 ## Current outputs
 
@@ -112,6 +120,8 @@ Per-frame and per-chunk text outputs use gzip level 9:
 - `analysis/top_unfiltered_inpaint_sequences.json.gz`
 - `analysis/*_impulse_events.csv.gz`
 - `analysis/*_tp_rally_ender_events.csv.gz`
+- `analysis/*_visual_hallucination_audit.csv.gz`
+- `analysis/human_visual_review_20260810.csv.gz`
 - `analysis/event_union.json.gz`
 - `analysis/inpaint_coverage.json.gz`
 - `analysis/accepted_attractor_overlap.json.gz`
