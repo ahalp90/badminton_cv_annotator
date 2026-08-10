@@ -13,6 +13,13 @@ from annotator.fps_constants import ScalingKind
 from annotator.point_winner import Half, _phase_assignment
 from annotator.types import true_runs
 
+MIN_PATH_FRAMES = 5
+MIN_TOTAL_MOVEMENT_BH = 0.25
+MAX_LARGEST_STEP_RATIO = 4.0
+PRIMARY_MIN_NET_CLOSURE_BH = 0.25
+HISTORICAL_MIN_CLOSING_FRACTION = 0.55
+ROBUST_TREND_MIN_DECREASE_BH = 0.05
+
 
 class PreContactRun(NamedTuple):
     """A maximal usable shuttle run before an anchor contact.
@@ -83,6 +90,15 @@ class RobustDistanceTrend(NamedTuple):
     fitted_decrease_bh: float
     residual_rms_bh: float
     trend_to_jitter: float
+
+
+class FixedRuleDecisions(NamedTuple):
+    """Eligibility and calls for the two predeclared incoming-motion rules."""
+
+    common_path_eligible: bool
+    historical_path_eligible: bool
+    historical_incoming: bool
+    robust_trend_incoming: bool
 
 
 AnchorCategory = Literal["unmatched", "ambiguous", "contact_1", "contact_2", "later"]
@@ -241,6 +257,42 @@ def fit_robust_distance_trend(
         fitted_decrease,
         residual_rms,
         trend_to_jitter,
+    )
+
+
+def decide_fixed_motion_rules(
+    motion: IncomingMotion,
+    trend: RobustDistanceTrend,
+    frames_to_contact: int,
+    maximum_frames_to_contact: int,
+) -> FixedRuleDecisions:
+    """Apply the historical and 0.05-BH rules without score-driven selection."""
+    frames_to_contact_value = _integer(frames_to_contact, "frames_to_contact")
+    maximum_gap = _integer(maximum_frames_to_contact, "maximum_frames_to_contact")
+    if frames_to_contact_value < 1 or maximum_gap < 1:
+        raise ValueError("contact gaps must be positive")
+
+    common_path_eligible = (
+        motion.n_frames >= MIN_PATH_FRAMES
+        and frames_to_contact_value <= maximum_gap
+        and motion.largest_step_ratio <= MAX_LARGEST_STEP_RATIO
+    )
+    historical_path_eligible = (
+        common_path_eligible and motion.total_movement_bh >= MIN_TOTAL_MOVEMENT_BH
+    )
+    historical_incoming = (
+        historical_path_eligible
+        and motion.net_closure_bh >= PRIMARY_MIN_NET_CLOSURE_BH
+        and motion.closing_fraction >= HISTORICAL_MIN_CLOSING_FRACTION
+    )
+    robust_trend_incoming = (
+        common_path_eligible and trend.fitted_decrease_bh >= ROBUST_TREND_MIN_DECREASE_BH
+    )
+    return FixedRuleDecisions(
+        common_path_eligible,
+        historical_path_eligible,
+        historical_incoming,
+        robust_trend_incoming,
     )
 
 

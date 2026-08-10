@@ -7,9 +7,12 @@ from itertools import product
 import numpy as np
 import pytest
 from trajectory_features import (
+    IncomingMotion,
+    RobustDistanceTrend,
     align_anchor_to_gt,
     classify_anchor_frame,
     closest_pre_contact_run,
+    decide_fixed_motion_rules,
     first_player_from_final_half,
     fit_path,
     fit_robust_distance_trend,
@@ -20,7 +23,7 @@ from trajectory_features import (
 from annotator.point_winner import Half, fit_alternation
 
 
-def _motion(distances: list[float], points: list[tuple[float, float]]) -> object:
+def _motion(distances: list[float], points: list[tuple[float, float]]) -> IncomingMotion:
     frame_count = len(distances)
     return measure_incoming_motion(
         np.asarray(distances, dtype=float),
@@ -375,6 +378,44 @@ def test_robust_distance_trend_ratio_is_invariant_to_constant_rescaling() -> Non
     assert scaled.fitted_decrease_bh == pytest.approx(3.0 * original.fitted_decrease_bh)
     assert scaled.residual_rms_bh == pytest.approx(3.0 * original.residual_rms_bh)
     assert scaled.trend_to_jitter == pytest.approx(original.trend_to_jitter)
+
+
+def test_robust_rule_does_not_inherit_historical_total_movement_floor() -> None:
+    distances = [1.0, 0.975, 0.95, 0.925, 0.9]
+    motion = _motion(
+        distances,
+        [(0.0, 0.0), (0.00375, 0.0), (0.0075, 0.0), (0.01125, 0.0), (0.015, 0.0)],
+    )
+    trend = fit_robust_distance_trend(distances)
+
+    decisions = decide_fixed_motion_rules(motion, trend, 1, 2)
+
+    assert motion.total_movement_bh == pytest.approx(0.15)
+    assert decisions.common_path_eligible is True
+    assert decisions.historical_path_eligible is False
+    assert decisions.historical_incoming is False
+    assert decisions.robust_trend_incoming is True
+
+
+def test_gross_jump_gate_is_common_to_both_rules() -> None:
+    motion = IncomingMotion(5, 1.0, 0.8, 0.2, 1.0, 0.3, 4.5)
+    trend = RobustDistanceTrend(-0.2, 1.0, 0.2, 0.01, 20.0)
+
+    decisions = decide_fixed_motion_rules(motion, trend, 1, 2)
+
+    assert decisions.common_path_eligible is False
+    assert decisions.historical_incoming is False
+    assert decisions.robust_trend_incoming is False
+
+
+def test_fixed_rule_boundaries_are_inclusive() -> None:
+    motion = IncomingMotion(5, 1.0, 0.75, 0.25, 0.55, 0.25, 4.0)
+    trend = RobustDistanceTrend(-0.05, 1.0, 0.05, 0.01, 5.0)
+
+    decisions = decide_fixed_motion_rules(motion, trend, 2, 2)
+
+    assert decisions.historical_incoming is True
+    assert decisions.robust_trend_incoming is True
 
 
 @pytest.mark.parametrize("distances", [[], [1.0], [1.0, np.nan], [[1.0, 0.5]]])

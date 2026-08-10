@@ -2,9 +2,9 @@
 
 ## Resume
 
-- **Next action:** commit the approved Batch 1 scope, then begin Batch 2 by extending the saved row and span schemas before any corrected scoring.
-- **Current batch:** Batch 1's pure anchor-alignment, accepted-sequence and robust-trend records are implemented but not wired into the analysis. All gates and the Gemini Pro adversarial review pass, and historical outputs remain byte-identical after decompression. No corrected classification score has been read.
-- **Verified so far:** the original analysis and validator still pass. The baseline is at `local_scratch/serve_start_trajectory_correction/20260811-pre-edit-baseline/`. Serena/Pyrefly reports no diagnostics in either changed Python file. Dedicated Ruff, pinned Pyrefly, whole pytest and `git diff --check` pass. Whole Ruff retains the 661 unrelated baseline findings. The successful Gemini retry exited 0 with a clean tripwire and no blocker.
+- **Next action:** write the file-only Opus Batch 2 red-team brief. Verify and fix any reproduced finding before the approved Batch 2 commit.
+- **Current batch:** Batch 1 was committed as `360c9b3`. Batch 2 analysis, fixed decisions and independent validator are implemented but uncommitted. The corrected analysis and validator both pass. Corrected scores have now been observed only after every rule and threshold was fixed in the planning records.
+- **Verified so far:** the saved bundle contains 292 rallies, 344 predicted spans, 1,012 selected path points, 16 fixed rule rows and 270 trend-diagnostic rows. The validator independently rebuilds all saved tables and metrics without importing the analysis or feature module. Dedicated Ruff, pinned Pyrefly, the full test suite and `git diff --check` pass. Whole-project Ruff still reports the unchanged baseline of 661 unrelated findings. Serena reports no diagnostics in `validate_outputs.py`.
 - **Runbook pointer:** `plan.md`, “Correction extension: evaluation accounting and readable final outputs”.
 
 ## Compaction boundary
@@ -34,10 +34,9 @@ Repair the serve-start trajectory investigation so its rally mapping, contact al
 
 ### Next steps
 
-1. Use the fresh validated old-analysis capture as the Batch 1 behaviour reference.
-2. Execute Batch 1's pure records and focused tests without wiring them into the analysis.
-3. Prove the historical analysis outputs remain bit-exact.
-4. Run the full gates, obtain the approved Gemini review and commit with the approved message.
+1. Create a fresh file-only `claude-opus-4-6-thinking` Batch 2 red-team brief. Do not ask direct-host agy to run shell commands.
+2. Verify every reported issue locally. Then commit Batch 2 with the approved message if clean.
+3. Batch 3 rewrites the report and plots, applies both readability audits, and stops for the planned fresh WebUI cold read.
 
 ## Concerns and observations
 
@@ -188,3 +187,72 @@ Batch 1 gates:
 The first Pyrefly attempt exited 2 because the sandbox could not create a uv cache lock. The required command passed unchanged with existing-cache access outside the sandbox.
 
 The first Gemini Pro launch produced no report because the brief asked it to run `git diff`, and direct-host read-only mode correctly denied command execution. The failed artefact remains under `local_scratch/external_delegate/20260811-083129-trajectory-batch1-redteam/run/`. A file-only retry exited 0 with a clean tripwire and judged the batch safe to commit. Its suggested single-contact and two-sample trend boundary tests were added. Its nearest-GT tie suggestion was already covered by the explicit equidistant 100/112-frame case.
+
+## 2026-08-11: Batch 2 corrected results
+
+Batch 1 was committed as `360c9b3` with the exact approved message. Batch 2 changes are currently limited to:
+
+- `analyse_serve_trajectory.py`;
+- `trajectory_features.py`;
+- `test_trajectory_features.py`;
+- `validate_outputs.py`.
+
+The corrected analysis writes six ignored outputs:
+
+- `rallies.csv.gz`: 292 GT-rally rows with full GT strokes, accepted frames, mapping, all three alignments, sequence recovery, both path masks, both fixed decisions and server predictions;
+- `spans.csv.gz`: 344 half-open predicted spans;
+- `path_points.csv.gz`: 1,012 selected-path samples for independent trend and movement reconstruction;
+- `fixed_rules.csv.gz`: four fixed rule/mask arms globally and for each fixture, 16 rows;
+- `trend_diagnostics.csv.gz`: both masks for 135 primary unique ±10 truth rows, 270 rows;
+- `metrics.json.gz`: strict finite JSON containing global and per-fixture populations, alignments, path funnels, sequence outcomes, fixed-rule results and server scores.
+
+The independent validator was implemented by the native `batch2_validator` worker in `validate_outputs.py` only. Primary review added checks for exact per-fixture span counts, accepted contacts inside half-open spans, `n_strokes_list`, and baseline missing/wrong/failure flags. The Batch 2 Opus red team then identified one audit-boundary gap: GT and upstream prediction fields were being trusted after the producer copied them into `rallies.csv.gz`. The validator now reloads each frozen fixture and cross-checks the saved spans, every GT field, semantic first/second truth, boundary mapping, accepted contacts, baseline prediction, raw-candidate summaries, anchor player and direct per-contact player guesses before doing its independent arithmetic. It imports neither `analyse_serve_trajectory` nor `trajectory_features`. It exits 0 with:
+
+```text
+validated 292 rallies, 344 spans, 1012 path points, 16 fixed-rule rows and all metrics
+```
+
+### Corrected accounting now observed
+
+- All GT: 292, by fixture 113/104/75.
+- Covered sensitivity: 249, by fixture 110/84/55.
+- Primary one-to-one: 239, by fixture 104/84/51.
+- Covered rows use 244 `(fixture, span_id)` keys: 239 one-rally spans and five two-rally spans.
+- Primary unique ±10 contact-1/contact-2 truth: 135 anchors, comprising 118 serves and 17 first returns. Three additional nearest contact-1/contact-2 anchors have multiple GT strokes inside ±10 and stay outside rule scoring.
+- Primary ±10-unmatched anchors: 97. Later accepted contacts recover the serve in 49. Without a later serve match, 36 recover the first return. Nine first match another later GT stroke. Three have no later GT match. The first GT-matched accepted contact has rank 2 in 56 cases; all ranks and per-fixture counts are in metrics.
+
+### Fixed motion comparison
+
+Global primary unique ±10 truth:
+
+| Mask | Rule | Eligible | TP | FP | FN | TN | Precision | Recall | F1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Recurrence only | historical | 18 | 9 | 3 | 8 | 115 | 0.750 | 0.529 | 0.621 |
+| Recurrence only | 0.05-BH trend | 19 | 9 | 4 | 8 | 114 | 0.692 | 0.529 | 0.600 |
+| Recurrence + producer mask | historical | 9 | 7 | 0 | 10 | 118 | 1.000 | 0.412 | 0.583 |
+| Recurrence + producer mask | 0.05-BH trend | 10 | 7 | 0 | 10 | 118 | 1.000 | 0.412 | 0.583 |
+
+These are fixed comparisons, not selected settings. Removing the historical 0.25-BH movement floor admits one extra recurrence-mask robust call, which is an incorrect serve-as-return call in this dataset. The two producer-mask decisions agree despite one additional robust-eligible path.
+
+Among the 19 common-eligible recurrence paths, fitted-decrease medians are similar for GT first returns (0.386 BH) and serves (0.383 BH). Correct calls have median fitted decrease 0.394 BH, residual RMS 0.089 BH and trend-to-jitter 5.75. Incorrect calls have medians 0.013 BH, 0.107 BH and -0.275. These diagnostics describe the fixed calls only and must not become another threshold. Eight common-eligible recurrence calls are incorrect: four false positives and four false negatives. Representative case plots and read-only visual checks remain Batch 3 work.
+
+Three semantic `gt_second_frame` values differ from ordinal 2 in the full ordered GT stroke list: `sset_01` set1/r30, set2/r15 and set2/r26. `gt_first_frame` equals ordinal 1 in all 292 rows. The validator correctly keeps semantic first-return/player truth separate from the full stroke list used for ordinal alignment.
+
+### Batch 2 gates at compaction write-out
+
+- corrected full analysis: exit 0;
+- independent corrected validator: exit 0;
+- focused trajectory tests: exit 0, 55 passed;
+- dedicated investigation Ruff: exit 0;
+- Serena diagnostics for analysis, features and tests: none;
+- `git diff --check`: exit 0;
+- whole pytest: exit 0, 1,456 passed and 29 skipped;
+- pinned Pyrefly: first attempt exit 2 from the sandbox uv-cache lock only; exact outside-sandbox rerun exit 0 with no errors and 20 configured suppressions;
+- whole Ruff: exit 1 on the unchanged baseline of 661 unrelated findings;
+- Serena diagnostics for `validate_outputs.py`: none.
+
+### Batch 2 adversarial check-in
+
+The file-only `claude-opus-4-6-thinking` review completed with exit 0 and a clean repository tripwire. It found no blocking defect in the 239/249/292 population construction, tolerance arithmetic, unmatched-sequence logic, fixed motion rules, inpaint control or semantic server scoring. Its one medium finding was the frozen-source boundary described above, which is now closed. A low note observed that binary precision is defined as 1.0 when a rule makes no positive calls. Every current global and per-fixture arm makes at least one positive call, so the convention does not affect these results and was left unchanged. The review artefact is:
+
+`local_scratch/external_delegate/20260811-090357-trajectory-batch2-redteam/run/result.md`

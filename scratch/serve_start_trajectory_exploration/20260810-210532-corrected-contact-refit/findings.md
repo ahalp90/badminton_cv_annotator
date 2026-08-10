@@ -24,6 +24,18 @@ The Opus planning red-team completed read-only with exit code 0 and a clean Git 
 
 The sections below describe the completed historical experiment. Their scores use the old ±5 join and 249 covered-row population, so they are evidence about the old run rather than corrected results.
 
+## Corrected Batch 2 result
+
+The corrected bundle passes an independent validator that rebuilds the half-open rally mapping, three contact tolerances, unmatched-anchor sequence outcomes, sampled-path arithmetic, robust trends, fixed decisions, server predictions and every JSON metric. After the Batch 2 Opus check-in, the validator also reloads every frozen fixture and binds the saved GT, mapping, contact and upstream server fields back to their source. The validator imports neither the analysis nor the feature module.
+
+The primary unique ±10 truth set contains 118 serves and 17 first returns. Under the recurrence-only mask, the historical rule finds 9 returns with 3 false calls. The 0.05-BH robust-trend rule finds the same 9 returns with 4 false calls. The historical absolute movement floor therefore removes one path that the robust rule accepts, but that additional call is wrong in this dataset. Under the recurrence-plus-producer mask, both rules make the same seven correct return calls and no false calls, although the robust rule has one additional eligible path whose fitted decrease stays below 0.05 BH.
+
+The diagnostic distributions do not support turning trend-to-jitter into another classifier. Among the 19 common-eligible recurrence paths, serves and first returns have nearly identical median fitted decreases, about 0.38 BH. Correct decisions have a much higher median trend-to-jitter than incorrect decisions, but this is a post-score finding over only 19 paths. It remains explanatory evidence only.
+
+The unmatched-anchor sequence check materially changes the failure story. Of 97 primary anchors unmatched at ±10, 49 have a later accepted contact within ±10 of the GT serve. Another 36 have no later serve match but do have a later first-return match. Nine first match a later GT stroke, and three never match any GT stroke. A large share of unmatched anchors therefore reflect an early GT-incompatible candidate taking the anchor position rather than a uniformly missing serve.
+
+The full GT stroke list and the separate semantic first/second truth agree on every first frame. Three `sset_01` second-frame values differ. Keep semantic receiver/player truth separate from the ordered stroke list used for alignment; do not force an invalid ordinal-2 equality check.
+
 ## Bottom line
 
 The corrected motion rule found 11 of 16 clear first returns and made 3 false return calls. Across all 16 covered rallies where the rule fired, directly naming the other player as server was right in 13 cases. Adding an unknown-player contact before the alternating fit was right in 8 cases. Adding a contact by the inferred other player was right in 9 cases.
