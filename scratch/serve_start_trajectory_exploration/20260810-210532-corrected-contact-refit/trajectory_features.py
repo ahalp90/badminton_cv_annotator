@@ -23,11 +23,6 @@ class PreContactRun(NamedTuple):
     end: int
     frames_to_contact: int
 
-    @property
-    def gap_frames(self) -> int:
-        """Compatibility name for the requested contact-gap measurement."""
-        return self.frames_to_contact
-
 
 class IncomingMotion(NamedTuple):
     """Aligned shuttle and anchor-player motion measurements.
@@ -45,10 +40,6 @@ class IncomingMotion(NamedTuple):
     total_movement_bh: float
     largest_step_ratio: float
 
-    @property
-    def frame_count(self) -> int:
-        """Alias for the number of aligned frames."""
-        return self.n_frames
 
 class CurveFit(NamedTuple):
     """Linear and quadratic shuttle-path residual diagnostics."""

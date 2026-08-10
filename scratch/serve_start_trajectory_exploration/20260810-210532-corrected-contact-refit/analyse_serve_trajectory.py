@@ -397,19 +397,24 @@ def build_threshold_rows(features: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def choose_threshold(thresholds: pd.DataFrame) -> pd.Series:
-    """Choose highest first-return F1, then precision, then the stricter percentage."""
-    primary = thresholds[
-        (thresholds["path_definition"] == PRIMARY_PATH_VARIANT)
+def choose_threshold_for(thresholds: pd.DataFrame, path_definition: str) -> pd.Series:
+    """Choose highest F1 for one path definition, then precision and strictness."""
+    curve = thresholds[
+        (thresholds["path_definition"] == path_definition)
         & np.isclose(thresholds["minimum_net_closure_bh"], PRIMARY_MIN_NET_CLOSURE_BH)
     ]
-    if primary.empty:
-        raise ValueError("primary first-return threshold curve is empty")
-    ordered = primary.sort_values(
+    if curve.empty:
+        raise ValueError(f"first-return threshold curve is empty for {path_definition}")
+    ordered = curve.sort_values(
         ["f1", "precision", "minimum_movements_towards_player_percent"],
         ascending=[False, False, False],
     )
     return ordered.iloc[0]
+
+
+def choose_threshold(thresholds: pd.DataFrame) -> pd.Series:
+    """Choose the displayed recurrence-clean first-return threshold."""
+    return choose_threshold_for(thresholds, PRIMARY_PATH_VARIANT)
 
 
 def _return_prediction(row: pd.Series, variant: str, closure_bh: float, percentage: int) -> bool:
@@ -438,7 +443,7 @@ def apply_selected_rule(features: pd.DataFrame, selected: pd.Series) -> pd.DataF
     percentage = int(selected["minimum_movements_towards_player_percent"])
     results = features.copy()
     return_detected: list[bool] = []
-    forced_servers: list[str | None] = []
+    motion_rule_servers: list[str | None] = []
     evidence_servers: list[str | None] = []
     parity_servers: list[str | None] = []
     labelled_servers: list[str | None] = []
@@ -456,7 +461,7 @@ def apply_selected_rule(features: pd.DataFrame, selected: pd.Series) -> pd.DataF
         return_detected.append(detected)
 
         inferred_server = other_half(anchor_player) if detected and anchor_player is not None else anchor_player
-        forced_servers.append(_half_text(inferred_server))
+        motion_rule_servers.append(_half_text(inferred_server))
         evidence_servers.append(_half_text(inferred_server) if path_measured else None)
 
         guesses = _parse_guesses(row["direct_contact_guesses"])
@@ -476,13 +481,15 @@ def apply_selected_rule(features: pd.DataFrame, selected: pd.Series) -> pd.DataF
         labelled_final_changed.append(labelled_final != natural_final)
 
     results["incoming_motion_found"] = return_detected
-    results["forced_anchor_server"] = forced_servers
+    results["assume_first_contact_is_serve"] = results["anchor_player"]
+    results["motion_rule_server"] = motion_rule_servers
     results["evidence_only_server"] = evidence_servers
     results["missing_contact_refit_server"] = parity_servers
     results["inferred_player_refit_server"] = labelled_servers
     results["inferred_player_vote_changed_final_fit"] = labelled_final_changed
     for column in (
-        "forced_anchor_server",
+        "assume_first_contact_is_serve",
+        "motion_rule_server",
         "evidence_only_server",
         "missing_contact_refit_server",
         "inferred_player_refit_server",
@@ -525,22 +532,96 @@ def classification_metrics(frame: pd.DataFrame, prediction_column: str) -> dict[
 def _score_methods(frame: pd.DataFrame) -> dict[str, dict[str, object]]:
     """Score every server answer under plain report labels."""
     return {
-        "released alternating fit": classification_metrics(frame, "baseline_server"),
-        "first accepted contact player": classification_metrics(frame, "forced_anchor_server"),
-        "motion evidence only": classification_metrics(frame, "evidence_only_server"),
-        "add one missing contact": classification_metrics(frame, "missing_contact_refit_server"),
-        "add one contact by inferred player": classification_metrics(frame, "inferred_player_refit_server"),
+        "old alternating fit": classification_metrics(frame, "baseline_server"),
+        "use the anchor player": classification_metrics(
+            frame, "assume_first_contact_is_serve"
+        ),
+        "use the other player when motion is incoming": classification_metrics(
+            frame, "motion_rule_server"
+        ),
+        "motion answer only; abstain without a usable path": classification_metrics(
+            frame, "evidence_only_server"
+        ),
+        "prepend a contact with unknown player": classification_metrics(
+            frame, "missing_contact_refit_server"
+        ),
+        "prepend a contact by the other player": classification_metrics(
+            frame, "inferred_player_refit_server"
+        ),
     }
 
 
-def build_metrics(results: pd.DataFrame, selected: pd.Series) -> dict[str, object]:
+def _trigger_summary(results: pd.DataFrame) -> dict[str, int]:
+    """Count outcomes only where one path says the anchor was a return."""
+    covered = results[results["boundary"] == RallyBoundary.COVERED.value]
+    triggers = covered[covered["incoming_motion_found"].astype(bool)]
+    return {
+        "n": len(triggers),
+        "released_correct": int(triggers["baseline_correct"].astype(bool).sum()),
+        "direct_inference_correct": int(triggers["motion_rule_server_correct"].astype(bool).sum()),
+        "missing_contact_refit_correct": int(
+            triggers["missing_contact_refit_server_correct"].astype(bool).sum()
+        ),
+        "inferred_player_refit_correct": int(
+            triggers["inferred_player_refit_server_correct"].astype(bool).sum()
+        ),
+        "extra_vote_changed_final_fit": int(
+            triggers["inferred_player_vote_changed_final_fit"].astype(bool).sum()
+        ),
+    }
+
+
+def _earlier_raw_comparison(results: pd.DataFrame) -> dict[str, int | float]:
+    """Show what an automatic earlier-raw-candidate veto would do."""
+    clear = results[results["anchor_gt_match"].isin(["contact_1", "contact_2"])]
+    truth = clear["anchor_gt_match"].eq("contact_2").to_numpy()
+    predicted = clear["incoming_motion_found"].astype(bool).to_numpy()
+    no_earlier_raw = clear["earlier_raw_candidates"].eq(0).to_numpy()
+    vetoed_prediction = predicted & no_earlier_raw
+    true_positive = int(np.count_nonzero(vetoed_prediction & truth))
+    false_positive = int(np.count_nonzero(vetoed_prediction & ~truth))
+    false_negative = int(np.count_nonzero(~vetoed_prediction & truth))
+    precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 1.0
+    recall = true_positive / (true_positive + false_negative)
+    return {
+        "true_positive": true_positive,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+        "precision": precision,
+        "recall": recall,
+    }
+
+
+def _per_video_detection(results: pd.DataFrame) -> dict[str, dict[str, int]]:
+    """Return clear first-return counts separately for each video."""
+    clear = results[results["anchor_gt_match"].isin(["contact_1", "contact_2"])]
+    rows: dict[str, dict[str, int]] = {}
+    for fixture, group in clear.groupby("fixture"):
+        truth = group["anchor_gt_match"].eq("contact_2")
+        predicted = group["incoming_motion_found"].astype(bool)
+        rows[str(fixture)] = {
+            "contact_1": int((~truth).sum()),
+            "contact_2": int(truth.sum()),
+            "quality_paths": int(group[f"{PRIMARY_PATH_VARIANT}_path_quality_pass"].astype(bool).sum()),
+            "tp": int((truth & predicted).sum()),
+            "fp": int((~truth & predicted).sum()),
+            "fn": int((truth & ~predicted).sum()),
+        }
+    return rows
+
+
+def build_metrics(
+    results: pd.DataFrame,
+    selected: pd.Series,
+    producer_results: pd.DataFrame,
+    producer_selected: pd.Series,
+) -> dict[str, object]:
     """Collect direct answers, denominators and server scores."""
     covered = results[results["boundary"] == RallyBoundary.COVERED.value]
     failures = covered[covered["frozen_server_failure"].astype(bool)]
     clear = results[results["anchor_gt_match"].isin(["contact_1", "contact_2"])]
     clear_returns = clear[clear["anchor_gt_match"] == "contact_2"]
     triggers = covered[covered["incoming_motion_found"].astype(bool)]
-    triggered_returns = clear_returns[clear_returns["incoming_motion_found"].astype(bool)]
     no_quality_path = covered[~covered[f"{PRIMARY_PATH_VARIANT}_path_quality_pass"].astype(bool)]
     earlier_raw = covered[covered["earlier_raw_candidates"] > 0]
     return {
@@ -584,26 +665,27 @@ def build_metrics(results: pd.DataFrame, selected: pd.Series) -> dict[str, objec
             "anchors_with_player": int(covered["anchor_player"].notna().sum()),
             "no_quality_path": len(no_quality_path),
             "incoming_motion_found": len(triggers),
-            "clear_returns_found": len(triggered_returns),
+            "clear_returns_found": int(selected["tp"]),
             "earlier_raw_candidate_rallies": len(earlier_raw),
             "triggers_with_earlier_raw_candidate": int((triggers["earlier_raw_candidates"] > 0).sum()),
             "paths_reaching_court_scene_start": int(covered["path_reaches_scene_start"].astype(bool).sum()),
             "anchor_equal_distance_ties": int(covered["anchor_equal_distance_tie"].astype(bool).sum()),
         },
-        "what_happens_when_motion_is_found": {
-            "n": len(triggers),
-            "released_correct": int(triggers["baseline_correct"].astype(bool).sum()),
-            "first_contact_answer_correct": int(triggers["forced_anchor_server_correct"].astype(bool).sum()),
-            "missing_contact_refit_correct": int(
-                triggers["missing_contact_refit_server_correct"].astype(bool).sum()
+        "what_happens_when_motion_is_found": _trigger_summary(results),
+        "producer_original_comparison": {
+            "minimum_movements_towards_player_percent": int(
+                producer_selected["minimum_movements_towards_player_percent"]
             ),
-            "inferred_player_refit_correct": int(
-                triggers["inferred_player_refit_server_correct"].astype(bool).sum()
-            ),
-            "extra_vote_changed_final_fit": int(
-                triggers["inferred_player_vote_changed_final_fit"].astype(bool).sum()
-            ),
+            "tp": int(producer_selected["tp"]),
+            "fp": int(producer_selected["fp"]),
+            "fn": int(producer_selected["fn"]),
+            "precision": float(producer_selected["precision"]),
+            "recall": float(producer_selected["recall"]),
+            "f1": float(producer_selected["f1"]),
+            "trigger_outcomes": _trigger_summary(producer_results),
         },
+        "earlier_raw_candidate_veto_comparison": _earlier_raw_comparison(results),
+        "first_return_test_by_video": _per_video_detection(results),
         "scores": {
             "all_292": _score_methods(results),
             "covered": _score_methods(covered),
@@ -653,11 +735,11 @@ def plot_threshold_curve(thresholds: pd.DataFrame, selected: pd.Series) -> None:
     axis.set(
         xlim=(0, 100),
         ylim=(0, 1.02),
-        xlabel="Minimum consecutive shuttle movements towards the contact player",
-        ylabel="Percentage",
+        xlabel="Minimum share of shuttle movements that reduce distance",
+        ylabel="Precision, recall or F1",
         title=(
-            "Does incoming motion identify a first return?\n"
-            f"Path must finish at least {PRIMARY_MIN_NET_CLOSURE_BH:g} body heights closer"
+            "Does incoming motion identify a first return among 103 clear anchors?\n"
+            f"All paths must finish at least {PRIMARY_MIN_NET_CLOSURE_BH:g} body heights closer"
         ),
     )
     axis.xaxis.set_major_formatter(PercentFormatter(100))
@@ -688,7 +770,7 @@ def plot_motion_measurements(results: pd.DataFrame, selected: pd.Series) -> None
         float(selected["minimum_movements_towards_player_percent"]) / 100.0,
         color="#333333",
         linestyle="--",
-        label="Displayed threshold",
+        label="Rule requires at least this share",
     )
     axes[0].set(
         xlabel="Movements towards the contact player",
@@ -712,8 +794,14 @@ def plot_motion_measurements(results: pd.DataFrame, selected: pd.Series) -> None
         float(selected["minimum_movements_towards_player_percent"]) / 100.0,
         color="#333333",
         linestyle="--",
+        label="Required share moving closer",
     )
-    axes[1].axhline(PRIMARY_MIN_NET_CLOSURE_BH, color="#333333", linestyle=":")
+    axes[1].axhline(
+        PRIMARY_MIN_NET_CLOSURE_BH,
+        color="#333333",
+        linestyle=":",
+        label="Required net closure",
+    )
     axes[1].set(
         xlabel="Movements towards the contact player",
         ylabel="How much closer the path finished (body heights)",
@@ -722,6 +810,7 @@ def plot_motion_measurements(results: pd.DataFrame, selected: pd.Series) -> None
     axes[1].xaxis.set_major_formatter(PercentFormatter(1.0))
     axes[1].legend()
     axes[1].grid(alpha=0.2)
+    figure.suptitle("The 19 usable paths among 103 anchors with clear first/second-contact truth")
     figure.savefig(PLOT_DIR / "incoming_motion_measurements.png", dpi=160, bbox_inches="tight")
     plt.close(figure)
 
@@ -730,16 +819,18 @@ def plot_server_accuracy(metrics: dict[str, object]) -> None:
     """Plot correct server counts for the main methods without hiding denominators."""
     scores = metrics["scores"]
     methods = (
-        "released alternating fit",
-        "first accepted contact player",
-        "add one missing contact",
-        "add one contact by inferred player",
+        "old alternating fit",
+        "use the anchor player",
+        "use the other player when motion is incoming",
+        "prepend a contact with unknown player",
+        "prepend a contact by the other player",
     )
     short_labels = (
-        "Released fit",
-        "First contact player",
-        "Add missing contact",
-        "Add inferred player",
+        "Old alternating\nfit",
+        "Use anchor\nplayer",
+        "Use other player\nwhen motion is incoming",
+        "Prepend contact\nwith unknown player",
+        "Prepend contact\nby other player",
     )
     datasets = (("all_292", "All GT rallies"), ("covered", "Covered rallies"))
     figure, axis = plt.subplots(figsize=(11, 6), constrained_layout=True)
@@ -779,6 +870,52 @@ def plot_server_accuracy(metrics: dict[str, object]) -> None:
     axis.grid(axis="y", alpha=0.25)
     axis.legend()
     figure.savefig(PLOT_DIR / "server_accuracy.png", dpi=160, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_source_quality_comparison(metrics: dict[str, object]) -> None:
+    """Compare the main and producer-original first-return counts directly."""
+    main = metrics["first_return_test"]
+    producer = metrics["producer_original_comparison"]
+    labels = (
+        "Exclude repeated-position\nwarnings",
+        "Also exclude filled or\ninterpolated points",
+    )
+    count_names = ("tp", "fp", "fn")
+    count_labels = ("Returns found", "Serves wrongly called returns", "Returns missed")
+    colours = (COLOURS["blue"], COLOURS["pink"], COLOURS["orange"])
+    x_positions = np.arange(len(labels), dtype=float)
+    width = 0.23
+    figure, axis = plt.subplots(figsize=(9.5, 5.8), constrained_layout=True)
+    for index, (name, label, colour) in enumerate(zip(count_names, count_labels, colours, strict=True)):
+        values = (int(main[name]), int(producer[name]))
+        bars = axis.bar(x_positions + (index - 1) * width, values, width, label=label, color=colour)
+        for bar, value in zip(bars, values, strict=True):
+            axis.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.2,
+                str(value),
+                ha="center",
+                va="bottom",
+            )
+    axis.set(
+        xticks=x_positions,
+        xticklabels=labels,
+        ylabel="Rallies among 103 anchors with clear truth",
+        ylim=(0, max(int(main["tp"]), int(producer["tp"]), int(main["fn"]), int(producer["fn"])) + 5),
+        title="Does excluding TrackNet's filled or interpolated points help?",
+    )
+    for x_position, values in zip(x_positions, (main, producer), strict=True):
+        axis.text(
+            x_position,
+            axis.get_ylim()[1] - 0.4,
+            f"Precision {float(values['precision']):.1%}\nRecall {float(values['recall']):.1%}",
+            ha="center",
+            va="top",
+        )
+    axis.grid(axis="y", alpha=0.25)
+    axis.legend()
+    figure.savefig(PLOT_DIR / "tracknet_source_comparison.png", dpi=160, bbox_inches="tight")
     plt.close(figure)
 
 
@@ -858,7 +995,7 @@ def plot_selected_cases(
 def _score_table(scores: dict[str, dict[str, object]]) -> str:
     """Return a readable Markdown table for one rally group."""
     lines = [
-        "| Method | Correct | Known answers | Accuracy | Macro-F1 |",
+        "| Method | Correct | Predictions made | Accuracy | Macro-F1 |",
         "|---|---:|---:|---:|---:|",
     ]
     for method, values in scores.items():
@@ -876,17 +1013,33 @@ def write_report(metrics: dict[str, object], case_plot_count: int) -> None:
     triggered = metrics["what_happens_when_motion_is_found"]
     rule = metrics["selected_rule"]
     scores = metrics["scores"]
+    producer = metrics["producer_original_comparison"]
+    raw_veto = metrics["earlier_raw_candidate_veto_comparison"]
+    video_rows = metrics["first_return_test_by_video"]
+    evidence_covered = scores["covered"]["motion answer only; abstain without a usable path"]
+    video_table_lines = [
+        "| Video | Anchor was serve | Anchor was first return | Usable paths | Returns found | False calls | Returns missed |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for fixture, values in video_rows.items():
+        video_table_lines.append(
+            f"| {fixture} | {values['contact_1']} | {values['contact_2']} | {values['quality_paths']} | "
+            f"{values['tp']} | {values['fp']} | {values['fn']} |"
+        )
+    video_table = "\n".join(video_table_lines)
     report = f"""# Incoming shuttle before the first accepted contact
 
 ## Answer
 
 This experiment asks: did the shuttle travel towards the player at the first accepted contact, and if so, did adding one earlier shot by the other player make the server attribution correct?
 
-There were {first_return['clear_contact_2']} clear cases where the first accepted contact matched ShuttleSet's second contact, meaning it was the first return. The incoming-motion rule found {first_return['tp']} of them and incorrectly called {first_return['fp']} known first contacts returns. This is {first_return['precision']:.1%} precision, {first_return['recall']:.1%} recall and {first_return['f1']:.3f} F1. The raw counts matter because the known-return group is small.
+ShuttleSet gives clear first-or-second-contact truth for {first_return['clear_contact_1'] + first_return['clear_contact_2']} anchors: {first_return['clear_contact_1']} were serves and {first_return['clear_contact_2']} were first returns. Only {first_return['paths_passing_quality_checks']} of those anchors had a path that passed the fixed quality checks. At the selected cut-off, the rule called {first_return['tp'] + first_return['fp']} anchors returns. {first_return['tp']} calls were right, {first_return['fp']} were false calls, and {first_return['fn']} returns were missed. This is {first_return['precision']:.1%} precision, {first_return['recall']:.1%} recall and {first_return['f1']:.3f} F1.
 
-Across the {triggered['n']} covered rallies where incoming motion was found, the released alternating fit had the right server in {triggered['released_correct']}/{triggered['n']}. Adding one missing contact, without naming its player, was right in {triggered['missing_contact_refit_correct']}/{triggered['n']}. Adding the missing contact and assigning it to the other player was right in {triggered['inferred_player_refit_correct']}/{triggered['n']}.
+Across all covered rallies, the rule fired {triggered['n']} times: the {first_return['tp'] + first_return['fp']} clear cases above and {triggered['n'] - first_return['tp'] - first_return['fp']} anchors that did not match a unique first or second ShuttleSet contact. Directly naming the other player as server was right in {triggered['direct_inference_correct']}/{triggered['n']}. The released alternating fit was right in {triggered['released_correct']}/{triggered['n']}. Adding one missing contact with an unknown player was right in {triggered['missing_contact_refit_correct']}/{triggered['n']}. Adding the contact and assigning it to the other player was right in {triggered['inferred_player_refit_correct']}/{triggered['n']}.
 
 The extra player label changed the fitted final player in {triggered['extra_vote_changed_final_fit']}/{triggered['n']} triggered rallies. Usually the change comes from correcting the contact count, not from the added player vote overpowering the later contacts.
+
+The stricter path check excludes TrackNet points that the data producer filled or interpolated. It found {producer['tp']}/{first_return['clear_contact_2']} returns with {producer['fp']} false calls. That is {producer['precision']:.1%} precision, {producer['recall']:.1%} recall and {producer['f1']:.3f} F1, compared with {first_return['f1']:.3f} F1 for the main rule.
 
 ## What was measured
 
@@ -896,7 +1049,9 @@ The script searches at most {rule['maximum_lookback_base30_frames']} base-30 fra
 
 The displayed setting was chosen by first-return F1 on these same three videos. It is exploratory, not a held-out estimate.
 
-No usable path was available in {counts['no_quality_path']}/{counts['covered_rallies']} covered rallies. The tables therefore show both a forced answer, which calls the anchor player the server when no return is found, and an evidence-only answer, which abstains when the path is unavailable.
+No usable path was available in {counts['no_quality_path']}/{counts['covered_rallies']} covered rallies. The forced motion rule names the anchor player when the incoming rule does not fire. The evidence-only version abstains when no usable path exists; with a usable path below the cut-off, it names the anchor player. It answered {evidence_covered['known']}/{evidence_covered['n']} covered rallies and was right in {evidence_covered['correct']}/{evidence_covered['known']} of those answers.
+
+The two prepend rows change the alternating fit only when incoming motion is found. `Prepend unknown player` adds one place at the start but no player vote. `Prepend other player` adds the same place and supplies the inferred server as one vote. Otherwise both rows keep the ordinary alternating fit over the measured contacts.
 
 ## Server attribution
 
@@ -912,26 +1067,36 @@ No usable path was available in {counts['no_quality_path']}/{counts['covered_ral
 
 {_score_table(scores['frozen_failures'])}
 
+`Correct` includes the full table denominator. An abstention therefore counts as incorrect. `Predictions made` shows how often each method supplied either Top or Bottom, which keeps the low-coverage evidence-only result from looking like a complete server rule.
+
+The simplest complete rule is “use the player at the first accepted contact, unless incoming motion says the other player served”. Its row is labelled `use the other player when motion is incoming`.
+
+## First-return result by video
+
+{video_table}
+
 ## Checks and useful subsets
 
-- Clear anchor truth: {first_return['clear_contact_1']} first contacts and {first_return['clear_contact_2']} second contacts.
-- Clear rows with a path passing the fixed quality checks: {first_return['paths_passing_quality_checks']}.
+- Clear anchor truth: {first_return['clear_contact_1']} first contacts and {first_return['clear_contact_2']} second contacts, {first_return['clear_contact_1'] + first_return['clear_contact_2']} total.
+- Clear anchors with a path passing the fixed quality checks: {first_return['paths_passing_quality_checks']}/{first_return['clear_contact_1'] + first_return['clear_contact_2']}.
 - Covered rallies with an earlier rejected raw impulse: {counts['earlier_raw_candidate_rallies']}.
 - Incoming-motion triggers with an earlier rejected raw impulse: {counts['triggers_with_earlier_raw_candidate']}.
+- If every earlier rejected impulse were used as a veto, the result would become {raw_veto['true_positive']} returns found, {raw_veto['false_positive']} false calls and {raw_veto['false_negative']} returns missed. This is {raw_veto['precision']:.1%} precision and {raw_veto['recall']:.1%} recall. The veto is reported only as a comparison.
 - Paths that begin exactly when the court scene begins: {counts['paths_reaching_court_scene_start']}.
 - Exact equal-distance anchor ties that would favour Top: {counts['anchor_equal_distance_ties']}.
 - Case plots written: {case_plot_count}; all clear false positives plus a small sample of true positives and misses.
 
 ## Plots
 
-- `outputs/plots/first_return_threshold.png`: the plain precision, recall and F1 curve.
+- `outputs/plots/first_return_threshold.png`: precision, recall and F1 as the required share of movements towards the contact player changes.
 - `outputs/plots/incoming_motion_measurements.png`: percentage of movements towards the contact player and net closing distance.
 - `outputs/plots/server_accuracy.png`: correct server counts before and after adding a shot.
+- `outputs/plots/tracknet_source_comparison.png`: return counts with and without TrackNet's filled or interpolated points.
 - `outputs/plots/cases/`: at most twelve labelled shuttle paths.
 
 ## Limits
 
-Only {first_return['clear_contact_2']} clear first-return anchors are available, so the threshold can move with a few rallies. A recurrence-clean TrackNet point is not guaranteed to be real. The producer-original comparison remains in the compressed tables. The experiment infers the player and order of a missing shot; it does not recover the serve frame or prove that the serve itself was visible.
+Only {first_return['clear_contact_2']} clear first-return anchors are available, so the threshold can move with a few rallies. Excluding repeated-position warnings does not guarantee that a TrackNet point is real. The stricter source comparison remains in the compressed tables. The experiment infers the player and order of a missing shot; it does not recover the serve frame or prove that the serve itself was visible.
 """
     (RUN_DIR / "report.md").write_text(report, encoding="utf-8")
 
@@ -951,10 +1116,22 @@ def main() -> None:
     thresholds = build_threshold_rows(features)
     selected = choose_threshold(thresholds)
     results = apply_selected_rule(features, selected)
-    metrics = build_metrics(results, selected)
+    producer_selected = choose_threshold_for(thresholds, "producer_original")
+    producer_results = apply_selected_rule(features, producer_selected)
+    for column in (
+        "incoming_motion_found",
+        "motion_rule_server",
+        "evidence_only_server",
+        "missing_contact_refit_server",
+        "inferred_player_refit_server",
+        "inferred_player_vote_changed_final_fit",
+    ):
+        results[f"producer_original_{column}"] = producer_results[column]
+    metrics = build_metrics(results, selected, producer_results, producer_selected)
     plot_threshold_curve(thresholds, selected)
     plot_motion_measurements(results, selected)
     plot_server_accuracy(metrics)
+    plot_source_quality_comparison(metrics)
     case_plot_count = plot_selected_cases(results, case_paths)
     metrics["counts"]["case_plots"] = case_plot_count
     results.to_csv(OUTPUT_DIR / "rallies.csv.gz", index=False, compression="gzip")

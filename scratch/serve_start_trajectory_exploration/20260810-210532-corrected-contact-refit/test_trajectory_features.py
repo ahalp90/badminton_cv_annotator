@@ -70,7 +70,6 @@ def test_run_gap_counts_frames_between_run_and_contact() -> None:
     assert run.start == 3
     assert run.end == 6
     assert run.frames_to_contact == 4
-    assert run.gap_frames == 4
 
 
 def test_scene_mask_splits_a_usable_run() -> None:
