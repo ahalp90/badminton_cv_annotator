@@ -29,6 +29,7 @@ def _write_config(
     *,
     max_videos: int = 2,
     commentary_enabled: bool = True,
+    pose_shards: int = 1,
 ) -> Path:
     path.write_text(
         f'''[run]
@@ -59,6 +60,7 @@ tracknet_stride = 8
 tracknet_large_video = true
 pose_device = "cuda"
 pose_n_max = 16
+pose_shards = {pose_shards}
 court_device = "cuda"
 court_resize_mode = "pad"
 
@@ -959,9 +961,7 @@ def test_required_failure_unpublishes_invalidated_final_outputs(
     assert not (fixture.run_dir / "selected_videos.csv.gz").exists()
 
 
-def test_stage_reset_rejects_a_symlinked_stage_root(
-    tmp_path: Path,
-) -> None:
+def test_stage_reset_rejects_a_symlinked_stage_root(tmp_path: Path) -> None:
     from dataset_builder._runtime_support import RuntimeSupport
 
     run_dir = tmp_path / "run"

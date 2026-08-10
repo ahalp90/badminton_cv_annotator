@@ -59,6 +59,7 @@ def test_tracked_trial_configuration_has_the_bounded_external_scope() -> None:
     assert config.search_count == 5
     assert config.max_videos == 2
     assert config.tracknet_stride == 8
+    assert config.pose_shards == 8
     assert list(config.search_terms) == ["match"]
     assert len(config.search_terms["match"]) == 1
 

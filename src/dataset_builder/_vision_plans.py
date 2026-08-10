@@ -10,6 +10,10 @@ from bst_x.pipeline.shuttle_extractor import extract_all_shuttles
 from dataset_builder._runtime_support import _tracknet_code_inputs
 from dataset_builder.cli import StageExecution, StagePlan
 from dataset_builder.models import RunManifest, StageOutcome
+from dataset_builder.pose_sharding import (
+    POSE_SHARD_DECODE_MODE,
+    extract_sharded_rtmlib_pose_stage,
+)
 from dataset_builder.tracknet_input import (
     create_tracknet_input,
     load_tracknet_input,
@@ -171,16 +175,30 @@ def pose_plans(
 def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
     metadata = runtime.state.metadata[video_id]
     output_dir = runtime._video_dir("pose", video_id)
+    shards = runtime.config.pose_shards
+    decode_mode = "sequential" if shards == 1 else POSE_SHARD_DECODE_MODE
 
     def execute() -> StageExecution:
         runtime._reset_stage_dir("pose", video_id)
-        extraction = extract_rtmlib_pose_stage(
-            metadata=metadata,
-            output_dir=output_dir,
-            interpreter=runtime._pose().path,
-            device=runtime.config.pose_device,
-            n_max=runtime.config.pose_n_max,
-        ).require_value()
+        if shards == 1:
+            result = extract_rtmlib_pose_stage(
+                metadata=metadata,
+                output_dir=output_dir,
+                interpreter=runtime._pose().path,
+                device=runtime.config.pose_device,
+                n_max=runtime.config.pose_n_max,
+            )
+        else:
+            result = extract_sharded_rtmlib_pose_stage(
+                metadata=metadata,
+                output_dir=output_dir,
+                interpreter=runtime._pose().path,
+                shards=shards,
+                device=runtime.config.pose_device,
+                n_max=runtime.config.pose_n_max,
+                decode_mode=POSE_SHARD_DECODE_MODE,
+            )
+        extraction = result.require_value()
         runtime.state.poses[video_id] = extraction.arrays
         return StageExecution(
             StageOutcome.PROCESSED,
@@ -191,8 +209,18 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
     return runtime._plan(
         name=runtime._video_stage("pose", video_id),
         dependencies=(runtime._video_stage("metadata", video_id),),
-        command=(runtime._pose().path, "-m", "dataset_builder.vision", "_extract-rtmlib-pose"),
-        configuration={"device": runtime.config.pose_device, "n_max": runtime.config.pose_n_max},
+        command=(
+            runtime._pose().path,
+            "-m",
+            "dataset_builder.vision" if shards == 1 else "dataset_builder.pose_sharding",
+            "_extract-rtmlib-pose" if shards == 1 else "_extract-sharded-rtmlib-pose",
+        ),
+        configuration={
+            "device": runtime.config.pose_device,
+            "n_max": runtime.config.pose_n_max,
+            "shards": shards,
+            "decode_mode": decode_mode,
+        },
         interpreter=runtime._pose(),
         inputs={"source_video": metadata.source_path},
         execute=execute,

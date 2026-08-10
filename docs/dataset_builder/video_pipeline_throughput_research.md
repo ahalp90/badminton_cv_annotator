@@ -4,7 +4,7 @@ Status: evidence adopted by the approved Issue 15 Batch 5 extension
 
 Prepared: 2026-08-10
 
-Source branch: `issue-15-dataset-builder` at `51fa592`
+Evidence snapshot: `issue-15-dataset-builder` at `51fa592`
 
 ## Technical summary
 
@@ -63,6 +63,17 @@ frames.
 Issue 37 RTMLib sharding is included as a separate second batch before the next
 full E2E run. It must pass source-specific seek and exact array-parity gates so
 the shuttle and pose numerical changes remain independently attributable.
+
+Batch 5A is now committed locally as `5337163`. Batch 5B integrates the tested
+Issue 37 core behind a positive `pose_shards` setting: one shard preserves the
+original sequential child, while multiple shards require OpenCV's plan count
+to match canonical metadata before independent direct-seek workers start. The
+stitcher validates range, run, source, extractor, decode mode, shape, and dtype;
+the dataset-builder boundary then validates canonical frame count, detection
+counts, finite active values, and NaN padding before publishing the same five
+compressed pose arrays. Temporary shard compression streams through atomic XZ
+files. The two real-source seek and A100 numerical/performance gates remain to
+be rerun on the moved production boundary.
 
 ## The first video spent 12 hours and 45 minutes in shuttle extraction
 

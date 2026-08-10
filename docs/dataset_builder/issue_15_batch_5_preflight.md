@@ -1,7 +1,7 @@
 # Issue 15 Batch 5 preflight handoff
 
-Status: first external attempt stopped after exposing an unacceptable shuttle
-bottleneck; the approved performance extension is in progress.
+Status: first external attempt stopped; Batch 5A is committed and Batch 5B is
+implemented locally, with the replacement Bourbaki gates still pending.
 
 This document began as the state freeze immediately before Batch 5 of
 `issue_15_implementation_plan.md`. It now also records the stopped first
@@ -53,6 +53,15 @@ The final pre-stop log snapshot was 505,423 bytes with SHA-256
 All completed and partial run artefacts remain untouched under the old scratch
 root.
 
+Local commit `5337163` implements the independently reviewed Batch 5A path:
+an integrity-checked, lossless 512x288 FFV1 AVI made with FFmpeg bicubic
+scaling and explicit square pixels, followed by TrackNet stride 8. The Batch
+5B working tree integrates Issue 37 direct-seek pose sharding while retaining
+the exact sequential producer for `pose_shards = 1`. Its deterministic local
+test and static-analysis gate has passed; the source-specific seek, A100 RTMLib
+parity, and worker-scaling gates remain external prerequisites rather than
+claimed local results.
+
 The replacement run must use a new clean execution clone and a new run root
 from the final performance-extension commit. Do not reuse or mutate the
 stopped `449d8b1` run. Before restarting the bounded two-video trial:
@@ -60,14 +69,14 @@ stopped `449d8b1` run. Before restarting the bounded two-video trial:
 1. complete and locally gate the FFmpeg bicubic 512x288 TrackNet-input stage;
 2. use TrackNet stride 8 while retaining the canonical 1080p masters;
 3. pass the fixed-source frame and numerical checks on Bourbaki;
-4. integrate issue 37 RTMLib sharding only after its exact parity gate;
+4. enable the multi-shard trial path only after its exact RTMLib parity gate;
 5. provide a valid protected Gemini credential; and
 6. rerun the unchanged-resume and secret-persistence gates from this handoff.
 
 ## Git and implementation state
 
-The implementation source is the local `issue-15-dataset-builder` worktree at
-commit `449d8b1935b1c084df4fbf58ba984ef417d3f30e`.
+The Batch 5 performance extension starts from local commit `5337163`; the
+Batch 5B pose-sharding changes follow as their own reviewed commit.
 
 The completed implementation commits are:
 
@@ -75,6 +84,10 @@ The completed implementation commits are:
 2. `d4fd8f0 Wire full-video extraction and annotation`
 3. `94c50f6 Assemble provisional rally records`
 4. `449d8b1 Add the end-to-end dataset-builder command`
+5. `51fa592 Document the issue 15 Batch 5 preflight`
+6. `7f7bf3c Document dataset-builder throughput research`
+7. `5337163 Speed up full-video shuttle extraction`
+8. `Shard full-video pose extraction` (this Batch 5B commit)
 
 The post-Batch 4 local acceptance gate passed:
 
@@ -100,11 +113,11 @@ small report evidence needed by the approved plan back into this worktree. Keep
 videos, arrays, caches, model files, logs, credentials, and operational
 manifests outside Git.
 
-The Bourbaki repository was created from a verified Git bundle rather than a
-push. It is a clean execution copy of `449d8b1` with only ignored model
-checkpoints added.
+The preserved first-attempt Bourbaki repository was created from a verified
+Git bundle rather than a push. It is a clean execution copy of `449d8b1` with
+only ignored model checkpoints added.
 
-## Bourbaki layout
+## Preserved first-attempt Bourbaki layout
 
 The writable allocation is `/scratch/cmarti`, not
 `/scratch/comp320a/cmarti56`.
@@ -220,15 +233,40 @@ The isolated yt-dlp configuration at
 --extractor-args youtubepot-bgutilscript:server_home=/scratch/cmarti/issue15_449d8b1/external/bgutil-ytdlp-pot-provider/server
 ```
 
-## Historical remaining launch gate
+## Replacement-root template
+
+The live replacement command cannot be made exact inside the Batch 5B commit
+because that commit cannot contain its own Git hash. After the local commit,
+record its full hash and create a new root named for that commit, for example
+`/scratch/cmarti/issue15_<short-Batch5B-hash>`. The replacement must use:
+
+- a new clean clone at the recorded full Batch 5B commit;
+- a new absent `external/trial-run` path beneath the new root;
+- newly verified wrappers, overlays, caches, configuration, and protected
+  credential paths beneath the new root; and
+- a launcher-owned coordinator process group. Cancellation sends `SIGTERM` to
+  that recorded group and waits for it; during sharded pose, the coordinator
+  forwards cancellation into its separately owned pose-worker group and reaps
+  the direct child; and
+- the source-specific seek, A100 parity, and worker-scaling gates before the
+  two-video E2E command.
+
+Do not substitute `issue15_449d8b1` for the placeholder. That root and its
+2.7 GiB run are preserved evidence. The exact replacement paths and commands
+must be generated after the Batch 5B hash exists and recorded in the external
+worklog before transfer.
+
+## Historical first-attempt credential gate (do not rerun)
 
 At the pre-launch freeze, the only missing runtime prerequisite was a
 protected Gemini credential file on Bourbaki. The first supplied credential
 was later rejected as described above. Commentary must not be disabled to
 bypass this gate because the approved Batch 5 plan requires live commentary.
 
-Do not paste the key into a command argument, log, issue, pull request, or this
-repository. Create the protected environment file interactively on Bourbaki:
+The credential was entered with the following protected first-attempt command.
+It is retained as historical evidence, not as a replacement command. Never
+paste a key into a command argument, log, issue, pull request, or this
+repository.
 
 ```bash
 umask 077
@@ -239,13 +277,14 @@ chmod 600 /scratch/cmarti/issue15_449d8b1/credentials.env
 unset GEMINI_API_KEY
 ```
 
-Before launch, verify only that the file is a regular, non-symlink file owned by
-the trial account, has mode 600, and defines a non-empty `GEMINI_API_KEY`. Never
-print or persist its value.
+The replacement credential needs the same regular-file, ownership, mode-600,
+and non-empty-variable checks at its new path. Never print or persist its
+value.
 
-## Exact launch environment
+## Historical first-attempt launch environment (do not rerun)
 
-Run from Bourbaki after the credential gate passes:
+The following block records the stopped `449d8b1` invocation. It targets the
+preserved old run and must not be executed again:
 
 ```bash
 TRIAL_ROOT=/scratch/cmarti/issue15_449d8b1
@@ -282,17 +321,26 @@ The tracked trial configuration enforces one professional-singles search term,
 five discovery results, one download worker, and at most two selected videos.
 Do not loosen those bounds for the acceptance run.
 
-## First-run and resume gates
+## Replacement first-run and resume gates
 
-Before the first command:
+Before the replacement command:
 
-- Confirm the repository HEAD is exactly `449d8b1` and tracked state is clean.
+- Confirm repository HEAD is the recorded full Batch 5B commit and tracked
+  state is clean.
 - Recheck all three model MD5 values.
-- Confirm the run directory is absent.
+- Confirm the new run directory is absent and is not beneath
+  `/scratch/cmarti/issue15_449d8b1`.
 - Confirm CUDA, RTMLib providers, `ffprobe`, yt-dlp, Deno, EJS, and the bgutil
   provider are available through the isolated paths above.
 - Confirm the credential file passes its ownership, type, mode, and non-empty
   assignment checks without printing the value.
+- Record the launcher, coordinator PID, and coordinator process-group ID. The
+  coordinator must be the leader of its group before the trial starts.
+
+For a controlled stop, send `SIGTERM` to the exact recorded coordinator process
+group, wait for the launcher to finish, and then verify that no coordinator,
+external child, pose orchestrator, or shard-worker process remains and that the
+A100 is clear. Do not repeat the first attempt's exact-PID-only cancellation.
 
 After a successful first run:
 

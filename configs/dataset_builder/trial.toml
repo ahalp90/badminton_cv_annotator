@@ -26,6 +26,7 @@ tracknet_stride = 8
 tracknet_large_video = true
 pose_device = "cuda"
 pose_n_max = 10
+pose_shards = 8
 court_device = "cuda"
 court_resize_mode = "pad"
 

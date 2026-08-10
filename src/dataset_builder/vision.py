@@ -12,13 +12,19 @@ import lzma
 import math
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
 from uuid import uuid4
 
 import numpy as np
+
+from dataset_builder._pose_process import (
+    POSE_CHILD_STEM,
+    load_raw_pose_mapping,
+    pose_subprocess_environment,
+    resolve_pose_executable,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -45,12 +51,7 @@ POSE_FILENAMES = {
     "kps": "pose_kps.npy.xz", "bboxes": "pose_bboxes.npy.xz", "scores": "pose_scores.npy.xz",
     "kp_scores": "pose_kp_scores.npy.xz", "ndet": "pose_ndet.npy.xz",
 }
-_RAW_POSE_SUFFIXES = {
-    "kps": "_raw_kps.npy", "bboxes": "_raw_bboxes.npy", "scores": "_raw_scores.npy",
-    "kp_scores": "_raw_kp_scores.npy", "ndet": "_raw_ndet.npy",
-}
 _POSE_CHILD_COMMAND = "_extract-rtmlib-pose"
-_POSE_CHILD_STEM = "pose"
 
 T = TypeVar("T")
 
@@ -288,7 +289,7 @@ def extract_rtmlib_pose_stage(
     def operation() -> PoseExtraction:
         if isinstance(n_max, bool) or not isinstance(n_max, int) or not 0 < n_max <= 127:
             raise ValueError(f"n_max must be an integer in [1, 127], got {n_max!r}")
-        executable = _resolve_executable(interpreter)
+        executable = resolve_pose_executable(interpreter)
         root = Path(output_dir)
         root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".rtmlib-", dir=root) as raw_dir_text:
@@ -306,14 +307,14 @@ def extract_rtmlib_pose_stage(
                 text=True,
                 check=False,
                 cwd=Path(__file__).resolve().parents[2],
-                env=_pose_subprocess_environment(),
+                env=pose_subprocess_environment(),
             )
             if completed.returncode != 0:
                 detail = (completed.stderr or completed.stdout).strip()
                 raise RuntimeError(
                     f"RTMLib pose subprocess exited with status {completed.returncode}: {detail}"
                 )
-            arrays = _load_raw_pose_arrays(raw_dir, _POSE_CHILD_STEM)
+            arrays = PoseArrays(**load_raw_pose_mapping(raw_dir, POSE_CHILD_STEM))
         validate_pose_arrays(arrays, metadata.frame_count)
         artifacts = save_pose_arrays(root, arrays, metadata.frame_count)
         return PoseExtraction(arrays=arrays, artifacts=artifacts, command=tuple(command))
@@ -869,41 +870,6 @@ def _validated_mask(values: np.ndarray | None, frame_count: int, name: str) -> n
     return np.ascontiguousarray(array)
 
 
-def _load_raw_pose_arrays(output_dir: Path, stem: str) -> PoseArrays:
-    loaded: dict[str, np.ndarray] = {}
-    for name, suffix in _RAW_POSE_SUFFIXES.items():
-        path = output_dir / f"{stem}{suffix}"
-        if not path.is_file():
-            raise FileNotFoundError(f"RTMLib pose subprocess did not produce {path.name}")
-        loaded[name] = np.load(path, allow_pickle=False)
-    return PoseArrays(**loaded)
-
-
-def _resolve_executable(executable: str | Path) -> Path:
-    requested = os.fspath(executable)
-    located = shutil.which(requested)
-    if located is None:
-        candidate = Path(requested)
-        if not candidate.is_file():
-            raise FileNotFoundError(f"pose interpreter is not an executable file: {requested}")
-        located = os.fspath(candidate)
-    resolved = Path(located).resolve(strict=True)
-    if not os.access(resolved, os.X_OK):
-        raise PermissionError(f"pose interpreter is not executable: {resolved}")
-    return resolved
-
-
-def _pose_subprocess_environment() -> dict[str, str]:
-    environment = os.environ.copy()
-    source_root = Path(__file__).resolve().parents[1]
-    required = [os.fspath(source_root), os.fspath(source_root / "bst_x")]
-    existing = environment.get("PYTHONPATH")
-    if existing:
-        required.append(existing)
-    environment["PYTHONPATH"] = os.pathsep.join(required)
-    return environment
-
-
 def _atomic_write_bytes(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
@@ -967,7 +933,7 @@ def _extract_pose_child(
     succeeded = extract_one_clip(
         extractor,
         video_path,
-        os.fspath(output_dir / _POSE_CHILD_STEM),
+        os.fspath(output_dir / POSE_CHILD_STEM),
         n_max,
         set(),
     )

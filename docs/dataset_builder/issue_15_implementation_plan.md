@@ -1,6 +1,6 @@
 # Issue 15 Dataset Builder Implementation Plan
 
-Status: implemented through Batch 4; Batch 5 performance extension approved
+Status: implemented locally through Batch 5B; external acceptance gates pending
 
 Prepared: 2026-08-08
 

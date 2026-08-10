@@ -80,6 +80,7 @@ class BuilderConfig:
     tracknet_large_video: bool
     pose_device: str
     pose_n_max: int
+    pose_shards: int
     court_device: str
     court_resize_mode: str
     commentary_enabled: bool
@@ -188,7 +189,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         "vision",
         {
             "tracknet_workers", "tracknet_batch_size", "tracknet_stride",
-            "tracknet_large_video", "pose_device", "pose_n_max", "court_device",
+            "tracknet_large_video", "pose_device", "pose_n_max", "pose_shards", "court_device",
             "court_resize_mode",
         },
     )
@@ -232,6 +233,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         ),
         pose_device=_choice(vision["pose_device"], {"cpu", "cuda"}, "vision.pose_device"),
         pose_n_max=_bounded_integer(vision["pose_n_max"], 1, 127, "vision.pose_n_max"),
+        pose_shards=_positive_integer(vision["pose_shards"], "vision.pose_shards"),
         court_device=_choice(
             vision["court_device"], {"cpu", "cuda"}, "vision.court_device",
         ),

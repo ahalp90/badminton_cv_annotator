@@ -23,6 +23,7 @@ from preparing_data.heuristics import REGISTRY
 from preparing_data.heuristics.base import RAW_SUFFIXES, ClipContext
 from preparing_data.raw_extract import extract_one_clip
 
+from shared.video_sharding import shard_worker as shard_worker_module
 from shared.video_sharding.fake_pose import DeterministicFakeExtractor
 from shared.video_sharding.run_sharded import extract_sharded
 from shared.video_sharding.shard_plan import plan_frame_shards
@@ -121,6 +122,7 @@ def test_fake_parity_sequential_vs_sharded(sharding_video: Path, tmp_path: Path,
         n_shards=5,  # uneven split of 120
         extractor_spec="fake",
         decode_mode=decode_mode,
+        expected_frame_count=N_FRAMES,
     )
     assert_five_equal(seq_dir, "1_seq", publish, "1_sharded")
 
@@ -177,6 +179,60 @@ def test_failed_worker_aborts_run(
             extractor_spec="fake",
         )
     assert not list(tmp_path.glob("publish_*"))
+
+
+def test_canonical_frame_count_mismatch_refuses_before_worker_spawn(
+    sharding_video: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from shared.video_sharding import run_sharded as run_sharded_module
+
+    monkeypatch.setattr(run_sharded_module, "metadata_frame_count", lambda _: N_FRAMES + 1)
+
+    with pytest.raises(ValueError, match="differs from canonical metadata"):
+        extract_sharded(
+            video_path=sharding_video,
+            out_root=tmp_path,
+            stem="1_bad_count",
+            n_shards=4,
+            extractor_spec="fake",
+            expected_frame_count=N_FRAMES,
+        )
+
+    assert not list(tmp_path.iterdir())
+
+
+def test_shard_compression_streams_through_atomic_xz(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "shard.npy.xz"
+    values = np.arange(24, dtype=np.float32).reshape(3, 8)
+    real_open = shard_worker_module.lzma.open
+    observed: list[tuple[str, int | None, int | None]] = []
+
+    def tracked_open(
+        target: Path,
+        mode: str,
+        *,
+        format: int | None = None,
+        preset: int | None = None,
+    ) -> object:
+        observed.append((mode, format, preset))
+        return real_open(target, mode, format=format, preset=preset)
+
+    def reject_buffered_write(_path: Path, _payload: bytes) -> None:
+        raise AssertionError("NumPy shard compression must not buffer the whole payload")
+
+    monkeypatch.setattr(shard_worker_module.lzma, "open", tracked_open)
+    monkeypatch.setattr(shard_worker_module, "atomic_write_bytes", reject_buffered_write)
+
+    save_npy_xz(path, values)
+
+    assert observed == [("wb", shard_worker_module.lzma.FORMAT_XZ, 9)]
+    monkeypatch.setattr(shard_worker_module.lzma, "open", real_open)
+    np.testing.assert_array_equal(shard_worker_module.load_npy_xz(path), values)
 
 
 # --- stitch integrity ---------------------------------------------------------
@@ -238,6 +294,20 @@ def test_stitch_n_max_mismatch(completed_run, tmp_path: Path) -> None:
     assert_stitch_refuses(run_dir, tmp_path, "n_max")
 
 
+@pytest.mark.parametrize("field", ["extractor", "decode_mode"])
+def test_stitch_extractor_or_decode_mode_mismatch(
+    completed_run: tuple[Path, Path],
+    tmp_path: Path,
+    field: str,
+) -> None:
+    run_dir, _ = completed_run
+    manifest_path = run_dir / f"{shard_stem(0, 40)}_manifest.json.gz"
+    manifest = load_gz_json(manifest_path)
+    manifest[field] = "different"
+    save_gz_json(manifest_path, manifest)
+    assert_stitch_refuses(run_dir, tmp_path, field)
+
+
 def test_stitch_short_shard_manifest(completed_run, tmp_path: Path) -> None:
     run_dir, _ = completed_run
     manifest_path = run_dir / f"{shard_stem(40, 80)}_manifest.json.gz"
@@ -271,6 +341,7 @@ def test_stitch_plan_gap_and_overlap(completed_run, tmp_path: Path) -> None:
     run_dir, _ = completed_run
     run_manifest = load_gz_json(run_dir / RUN_MANIFEST_NAME)
     for bad_plan, expected in [
+        ([[0, 0], [0, 120]], "invalid range"),
         ([[0, 40], [41, 80], [80, 120]], "gap"),
         ([[0, 41], [40, 80], [80, 120]], "overlap"),
         ([[0, 40], [40, 80]], "ends at"),
@@ -278,6 +349,21 @@ def test_stitch_plan_gap_and_overlap(completed_run, tmp_path: Path) -> None:
         tampered = dict(run_manifest, plan=bad_plan)
         save_gz_json(run_dir / RUN_MANIFEST_NAME, tampered)
         assert_stitch_refuses(run_dir, tmp_path, expected)
+
+
+def test_stitch_rejects_out_of_order_plan(completed_run, tmp_path: Path) -> None:
+    run_dir, _ = completed_run
+    run_manifest = load_gz_json(run_dir / RUN_MANIFEST_NAME)
+    shuffled = [[40, 80], [0, 40], [80, 120]]
+    save_gz_json(run_dir / RUN_MANIFEST_NAME, dict(run_manifest, plan=shuffled))
+    assert_stitch_refuses(run_dir, tmp_path, "ascending frame order")
+
+
+def test_stitch_shard_count_mismatch(completed_run, tmp_path: Path) -> None:
+    run_dir, _ = completed_run
+    run_manifest = load_gz_json(run_dir / RUN_MANIFEST_NAME)
+    save_gz_json(run_dir / RUN_MANIFEST_NAME, dict(run_manifest, n_shards=2))
+    assert_stitch_refuses(run_dir, tmp_path, "plan has 3 ranges")
 
 
 def test_stitch_partial_write_leftover_is_ignored_but_shard_incomplete(
