@@ -4,25 +4,23 @@
 
 The approved population structure is present in the frozen historical rows when a predicted span is keyed by `(fixture, span_id)`. The 292 GT rallies contain 249 `COVERED` rows over 244 distinct predicted spans. Of those spans, 239 contain one GT rally and five contain two GT rallies. The five merged spans account for 10 covered rows. The one-to-one rows break down as `sset_01=104`, `sset_15=84` and `sset_21=51`.
 
-The current implementation does not satisfy the corrected evaluation contract. `_populate_covered_row` assigns one ±5 category through `canonical_tolerance()`. `build_threshold_rows` then scores every row labelled contact 1 or contact 2 without filtering to one-to-one mappings or unique ±10 matches. `choose_threshold_for` selects each path mask's percentage threshold separately. The saved rally rows do not contain enough span, full-GT-stroke or accepted-sequence detail for `validate_outputs.py` to rebuild those decisions independently.
+At the start of the correction, the implementation did not satisfy the corrected evaluation contract. `_populate_covered_row` assigned one ±5 category through `canonical_tolerance()`. `build_threshold_rows` then scored every row labelled contact 1 or contact 2 without filtering to one-to-one mappings or unique ±10 matches. `choose_threshold_for` selected each path mask's percentage threshold separately. The saved rally rows did not contain enough span, full-GT-stroke or accepted-sequence detail for `validate_outputs.py` to rebuild those decisions independently.
 
-The smallest correction keeps three plain records in `trajectory_features.py`:
+The correction added three plain records in `trajectory_features.py`:
 
 - an anchor alignment with nearest one-based GT ordinal, signed and absolute base-30fps offset, inclusive in-window count, a separate multiple-match flag and a nearest-stroke label;
 - an accepted-contact sequence summary for later GT-serve, first-return and first-matched-rank outcomes;
 - a robust distance trend with pairwise-median slope, median intercept, fitted decrease, residual RMS and diagnostic trend-to-jitter ratio.
 
-`VideoData.gt_rallies` already exposes full ordered `GtRally.stroke_frames`, so Batch 1 needs no new GT loader or truth type. The Batch 2 analysis must retain those frames and accepted contact frames in the compressed row data. It also needs a small predicted-span table so the independent validator can reconstruct `COVERED`, `SPLIT`, `MISSED` and span multiplicity from half-open span bounds. A compressed per-path-point table is the clearest independent input for recomputing robust trends; it avoids importing the analysis or feature module into the validator.
+`VideoData.gt_rallies` already exposed full ordered `GtRally.stroke_frames`, so Batch 1 needed no new GT loader or truth type. The Batch 2 analysis retains those frames and accepted contact frames in the compressed row data. A small predicted-span table lets the independent validator reconstruct `COVERED`, `SPLIT`, `MISSED` and span multiplicity from half-open span bounds. A compressed per-path-point table supports independent robust-trend recalculation without importing the analysis or feature module.
 
-The two trajectory masks already have clean provenance. `recurrence_clean` requires valid tracked coordinates and recurrence guard `NO_FLAG`. `producer_original` adds the frozen producer inpaint sidecar exclusion. The current `_measure_path` combines common eligibility with the historical 0.25-BH total-movement floor. The correction must split those states so the 0.05-BH robust-trend rule can use the same common path gates without inheriting that historical magnitude floor.
+The two trajectory masks have clean provenance. `recurrence_clean` requires valid tracked coordinates and recurrence guard `NO_FLAG`. `producer_original` adds the frozen producer inpaint sidecar exclusion. The historical `_measure_path` combined common eligibility with the 0.25-BH total-movement floor. The corrected analysis splits those states so the 0.05-BH robust-trend rule uses the same common path gates without inheriting that historical magnitude floor.
 
-Important edge cases are explicit before implementation. Equal-distance nearest GT ties use the lower ordinal. Constant-distance paths are eligible measured evidence and produce a negative incoming call, not an unavailable-evidence state. Zero-residual trend ratios use positive infinity, negative infinity or zero according to the fitted decrease, but non-finite diagnostics must stay out of strict JSON metrics. The validator must distinguish no selected path, a selected path that fails common eligibility, an eligible negative decision and an incoming decision.
+Important edge cases were fixed before implementation. Equal-distance nearest GT ties use the lower ordinal. Constant-distance paths are eligible measured evidence and produce a negative incoming call, not an unavailable-evidence state. Zero-residual trend ratios use positive infinity, negative infinity or zero according to the fitted decrease, while non-finite diagnostics stay out of strict JSON metrics. The validator distinguishes no selected path, a selected path that fails common eligibility, an eligible negative decision and an incoming decision.
 
 Both approved Luna sweeps completed read-only with exit code 0 and no worker-created repository diff. Their artefacts are under `local_scratch/external_delegate/20260811-080252-trajectory-accounting-sweep/` and `local_scratch/external_delegate/20260811-080252-trajectory-motion-sweep/`. Material claims above were checked against the historical row table and the named code paths.
 
 The Opus planning red-team completed read-only with exit code 0 and a clean Git tripwire. It found no Batch 1 blocker. Its useful clarification is that later accepted contacts match GT strokes independently, without consuming a stroke, and the first matched rank is one-based in the full accepted sequence. Its suggestion to freeze a threshold from the primary mask does not apply: the historical and robust-trend decisions are both fixed before corrected scoring and neither is selected from a mask's scores.
-
-The sections below describe the completed historical experiment. Their scores use the old ±5 join and 249 covered-row population, so they are evidence about the old run rather than corrected results.
 
 ## Corrected Batch 2 result
 
@@ -36,7 +34,31 @@ The unmatched-anchor sequence check materially changes the failure story. Of 97 
 
 The full GT stroke list and the separate semantic first/second truth agree on every first frame. Three `sset_01` second-frame values differ. Keep semantic receiver/player truth separate from the ordered stroke list used for alignment; do not force an invalid ordinal-2 equality check.
 
-## Bottom line
+## Corrected final-output findings
+
+The old report and every historical plot were stale after the corrected Batch 2 rebuild. They still described the old ±5/249 threshold sweep. `thresholds.csv.gz` also remained beside the corrected fixed-rule outputs. The final-output writer now removes those stale files and writes only six corrected plots.
+
+The clearest report structure separates five stages: segmentation, anchor identity, motion-path availability, the fixed motion decision and server attribution. This prevents 43 segmentation failures or 215 primary rallies without usable motion evidence from looking like negative trajectory decisions.
+
+The plot audit found one concrete presentation defect on the first pass: the alignment legend covered the ±5 ambiguity annotation. Moving the legend outside the axes made the main ±10 baseline and separate ambiguity counts readable in one view.
+
+The continuous diagnostics support description, not another classifier. Across 19 usable recurrence-mask paths with unique ±10 truth, correct calls have median fitted decrease 0.394 BH, residual RMS 0.089 BH and trend-to-jitter 5.749. Incorrect calls have medians 0.013 BH, 0.107 BH and -0.275. The final error sheet shows all eight usable-path mistakes.
+
+The fresh WebUI reader passed basic comprehension but found six ways the plots were still easy to misread. The server figure hid the contact-player fallback behind a full-coverage 239/239 answer count. The inpaint figure mixed 135-anchor, 17-return and 118-serve denominators. The report did not explain why historical eligibility had one fewer path. The diagnostic plots did not name the 0.05-BH rule. Ambiguity annotations sat inside the unmatched stack. The unmatched follow-up plot omitted its ±10 priority logic.
+
+The final-output rewrite addresses all six findings in the report and plots. One reviewer inference was corrected from the checked rows: under the producer mask, the ten missed returns comprise one usable path below threshold and nine without usable evidence, not zero and ten. The revised inpaint plot shows that decomposition directly.
+
+The second readability pass found one remaining denominator defect in the server plot. Its subtitle described 24/239 recurrence-mask paths but not the producer mask's 14/239 paths. The final plot now states both coverages and repeats the fallback-plus-flip meaning in both method labels.
+
+## Final audit and gates
+
+The final read-only Gemini Pro branch audit passed with no blocking defect and a clean Git tripwire. It found the three populations, fixed rules, inpaint control, server fallback, historical provenance, continuous diagnostics, six WebUI fixes and validator boundary internally consistent. Its only optional note was that some frozen plot counts are literal annotation strings. The independent validator binds those counts to the checked snapshot, so no extra abstraction was added.
+
+The final clean run regenerated every output and passed the source-backed validator. Focused trajectory tests passed 55 cases. The investigation directory has no Ruff findings, the three changed Python files have no Serena diagnostics, pinned whole-project Pyrefly reports no errors, and whole-project pytest passes 1,456 tests with 29 skipped. Whole-project Ruff still reports the unchanged 661 findings outside this investigation.
+
+## Historical pre-correction result (superseded)
+
+The scores below use the old ±5 join, 249 covered-row population and same-analysis setting selection. They remain as an audit record and are not the corrected result.
 
 The corrected motion rule found 11 of 16 clear first returns and made 3 false return calls. Across all 16 covered rallies where the rule fired, directly naming the other player as server was right in 13 cases. Adding an unknown-player contact before the alternating fit was right in 8 cases. Adding a contact by the inferred other player was right in 9 cases.
 
@@ -113,7 +135,7 @@ Sources:
 - `docs/tracknet/evidence/inpaint_fabrications_20260722/detector_options.md`
 - `docs/tracknet/evidence/inpaint_fabrications_20260722/stride1_retrack/summary.txt`
 
-## Verification
+## Historical verification record (superseded)
 
 Read-only reviews traced the contact flow, GT and release loaders, sticky evidence, alternating fitter, and prior inpaint checks. The focused trajectory tests pass 24 synthetic cases. The output checker independently recalculates every threshold row, server table and headline count from the compressed per-rally results.
 

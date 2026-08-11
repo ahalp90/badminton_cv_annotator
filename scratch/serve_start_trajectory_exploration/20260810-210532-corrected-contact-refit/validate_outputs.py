@@ -18,6 +18,20 @@ import pandas as pd
 
 RUN_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = RUN_DIR / "outputs"
+PLOT_DIR = OUTPUT_DIR / "plots"
+REPORT_PATH = RUN_DIR / "report.md"
+
+PRIMARY_POPULATION = "primary_239_one_to_one"
+COVERED_POPULATION = "covered_249_merge_sensitivity"
+ALL_POPULATION = "all_292_end_to_end"
+EXPECTED_PLOTS = {
+    "anchor_alignment.png",
+    "motion_evidence_and_inpaint.png",
+    "server_attribution.png",
+    "trend_and_jitter_diagnostics.png",
+    "trend_rule_errors.png",
+    "unmatched_anchor_followup.png",
+}
 
 RALLY_KEY = ["fixture", "video_id", "set_id", "rally"]
 SPAN_KEY = ["fixture", "span_id"]
@@ -1182,6 +1196,580 @@ def _build_metrics(rallies: pd.DataFrame, fixed_rules: pd.DataFrame) -> dict[str
     }
 
 
+def _parse_markdown_row(line: str) -> tuple[str, ...]:
+    """Return stripped cells from one pipe-delimited Markdown row."""
+    return tuple(cell.strip() for cell in line.strip().strip("|").split("|"))
+
+
+def _parse_markdown_tables(report: str) -> dict[tuple[str, ...], list[list[tuple[str, ...]]]]:
+    """Extract ordinary pipe tables, retaining repeated table headings."""
+    lines = report.splitlines()
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]] = {}
+    line_index = 0
+    while line_index + 1 < len(lines):
+        if not lines[line_index].startswith("|") or not lines[line_index + 1].startswith("|"):
+            line_index += 1
+            continue
+        header = _parse_markdown_row(lines[line_index])
+        separator = _parse_markdown_row(lines[line_index + 1])
+        valid_separator = len(separator) == len(header)
+        for cell in separator:
+            if "-" not in cell or not set(cell).issubset({"-", ":"}):
+                valid_separator = False
+                break
+        if not valid_separator:
+            line_index += 1
+            continue
+        rows: list[tuple[str, ...]] = []
+        line_index += 2
+        while line_index < len(lines) and lines[line_index].startswith("|"):
+            row = _parse_markdown_row(lines[line_index])
+            if len(row) != len(header):
+                raise AssertionError(f"report table {header[0]!r} contains a malformed row")
+            rows.append(row)
+            line_index += 1
+        tables.setdefault(header, []).append(rows)
+    return tables
+
+
+def _report_table(
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    header: tuple[str, ...],
+    *,
+    occurrence: int = 0,
+) -> list[tuple[str, ...]]:
+    """Return one named report table with a useful missing-table error."""
+    matches = tables.get(header, [])
+    if occurrence >= len(matches):
+        raise AssertionError(f"report is missing table {header[0]!r} occurrence {occurrence + 1}")
+    return matches[occurrence]
+
+
+def _validate_report_populations(
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    metrics: dict[str, object],
+) -> None:
+    """Bind the three population meanings and fixture counts to rebuilt metrics."""
+    header = ("Rally group", "All videos", "sset_01", "sset_15", "sset_21", "Used for")
+    populations: Any = metrics["population_counts"]
+    definitions = (
+        (ALL_POPULATION, "All GT rallies", "End-to-end view, including segmentation failures"),
+        (COVERED_POPULATION, "Covered rallies", "Sensitivity to the current COVERED definition, including merges"),
+        (PRIMARY_POPULATION, "One-to-one rallies", "Analyses that need one predicted rally per GT rally"),
+    )
+    expected: list[tuple[str, ...]] = []
+    for population, label, meaning in definitions:
+        values = populations[population]
+        by_fixture = values["by_fixture"]
+        expected.append(
+            (
+                label,
+                str(values["global"]),
+                str(by_fixture["sset_01"]),
+                str(by_fixture["sset_15"]),
+                str(by_fixture["sset_21"]),
+                meaning,
+            )
+        )
+    _assert_value(_report_table(tables, header), expected, "report population table")
+
+
+def _validate_report_alignment_and_sequences(
+    report: str,
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    metrics: dict[str, object],
+) -> None:
+    """Bind primary alignment, ambiguity and later-contact outcomes."""
+    alignment_header = (
+        "Tolerance",
+        "GT serve",
+        "GT first return",
+        "Later GT stroke",
+        "No GT stroke in window",
+        "More than one GT stroke in window",
+    )
+    alignment: Any = metrics["alignment"][PRIMARY_POPULATION]["global"]
+    alignment_rows: list[tuple[str, ...]] = []
+    for tolerance in ("5", "10", "30"):
+        values = alignment[tolerance]
+        labels = values["labels"]
+        alignment_rows.append(
+            (
+                f"±{tolerance}",
+                str(labels.get("contact_1", 0)),
+                str(labels.get("contact_2", 0)),
+                str(labels.get("later", 0)),
+                str(labels.get("unmatched", 0)),
+                str(values["multiple"]),
+            )
+        )
+    _assert_value(_report_table(tables, alignment_header), alignment_rows, "report primary alignment table")
+
+    sequence_header = (
+        "Video",
+        "Unmatched anchors",
+        "Later contact matches serve",
+        "No serve match, but return matches",
+        "First match is another GT stroke",
+        "No later GT match",
+    )
+    sequence: Any = metrics["unmatched_anchor_sequences"]
+    sequence_rows: list[tuple[str, ...]] = []
+    for label, values in [("All", sequence["global"]), *sequence["by_fixture"].items()]:
+        sequence_rows.append(
+            (
+                label,
+                str(values["anchors_unmatched_at_tolerance_10"]),
+                str(values["later_serve_match"]),
+                str(values["no_later_serve_but_first_return_match"]),
+                str(values["other_later_gt_match"]),
+                str(values["no_later_gt_match"]),
+            )
+        )
+    _assert_value(_report_table(tables, sequence_header), sequence_rows, "report unmatched-sequence table")
+    rank_counts = sequence["global"]["first_gt_match_rank"]
+    later_rank = sum(count for rank, count in rank_counts.items() if int(rank) >= 5)
+    rank_statement = (
+        f"The first later match has rank 2 in {rank_counts.get('2', 0)} rallies, "
+        f"rank 3 in {rank_counts.get('3', 0)}, rank 4 in {rank_counts.get('4', 0)}, "
+        f"and rank 5 or later in {later_rank}."
+    )
+    if rank_statement not in report:
+        raise AssertionError("report summary does not match the rebuilt unmatched-contact ranks")
+
+
+def _validate_report_paths_and_rules(
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    metrics: dict[str, object],
+    fixed_rules: pd.DataFrame,
+) -> None:
+    """Bind primary evidence availability and all four fixed comparisons."""
+    path_header = (
+        "Track source check",
+        "Rallies",
+        "Continuous run selected",
+        "At least 5 points and close enough to contact",
+        "Passes the shared jump check",
+        "0.05-BH incoming calls",
+    )
+    funnel: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]
+    labels = {
+        "recurrence_clean": "Exclude recurrence-flagged points",
+        "producer_original": "Also exclude producer-marked inpainted points",
+    }
+    path_rows: list[tuple[str, ...]] = []
+    for variant, label in labels.items():
+        path_rows.append(
+            (
+                label,
+                str(funnel[variant]["n"]),
+                str(funnel[variant]["selected_paths"]),
+                str(funnel[variant]["path_available"]),
+                str(funnel[variant]["common_path_eligible"]),
+                str(funnel[variant]["robust_trend_incoming"]),
+            )
+        )
+    _assert_value(_report_table(tables, path_header), path_rows, "report primary path table")
+
+    rule_header = (
+        "Fixed comparison",
+        "Paths eligible for this rule",
+        "Correct return calls",
+        "False return calls",
+        "Returns missed",
+        "Precision",
+        "Recall",
+    )
+    rule_labels = {
+        ("recurrence_clean", "historical"): "Historical absolute-closure rule; recurrence check",
+        ("recurrence_clean", "robust_trend"): "0.05-BH trend rule; recurrence check",
+        ("producer_original", "historical"): "Historical rule; recurrence plus producer mask",
+        ("producer_original", "robust_trend"): "0.05-BH trend rule; recurrence plus producer mask",
+    }
+    global_rules = fixed_rules[fixed_rules["scope"].eq("global")]
+    rule_rows: list[tuple[str, ...]] = []
+    for (variant, rule), label in rule_labels.items():
+        row = global_rules[
+            global_rules["path_definition"].eq(variant) & global_rules["rule"].eq(rule)
+        ].iloc[0]
+        rule_rows.append(
+            (
+                label,
+                str(int(row["rule_paths_eligible"])),
+                str(int(row["tp"])),
+                str(int(row["fp"])),
+                str(int(row["fn"])),
+                f"{row['precision']:.1%}",
+                f"{row['recall']:.1%}",
+            )
+        )
+    _assert_value(_report_table(tables, rule_header), rule_rows, "report fixed-rule table")
+
+
+def _count_word(value: int) -> str:
+    """Spell the small counts used in the missed-return explanation."""
+    words = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+    if not 0 <= value < len(words):
+        return str(value)
+    return words[value]
+
+
+def _validate_report_reconciliations(
+    report: str,
+    metrics: dict[str, object],
+    fixed_rules: pd.DataFrame,
+    diagnostics: pd.DataFrame,
+) -> None:
+    """Bind the three explanations that reconcile different evidence counts."""
+    global_rules = fixed_rules[fixed_rules["scope"].eq("global")].set_index(["path_definition", "rule"])
+    historical_recurrence = global_rules.loc[("recurrence_clean", "historical")]
+    trend_recurrence = global_rules.loc[("recurrence_clean", "robust_trend")]
+    historical_producer = global_rules.loc[("producer_original", "historical")]
+    trend_producer = global_rules.loc[("producer_original", "robust_trend")]
+    eligibility_statement = (
+        "The historical rule then adds its 0.25-BH total-movement eligibility floor. The trend rule does not. "
+        f"This is why the historical row has {int(historical_recurrence['rule_paths_eligible'])} eligible paths "
+        f"rather than {int(trend_recurrence['rule_paths_eligible'])} under the recurrence mask, and "
+        f"{int(historical_producer['rule_paths_eligible'])} rather than "
+        f"{int(trend_producer['rule_paths_eligible'])} under the producer mask."
+    )
+    if eligibility_statement not in report:
+        raise AssertionError("report does not explain the historical rule's extra 0.25-BH eligibility floor")
+    shared_checks_statement = (
+        "Both rules first use the shared five-point, contact-gap, recurrence, finite-evidence and jump checks."
+    )
+    if shared_checks_statement not in report:
+        raise AssertionError("report does not state the fixed rules' shared eligibility checks")
+
+    primary_recurrence: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"]
+    all_usable = int(primary_recurrence["common_path_eligible"])
+    all_incoming = int(primary_recurrence["robust_trend_incoming"])
+    truth_usable = int(trend_recurrence["rule_paths_eligible"])
+    truth_incoming = int(trend_recurrence["incoming_calls"])
+    denominator_statement = (
+        f"The {all_usable} usable paths and {all_incoming} incoming calls above cover all "
+        f"{int(primary_recurrence['n'])} one-to-one rallies. Requiring unique ±10 serve/return truth leaves "
+        f"{truth_usable} usable paths and {truth_incoming} incoming calls. The remaining "
+        f"{_count_word(all_usable - truth_usable)} usable paths have another or unmatched anchor identity, "
+        "so they cannot "
+        "enter the serve-versus-return classification score."
+    )
+    if denominator_statement not in report:
+        raise AssertionError("report does not reconcile all-primary and unique-truth evidence denominators")
+
+    missed_breakdown: dict[str, tuple[int, int]] = {}
+    for variant in PATH_VARIANTS:
+        returns = diagnostics[
+            diagnostics["path_definition"].eq(variant)
+            & diagnostics["gt_anchor_identity"].eq("first_return")
+        ]
+        usable = returns["common_path_eligible"].astype(bool)
+        incoming = returns["incoming_call"].astype(bool)
+        missed_breakdown[variant] = (
+            int((usable & ~incoming).sum()),
+            int((~usable).sum()),
+        )
+    recurrence_usable, recurrence_missing = missed_breakdown["recurrence_clean"]
+    producer_usable, producer_missing = missed_breakdown["producer_original"]
+    breakdown_statement = (
+        "Under the recurrence-only 0.05-BH rule, "
+        f"{_count_word(recurrence_usable)} misses have usable negative paths and "
+        f"{_count_word(recurrence_missing)} have no usable path. Under the producer mask, "
+        f"{_count_word(producer_usable)} missed return has a usable negative path and "
+        f"{_count_word(producer_missing)} have no usable path."
+    )
+    if breakdown_statement not in report:
+        raise AssertionError("report does not separate usable-negative and no-evidence return misses under both masks")
+
+
+def _finite_median(series: pd.Series) -> float:
+    """Return a diagnostic median after excluding non-finite ratios."""
+    values = series.astype(float).to_numpy()
+    finite = values[np.isfinite(values)]
+    return float(np.median(finite)) if len(finite) else math.nan
+
+
+def _validate_report_diagnostics(
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    diagnostics: pd.DataFrame,
+) -> None:
+    """Bind every displayed continuous diagnostic group and median."""
+    eligible = diagnostics[
+        diagnostics["path_definition"].eq("recurrence_clean")
+        & diagnostics["common_path_eligible"].astype(bool)
+    ].copy()
+    group_header = (
+        "Group",
+        "Paths",
+        "Median fitted decrease (BH)",
+        "Median residual scatter (BH)",
+        "Median trend-to-jitter",
+    )
+    group_specs = (
+        ("gt_anchor_identity", "serve", "GT serves"),
+        ("gt_anchor_identity", "first_return", "GT first returns"),
+        ("call_correct", True, "Correct calls"),
+        ("call_correct", False, "Incorrect calls"),
+    )
+    expected_groups: list[tuple[str, ...]] = []
+    for column, value, label in group_specs:
+        group = eligible[eligible[column].eq(value)]
+        expected_groups.append(
+            (
+                label,
+                str(len(group)),
+                f"{_finite_median(group['fitted_decrease_bh']):.3f}",
+                f"{_finite_median(group['residual_rms_bh']):.3f}",
+                f"{_finite_median(group['trend_to_jitter']):.3f}",
+            )
+        )
+    actual_groups = [*_report_table(tables, group_header), *_report_table(tables, group_header, occurrence=1)]
+    _assert_value(actual_groups, expected_groups, "report continuous diagnostic group tables")
+
+    length_header = (
+        "Observed path length",
+        "Paths",
+        "Median fitted decrease (BH)",
+        "Median residual scatter (BH)",
+    )
+    eligible["length_group"] = pd.cut(
+        eligible["path_frames"],
+        bins=[4, 5, 9, np.inf],
+        labels=["5 points", "6-9 points", "10+ points"],
+    )
+    length_rows: list[tuple[str, ...]] = []
+    for label in ("5 points", "6-9 points", "10+ points"):
+        group = eligible[eligible["length_group"].eq(label)]
+        length_rows.append(
+            (
+                label,
+                str(len(group)),
+                f"{_finite_median(group['fitted_decrease_bh']):.3f}",
+                f"{_finite_median(group['residual_rms_bh']):.3f}",
+            )
+        )
+    _assert_value(_report_table(tables, length_header), length_rows, "report path-length diagnostic table")
+
+
+def _validate_report_servers_and_errors(
+    report: str,
+    tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
+    metrics: dict[str, object],
+    diagnostics: pd.DataFrame,
+) -> None:
+    """Bind population server counts and the complete usable-path error list."""
+    primary_scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
+    method_header = ("Server method", "Correct over all rallies", "Answers made", "Accuracy")
+    method_labels = {
+        "old alternating fit": "Released alternating fit",
+        "anchor player": "Assume the earliest contact player served",
+        "historical rule, recurrence mask": "Flip player when the historical rule says incoming",
+        "0.05-BH trend rule, recurrence mask": (
+            "Use earliest-contact player; flip when the 0.05-BH trend says incoming"
+        ),
+        "0.05-BH trend rule, recurrence plus producer mask": (
+            "Same fallback and 0.05-BH flip; also mask producer inpaint"
+        ),
+        "0.05-BH trend evidence only": "Motion answer only; abstain without usable evidence",
+        "0.05-BH trend then prepend unknown player": "Prepend one unknown contact before alternating fit",
+        "0.05-BH trend then prepend other player": "Prepend inferred server before alternating fit",
+    }
+    method_rows: list[tuple[str, ...]] = []
+    for method, label in method_labels.items():
+        values = primary_scores[method]
+        method_rows.append(
+            (
+                label,
+                f"{values['correct']}/{values['n']}",
+                f"{values['known']}/{values['n']}",
+                f"{values['accuracy']:.1%}",
+            )
+        )
+    _assert_value(_report_table(tables, method_header), method_rows, "report primary server table")
+
+    server_header = (
+        "Rally group",
+        "Released fit",
+        "Earliest-contact player",
+        "Earliest-contact fallback plus 0.05-BH flip",
+    )
+    population_labels = {
+        PRIMARY_POPULATION: "239 one-to-one",
+        COVERED_POPULATION: "249 covered, including merges",
+        ALL_POPULATION: "292 end-to-end, including segmentation failures",
+    }
+    server_rows: list[tuple[str, ...]] = []
+    for population, label in population_labels.items():
+        scores: Any = metrics["server_scores"][population]["global"]
+        cells = []
+        for method in ("old alternating fit", "anchor player", "0.05-BH trend rule, recurrence mask"):
+            values = scores[method]
+            cells.append(f"{values['correct']}/{values['n']} ({values['accuracy']:.1%})")
+        server_rows.append((label, *cells))
+    _assert_value(_report_table(tables, server_header), server_rows, "report population server table")
+
+    evidence_only = primary_scores["0.05-BH trend evidence only"]
+    fallback_statement = (
+        "The direct 0.05-BH rule uses the anchor player when the path is usable but not incoming. "
+        "It also uses the anchor player when motion evidence is unavailable. The evidence-only row abstains in "
+        f"the second case. Its {evidence_only['known']}/{evidence_only['n']} answers show the actual evidence coverage."
+    )
+    if fallback_statement not in report:
+        raise AssertionError("report does not state the earliest-contact fallback and 24-of-239 evidence coverage")
+
+    errors = diagnostics[
+        diagnostics["path_definition"].eq("recurrence_clean")
+        & diagnostics["common_path_eligible"].astype(bool)
+        & ~diagnostics["call_correct"].astype(bool)
+    ].copy()
+    errors["error_type"] = np.where(
+        errors["incoming_call"].astype(bool),
+        "False return call on a GT serve",
+        "Missed GT first return",
+    )
+    errors = errors.sort_values(["error_type", "residual_rms_bh"])
+    error_cases: list[str] = []
+    for row in errors.itertuples(index=False):
+        error_cases.append(f"{row.fixture} {row.set_id} rally {int(row.rally)}")
+    if len(error_cases) != 8:
+        raise AssertionError(f"rebuilt usable-path error set has {len(error_cases)} cases; expected 8")
+    error_statement = (
+        "The error plot shows all eight mistakes with usable recurrence-mask paths: "
+        "four false return calls and four missed returns. The cases are "
+        f"{', '.join(error_cases)}."
+    )
+    if error_statement not in report:
+        raise AssertionError("report error-case statement does not match all eight rebuilt cases")
+
+
+def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
+    """Bind the server plot's two coverage counts and fallback semantics."""
+    funnel: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]
+    recurrence_coverage = int(funnel["recurrence_clean"]["common_path_eligible"])
+    producer_coverage = int(funnel["producer_original"]["common_path_eligible"])
+    denominator = int(funnel["recurrence_clean"]["n"])
+    if (recurrence_coverage, producer_coverage, denominator) != (24, 14, 239):
+        raise AssertionError(
+            "server plot coverage contract differs from the approved 24/239 recurrence and 14/239 producer counts"
+        )
+
+    scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
+    evidence_only = scores["0.05-BH trend evidence only"]
+    recurrence_method = scores["0.05-BH trend rule, recurrence mask"]
+    producer_method = scores["0.05-BH trend rule, recurrence plus producer mask"]
+    if int(evidence_only["known"]) != recurrence_coverage:
+        raise AssertionError("recurrence evidence-only answers do not match the server plot's usable-motion count")
+    if int(recurrence_method["known"]) != denominator or int(producer_method["known"]) != denominator:
+        raise AssertionError("both server methods must fall back to the contact player outside usable motion evidence")
+
+
+def _validate_report_prose(report: str, metrics: dict[str, object], fixed_rules: pd.DataFrame) -> None:
+    """Require the opening-summary scale and four audit-critical statements."""
+    try:
+        summary = report.split("## Summary", maxsplit=1)[1].split(
+            "## Rally groups and failure stages",
+            maxsplit=1,
+        )[0]
+    except IndexError as error:
+        raise AssertionError("report is missing its opening summary boundaries") from error
+    summary_word_count = len(summary.split())
+    if not 700 <= summary_word_count <= 900:
+        raise AssertionError(f"report opening summary has {summary_word_count} words; expected roughly 800")
+
+    populations: Any = metrics["population_counts"]
+    alignment: Any = metrics["alignment"][PRIMARY_POPULATION]["global"]["10"]
+    alignment_labels = alignment["labels"]
+    sequence: Any = metrics["unmatched_anchor_sequences"]["global"]
+    paths: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"]
+    robust_rule = fixed_rules[
+        fixed_rules["scope"].eq("global")
+        & fixed_rules["path_definition"].eq("recurrence_clean")
+        & fixed_rules["rule"].eq("robust_trend")
+    ].iloc[0]
+    server: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"][
+        "0.05-BH trend rule, recurrence mask"
+    ]
+    headline_fragments = (
+        f"**{populations[ALL_POPULATION]['global']} GT rallies**",
+        f"**{populations[COVERED_POPULATION]['global']} rallies covered**",
+        f"**{populations[PRIMARY_POPULATION]['global']} one-to-one rallies**",
+        (
+            f"**{alignment_labels.get('contact_1', 0)} serve, "
+            f"{alignment_labels.get('contact_2', 0)} first return, "
+            f"{alignment_labels.get('later', 0)} later and {alignment_labels.get('unmatched', 0)} unmatched**"
+        ),
+        f"The {sequence['anchors_unmatched_at_tolerance_10']} unmatched ±10 anchors",
+        f"Only **{paths['common_path_eligible']}/{paths['n']}** pass the shared jump check.",
+        (
+            f"The fixed 0.05-BH rule makes {int(robust_rule['incoming_calls'])} return calls: "
+            f"{int(robust_rule['tp'])} correct and {int(robust_rule['fp'])} false."
+        ),
+        f"**{server['correct']}/{server['n']} ({server['accuracy']:.1%})**",
+    )
+    for fragment in headline_fragments:
+        if fragment not in summary:
+            raise AssertionError(f"report opening summary is missing rebuilt headline {fragment!r}")
+
+    required_statements = {
+        "earliest contact is not a serve detector": "It is not a serve detector.",
+        "±10 is the primary alignment": "At the main ±10 baseline",
+        "diagnostics are not cutoffs": "diagnostics, not decision cutoffs",
+        "no visual false-contact claim": "does not claim a visually verified false contact",
+    }
+    for label, statement in required_statements.items():
+        if statement not in report:
+            raise AssertionError(f"report lacks the plain statement that {label}")
+
+
+def _validate_final_files(report: str) -> None:
+    """Require only the corrected report plots and no historical threshold artefacts."""
+    thresholds_path = OUTPUT_DIR / "thresholds.csv.gz"
+    if thresholds_path.exists():
+        raise AssertionError(f"historical threshold output must be absent: {thresholds_path}")
+    if not PLOT_DIR.is_dir():
+        raise FileNotFoundError(f"corrected plot directory is missing: {PLOT_DIR}")
+    actual_plots: set[str] = set()
+    empty_plots: list[str] = []
+    for path in PLOT_DIR.glob("*.png"):
+        if not path.is_file():
+            continue
+        actual_plots.add(path.name)
+        if path.stat().st_size == 0:
+            empty_plots.append(path.name)
+    if actual_plots != EXPECTED_PLOTS:
+        missing = sorted(EXPECTED_PLOTS.difference(actual_plots))
+        extra = sorted(actual_plots.difference(EXPECTED_PLOTS))
+        raise AssertionError(f"corrected top-level PNG set differs; missing={missing}, extra={extra}")
+    if empty_plots:
+        raise AssertionError(f"corrected plots are empty: {sorted(empty_plots)}")
+    if (PLOT_DIR / "cases").exists():
+        raise AssertionError("historical per-case plot directory must be absent")
+    for plot_name in EXPECTED_PLOTS:
+        if f"outputs/plots/{plot_name}" not in report:
+            raise AssertionError(f"report does not reference corrected plot {plot_name}")
+
+
+def _validate_report_and_plots(
+    metrics: dict[str, object],
+    fixed_rules: pd.DataFrame,
+    diagnostics: pd.DataFrame,
+) -> None:
+    """Bind the final Markdown and PNG inventory to independently rebuilt results."""
+    if not REPORT_PATH.is_file():
+        raise FileNotFoundError(f"corrected report is missing: {REPORT_PATH}")
+    report = REPORT_PATH.read_text(encoding="utf-8")
+    tables = _parse_markdown_tables(report)
+    _validate_final_files(report)
+    _validate_report_prose(report, metrics, fixed_rules)
+    _validate_report_populations(tables, metrics)
+    _validate_report_alignment_and_sequences(report, tables, metrics)
+    _validate_report_paths_and_rules(tables, metrics, fixed_rules)
+    _validate_report_reconciliations(report, metrics, fixed_rules, diagnostics)
+    _validate_report_diagnostics(tables, diagnostics)
+    _validate_report_servers_and_errors(report, tables, metrics, diagnostics)
+    _validate_server_plot_contract(metrics)
+
+
 def validate() -> None:
     """Validate every saved output against independent arithmetic."""
     tables = _load_tables()
@@ -1213,9 +1801,10 @@ def validate() -> None:
 
     recalculated_metrics = _build_metrics(tables.rallies, recalculated_rules)
     _assert_mapping(tables.metrics, recalculated_metrics, "metrics.json.gz")
+    _validate_report_and_plots(recalculated_metrics, recalculated_rules, recalculated_diagnostics)
     print(
         "validated 292 rallies, 344 spans, "
-        f"{len(tables.path_points)} path points, 16 fixed-rule rows and all metrics"
+        f"{len(tables.path_points)} path points, 16 fixed-rule rows, all metrics, report and six plots"
     )
 
 

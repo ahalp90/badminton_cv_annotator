@@ -2,9 +2,9 @@
 
 ## Resume
 
-- **Next action:** write the file-only Opus Batch 2 red-team brief. Verify and fix any reproduced finding before the approved Batch 2 commit.
-- **Current batch:** Batch 1 was committed as `360c9b3`. Batch 2 analysis, fixed decisions and independent validator are implemented but uncommitted. The corrected analysis and validator both pass. Corrected scores have now been observed only after every rule and threshold was fixed in the planning records.
-- **Verified so far:** the saved bundle contains 292 rallies, 344 predicted spans, 1,012 selected path points, 16 fixed rule rows and 270 trend-diagnostic rows. The validator independently rebuilds all saved tables and metrics without importing the analysis or feature module. Dedicated Ruff, pinned Pyrefly, the full test suite and `git diff --check` pass. Whole-project Ruff still reports the unchanged baseline of 661 unrelated findings. Serena reports no diagnostics in `validate_outputs.py`.
+- **Next action:** make the approved third commit. Do not merge to `main`.
+- **Current batch:** Batch 1 is `360c9b3`; Batch 2 is `471022e`. Batch 3 has replaced the stale report, old threshold sweep and historical plots. The tracked final-output changes remain uncommitted until the fresh-reader and final branch reviews pass.
+- **Verified:** `review_feedback.md` records the fresh WebUI cold read. A second readability pass found one remaining server-coverage label, which is fixed. The final read-only Gemini Pro audit passed without a blocking defect. The source-backed validator, focused tests, investigation Ruff, Serena diagnostics, pinned Pyrefly, whole pytest and `git diff --check` pass. Whole-project Ruff remains at the unchanged 661 unrelated findings.
 - **Runbook pointer:** `plan.md`, “Correction extension: evaluation accounting and readable final outputs”.
 
 ## Compaction boundary
@@ -34,9 +34,85 @@ Repair the serve-start trajectory investigation so its rally mapping, contact al
 
 ### Next steps
 
-1. Create a fresh file-only `claude-opus-4-6-thinking` Batch 2 red-team brief. Do not ask direct-host agy to run shell commands.
-2. Verify every reported issue locally. Then commit Batch 2 with the approved message if clean.
-3. Batch 3 rewrites the report and plots, applies both readability audits, and stops for the planned fresh WebUI cold read.
+1. Finish the revised independent report/plot validation.
+2. Run the final external branch audit.
+3. Run the full repository gates and make the approved third commit.
+
+### Post-WebUI compaction state
+
+The fresh-reader record is `review_feedback.md`. It passed basic comprehension but found six required ways the first final-output draft was still easy to misread:
+
+1. The 163/239 server bar looked like 239 motion measurements instead of an earliest-contact fallback with only 24 usable motion paths.
+2. The inpaint panel mixed counts over 135 anchors, 17 returns and 118 serves, and merged usable-negative returns with returns lacking evidence.
+3. The report did not explain the historical rule's 18-versus-19 and 9-versus-10 eligibility counts.
+4. The diagnostic and error plots did not say which fixed rule they described or which direction 0.05 BH called.
+5. Multiple-GT-window annotations sat inside the grey unmatched stack even though ambiguity is cross-cutting.
+6. The unmatched plot omitted that later contacts also use ±10 and that its categories prioritise any serve match, then return, then other, then none.
+
+All six fixes are implemented in `report_outputs.py` and regenerated in `report.md`/`outputs/plots/`:
+
+- the server plot and tables name the contact-player fallback and show 24/239 motion coverage;
+- the inpaint panel stacks three mutually exclusive states over the same 135 anchors: no evidence, usable/serve, usable/return;
+- the inpaint panel separately states GT-return outcomes and the truth composition of incoming calls;
+- historical eligibility explicitly adds the 0.25-BH total-movement floor after the shared path checks;
+- diagnostics state `>=0.05 BH: incoming / call first return`;
+- the error sheet is now `trend_rule_errors.png` and names all eight 0.05-BH errors among 19 usable unique-truth paths;
+- ambiguity labels sit above the full alignment bars;
+- the alignment plot says the anchor is an ordinary accepted candidate, not a serve detector;
+- the unmatched plot states its ±10 tolerance and priority logic;
+- the report adds the denominator trail `292 → 249 → 239 → 135 → 19` and reconciles 24/19 usable paths plus 15/13 incoming calls.
+
+One WebUI inference was corrected from row-level data. Under the producer mask, the ten missed GT returns comprise **one usable path below threshold and nine paths without usable evidence**. The recurrence-only breakdown is four and four. The revised plot and report state these checked values.
+
+The revised plots were loaded and inspected directly after regeneration. The first revision of the inpaint annotations overlapped; the current version uses separate white boxes inside each grey no-evidence bar and is readable. Focused Ruff and `git diff --check` pass after the revisions.
+
+The `batch2_validator` worker is currently updating `validate_outputs.py` for the renamed plot and revised report assertions. A fresh native `revised_output_readability` reader is independently checking the six fixes. Do not start the final audit until both return and reproduced defects are fixed.
+
+The exact currently available final-audit model is `gemini-3.1-pro-high` (`Gemini 3.1 Pro (High)`). The approved final audit must be a file-only, read-only direct-host agy run. Do not ask it to run shell commands. Include the complete tracked investigation diff/files, both audits, `review_feedback.md`, report/plots, output validator, and the fixed numerical contract. Verify every finding locally.
+
+After the final external audit, run:
+
+- corrected analysis generation;
+- independent validator;
+- focused trajectory tests;
+- dedicated investigation Ruff;
+- Serena diagnostics for changed Python files;
+- pinned whole-project Pyrefly;
+- whole pytest;
+- whole Ruff, expecting the unchanged unrelated baseline of 661 findings;
+- `git diff --check`.
+
+Then update `README.md`, `HANDOVER.md`, `findings.md` and this worklog with final review/gate results. Make the third approved commit only if clean, using exactly:
+
+```text
+Rewrite the serve trajectory report around checked denominators
+
+Explain the corrected funnel and per-video results in plain language. Add independently checked tables and plots that show their populations and evidence availability directly.
+```
+
+Stage every path explicitly, including the user-supplied `review_feedback.md`. Do not merge to `main`.
+
+### Final branch audit and close-out
+
+The revised native readability pass resolved five WebUI findings and found one remaining server-plot denominator defect. The plot described 24/239 recurrence-mask motion paths while also showing the producer-mask method, which has 14/239 usable paths. The final subtitle now states both coverages. The two method labels repeat the 0.05-BH flip and name their mask/path count. Direct image inspection confirmed that the shorter labels do not overlap.
+
+The final file-only `gemini-3.1-pro-high` audit passed with no blocking finding and a clean Git tripwire. It found the population contract, fixed rules, inpaint control, server fallback, threshold provenance, continuous diagnostics, six WebUI fixes and validator independence internally consistent. Its only optional note concerned literal frozen counts in plot annotations. The independent validator now checks the 24/239 recurrence coverage, 14/239 producer coverage, evidence-only answers and 239-rally fallback behaviour. The audit artefact is:
+
+`local_scratch/external_delegate/20260811-100232-trajectory-final-branch-audit/run/result.md`
+
+Final clean-run gates:
+
+- corrected analysis: exit 0;
+- source-backed validator: exit 0, validating 292 rallies, 344 spans, 1,012 path points, 16 fixed-rule rows, all metrics, the report and six plots;
+- focused trajectory tests: exit 0, 55 passed;
+- investigation Ruff: exit 0;
+- Serena diagnostics for `analyse_serve_trajectory.py`, `report_outputs.py` and `validate_outputs.py`: none;
+- pinned whole-project Pyrefly: exit 0, no errors and 20 configured suppressions;
+- whole-project pytest: exit 0, 1,456 passed and 29 skipped;
+- whole-project Ruff: exit 1 on the unchanged 661 unrelated findings;
+- `git diff --check`: exit 0.
+
+The final report commit remains unmade at this write-out. Use the exact approved message above, stage named paths only, and do not merge to `main`.
 
 ## Concerns and observations
 

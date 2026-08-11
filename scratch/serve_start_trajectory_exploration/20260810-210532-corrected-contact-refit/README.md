@@ -1,33 +1,39 @@
-# Incoming shuttle before the first accepted contact
+# Earliest-contact serve trajectory investigation
 
-This investigation asks one question:
+This investigation asks whether the shuttle clearly approaches the player at the earliest accepted contact. Incoming motion would mean that the contact is probably the first return, so the other player probably served.
 
-> Do we see the shuttle travelling towards the player at the first accepted contact? If so, does adding one earlier shot by the other player make the server attribution correct?
+The earliest accepted contact comes from the ordinary contact detector. It is not a serve detector. The corrected analysis uses the contact player's geometry at that frame and never uses the released server label to choose that player.
 
-The first accepted contact's player comes directly from the shuttle and player geometry at that frame. The old fitted server label is never used to choose the player or measure the incoming path.
-
-The analysis uses all rallies in `sset_01`, `sset_15` and `sset_21`. It looks back at most 30 base-30 frames. Any path used as evidence must stay inside one continuous court scene and pass simple visibility, recurrence, movement and jump checks.
-
-When incoming motion is found, the experiment adds one missing shot before the accepted-contact sequence. It tries that addition in two ways:
-
-- add an unknown-player shot, which shows the effect of correcting the contact count;
-- add a shot by the other player, which also gives one extra vote to the player implied by the incoming motion.
-
-The second version is not a separate measurement of player identity. It trusts the first experiment one extra time.
+Read `report.md` first. Its opening summary explains the result without requiring the planning or implementation records.
 
 ## Result
 
-The motion rule found 11 of 16 clear first returns and made 3 false calls. In all 16 covered rallies where the rule fired, directly naming the other player as server was right 13 times. The two alternating refits were right 8 and 9 times, so the direct motion inference is the useful result. See `report.md` for the denominators, threshold plot and limits.
+- 292 GT rallies provide the end-to-end view.
+- 249 rallies satisfy the current `COVERED` definition, including ten GT rallies in five merged predicted spans.
+- 239 one-to-one rallies form the primary downstream set.
+- At the main ±10 baseline, the earliest anchor is nearest 119 serves, 19 first returns, 4 later strokes and no GT stroke in 97 primary rallies. Five windows contain more than one GT stroke.
+- Later contacts recover the serve in 49 of the 97 unmatched sequences. Another 36 recover the first return without recovering the serve.
+- Only 24/239 primary rallies have usable recurrence-mask motion evidence. Nineteen of the 135 unique ±10 serve/return anchors have such evidence.
+- The fixed 0.05-BH trend rule finds 9 of 17 returns and makes 4 false return calls. The unchanged historical rule finds the same 9 returns and makes 3 false calls.
+- Applying the same 0.05-BH rule after excluding producer-marked inpainted points finds 7 returns and makes no false return calls, but usable paths fall from 19 to 10.
+- Direct motion-based server attribution is correct in 163/239 primary rallies. Prepending a hypothetical contact and rerunning the alternating fit reaches only 125/239 or 127/239.
+
+The 0.05-BH threshold is an engineering judgement fixed before corrected scoring. Residual scatter and trend-to-jitter are diagnostics only.
 
 ## Files
 
-- `plan.md`: exact experiment and exclusions.
-- `findings.md`: verified repository and data facts.
-- `prepare_inputs.py`: link and verify local frozen inputs.
-- `trajectory_features.py`: small path calculations.
-- `experiment_data.py`: load frozen results and rebuild direct contact geometry.
-- `analyse_serve_trajectory.py`: run both experiments and make the tables and plots.
-- `validate_outputs.py`: recalculate the reported counts from compressed tables.
-- `report.md`: plain-language result, written after the experiment runs.
+- `plan.md`: approved scope, exclusions and checkpoint messages.
+- `decisions.md`: fixed population, alignment and motion-rule decisions.
+- `findings.md`: verified repository and result findings.
+- `experiment_data.py`: frozen input and GT loading.
+- `trajectory_features.py`: alignment, sequence and trajectory arithmetic.
+- `analyse_serve_trajectory.py`: row-level analysis and checked result bundle.
+- `report_outputs.py`: final report and plots.
+- `validate_outputs.py`: independent source-backed recalculation and output checks.
+- `report.md`: standalone result.
+- `review_feedback.md`: preserved fresh-reader WebUI audit and required revisions.
+- `worklog.md`: compaction-safe session record and review history.
 
-Generated inputs, tables, plots and delegated-agent records remain ignored. Generated NumPy arrays use `.npy.xz`; JSON and CSV use `.json.gz` and `.csv.gz`.
+Generated inputs and outputs remain ignored. NumPy arrays use `.npy.xz`; JSON and CSV use `.json.gz` and `.csv.gz`.
+
+The final source-backed validator, two readability passes and read-only Gemini Pro branch audit found no remaining blocking defect. Focused tests, Pyrefly and whole-project pytest pass. Whole-project Ruff retains 661 unrelated pre-existing findings; the investigation directory is clean.
