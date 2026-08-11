@@ -15,16 +15,13 @@
 - The symmetric common eligibility checks are at least 5 frames, at most 2 base-30fps frames from the contact, and `largest_step_ratio <= 4.0`. The 30-base-30fps path window and all frame gaps are scaled to source FPS
 - The robust incoming call is fitted distance decrease `>= 0.05` body heights. The direct outgoing mirror is fitted distance decrease `<= -0.05` body heights
 - The recurrence-clean mask combines valid non-zero shuttle coordinates, a positive track flag, court presence, finite player distance, positive finite player bbox height, and `guard_codes == NO_FLAG`. A false component splits the run
-- The current helper does not retain why a run starts, ends, or is absent. `None` can mean no usable sample, scene exclusion, missing player attribution, or missing tracker segment
+- The current helper returns `None` when the local incoming check lacks usable evidence. The selected contact's pre-contact result must retain that unavailable state
 - `data.spans` and `data.segments` retain half-open rally and scene boundaries. The current path mask uses the scene boundary but not the rally span boundary
-- `path_reaches_scene_start` is the only stored boundary reason. It does not distinguish a coincident 30-frame lookback limit
-- Under the declared forward scan, every earlier skipped contact has a usable no-outgoing verdict. The final positive-endpoint ruling makes those contacts ineligible for reconnection
-- The user ruled that credible outgoing and incoming traces may connect across invisible TrackNet frames without overlap, adjacency, or spatial joining
-- Production `_gap_state_rest_mask` already keeps `high_shot_oob` gaps open without joining missing shuttle positions. The current `gap_state_demotion_bound` is 75 base-30fps frames
-- The source has no fixed maximum accepted-contact-to-contact interval
-- The user fixed reconnection candidates to consecutive accepted contacts and ruled that all gap contents are non-vetoing
-- The accepted contact gap limit is an inclusive 75 base-30fps frames. It is fixed before GT scoring and matches `high_shot_oob`
-- The experiment must record the full consecutive contact-gap distribution before joining GT
+- The final ruling removes all contact reconnection. The search stops at the first credible outgoing contact and uses only that contact's existing pre-contact incoming check for classification
+- The outgoing search is binary. Missing or unusable post-contact evidence and measured absence of outgoing motion both fail the credible-outgoing predicate
+- The experiment has no outgoing-unavailable reporting state or continue-past-unknown sensitivity run
+- A later contact never overrides an earlier `no outgoing` verdict
+- Cross-gap evidence, contact-gap caps, and contact-gap distributions have no role in the final experiment
 - The focused baseline passed: `55 passed` in `0.67s`, exit 0
 
 ## Provenance
@@ -37,3 +34,4 @@
 ## Not yet verified
 
 - Counts from applying the approved rule to all 239 rallies
+- Whether the fixed sequential rule improves the 239-rally GT comparison

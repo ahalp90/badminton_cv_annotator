@@ -1,58 +1,58 @@
-# Accepted-contact trace runbook
+# Sequential accepted-contact opener runbook
 
-The experiment is ready to implement. The runbook keeps search decisions separate from ground-truth scoring and limits all code, evidence, and reports to this investigation folder.
+The experiment asks whether post-contact outgoing motion removes false early impulse openers. It then reuses the fixed PR #82 incoming-motion check to classify the first credible contact.
 
 ## Planning gate
 
-- Consecutive accepted contacts connect from credible endpoint traces alone
-- Gap contents never veto a connection and receive no cross-gap motion or spatial test
-- The maximum contact gap is 75 base-30fps frames, inclusive
-- The complete contact-gap distribution is recorded before GT scoring
-- The user approved all behavioural choices; Python implementation may start
+- Scan accepted contacts from earliest to latest
+- Skip every contact without credible outgoing motion
+- Stop at the first contact with credible outgoing motion
+- Classify that contact from its existing pre-contact incoming verdict
+- Never reconnect contacts or override an earlier `no outgoing` verdict
+- Keep unavailable pre-contact evidence as the selected contact's three-way classification result
 
 ## OUT-list
 
-- Production code and all PR #82 source files remain read-only because this pass tests a scratch hypothesis
-- Raw and rejected impulse candidates remain out because the accepted sequence is the declared search space
-- Production serve-start conditions, scorer edits, and production annotations remain out because they would mix diagnosis with redesign
-- GT stroke frames, ordinals, and server labels never enter a search function or select a threshold because GT is scoring-only
-- Threshold sweeps remain out because the experiment tests one fixed rule
-- Learned models, dynamic programming, and a general contact graph remain out because they add machinery before the narrow rule is measured
-- An implied serve has no invented frame because the trace only supports a before-contact event
-- Existing experiment outputs remain unread and unchanged because the checked PR #82 counts are the fixed baseline
+- Production code and all PR #82 source files remain read-only
+- Raw and rejected impulse candidates remain out
+- GT never enters a search function or selects a threshold
+- Threshold sweeps, learned models, dynamic programming, backwards tracing, contact chains, and contact reconnection remain out
+- Cross-gap direction, shape, spatial continuity, gap contents, and contact-gap caps remain out
+- An implied serve has no invented frame
+- Existing experiment outputs remain unread and unchanged
 - Repository-wide checks remain out because the shared contract calls for focused scratch checks
-- Pushes, merges, PR creation, and external write authority remain out because the current authority covers local investigation commits only
+- Pushes, merges, PR creation, and external write authority remain out
 
 ## Fixed source conventions
 
 - Accepted frames come from sorted `VideoData.accepted_by_span[span_id]`
-- Each local endpoint trace stays inside the half-open `VideoData.spans[span_id]` envelope and its own tracker scene; a pair may cross a scene boundary
-- Recurrence-clean eligibility reuses the mask components recorded in `decisions.md`
+- Each local path stays inside the half-open rally span and its tracker scene
+- Recurrence-clean eligibility reuses the mask components in `decisions.md`
 - Local pre- and post-contact windows are 30 base-30fps frames
 - A path needs 5 frames, a contact gap of at most 2 base-30fps frames, and `largest_step_ratio <= 4.0`
-- Incoming is fitted decrease `>= 0.05` body heights; outgoing is fitted decrease `<= -0.05` body heights
-- Credible outgoing and incoming traces may connect across missing shuttle frames without shared frames, adjacency, or a spatial seam check
-- Production `high_shot_oob` and ordinary TrackNet dropouts use the same continuity rule
-- Only consecutive accepted contacts are connection candidates
-- Gap contents never veto a connection, including hallucinations, jumps, guard failures, and visible directional weirdness
-- The consecutive contact gap must be at most 75 base-30fps frames, inclusive
-- Missing evidence returns `not enough shuttle trajectory to tell`
-- The continue-past-unknown result is stored separately as sensitivity-only
-- A forward no-outgoing verdict lacks positive endpoint evidence and cannot reconnect
+- Incoming is fitted decrease `>= 0.05` body heights
+- Outgoing is fitted decrease `<= -0.05` body heights
+- Missing post-contact evidence fails the binary credible-outgoing predicate
+- Missing pre-contact evidence returns `not enough shuttle trajectory to tell`
 
-## Batch 0: record the approved rule
+## Batch 0: record the first approved rule
+
+Commit `caa8207` records the superseded contact-reconnection planning state. The living documents retain that history in `worklog.md` and now follow the simpler final ruling.
+
+## Batch 0b: simplify the approved rule
 
 Files:
 
 - `decisions.md`
 - `evidence.md`
+- `findings.md`
 - `mechanisms.md`
 - `runs.md`
 - `worklog.md`
 - `plan.md`
 - `audit_index.md`
 
-Change: fold the user's permissive consecutive-contact rule, positive endpoint requirement, 75-frame timing ceiling, and gap-distribution requirement into the source conventions.
+Change: remove backwards tracing, reconnection, cross-gap checks, the 75-frame cap, and the contact-gap distribution. Pin the chronological outgoing-motion search and the existing incoming-motion classification.
 
 Gate:
 
@@ -60,6 +60,7 @@ Gate:
 git diff --cached --check -- \
   scratch/serve_id_by_lookback_followup/decisions.md \
   scratch/serve_id_by_lookback_followup/evidence.md \
+  scratch/serve_id_by_lookback_followup/findings.md \
   scratch/serve_id_by_lookback_followup/mechanisms.md \
   scratch/serve_id_by_lookback_followup/runs.md \
   scratch/serve_id_by_lookback_followup/worklog.md \
@@ -70,9 +71,9 @@ git diff --cached --check -- \
 Exact commit message:
 
 ```text
-Pin the accepted-contact trace experiment
+Simplify the accepted-contact opener rule
 
-Record the fixed path, continuity and state rules before implementation. Keep the GT boundary and unknown outcomes explicit so the analysis cannot tune itself against labels.
+Remove backwards origin tracing and all gap-connection machinery. Stop at the first accepted contact with credible outgoing motion, then reuse the fixed PR #82 incoming check to classify it as a visible serve or first visible post-serve contact.
 ```
 
 ## Batch 1: implement and test the search
@@ -82,21 +83,21 @@ Files:
 - `accepted_contact_trace.py`
 - `test_accepted_contact_trace.py`
 
-Change: add small pure helpers for post-contact runs, retained end reasons, direction checks, continuity, backwards trace state, and the main versus sensitivity outcomes. Search functions accept accepted frames and trajectory evidence only. They accept no GT field.
+Change: add small pure helpers for the post-contact run, shared path eligibility, the binary credible-outgoing predicate, the three-way pre-contact verdict, and the chronological search. Search functions accept accepted frames and trajectory evidence only. They accept no GT field.
 
 Focused cases:
 
-- strict pre/post off-by-one and FPS-scaled gap boundaries
-- 5-frame, 2-base-30fps, 4.0-ratio, and ±0.05-BH inclusive edges
-- scene and span boundaries versus internal unusable gaps
+- strict pre/post off-by-one and FPS-scaled local gap boundaries
+- 5-frame, 2-base-30fps, 4.0-ratio, and +/-0.05-BH inclusive edges
 - missing player and missing segment outcomes
-- visible serve, forward junk skip, unknown stop, and implied serve
-- missing intervals, including `high_shot_oob` and ordinary TrackNet dropouts, without seam-position tests
-- gap contents that remain deliberately ignored and the inclusive 75-frame contact boundary
-- source-frame and base-30fps contact-gap distribution records
-- no-outgoing endpoints that correctly remain disconnected
-- main and continue-past-unknown sensitivity separation
+- non-credible outgoing skip and first credible outgoing stop
+- incoming classification as first visible post-serve contact
+- measured no-incoming classification as visible serve
+- unavailable post evidence treated exactly like any other non-credible outgoing result
+- unavailable pre evidence returning `not enough shuttle trajectory to tell`
+- all non-credible outgoing contacts ending as no credible accepted contact
 - chronological accepted contacts and stable final accepted rank
+- absence of GT fields and all contact-connection machinery
 
 Gate:
 
@@ -123,9 +124,9 @@ Reference checks:
 Exact commit message:
 
 ```text
-Add the accepted-contact trace search
+Add the sequential accepted-contact opener search
 
-Mirror the established trajectory measurements after each accepted contact and retain why a trace stops. Keep the primary unknown result separate from the continue-past-unknown sensitivity run.
+Skip accepted impulses without credible outgoing motion. Stop at the first credible outgoing contact and classify it from the existing three-way pre-contact incoming result.
 ```
 
 ## Batch 2: build the checked analysis
@@ -142,7 +143,7 @@ Saved evidence:
 - `accepted_contact_trace_rows.csv.gz`
 - `accepted_contact_trace_summary.json.gz`
 
-Each row records the accepted sequence, every consecutive contact gap in source and base-30fps units, per-contact path verdicts and reasons, junk skips, backwards origins, implied serves, final accepted rank, main outcome, and sensitivity outcome. GT columns are appended only after the search result is complete.
+Each row records the accepted sequence, each contact's binary credible-outgoing result, the selected contact's pre verdict, skipped contacts, final accepted rank, and search outcome. GT columns are appended only after the search result is complete.
 
 Gate: repeat Batch 1 checks with `analyse_accepted_contact_trace.py` included, then run its synthetic I/O and GT-separation tests. A fresh read-only reviewer checks the diff and saved schema.
 
@@ -171,12 +172,10 @@ Change: run the rule once on all 239 rows before reading GT labels. Check the sa
 
 Required report slices:
 
-- fixed, damaged, unchanged, and unknown over all 239
+- fixed, damaged, unchanged, pre-contact-unknown, and no-credible-contact outcomes over all 239
 - the same relevant counts within the 97 currently unmatched starts
-- junk skips, backwards origins, implied serves, selected accepted ranks, and final visible-contact GT ordinals
-- ±10 primary scoring with compact ±5 and ±30 sanity checks
-- main and continue-past-unknown sensitivity results kept separate
-- the complete GT-free consecutive contact-gap distribution and counts below 75, exactly 75, and above 75 base-30fps frames
+- accepted contacts skipped for non-credible outgoing motion, selected accepted ranks, visible serves, implied serves, and final visible-contact GT ordinals
+- +/-10 primary scoring with compact +/-5 and +/-30 checks
 
 Gate:
 
@@ -192,13 +191,12 @@ Exact commit message:
 ```text
 Record the accepted-contact trace results
 
-Save the checked 239-rally evidence and report the fixed rule's gains, damage and unknowns. Keep the unmatched-start slice, sensitivity run and audit findings explicit.
+Save the checked 239-rally evidence and report the fixed rule's gains, damage and unknowns. Keep the unmatched-start slice and audit findings explicit.
 ```
 
 ## Halt conditions
 
 - Stop if code or data contradicts an approved decision
 - Stop if the search needs GT to choose an action or number
-- Stop if the full trace cannot distinguish an observable boundary from unavailable evidence
 - Stop if a required check needs an unavailable external environment
 - Stop after the short audited report; do not propose production architecture

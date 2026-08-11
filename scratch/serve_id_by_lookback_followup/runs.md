@@ -11,5 +11,7 @@
 | Existing trajectory helper tests | `~/.venvs/badminton-cicd/bin/pytest -q scratch/serve_start_trajectory_exploration/test_trajectory_features.py`; exit 0; 55 passed in 0.67s |
 | agy `gemini-3.6-flash-high` cold read of `decisions.md` | First launch was blocked before access; explicit user authorisation allowed the read-only retry; exit 0; tripwire passed; `READABLE`; two genuine Q1 presentation findings fixed locally |
 | Fresh native Codex Batch 0 rule review | Read-only planning diff; found stale gap vetoes, the now-dead conflict branch, an omitted audit file, and an untracked-file gate hole; all findings checked and fixed before staging |
+| Final sequential-search ruling | No code run; user removed contact reconnection, backwards tracing, the 75-frame cap, and the gap distribution from the experiment |
+| Binary outgoing-search ruling | No code run; user removed the post-contact unknown state, its sensitivity run, and any reporting split between unavailable and measured no-motion |
 
 No follow-up experiment, lint, type check, push, or merge has run. Branch commits so far contain only scope and clean-session handover records.

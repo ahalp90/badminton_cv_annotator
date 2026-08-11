@@ -1,71 +1,55 @@
-# Corrected findings for the accepted-contact search
+# Findings for the sequential accepted-contact search
 
-The experiment must run the same GT-free search over all 239 one-to-one rallies. It moves forward past accepted impulses that have usable evidence of being junk. Once it finds a credible contact with incoming motion, it follows that trajectory backwards through earlier accepted contacts.
+The experiment runs the same GT-free search over all 239 one-to-one rallies. It skips every accepted impulse without credible outgoing motion. It stops at the first contact with credible outgoing motion and uses the existing PR #82 incoming check to classify that contact.
 
-The 97 first impulses unmatched at ±10 base-30fps frames are an analysis slice. Ground truth (GT) does not decide whether the search runs.
+The 97 first impulses unmatched at +/-10 base-30fps frames are an analysis slice. Ground truth (GT) does not decide whether the search runs.
 
-## F1. Accepted contacts provide the only search nodes
+## F1. Accepted contacts provide the only search candidates
 
-PR #82 reads each frozen span's `filtered_by_rally` frames, sorts them, and checks them against the raw wrist, suppression, and exclusion fields. The search starts at the first accepted frame and may move among accepted frames only.
+PR #82 sorts each frozen span's accepted `filtered_by_rally` frames and checks them against the raw wrist, suppression, and exclusion fields. The search scans those accepted frames in chronological order.
 
-Earlier raw or rejected impulses remain out of scope. They become a later experiment only if the accepted-sequence search shows a clear need.
+Raw and rejected impulses remain out of scope.
 
-Why this matters: every search decision uses inputs available to the real system.
+## F2. Post-contact outgoing motion selects the opener candidate
 
-## F2. Forward and backward movement solve different problems
+If accepted impulse `Ai` lacks credible outgoing motion, the search skips it. The first `Ai` with credible outgoing motion is selected and the forward search stops.
 
-The forward step handles junk. If accepted impulse `Ai` has enough post-contact shuttle trajectory to judge but no outgoing motion, the main search skips it and checks `Ai+1`.
+A later contact never overrides an earlier `no outgoing` verdict. The search has no contact reconnection or broader contact-chain pass.
 
-The backward step handles logical predecessors. If a credible `Ai` has incoming motion, the search follows that trajectory backwards and asks whether an earlier accepted impulse originated it. A connected origin becomes the next contact inspected backwards.
+## F3. The forward search is binary
 
-Why this matters: `incoming` is not shorthand for `unshown serve`. The search must first try to find an accepted origin.
+Missing or unusable post-contact evidence fails the credible-outgoing predicate. The forward search does not distinguish that case from measured absence of outgoing motion.
 
-## F3. Missing evidence remains unknown
+The selected contact's pre-contact check keeps its real three-way result: incoming, not incoming, or unavailable. Only pre-contact unavailability produces `not enough shuttle trajectory to tell`.
 
-The report label is `not enough shuttle trajectory to tell`.
+## F4. The existing incoming check classifies the selected contact
 
-The main rule stops with that result whenever the post-contact evidence cannot judge whether `Ai` is junk, the pre-contact evidence cannot judge whether a credible `Ai` has incoming motion, or a backwards trace breaks because the shuttle evidence becomes unusable.
+Incoming motion into the selected contact means it is the first visible post-serve contact. The search implies an unshown serve before that contact without inventing an exact serve frame.
 
-A separate sensitivity check may continue forward past an unknown accepted impulse. It cannot replace the main result.
+Usable pre-contact evidence with no incoming motion means the selected accepted contact is the visible serve.
 
-Why this matters: unavailable tracking cannot justify a skip, a visible-serve call, or an implied missing serve.
+## F5. Exhausting the accepted contacts is a distinct result
 
-## F4. A usable trace can end without an accepted origin
-
-If incoming motion into `Ai` remains usable while tracing backwards but no earlier accepted contact originates it, the search calls `Ai` the first visible post-serve contact. It records an implied unshown or undetected serve before `Ai` without inventing an exact serve frame.
-
-If the trace ends because evidence becomes unusable, the result is `not enough shuttle trajectory to tell` instead.
-
-Why this matters: absence of an accepted origin and absence of evidence are different observations.
-
-## F5. A visible accepted serve is a terminal result
-
-When `Ai` has outgoing motion and enough pre-contact evidence to show no incoming motion, the search calls `Ai` the visible serve and returns its accepted frame as the opener.
-
-Why this matters: an authentic serve at the first accepted position stays unchanged. A serve reached after forward skips or backwards tracing is recovered at its accepted frame.
+If no accepted contact has credible outgoing motion, the search reports `no credible accepted contact`.
 
 ## F6. The existing PR #82 table fixes the baseline, not the new result
 
 The checked PR #82 output contains 239 primary rallies. Their current first accepted impulses are:
 
-| GT label at ±10 | Rallies |
+| GT label at +/-10 | Rallies |
 | --- | ---: |
 | contact 1 | 119 |
 | contact 2 | 19 |
 | later | 4 |
 | unmatched | 97 |
 
-These labels score the current start after the search has run. They never select a branch of the search.
+These labels score the result after the search has run. They never select a search branch.
 
-Why this matters: the final comparison can count fixed, damaged, unchanged, and unknown results over the same 239-rally denominator.
+## F7. PR #82 supplies the trajectory primitives
 
-## F7. PR #82 supplies the incoming-motion primitives
+The existing work provides `closest_pre_contact_run`, `measure_incoming_motion`, `fit_robust_distance_trend`, recurrence-clean path checks, and the fixed 0.05-BH incoming rule.
 
-The existing work provides `closest_pre_contact_run`, `measure_incoming_motion`, `fit_robust_distance_trend`, the recurrence-clean path checks, and the fixed 0.05-BH incoming rule.
-
-The corrected sweep still needs to map the smallest symmetric post-contact measurement and the exact continuity test between an earlier contact's outgoing path and a later contact's incoming path. Those details must be fixed before implementation and must not be tuned against GT.
-
-Why this matters: the experiment should reuse the old measurement convention while adding only the minimum forward and connection logic.
+The new code needs only the direct post-contact mirror and the sequential state machine. It does not need trace-end reasons, backwards origins, cross-gap tests, or a contact-gap distribution.
 
 ## F8. The primary outputs are transition counts over all 239 rallies
 
@@ -74,18 +58,15 @@ For every rally, record the current first-impulse GT label and the reconstructed
 - currently wrong starts fixed
 - currently correct starts damaged
 - results unchanged
-- results ending as `not enough shuttle trajectory to tell`
-- accepted junk impulses skipped
-- accepted origins found while tracing backwards
-- implied unshown serves after a usable trace finds no accepted origin
-- selected accepted rank and final visible-contact GT ordinal
+- selected contacts with unavailable pre-contact evidence
+- results ending with no credible accepted contact
+- accepted contacts skipped for non-credible outgoing motion
+- selected accepted rank
+- visible serves and implied unshown serves
+- final visible-contact GT ordinal
 
-Repeat the relevant breakdown within the 97 currently unmatched starts. Keep ±10 primary and use ±5 and ±30 only as compact sanity checks.
-
-Why this matters: the same rule is evaluated on correct and incorrect starts, so improvement cannot hide damage to the existing successes.
+Repeat the relevant breakdown within the 97 currently unmatched starts. Keep +/-10 primary and use +/-5 and +/-30 only as compact checks.
 
 ## F9. The implementation remains scratch-only
 
 No production code, rally segmentation, contact detector, raw-candidate promotion, learned model, dynamic programme, or threshold sweep belongs in this pass. The work should be one small analysis module, focused helper tests, checked compressed evidence, and a short report with roughly five examples.
-
-Why this matters: a negative result should explain why the simple accepted-sequence reconstruction fails without accumulating another heuristic stack.
