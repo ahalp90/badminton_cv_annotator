@@ -33,4 +33,4 @@
 
 ## Execution log
 
-No experiment execution batches have started. The initial commit contains only scope and clean-session handover records.
+No experiment execution batches have started. Commits so far contain only scope and clean-session handover records.

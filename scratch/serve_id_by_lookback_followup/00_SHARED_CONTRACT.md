@@ -20,6 +20,22 @@ Open `findings.md`, `decisions.md`, PR #82 files, prior delegate output, and the
 
 Never read `.env`, credentials, `.claude/`, or experiment outputs.
 
+## Writing and voicing gate
+
+The user is cognitively overloaded, not inexperienced. Make the work easy to
+take in without hiding technical facts.
+
+Every report, review, decision note, and final summary must:
+
+- open with the few main ideas or choices the user needs to consider
+- reveal supporting detail progressively, with technical evidence below the plain summary
+- sound like a normal person speaking and use the simplest word that stays precise
+- avoid project-management language, inflated framing, and technical presentation that makes a simple idea feel complicated
+- treat corrections as ordinary parts of the settled account unless the correction will still matter in two weeks
+
+Editing and voicing reviews use this section as their main standard. A document
+that is technically complete but cognitively heavy has not passed.
+
 ## Exact roster
 
 - Coordinator: fresh Codex `gpt-5.6-sol`, high effort, integration and final judgement

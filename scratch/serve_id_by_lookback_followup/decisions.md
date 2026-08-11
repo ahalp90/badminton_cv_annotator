@@ -55,3 +55,4 @@ This ruling is conceptually settled. The code sweep must map observable boundary
 - Commit messages are pre-authorised when they use plain language, a clear one-line summary, and at most two supporting paragraphs totalling 100 words
 - Public repository material may be shared with Codex external delegates and agy
 - Final conclusions require bounded AGY Claude Opus and Gemini 3.1 audits
+- Writing and voicing reviews must optimise first for cognitive ease: lead with the few main ideas, reveal technical evidence progressively, use ordinary speech, and avoid spotlighting corrections that will not matter later

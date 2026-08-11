@@ -7,4 +7,4 @@
 | Headless `gpt-5.6-luna`, max, read-only source trace | Stopped after it broadened into the unrelated serve-prepend prototype; accepted-order semantic findings were checked locally |
 | agy `gemini-3.6-flash-high`, high, read-only cold read of the superseded findings | Exit 0; repository tripwire passed; result was `READABLE`; the reviewed document was later replaced after the experiment was corrected |
 
-No experiment, tests, lint, type checks, pushes, or merges have run. The initial branch commit contains only scope and clean-session handover records.
+No experiment, tests, lint, type checks, pushes, or merges have run. Branch commits so far contain only scope and clean-session handover records.

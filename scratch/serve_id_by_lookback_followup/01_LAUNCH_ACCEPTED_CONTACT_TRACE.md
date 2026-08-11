@@ -95,6 +95,8 @@ Implement only the approved scratch analysis and focused tests. Produce checked 
 
 Report fixed, damaged, unchanged, and unknown transitions. Show the 97 unmatched rows as a separate slice. Include junk skips, backwards origins, implied serves, final visible-contact ordinals, and roughly five representative cases.
 
+Apply the shared contract's writing and voicing gate to every user-facing document. Put the main ideas in a short top-level introduction, then reveal the technical evidence progressively. Do not give abandoned interpretations extra prominence unless they will matter later.
+
 Before finalising, give the compact evidence and proposed conclusion to the declared Claude Opus and Gemini 3.1 auditors. Ask specifically about GT leakage, ordinal interpretation, threshold tuning, denominators, indirect truth use, and overclaiming. Resolve substantive findings.
 
 Stop after the short report. Do not propose production architecture.
