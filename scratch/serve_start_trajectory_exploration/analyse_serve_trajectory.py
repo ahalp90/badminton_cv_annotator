@@ -520,6 +520,7 @@ def apply_fixed_rules(features: pd.DataFrame) -> pd.DataFrame:
     evidence_servers: list[str | None] = []
     parity_servers: list[str | None] = []
     labelled_servers: list[str | None] = []
+    anchor_fallback_refit_servers: list[str | None] = []
     labelled_final_changed: list[bool] = []
 
     for _, row in results.iterrows():
@@ -551,6 +552,7 @@ def apply_fixed_rules(features: pd.DataFrame) -> pd.DataFrame:
             natural_first = _fit_first_player(guesses)
             parity_servers.append(_half_text(natural_first))
             labelled_servers.append(_half_text(natural_first))
+            anchor_fallback_refit_servers.append(_half_text(anchor_player))
             labelled_final_changed.append(False)
             continue
 
@@ -558,7 +560,11 @@ def apply_fixed_rules(features: pd.DataFrame) -> pd.DataFrame:
         labelled_guesses = [other_half(anchor_player), *guesses]
         parity_servers.append(_half_text(_fit_first_player(parity_guesses)))
         labelled_final = point_winner.fit_alternation(labelled_guesses)
-        labelled_servers.append(_half_text(_fit_first_player(labelled_guesses)))
+        labelled_first = _fit_first_player(labelled_guesses)
+        labelled_servers.append(_half_text(labelled_first))
+        anchor_fallback_refit_servers.append(
+            _half_text(labelled_first if labelled_first is not None else anchor_player)
+        )
         labelled_final_changed.append(labelled_final != natural_final)
 
     for column, values in server_predictions.items():
@@ -571,6 +577,7 @@ def apply_fixed_rules(features: pd.DataFrame) -> pd.DataFrame:
     results["evidence_only_server"] = evidence_servers
     results["missing_contact_refit_server"] = parity_servers
     results["inferred_player_refit_server"] = labelled_servers
+    results["anchor_fallback_refit_server"] = anchor_fallback_refit_servers
     results["inferred_player_vote_changed_final_fit"] = labelled_final_changed
     prediction_columns = [
         "assume_first_contact_is_serve",
@@ -578,6 +585,7 @@ def apply_fixed_rules(features: pd.DataFrame) -> pd.DataFrame:
         "evidence_only_server",
         "missing_contact_refit_server",
         "inferred_player_refit_server",
+        "anchor_fallback_refit_server",
         *server_predictions,
     ]
     for column in prediction_columns:
@@ -706,6 +714,9 @@ def _score_methods(frame: pd.DataFrame) -> dict[str, dict[str, object]]:
         ),
         "0.05-BH trend then prepend other player": classification_metrics(
             frame, "inferred_player_refit_server"
+        ),
+        "0.05-BH trend then like-for-like refit": classification_metrics(
+            frame, "anchor_fallback_refit_server"
         ),
     }
 

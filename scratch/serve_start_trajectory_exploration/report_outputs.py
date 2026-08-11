@@ -98,12 +98,12 @@ def _population_table(metrics: dict[str, object]) -> str:
     """Format the three deliberately different rally populations."""
     populations = _metric(metrics, "population_counts")
     rows = (
-        (ALL_POPULATION, "All GT rallies", "End-to-end view, including segmentation failures"),
-        (COVERED_POPULATION, "Covered rallies", "Sensitivity to the current COVERED definition, including merges"),
-        (PRIMARY_POPULATION, "One-to-one rallies", "Analyses that need one predicted rally per GT rally"),
+        (ALL_POPULATION, "All ground-truth (GT) rallies", "End-to-end view, including segmentation failures"),
+        (COVERED_POPULATION, "Covered rallies", "Check how results change under the current COVERED definition, including merged rallies"),
+        (PRIMARY_POPULATION, "One-to-one rallies", "Analyses that need one predicted rally for each GT rally"),
     )
     lines = [
-        "| Rally group | All videos | sset_01 | sset_15 | sset_21 | Used for |",
+        "| Rally group | All videos | sset_01 | sset_15 | sset_21 | What it is used for |",
         "|---|---:|---:|---:|---:|---|",
     ]
     for key, label, use in rows:
@@ -298,10 +298,10 @@ def _server_score_table(metrics: dict[str, object], population: str) -> str:
         "anchor player",
         "historical rule, recurrence mask",
         "0.05-BH trend rule, recurrence mask",
+        "0.05-BH trend then like-for-like refit",
         "0.05-BH trend rule, recurrence plus producer mask",
         "0.05-BH trend evidence only",
         "0.05-BH trend then prepend unknown player",
-        "0.05-BH trend then prepend other player",
     )
     labels = {
         "old alternating fit": "Released alternating fit",
@@ -315,7 +315,9 @@ def _server_score_table(metrics: dict[str, object], population: str) -> str:
         ),
         "0.05-BH trend evidence only": "Motion answer only; abstain without usable evidence",
         "0.05-BH trend then prepend unknown player": "Prepend one unknown contact before alternating fit",
-        "0.05-BH trend then prepend other player": "Prepend inferred server before alternating fit",
+        "0.05-BH trend then like-for-like refit": (
+            "Earliest-contact fallback; prepend inferred server and refit on incoming triggers"
+        ),
     }
     denominator = int(scores["old alternating fit"]["n"])
     lines = [
@@ -360,15 +362,69 @@ def _server_by_fixture_table(metrics: dict[str, object]) -> str:
     """Format primary server results by fixture."""
     by_fixture = _metric(metrics, "server_scores", PRIMARY_POPULATION, "by_fixture")
     lines = [
-        "| Video | Rallies | Released fit | Earliest-contact player | 0.05-BH direct motion rule |",
-        "|---|---:|---:|---:|---:|",
+        "| Video | Rallies | Released fit | Earliest-contact player | Direct motion correction | Prepend/refit, same fallback |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
     for fixture, scores in by_fixture.items():
         old = scores["old alternating fit"]
         anchor = scores["anchor player"]
         trend = scores["0.05-BH trend rule, recurrence mask"]
+        refit = scores["0.05-BH trend then like-for-like refit"]
         lines.append(
-            f"| {fixture} | {trend['n']} | {old['correct']} | {anchor['correct']} | {trend['correct']} |"
+            f"| {fixture} | {trend['n']} | {old['correct']} | {anchor['correct']} | {trend['correct']} | "
+            f"{refit['correct']} |"
+        )
+    return "\n".join(lines)
+
+
+def _prepend_refit_comparison_table(results: pd.DataFrame) -> str:
+    """Show how fallback choice and triggered refitting contribute separately."""
+    primary = results[results["primary_one_to_one"].astype(bool)]
+    triggered = primary["recurrence_clean_robust_trend_incoming"].astype(bool)
+    groups = (
+        ("No incoming-motion trigger", primary[~triggered]),
+        ("Incoming-motion trigger", primary[triggered]),
+        ("All primary rallies", primary),
+    )
+    methods = (
+        "anchor_player",
+        "motion_rule_server",
+        "anchor_fallback_refit_server",
+    )
+    lines = [
+        "| Motion group | Rallies | Earliest-contact baseline | Direct correction | Prepend/refit |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for label, frame in groups:
+        cells = []
+        for column in methods:
+            correct = int(frame[column].eq(frame["gt_server"]).sum())
+            known = int(frame[column].notna().sum())
+            cells.append(f"{correct} correct; {known} answers")
+        lines.append(f"| {label} | {len(frame)} | {' | '.join(cells)} |")
+    return "\n".join(lines)
+
+
+def _prepend_refit_disagreement_table(results: pd.DataFrame) -> str:
+    """List the triggered rallies where direct inference and refitting differ."""
+    primary = results[results["primary_one_to_one"].astype(bool)]
+    triggered = primary["recurrence_clean_robust_trend_incoming"].astype(bool)
+    direct = primary["motion_rule_server"].fillna("Unknown")
+    augmented_fit = primary["inferred_player_refit_server"].fillna("Tie")
+    disagreements = primary[triggered & direct.ne(augmented_fit)]
+    lines = [
+        "| Rally | What the augmented fit does | Direct inference | Prepend/refit result | GT server |",
+        "|---|---|---|---|---|",
+    ]
+    for row in disagreements.itertuples(index=False):
+        augmented_result = row.inferred_player_refit_server
+        if pd.isna(augmented_result):
+            behaviour = "Ties; retain earliest-contact fallback"
+        else:
+            behaviour = f"Later votes override to {augmented_result}"
+        lines.append(
+            f"| {row.fixture} {row.set_id} rally {int(row.rally)} | {behaviour} | {row.motion_rule_server} | "
+            f"{row.anchor_fallback_refit_server} | {row.gt_server} |"
         )
     return "\n".join(lines)
 
@@ -665,17 +721,28 @@ def plot_representative_errors(
 def plot_server_attribution(metrics: dict[str, object], plot_dir: Path) -> None:
     """Plot the main server methods on one explicit primary denominator."""
     scores = _metric(metrics, "server_scores", PRIMARY_POPULATION, "global")
+    denominator = int(scores["old alternating fit"]["n"])
+    incoming_calls = int(
+        _metric(
+            metrics,
+            "path_funnel",
+            PRIMARY_POPULATION,
+            "global",
+            "recurrence_clean",
+            "robust_trend_incoming",
+        )
+    )
     methods = (
         "old alternating fit",
         "anchor player",
         "0.05-BH trend rule, recurrence mask",
-        "0.05-BH trend then prepend other player",
+        "0.05-BH trend then like-for-like refit",
     )
     labels = (
         "Released\nalternating fit",
         "Earliest-contact\nplayer",
-        "Earliest-contact fallback\n+ motion-backed flips",
-        "Inferred-player prepend\n+ alternating refit",
+        "Same fallback\n+ direct motion correction",
+        "Same fallback\n+ triggered prepend/refit",
     )
     values = [scores[method]["accuracy"] for method in methods]
     x_positions = np.arange(len(methods))
@@ -698,11 +765,11 @@ def plot_server_attribution(metrics: dict[str, object], plot_dir: Path) -> None:
     axis.set(
         xticks=x_positions,
         xticklabels=labels,
-        ylabel="Correct server over all 239 one-to-one rallies",
+        ylabel=f"Correct server over all {denominator} one-to-one rallies",
         ylim=(0, 0.79),
         title=(
-            "The direct motion correction helps; feeding it back into the alternating fit loses the gain\n"
-            "The direct method uses the earliest-contact player by default and changes only 15 incoming calls"
+            "Shared fallback isolates the effect of refitting on motion-triggered rallies\n"
+            f"The two right bars differ only on the {incoming_calls} incoming-motion triggers"
         ),
     )
     axis.yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -724,149 +791,170 @@ def _write_report(
     covered_alignment = _metric(metrics, "alignment", COVERED_POPULATION, "global")
     sequence = _metric(metrics, "unmatched_anchor_sequences")
     primary_scores = _metric(metrics, "server_scores", PRIMARY_POPULATION, "global")
-    summary_report = f"""# What the earliest accepted contact tells us about the serve
+    summary_report = f"""# What the earliest accepted contact tells us about who served
 
-## Bottom line
+## Main takeaway
 
-All server scores in this paragraph use the same 239 one-to-one rallies. The released alternating fit gets **{primary_scores['old alternating fit']['correct']}** right. Using the player at the earliest accepted contact gets **{primary_scores['anchor player']['correct']}** right. Usable pre-contact motion exists in only **24/239** rallies, so motion can only be a small correction. Using the earliest-contact player by default, then changing the answer when motion clearly approaches that player, reaches **{primary_scores['0.05-BH trend rule, recurrence mask']['correct']}**. The new information helps when used directly. Prepending the inferred missing serve and rerunning the alternating fit falls to **{primary_scores['0.05-BH trend then prepend other player']['correct']}**. The old fit therefore loses most of the direct gain. The practical priority is to improve which accepted contact becomes the anchor and how often a clean motion path exists. More trajectory complexity cannot help rallies that never reach a trustworthy contact or usable path.
+All server results here use the same 239 one-to-one rallies. The released alternating-fit method gets **{primary_scores['old alternating fit']['correct']}** right. If we assume that the player at the earliest accepted contact served, that rises to **{primary_scores['anchor player']['correct']}**.
 
-## Why anchor selection comes first
+Only **24/239** rallies have usable shuttle motion before that contact, so motion can only help in a small number of cases. It is a correction to the basic method, not something we can use for every rally. Applying the motion correction directly raises the result to **{primary_scores['0.05-BH trend rule, recurrence mask']['correct']}** correct. The prepend/refit method uses the same earliest-contact fallback and the same 15 motion triggers, but gets **{primary_scores['0.05-BH trend then like-for-like refit']['correct']}** correct. On those 15 triggered rallies, the direct method gets 13 right and prepend/refit gets 9.
 
-At the normal ±10 timing tolerance, **97 of 239** earliest contacts do not match a ShuttleSet stroke. Later accepted contacts recover the serve in 49 of those rallies and the first return in another 36. This means many failures occur before motion classification. An early ordinary candidate often takes the anchor position, or the accepted sequence misses the serve while retaining the return.
+Rerunning the full fit after adding the motion-based guess does not help in this sample. The bigger priorities are making sure we start from the right contact and increasing the number of rallies with usable motion paths.
 
-## What should we do next?
+## Why getting the first contact right matters
 
-Improve anchor selection and motion-path availability before adding a richer trajectory classifier. Keep the 0.05-BH rule unchanged while testing it on new videos. This focuses work on the two bottlenecks that limit the current method: the wrong contact can become the anchor, and only 24/239 rallies contain usable motion evidence.
+With the normal ±10 timing tolerance, **97 of 239** earliest accepted contacts do not match any ShuttleSet stroke. Looking at later accepted contacts recovers the serve in 49 of those rallies and the first return in another 36.
 
-## Extended summary (optional)
+Many errors happen before we try to classify the shuttle motion. Sometimes an earlier ordinary contact candidate is accepted first. In other cases, the accepted contact sequence misses the serve but still includes the return.
 
-This investigation asks whether the shuttle approaches the player at the earliest accepted contact. Incoming motion suggests that this contact is the first return, not the serve. The other player is then the likely server. The useful version of this idea is modest: start with the player measured at the earliest contact and use motion only to correct a small number of calls.
+## What should we try next?
 
-Three rally counts describe different parts of the evaluation. ShuttleSet contains **292 ground-truth rallies**. That number shows end-to-end performance and includes segmentation failures. The current segmentation marks **249 rallies as covered**, but ten of those rallies share five predicted spans. They remain a sensitivity view of the existing `COVERED` definition. The main result uses **239 one-to-one rallies**, where one predicted span maps to one ground-truth rally. This avoids scoring the same contact sequence twice.
+Improve how we choose the starting contact and increase the number of usable motion paths before adding a more complicated trajectory classifier.
 
-These populations are not interchangeable. Using all 292 rallies for trajectory scoring would mix missing predicted spans with motion mistakes. Using all 249 covered rallies would reuse one accepted-contact sequence for both ground-truth rallies inside each merged span. The 239-rally set removes those two problems. The broader populations remain useful later, where they show how segmentation failures and the current merge definition affect end-to-end accuracy.
+Keep the 0.05-BH rule unchanged while testing it on new videos. The two main limits of the current method are: the wrong contact can be chosen as the starting point, and only 24/239 rallies have usable motion evidence.
 
-The earliest accepted contact is an ordinary output of the released contact detector. It is not designed to find serves. The detector starts from shuttle impulses and player proximity, then applies its usual wrist, suppression and exclusion checks. The analysis measures which player is nearest at that accepted frame. It does not use the released alternating server fit to choose that player.
+<!-- TOC START -->
+## Contents
 
-This direct player measurement gives a simple baseline. If the contact is the serve, its player is the server. If the contact is the first return, the other player served. The baseline works only as well as the chosen contact. The timing comparison therefore comes before any motion classification or server score.
+- [Main takeaway](#main-takeaway)
+- [Why getting the first contact right matters](#why-getting-the-first-contact-right-matters)
+- [What should we try next?](#what-should-we-try-next)
+- [Why do we use 292, 249 and 239 rallies in different places?](#why-do-we-use-292-249-and-239-rallies-in-different-places)
+- [Is the first accepted contact the serve?](#is-the-first-accepted-contact-the-serve)
+- [What happens when the first contact does not match?](#what-happens-when-the-first-contact-does-not-match)
+- [How does the motion correction work?](#how-does-the-motion-correction-work)
+- [How often do we have usable motion?](#how-often-do-we-have-usable-motion)
+- [Does excluding producer-marked interpolation help?](#does-excluding-producer-marked-interpolation-help)
+- [Does prepend/refit improve the motion-based guess?](#does-prependrefit-improve-the-motion-based-guess)
+- [Extra diagnostics and rule comparisons (optional)](#extra-diagnostics-and-rule-comparisons-optional)
+  - [Do the diagnostics point to a better rule?](#do-the-diagnostics-point-to-a-better-rule)
+  - [How does the older 0.25-BH rule compare?](#how-does-the-older-025-bh-rule-compare)
+  - [Which usable paths give the wrong answer?](#which-usable-paths-give-the-wrong-answer)
+- [Extra breakdowns (optional)](#extra-breakdowns-optional)
+  - [Segmentation by video](#segmentation-by-video)
+  - [Contact alignment by video](#contact-alignment-by-video)
+  - [Follow-up for unmatched earliest contacts](#follow-up-for-unmatched-earliest-contacts)
+  - [Motion availability by video](#motion-availability-by-video)
+  - [Fixed motion rules by video](#fixed-motion-rules-by-video)
+  - [Server results and broader checks](#server-results-and-broader-checks)
+  - [The four triggered rallies where direct and prepend/refit disagree](#the-four-triggered-rallies-where-direct-and-prependrefit-disagree)
+- [Note about an earlier exploratory comparison](#note-about-an-earlier-exploratory-comparison)
+- [Limits](#limits)
+- [Output files](#output-files)
+<!-- TOC END -->
 
-The practical timing check allows ±10 base-30fps frames between the accepted contact and an annotated stroke. On the 239 one-to-one rallies, the earliest contact is nearest the serve in 119 cases, the first return in 19, and a later stroke in 4. In **97 rallies**, no annotated stroke lies inside the window. Five windows contain more than one annotated stroke, which the analysis flags separately. Stricter ±5 and broader ±30 views are reported later as supporting checks, but ±10 is the main baseline.
-
-The 97 unmatched earliest contacts show that many failures happen before trajectory classification. A later accepted contact matches the serve in 49 rallies. In another 36, no later contact matches the serve, but one matches the first return. The first pattern is consistent with an early ordinary candidate taking the anchor position. The second is consistent with the serve being absent from the accepted sequence while the return remains detectable. Only nine first match another later stroke, and three have no later match. Better anchor selection is therefore a central finding, not a side issue.
-
-Motion coverage is the next limitation. Only **24 of 239 rallies** have a continuous pre-contact path that passes the shared quality checks. The direct server method does not make 239 trajectory-based decisions. It uses the earliest-contact player as its answer whenever motion is unavailable or does not say incoming. Motion changes the answer only when the fixed 0.05-body-height trend rule finds a clear approach towards that player.
-
-This separation matters when reading the final accuracy. A rally without usable motion is not evidence that the shuttle moved away from the player. It is a rally where the trajectory method cannot answer. The full server method still answers because it falls back to the directly measured contact player.
-
-That limited correction still helps. The released alternating fit gets {primary_scores['old alternating fit']['correct']}/239 rallies right. The earliest-contact player alone gets {primary_scores['anchor player']['correct']}/239. Adding the motion-backed correction reaches **{primary_scores['0.05-BH trend rule, recurrence mask']['correct']}/239**. The gain is not evidence that trajectory solves server attribution generally. It shows that a small amount of usable incoming-motion evidence can correct some otherwise direct contact-player calls.
-
-The prepend experiment gives an important negative result. Supplying an inferred missing serve and rerunning the old alternating fit reaches only {primary_scores['0.05-BH trend then prepend other player']['correct']}/239. The new information is useful when applied directly, but the alternating refit largely throws that improvement away. This result argues against recursive refitting as the next step.
-
-The practical next step is to improve which accepted contact becomes the anchor and how often a clean pre-contact path exists. The fixed 0.05-body-height rule should remain unchanged until it is tested on new videos. More complicated motion classification would add machinery while the larger contact-selection and evidence-availability failures remain unresolved.
 """
-    detail = f"""
+    detail = f"""## Why do we use 292, 249 and 239 rallies in different places?
 
-## What are the 292, 249 and 239 rallies?
-
-The main result uses 239 rallies because each has one predicted span and one contact sequence for one ground-truth rally. The 249-rally and 292-rally views answer broader sensitivity questions; they do not replace that primary comparison.
+The main comparison uses 239 rallies because each of these has exactly one predicted span and one contact sequence for one ground-truth rally. The 249-rally and 292-rally results show how the findings change when we include broader sets of rallies. They are useful checks, but they do not replace the main 239-rally comparison.
 
 {_population_table(metrics)}
 
-**Population trail:** 292 ground-truth rallies → 249 covered rallies → 239 one-to-one rallies.
+**How the groups narrow down:** 292 ground-truth rallies → 249 covered rallies → 239 one-to-one rallies.
 
-The 249 covered rows use 244 predicted spans. There are 239 one-rally spans and five spans that each cover two ground-truth rallies. The merged rows remain visible in the covered sensitivity results, but the primary analysis never scores their shared contact sequence twice.
+The 249 covered rows come from 244 predicted spans. Of those spans, 239 cover one ground-truth rally each, while five spans each cover two ground-truth rallies. Those merged cases stay in the 249-rally results, but the main analysis does not score the same shared contact sequence twice.
 
-The investigation keeps five stages separate:
+The analysis separates five questions:
 
-1. Segmentation maps a ground-truth rally to a predicted span or fails.
-2. The earliest accepted contact matches a plausible stroke or does not.
-3. A continuous pre-contact path is unavailable, rejected by the quality checks, or usable.
-4. A usable path falls above or below the fixed incoming threshold.
-5. The resulting server attribution is correct or incorrect.
+1. Did segmentation map the ground-truth rally to a predicted span?
+2. Does the earliest accepted contact match a plausible stroke?
+3. Is there a usable continuous shuttle path before that contact?
+4. If there is a usable path, is its incoming-motion measure above or below the fixed threshold?
+5. Does the final guess about who served turn out to be correct?
 
-## Is the first accepted contact actually the serve?
+## Is the first accepted contact the serve?
 
-Usually it is closest to the serve, but **97 of 239** earliest contacts do not match any annotated stroke at the main ±10 tolerance. The anchor is therefore useful, but too unreliable to treat as a detected serve.
+Often, but not reliably enough to call it a detected serve. The serve is the largest single category, at **119 of 239** rallies, but **97 of 239** earliest contacts do not match any annotated stroke at the main ±10 tolerance.
 
-The offset is `(accepted contact frame - GT stroke frame) × 30 / source fps`. Negative values mean the accepted contact occurs earlier. Each tolerance keeps the nearest stroke identity even when several strokes lie inside the window. The last column reports that ambiguity separately.
+The earliest accepted contact is the first output accepted by the released contact detector; it is not produced by a dedicated serve detector. The detector begins with shuttle impulses and player proximity, then applies wrist, suppression and exclusion checks. For this analysis, we independently measure which player is nearest at the accepted frame rather than relying on the released alternating fit.
 
-{_alignment_table(primary_alignment['global'])}
+The timing offset is:
+
+`(accepted contact frame - GT stroke frame) × 30 / source fps`
+
+A negative value means the accepted contact happens earlier than the ground-truth stroke. At each tolerance, we keep the nearest stroke as the match even if several strokes fall inside the window. The final column in the results reports those ambiguous cases separately.
 
 ![Nearest GT stroke at all three tolerances](outputs/plots/anchor_alignment.png)
 
-The ±10 bar is the practical baseline. The ±5 strict view and ±30 sanity check show how the result changes with tolerance. The broad ±30 window contains several strokes in 117 rallies, so it is not clean identity truth.
+The small “multiple” number shows when the timing window contains more than one possible GT stroke. We still use whichever stroke is closest to the accepted contact. This is rare at ±10 (5 rallies), but happens in 117 rallies at ±30, so the wider window is too ambiguous to tell us reliably which stroke the contact belongs to.
 
-## What happens when the first contact is wrong?
+We use ±10 as the main tolerance. The stricter ±5 result and the broad ±30 check show how much the answer changes when the tolerance changes.
 
-Later accepted contacts recover the serve or first return in **85 of the 97** unmatched rallies. Many unmatched anchors therefore reflect an early candidate taking the anchor position or a missing serve, rather than a failure of the later sequence as a whole.
+## What happens when the first contact does not match?
 
-{_unmatched_table(sequence)}
+Later accepted contacts recover either the serve or the first return in **85 of the 97** rallies where the earliest contact does not match. This suggests that many bad starting contacts come from an early candidate being accepted first, or from the serve being missed even though later contacts are still present.
 
 ![Later-contact outcomes after an unmatched anchor](outputs/plots/unmatched_anchor_followup.png)
 
-Later contacts are checked independently against every annotated stroke at the same ±10 tolerance. A stroke is not consumed after one match. The first later match occurs at accepted-contact rank 2 in 56 rallies, rank 3 in 17, rank 4 in 9, and rank 5 or later in 12. Rank is one-based in the full accepted sequence, so the first later contact has rank 2.
+Each later accepted contact is checked independently against every annotated stroke using the same ±10 tolerance. A stroke is allowed to match more than one accepted contact. The first later match appears at contact rank 2 in 56 rallies, rank 3 in 17, rank 4 in 9, and rank 5 or later in 12. Ranks count from the start of the full accepted sequence, so the first later contact is rank 2.
 
-Four first matches have more than one annotated stroke inside ±10. Twenty-seven sequences reuse one stroke ordinal for more than one accepted contact. These flags make the non-consuming check explicit and do not change the outcome categories.
+Four of these first matches have more than one annotated stroke inside the ±10 window. In 27 sequences, the same stroke number matches more than one accepted contact. These cases are flagged; they do not change the result categories.
 
-The 55 anchors still unmatched at ±30 are best described as **GT-incompatible candidates under the ±30 sanity criterion**. This wording does not claim a visually verified false contact.
+There are still 55 earliest contacts with no match even at ±30. We describe them as **GT-incompatible candidates under the ±30 sanity check**. That means they do not match the existing ground truth within ±30; it does not mean we manually inspected them and proved they were false contacts.
 
-## Can incoming motion help?
+## How does the motion correction work?
 
-Yes, but usable pre-contact motion exists in only **24 of 239** one-to-one rallies. The motion result is a small correction to the earliest-contact fallback, not a stand-alone answer for every rally.
+The motion check asks whether the shuttle is moving towards that player before the earliest accepted contact.
+
+If it is, the contact is more likely to be the first return rather than the serve, which means the other player probably served. If the path does not meet the incoming-motion threshold, we leave the earliest-contact guess unchanged.
+
+To build the motion path, we look back by at most 30 frames on a 30-fps base timeline, staying within the same court scene. We choose the continuous run closest to the contact. A path is usable only if it has at least five samples, ends close enough to the contact, has recurrence guard `NO_FLAG`, has valid player-distance and body-height measurements, and contains no extremely large single-step jump.
+
+For the trend measure, we calculate the slope between every pair of shuttle-to-player distance samples and take the median slope. Time is scaled from zero to one across the path. We then use the negative slope as the fitted decrease in distance. If that decrease is at least **0.05 apparent player body heights (BH)**, we call the path incoming.
+
+The 0.05-BH threshold was chosen in advance as an engineering judgement. It is not a calibrated physical constant.
+
+The direct method changes the basic earliest-contact guess when the shuttle meets the incoming-motion threshold for the contact player. The prepend/refit method instead adds the inferred server to the contact sequence and reruns the full alternating fit. Motion affects few rallies because usable motion evidence is rare.
+
+## How often do we have usable motion?
+
+Under the main recurrence check, only **24 of 239** one-to-one rallies have usable motion before the contact. The stricter check that also excludes producer-marked filled or interpolated points leaves 14. For most rallies, the method keeps the earliest-contact guess.
 
 ![Usable motion evidence under both TrackNet source checks](outputs/plots/motion_evidence_and_inpaint.png)
 
-The path search looks back at most 30 base-30fps frames within the same court scene and uses the continuous run closest to contact. Both fixed rules require at least five samples, a final sample close to the contact, recurrence guard `NO_FLAG`, finite player-distance and body-height evidence, and no gross single-step jump.
+We can judge the motion rule against **135 earliest contacts** where the ±10 ground truth identifies either serve or first return without ambiguity: 118 serves and 17 first returns. Nineteen of those 135 have usable paths under the recurrence check.
 
-{_path_table(metrics)}
+The fixed rule marks 13 of those 19 paths as incoming. Nine are genuine first returns, while four are serves and therefore false return calls.
 
-“Continuous run selected” means that at least one source point exists. “At least 5 points and close enough” applies the sample-count and contact-gap checks. “Passes the shared jump check” is the usable-evidence count for the 0.05-BH decision. A rally outside that count has no motion answer.
+Looking specifically at the 17 ground-truth first returns: 9 are correctly called incoming, 4 have usable paths but stay below the 0.05-BH threshold, and 4 do not have a usable path at all. The distinction matters: "measured but below threshold" is different from "we had no usable motion evidence."
 
-To judge the motion call itself, the analysis needs an anchor that can be labelled confidently as either the serve or first return. There are **135 such rallies** at ±10: 118 serves and 17 first returns. Nineteen have usable recurrence-checked paths. The fixed 0.05-BH rule correctly identifies 9 returns, makes 4 false return calls on serves, and misses 8 returns. Four of those misses have usable motion below the threshold; four have no usable path.
+Across all 239 rallies, there are 24 usable paths and 15 incoming calls. Five of those usable paths belong to contacts that are unmatched or match a later stroke, so they cannot be included in the 135-rally serve-versus-return scoring set.
 
-The 24 usable paths and 15 incoming calls over all 239 rallies are broader availability counts. Restricting to the 135 labelled rallies leaves 19 usable paths and 13 incoming calls. The other five usable paths have an unmatched or later-stroke anchor and cannot enter serve-versus-return scoring.
+## Does excluding producer-marked interpolation help?
 
-## Does removing inpainted TrackNet points help?
+It removes the four false return calls, but it also removes useful evidence. With the same fixed 0.05-BH rule, the number of correctly found returns drops from 9 to 7.
 
-Removing producer-marked filled or interpolated points eliminates the four false return calls, but it also removes useful evidence. The same fixed 0.05-BH rule then finds 7 returns instead of 9. This is a precision-coverage trade-off, not a retuned comparison.
+This is a trade-off: fewer false calls, but also fewer rallies where we can make a useful motion-based call. The rule itself has not been retuned.
 
 {_trend_inpaint_table(rule_rows)}
 
-The threshold and every other motion decision remain unchanged between rows. Usable labelled paths fall from 19 to 10. Under the stricter source check, one missed return has usable motion below 0.05 BH and nine have no usable path. Every video loses evidence.
+The threshold and all other motion decisions stay the same in both rows. The number of labelled usable paths falls from 19 to 10. With the stricter source check, one missed return has usable motion but stays below 0.05 BH, while nine have no usable path. Every video loses some usable evidence.
 
-## Does the inferred missing serve improve server identification?
+## Does prepend/refit improve the motion-based guess?
 
-The new information helps when used directly. Feeding it back into the released alternating fit mostly loses the improvement: **163/239 falls to 127/239**.
+No, not in this sample. The direct motion method gets **163/239** rallies right. Prepend/refit gets **159/239**, even though both use the same fallback and the same set of motion triggers. The entire four-answer difference comes from the 15 rallies where motion triggers.
 
 ![Four central server-attribution results](outputs/plots/server_attribution.png)
 
-The direct method starts with the earliest-contact player. It changes that answer only for the 15 rallies where usable motion says the shuttle is incoming. When evidence is unavailable or the path does not say incoming, the earliest-contact player remains the answer.
+When motion does not trigger, both methods choose the player at the earliest accepted contact. When motion does trigger, the direct method chooses the other player as server.
 
-The full primary table keeps the historical rule, stricter producer mask, evidence-only result and both prepend variants visible:
+Prepend/refit adds that inferred server to the contact sequence, reruns the alternating fit, and falls back to the earliest-contact player if the fit ties.
 
-{_server_score_table(metrics, PRIMARY_POPULATION)}
+{_prepend_refit_comparison_table(results)}
 
-Accuracy retains all 239 rallies in the denominator. “Answers made” shows whether a method supplied Top or Bottom. The inferred-player prepend answers 217 rallies, while the direct fallback answers all 239.
+For the 15 triggered rallies, direct inference and prepend/refit agree in 11 cases. In two cases, later contact votes overturn a correct direct guess. In two more, the alternating fit ties.
 
-## Detailed motion methods and diagnostics
+These four cases show how using the whole contact sequence can sometimes weaken a good local motion clue. Fifteen triggered rallies is too small a sample to know whether this pattern will continue on new videos, but in this sample the extra refitting step does not improve the result.
 
-The detail below explains the fixed rule comparison and track-noise measurements. It supports the main result, but neither diagnostic changes a call.
+## Extra diagnostics and rule comparisons (optional)
 
-### Historical absolute closure versus the 0.05-BH trend
+The sections below contain the diagnostic results, comparisons with the older rule, and individual failure cases.
 
-The robust trend takes the median slope between every pair of shuttle-to-player distance samples. Time is normalised from zero to one across the observed path. The fitted decrease is the negative slope. The call is “incoming” only when that decrease reaches 0.05 apparent player body heights.
+### Do the diagnostics point to a better rule?
 
-Both rules first use the shared sample-count, contact-gap, recurrence, finite-evidence and jump checks. The historical rule then adds its 0.25-BH total-movement eligibility floor. The trend rule does not. This is why the historical row has 18 eligible paths rather than 19 under the recurrence check, and 9 rather than 10 after removing producer-marked inpaint. Net closure of 0.25 BH and the 55% approaching-step condition then decide the historical call.
+No. There are too few usable paths, and the groups overlap too much. Path length, residual scatter and trend-to-jitter do not show a clear reason to add another cutoff.
 
-{_rule_table(rule_rows)}
-
-All four rows use the same 135 confidently labelled anchors. “Returns missed” includes both usable paths below threshold and returns without usable evidence. The 0.25 values came from the old analysis, while 55% was selected under old ±5/249 scoring. None is an independently calibrated physical threshold. The 0.05-BH value is an engineering judgement fixed before corrected scoring and was never swept.
-
-{_rule_by_fixture_table(rule_rows)}
-
-### What trend and jitter show
-
-The 0.05-BH fitted decrease alone makes the call. Residual RMS measures scatter around the robust trend. Trend-to-jitter divides fitted decrease by that scatter. Neither diagnostic is an eligibility test or another classifier.
+The decision itself uses only the 0.05-BH fitted decrease. Residual RMS tells us how much the points scatter around the fitted trend. Trend-to-jitter is the fitted decrease divided by that scatter. These are diagnostics; they do not decide whether a path is usable and they are not separate classifiers.
 
 {_diagnostic_table(diagnostics, 'gt_anchor_identity')}
 
@@ -874,19 +962,37 @@ The 0.05-BH fitted decrease alone makes the call. Residual RMS measures scatter 
 
 {_path_length_diagnostic_table(diagnostics)}
 
-The path-length groups are descriptive summaries only. They were not used to make or tune the call.
+These path-length groups summarise what we observed. They were not used to choose or adjust the rule.
 
 ![Continuous trend and jitter diagnostics](outputs/plots/trend_and_jitter_diagnostics.png)
 
-Serves and first returns have similar median fitted decreases in this small usable set. Correct calls show a much larger median fitted decrease and trend-to-jitter than incorrect calls. Incorrect calls also have slightly more residual scatter. These patterns do not justify another cutoff.
+In this small set, serves and first returns have almost the same median fitted decrease. Correct calls have a larger median fitted decrease and a higher trend-to-jitter value than incorrect calls. Incorrect calls also have slightly more residual scatter. These are observations about this sample, not new decision rules.
 
-The error plot shows all eight mistakes with usable recurrence-checked paths: four false return calls and four missed returns. The cases are {', '.join(error_cases)}.
+### How does the older 0.25-BH rule compare?
+
+The older rule requires all three of the following: at least 0.25 BH of total shuttle movement, at least 0.25 BH of net movement towards the player, and at least 55% of steps moving towards the player.
+
+The 0.05-BH trend rule instead checks whether the fitted decrease in shuttle-to-player distance reaches 0.05 BH across the observed path.
+
+Both rules use the same checks for sample count, distance from the final path point to the contact, recurrence flags, valid measurements and large jumps. Because the older rule also requires 0.25 BH of total movement, it leaves 18 eligible paths instead of 19 with the recurrence check, and 9 instead of 10 with the producer mask added.
+
+{_rule_table(rule_rows)}
+
+All four rows use the same 135 earliest contacts with unambiguous ±10 labels. "Returns missed" includes both returns with a usable path that falls below the threshold and returns with no usable motion evidence.
+
+Neither rule was chosen because of the scores in this table. The 0.25-BH values come from the older analysis. The 55% step threshold was chosen using the older ±5/249 scoring setup. The 0.05-BH value was set in advance as an engineering judgement. None of these values has been independently calibrated as a physical threshold.
+
+### Which usable paths give the wrong answer?
+
+There are eight errors among the usable paths: four false return calls on ground-truth serves and four missed ground-truth returns. The traces below show the rally-level evidence for those cases.
+
+The cases are {', '.join(error_cases)}.
 
 ![All 0.05-BH false return calls and missed returns with usable paths](outputs/plots/trend_rule_errors.png)
 
-## Supporting breakdowns (optional)
+## Extra breakdowns (optional)
 
-The tables below retain the per-video and sensitivity evidence without placing it in the main reading path.
+The tables below show the per-video results and the broader checks.
 
 ### Segmentation by video
 
@@ -894,40 +1000,72 @@ The tables below retain the per-video and sensitivity evidence without placing i
 
 ### Contact alignment by video
 
+{_alignment_table(primary_alignment['global'])}
+
 {_alignment_by_fixture_table(primary_alignment['by_fixture'])}
 
-The merge-sensitive 249-row view is close to the primary result at ±10: {covered_alignment['10']['labels'].get('contact_1', 0)} nearest serves, {covered_alignment['10']['labels'].get('contact_2', 0)} nearest first returns, {covered_alignment['10']['labels'].get('later', 0)} later strokes and {covered_alignment['10']['labels'].get('unmatched', 0)} unmatched anchors. It has {covered_alignment['10']['multiple']} multiple-stroke windows. Similar counts do not make merged rows suitable for one-rally trajectory scoring.
+At ±10, the broader 249-row view has {covered_alignment['10']['labels'].get('contact_1', 0)} nearest serves, {covered_alignment['10']['labels'].get('contact_2', 0)} nearest first returns, {covered_alignment['10']['labels'].get('later', 0)} later strokes and {covered_alignment['10']['labels'].get('unmatched', 0)} unmatched earliest contacts. It also has {covered_alignment['10']['multiple']} windows containing more than one stroke.
+
+That similarity does not make the merged rows suitable for trajectory scoring that assumes one predicted rally corresponds to one ground-truth rally.
+
+### Follow-up for unmatched earliest contacts
+
+{_unmatched_table(sequence)}
 
 ### Motion availability by video
 
+{_path_table(metrics)}
+
+"Continuous run selected" means there is at least one source point in the selected run. "At least 5 points and close enough" applies the minimum sample count and contact-gap checks. "Passes the shared jump check" is the final count of paths considered usable for the 0.05-BH decision. Rallies outside that count do not get a motion-based answer.
+
 {_path_by_fixture_table(metrics)}
 
-### Server sensitivity and video results
+### Fixed motion rules by video
+
+{_rule_by_fixture_table(rule_rows)}
+
+### Server results and broader checks
+
+{_server_score_table(metrics, PRIMARY_POPULATION)}
+
+The accuracy percentage always uses all 239 rallies as the denominator. "Answers made" tells us whether the method supplied Top or Bottom. The direct method and prepend/refit both fall back to the earliest-contact player, so they give an answer for all 239 rallies.
 
 {_server_population_sensitivity_table(metrics)}
 
-The 292-row view includes all 43 segmentation failures. Those failures have no anchor-based answer. The 249-row view includes ten merged ground-truth rows. Neither sensitivity view replaces the 239-rally primary result.
+The 292-rally view includes all 43 segmentation failures. Those rallies have no contact to use for an earliest-contact answer. The 249-rally view includes ten ground-truth rows that belong to merged spans. These broader results are useful checks, but neither replaces the main 239-rally result.
 
 {_server_by_fixture_table(metrics)}
 
+### The four triggered rallies where direct and prepend/refit disagree
+
+{_prepend_refit_disagreement_table(results)}
+
+## Note about an earlier exploratory comparison
+
+One exploratory calculation combined prepend/refit on triggered rallies with the released alternating-fit method as the fallback on non-triggered rallies. It scored 127/239.
+
+That result is not a like-for-like comparison with the direct method because the fallback is different. Of the 36-correct-answer gap between that calculation and the direct method, 32 answers come from the different fallback and only four come from the refitting on triggered rallies.
+
+The row-level output keeps this calculation so it can still be checked later, but the report's main comparison uses the same earliest-contact fallback for both methods.
+
 ## Limits
 
-- Only 17 first-return anchors have unique ±10 truth. Only 19 unique-truth anchors have usable recurrence-only motion paths.
-- Apparent body-height normalisation is image based. It is not a physical court distance, and its meaning can change with player scale and camera geometry.
-- A five-point path is allowed. The 0.05-BH engineering threshold is therefore deliberately modest, but it is still uncalibrated.
-- TrackNet residual scatter is measured from the observed path. We do not have independent ground truth for TrackNet positional error.
-- The ±30 view often contains several GT strokes. It is a sanity check, not clean stroke identity.
-- No new manual labels were added. “GT-incompatible” means unmatched to existing GT under the stated tolerance, not visually proven false.
-- The three videos are the same videos used in the historical exploration. The corrected thresholds were fixed before scoring, but the reported scores are not external validation.
+- Only 17 earliest contacts with unique ±10 ground truth are first returns. Only 19 contacts with unique ground truth also have usable motion paths under the recurrence-only check.
+- Body-height normalisation is based on apparent height in the image. It is not a physical distance on the court, and it can change with player scale and camera geometry.
+- Paths with five points are allowed. The 0.05-BH threshold is modest for that reason, but it is still not calibrated.
+- TrackNet residual scatter is measured from the observed path itself. We do not have separate ground truth for TrackNet position error.
+- The ±30 view often contains several possible ground-truth strokes. It is a broad sanity check, not clean evidence of which stroke a contact represents.
+- We did not add new manual labels. "GT-incompatible" means that a contact does not match the existing ground truth within the stated tolerance; it does not mean we visually checked it and proved it false.
+- The three videos are the same videos used in the earlier exploration. The thresholds reported here were fixed before this scoring, but these results are not an independent external validation.
 
 ## Output files
 
-- `outputs/rallies.csv.gz`: one checked row for each of 292 GT rallies.
+- `outputs/rallies.csv.gz`: one checked row for each of 292 ground-truth rallies.
 - `outputs/spans.csv.gz`: all 344 half-open predicted spans.
-- `outputs/path_points.csv.gz`: the 1,012 sampled path points used to rebuild motion measurements.
-- `outputs/fixed_rules.csv.gz`: the four fixed rule/mask comparisons globally and by video.
-- `outputs/trend_diagnostics.csv.gz`: continuous trend and jitter values for the 135 unique ±10 truth anchors under both masks.
-- `outputs/metrics.json.gz`: checked population, alignment, funnel and server summaries.
+- `outputs/path_points.csv.gz`: the 1,012 sampled path points used to rebuild the motion measurements.
+- `outputs/fixed_rules.csv.gz`: the four fixed rule/mask comparisons, both overall and by video.
+- `outputs/trend_diagnostics.csv.gz`: continuous trend and jitter values for the 135 contacts with unique ±10 ground truth, under both masks.
+- `outputs/metrics.json.gz`: checked summaries for rally counts, alignment, filtering steps and server results.
 """
     report_path.write_text(summary_report + detail, encoding="utf-8")
 

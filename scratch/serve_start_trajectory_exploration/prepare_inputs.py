@@ -12,10 +12,7 @@ import numpy as np
 from annotator.calibration.fixtures import FIXTURES, Fixture
 
 RUN_DIR = Path(__file__).resolve().parent
-REPO_ROOT = RUN_DIR.parents[2]
-FROZEN_ASSET_ROOT = (
-    RUN_DIR.parent / "20260810-174325" / "assets/shuttleset-current-annotator-reference-v1"
-)
+REPO_ROOT = RUN_DIR.parents[1]
 ASSET_ROOT = RUN_DIR / "assets/shuttleset-current-annotator-reference-v1"
 RELEASE_RESULTS = ASSET_ROOT / "measurement/current_annotator_8config_288p/static_shuttleset_homography"
 PRODUCER_EVIDENCE = ASSET_ROOT / "inputs/tracknet_producer_evidence"
@@ -121,7 +118,8 @@ def verify_sidecar(fixture: Fixture, n_frames: int) -> None:
 
 def prepare_inputs() -> None:
     """Create the ignored links and verify every analysis input."""
-    link_path(ASSET_ROOT, FROZEN_ASSET_ROOT)
+    if not ASSET_ROOT.is_dir():
+        raise FileNotFoundError(f"missing frozen investigation asset: {ASSET_ROOT}")
     for fixture in FIXTURES:
         track_source = ASSET_ROOT / "inputs" / fixture.track_path
         link_path(FIXTURE_ROOT / fixture.track_path, track_source)

@@ -62,6 +62,7 @@ METHOD_COLUMNS = {
     "0.05-BH trend rule, recurrence plus producer mask": "producer_original_robust_trend_server",
     "0.05-BH trend evidence only": "evidence_only_server",
     "0.05-BH trend then prepend unknown player": "missing_contact_refit_server",
+    "0.05-BH trend then like-for-like refit": "anchor_fallback_refit_server",
     "0.05-BH trend then prepend other player": "inferred_player_refit_server",
 }
 
@@ -69,7 +70,6 @@ CENTRAL_SERVER_PLOT_RESULTS = {
     "old alternating fit": (124, 217),
     "anchor player": (152, 239),
     "0.05-BH trend rule, recurrence mask": (163, 239),
-    "0.05-BH trend then prepend other player": (127, 217),
 }
 
 
@@ -83,6 +83,28 @@ class ResultTables:
     fixed_rules: pd.DataFrame
     trend_diagnostics: pd.DataFrame
     metrics: dict[str, object]
+
+
+@dataclass(frozen=True)
+class RefitComparison:
+    """Independently rebuilt primary-population comparison of the two prepend fallbacks."""
+
+    total: int
+    non_triggered: int
+    triggered: int
+    direct_correct: int
+    like_for_like_correct: int
+    like_for_like_known: int
+    old_fit_fallback_correct: int
+    old_fit_fallback_known: int
+    non_triggered_anchor_correct: int
+    non_triggered_old_fit_correct: int
+    triggered_direct_correct: int
+    triggered_refit_correct: int
+    disagreements: int
+    later_vote_overrides: int
+    tied_refits: int
+    disagreement_rows: tuple[tuple[str, ...], ...]
 
 
 def _strict_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -371,7 +393,7 @@ def _validate_source_rallies(fixture_rows: pd.DataFrame, data: Any, point_winner
 
 def _validate_frozen_sources(rallies: pd.DataFrame, spans: pd.DataFrame) -> None:
     """Reload each fixture and bind the saved audit rows to frozen inputs."""
-    source_root = RUN_DIR.parents[2] / "src"
+    source_root = RUN_DIR.parents[1] / "src"
     if str(source_root) not in sys.path:
         sys.path.insert(0, str(source_root))
     import experiment_data
@@ -901,8 +923,8 @@ def _parse_guesses(value: object, label: str) -> list[str | None]:
     return guesses
 
 
-def _validate_server_columns(rallies: pd.DataFrame) -> None:
-    """Rebuild fixed-rule server answers and the two prepend experiments."""
+def _validate_server_columns(rallies: pd.DataFrame) -> RefitComparison:
+    """Rebuild fixed-rule server answers and both prepend fallback policies."""
     required = [
         "anchor_player",
         "gt_server",
@@ -917,6 +939,24 @@ def _validate_server_columns(rallies: pd.DataFrame) -> None:
     required.extend(METHOD_COLUMNS.values())
     required.extend(f"{column}_correct" for column in METHOD_COLUMNS.values() if column != "baseline_server")
     _require_columns(rallies, required, "rallies.csv.gz")
+    comparison_counts = {
+        "total": 0,
+        "non_triggered": 0,
+        "triggered": 0,
+        "direct_correct": 0,
+        "like_for_like_correct": 0,
+        "like_for_like_known": 0,
+        "old_fit_fallback_correct": 0,
+        "old_fit_fallback_known": 0,
+        "non_triggered_anchor_correct": 0,
+        "non_triggered_old_fit_correct": 0,
+        "triggered_direct_correct": 0,
+        "triggered_refit_correct": 0,
+        "disagreements": 0,
+        "later_vote_overrides": 0,
+        "tied_refits": 0,
+    }
+    disagreement_rows: list[tuple[str, ...]] = []
     for row in rallies.itertuples(index=False):
         identity = f"{row.fixture} {row.set_id} rally {row.rally}"
         anchor_player = None if pd.isna(row.anchor_player) else str(row.anchor_player)
@@ -962,17 +1002,86 @@ def _validate_server_columns(rallies: pd.DataFrame) -> None:
             labelled_final, _, _ = _fit_alternation([_other_player(anchor_player), *guesses])
             parity_first = _first_player(parity_final, len(guesses) + 1)
             labelled_first = _first_player(labelled_final, len(guesses) + 1)
+            anchor_fallback_first = anchor_player if labelled_first is None else labelled_first
             final_changed = labelled_final != natural_final
         else:
             parity_first = labelled_first = natural_first
+            anchor_fallback_first = anchor_player
+            labelled_final = None
             final_changed = False
         expected_predictions["missing_contact_refit_server"] = parity_first
+        expected_predictions["anchor_fallback_refit_server"] = anchor_fallback_first
         expected_predictions["inferred_player_refit_server"] = labelled_first
         _assert_value(row.incoming_motion_found, main_incoming, f"{identity} main incoming flag")
         _assert_value(row.inferred_player_vote_changed_final_fit, final_changed, f"{identity} changed-final flag")
         for column, prediction in expected_predictions.items():
             _assert_value(getattr(row, column), prediction, f"{identity} {column}")
             _assert_value(getattr(row, f"{column}_correct"), prediction == gt_server, f"{identity} {column} correctness")
+
+        if not bool(row.primary_one_to_one):
+            continue
+        comparison_counts["total"] += 1
+        comparison_counts["direct_correct"] += int(main_server == gt_server)
+        comparison_counts["like_for_like_correct"] += int(anchor_fallback_first == gt_server)
+        comparison_counts["like_for_like_known"] += int(anchor_fallback_first is not None)
+        comparison_counts["old_fit_fallback_correct"] += int(labelled_first == gt_server)
+        comparison_counts["old_fit_fallback_known"] += int(labelled_first is not None)
+        if not main_incoming:
+            comparison_counts["non_triggered"] += 1
+            comparison_counts["non_triggered_anchor_correct"] += int(anchor_player == gt_server)
+            comparison_counts["non_triggered_old_fit_correct"] += int(natural_first == gt_server)
+            continue
+
+        comparison_counts["triggered"] += 1
+        comparison_counts["triggered_direct_correct"] += int(main_server == gt_server)
+        comparison_counts["triggered_refit_correct"] += int(anchor_fallback_first == gt_server)
+        if main_server == anchor_fallback_first:
+            continue
+        comparison_counts["disagreements"] += 1
+        if main_server != gt_server or anchor_fallback_first == gt_server:
+            raise AssertionError(f"{identity} has an unexpected direct-versus-refit disagreement outcome")
+        if labelled_final is None:
+            comparison_counts["tied_refits"] += 1
+            behaviour = "Ties; retain earliest-contact fallback"
+        else:
+            comparison_counts["later_vote_overrides"] += 1
+            behaviour = f"Later votes override to {labelled_first}"
+        disagreement_rows.append(
+            (
+                f"{row.fixture} {row.set_id} rally {int(row.rally)}",
+                behaviour,
+                str(main_server),
+                str(anchor_fallback_first),
+                gt_server,
+            )
+        )
+
+    comparison = RefitComparison(**comparison_counts, disagreement_rows=tuple(disagreement_rows))
+    checked_counts = (
+        comparison.total,
+        comparison.non_triggered,
+        comparison.triggered,
+        comparison.direct_correct,
+        comparison.like_for_like_correct,
+        comparison.like_for_like_known,
+        comparison.old_fit_fallback_correct,
+        comparison.old_fit_fallback_known,
+        comparison.disagreements,
+        comparison.later_vote_overrides,
+        comparison.tied_refits,
+    )
+    if checked_counts != (239, 224, 15, 163, 159, 239, 127, 217, 4, 2, 2):
+        raise AssertionError(
+            "independent like-for-like refit rebuild differs from the checked "
+            "239/224/15 population, 163/159/127 score comparison, answer counts or 4/2/2 disagreement outcome"
+        )
+    if comparison.non_triggered_anchor_correct - comparison.non_triggered_old_fit_correct != 32:
+        raise AssertionError("non-triggered anchor fallback does not explain 32 additional correct calls")
+    if comparison.triggered_direct_correct - comparison.triggered_refit_correct != 4:
+        raise AssertionError("triggered direct inference does not explain four additional correct calls")
+    if comparison.direct_correct - comparison.old_fit_fallback_correct != 32 + 4:
+        raise AssertionError("163-versus-127 gap does not decompose into 32 fallback and four refit calls")
+    return comparison
 
 
 def _binary_rule_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, int | float]:
@@ -1257,12 +1366,16 @@ def _validate_report_populations(
     metrics: dict[str, object],
 ) -> None:
     """Bind the three population meanings and fixture counts to rebuilt metrics."""
-    header = ("Rally group", "All videos", "sset_01", "sset_15", "sset_21", "Used for")
+    header = ("Rally group", "All videos", "sset_01", "sset_15", "sset_21", "What it is used for")
     populations: Any = metrics["population_counts"]
     definitions = (
-        (ALL_POPULATION, "All GT rallies", "End-to-end view, including segmentation failures"),
-        (COVERED_POPULATION, "Covered rallies", "Sensitivity to the current COVERED definition, including merges"),
-        (PRIMARY_POPULATION, "One-to-one rallies", "Analyses that need one predicted rally per GT rally"),
+        (ALL_POPULATION, "All ground-truth (GT) rallies", "End-to-end view, including segmentation failures"),
+        (
+            COVERED_POPULATION,
+            "Covered rallies",
+            "Check how results change under the current COVERED definition, including merged rallies",
+        ),
+        (PRIMARY_POPULATION, "One-to-one rallies", "Analyses that need one predicted rally for each GT rally"),
     )
     expected: list[tuple[str, ...]] = []
     for population, label, meaning in definitions:
@@ -1337,7 +1450,7 @@ def _validate_report_alignment_and_sequences(
     rank_counts = sequence["global"]["first_gt_match_rank"]
     later_rank = sum(count for rank, count in rank_counts.items() if int(rank) >= 5)
     rank_statement = (
-        f"The first later match occurs at accepted-contact rank 2 in {rank_counts.get('2', 0)} rallies, "
+        f"The first later match appears at contact rank 2 in {rank_counts.get('2', 0)} rallies, "
         f"rank 3 in {rank_counts.get('3', 0)}, rank 4 in {rank_counts.get('4', 0)}, "
         f"and rank 5 or later in {later_rank}."
     )
@@ -1439,7 +1552,28 @@ def _validate_report_paths_and_rules(
 
 def _count_word(value: int) -> str:
     """Spell the small counts used in the missed-return explanation."""
-    words = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+    words = (
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+    )
     if not 0 <= value < len(words):
         return str(value)
     return words[value]
@@ -1457,33 +1591,59 @@ def _validate_report_reconciliations(
     trend_recurrence = global_rules.loc[("recurrence_clean", "robust_trend")]
     historical_producer = global_rules.loc[("producer_original", "historical")]
     trend_producer = global_rules.loc[("producer_original", "robust_trend")]
-    eligibility_statement = (
-        "The historical rule then adds its 0.25-BH total-movement eligibility floor. The trend rule does not. "
-        f"This is why the historical row has {int(historical_recurrence['rule_paths_eligible'])} eligible paths "
-        f"rather than {int(trend_recurrence['rule_paths_eligible'])} under the recurrence check, and "
-        f"{int(historical_producer['rule_paths_eligible'])} rather than "
-        f"{int(trend_producer['rule_paths_eligible'])} after removing producer-marked inpaint."
+    historical_definition = (
+        "The older rule requires all three of the following: at least 0.25 BH of total shuttle movement, at "
+        "least 0.25 BH of net movement towards the player, and at least 55% of steps moving towards the player."
     )
-    if eligibility_statement not in report:
-        raise AssertionError("report does not explain the historical rule's extra 0.25-BH eligibility floor")
-    shared_checks_statement = "Both rules first use the shared sample-count, contact-gap, recurrence, finite-evidence and jump checks."
+    if historical_definition not in report:
+        raise AssertionError("report does not retain the historical and trend rule definitions")
+    historical_provenance = (
+        "The 0.25-BH values come from the older analysis. The 55% step threshold was chosen using the older "
+        "±5/249 scoring setup. The 0.05-BH value was set in advance as an engineering judgement."
+    )
+    if historical_provenance not in report:
+        raise AssertionError("report does not retain the fixed rules' investigation-time provenance")
+    shared_checks_statement = (
+        "Both rules use the same checks for sample count, distance from the final path point to the contact, "
+        "recurrence flags, valid measurements and large jumps."
+    )
     if shared_checks_statement not in report:
         raise AssertionError("report does not state the fixed rules' shared eligibility checks")
+    eligibility_statement = (
+        "Because the older rule also requires 0.25 BH of total movement, it leaves "
+        f"{int(historical_recurrence['rule_paths_eligible'])} eligible paths instead of "
+        f"{int(trend_recurrence['rule_paths_eligible'])} with the recurrence check, and "
+        f"{int(historical_producer['rule_paths_eligible'])} instead of "
+        f"{int(trend_producer['rule_paths_eligible'])} with the producer mask added."
+    )
+    if eligibility_statement not in report:
+        raise AssertionError("report does not explain the historical rule's extra movement-floor exclusions")
 
     primary_recurrence: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"]
     all_usable = int(primary_recurrence["common_path_eligible"])
     all_incoming = int(primary_recurrence["robust_trend_incoming"])
     truth_usable = int(trend_recurrence["rule_paths_eligible"])
-    truth_incoming = int(trend_recurrence["incoming_calls"])
-    denominator_statement = (
-        f"The {all_usable} usable paths and {all_incoming} incoming calls over all "
-        f"{int(primary_recurrence['n'])} rallies are broader availability counts. Restricting to the "
-        f"{int(trend_recurrence['n_truth'])} labelled rallies leaves {truth_usable} usable paths and "
-        f"{truth_incoming} incoming calls. The other {_count_word(all_usable - truth_usable)} usable paths "
-        "have an unmatched or later-stroke anchor and cannot enter serve-versus-return scoring."
+    local_evidence_statements = (
+        (
+            f"We can judge the motion rule against **{int(trend_recurrence['n_truth'])} earliest contacts** "
+            "where the ±10 ground truth identifies either serve or first return without ambiguity: "
+            f"{int(trend_recurrence['gt_serves'])} serves and "
+            f"{int(trend_recurrence['gt_first_returns'])} first returns."
+        ),
+        (
+            f"{_count_word(truth_usable).capitalize()} of those {int(trend_recurrence['n_truth'])} have usable "
+            "paths under the recurrence check."
+        ),
+        (
+            f"Across all {int(primary_recurrence['n'])} rallies, there are {all_usable} usable paths and "
+            f"{all_incoming} incoming calls. {_count_word(all_usable - truth_usable).capitalize()} of those "
+            "usable paths belong to contacts that are unmatched or match a later stroke, so they cannot be "
+            "included in the "
+            f"{int(trend_recurrence['n_truth'])}-rally serve-versus-return scoring set."
+        ),
     )
-    if denominator_statement not in report:
-        raise AssertionError("report does not reconcile all-primary and unique-truth evidence denominators")
+    if any(statement not in report for statement in local_evidence_statements):
+        raise AssertionError("report does not reconcile local truth and all-primary evidence counts")
 
     missed_breakdown: dict[str, tuple[int, int]] = {}
     for variant in PATH_VARIANTS:
@@ -1501,12 +1661,14 @@ def _validate_report_reconciliations(
     producer_usable, producer_missing = missed_breakdown["producer_original"]
     breakdown_statements = (
         (
-            f"{_count_word(recurrence_usable).capitalize()} of those misses have usable motion below the threshold; "
-            f"{_count_word(recurrence_missing)} have no usable path."
+            f"Looking specifically at the {int(trend_recurrence['gt_first_returns'])} ground-truth first "
+            f"returns: {int(trend_recurrence['tp'])} are correctly called incoming, "
+            f"{recurrence_usable} have usable paths but stay below the 0.05-BH threshold, and "
+            f"{recurrence_missing} do not have a usable path at all."
         ),
         (
-            f"Under the stricter source check, {_count_word(producer_usable)} missed return has usable motion "
-            f"below 0.05 BH and {_count_word(producer_missing)} have no usable path."
+            f"With the stricter source check, {_count_word(producer_usable)} missed return has usable motion "
+            f"but stays below 0.05 BH, while {_count_word(producer_missing)} have no usable path."
         ),
     )
     if any(statement not in report for statement in breakdown_statements):
@@ -1587,6 +1749,7 @@ def _validate_report_servers_and_errors(
     tables: dict[tuple[str, ...], list[list[tuple[str, ...]]]],
     metrics: dict[str, object],
     diagnostics: pd.DataFrame,
+    refit: RefitComparison,
 ) -> None:
     """Bind population server counts and the complete usable-path error list."""
     primary_scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
@@ -1604,12 +1767,14 @@ def _validate_report_servers_and_errors(
         "0.05-BH trend rule, recurrence mask": (
             "Use earliest-contact player; flip when the 0.05-BH trend says incoming"
         ),
+        "0.05-BH trend then like-for-like refit": (
+            "Earliest-contact fallback; prepend inferred server and refit on incoming triggers"
+        ),
         "0.05-BH trend rule, recurrence plus producer mask": (
             "Same fallback and 0.05-BH flip; also mask producer inpaint"
         ),
         "0.05-BH trend evidence only": "Motion answer only; abstain without usable evidence",
         "0.05-BH trend then prepend unknown player": "Prepend one unknown contact before alternating fit",
-        "0.05-BH trend then prepend other player": "Prepend inferred server before alternating fit",
     }
     method_rows: list[tuple[str, ...]] = []
     for method, label in method_labels.items():
@@ -1623,6 +1788,85 @@ def _validate_report_servers_and_errors(
             )
         )
     _assert_value(_report_table(tables, method_header), method_rows, "report primary server table")
+
+    comparison_header = (
+        "Motion group",
+        "Rallies",
+        "Earliest-contact baseline",
+        "Direct correction",
+        "Prepend/refit",
+    )
+    anchor_scores = primary_scores["anchor player"]
+    direct_scores = primary_scores["0.05-BH trend rule, recurrence mask"]
+    like_scores = primary_scores["0.05-BH trend then like-for-like refit"]
+    comparison_rows = [
+        (
+            "No incoming-motion trigger",
+            str(refit.non_triggered),
+            f"{refit.non_triggered_anchor_correct} correct; {refit.non_triggered} answers",
+            f"{refit.non_triggered_anchor_correct} correct; {refit.non_triggered} answers",
+            f"{refit.non_triggered_anchor_correct} correct; {refit.non_triggered} answers",
+        ),
+        (
+            "Incoming-motion trigger",
+            str(refit.triggered),
+            (
+                f"{int(anchor_scores['correct']) - refit.non_triggered_anchor_correct} correct; "
+                f"{refit.triggered} answers"
+            ),
+            f"{refit.triggered_direct_correct} correct; {refit.triggered} answers",
+            f"{refit.triggered_refit_correct} correct; {refit.triggered} answers",
+        ),
+        (
+            "All primary rallies",
+            str(refit.total),
+            f"{anchor_scores['correct']} correct; {anchor_scores['known']} answers",
+            f"{direct_scores['correct']} correct; {direct_scores['known']} answers",
+            f"{like_scores['correct']} correct; {like_scores['known']} answers",
+        ),
+    ]
+    _assert_value(_report_table(tables, comparison_header), comparison_rows, "report prepend/refit comparison table")
+
+    disagreement_header = (
+        "Rally",
+        "What the augmented fit does",
+        "Direct inference",
+        "Prepend/refit result",
+        "GT server",
+    )
+    _assert_value(
+        _report_table(tables, disagreement_header),
+        list(refit.disagreement_rows),
+        "report prepend/refit disagreement table",
+    )
+
+    fallback_gain = refit.non_triggered_anchor_correct - refit.non_triggered_old_fit_correct
+    triggered_gain = refit.triggered_direct_correct - refit.triggered_refit_correct
+    try:
+        provenance = report.split("## Note about an earlier exploratory comparison", maxsplit=1)[1].split(
+            "## Limits", maxsplit=1
+        )[0]
+    except IndexError as error:
+        raise AssertionError("report is missing its methodological-provenance boundaries") from error
+    provenance_statement = (
+        "That result is not a like-for-like comparison with the direct method because the fallback is different. "
+        f"Of the {refit.direct_correct - refit.old_fit_fallback_correct}-correct-answer gap between that "
+        f"calculation and the direct method, {fallback_gain} answers come from the different fallback and only "
+        f"{_count_word(triggered_gain)} come from the refitting on triggered rallies."
+    )
+    if provenance_statement not in provenance:
+        raise AssertionError("report provenance does not give the rebuilt 127 and 32-plus-four decomposition")
+    old_score_text = f"{refit.old_fit_fallback_correct}/{refit.total}"
+    if report.count(old_score_text) != 1:
+        raise AssertionError(f"report must contain {old_score_text} exactly once, in methodological provenance")
+    disagreement_statement = (
+        f"For the {refit.triggered} triggered rallies, direct inference and prepend/refit agree in "
+        f"{refit.triggered - refit.disagreements} cases. In {_count_word(refit.later_vote_overrides)} cases, "
+        "later contact votes overturn a correct direct guess. In "
+        f"{_count_word(refit.tied_refits)} more, the alternating fit ties."
+    )
+    if disagreement_statement not in report:
+        raise AssertionError("report does not give the rebuilt two-override and two-tie outcomes")
 
     server_header = (
         "Rally group",
@@ -1645,18 +1889,49 @@ def _validate_report_servers_and_errors(
         server_rows.append((label, *cells))
     _assert_value(_report_table(tables, server_header), server_rows, "report population server table")
 
+    fixture_header = (
+        "Video",
+        "Rallies",
+        "Released fit",
+        "Earliest-contact player",
+        "Direct motion correction",
+        "Prepend/refit, same fallback",
+    )
+    fixture_rows: list[tuple[str, ...]] = []
+    fixture_scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["by_fixture"]
+    for fixture, scores in fixture_scores.items():
+        released_score = scores["old alternating fit"]
+        anchor_score = scores["anchor player"]
+        direct_score = scores["0.05-BH trend rule, recurrence mask"]
+        refit_score = scores["0.05-BH trend then like-for-like refit"]
+        fixture_rows.append(
+            (
+                fixture,
+                str(direct_score["n"]),
+                str(released_score["correct"]),
+                str(anchor_score["correct"]),
+                str(direct_score["correct"]),
+                str(refit_score["correct"]),
+            )
+        )
+    _assert_value(_report_table(tables, fixture_header), fixture_rows, "report primary server-by-video table")
+
     evidence_only = primary_scores["0.05-BH trend evidence only"]
     incoming_calls: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"][
         "robust_trend_incoming"
     ]
-    fallback_statement = (
-        "The direct method starts with the earliest-contact player. It changes that answer only for the "
-        f"{incoming_calls} rallies where usable motion "
-        "says the shuttle is incoming. When evidence is unavailable or the path does not say incoming, the "
-        "earliest-contact player remains the answer."
+    fallback_statements = (
+        "When motion does not trigger, both methods choose the player at the earliest accepted contact.",
+        "When motion does trigger, the direct method chooses the other player as server.",
+        (
+            "Prepend/refit adds that inferred server to the contact sequence, reruns the alternating fit, and "
+            "falls back to the earliest-contact player if the fit ties."
+        ),
     )
-    if fallback_statement not in report:
-        raise AssertionError("report does not state the direct method's earliest-contact fallback semantics")
+    if any(statement not in report for statement in fallback_statements):
+        raise AssertionError("report does not state both shared-fallback method semantics")
+    if int(incoming_calls) != refit.triggered:
+        raise AssertionError("path funnel incoming calls do not match the rebuilt triggered-refit population")
     if (int(evidence_only["known"]), int(evidence_only["n"])) != (24, 239):
         raise AssertionError("evidence-only server answers do not match the approved 24/239 motion coverage")
 
@@ -1676,12 +1951,16 @@ def _validate_report_servers_and_errors(
         error_cases.append(f"{row.fixture} {row.set_id} rally {int(row.rally)}")
     if len(error_cases) != 8:
         raise AssertionError(f"rebuilt usable-path error set has {len(error_cases)} cases; expected 8")
-    error_statement = (
-        "The error plot shows all eight mistakes with usable recurrence-checked paths: "
-        "four false return calls and four missed returns. The cases are "
-        f"{', '.join(error_cases)}."
+    false_return_calls = int(errors["incoming_call"].astype(bool).sum())
+    missed_returns = len(errors) - false_return_calls
+    error_statements = (
+        (
+            f"There are eight errors among the usable paths: {_count_word(false_return_calls)} false return "
+            f"calls on ground-truth serves and {_count_word(missed_returns)} missed ground-truth returns."
+        ),
+        f"The cases are {', '.join(error_cases)}.",
     )
-    if error_statement not in report:
+    if any(statement not in report for statement in error_statements):
         raise AssertionError("report error-case statement does not match all eight rebuilt cases")
 
 
@@ -1706,10 +1985,14 @@ def _validate_motion_plot_contract(metrics: dict[str, object]) -> None:
         raise AssertionError("both server methods must fall back to the contact player outside usable motion evidence")
 
 
-def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
+def _validate_server_plot_contract(metrics: dict[str, object], refit: RefitComparison) -> None:
     """Bind all four central server methods and their correct/known counts."""
     scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
-    for method, (expected_correct, expected_known) in CENTRAL_SERVER_PLOT_RESULTS.items():
+    expected_results = {
+        **CENTRAL_SERVER_PLOT_RESULTS,
+        "0.05-BH trend then like-for-like refit": (refit.like_for_like_correct, refit.like_for_like_known),
+    }
+    for method, (expected_correct, expected_known) in expected_results.items():
         values = scores[method]
         actual = (int(values["correct"]), int(values["known"]), int(values["n"]))
         expected = (expected_correct, expected_known, 239)
@@ -1719,33 +2002,51 @@ def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
             )
 
 
-def _validate_report_prose(report: str, metrics: dict[str, object]) -> None:
-    """Bind the short bottom line, anchor evidence and extended summary to rebuilt values."""
+def _validate_report_prose(report: str, metrics: dict[str, object], refit: RefitComparison) -> None:
+    """Bind the durable report structure and main narrative to rebuilt values."""
+    required_headings = (
+        "## Main takeaway",
+        "## Why getting the first contact right matters",
+        "## What should we try next?",
+        "## Contents",
+        "## Why do we use 292, 249 and 239 rallies in different places?",
+        "## Is the first accepted contact the serve?",
+        "## What happens when the first contact does not match?",
+        "## How does the motion correction work?",
+        "## How often do we have usable motion?",
+        "## Does excluding producer-marked interpolation help?",
+        "## Does prepend/refit improve the motion-based guess?",
+        "## Extra diagnostics and rule comparisons (optional)",
+        "### Do the diagnostics point to a better rule?",
+        "### How does the older 0.25-BH rule compare?",
+        "### Which usable paths give the wrong answer?",
+        "## Extra breakdowns (optional)",
+        "## Note about an earlier exploratory comparison",
+        "## Limits",
+        "## Output files",
+    )
+    heading_positions = [report.find(heading) for heading in required_headings]
+    if any(position < 0 for position in heading_positions) or heading_positions != sorted(heading_positions):
+        raise AssertionError("report is missing a required durable-framing heading or places one out of order")
+    if "## Extended summary" in report:
+        raise AssertionError("report must not contain the superseded Extended summary section")
+
     try:
-        bottom_line = report.split("## Bottom line", maxsplit=1)[1].split(
-            "## Why anchor selection comes first", maxsplit=1
+        main_takeaway = report.split("## Main takeaway", maxsplit=1)[1].split(
+            "## Why getting the first contact right matters", maxsplit=1
         )[0]
-        anchor_evidence = report.split("## Why anchor selection comes first", maxsplit=1)[1].split(
-            "## What should we do next?", maxsplit=1
-        )[0]
-        extended_summary = report.split("## Extended summary (optional)", maxsplit=1)[1].split(
-            "## What are the 292, 249 and 239 rallies?", maxsplit=1
+        anchor_evidence = report.split("## Why getting the first contact right matters", maxsplit=1)[1].split(
+            "## What should we try next?", maxsplit=1
         )[0]
     except IndexError as error:
-        raise AssertionError(
-            "report is missing a Bottom line, anchor-selection, next-step or extended-summary boundary"
-        ) from error
+        raise AssertionError("report is missing the Main takeaway or first-contact boundary") from error
 
-    bottom_line_word_count = len(bottom_line.split())
-    if not 120 <= bottom_line_word_count <= 180:
+    main_takeaway_word_count = len(main_takeaway.split())
+    if not 90 <= main_takeaway_word_count <= 180:
         raise AssertionError(
-            f"report Bottom line has {bottom_line_word_count} words; expected 120 to 180"
+            f"report Main takeaway has {main_takeaway_word_count} words; expected 90 to 180"
         )
-    summary_word_count = len(extended_summary.split())
-    if not 700 <= summary_word_count <= 900:
-        raise AssertionError(f"report Extended summary has {summary_word_count} words; expected 700 to 900")
 
-    populations: Any = metrics["population_counts"]
     alignment: Any = metrics["alignment"][PRIMARY_POPULATION]["global"]["10"]
     alignment_labels = alignment["labels"]
     sequence: Any = metrics["unmatched_anchor_sequences"]["global"]
@@ -1754,68 +2055,86 @@ def _validate_report_prose(report: str, metrics: dict[str, object]) -> None:
     released = servers["old alternating fit"]
     anchor = servers["anchor player"]
     direct = servers["0.05-BH trend rule, recurrence mask"]
-    prepend = servers["0.05-BH trend then prepend other player"]
+    like_refit = servers["0.05-BH trend then like-for-like refit"]
 
-    bottom_line_fragments = (
-        f"All server scores in this paragraph use the same {released['n']} one-to-one rallies.",
-        f"released alternating fit gets **{released['correct']}** right",
-        f"earliest accepted contact gets **{anchor['correct']}** right",
-        f"Usable pre-contact motion exists in only **{paths['common_path_eligible']}/{paths['n']}** rallies",
-        f"reaches **{direct['correct']}**",
-        f"falls to **{prepend['correct']}**",
-        "motion can only be a small correction",
-        "old fit therefore loses most of the direct gain",
-        "practical priority is to improve which accepted contact becomes the anchor and how often a clean motion path exists",
+    main_takeaway_fragments = (
+        f"All server results here use the same {released['n']} one-to-one rallies.",
+        f"released alternating-fit method gets **{released['correct']}** right",
+        f"that rises to **{anchor['correct']}**.",
+        f"Only **{paths['common_path_eligible']}/{paths['n']}** rallies have usable shuttle motion",
+        f"Applying the motion correction directly raises the result to **{direct['correct']}** correct.",
+        (
+            f"The prepend/refit method uses the same earliest-contact fallback and the same {refit.triggered} "
+            f"motion triggers, but gets **{like_refit['correct']}** correct."
+        ),
+        (
+            f"On those {refit.triggered} triggered rallies, the direct method gets "
+            f"{refit.triggered_direct_correct} right and prepend/refit gets {refit.triggered_refit_correct}."
+        ),
+        "Rerunning the full fit after adding the motion-based guess does not help in this sample.",
+        "making sure we start from the right contact and increasing the number of rallies with usable motion paths",
     )
-    for fragment in bottom_line_fragments:
-        if fragment not in bottom_line:
-            raise AssertionError(f"report Bottom line is missing rebuilt claim {fragment!r}")
+    for fragment in main_takeaway_fragments:
+        if fragment not in main_takeaway:
+            raise AssertionError(f"report Main takeaway is missing rebuilt claim {fragment!r}")
+    deferred_method_sentences = (
+        "The direct method changes the baseline only when the shuttle clearly approaches the contact player.",
+        "Prepend/refit instead injects the inferred server and reruns the full alternating fit.",
+    )
+    if any(sentence in main_takeaway for sentence in deferred_method_sentences):
+        raise AssertionError("report Main takeaway retains method-definition detail meant for the main narrative")
 
     anchor_evidence_fragments = (
-        f"**{alignment_labels.get('unmatched', 0)} of {paths['n']}** earliest contacts do not match",
+        f"**{alignment_labels.get('unmatched', 0)} of {paths['n']}** earliest accepted contacts do not match",
         (
-            f"recover the serve in {sequence['later_serve_match']} of those rallies and the first return in another "
+            f"recovers the serve in {sequence['later_serve_match']} of those rallies and the first return in another "
             f"{sequence['no_later_serve_but_first_return_match']}"
         ),
-        "many failures occur before motion classification",
+        "Many errors happen before we try to classify the shuttle motion.",
     )
     for fragment in anchor_evidence_fragments:
         if fragment not in anchor_evidence:
             raise AssertionError(f"report anchor-selection section is missing rebuilt claim {fragment!r}")
 
-    summary_fragments = (
-        f"ShuttleSet contains **{populations[ALL_POPULATION]['global']} ground-truth rallies**",
-        f"marks **{populations[COVERED_POPULATION]['global']} rallies as covered**",
-        f"uses **{populations[PRIMARY_POPULATION]['global']} one-to-one rallies**",
-        "earliest accepted contact is an ordinary output of the released contact detector",
-        "It is not designed to find serves.",
-        "The practical timing check allows ±10 base-30fps frames",
-        (
-            f"nearest the serve in {alignment_labels.get('contact_1', 0)} cases, the first return in "
-            f"{alignment_labels.get('contact_2', 0)}, and a later stroke in {alignment_labels.get('later', 0)}"
-        ),
-        f"In **{alignment_labels.get('unmatched', 0)} rallies**, no annotated stroke lies inside the window.",
-        f"A later accepted contact matches the serve in {sequence['later_serve_match']} rallies.",
-        (
-            f"In another {sequence['no_later_serve_but_first_return_match']}, no later contact matches the serve, "
-            "but one matches the first return."
-        ),
-        f"Only **{paths['common_path_eligible']} of {paths['n']} rallies** have a continuous pre-contact path",
-        f"released alternating fit gets {released['correct']}/{released['n']} rallies right",
-        f"earliest-contact player alone gets {anchor['correct']}/{anchor['n']}",
-        f"reaches **{direct['correct']}/{direct['n']}**",
-        f"reaches only {prepend['correct']}/{prepend['n']}",
-        "alternating refit largely throws that improvement away",
-        "practical next step is to improve which accepted contact becomes the anchor",
+    largest_category_statement = (
+        f"The serve is the largest single category, at **{alignment_labels.get('contact_1', 0)} of "
+        f"{paths['n']}** rallies, but **{alignment_labels.get('unmatched', 0)} of {paths['n']}** earliest contacts "
+        "do not match"
     )
-    for fragment in summary_fragments:
-        if fragment not in extended_summary:
-            raise AssertionError(f"report Extended summary is missing rebuilt paced claim {fragment!r}")
-
+    ordinary_detector_statement = (
+        "The earliest accepted contact is the first output accepted by the released contact detector; it is not "
+        "produced by a dedicated serve detector. The detector begins with shuttle impulses and player proximity, "
+        "then applies wrist, suppression and exclusion checks. For this analysis, we independently measure which "
+        "player is nearest at the accepted frame rather than relying on the released alternating fit."
+    )
+    trend_statement = (
+        "For the trend measure, we calculate the slope between every pair of shuttle-to-player distance samples "
+        "and take the median slope. Time is scaled from zero to one across the path. We then use the negative slope "
+        "as the fitted decrease in distance. If that decrease is at least **0.05 apparent player body heights "
+        "(BH)**, we call the path incoming."
+    )
+    path_quality_statement = (
+        "To build the motion path, we look back by at most 30 frames on a 30-fps base timeline, staying within the "
+        "same court scene. We choose the continuous run closest to the contact. A path is usable only if it has at "
+        "least five samples, ends close enough to the contact, has recurrence guard `NO_FLAG`, has valid "
+        "player-distance and body-height measurements, and contains no extremely large single-step jump."
+    )
     required_statements = {
-        "±10 is the practical alignment": "The ±10 bar is the practical baseline.",
-        "diagnostics do not make calls": "neither diagnostic changes a call",
-        "no visual false-contact claim": "does not claim a visually verified false contact",
+        "serve is the largest ±10 anchor category": largest_category_statement,
+        "anchor is an ordinary contact-detector output": ordinary_detector_statement,
+        "robust trend uses the pairwise-median slope": trend_statement,
+        "path-quality gates are explicit": path_quality_statement,
+        "±10 is the practical alignment": "We use ±10 as the main tolerance.",
+        "multiple windows keep nearest identity": (
+            "We still use whichever stroke is closest to the accepted contact. This is rare at ±10 (5 rallies), "
+            "but happens in 117 rallies at ±30"
+        ),
+        "diagnostics do not make calls": "they do not decide whether a path is usable and they are not separate classifiers",
+        "no visual false-contact claim": "does not mean we manually inspected them and proved they were false contacts",
+        "reported thresholds precede scoring": (
+            "The thresholds reported here were fixed before this scoring, but these results are not an "
+            "independent external validation."
+        ),
     }
     for label, statement in required_statements.items():
         if statement not in report:
@@ -1854,6 +2173,7 @@ def _validate_report_and_plots(
     metrics: dict[str, object],
     fixed_rules: pd.DataFrame,
     diagnostics: pd.DataFrame,
+    refit: RefitComparison,
 ) -> None:
     """Bind the final Markdown and PNG inventory to independently rebuilt results."""
     if not REPORT_PATH.is_file():
@@ -1861,15 +2181,15 @@ def _validate_report_and_plots(
     report = REPORT_PATH.read_text(encoding="utf-8")
     tables = _parse_markdown_tables(report)
     _validate_final_files(report)
-    _validate_report_prose(report, metrics)
+    _validate_report_prose(report, metrics, refit)
     _validate_report_populations(tables, metrics)
     _validate_report_alignment_and_sequences(report, tables, metrics)
     _validate_report_paths_and_rules(tables, metrics, fixed_rules)
     _validate_report_reconciliations(report, metrics, fixed_rules, diagnostics)
     _validate_report_diagnostics(tables, diagnostics)
-    _validate_report_servers_and_errors(report, tables, metrics, diagnostics)
+    _validate_report_servers_and_errors(report, tables, metrics, diagnostics, refit)
     _validate_motion_plot_contract(metrics)
-    _validate_server_plot_contract(metrics)
+    _validate_server_plot_contract(metrics, refit)
 
 
 def validate() -> None:
@@ -1879,7 +2199,7 @@ def validate() -> None:
     _validate_identity_and_boundaries(tables.rallies, tables.spans)
     _validate_alignments_and_sequences(tables.rallies)
     _validate_path_points(tables.rallies, tables.path_points)
-    _validate_server_columns(tables.rallies)
+    refit_comparison = _validate_server_columns(tables.rallies)
 
     recalculated_rules = _build_fixed_rules(tables.rallies)
     if len(tables.fixed_rules) != 16 or tables.fixed_rules[["scope", "path_definition", "rule"]].duplicated().any():
@@ -1903,7 +2223,12 @@ def validate() -> None:
 
     recalculated_metrics = _build_metrics(tables.rallies, recalculated_rules)
     _assert_mapping(tables.metrics, recalculated_metrics, "metrics.json.gz")
-    _validate_report_and_plots(recalculated_metrics, recalculated_rules, recalculated_diagnostics)
+    _validate_report_and_plots(
+        recalculated_metrics,
+        recalculated_rules,
+        recalculated_diagnostics,
+        refit_comparison,
+    )
     print(
         "validated 292 rallies, 344 spans, "
         f"{len(tables.path_points)} path points, 16 fixed-rule rows, all metrics, report and six plots"

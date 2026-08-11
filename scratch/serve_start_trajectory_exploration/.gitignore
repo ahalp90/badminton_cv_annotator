@@ -1,7 +1,6 @@
 assets/
 inputs/
 outputs/
-external_delegate/
-QUESTIONS.md
 *.tar
+*.tar.gz
 !HANDOVER.md
