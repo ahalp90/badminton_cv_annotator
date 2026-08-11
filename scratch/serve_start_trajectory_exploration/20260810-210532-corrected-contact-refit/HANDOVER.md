@@ -2,9 +2,9 @@
 
 ## Current state
 
-The corrected row-level analysis is committed on `investigation/serve-start-trajectory` as `471022e`. The final report and plot rewrite has passed its audits and gates. The approved final commit is the only remaining action. No production file under `src/**` has changed.
+The corrected row-level analysis and first report rewrite are committed on `investigation/serve-start-trajectory`. A fourth presentation-only batch has passed its WebUI and native cold reads plus its focused gates. Only the approved fourth commit remains. No production file under `src/**` has changed.
 
-Read `report.md` first. It now starts with a standalone summary and keeps segmentation, contact identity, path availability, motion decisions and server attribution separate.
+Read `report.md` first. It now gives the four-score server result, upstream anchor evidence and next action before its optional extended summary. Per-video and sensitivity tables sit under `Supporting breakdowns (optional)`.
 
 ## Fixed result contract
 
@@ -38,16 +38,21 @@ On 239 primary rallies, the released alternating fit is correct in 124. The earl
 - A second readability pass found that the server plot named only 24/239 recurrence-mask paths. The final plot now also names 14/239 producer-mask paths and repeats the fallback-plus-flip method.
 - The final read-only Gemini Pro audit passed with no blocking defect and a clean Git tripwire.
 - Final gates: validator exit 0; 55 focused tests passed; investigation Ruff exit 0; Serena diagnostics empty; pinned Pyrefly exit 0; whole pytest exit 0 with 1,456 passed and 29 skipped; `git diff --check` exit 0. Whole-project Ruff remains exit 1 on the unchanged 661 unrelated findings.
+- The progressive-disclosure WebUI audit rated the revised report suitable for the target overloaded reader. Its final suggestions compressed the Bottom line, moved anchor evidence and action to the first screen, and demoted supporting tables.
+- A fresh native reader reproduced the four intended conclusions and passed the final report and all six plots with no blocking issue.
+- The final analysis rerun reproduced all six decompressed CSV/JSON outputs exactly. The source-backed validator, 55 focused tests, investigation Ruff, Serena diagnostics and `git diff --check` pass.
+- Whole-project Pyrefly and pytest also passed before the user clarified that whole-project gates are unnecessary for this scratch-only presentation change. Whole-project Ruff retained the unchanged 661 unrelated findings.
 
 ## Next actions
 
-1. Make the third approved commit with the exact message in `plan.md`.
+1. Make the fourth approved commit with the exact message in `plan.md`.
 2. Do not merge to `main`.
 
 ## Git checkpoints
 
 - `360c9b3`: checked alignment and accepted-sequence records.
 - `471022e`: corrected populations, fixed motion rules, server results and source-backed validator.
-- Final report/plot commit: approved message is recorded in `plan.md`; commit remains pending.
+- `9bb55a3`: corrected standalone report and six denominator-aware plots.
+- Progressive-disclosure report/plot commit: approved message is recorded in `plan.md`; commit remains pending.
 
 Generated result tables and plots remain ignored under `outputs/`. The tracked report is regenerated from those checked tables.

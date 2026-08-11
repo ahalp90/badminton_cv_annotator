@@ -2,6 +2,7 @@
 
 ## Deviations and open questions
 
+- The progressive-disclosure extension is presentation-only and awaits approval of its fourth commit. It keeps the approximately 800-word summary required by the earlier audit, but adds the newly requested 120–180-word Bottom line before it. This resolves the only tension between the audit records.
 - No open scope decisions block launch. The correction uses the user-approved population, alignment, diagnostic and terminology rules below.
 - The planning records remain in this investigation directory because this is an extension of the existing pass. Starting a second worklog elsewhere would split the audit trail.
 - Serena/Pyrefly now indexes only this dedicated investigation directory in addition to `src/**` and `tests`. The tracked project profile still excludes other tracked Python under `scratch/swarm_review/**`.

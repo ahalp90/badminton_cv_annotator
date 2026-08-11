@@ -50,6 +50,18 @@ The final-output rewrite addresses all six findings in the report and plots. One
 
 The second readability pass found one remaining denominator defect in the server plot. Its subtitle described 24/239 recurrence-mask paths but not the producer mask's 14/239 paths. The final plot now states both coverages and repeats the fallback-plus-flip meaning in both method labels.
 
+## Progressive-disclosure findings
+
+The technically complete report still imposed too much working-memory load. Its opening introduced 292, 249, 239, 135, 24 and 19 alongside three tolerances, two rules, two TrackNet source checks and several server methods. The main reading path also hid the important 163-to-127 refit failure behind secondary method bars and tables.
+
+The progressive-disclosure rewrite now puts three durable results and one action first. The earliest-contact player improves 124 to 152 correct server calls. Scarce motion evidence raises 152 to 163 while covering only 24/239 rallies. Feeding the inferred serve back into the alternating fit falls to 127. The first screen then shows that 97 anchors are unmatched at ±10, with later serve or return recovery in 49 and 36, and recommends improving anchor selection and path availability.
+
+The main plots now carry one question each. The unmatched plot shows only the 49/36/9/3 outcomes. The motion plot shows 24 usable plus 215 unavailable paths against 14 plus 225 under the stricter source check. The server plot shows only 124, 152, 163 and 127. The anchor plot visually emphasises ±10. Detailed ranks, fixed-rule comparisons, per-video tables, sensitivity results and jitter diagnostics remain available after the main conclusions.
+
+The returned WebUI audit judged the report suitable for a smart but persistently overloaded reader. Its final optional pass reduced the Bottom line to the core score story, moved the 97/49/36 evidence and action onto the first screen, and moved supporting breakdowns out of the main path. A fresh native cold read then reproduced all four intended conclusions and found no blocking report or plot defect.
+
+The final clean rerun changed only gzip header timestamps. All six decompressed row and metric files match the `9bb55a3` reference exactly. The source-backed validator passes the new 129-word Bottom line, optional 764-word extended summary, relocated tables and simplified plots while retaining every earlier source and arithmetic check.
+
 ## Final audit and gates
 
 The final read-only Gemini Pro branch audit passed with no blocking defect and a clean Git tripwire. It found the three populations, fixed rules, inpaint control, server fallback, historical provenance, continuous diagnostics, six WebUI fixes and validator boundary internally consistent. Its only optional note was that some frozen plot counts are literal annotation strings. The independent validator binds those counts to the checked snapshot, so no extra abstraction was added.

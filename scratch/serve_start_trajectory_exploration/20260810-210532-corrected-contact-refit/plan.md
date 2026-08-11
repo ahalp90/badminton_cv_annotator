@@ -381,3 +381,54 @@ Rewrite the serve trajectory report around checked denominators
 
 Explain the corrected funnel and per-video results in plain language. Add independently checked tables and plots that show their populations and evidence availability directly.
 ```
+
+## Progressive-disclosure extension: 11 August 2026
+
+### Goal
+
+Make the final report easy to follow under limited attention while retaining every checked result, caveat, per-video table, diagnostic plot and reproducibility detail.
+
+### Scope and risk
+
+This is a presentation-only fourth batch. It may change `report_outputs.py`, `validate_outputs.py`, `report.md`, the investigation handover/history documents, and the six ignored generated plots. It must not change any row-level output, metric, population, alignment, fixed rule, threshold, server prediction or frozen input.
+
+The existing OUT-list still applies: no `src/**`, frozen inputs or GT, segmentation behaviour, `experiments/**`, main/history, new annotations, new models or new classifier work.
+
+The new `serve_trajectory_progressive_disclosure_feedback.md` remains unchanged as an audit record.
+
+### Report changes
+
+1. Add a 120–180-word `Bottom line` before the longer summary. It must make 124/239, 152/239, 24/239, 163/239, 127/239 and the 97 unmatched anchors hard to miss. It must say that motion is a small correction to the earliest-contact fallback, and that feeding the inferred serve back into the alternating fit loses most of the direct gain.
+2. Keep the earlier audit's approximately 800-word summary, but use it as a paced bridge. Introduce 292/249/239, the ordinary contact anchor, the main ±10 result, the 97-anchor failure pattern, scarce motion coverage, direct server result, failed prepend and next step. Leave ±5/±30 counts, rank detail, the full path funnel, the 135-rally classification subset, historical-rule mechanics and trend/jitter statistics to later sections.
+3. Reorder the main path around reader questions: population, whether the first contact is the serve, what happens when it is wrong, whether motion can help, what producer-inpaint removal changes, whether the inferred serve helps server identification, and what to do next.
+4. Begin every major section with its plain-language result. Follow with the evidence, then technical definitions and qualifications.
+5. Keep the full technical tables, per-video breakdowns, historical-rule provenance, continuous diagnostics, eight error cases, limits and output inventory after the reader has the corresponding mental model.
+
+### Plot changes
+
+- `anchor_alignment.png`: retain all three tolerances, but emphasise ±10 as the practical baseline and treat ±5/±30 as supporting views.
+- `unmatched_anchor_followup.png`: show only the 49/36/9/3 outcome categories. Keep the 56/17/9/12 accepted-contact-rank breakdown in the report text or table.
+- `motion_evidence_and_inpaint.png`: replace the mixed 239/135 two-panel figure with one simple 239-rally availability comparison. Show 24 usable and 215 unavailable under the recurrence check, versus 14 usable and 225 unavailable after also removing producer-marked inpaint. Keep classification effects in a small, clearly labelled 135-rally table.
+- `server_attribution.png`: show the four central methods only: released fit 124/239, earliest-contact player 152/239, direct fallback plus motion correction 163/239, and inferred-player prepend plus alternating refit 127/239. Keep historical and producer-mask variants in the detailed tables.
+- Keep the trend/jitter and all-eight-error figures unchanged, but move them after the main conclusions.
+
+### Validation and red-team gates
+
+1. Before editing, copy the final checked row tables and metrics to a gitignored reference directory. The fourth batch must reproduce them exactly.
+2. Extend `validate_outputs.py` to enforce the 120–180-word Bottom line from rebuilt values, the retained 700–900-word summary, the simple fixed-threshold inpaint table, and the four central server methods.
+3. Run the source-backed validator, focused tests, investigation Ruff, Serena diagnostics, pinned Pyrefly, whole pytest, whole Ruff and `git diff --check`.
+4. Inspect all changed plots directly against `PLOT_READABILITY_AUDIT.md`.
+5. Build a fresh-reader WebUI package containing only the report, six plots and both readability criteria. Do not include this feedback, earlier feedback, planning records or implementation notes.
+6. Treat the WebUI comprehension probe as blocking. After any fixes, run a fresh native cold read over the report and plots before the final gates.
+
+The pre-implementation native mapping review found no numerical conflict in the feedback. It identified the main server plot and mixed-denominator motion plot as the two highest-value changes.
+
+### Proposed fourth commit
+
+This commit needs fresh user approval before execution:
+
+```text
+Restructure the serve trajectory report for progressive disclosure
+
+Lead with the direct server result and failed alternating refit. Introduce rally populations, contact failures, motion availability and detailed diagnostics in stages without changing the checked analysis.
+```

@@ -2,16 +2,62 @@
 
 ## Resume
 
-- **Next action:** make the approved third commit. Do not merge to `main`.
-- **Current batch:** Batch 1 is `360c9b3`; Batch 2 is `471022e`. Batch 3 has replaced the stale report, old threshold sweep and historical plots. The tracked final-output changes remain uncommitted until the fresh-reader and final branch reviews pass.
-- **Verified:** `review_feedback.md` records the fresh WebUI cold read. A second readability pass found one remaining server-coverage label, which is fixed. The final read-only Gemini Pro audit passed without a blocking defect. The source-backed validator, focused tests, investigation Ruff, Serena diagnostics, pinned Pyrefly, whole pytest and `git diff --check` pass. Whole-project Ruff remains at the unchanged 661 unrelated findings.
-- **Runbook pointer:** `plan.md`, “Correction extension: evaluation accounting and readable final outputs”.
+- **Next action:** make the approved fourth commit with named paths only. Do not merge.
+- **Current batch:** Batches 1–3 are committed as `360c9b3`, `471022e` and `9bb55a3`. The approved fourth batch is complete, audited and gated. The commit remains unmade.
+- **Verified:** the returned WebUI audit passed the report as suitable and its three optional suggestions are implemented. Bottom line 129 words; optional extended summary 764 words. A fresh native cold read passed with no blocking issue and reproduced the four intended conclusions. The strengthened source-backed validator passes. After the clean analysis rerun, all six decompressed result contents match the committed reference exactly; only gzip header timestamps differ.
+- **Runbook pointer:** `plan.md`, “Progressive-disclosure extension: 11 August 2026”.
 
 ## Compaction boundary
 
 ### Overall goal
 
 Repair the serve-start trajectory investigation so its rally mapping, contact alignment, motion evidence, server results, plots and report are numerically sound and readable in one pass.
+
+### Progressive-disclosure fourth batch
+
+The user approved the exact fourth commit message in `plan.md`. The new audit record is `serve_trajectory_progressive_disclosure_feedback.md`; preserve it unchanged.
+
+The presentation rewrite is complete but uncommitted:
+
+- a 129-word Bottom line gives the 124 → 152 → 163 → 127 server story, 24/239 evidence coverage and the action;
+- the first screen then gives the 97/49/36 anchor evidence and next step before the optional 764-word extended summary;
+- each main section now begins with a plain-language result before tables and technical qualifications;
+- the 135-rally classification subset, path funnel, historical rule and jitter diagnostics now appear only when their sections need them;
+- the anchor plot emphasises ±10 while retaining ±5 and ±30;
+- the unmatched plot shows only 49/36/9/3, with the rank breakdown retained in prose;
+- the motion plot shows 24 usable plus 215 unavailable versus 14 usable plus 225 unavailable over the same 239 rallies;
+- the server plot shows the central 124 → 152 → 163 → 127 comparison and keeps answer counts visible.
+
+The independent validator now checks both opening word ranges, rebuilt Bottom line claims, the simplified fixed 0.05-BH inpaint table, both motion-availability bars and all four central server correct/known/denominator values. It still reloads frozen inputs and reconstructs all prior arithmetic.
+
+The no-drift reference is:
+
+`local_scratch/serve_start_trajectory_correction/20260811-progressive-disclosure-reference/`
+
+After a clean rerun, all six files match the reference after decompression. Fresh gzip header timestamps change container bytes but not CSV or JSON content.
+
+The unbiased WebUI package contains only the report, six plots and two readability criteria files:
+
+`local_scratch/fresh_reader/20260811-104937-serve-trajectory-progressive-disclosure.tar.gz`
+
+SHA-256: `bf127a18c9cbc3f7336f76f312c9cdfbeb94163e882a347f05bd0bc670ff7c21`
+
+The returned WebUI audit is `progressive_disclosure_feedback.md`. It judged the report suitable for the overloaded-reader target. Its three optional suggestions are implemented: a less number-dense Bottom line, immediate anchor evidence and action, and optional supporting tables. A fresh native cold read reproduced the four intended conclusions and found no blocking report or plot issue.
+
+Fourth-batch gates:
+
+- clean corrected analysis: exit 0;
+- decompressed numerical comparison with `9bb55a3` reference: exact match for all six result files;
+- source-backed validator: exit 0, validating 292 rallies, 344 spans, 1,012 path points, 16 fixed-rule rows, all metrics, the report and six plots;
+- focused trajectory tests: exit 0, 55 passed;
+- investigation Ruff: exit 0;
+- Serena diagnostics for `report_outputs.py` and `validate_outputs.py`: none;
+- `git diff --check`: exit 0;
+- pinned whole-project Pyrefly: exit 0, no errors and 20 suppressions;
+- whole-project pytest: exit 0, 1,456 passed and 29 skipped;
+- whole-project Ruff: exit 1 on the unchanged 661 unrelated findings.
+
+The user clarified that whole-project gates are unnecessary when only this scratch investigation changes. They had already completed before that message and will not be repeated for this presentation-only scope.
 
 ### Must keep
 
@@ -22,7 +68,7 @@ Repair the serve-start trajectory investigation so its rally mapping, contact al
 - New rule uses a median-pairwise robust trend and calls incoming only at fitted decrease >= 0.05 BH. This is an engineering judgement fixed before corrected scoring.
 - Residual RMS and trend-to-jitter are continuous diagnostics only. Analyse them by GT class, call correctness, path length and representative errors. Never turn them into another cutoff here.
 - Apply both frozen rules unchanged to recurrence-only and recurrence-plus-producer-mask paths.
-- Preserve the OUT-list, all three user audit files, per-video reporting, final WebUI fresh read and every red-team gate.
+- Preserve the OUT-list, all user audit files, per-video reporting, final WebUI fresh read and every red-team gate.
 - Work remains on `investigation/serve-start-trajectory`; do not merge or touch `src/**`, frozen inputs/GT, segmentation behaviour, `experiments/**`, `.claude/**` or `.env`.
 
 ### Safe to drop after compaction
@@ -34,9 +80,8 @@ Repair the serve-start trajectory investigation so its rally mapping, contact al
 
 ### Next steps
 
-1. Finish the revised independent report/plot validation.
-2. Run the final external branch audit.
-3. Run the full repository gates and make the approved third commit.
+1. Make the approved fourth commit with named paths only.
+2. Do not merge.
 
 ### Post-WebUI compaction state
 

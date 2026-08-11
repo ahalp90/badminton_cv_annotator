@@ -65,6 +65,13 @@ METHOD_COLUMNS = {
     "0.05-BH trend then prepend other player": "inferred_player_refit_server",
 }
 
+CENTRAL_SERVER_PLOT_RESULTS = {
+    "old alternating fit": (124, 217),
+    "anchor player": (152, 239),
+    "0.05-BH trend rule, recurrence mask": (163, 239),
+    "0.05-BH trend then prepend other player": (127, 217),
+}
+
 
 @dataclass(frozen=True)
 class ResultTables:
@@ -1330,12 +1337,12 @@ def _validate_report_alignment_and_sequences(
     rank_counts = sequence["global"]["first_gt_match_rank"]
     later_rank = sum(count for rank, count in rank_counts.items() if int(rank) >= 5)
     rank_statement = (
-        f"The first later match has rank 2 in {rank_counts.get('2', 0)} rallies, "
+        f"The first later match occurs at accepted-contact rank 2 in {rank_counts.get('2', 0)} rallies, "
         f"rank 3 in {rank_counts.get('3', 0)}, rank 4 in {rank_counts.get('4', 0)}, "
         f"and rank 5 or later in {later_rank}."
     )
     if rank_statement not in report:
-        raise AssertionError("report summary does not match the rebuilt unmatched-contact ranks")
+        raise AssertionError("report later-contact section does not match the rebuilt first-match ranks")
 
 
 def _validate_report_paths_and_rules(
@@ -1371,6 +1378,31 @@ def _validate_report_paths_and_rules(
         )
     _assert_value(_report_table(tables, path_header), path_rows, "report primary path table")
 
+    inpaint_header = (
+        "Track source check",
+        "Labelled paths with usable motion",
+        "Correct return calls",
+        "False return calls",
+        "Returns missed",
+    )
+    global_rules = fixed_rules[fixed_rules["scope"].eq("global")]
+    inpaint_rows: list[tuple[str, ...]] = []
+    for variant, label in labels.items():
+        row = global_rules[
+            global_rules["path_definition"].eq(variant)
+            & global_rules["rule"].eq("robust_trend")
+        ].iloc[0]
+        inpaint_rows.append(
+            (
+                label,
+                f"{int(row['rule_paths_eligible'])}/{int(row['n_truth'])}",
+                f"{int(row['tp'])}/{int(row['gt_first_returns'])}",
+                f"{int(row['fp'])}/{int(row['gt_serves'])}",
+                f"{int(row['fn'])}/{int(row['gt_first_returns'])}",
+            )
+        )
+    _assert_value(_report_table(tables, inpaint_header), inpaint_rows, "report fixed 0.05-BH inpaint table")
+
     rule_header = (
         "Fixed comparison",
         "Paths eligible for this rule",
@@ -1386,7 +1418,6 @@ def _validate_report_paths_and_rules(
         ("producer_original", "historical"): "Historical rule; recurrence plus producer mask",
         ("producer_original", "robust_trend"): "0.05-BH trend rule; recurrence plus producer mask",
     }
-    global_rules = fixed_rules[fixed_rules["scope"].eq("global")]
     rule_rows: list[tuple[str, ...]] = []
     for (variant, rule), label in rule_labels.items():
         row = global_rules[
@@ -1429,15 +1460,13 @@ def _validate_report_reconciliations(
     eligibility_statement = (
         "The historical rule then adds its 0.25-BH total-movement eligibility floor. The trend rule does not. "
         f"This is why the historical row has {int(historical_recurrence['rule_paths_eligible'])} eligible paths "
-        f"rather than {int(trend_recurrence['rule_paths_eligible'])} under the recurrence mask, and "
+        f"rather than {int(trend_recurrence['rule_paths_eligible'])} under the recurrence check, and "
         f"{int(historical_producer['rule_paths_eligible'])} rather than "
-        f"{int(trend_producer['rule_paths_eligible'])} under the producer mask."
+        f"{int(trend_producer['rule_paths_eligible'])} after removing producer-marked inpaint."
     )
     if eligibility_statement not in report:
         raise AssertionError("report does not explain the historical rule's extra 0.25-BH eligibility floor")
-    shared_checks_statement = (
-        "Both rules first use the shared five-point, contact-gap, recurrence, finite-evidence and jump checks."
-    )
+    shared_checks_statement = "Both rules first use the shared sample-count, contact-gap, recurrence, finite-evidence and jump checks."
     if shared_checks_statement not in report:
         raise AssertionError("report does not state the fixed rules' shared eligibility checks")
 
@@ -1447,12 +1476,11 @@ def _validate_report_reconciliations(
     truth_usable = int(trend_recurrence["rule_paths_eligible"])
     truth_incoming = int(trend_recurrence["incoming_calls"])
     denominator_statement = (
-        f"The {all_usable} usable paths and {all_incoming} incoming calls above cover all "
-        f"{int(primary_recurrence['n'])} one-to-one rallies. Requiring unique ±10 serve/return truth leaves "
-        f"{truth_usable} usable paths and {truth_incoming} incoming calls. The remaining "
-        f"{_count_word(all_usable - truth_usable)} usable paths have another or unmatched anchor identity, "
-        "so they cannot "
-        "enter the serve-versus-return classification score."
+        f"The {all_usable} usable paths and {all_incoming} incoming calls over all "
+        f"{int(primary_recurrence['n'])} rallies are broader availability counts. Restricting to the "
+        f"{int(trend_recurrence['n_truth'])} labelled rallies leaves {truth_usable} usable paths and "
+        f"{truth_incoming} incoming calls. The other {_count_word(all_usable - truth_usable)} usable paths "
+        "have an unmatched or later-stroke anchor and cannot enter serve-versus-return scoring."
     )
     if denominator_statement not in report:
         raise AssertionError("report does not reconcile all-primary and unique-truth evidence denominators")
@@ -1471,14 +1499,17 @@ def _validate_report_reconciliations(
         )
     recurrence_usable, recurrence_missing = missed_breakdown["recurrence_clean"]
     producer_usable, producer_missing = missed_breakdown["producer_original"]
-    breakdown_statement = (
-        "Under the recurrence-only 0.05-BH rule, "
-        f"{_count_word(recurrence_usable)} misses have usable negative paths and "
-        f"{_count_word(recurrence_missing)} have no usable path. Under the producer mask, "
-        f"{_count_word(producer_usable)} missed return has a usable negative path and "
-        f"{_count_word(producer_missing)} have no usable path."
+    breakdown_statements = (
+        (
+            f"{_count_word(recurrence_usable).capitalize()} of those misses have usable motion below the threshold; "
+            f"{_count_word(recurrence_missing)} have no usable path."
+        ),
+        (
+            f"Under the stricter source check, {_count_word(producer_usable)} missed return has usable motion "
+            f"below 0.05 BH and {_count_word(producer_missing)} have no usable path."
+        ),
     )
-    if breakdown_statement not in report:
+    if any(statement not in report for statement in breakdown_statements):
         raise AssertionError("report does not separate usable-negative and no-evidence return misses under both masks")
 
 
@@ -1559,7 +1590,13 @@ def _validate_report_servers_and_errors(
 ) -> None:
     """Bind population server counts and the complete usable-path error list."""
     primary_scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
-    method_header = ("Server method", "Correct over all rallies", "Answers made", "Accuracy")
+    primary_denominator = primary_scores["old alternating fit"]["n"]
+    method_header = (
+        "Server method",
+        "Correct",
+        "Answers made",
+        f"Overall accuracy (n={primary_denominator})",
+    )
     method_labels = {
         "old alternating fit": "Released alternating fit",
         "anchor player": "Assume the earliest contact player served",
@@ -1609,13 +1646,19 @@ def _validate_report_servers_and_errors(
     _assert_value(_report_table(tables, server_header), server_rows, "report population server table")
 
     evidence_only = primary_scores["0.05-BH trend evidence only"]
+    incoming_calls: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"][
+        "robust_trend_incoming"
+    ]
     fallback_statement = (
-        "The direct 0.05-BH rule uses the anchor player when the path is usable but not incoming. "
-        "It also uses the anchor player when motion evidence is unavailable. The evidence-only row abstains in "
-        f"the second case. Its {evidence_only['known']}/{evidence_only['n']} answers show the actual evidence coverage."
+        "The direct method starts with the earliest-contact player. It changes that answer only for the "
+        f"{incoming_calls} rallies where usable motion "
+        "says the shuttle is incoming. When evidence is unavailable or the path does not say incoming, the "
+        "earliest-contact player remains the answer."
     )
     if fallback_statement not in report:
-        raise AssertionError("report does not state the earliest-contact fallback and 24-of-239 evidence coverage")
+        raise AssertionError("report does not state the direct method's earliest-contact fallback semantics")
+    if (int(evidence_only["known"]), int(evidence_only["n"])) != (24, 239):
+        raise AssertionError("evidence-only server answers do not match the approved 24/239 motion coverage")
 
     errors = diagnostics[
         diagnostics["path_definition"].eq("recurrence_clean")
@@ -1634,7 +1677,7 @@ def _validate_report_servers_and_errors(
     if len(error_cases) != 8:
         raise AssertionError(f"rebuilt usable-path error set has {len(error_cases)} cases; expected 8")
     error_statement = (
-        "The error plot shows all eight mistakes with usable recurrence-mask paths: "
+        "The error plot shows all eight mistakes with usable recurrence-checked paths: "
         "four false return calls and four missed returns. The cases are "
         f"{', '.join(error_cases)}."
     )
@@ -1642,15 +1685,15 @@ def _validate_report_servers_and_errors(
         raise AssertionError("report error-case statement does not match all eight rebuilt cases")
 
 
-def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
-    """Bind the server plot's two coverage counts and fallback semantics."""
+def _validate_motion_plot_contract(metrics: dict[str, object]) -> None:
+    """Bind the motion plot's two evidence-availability bars."""
     funnel: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]
     recurrence_coverage = int(funnel["recurrence_clean"]["common_path_eligible"])
     producer_coverage = int(funnel["producer_original"]["common_path_eligible"])
     denominator = int(funnel["recurrence_clean"]["n"])
     if (recurrence_coverage, producer_coverage, denominator) != (24, 14, 239):
         raise AssertionError(
-            "server plot coverage contract differs from the approved 24/239 recurrence and 14/239 producer counts"
+            "motion plot contract differs from the approved 24/239 recurrence and 14/239 producer counts"
         )
 
     scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
@@ -1658,62 +1701,120 @@ def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
     recurrence_method = scores["0.05-BH trend rule, recurrence mask"]
     producer_method = scores["0.05-BH trend rule, recurrence plus producer mask"]
     if int(evidence_only["known"]) != recurrence_coverage:
-        raise AssertionError("recurrence evidence-only answers do not match the server plot's usable-motion count")
+        raise AssertionError("recurrence evidence-only answers do not match the motion plot's usable count")
     if int(recurrence_method["known"]) != denominator or int(producer_method["known"]) != denominator:
         raise AssertionError("both server methods must fall back to the contact player outside usable motion evidence")
 
 
-def _validate_report_prose(report: str, metrics: dict[str, object], fixed_rules: pd.DataFrame) -> None:
-    """Require the opening-summary scale and four audit-critical statements."""
+def _validate_server_plot_contract(metrics: dict[str, object]) -> None:
+    """Bind all four central server methods and their correct/known counts."""
+    scores: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
+    for method, (expected_correct, expected_known) in CENTRAL_SERVER_PLOT_RESULTS.items():
+        values = scores[method]
+        actual = (int(values["correct"]), int(values["known"]), int(values["n"]))
+        expected = (expected_correct, expected_known, 239)
+        if actual != expected:
+            raise AssertionError(
+                f"central server plot method {method!r} has correct/known/n {actual}; expected {expected}"
+            )
+
+
+def _validate_report_prose(report: str, metrics: dict[str, object]) -> None:
+    """Bind the short bottom line, anchor evidence and extended summary to rebuilt values."""
     try:
-        summary = report.split("## Summary", maxsplit=1)[1].split(
-            "## Rally groups and failure stages",
-            maxsplit=1,
+        bottom_line = report.split("## Bottom line", maxsplit=1)[1].split(
+            "## Why anchor selection comes first", maxsplit=1
+        )[0]
+        anchor_evidence = report.split("## Why anchor selection comes first", maxsplit=1)[1].split(
+            "## What should we do next?", maxsplit=1
+        )[0]
+        extended_summary = report.split("## Extended summary (optional)", maxsplit=1)[1].split(
+            "## What are the 292, 249 and 239 rallies?", maxsplit=1
         )[0]
     except IndexError as error:
-        raise AssertionError("report is missing its opening summary boundaries") from error
-    summary_word_count = len(summary.split())
+        raise AssertionError(
+            "report is missing a Bottom line, anchor-selection, next-step or extended-summary boundary"
+        ) from error
+
+    bottom_line_word_count = len(bottom_line.split())
+    if not 120 <= bottom_line_word_count <= 180:
+        raise AssertionError(
+            f"report Bottom line has {bottom_line_word_count} words; expected 120 to 180"
+        )
+    summary_word_count = len(extended_summary.split())
     if not 700 <= summary_word_count <= 900:
-        raise AssertionError(f"report opening summary has {summary_word_count} words; expected roughly 800")
+        raise AssertionError(f"report Extended summary has {summary_word_count} words; expected 700 to 900")
 
     populations: Any = metrics["population_counts"]
     alignment: Any = metrics["alignment"][PRIMARY_POPULATION]["global"]["10"]
     alignment_labels = alignment["labels"]
     sequence: Any = metrics["unmatched_anchor_sequences"]["global"]
     paths: Any = metrics["path_funnel"][PRIMARY_POPULATION]["global"]["recurrence_clean"]
-    robust_rule = fixed_rules[
-        fixed_rules["scope"].eq("global")
-        & fixed_rules["path_definition"].eq("recurrence_clean")
-        & fixed_rules["rule"].eq("robust_trend")
-    ].iloc[0]
-    server: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"][
-        "0.05-BH trend rule, recurrence mask"
-    ]
-    headline_fragments = (
-        f"**{populations[ALL_POPULATION]['global']} GT rallies**",
-        f"**{populations[COVERED_POPULATION]['global']} rallies covered**",
-        f"**{populations[PRIMARY_POPULATION]['global']} one-to-one rallies**",
-        (
-            f"**{alignment_labels.get('contact_1', 0)} serve, "
-            f"{alignment_labels.get('contact_2', 0)} first return, "
-            f"{alignment_labels.get('later', 0)} later and {alignment_labels.get('unmatched', 0)} unmatched**"
-        ),
-        f"The {sequence['anchors_unmatched_at_tolerance_10']} unmatched ±10 anchors",
-        f"Only **{paths['common_path_eligible']}/{paths['n']}** pass the shared jump check.",
-        (
-            f"The fixed 0.05-BH rule makes {int(robust_rule['incoming_calls'])} return calls: "
-            f"{int(robust_rule['tp'])} correct and {int(robust_rule['fp'])} false."
-        ),
-        f"**{server['correct']}/{server['n']} ({server['accuracy']:.1%})**",
+    servers: Any = metrics["server_scores"][PRIMARY_POPULATION]["global"]
+    released = servers["old alternating fit"]
+    anchor = servers["anchor player"]
+    direct = servers["0.05-BH trend rule, recurrence mask"]
+    prepend = servers["0.05-BH trend then prepend other player"]
+
+    bottom_line_fragments = (
+        f"All server scores in this paragraph use the same {released['n']} one-to-one rallies.",
+        f"released alternating fit gets **{released['correct']}** right",
+        f"earliest accepted contact gets **{anchor['correct']}** right",
+        f"Usable pre-contact motion exists in only **{paths['common_path_eligible']}/{paths['n']}** rallies",
+        f"reaches **{direct['correct']}**",
+        f"falls to **{prepend['correct']}**",
+        "motion can only be a small correction",
+        "old fit therefore loses most of the direct gain",
+        "practical priority is to improve which accepted contact becomes the anchor and how often a clean motion path exists",
     )
-    for fragment in headline_fragments:
-        if fragment not in summary:
-            raise AssertionError(f"report opening summary is missing rebuilt headline {fragment!r}")
+    for fragment in bottom_line_fragments:
+        if fragment not in bottom_line:
+            raise AssertionError(f"report Bottom line is missing rebuilt claim {fragment!r}")
+
+    anchor_evidence_fragments = (
+        f"**{alignment_labels.get('unmatched', 0)} of {paths['n']}** earliest contacts do not match",
+        (
+            f"recover the serve in {sequence['later_serve_match']} of those rallies and the first return in another "
+            f"{sequence['no_later_serve_but_first_return_match']}"
+        ),
+        "many failures occur before motion classification",
+    )
+    for fragment in anchor_evidence_fragments:
+        if fragment not in anchor_evidence:
+            raise AssertionError(f"report anchor-selection section is missing rebuilt claim {fragment!r}")
+
+    summary_fragments = (
+        f"ShuttleSet contains **{populations[ALL_POPULATION]['global']} ground-truth rallies**",
+        f"marks **{populations[COVERED_POPULATION]['global']} rallies as covered**",
+        f"uses **{populations[PRIMARY_POPULATION]['global']} one-to-one rallies**",
+        "earliest accepted contact is an ordinary output of the released contact detector",
+        "It is not designed to find serves.",
+        "The practical timing check allows ±10 base-30fps frames",
+        (
+            f"nearest the serve in {alignment_labels.get('contact_1', 0)} cases, the first return in "
+            f"{alignment_labels.get('contact_2', 0)}, and a later stroke in {alignment_labels.get('later', 0)}"
+        ),
+        f"In **{alignment_labels.get('unmatched', 0)} rallies**, no annotated stroke lies inside the window.",
+        f"A later accepted contact matches the serve in {sequence['later_serve_match']} rallies.",
+        (
+            f"In another {sequence['no_later_serve_but_first_return_match']}, no later contact matches the serve, "
+            "but one matches the first return."
+        ),
+        f"Only **{paths['common_path_eligible']} of {paths['n']} rallies** have a continuous pre-contact path",
+        f"released alternating fit gets {released['correct']}/{released['n']} rallies right",
+        f"earliest-contact player alone gets {anchor['correct']}/{anchor['n']}",
+        f"reaches **{direct['correct']}/{direct['n']}**",
+        f"reaches only {prepend['correct']}/{prepend['n']}",
+        "alternating refit largely throws that improvement away",
+        "practical next step is to improve which accepted contact becomes the anchor",
+    )
+    for fragment in summary_fragments:
+        if fragment not in extended_summary:
+            raise AssertionError(f"report Extended summary is missing rebuilt paced claim {fragment!r}")
 
     required_statements = {
-        "earliest contact is not a serve detector": "It is not a serve detector.",
-        "±10 is the primary alignment": "At the main ±10 baseline",
-        "diagnostics are not cutoffs": "diagnostics, not decision cutoffs",
+        "±10 is the practical alignment": "The ±10 bar is the practical baseline.",
+        "diagnostics do not make calls": "neither diagnostic changes a call",
         "no visual false-contact claim": "does not claim a visually verified false contact",
     }
     for label, statement in required_statements.items():
@@ -1760,13 +1861,14 @@ def _validate_report_and_plots(
     report = REPORT_PATH.read_text(encoding="utf-8")
     tables = _parse_markdown_tables(report)
     _validate_final_files(report)
-    _validate_report_prose(report, metrics, fixed_rules)
+    _validate_report_prose(report, metrics)
     _validate_report_populations(tables, metrics)
     _validate_report_alignment_and_sequences(report, tables, metrics)
     _validate_report_paths_and_rules(tables, metrics, fixed_rules)
     _validate_report_reconciliations(report, metrics, fixed_rules, diagnostics)
     _validate_report_diagnostics(tables, diagnostics)
     _validate_report_servers_and_errors(report, tables, metrics, diagnostics)
+    _validate_motion_plot_contract(metrics)
     _validate_server_plot_contract(metrics)
 
 

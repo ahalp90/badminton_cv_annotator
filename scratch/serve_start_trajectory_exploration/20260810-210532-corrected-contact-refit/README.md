@@ -4,7 +4,7 @@ This investigation asks whether the shuttle clearly approaches the player at the
 
 The earliest accepted contact comes from the ordinary contact detector. It is not a serve detector. The corrected analysis uses the contact player's geometry at that frame and never uses the released server label to choose that player.
 
-Read `report.md` first. Its opening summary explains the result without requiring the planning or implementation records.
+Read `report.md` first. Its Bottom line gives the decision and action before the optional extended summary and technical sections.
 
 ## Result
 
@@ -32,8 +32,10 @@ The 0.05-BH threshold is an engineering judgement fixed before corrected scoring
 - `validate_outputs.py`: independent source-backed recalculation and output checks.
 - `report.md`: standalone result.
 - `review_feedback.md`: preserved fresh-reader WebUI audit and required revisions.
+- `serve_trajectory_progressive_disclosure_feedback.md`: requested whole-report progressive-disclosure revision.
+- `progressive_disclosure_feedback.md`: independent WebUI audit of that revision.
 - `worklog.md`: compaction-safe session record and review history.
 
 Generated inputs and outputs remain ignored. NumPy arrays use `.npy.xz`; JSON and CSV use `.json.gz` and `.csv.gz`.
 
-The final source-backed validator, two readability passes and read-only Gemini Pro branch audit found no remaining blocking defect. Focused tests, Pyrefly and whole-project pytest pass. Whole-project Ruff retains 661 unrelated pre-existing findings; the investigation directory is clean.
+The progressive-disclosure WebUI audit and final native cold read found no blocking defect. The source-backed validator binds the report, six plots and all checked numerical outputs. The final fourth-batch repository gates are recorded in `worklog.md`.
