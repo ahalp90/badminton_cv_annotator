@@ -110,7 +110,7 @@ Gate:
   scratch/serve_id_by_lookback_followup/test_accepted_contact_trace.py
 
 ~/.local/bin/uvx --from pyrefly==1.1.1 --with jaxtyping==0.3.11 \
-  pyrefly check \
+  pyrefly check --search-path . \
   scratch/serve_id_by_lookback_followup/accepted_contact_trace.py \
   scratch/serve_id_by_lookback_followup/test_accepted_contact_trace.py
 ```
@@ -167,6 +167,7 @@ Files:
 - `mechanisms.md`
 - `worklog.md`
 - `audit_index.md`
+- `plan.md`
 
 Change: run the rule once on all 239 rows before reading GT labels. Check the saved rows, calculate the fixed transition table, and write a short conclusion-first report with roughly five representative cases.
 

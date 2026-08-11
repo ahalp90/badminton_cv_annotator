@@ -2,8 +2,8 @@
 
 | Mechanism | Status | Supporting evidence | Contrary evidence or risk | Next check |
 | --- | --- | --- | --- | --- |
-| Early accepted impulses can be skipped unless they have credible outgoing motion | Ready to measure | The post-contact helper and 0.05-BH direction rule have direct symmetric forms | A valid contact with missing tracking also fails the binary predicate | Apply the fixed rule to all 239 without GT-driven branching |
-| The first credible outgoing contact is the opener candidate | Settled ruling | The chronological accepted sequence is available without GT | A permissive local direction check may select a later non-opener | Record selected ranks and damage to correct starts |
-| Incoming motion classifies the candidate as the first visible post-serve contact | Ready to measure | PR #82 already fixes the pre-contact incoming check | Incoming evidence may be unavailable | Report implied serves and unknowns separately |
-| No incoming motion classifies the candidate as a visible serve | Ready to measure | The fixed check distinguishes measured absence from unavailable evidence | Sparse paths can leave the result unknown | Report visible serves and unknowns separately |
-| The same rule can improve bad starts without damaging correct starts | Open | Search runs on all 239 | Forward skipping may discard correct visible serves | Report fixed, damaged, unchanged, unknown, and no-credible-contact transitions |
+| Early accepted impulses can be skipped unless they have credible outgoing motion | Measured, too broad | The rule fixes 15 of the 97 unmatched starts at +/-10 | It rejects the first accepted contact in 218 of 239 rallies | Do not carry this predicate forward as the opener gate |
+| The first credible outgoing contact is the opener candidate | Measured, poor | A credible contact is found in 212 rallies | Median selected rank is 3 and the maximum is 24 | Treat late selection as the main failure mechanism |
+| Incoming motion classifies the candidate as the first visible post-serve contact | Measured | PR #82 classifies 94 selected contacts as incoming | Only 28 of those selected frames match GT contact 2 at +/-10 | Do not treat the check as enough after the outgoing scan has drifted late |
+| No incoming motion classifies the candidate as a visible serve | Measured | PR #82 classifies 18 selected contacts as not incoming | Only 6 of those selected frames match GT contact 1 at +/-10 | Report as a weak minority result |
+| The same rule can improve bad starts without damaging correct starts | Rejected | It fixes 16 starts overall at +/-10 | It makes 34 classified starts wrong and leaves another 127 unknown or without a credible contact | Conclude that the fixed sequential rule is not viable |
