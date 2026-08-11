@@ -1,5 +1,33 @@
 # Decisions
 
+## Approved H3/R8 extension
+
+`02_LAUNCH_H3_R8_DUAL_SEARCH.md` is the governing rule sheet for the next run.
+The completed experiment below remains the baseline rather than being rewritten.
+
+The extension uses a three-source-frame recurrence halo and
+`largest_step_ratio <= 8.0` for both pre- and post-contact traces. It first saves
+the three-way pre verdict and binary post verdict for every accepted contact.
+
+It then runs two searches from that frozen evidence:
+
+1. the existing sequential outgoing-first search; and
+2. an incoming-only search anchored at the earliest accepted contact with
+   positive incoming evidence.
+
+The incoming-only search inspects only the immediately preceding accepted
+contact. The predecessor is admitted by an inclusive 60-base-30fps gap, or by a
+measured `high_shot_oob` state with each contact within an inclusive
+12-base-30fps endpoint buffer. Admission is not proof of causation.
+
+An eligible predecessor with `not incoming` is the visible-serve candidate. An
+eligible predecessor with `unavailable` ends as insufficient trajectory. With
+no eligible predecessor, the anchor is the first visible post-serve contact and
+the search implies an unshown serve without inventing its frame.
+
+The four-cap 10/30/60/75 comparison is out. Recursive chaining, cross-gap
+continuity tests, and any outgoing gate in the incoming-only search are out.
+
 The experiment scans accepted contacts in chronological order and stops at the first contact with credible outgoing motion. It then reuses the fixed PR #82 pre-contact check to classify that contact as a visible serve or the first visible post-serve contact.
 
 ## Sequential opener search

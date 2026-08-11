@@ -1,5 +1,23 @@
 # Sequential accepted-contact opener runbook
 
+## Approved extension
+
+The original batches below document the completed baseline. The next run is
+governed by `02_LAUNCH_H3_R8_DUAL_SEARCH.md`.
+
+Its order is:
+
+1. completed: implement and test the halo-3, ratio-8 evidence helpers;
+2. completed: save evidence for every accepted contact;
+3. completed: derive the outgoing-first and incoming-only searches from that
+   frozen evidence;
+4. completed: freeze GT-free results, then score them; and
+5. completed: run a fresh adversarial review and final gates.
+
+The extension OUT-list and halt conditions in the new launch file supersede the
+baseline prohibition on backwards tracing only for the one-hop predecessor
+check. The completed baseline files remain unchanged.
+
 The experiment asks whether post-contact outgoing motion removes false early impulse openers. It then reuses the fixed PR #82 incoming-motion check to classify the first credible contact.
 
 ## Planning gate

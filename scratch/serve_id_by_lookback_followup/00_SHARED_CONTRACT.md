@@ -2,6 +2,19 @@
 
 Run this as one fresh investigation session.
 
+## Latest extension
+
+The completed sequential experiment now has an approved scratch-only H3/R8
+extension. After compaction, read `02_LAUNCH_H3_R8_DUAL_SEARCH.md` instead of the
+historical `01_LAUNCH_ACCEPTED_CONTACT_TRACE.md`.
+
+The extension keeps the completed baseline unchanged. It freezes trajectory
+evidence for every accepted contact, reruns the outgoing-first search with a
+three-frame recurrence halo and an 8.0 step-ratio limit, then runs the approved
+incoming-only predecessor check. Its fixed predecessor rules are 60
+base-30fps frames or the measured high-shot-out-of-bounds exception specified in
+the new launch file.
+
 ## Verified baseline
 
 - Repository: `/home/ariel/Documents/COSC594/badminton_cv_annotator`
@@ -14,11 +27,13 @@ Run this as one fresh investigation session.
 
 ## Context policy
 
-At startup read only this contract, `01_LAUNCH_ACCEPTED_CONTACT_TRACE.md`, the Resume block in `worklog.md`, `.github/AGENTS.md`, and `.codex/context.md`.
+At startup read only this contract, `02_LAUNCH_H3_R8_DUAL_SEARCH.md`, the Resume block in `worklog.md`, `.github/AGENTS.md`, and `.codex/context.md`.
 
 Open `findings.md`, `decisions.md`, PR #82 files, prior delegate output, and the original `Scope.md` only when the launch prompt names them. Later user rulings in this contract and the launch prompt override conflicting experiment text in `Scope.md`.
 
-Never read `.env`, credentials, `.claude/`, or experiment outputs.
+Never read `.env`, credentials, or `.claude/`. The extension may read the
+completed baseline evidence named in its launch file and the new H3/R8 outputs
+that it creates. Do not browse unrelated experiment outputs.
 
 ## Writing and voicing gate
 
@@ -55,7 +70,9 @@ The user authorised sharing this public repository's project work with Codex ext
 - GT scores results after the search; GT never selects search actions or thresholds
 - Keep delegation linear and stop workers that expand beyond their named question
 - Run Ruff and Pyrefly only on files added or edited under this investigation folder. Run focused tests where the scratch experiment code warrants them. Do not run repository-wide gates
-- Commits on this investigation branch are pre-authorised. Do not commit to `main`, push, merge, or open a PR without separate authority
+- The user authorised the final H3/R8 state commit on 2026-08-11. Do not commit
+  further changes, commit to `main`, push, merge, or open a PR without separate
+  authority
 
 ## Persistent state
 

@@ -1,5 +1,35 @@
 # Findings for the sequential accepted-contact search
 
+## H3/R8 follow-up result
+
+The completed findings below describe the original halo-15, ratio-4 experiment.
+The separate H3/R8 result is reported in `h3_r8_report.md`.
+
+The follow-up will use a three-frame recurrence halo and an 8.0 gross-step
+ratio. It will save pre- and post-contact evidence for every accepted contact,
+then run both the existing outgoing-first search and a new incoming-only search.
+
+The incoming-only search begins at the earliest contact with positive incoming
+evidence. It inspects only the nearest earlier accepted contact. The ordinary
+admission window is 60 base-30fps frames. A measured high-shot state may admit a
+longer gap when both contacts are within 12 base-30fps frames of the state's
+respective endpoints. Neither rule proves that the earlier impulse caused the
+shot.
+
+The checked run saved 3,200 accepted-contact rows and 239 dual-search rows. The
+relaxed outgoing-first search is correct in 43 rallies at +/-10. It has 143
+selected contacts with unavailable pre evidence and 5 rallies with no credible
+outgoing contact.
+
+The incoming-only search is correct in 26 rallies. It has 157 admitted
+predecessors with unavailable evidence. Of 39 ordinary-window predecessors
+classified as a visible serve, only 3 match GT contact 1 at +/-10. All 5
+predecessors admitted by the measured high-shot exception match contact 1.
+
+The first-contact player hypothesis is also resolved. Under H3/R8, outgoing
+fails for 103 of 168 Top first contacts and 20 of 71 Bottom first contacts.
+The bulk of failures is Top, both by count and rate.
+
 The experiment runs the same GT-free search over all 239 one-to-one rallies. It skips every accepted impulse without credible outgoing motion. It stops at the first contact with credible outgoing motion and uses the existing PR #82 incoming check to classify that contact.
 
 The 97 first impulses unmatched at +/-10 base-30fps frames are an analysis slice. Ground truth (GT) does not decide whether the search runs.

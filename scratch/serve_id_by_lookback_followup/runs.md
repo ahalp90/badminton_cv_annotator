@@ -27,5 +27,25 @@
 | Final Claude audit | Direct-host agy `claude-opus-4-6-thinking`, model-defined effort, read-only, 20,000-token audit record; exit 0; tripwire passed; result `PASS` |
 | Final Gemini audit | Direct-host agy `gemini-3.1-pro-high`, high effort, read-only, 20,000-token audit record; exit 0; tripwire passed; result `PASS` |
 | Final focused gates | 20 tests passed; Ruff exit 0; Pyrefly 1.1.1 exit 0 with 0 errors; working and cached diff checks exit 0 |
+| Guard composition measurement | Code 3 split into halo-only and repeated-attractor components; halo-15 reconstruction matched production across all fixtures |
+| Step-ratio audit | Overlay 07 used 25 consecutive usable frames and failed at ratio 6.828; no step crossed a missing frame |
+| High-shot predecessor measurement | 146 accepted-contact pairs bracketed a measured state; 42 exceeded the ordinary 60-frame cap; fixed 12-frame endpoint buffers admitted 9 |
+| H3/R8 rule freeze | Saved in `02_LAUNCH_H3_R8_DUAL_SEARCH.md`; no implementation, output, or GT scoring run |
+| H3/R8 Batch H1 focused tests | 34 helper tests passed initially; expanded driver suite has 38 passing; exit 0 |
+| H3/R8 Ruff | Helper, driver, and focused tests; exit 0 |
+| H3/R8 Pyrefly 1.1.1 | Helper, driver, and focused tests; exit 0 with 0 errors after approved uv-cache access |
+| H3/R8 write pass | Exit 0; saved 3,200 contact rows and 239 result rows |
+| First H3/R8 check pass | Row comparisons passed; exit 1 on integer JSON keys in guard-count metadata |
+| H3/R8 summary serialisation fix | Converted guard-code keys to strings and added a JSON round-trip regression test; search results unchanged |
+| Final H3/R8 write and check | Both exit 0; check rebuilt and matched 3,200 contact rows, 239 GT-free prefixes, scored rows, and summary |
+| Independent H3/R8 review | Fresh read-only native reviewer returned `CLEAN`; independently confirmed the GT boundary, one-hop rule, scaled timing, high-shot arithmetic, unavailable states, denominators, and saved-row rebuild |
+| Whole-project Pyrefly 1.1.1 | Exit 0; 0 errors and 20 suppressed |
+| Whole-project pytest | Exit 0; 1,456 passed, 29 skipped, 31 warnings in 92.19 seconds |
+| Whole-project Ruff | Exit 1; 661 existing findings across unrelated docs, scripts, and tests; focused H3/R8 and overlay Ruff checks pass |
+| Readable-HUD overlay rerender | Same 20 frozen identities; 1920x1080 H.264/yuv420p, CRF 18, 32 px HUD; 2,120 frames and 38,262,767 bytes; all clips decode |
+| H3/R8 report cold read | Found and fixed a 10-to-7 path-evidence count, replaced `junk impulses` with the evidence-backed GT mismatch, and clarified the 157 predecessor-unavailable denominator |
+| Final combined scratch gate | Baseline and H3/R8 tests: 58 passed; focused Ruff and `git diff --check`: exit 0 |
 
-No follow-up experiment, lint, type check, push, or merge has run. Branch commits so far contain only scope and clean-session handover records.
+The H3/R8 follow-up is complete, checked, independently reviewed, and saved.
+The user authorised the final state commit on 2026-08-11. No push, merge, or PR
+has run.

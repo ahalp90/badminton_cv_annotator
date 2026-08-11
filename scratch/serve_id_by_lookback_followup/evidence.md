@@ -1,5 +1,34 @@
 # Evidence
 
+## H3/R8 extension evidence fixed before the run
+
+- Code 3 is not synonymous with halo. It combines halo frames and repeated
+  attractor positions outside the recurrence core.
+- Across all three fixtures, 53,471 of 55,937 code-3 frames are halo-only. In
+  saved rally spans, 12,207 of 12,879 are halo-only.
+- Reconstructing the guard with a 15-frame halo exactly reproduces production
+  `grade_track` codes for all three fixtures.
+- A three-frame halo changes 13,549 frames in `sset_01`, 15,161 in `sset_15`,
+  and 8,429 in `sset_21` relative to the current 15-frame halo.
+- The current path extractor measures one contiguous usable run. It never
+  calculates a step across a missing or guarded frame.
+- Overlay sample 07 has 25 consecutive usable post-contact frames, a median
+  non-zero step of 0.084648 body heights, a largest step of 0.577997 body
+  heights, and a largest-step ratio of 6.828283. Its failure at 4.0 was not a
+  missing-frame denominator error.
+- The frozen release spans were generated with active high-shot-out-of-bounds
+  handling, a 75-base-30fps demotion bound, and two-sided re-entry checks.
+- Across the fixed population, 146 consecutive accepted-contact pairs bracket a
+  measured high-shot state. Forty-two exceed the ordinary scaled 60-frame cap.
+- Inclusive endpoint buffers of 6, 9, 10, 12, 15, and 30 base-30fps frames admit
+  0, 5, 6, 9, 18, and 21 of those 42 pairs. The approved fixed buffer is 12,
+  chosen to match the existing impulse half-window rather than GT.
+- In clip 13, `sset_21:21:set1:6`, accepted contacts 16509 and 16574 bracket the
+  measured high-shot state `[16515, 16564)`. Their endpoint distances are 6 and
+  10 frames, so the fixed exception admits the predecessor.
+- These measurements used accepted contacts and production state only. GT did
+  not select the halo, ratio, 60-frame cap, or 12-frame buffer.
+
 ## Verified facts
 
 - Branch base: `4f9703f339e2f9821d986d376dbfca9d6fd18ad7`, the tip of PR #82's investigation branch when this follow-up branch was created
@@ -44,5 +73,30 @@
 
 ## Not yet verified
 
-- Counts from applying the approved rule to all 239 rallies
-- Whether the fixed sequential rule improves the 239-rally GT comparison
+- No numerical H3/R8 item remains unverified. Independent review returned
+  `CLEAN`; focused checks, whole-project Pyrefly, and all tests pass. The
+  repository-wide Ruff gate still has 661 pre-existing findings outside this
+  extension, while focused Ruff passes.
+
+## H3/R8 checked results
+
+- The write pass saved 3,200 accepted-contact rows and 239 result rows. The
+  check pass rebuilt and directly matched every contact row, GT-free result
+  field, score, and summary.
+- Pre paths are eligible for 2,329 contacts. Verdicts are 1,963 incoming, 366
+  not incoming, and 871 unavailable.
+- The H3/R8 sequential search selects a contact in 234 rallies. Categories are
+  68 first-post, 23 visible-serve, 143 pre-unavailable, and 5 no-credible.
+- The sequential search is correct in 43 rallies at +/-10, compared with 34 in
+  the completed H15/R4 search. It fixes 26 and damages 13 classified results,
+  while 148 rallies end unavailable or no-credible.
+- The incoming-only search has 234 anchors. Categories are 44 visible-serve, 33
+  first-post, 157 predecessor-unavailable, and 5 no-anchor-with-unavailable.
+- The incoming-only search is correct in 26 rallies at +/-10. Ordinary timing
+  admits 196 predecessors but yields 3 correct visible serves. The high-shot
+  exception admits 5 and all 5 are correct visible serves.
+- Search B recovers clip 13 through the fixed measured state `[16515, 16564)`.
+  Search A also classifies accepted frame 16509 as the visible serve after the
+  ratio-8 relaxation makes its pre trace eligible.
+- First-contact outgoing failures under H3/R8 are 103 of 168 Top contacts and
+  20 of 71 Bottom contacts. The bottom-occlusion hypothesis is unsupported.

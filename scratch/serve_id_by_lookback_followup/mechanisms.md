@@ -1,5 +1,15 @@
 # Mechanisms under test
 
+## Approved extension hypotheses
+
+| Mechanism | Status | Supporting evidence | Risk | Next check |
+| --- | --- | --- | --- | --- |
+| A three-frame recurrence halo retains useful motion while keeping a small recurrence buffer | Verified measurement change | Halo 3 clears 37,139 old halo frames; halo 15 reconstructs production exactly | Opener accuracy remains limited by the search rule | Keep H3 as the local experimental mask, without changing production landing guards |
+| Raising `largest_step_ratio` to 8.0 admits jumpy but coherent visible traces | Verified measurement change | 545 pre and 897 post paths lie in the 4-to-8 ratio band | 321 pre and 526 post paths still exceed 8 | Keep 8.0 for this experiment; do not tune further against GT |
+| Earliest positive incoming evidence is a better rally anchor than earliest positive outgoing evidence | Rejected as a complete opener | It provides an anchor in 234 rallies | The final rule is correct in 26 rallies and leaves 162 terminal unknowns | Do not use the incoming-only rule as the opener |
+| The nearest earlier accepted contact can identify the visible serve | Rejected for ordinary timing | 39 ordinary predecessors have measured no-incoming evidence | Only 3 of the 39 match GT serve at +/-10 | Treat ordinary temporal adjacency as insufficient evidence |
+| Measured high-shot state can admit legitimate long serve-return gaps | Supported in a small fixed slice | All 5 admitted predecessors match GT serve, including clip 13 | Five cases are too few for a broad production claim | Retain as a narrow measured exception if predecessor work continues |
+
 | Mechanism | Status | Supporting evidence | Contrary evidence or risk | Next check |
 | --- | --- | --- | --- | --- |
 | Early accepted impulses can be skipped unless they have credible outgoing motion | Measured, too broad | The rule fixes 15 of the 97 unmatched starts at +/-10 | It rejects the first accepted contact in 218 of 239 rallies | Do not carry this predicate forward as the opener gate |
