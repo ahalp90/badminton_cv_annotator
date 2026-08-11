@@ -58,6 +58,7 @@ METADATA_FILENAME = "video_metadata.json.gz"
 PAIRING_FILENAME = "commentary_pairing.json.gz"
 PROJECTION_FILENAME = "primitive_projection.json.gz"
 REPORT_FILENAME = "dataset_builder_report.json.gz"
+COMMENTARY_STATUS_FILENAME = "commentary_status.json.gz"
 
 
 class _State:
@@ -451,6 +452,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
     def _cleaning_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
         inputs = self._triage_chunk_files()
         inputs.update({f"video.{key}": value for key, value in self.state.videos.items()})
+        statuses_path = self._stage_dir("commentary_cleaning") / COMMENTARY_STATUS_FILENAME
 
         def execute() -> StageExecution:
             self._reset_stage_dir("commentary_cleaning")
@@ -463,13 +465,14 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 if video_id in selected and source is not None and source.commentary_eligible:
                     selected_rows.append(deepcopy(row))
             if not self._commentary_ready():
+                statuses = self._persist_commentary_statuses(statuses_path)
                 return StageExecution(
                     (
                         StageOutcome.SKIPPED
                         if not self.config.commentary_enabled
                         else StageOutcome.UNAVAILABLE
                     ),
-                    {},
+                    {"commentary_statuses": statuses},
                     {"cleaned": 0},
                     self._commentary_unavailable_reason(),
                 )
@@ -478,17 +481,19 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 commentary_cleaning.run_fine(scraper_config.VIDEOS_DIR, rows=selected_rows)
             except Exception as error:  # noqa: BLE001 - optional external boundary.
                 self._mark_failed_commentary(selected_rows)
+                statuses = self._persist_commentary_statuses(statuses_path)
                 return StageExecution(
                     StageOutcome.UNAVAILABLE,
-                    {},
+                    {"commentary_statuses": statuses},
                     {"cleaned": 0},
                     f"{type(error).__name__}: {error}",
                 )
             outputs = self._snapshot_chunks("commentary_cleaning", self.state.selected_ids)
+            outputs["commentary_statuses"] = self._persist_commentary_statuses(statuses_path)
             return StageExecution(
                 StageOutcome.PROCESSED,
                 outputs,
-                {"cleaned": sum(cleaned.values()), "videos": len(outputs)},
+                {"cleaned": sum(cleaned.values()), "videos": len(self.state.chunks)},
             )
 
         dependencies = ("download", "triage")
@@ -507,10 +512,15 @@ class DefaultPipelineRuntime(RuntimeSupport):
             },
             inputs=inputs,
             execute=execute,
-            restore=lambda: self._restore_chunks("commentary_cleaning"),
-            validators={"cleaned_chunk_schema": lambda _root: self._validate_chunks(
-                "commentary_cleaning",
-            )},
+            restore=lambda: self._restore_commentary_cleaning(statuses_path),
+            validators={
+                "cleaned_chunk_schema": lambda _root: self._validate_chunks(
+                    "commentary_cleaning",
+                ),
+                "commentary_status_schema": lambda _root: (
+                    self._validate_commentary_statuses(statuses_path)
+                ),
+            },
             secret_values=self._commentary_secret_values(),
             failure_outcome=StageOutcome.UNAVAILABLE,
         ),)

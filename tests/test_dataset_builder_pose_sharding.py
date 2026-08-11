@@ -90,6 +90,32 @@ def test_pose_shards_configuration_must_be_positive(tmp_path: Path) -> None:
         cli.load_builder_config(path)
 
 
+def test_pose_child_module_does_not_require_coordinator_models(tmp_path: Path) -> None:
+    blocker = tmp_path / "frozendict.py"
+    blocker.write_text(
+        'raise RuntimeError("coordinator-only frozendict was imported")\n',
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join((
+        os.fspath(tmp_path),
+        os.fspath(cli.REPO_ROOT / "src"),
+        os.fspath(cli.REPO_ROOT / "src/bst_x"),
+    ))
+
+    completed = subprocess.run(
+        [sys.executable, "-c", "import dataset_builder.pose_sharding"],
+        cwd=cli.REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

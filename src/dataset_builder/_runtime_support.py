@@ -26,6 +26,10 @@ from annotator.point_winner import (
 from annotator.run_video import AnnotatorResult
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
+from dataset_builder._commentary_status import (
+    load_cleaning_statuses,
+    save_cleaning_statuses,
+)
 from dataset_builder.cli import BuilderConfig, SemanticValidator, StageExecution, StagePlan
 from dataset_builder.models import InterpreterIdentity, StageOutcome
 from dataset_builder.records import SourceReference, load_rally_records
@@ -318,6 +322,27 @@ class RuntimeSupport:
         root = self._stage_dir(phase) / "chunks"
         for path in sorted(root.glob("*.json")) if root.is_dir() else ():
             _load_chunks(path, path.stem)
+        return True
+
+    def _persist_commentary_statuses(self, path: Path) -> Path:
+        return save_cleaning_statuses(
+            path,
+            self.state.commentary_statuses,
+            self.state.selected_ids,
+        )
+
+    def _restore_commentary_cleaning(self, statuses_path: Path) -> None:
+        cleaning_root = self._stage_dir("commentary_cleaning") / "chunks"
+        phase = "commentary_cleaning" if any(cleaning_root.glob("*.json")) else "triage"
+        self._restore_chunks(phase)
+        for video_id in self.state.selected_ids:
+            self.state.commentary_statuses.pop(video_id, None)
+        self.state.commentary_statuses.update(
+            load_cleaning_statuses(statuses_path, self.state.selected_ids)
+        )
+
+    def _validate_commentary_statuses(self, path: Path) -> bool:
+        load_cleaning_statuses(path, self.state.selected_ids)
         return True
 
     def _mark_failed_commentary(self, rows: Sequence[Mapping[str, object]]) -> None:

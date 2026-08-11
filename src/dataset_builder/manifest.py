@@ -347,6 +347,7 @@ def reuse_or_invalidate_stage(
     expected_fingerprint: StageFingerprint,
     *,
     semantic_validators: Mapping[str, SemanticValidator] | None = None,
+    reuse_unavailable: bool = False,
 ) -> tuple[RunManifest, ReuseDecision]:
     """Reuse a valid stage or atomically remove it and all recorded dependants."""
     manifest = load_run_manifest(run_dir)
@@ -356,6 +357,7 @@ def reuse_or_invalidate_stage(
         record,
         expected_fingerprint,
         semantic_validators or {},
+        reuse_unavailable=reuse_unavailable,
     )
     if reason is None:
         return manifest, ReuseDecision(True, "fingerprint, output integrity and semantic validation match")
@@ -490,10 +492,16 @@ def _non_reuse_reason(
     record: StageRecord | None,
     expected_fingerprint: StageFingerprint,
     validators: Mapping[str, SemanticValidator],
+    *,
+    reuse_unavailable: bool,
 ) -> str | None:
     if record is None:
         return "stage has no recorded result"
-    if record.outcome not in _REUSABLE_OUTCOMES:
+    reusable_outcome = (
+        record.outcome in _REUSABLE_OUTCOMES
+        or reuse_unavailable and record.outcome is StageOutcome.UNAVAILABLE
+    )
+    if not reusable_outcome:
         return f"recorded outcome {record.outcome.value!r} is not reusable"
     if record.fingerprint != expected_fingerprint:
         return "stage fingerprint changed"

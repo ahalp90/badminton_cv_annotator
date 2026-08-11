@@ -16,12 +16,15 @@ from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.cli import StageExecution, StagePlan
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.selection import (
+    COMMENTARY_FAILED,
     COMMENTARY_INELIGIBLE,
     COMMENTARY_NO_PAIR,
     COMMENTARY_UNAVAILABLE_TRANSCRIPT,
     load_selection,
 )
 from scraper import commentary_cleaning, download_scraped_videos
+
+ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
 
 
 def _write_config(
@@ -666,6 +669,7 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
             stages[stage_name].configuration["request_timeout_seconds"]
             == fixture.scraper_config.LLM_REQUEST_TIMEOUT_S
         )
+    assert dict(stages["commentary_cleaning"].counts) == {"cleaned": 1, "videos": 1}
     selected = load_selection(fixture.run_dir / "selected_videos.csv.gz")
     assert selected[0].commentary_status == COMMENTARY_NO_PAIR
     first_boundary_calls = list(fixture.boundary_calls)
@@ -804,12 +808,10 @@ def test_default_runtime_uses_visual_fallback_when_commentary_is_unavailable(
     assert selected[0].commentary_status == COMMENTARY_UNAVAILABLE_TRANSCRIPT
 
 
-def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
-    tmp_path: Path,
+def _install_partial_commentary_timeout(
+    fixture: _ConcreteRuntimeFixture,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_clean = commentary_cleaning.run_clean
-    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+) -> list[str]:
     requests: list[str] = []
 
     def clean_once(text: str) -> dict[str, object]:
@@ -832,7 +834,7 @@ def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
             "text": "fixture timeout",
         })
         path.write_text(json.dumps(chunks), encoding="utf-8")
-        return run_clean(rows=rows)
+        return ORIGINAL_RUN_CLEAN(rows=rows)
 
     monkeypatch.setattr(
         fixture.runtime_module.commentary_cleaning,
@@ -842,6 +844,15 @@ def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
     monkeypatch.setattr(commentary_cleaning, "CHUNKS_DIR", fixture.chunk_dir)
     monkeypatch.setattr(commentary_cleaning, "_clean_once", clean_once)
     monkeypatch.setattr(commentary_cleaning.time, "sleep", lambda _seconds: None)
+    return requests
+
+
+def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    requests = _install_partial_commentary_timeout(fixture, monkeypatch)
 
     result = cli.run_dataset_builder(
         fixture.config_path,
@@ -862,6 +873,76 @@ def test_default_runtime_continues_visual_lane_after_partial_commentary_timeout(
         "fixture timeout",
     ]
     assert result.stopped_after is None
+    first_selection = load_selection(fixture.run_dir / "selected_videos.csv.gz")
+    assert first_selection[0].commentary_status == COMMENTARY_FAILED
+    publications = (
+        "run_manifest.json.gz",
+        "rally_records.json.gz",
+        "dataset_builder_report.json.gz",
+        "selected_videos.csv.gz",
+    )
+    first_bytes = {
+        name: (fixture.run_dir / name).read_bytes()
+        for name in publications
+    }
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert all(event.reused for event in resumed.events)
+    assert requests == [
+        "fixture call",
+        "fixture timeout",
+        "fixture timeout",
+        "fixture timeout",
+    ]
+    assert {
+        name: (fixture.run_dir / name).read_bytes()
+        for name in publications
+    } == first_bytes
+    resumed_selection = load_selection(fixture.run_dir / "selected_videos.csv.gz")
+    assert resumed_selection[0].commentary_status == COMMENTARY_FAILED
+
+
+def test_unavailable_cleaning_reuse_restores_triage_chunks_for_pairing_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    requests = _install_partial_commentary_timeout(fixture, monkeypatch)
+    cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    pairing_path = (
+        fixture.run_dir / "stages/commentary_pairing" / fixture.video_id
+        / fixture.runtime_module.PAIRING_FILENAME
+    )
+    first_pairing = vision.load_json_gz(pairing_path)
+    first_records = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+    pairing_path.unlink()
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    events = {event.name: event for event in resumed.events}
+    assert events["commentary_cleaning"].reused is True
+    assert events[f"commentary_pairing:{fixture.video_id}"].reused is False
+    assert len(requests) == 4
+    assert vision.load_json_gz(pairing_path)["rows"] == first_pairing["rows"]
+    resumed_records = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+    assert resumed_records["records"][0]["commentary"] == (
+        first_records["records"][0]["commentary"]
+    )
+    selection = load_selection(fixture.run_dir / "selected_videos.csv.gz")
+    assert selection[0].commentary_status == COMMENTARY_FAILED
 
 
 def test_silent_visual_source_records_ineligible_commentary_reason(
@@ -962,7 +1043,48 @@ def test_disabled_commentary_resume_reuses_every_visual_stage(
     assert all(event.reused for event in second.events)
 
 
-def test_unavailable_commentary_resume_keeps_the_visual_lane_reusable(
+def test_unchanged_unavailable_commentary_resume_is_byte_identical(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(
+        tmp_path,
+        monkeypatch,
+        with_commentary=False,
+        with_rally=True,
+    )
+    cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    first_calls = list(fixture.boundary_calls)
+    publications = (
+        "run_manifest.json.gz",
+        "rally_records.json.gz",
+        "dataset_builder_report.json.gz",
+        "selected_videos.csv.gz",
+    )
+    first_bytes = {
+        name: (fixture.run_dir / name).read_bytes()
+        for name in publications
+    }
+
+    second = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert fixture.boundary_calls == first_calls
+    assert all(event.reused for event in second.events)
+    assert {
+        name: (fixture.run_dir / name).read_bytes()
+        for name in publications
+    } == first_bytes
+
+
+def test_retry_unavailable_reruns_only_its_dependency_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -978,6 +1100,7 @@ def test_unavailable_commentary_resume_keeps_the_visual_lane_reusable(
         fixture.config_path,
         fixture.run_dir,
         runtime_factory=fixture.factory,
+        retry_unavailable=True,
     )
 
     assert fixture.boundary_calls == [*first_calls, "transcript"]
@@ -992,6 +1115,78 @@ def test_unavailable_commentary_resume_keeps_the_visual_lane_reusable(
         f"annotation:{fixture.video_id}",
     }
     assert all(event.reused for event in second.events if event.name in reusable_visual)
+    assert any(
+        event.outcome is StageOutcome.UNAVAILABLE and not event.reused
+        for event in second.events
+    )
+
+
+def test_retry_unavailable_cli_switch_is_explicit() -> None:
+    parser = cli._build_parser()
+
+    default = parser.parse_args(("run", "--config", "trial.toml", "--run-dir", "run"))
+    retry = parser.parse_args((
+        "run",
+        "--config",
+        "trial.toml",
+        "--run-dir",
+        "run",
+        "--retry-unavailable",
+    ))
+
+    assert default.retry_unavailable is False
+    assert retry.retry_unavailable is True
+
+
+def test_selected_video_without_rallies_is_a_terminal_cli_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert result.stopped_after is None
+    assert result.terminal_error == "selected videos produced no rally records"
+    assert (fixture.run_dir / fixture.runtime_module.REPORT_FILENAME).is_file()
+    monkeypatch.setattr(cli, "run_dataset_builder", lambda *_args, **_kwargs: result)
+
+    exit_status = cli.main(("run", "--config", "trial.toml", "--run-dir", "run"))
+
+    assert exit_status == 1
+    assert "selected videos produced no rally records" in capsys.readouterr().err
+
+
+def test_every_selected_video_excluded_is_a_terminal_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+
+    def fail_metadata(_source: Path) -> VideoMetadata:
+        raise RuntimeError("fixture metadata failure")
+
+    monkeypatch.setattr(
+        fixture.runtime_module,
+        "probe_video_metadata",
+        fail_metadata,
+    )
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert result.stopped_after is None
+    assert result.terminal_error == "every selected video was excluded before record assembly"
+    report = vision.load_json_gz(fixture.run_dir / fixture.runtime_module.REPORT_FILENAME)
+    assert report["processed_video_ids"] == []
+    assert report["rally_count"] == 0
 
 
 def test_required_failure_unpublishes_invalidated_final_outputs(

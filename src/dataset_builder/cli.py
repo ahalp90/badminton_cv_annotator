@@ -159,6 +159,7 @@ class DatasetBuilderRun:
     manifest: RunManifest
     events: tuple[StageEvent, ...]
     stopped_after: str | None = None
+    terminal_error: str | None = None
 
 
 class PipelineRuntime(Protocol):
@@ -252,6 +253,7 @@ def run_dataset_builder(
     run_dir: Path,
     *,
     runtime_factory: RuntimeFactory | None = None,
+    retry_unavailable: bool = False,
 ) -> DatasetBuilderRun:
     """Run or safely resume every configured dataset-builder phase."""
     config = load_builder_config(config_path)
@@ -267,14 +269,43 @@ def run_dataset_builder(
     stopped_after: str | None = None
     for phase in PHASE_ORDER:
         for plan in runtime.plans(phase, manifest):
-            manifest, event = _run_stage_plan(destination, source_commit, manifest, plan)
+            manifest, event = _run_stage_plan(
+                destination,
+                source_commit,
+                manifest,
+                plan,
+                reuse_unavailable=not retry_unavailable,
+            )
             events.append(event)
             if plan.blocks_pipeline and event.outcome is StageOutcome.FAILED:
                 stopped_after = plan.name
                 break
         if stopped_after is not None:
             break
-    return DatasetBuilderRun(manifest, tuple(events), stopped_after)
+    terminal_error = (
+        None
+        if stopped_after is not None
+        else _empty_selected_run_reason(manifest)
+    )
+    return DatasetBuilderRun(manifest, tuple(events), stopped_after, terminal_error)
+
+
+def _empty_selected_run_reason(manifest: RunManifest) -> str | None:
+    stages = {stage.name: stage for stage in manifest.stages}
+    selection = stages.get("selection")
+    assembly = stages.get("assembly")
+    if selection is None or assembly is None:
+        return None
+    selected = dict(selection.counts).get("selected")
+    videos = dict(assembly.counts).get("videos")
+    rallies = dict(assembly.counts).get("rallies")
+    if selected is None or selected == 0 or videos is None or rallies is None:
+        return None
+    if videos == 0:
+        return "every selected video was excluded before record assembly"
+    if rallies == 0:
+        return "selected videos produced no rally records"
+    return None
 
 
 def _run_stage_plan(
@@ -282,6 +313,8 @@ def _run_stage_plan(
     source_commit: str,
     manifest: RunManifest,
     plan: StagePlan,
+    *,
+    reuse_unavailable: bool = False,
 ) -> tuple[RunManifest, StageEvent]:
     fingerprint = build_stage_fingerprint(
         source_commit=source_commit,
@@ -296,6 +329,7 @@ def _run_stage_plan(
         plan.name,
         fingerprint,
         semantic_validators=plan.semantic_validators,
+        reuse_unavailable=reuse_unavailable,
     )
     _unpublish_invalidated_outputs(run_dir, decision.invalidated_stages)
     if decision.reusable:
@@ -506,6 +540,11 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run or resume one dataset build.")
     run_parser.add_argument("--config", type=Path, required=True)
     run_parser.add_argument("--run-dir", type=Path, required=True)
+    run_parser.add_argument(
+        "--retry-unavailable",
+        action="store_true",
+        help="Retry validated optional unavailable stages instead of reusing them.",
+    )
     return parser
 
 
@@ -516,12 +555,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command != "run":
         parser.error(f"unsupported command: {arguments.command}")
     try:
-        result = run_dataset_builder(arguments.config, arguments.run_dir)
+        result = run_dataset_builder(
+            arguments.config,
+            arguments.run_dir,
+            retry_unavailable=arguments.retry_unavailable,
+        )
     except Exception as error:
         print(f"dataset builder failed: {type(error).__name__}: {error}", file=sys.stderr)
         return 1
     if result.stopped_after is not None:
         print(f"dataset builder stopped after required stage {result.stopped_after}", file=sys.stderr)
+        return 1
+    if result.terminal_error is not None:
+        print(f"dataset builder failed acceptance: {result.terminal_error}", file=sys.stderr)
         return 1
     print(f"dataset builder completed run {result.manifest.run_id}")
     return 0

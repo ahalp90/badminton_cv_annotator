@@ -1,7 +1,7 @@
 # Issue 15 Dataset Builder Implementation Plan
 
 Status: implemented, gated, and independently accepted locally through Batch
-5C; external acceptance gates pending
+5D; external acceptance gates pending
 
 Prepared: 2026-08-08
 
@@ -627,6 +627,81 @@ accepts the daily-request base ID with either no suffix or a provider tier
 suffix, while still requiring HTTP 429 and structured details and rejecting
 per-minute quotas.
 
+### Batch 5D: Correct full-video inference boundaries
+
+Approved: 2026-08-11
+
+Draft commit: `Fix full-video inference boundaries`
+
+The exact-commit `6c29f8b` trial passed the two-video exhaustive decode gate
+and the fixed-source one-versus-eight RTMLib parity gate. The E2E command then
+completed with zero assembled records because the two selected visual paths
+failed at independent production boundaries. The 153,600-frame TrackNet input
+is exactly divisible by sequence length/stride 8, exposing an empty EOF window
+in the vendored iterable dataset. The other selected video completed TrackNet,
+then the isolated RTMLib process failed during module import because the child
+entrypoint imported the coordinator-only `frozendict` dependency.
+
+#### Files
+
+- Correct the TrackNetV3 whole-video iterable EOF boundary.
+- Keep the sharded RTMLib child entrypoint independent of coordinator-only
+  model dependencies.
+- Add focused exact-multiple and isolated-child-import regressions.
+- Update the Batch 5 preflight and external worklog with the failed-run
+  evidence and corrected replacement instructions.
+
+#### Changes
+
+1. Stop whole-video iteration when EOF is reached with no buffered frames.
+2. Preserve the existing final partial-window padding and ordered frame IDs.
+3. Move the `StageOutcome` dependency into the parent-only pose stage wrapper;
+   do not broaden the RTMLib environment.
+4. Reject a nominally successful E2E publication when no selected video or
+   rally survives required visual processing.
+5. Reuse an integrity-checked optional `unavailable` result on a normal
+   unchanged resume so the manifest and rally-record snapshot stay identical.
+   Provide an explicit operator switch to retry unavailable stages later.
+
+#### Gate
+
+- An exact multiple of sequence length yields each complete TrackNet window
+  once and exits without an empty padded window.
+- A non-multiple retains the final partial padded window and canonical frame
+  indices.
+- The sharded pose child module imports under the production dependency split
+  when `frozendict` is unavailable.
+- The exact Bourbaki TrackNet and RTMLib environments pass focused boundary
+  probes before another full trial.
+- Focused tests, repository-wide Ruff, configured whole-project Pyrefly, and
+  the full pytest suite pass.
+- A fresh adversarial review finds no unresolved correctness issue.
+
+The first Batch 5D adversarial review found that unavailable cleaning reuse
+restored chunk files but not the transient per-video failed-commentary status.
+The cleaning stage now publishes an integrity-checked status artifact for every
+outcome and restores it with the chunks. The partial-timeout regression proves
+that the normal resume makes no new request, reuses every stage, preserves the
+failed status, and leaves all four publication files byte-identical.
+
+The subsequent closure review found three remaining resume and acceptance
+edges. An unavailable cleaning result has no cleaned-chunk snapshot, so reuse
+now restores the retained raw triage chunks before a separately invalidated
+pairing stage reruns. A selected run with no surviving video or no assembled
+rally now returns a terminal acceptance error and the command exits nonzero,
+while still publishing the diagnostic report. Finally, the successful cleaning
+stage counts chunk-bearing videos independently of its status artifact. The
+focused regressions cover all three boundaries and the normal unchanged resume
+remains byte-identical.
+
+The settled Batch 5D gate passes 132 focused tests and the full 1,547-test
+suite with 29 skips and the unchanged 31 warnings. Repository-wide Ruff,
+configured whole-project Pyrefly (0 errors, 12 suppressions), and `git diff
+--check` pass. A fresh post-fix adversarial review read the complete diff and
+its callers, reran focused read-only checks, preserved the exact Git state,
+and reported zero findings. Batch 5D is locally accepted; only its guarded
+exact-environment Bourbaki probes and full E2E/resume acceptance remain.
+
 ### Extended OUT-list
 
 - Do not replace or delete the canonical downloaded source. A 288p global
@@ -652,10 +727,13 @@ per-minute quotas.
   credential handling; the corrective batch only bounds failure latency.
 - Preserve the stopped `8fc7503` root as evidence. Run corrected code from a
   new exact-commit execution root rather than editing or relaunching that clone.
+- Preserve the failed `6c29f8b` root and its completed gates as evidence. Do
+  not edit or relaunch it; Batch 5D must use another exact-commit root.
 
 ### Extended commit sequence
 
 1. `Speed up full-video shuttle extraction`
 2. `Shard full-video pose extraction`
 3. `Bound optional commentary requests`
-4. `Record the issue 15 end-to-end trial`
+4. `Fix full-video inference boundaries`
+5. `Record the issue 15 end-to-end trial`

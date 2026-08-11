@@ -1,7 +1,7 @@
 # Issue 15 Batch 5 preflight handoff
 
-Status: two external attempts stopped; Batch 5C bounds optional commentary
-requests before the next exact-commit Bourbaki trial.
+Status: three external attempts stopped; Batch 5D is corrected and accepted
+locally; a new exact-commit Bourbaki trial remains pending.
 
 This document began as the state freeze immediately before Batch 5 of
 `issue_15_implementation_plan.md`. It now also records the stopped first
@@ -9,6 +9,61 @@ attempt and the exact conditions for starting and accepting its replacement.
 The original pre-launch evidence remains below as a historical record.
 
 ## Current Batch 5 state
+
+The exact-commit `6c29f8b` root at `/scratch/cmarti/issue15_6c29f8b` passed the
+full two-video decode/seek gate and the A100 one-versus-eight pose parity gate.
+Its E2E run then completed from 12:41 to 15:13 on 2026-08-11, but both selected
+videos were excluded and assembly published zero records. The guarded resume
+retried the failed visual boundaries, failed again, and correctly exited one
+after the publications changed. No process remains and the A100 is clear. The
+root is preserved as failed-gate evidence and must not be edited or relaunched.
+
+The two failures are deterministic production boundaries. Video
+`9WVwZSzixh0` contains 153,600 frames, exactly divisible by TrackNet sequence
+length/stride 8. The whole-video iterable yielded its last complete window,
+then performed an empty EOF iteration and indexed `frame_list[-1]`. Video
+`P3OcTzwmqeY` completed TrackNet, but its RTMLib child imported the
+coordinator-only `dataset_builder.models` module and failed because the pose
+environment intentionally lacks `frozendict`.
+
+Batch 5D terminates the empty TrackNet iteration while preserving partial
+window padding, and moves `StageOutcome` into the parent-only pose wrapper.
+It also makes a validated optional `unavailable` result reusable by the normal
+unchanged-resume command. This preserves all four publication bytes and does
+not spend commentary quota twice. An operator who intentionally wants to
+retry those optional boundaries must add `--retry-unavailable`; that switch is
+not part of the acceptance resume.
+
+The first independent Batch 5D review found one missing persisted-state edge:
+a cleaning timeout marked a video as failed only in memory, so reuse restored
+the chunks but could reclassify commentary as available. The cleaning stage
+now publishes and validates a per-video status artifact on every outcome and
+restores it before pairing/report restoration. Its partial-timeout regression
+requires every stage and all four publications to remain identical.
+
+The next closure review found that an unavailable cleaning stage had no
+cleaned-chunk output to restore. If only its dependent pairing artefact was
+invalidated, the rerun could therefore lose the retained raw chunk ID. Reuse
+now falls back to the integrity-checked triage chunk snapshot in this case,
+and a regression invalidates pairing alone and proves the regenerated row and
+rally commentary are unchanged. The same review also found that zero-rally
+runs still returned command success and that the status artefact inflated the
+successful-cleaning video count. The command now exits nonzero for selected
+runs with no surviving video or rally while preserving the report, and the
+cleaning count is derived from restored chunk-bearing videos.
+
+The settled local gate passes 132 focused tests and the full 1,547-test suite
+with 29 skips and the unchanged 31 warnings. Repository-wide Ruff, configured
+whole-project Pyrefly (0 errors, 12 suppressions), and `git diff --check` pass.
+A fresh post-fix independent review verified every prior Batch 5D finding and
+the complete diff, preserved the exact Git state, and reported zero findings.
+
+The next trial must use a new clean exact-commit root. Before it starts, the
+exact Bourbaki TrackNet environment must pass the exact-multiple EOF regression
+and the exact RTMLib environment must import the sharded child without
+`frozendict`. A nominal zero-record publication is not acceptance.
+
+## Preserved `8fc7503` commentary-timeout attempt
 
 The replacement attempt ran from exact commit `8fc7503` under
 `/scratch/cmarti/issue15_8fc7503`. It passed the FFmpeg 5.1.10 preflight, exact
@@ -114,16 +169,18 @@ exact sequential producer for `pose_shards = 1`. Its deterministic local gate,
 source-specific seek gate, and A100 RTMLib parity gate subsequently passed.
 The separate worker-scaling benchmark remains deferred rather than claimed.
 
-The replacement run must use a new clean execution clone and a new run root
-from the final performance-extension commit. Do not reuse or mutate the
-stopped `449d8b1` run. Before restarting the bounded two-video trial:
+The replacement run must use a new clean execution clone and run root from the
+final Batch 5D commit. Do not reuse or mutate any stopped root. Before
+restarting the bounded two-video trial:
 
-1. complete and locally gate the FFmpeg bicubic 512x288 TrackNet-input stage;
-2. use TrackNet stride 8 while retaining the canonical 1080p masters;
-3. pass the fixed-source frame and numerical checks on Bourbaki;
-4. enable the multi-shard trial path only after its exact RTMLib parity gate;
-5. provide a valid protected Gemini credential; and
-6. rerun the unchanged-resume and secret-persistence gates from this handoff.
+1. retain the gated FFmpeg bicubic 512x288 TrackNet input and stride 8;
+2. retain the canonical 1080p masters and the parity-proven eight-shard pose
+   path;
+3. pass the exact-multiple TrackNet EOF probe in the TrackNet environment;
+4. pass the dependency-light pose import probe in the RTMLib environment;
+5. provide the protected Gemini credential without exposing its value; and
+6. rerun the non-empty publication, unchanged-resume, and secret-persistence
+   gates from this handoff.
 
 ## Git and implementation state
 
@@ -141,7 +198,8 @@ The completed implementation commits are:
 7. `5337163 Speed up full-video shuttle extraction`
 8. `32dcefa Shard full-video pose extraction`
 9. `8fc7503 Fix FFmpeg version probing`
-10. `Bound optional commentary requests` (this Batch 5C commit)
+10. `6c29f8b Bound optional commentary requests`
+11. `Fix full-video inference boundaries` (this Batch 5D commit)
 
 The post-Batch 4 local acceptance gate passed:
 
@@ -289,12 +347,12 @@ The isolated yt-dlp configuration at
 
 ## Replacement-root template
 
-The live replacement command cannot be made exact inside the Batch 5C commit
+The live replacement command cannot be made exact inside the Batch 5D commit
 because that commit cannot contain its own Git hash. After the local commit,
 record its full hash and create a new root named for that commit, for example
-`/scratch/cmarti/issue15_<short-Batch5C-hash>`. The replacement must use:
+`/scratch/cmarti/issue15_<short-Batch5D-hash>`. The replacement must use:
 
-- a new clean clone at the recorded full Batch 5C commit;
+- a new clean clone at the recorded full Batch 5D commit;
 - a new absent `external/trial-run` path beneath the new root;
 - newly verified wrappers, overlays, caches, configuration, and protected
   credential paths beneath the new root; and
@@ -302,13 +360,15 @@ record its full hash and create a new root named for that commit, for example
   that recorded group and waits for it; during sharded pose, the coordinator
   forwards cancellation into its separately owned pose-worker group and reaps
   the direct child; and
-- the source-specific seek and A100 parity gates before the two-video E2E
-  command. The separate worker-scaling benchmark remains deferred.
+- focused exact-environment TrackNet EOF and pose-import gates before the
+  two-video E2E command. The preserved `6c29f8b` source-seek and A100 parity
+  results remain valid because Batch 5D changes neither decode planning nor
+  pose numerics. The separate worker-scaling benchmark remains deferred.
 
-Do not substitute `issue15_449d8b1` for the placeholder. That root and its
-2.7 GiB run are preserved evidence. The exact replacement paths and commands
-must be generated after the Batch 5C hash exists and recorded in the external
-worklog before transfer.
+Do not substitute `issue15_449d8b1`, `issue15_8fc7503`, or `issue15_6c29f8b`
+for the placeholder. Those roots are preserved evidence. The exact replacement
+paths and commands must be generated after the Batch 5D hash exists and
+recorded in the external worklog before transfer.
 
 ## Historical first-attempt credential gate (do not rerun)
 
@@ -379,11 +439,11 @@ Do not loosen those bounds for the acceptance run.
 
 Before the replacement command:
 
-- Confirm repository HEAD is the recorded full Batch 5C commit and tracked
+- Confirm repository HEAD is the recorded full Batch 5D commit and tracked
   state is clean.
 - Recheck all three model MD5 values.
-- Confirm the new run directory is absent and is not beneath
-  `/scratch/cmarti/issue15_449d8b1`.
+- Confirm the new run directory is absent and is not beneath any preserved
+  `issue15_449d8b1`, `issue15_8fc7503`, or `issue15_6c29f8b` root.
 - Confirm CUDA, RTMLib providers, `ffprobe`, yt-dlp, Deno, EJS, and the bgutil
   provider are available through the isolated paths above.
 - Confirm the credential file passes its ownership, type, mode, and non-empty
@@ -398,15 +458,18 @@ A100 is clear. Do not repeat the first attempt's exact-PID-only cancellation.
 
 After a successful first run:
 
-1. Record the MD5 values of `run_manifest.json.gz`,
+1. Require at least one processed selected video, at least one assembled rally
+   record, and no unexplained selected-video exclusion.
+2. Record the MD5 values of `run_manifest.json.gz`,
    `rally_records.json.gz`, `dataset_builder_report.json.gz`, and
    `selected_videos.csv.gz`.
-2. Run the exact same command once more with no source, model, input,
-   configuration, interpreter, credential-name, or path changes.
-3. Require all four publications to remain byte-identical.
-4. Require every existing stage record to remain unchanged. That demonstrates
+3. Run the exact same command once more, without `--retry-unavailable`, with
+   no source, model, input, configuration, interpreter, credential-name, or
+   path changes.
+4. Require all four publications to remain byte-identical.
+5. Require every existing stage record to remain unchanged. That demonstrates
    that every reusable stage took the reuse path rather than being rewritten.
-5. Scan the decompressed manifest, records, report, selection, commentary JSON,
+6. Scan the decompressed manifest, records, report, selection, commentary JSON,
    TOML, and trial log for the exact secret value. The scan must find none and
    must never print the value.
 
@@ -439,4 +502,4 @@ worktree and committed with the approved Batch 5 message:
 `Record the issue 15 end-to-end trial`
 
 Until the corrected replacement external gates pass, the correct state is
-“Batch 5 trials stopped; Batch 5C corrected locally; final acceptance pending.”
+“Batch 5 trials stopped; Batch 5D corrected locally; final acceptance pending.”

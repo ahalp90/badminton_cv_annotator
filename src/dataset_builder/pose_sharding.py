@@ -17,7 +17,6 @@ from dataset_builder._pose_process import (
     resolve_pose_executable,
     run_isolated_pose_process,
 )
-from dataset_builder.models import StageOutcome
 from dataset_builder.vision import (
     PoseArrays,
     PoseExtraction,
@@ -42,6 +41,8 @@ def extract_sharded_rtmlib_pose_stage(
     decode_mode: str = POSE_SHARD_DECODE_MODE,
 ) -> VisionStageResult[PoseExtraction]:
     """Run validated multi-process RTMLib extraction in the pose environment."""
+    from dataset_builder.models import StageOutcome
+
     try:
         extraction = _extract_sharded_rtmlib_pose(
             metadata=metadata,
