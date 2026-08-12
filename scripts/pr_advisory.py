@@ -43,6 +43,8 @@ HTTP_TIMEOUT = 30  # seconds
 MAX_DIFF_FILES = 6
 MAX_DIFF_CHARS = 15_000
 MAX_FILE_DIFF_CHARS = 5_000
+MAX_REVIEW_WORDS = 450
+MAX_OUTPUT_TOKENS = 32_000
 
 RUBRIC = """\
 Write a short PR note that a tired person can read quickly.
@@ -79,6 +81,17 @@ Stick to facts supported by the diff, tests, docs, commits, or PR text.
 Keep it as short as the PR allows.
 - Small diff or concept: ~100-180 words.
 - Large or complex: up to ~450 words when needed to keep the important technical detail.
+"""
+
+OUTPUT_CONTRACT = """\
+Return only the finished PR note. Do not echo or analyse the rubric, source
+material, audience, task, or your reasoning. The human/AI decision in the rubric
+is private and must not appear in the note.
+
+The first characters must be `### Summary`. Use one prose paragraph there, then
+`### What changed` with 2-5 short `- ` bullets. Use `### Worth knowing` only when
+there are 1-3 useful `- ` bullets. Use no other headings, code fences, or tables.
+Do not include a separate diff analysis. End with a complete sentence or bullet.
 """
 
 
@@ -153,6 +166,59 @@ def _ranked_implementation_diff(base: str, head: str) -> str:
     return _truncate_with_marker(combined, MAX_DIFF_CHARS, overall_marker)
 
 
+def review_format_problem(review: str) -> str | None:
+    """Return why a generated note is unsafe to post, or None when it is valid."""
+    if not review.startswith("### Summary\n"):
+        return "response does not start with the Summary heading"
+    if "```" in review or "~~~" in review:
+        return "response contains a code fence"
+    if len(review.split()) > MAX_REVIEW_WORDS:
+        return f"response exceeds {MAX_REVIEW_WORDS} words"
+
+    lowered = review.casefold()
+    leaked_analysis_terms = (
+        "tired person",
+        "human or ai",
+        "ai or human",
+        "human/ai",
+        "ai/human",
+        "human-written",
+        "agent-written",
+        "diff analysis",
+    )
+    if any(term in lowered for term in leaked_analysis_terms):
+        return "response exposes private analysis or authorship judgement"
+
+    headings = [line for line in review.splitlines() if line.startswith("#")]
+    allowed_headings = ["### Summary", "### What changed"]
+    if "\n### Worth knowing\n" in review:
+        allowed_headings.append("### Worth knowing")
+    if headings != allowed_headings:
+        return "response headings do not match the requested structure"
+
+    summary, separator, rest = review.removeprefix("### Summary\n").partition(
+        "\n### What changed\n"
+    )
+    if not separator or not summary.strip():
+        return "response is missing the Summary prose or What changed section"
+    if "\n\n" in summary.strip():
+        return "Summary contains more than one paragraph"
+    if any(line.lstrip().startswith(("- ", "* ")) for line in summary.splitlines()):
+        return "Summary uses bullets instead of prose"
+
+    changes, worth_separator, worth = rest.partition("\n### Worth knowing\n")
+    change_lines = [line for line in changes.splitlines() if line.strip()]
+    if not 2 <= len(change_lines) <= 5 or any(not line.startswith("- ") for line in change_lines):
+        return "What changed must contain two to five short dash bullets"
+
+    if worth_separator:
+        worth_lines = [line for line in worth.splitlines() if line.strip()]
+        if not 1 <= len(worth_lines) <= 3 or any(not line.startswith("- ") for line in worth_lines):
+            return "Worth knowing must contain one to three short dash bullets"
+
+    return None
+
+
 def gather_context(pr: dict) -> str:
     """Build the prompt input from PR prose, commits and the implementation diff."""
     base = pr.get("base", {}).get("sha", "")
@@ -198,7 +264,10 @@ def call_gemini(model: str, api_key: str, prompt: str) -> str:
     payload = json.dumps(
         {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800},
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": MAX_OUTPUT_TOKENS,
+            },
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -211,7 +280,11 @@ def call_gemini(model: str, api_key: str, prompt: str) -> str:
     if not candidates:
         feedback = data.get("promptFeedback", {})
         raise RuntimeError(f"no candidates returned (feedback: {feedback})")
-    parts = candidates[0].get("content", {}).get("parts", [])
+    candidate = candidates[0]
+    finish_reason = candidate.get("finishReason", "")
+    if finish_reason and finish_reason != "STOP":
+        raise RuntimeError(f"response ended with finish reason {finish_reason}")
+    parts = candidate.get("content", {}).get("parts", [])
     text = "".join(p.get("text", "") for p in parts).strip()
     if not text:
         raise RuntimeError("empty response text")
@@ -271,7 +344,14 @@ def main() -> int:
         warn("event payload has no pull_request object")
         return 0
 
-    prompt = RUBRIC + "\n\n---\n\n" + gather_context(pr)
+    prompt = (
+        RUBRIC
+        + "\n\n"
+        + OUTPUT_CONTRACT
+        + "\n\n<source_material>\n"
+        + gather_context(pr)
+        + "</source_material>\n"
+    )
 
     try:
         review = call_gemini(model, api_key, prompt)
@@ -299,6 +379,11 @@ def main() -> int:
         return 0
     except (ValueError, RuntimeError, KeyError) as exc:
         warn(f"Unexpected response from Gemini ({exc}).")
+        return 0
+
+    format_problem = review_format_problem(review)
+    if format_problem:
+        warn(f"Gemini returned a malformed quick read ({format_problem})")
         return 0
 
     note = (

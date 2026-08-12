@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from scripts import pr_advisory, pr_main_files
 
 
@@ -94,6 +96,83 @@ def test_gather_context_limits_commit_count_and_body_length(monkeypatch) -> None
     assert "b" * 201 not in context
 
 
+def test_review_format_accepts_requested_markdown_structure() -> None:
+    review = """\
+### Summary
+The bot now explains the code changes from a ranked diff, which makes its PR note useful without flooding the model.
+
+### What changed
+- Replaced the writing critique with a short implementation summary.
+- Samples up to six meaningful files within per-file and total limits.
+
+### Worth knowing
+- The bot updates its existing PR comment.
+"""
+
+    assert pr_advisory.review_format_problem(review) is None
+
+
+@pytest.mark.parametrize(
+    ("review", "problem"),
+    [
+        (
+            "Tired person.\n\n```\n### Summary\nDraft\n```",
+            "response does not start with the Summary heading",
+        ),
+        (
+            "### Summary\n- The bot changed.\n\n### What changed\n- First\n- Second",
+            "Summary uses bullets instead of prose",
+        ),
+        (
+            "### Summary\nHuman or AI: human.\n\n### What changed\n- First\n- Second",
+            "response exposes private analysis or authorship judgement",
+        ),
+        (
+            "### Summary\nThe bot changed.\n\n### Diff analysis\nDetails\n\n### What changed\n- First\n- Second",
+            "response exposes private analysis or authorship judgement",
+        ),
+    ],
+)
+def test_review_format_rejects_meta_output(review: str, problem: str) -> None:
+    assert pr_advisory.review_format_problem(review) == problem
+
+
+def test_call_gemini_rejects_cut_off_response(monkeypatch) -> None:
+    request_payload: dict[str, object] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "candidates": [
+                        {
+                            "finishReason": "MAX_TOKENS",
+                            "content": {"parts": [{"text": "### Summary\nCut off"}]},
+                        }
+                    ]
+                }
+            ).encode()
+
+    def fake_urlopen(request, timeout):
+        request_payload.update(json.loads(request.data))
+        return FakeResponse()
+
+    monkeypatch.setattr(pr_advisory.urllib.request, "urlopen", fake_urlopen)
+
+    with pytest.raises(RuntimeError, match="finish reason MAX_TOKENS"):
+        pr_advisory.call_gemini("test-model", "test-key", "test prompt")
+    assert request_payload["generationConfig"] == {
+        "temperature": 0.2,
+        "maxOutputTokens": pr_advisory.MAX_OUTPUT_TOKENS,
+    }
+
+
 def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
     event_path = tmp_path / "event.json"
     event_path.write_text(
@@ -107,7 +186,13 @@ def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
     monkeypatch.setattr(pr_advisory, "gather_context", lambda pr: "prompt context")
-    monkeypatch.setattr(pr_advisory, "call_gemini", lambda model, api_key, prompt: "### Summary\nA useful note.")
+    review = (
+        "### Summary\nA useful note.\n\n"
+        "### What changed\n"
+        "- Reads the implementation diff.\n"
+        "- Explains the main changes."
+    )
+    monkeypatch.setattr(pr_advisory, "call_gemini", lambda model, api_key, prompt: review)
 
     def fake_post_comment(repo: str, number: int, token: str, body: str) -> None:
         posted.update(repo=repo, number=number, token=token, body=body)
@@ -121,6 +206,6 @@ def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
         "token": "test-token",
         "body": (
             "🤖 **AI quick read** — generated from the PR and implementation diff\n\n"
-            "### Summary\nA useful note.\n"
+            f"{review}\n"
         ),
     }

@@ -34,7 +34,8 @@ Off until you add a key; without one it skips silently. With one, it posts a
 short explanation based mainly on a ranked sample of the implementation diff.
 The sample takes up to six meaningful files, with per-file and total size
 limits. Rate limits and outages only produce warnings, so the quick read never
-blocks a PR.
+blocks a PR. A cut-off or malformed model response also produces a warning and
+does not replace the existing PR comment.
 
 1. Free key: <https://aistudio.google.com/app/apikey>
 2. Add it as repo secret **`PR_MESSAGE_BOT_KEY`** (Settings → Secrets and variables → Actions).
