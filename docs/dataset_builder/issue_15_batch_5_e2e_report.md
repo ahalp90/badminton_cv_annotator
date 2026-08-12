@@ -2,6 +2,9 @@
 
 Status: accepted
 
+For the operational failure, recovery, and future-hardening analysis, see the
+[Batch 5 reliability postmortem](issue_15_batch_5_reliability_postmortem.md).
+
 The corrected trial ran from the clean Bourbaki root
 `/scratch/cmarti/issue15_ce9405b` at source commit
 `ce9405b2c1cb9aec948e510f9f1e6e3af410aabf`. The root is execution-only and
