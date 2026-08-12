@@ -22,10 +22,9 @@ from annotator.run_video import AnnotatorResult
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._record_validation import (
-    DEFINITIVE_EXCLUSION_ARTIFACT,
+    RALLY_RECORD_COLLECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RALLY_RECORDS_FILENAME,
-    RAW_REPLAY_ARTIFACT,
     reject_manifest_output_cycle,
     validate_live_manifest_extension,
     validate_paired_commentary_provenance,
@@ -79,6 +78,15 @@ class RallyRecordArtifacts:
     run_manifest: Path
 
 
+@dataclass(frozen=True)
+class RallyRecordProjection:
+    """Validated source provenance and rally rows for one video."""
+
+    input_manifest_sha256: str
+    source: dict[str, object]
+    records: tuple[dict[str, object], ...]
+
+
 def assemble_rally_records(
     *,
     manifest: RunManifest,
@@ -95,12 +103,10 @@ def assemble_rally_records(
     commentary_reason: str | None,
     commentary_missing_reasons: Mapping[int, str],
     commentary_provenance: Mapping[str, object],
-    code_version: str,
-    assembly_configuration: Mapping[str, object],
     mask_stage_name: str,
-) -> list[dict[str, object]]:
+) -> RallyRecordProjection:
     """Validate and join existing producer values without reinterpreting them."""
-    _validate_identity(source_dataset, video_id, source_reference, code_version, mask_stage_name)
+    _validate_identity(source_dataset, video_id, source_reference, mask_stage_name)
     if not isinstance(metadata, VideoMetadata):
         raise TypeError("metadata must be canonical VideoMetadata")
     if not isinstance(annotation, AnnotatorResult):
@@ -121,13 +127,12 @@ def assemble_rally_records(
         provenance=commentary_provenance,
         commentary_eligible=source_reference.commentary_eligible,
     )
-    run_payload = _run_payload(manifest, code_version, assembly_configuration)
-    artifacts = _artifact_payload(manifest, mask_stage_name)
     source_payload = {
         "source_dataset": source_dataset,
         "video_id": video_id,
         "source_reference": source_reference.to_dict(),
         "video_metadata": metadata.to_dict(),
+        "mask_stage": mask_stage_name,
     }
 
     records: list[dict[str, object]] = []
@@ -141,8 +146,6 @@ def assemble_rally_records(
                 "video_id": video_id,
                 "rally_id": rally_id,
             },
-            "run": deepcopy(run_payload),
-            "source": deepcopy(source_payload),
             "rally": {
                 "rally_id": rally_id,
                 "start_frame": start_frame,
@@ -157,58 +160,54 @@ def assemble_rally_records(
                 "hit_height_failures": failures[rally_id],
             },
             "outcomes": outcome_payloads[rally_id],
-            "artifacts": deepcopy(artifacts),
             "commentary": deepcopy(commentary_payloads[rally_id]),
         })
-    validate_record_collection(manifest.run_id, records)
-    return records
+    validate_record_collection(manifest, [source_payload], records)
+    return RallyRecordProjection(run_manifest_sha256(manifest), source_payload, tuple(records))
 
 
 def write_rally_records(
     run_dir: Path,
     manifest: RunManifest,
-    records: Sequence[Mapping[str, object]],
+    projections: Sequence[RallyRecordProjection],
+    *,
+    code_version: str,
+    assembly_configuration: Mapping[str, object],
 ) -> RallyRecordArtifacts:
-    """Persist a validated record list and the immutable run-manifest snapshot."""
+    """Persist validated projections and the immutable run-manifest snapshot."""
     if not isinstance(manifest, RunManifest):
         raise TypeError("manifest must be RunManifest")
+    _validate_manifest_code_version(manifest, code_version)
     run_dir = Path(run_dir)
     records_path = run_dir / RALLY_RECORDS_FILENAME
     reject_manifest_output_cycle(manifest, run_dir, records_path)
-    materialized = [dict(record) for record in records]
-    validate_record_collection(manifest.run_id, materialized)
-    _validate_input_manifest_reference(manifest, materialized)
+    input_manifest_sha256 = run_manifest_sha256(manifest)
+    sources: list[dict[str, object]] = []
+    records: list[dict[str, object]] = []
+    for projection in projections:
+        if not isinstance(projection, RallyRecordProjection):
+            raise TypeError("projections must contain RallyRecordProjection values")
+        if projection.input_manifest_sha256 != input_manifest_sha256:
+            raise ValueError("projection input-manifest digest differs from the supplied manifest")
+        sources.append(dict(projection.source))
+        records.extend(dict(record) for record in projection.records)
+    validate_record_collection(manifest, sources, records)
     manifest_path = write_run_manifest(run_dir, manifest)
     records_path = save_json_gz(
         records_path,
         {
-            "schema": RALLY_RECORD_SCHEMA,
+            "schema": RALLY_RECORD_COLLECTION_SCHEMA,
             "run_id": manifest.run_id,
             "run_manifest": MANIFEST_FILENAME,
-            "input_manifest_sha256": run_manifest_sha256(manifest),
+            "input_manifest_sha256": input_manifest_sha256,
             "input_manifest": manifest.to_dict(),
-            "records": materialized,
+            "code_version": code_version,
+            "assembly_configuration": redact_configuration(assembly_configuration),
+            "sources": sources,
+            "records": records,
         },
     )
     return RallyRecordArtifacts(records=records_path, run_manifest=manifest_path)
-
-
-def _validate_input_manifest_reference(
-    manifest: RunManifest,
-    records: Sequence[Mapping[str, object]],
-) -> None:
-    if not records:
-        return
-    run = _mapping(records[0]["run"], "record run provenance")
-    configuration = _mapping(run["configuration"], "record run configuration")
-    assembly = _mapping(configuration["assembly"], "record assembly configuration")
-    expected = _run_payload(
-        manifest,
-        _string(run["code_version"], "record code_version"),
-        assembly,
-    )
-    if run != expected:
-        raise ValueError("records do not reference the supplied input-manifest snapshot")
 
 
 def load_rally_records(path: Path) -> list[dict[str, object]]:
@@ -216,12 +215,12 @@ def load_rally_records(path: Path) -> list[dict[str, object]]:
     payload = load_json_gz(path)
     expected_fields = {
         "schema", "run_id", "run_manifest", "input_manifest_sha256",
-        "input_manifest", "records",
+        "input_manifest", "code_version", "assembly_configuration", "sources", "records",
     }
     if set(payload) != expected_fields:
         raise ValueError("rally record collection fields differ")
-    if payload["schema"] != RALLY_RECORD_SCHEMA:
-        raise ValueError(f"unsupported rally record schema: {payload['schema']!r}")
+    if payload["schema"] != RALLY_RECORD_COLLECTION_SCHEMA:
+        raise ValueError(f"unsupported rally record collection schema: {payload['schema']!r}")
     run_id = _string(payload["run_id"], "record collection run_id")
     if payload["run_manifest"] != MANIFEST_FILENAME:
         raise ValueError("rally record collection must reference run_manifest.json.gz")
@@ -235,14 +234,25 @@ def load_rally_records(path: Path) -> list[dict[str, object]]:
         raise ValueError("record collection input-manifest digest differs from its snapshot")
     if input_manifest.run_id != run_id:
         raise ValueError("record collection run_id differs from its input-manifest snapshot")
+    code_version = _string(payload["code_version"], "record collection code_version")
+    _validate_manifest_code_version(input_manifest, code_version)
+    assembly_configuration = _mapping(
+        payload["assembly_configuration"], "record assembly configuration",
+    )
+    if redact_configuration(assembly_configuration) != assembly_configuration:
+        raise ValueError("record assembly configuration contains unredacted secrets")
+    raw_sources = payload["sources"]
+    if not isinstance(raw_sources, list):
+        raise ValueError("rally record collection sources must be a list")
+    sources = [dict(_mapping(source, "record source")) for source in raw_sources]
     raw_records = payload["records"]
     if not isinstance(raw_records, list):
         raise ValueError("rally record collection records must be a list")
     records = [dict(_mapping(record, "rally record")) for record in raw_records]
-    validate_record_collection(run_id, records)
-    _validate_input_manifest_reference(input_manifest, records)
+    validate_record_collection(input_manifest, sources, records)
     live_manifest = load_run_manifest(Path(path).parent)
     validate_live_manifest_extension(input_manifest, live_manifest)
+    _validate_manifest_code_version(live_manifest, code_version)
     return records
 
 
@@ -250,13 +260,11 @@ def _validate_identity(
     source_dataset: str,
     video_id: str,
     source_reference: SourceReference,
-    code_version: str,
     mask_stage_name: str,
 ) -> None:
     for name, value in (
         ("source_dataset", source_dataset),
         ("video_id", video_id),
-        ("code_version", code_version),
         ("mask_stage_name", mask_stage_name),
     ):
         if not isinstance(value, str) or not value:
@@ -265,6 +273,15 @@ def _validate_identity(
         raise TypeError("source_reference must be SourceReference")
     if source_reference.video_id != video_id:
         raise ValueError("source reference video_id does not match the exact record video_id")
+
+
+def _validate_manifest_code_version(manifest: RunManifest, code_version: str) -> None:
+    code_version = _string(code_version, "record collection code_version")
+    manifest_versions = {stage.fingerprint.source_commit for stage in manifest.stages}
+    if manifest_versions and manifest_versions != {code_version}:
+        raise ValueError(
+            f"run manifest code versions {sorted(manifest_versions)!r} conflict with {code_version!r}"
+        )
 
 
 def _validate_timing(
@@ -859,81 +876,6 @@ def _missing_reason_map(reasons: Mapping[int, str], rally_count: int) -> dict[in
             raise ValueError(f"commentary missing-reason rally_id is invalid: {rally_id!r}")
         normalized[rally_id] = _string(reason, f"commentary missing reason {rally_id}")
     return normalized
-
-
-def _run_payload(
-    manifest: RunManifest,
-    code_version: str,
-    assembly_configuration: Mapping[str, object],
-) -> dict[str, object]:
-    if not isinstance(manifest, RunManifest):
-        raise TypeError("manifest must be RunManifest")
-    commits = {stage.fingerprint.source_commit for stage in manifest.stages}
-    if commits and commits != {code_version}:
-        raise ValueError(
-            f"run manifest code versions {sorted(commits)!r} conflict with {code_version!r}"
-        )
-    stage_configuration: dict[str, object] = {}
-    integrity: dict[str, object] = {}
-    outcomes: dict[str, object] = {}
-    for stage in manifest.stages:
-        stage_dict = stage.to_dict()
-        stage_configuration[stage.name] = stage_dict["configuration"]
-        integrity[stage.name] = {
-            "fingerprint": stage.fingerprint.digest,
-            "inputs": [artifact.to_dict() for artifact in stage.fingerprint.inputs],
-            "model_weights": [artifact.to_dict() for artifact in stage.fingerprint.model_weights],
-            "outputs": [artifact.to_dict() for artifact in stage.outputs],
-        }
-        outcomes[stage.name] = {
-            "outcome": stage.outcome.value,
-            "reason": stage.reason,
-        }
-    return {
-        "run_id": manifest.run_id,
-        "created_at_utc": manifest.created_at_utc,
-        "run_manifest": MANIFEST_FILENAME,
-        "input_manifest_sha256": run_manifest_sha256(manifest),
-        "code_version": code_version,
-        "configuration": {
-            "assembly": redact_configuration(assembly_configuration),
-            "stages": stage_configuration,
-        },
-        "integrity": integrity,
-        "stage_outcomes": outcomes,
-    }
-
-
-def _artifact_payload(manifest: RunManifest, mask_stage_name: str) -> dict[str, object]:
-    stages = {stage.name: stage for stage in manifest.stages}
-    if mask_stage_name not in stages:
-        raise ValueError(f"mask stage is absent from run manifest: {mask_stage_name!r}")
-    mask_stage = stages[mask_stage_name]
-    if mask_stage.outcome not in {StageOutcome.PROCESSED, StageOutcome.SKIPPED}:
-        raise ValueError("mask stage must have a reusable successful outcome")
-    mask_outputs = {artifact.name: artifact for artifact in mask_stage.outputs}
-    missing = {
-        RAW_REPLAY_ARTIFACT,
-        DEFINITIVE_EXCLUSION_ARTIFACT,
-    } - set(mask_outputs)
-    if missing:
-        raise ValueError(f"mask stage is missing required outputs: {sorted(missing)}")
-    by_stage = {
-        stage.name: [artifact.to_dict() for artifact in stage.outputs]
-        for stage in manifest.stages
-        if stage.outputs
-    }
-    return {
-        "by_stage": by_stage,
-        "masks": {
-            "stage": mask_stage_name,
-            "stage_configuration": mask_stage.to_dict()["configuration"],
-            RAW_REPLAY_ARTIFACT: mask_outputs[RAW_REPLAY_ARTIFACT].to_dict(),
-            DEFINITIVE_EXCLUSION_ARTIFACT: (
-                mask_outputs[DEFINITIVE_EXCLUSION_ARTIFACT].to_dict()
-            ),
-        },
-    }
 
 
 def _mapping(payload: object, name: str) -> Mapping[str, object]:

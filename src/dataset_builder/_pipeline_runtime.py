@@ -29,7 +29,14 @@ from dataset_builder._vision_plans import pose_plans, shuttle_plans, tracknet_in
 from dataset_builder.cli import BuilderConfig, StageExecution, StagePlan
 from dataset_builder.manifest import load_run_manifest, resolve_interpreter
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
-from dataset_builder.records import SourceReference, assemble_rally_records, write_rally_records
+from dataset_builder.records import (
+    RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_SCHEMA,
+    RallyRecordProjection,
+    SourceReference,
+    assemble_rally_records,
+    write_rally_records,
+)
 from dataset_builder.selection import (
     SELECTED_VIDEOS_FILENAME,
     SelectionDecision,
@@ -709,16 +716,16 @@ class DefaultPipelineRuntime(RuntimeSupport):
         def execute() -> StageExecution:
             self._reset_stage_dir("primitive_projection", video_id)
             input_manifest = load_run_manifest(self.run_dir)
-            records = self._assemble_one(input_manifest, video_id)
+            projection = self._assemble_one(input_manifest, video_id)
             save_json_gz(output, {
                 "schema": "primitive-projection/0.1",
                 "video_id": video_id,
-                "rally_count": len(records),
+                "rally_count": len(projection.records),
             })
             return StageExecution(
                 StageOutcome.PROCESSED,
                 {"primitive_projection": output},
-                {"rallies": len(records)},
+                {"rallies": len(projection.records)},
             )
 
         inputs = self._annotation_files(video_id)
@@ -732,7 +739,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 self._video_stage("commentary_pairing", video_id),
             ),
             command=(self._current().path, "dataset_builder.records", "project", video_id),
-            configuration={"record_schema": "rally-record/0.1"},
+            configuration={"record_schema": RALLY_RECORD_SCHEMA},
             inputs=inputs,
             execute=execute,
             restore=lambda: _load_projection(output, video_id),
@@ -758,12 +765,18 @@ class DefaultPipelineRuntime(RuntimeSupport):
 
         def execute() -> StageExecution:
             input_manifest = load_run_manifest(self.run_dir)
-            records = [
-                record
+            projections = [
+                self._assemble_one(input_manifest, video_id)
                 for video_id in active
-                for record in self._assemble_one(input_manifest, video_id)
             ]
-            artifacts = write_rally_records(self.run_dir, input_manifest, records)
+            records = [record for projection in projections for record in projection.records]
+            artifacts = write_rally_records(
+                self.run_dir,
+                input_manifest,
+                projections,
+                code_version=self.source_commit,
+                assembly_configuration={"record_mode": "primitive"},
+            )
             self.state.records = records
             return StageExecution(
                 StageOutcome.PROCESSED,
@@ -775,7 +788,11 @@ class DefaultPipelineRuntime(RuntimeSupport):
             name="assembly",
             dependencies=dependencies,
             command=(self._current().path, "dataset_builder.records", "assemble"),
-            configuration={"record_schema": "rally-record/0.1", "validation_only": True},
+            configuration={
+                "collection_schema": RALLY_RECORD_COLLECTION_SCHEMA,
+                "record_schema": RALLY_RECORD_SCHEMA,
+                "validation_only": True,
+            },
             inputs=inputs,
             execute=execute,
             restore=lambda: self._restore_records(records_path),
@@ -861,7 +878,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self,
         manifest: RunManifest,
         video_id: str,
-    ) -> list[dict[str, object]]:
+    ) -> RallyRecordProjection:
         annotation = self.state.annotations[video_id]
         pairing = self.state.pairings.get(video_id)
         commentary_outcome = self.state.commentary_outcomes.get(
@@ -887,8 +904,6 @@ class DefaultPipelineRuntime(RuntimeSupport):
             commentary_reason=commentary_reason,
             commentary_missing_reasons=missing_reasons,
             commentary_provenance=self._commentary_provenance(video_id),
-            code_version=self.source_commit,
-            assembly_configuration={"record_mode": "primitive"},
             mask_stage_name=self._video_stage("annotation", video_id),
         )
 

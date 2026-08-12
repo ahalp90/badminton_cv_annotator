@@ -15,6 +15,7 @@ from annotator.video_metadata import VideoMetadata
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.cli import StageExecution, StagePlan
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
+from dataset_builder.records import RALLY_RECORD_COLLECTION_SCHEMA, RALLY_RECORD_SCHEMA
 from dataset_builder.selection import (
     COMMENTARY_FAILED,
     COMMENTARY_INELIGIBLE,
@@ -989,8 +990,11 @@ def test_silent_visual_source_records_ineligible_commentary_reason(
 
     payload = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
     records = payload["records"]
+    assert payload["schema"] == RALLY_RECORD_COLLECTION_SCHEMA
+    assert len(payload["sources"]) == 1
     assert isinstance(records, list) and len(records) == 1
     assert isinstance(records[0], dict)
+    assert records[0]["schema"] == RALLY_RECORD_SCHEMA
     commentary = records[0]["commentary"]
     assert isinstance(commentary, dict)
     assert commentary["missing_reason"] == COMMENTARY_INELIGIBLE
