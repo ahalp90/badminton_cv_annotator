@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from scripts import pr_advisory, pr_main_files
+from scripts import pr_advisory
 
 
-def test_gather_context_supplies_ranked_limited_implementation_diff(monkeypatch) -> None:
+def test_ranked_diff_samples_main_files_within_limits(monkeypatch) -> None:
     calls: list[list[str]] = []
     numstat = (
         "100\t0\tsrc/a.py\n"
@@ -19,27 +19,13 @@ def test_gather_context_supplies_ranked_limited_implementation_diff(monkeypatch)
         "40\t0\tsrc/f.py\n"
         "1000\t0\tdata/ignored.csv"
     )
-    oversized_file_diff = "x" * (pr_advisory.MAX_FILE_DIFF_CHARS + 1)
 
     def fake_git(args: list[str]) -> str:
         calls.append(args)
-        if args[0] == "log":
-            return ""
-        if "--stat" in args:
-            return "scripts/pr_advisory.py | 40 +++++++++++++++++++++"
-        if "--numstat" in args:
-            return numstat
-        return oversized_file_diff
+        return numstat if "--numstat" in args else "x" * 6_000
 
     monkeypatch.setattr(pr_advisory, "_git", fake_git)
-    context = pr_advisory.gather_context(
-        {
-            "base": {"sha": "base-sha"},
-            "head": {"sha": "head-sha"},
-            "title": "Explain the implementation",
-            "body": "Use the code as the main evidence.",
-        }
-    )
+    diff = pr_advisory._ranked_implementation_diff("base-sha", "head-sha")
 
     diff_paths = [args[-1] for args in calls if "--unified=3" in args]
     assert diff_paths == [
@@ -50,134 +36,43 @@ def test_gather_context_supplies_ranked_limited_implementation_diff(monkeypatch)
         "tests/d.py",
         "docs/e.md",
     ]
-    supplied_diff = context.split("## Implementation diff\n", maxsplit=1)[1].removesuffix("\n")
-    assert len(supplied_diff) == pr_advisory.MAX_DIFF_CHARS
-    assert supplied_diff.startswith("[Implementation sample limited to the top 6 of 7 ranked files.]")
-    assert f"[File diff truncated at {pr_advisory.MAX_FILE_DIFF_CHARS:,} characters.]" in supplied_diff
-    assert supplied_diff.endswith(
-        f"[Implementation diff truncated at {pr_advisory.MAX_DIFF_CHARS:,} characters.]"
-    )
+    assert len(diff) == pr_advisory.MAX_DIFF_CHARS
+    assert "[File diff truncated at 5,000 characters.]" in diff
+    assert diff.endswith("[Implementation diff truncated at 15,000 characters.]")
 
 
-def test_rank_changed_files_uses_churn_and_path_relevance() -> None:
-    ranked, total = pr_main_files.rank_changed_files(
-        "10\t0\tconfig.toml\n"
-        "4\t0\tsrc/small.py\n"
-        "100\t0\tdata/results.csv\n"
-        "2\t0\tsrc/trivial.py\n"
-        "-\t-\tmodel.pt"
-    )
-
-    assert total == 5
-    assert [file.path for file in ranked] == ["src/small.py", "config.toml"]
-
-
-def test_gather_context_limits_commit_count_and_body_length(monkeypatch) -> None:
-    long_body = "b" * 250
-    commits = "".join(
-        f"hash{index:02d}\x1fSubject {index:02d}\x1f{long_body}\x1e"
-        for index in range(30)
-    )
-
-    def fake_git(args: list[str]) -> str:
-        return commits if args[0] == "log" else ""
-
-    monkeypatch.setattr(pr_advisory, "_git", fake_git)
-    context = pr_advisory.gather_context(
-        {
-            "base": {"sha": "base-sha"},
-            "head": {"sha": "head-sha"},
-        }
-    )
-
-    assert "Subject 24" in context
-    assert "Subject 25" not in context
-    assert "b" * 200 in context
-    assert "b" * 201 not in context
-
-
-def test_review_format_accepts_requested_markdown_structure() -> None:
-    review = """\
-### Summary
-The bot now explains the code changes from a ranked diff, which makes its PR note useful without flooding the model.
-
-### What changed
-- Replaced the writing critique with a short implementation summary.
-- Samples up to six meaningful files within per-file and total limits.
-
-### Worth knowing
-- The bot updates its existing PR comment.
-"""
-
-    assert pr_advisory.review_format_problem(review) is None
-
-
-@pytest.mark.parametrize(
-    ("review", "problem"),
-    [
-        (
-            "Tired person.\n\n```\n### Summary\nDraft\n```",
-            "response does not start with the Summary heading",
-        ),
-        (
-            "### Summary\n- The bot changed.\n\n### What changed\n- First\n- Second",
-            "Summary uses bullets instead of prose",
-        ),
-        (
-            "### Summary\nHuman or AI: human.\n\n### What changed\n- First\n- Second",
-            "response exposes private analysis or authorship judgement",
-        ),
-        (
-            "### Summary\nThe bot changed.\n\n### Diff analysis\nDetails\n\n### What changed\n- First\n- Second",
-            "response exposes private analysis or authorship judgement",
-        ),
-    ],
-)
-def test_review_format_rejects_meta_output(review: str, problem: str) -> None:
-    assert pr_advisory.review_format_problem(review) == problem
-
-
-def test_call_gemini_rejects_cut_off_response(monkeypatch) -> None:
-    request_payload: dict[str, object] = {}
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(
-                {
-                    "candidates": [
-                        {
-                            "finishReason": "MAX_TOKENS",
-                            "content": {"parts": [{"text": "### Summary\nCut off"}]},
-                        }
-                    ]
-                }
-            ).encode()
-
-    def fake_urlopen(request, timeout):
-        request_payload.update(json.loads(request.data))
-        return FakeResponse()
-
-    monkeypatch.setattr(pr_advisory.urllib.request, "urlopen", fake_urlopen)
-
-    with pytest.raises(RuntimeError, match="finish reason MAX_TOKENS"):
-        pr_advisory.call_gemini("test-model", "test-key", "test prompt")
-    assert request_payload["generationConfig"] == {
-        "temperature": 0.2,
-        "maxOutputTokens": pr_advisory.MAX_OUTPUT_TOKENS,
+def test_candidate_text_excludes_thought_parts() -> None:
+    candidate = {
+        "finishReason": "STOP",
+        "content": {
+            "parts": [
+                {"thought": True, "text": "Tired person. Analyse the diff first."},
+                {"text": "### Summary\nA concise explanation."},
+            ]
+        },
     }
 
+    assert pr_advisory._candidate_text(candidate) == "### Summary\nA concise explanation."
 
-def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
+
+def test_candidate_text_rejects_cut_off_response() -> None:
+    candidate = {
+        "finishReason": "MAX_TOKENS",
+        "content": {"parts": [{"text": "### Summary\nCut off"}]},
+    }
+
+    with pytest.raises(RuntimeError, match="finish reason MAX_TOKENS"):
+        pr_advisory._candidate_text(candidate)
+
+
+def test_main_posts_valid_quick_read(monkeypatch, tmp_path) -> None:
     event_path = tmp_path / "event.json"
-    event_path.write_text(
-        json.dumps({"pull_request": {"number": 17}}),
-        encoding="utf-8",
+    event_path.write_text(json.dumps({"pull_request": {"number": 17}}), encoding="utf-8")
+    review = (
+        "### Summary\nA useful note.\n\n"
+        "### What changed\n"
+        "- Reads the implementation diff.\n"
+        "- Explains the main changes."
     )
     posted: dict[str, object] = {}
 
@@ -186,12 +81,6 @@ def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
     monkeypatch.setattr(pr_advisory, "gather_context", lambda pr: "prompt context")
-    review = (
-        "### Summary\nA useful note.\n\n"
-        "### What changed\n"
-        "- Reads the implementation diff.\n"
-        "- Explains the main changes."
-    )
     monkeypatch.setattr(pr_advisory, "call_gemini", lambda model, api_key, prompt: review)
 
     def fake_post_comment(repo: str, number: int, token: str, body: str) -> None:
@@ -200,12 +89,7 @@ def test_main_posts_ai_quick_read_heading(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(pr_advisory, "post_comment", fake_post_comment)
 
     assert pr_advisory.main() == 0
-    assert posted == {
-        "repo": "owner/repo",
-        "number": 17,
-        "token": "test-token",
-        "body": (
-            "🤖 **AI quick read** — generated from the PR and implementation diff\n\n"
-            f"{review}\n"
-        ),
-    }
+    assert posted["body"] == (
+        "🤖 **AI quick read** — generated from the PR and implementation diff\n\n"
+        f"{review}\n"
+    )

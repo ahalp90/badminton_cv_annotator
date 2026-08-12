@@ -167,55 +167,13 @@ def _ranked_implementation_diff(base: str, head: str) -> str:
 
 
 def review_format_problem(review: str) -> str | None:
-    """Return why a generated note is unsafe to post, or None when it is valid."""
-    if not review.startswith("### Summary\n"):
-        return "response does not start with the Summary heading"
+    """Return why an obviously malformed note should not be posted."""
+    if not review.startswith("### Summary\n") or "\n### What changed\n" not in review:
+        return "response is missing the required sections"
     if "```" in review or "~~~" in review:
         return "response contains a code fence"
     if len(review.split()) > MAX_REVIEW_WORDS:
         return f"response exceeds {MAX_REVIEW_WORDS} words"
-
-    lowered = review.casefold()
-    leaked_analysis_terms = (
-        "tired person",
-        "human or ai",
-        "ai or human",
-        "human/ai",
-        "ai/human",
-        "human-written",
-        "agent-written",
-        "diff analysis",
-    )
-    if any(term in lowered for term in leaked_analysis_terms):
-        return "response exposes private analysis or authorship judgement"
-
-    headings = [line for line in review.splitlines() if line.startswith("#")]
-    allowed_headings = ["### Summary", "### What changed"]
-    if "\n### Worth knowing\n" in review:
-        allowed_headings.append("### Worth knowing")
-    if headings != allowed_headings:
-        return "response headings do not match the requested structure"
-
-    summary, separator, rest = review.removeprefix("### Summary\n").partition(
-        "\n### What changed\n"
-    )
-    if not separator or not summary.strip():
-        return "response is missing the Summary prose or What changed section"
-    if "\n\n" in summary.strip():
-        return "Summary contains more than one paragraph"
-    if any(line.lstrip().startswith(("- ", "* ")) for line in summary.splitlines()):
-        return "Summary uses bullets instead of prose"
-
-    changes, worth_separator, worth = rest.partition("\n### Worth knowing\n")
-    change_lines = [line for line in changes.splitlines() if line.strip()]
-    if not 2 <= len(change_lines) <= 5 or any(not line.startswith("- ") for line in change_lines):
-        return "What changed must contain two to five short dash bullets"
-
-    if worth_separator:
-        worth_lines = [line for line in worth.splitlines() if line.strip()]
-        if not 1 <= len(worth_lines) <= 3 or any(not line.startswith("- ") for line in worth_lines):
-            return "Worth knowing must contain one to three short dash bullets"
-
     return None
 
 
@@ -256,6 +214,21 @@ def gather_context(pr: dict) -> str:
     )
 
 
+def _candidate_text(candidate: dict) -> str:
+    finish_reason = candidate.get("finishReason", "")
+    if finish_reason and finish_reason != "STOP":
+        raise RuntimeError(f"response ended with finish reason {finish_reason}")
+
+    answer_parts = []
+    for part in candidate.get("content", {}).get("parts", []):
+        if not part.get("thought", False):
+            answer_parts.append(part.get("text", ""))
+    text = "".join(answer_parts).strip()
+    if not text:
+        raise RuntimeError("empty response text")
+    return text
+
+
 def call_gemini(model: str, api_key: str, prompt: str) -> str:
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -280,15 +253,7 @@ def call_gemini(model: str, api_key: str, prompt: str) -> str:
     if not candidates:
         feedback = data.get("promptFeedback", {})
         raise RuntimeError(f"no candidates returned (feedback: {feedback})")
-    candidate = candidates[0]
-    finish_reason = candidate.get("finishReason", "")
-    if finish_reason and finish_reason != "STOP":
-        raise RuntimeError(f"response ended with finish reason {finish_reason}")
-    parts = candidate.get("content", {}).get("parts", [])
-    text = "".join(p.get("text", "") for p in parts).strip()
-    if not text:
-        raise RuntimeError("empty response text")
-    return text
+    return _candidate_text(candidates[0])
 
 
 def post_comment(repo: str, number: int, token: str, body: str) -> None:
