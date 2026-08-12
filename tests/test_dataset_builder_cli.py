@@ -593,18 +593,17 @@ class _ConcreteRuntimeFixture:
         *,
         output_dir: Path,
         **_kwargs: object,
-    ) -> vision.VisionStageResult[vision.PoseExtraction]:
+    ) -> vision.PoseExtraction:
         self.boundary_calls.append("pose")
         artifacts = vision.save_pose_arrays(output_dir, self.pose, 3)
-        extraction = vision.PoseExtraction(self.pose, artifacts, ("fixture-pose",))
-        return vision.VisionStageResult("pose_extraction", StageOutcome.PROCESSED, extraction)
+        return vision.PoseExtraction(self.pose, artifacts, ("fixture-pose",))
 
     def court_stage(
         self,
         *,
         output_dir: Path,
         **_kwargs: object,
-    ) -> vision.VisionStageResult[vision.CourtVision]:
+    ) -> vision.CourtVision:
         self.boundary_calls.append("court")
         output_dir.mkdir(parents=True, exist_ok=True)
         artifacts = vision.CourtArtifacts(
@@ -615,7 +614,7 @@ class _ConcreteRuntimeFixture:
         for path in artifacts.as_mapping().values():
             path.write_bytes(b"fixture court")
         self.court = vision.CourtVision(((0, 3),), object(), artifacts)
-        return vision.VisionStageResult("court_evidence", StageOutcome.PROCESSED, self.court)
+        return self.court
 
     def load_court(self, *_args: object, **_kwargs: object) -> vision.CourtVision:
         return self.court
@@ -625,7 +624,7 @@ class _ConcreteRuntimeFixture:
         *,
         output_dir: Path,
         **_kwargs: object,
-    ) -> vision.VisionStageResult[vision.AnnotationOutput]:
+    ) -> vision.AnnotationOutput:
         self.boundary_calls.append("annotation")
         result = (
             AnnotatorResult(
@@ -644,7 +643,7 @@ class _ConcreteRuntimeFixture:
             run,
             vision.persist_annotation_run(output_dir, run, 3),
         )
-        return vision.VisionStageResult("annotation", StageOutcome.PROCESSED, output)
+        return output
 
     @classmethod
     def _candidate(cls) -> dict[str, object]:
@@ -1036,6 +1035,32 @@ def test_report_reruns_when_an_excluded_video_failure_reason_changes(
     assert failure_reason in str(vision.load_json_gz(
         fixture.run_dir / fixture.runtime_module.REPORT_FILENAME,
     )["exclusions"][fixture.video_id])
+
+
+def test_vision_exception_reaches_coordinator_outcome_and_exclusion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+
+    def fail_pose(**_kwargs: object) -> vision.PoseExtraction:
+        raise LookupError("fixture pose boundary failed")
+
+    monkeypatch.setattr(fixture.vision_plans, "extract_rtmlib_pose_stage", fail_pose)
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    expected_reason = "LookupError: fixture pose boundary failed"
+    pose_event = next(event for event in result.events if event.name == f"pose:{fixture.video_id}")
+    assert pose_event.outcome is StageOutcome.FAILED
+    assert pose_event.reason == expected_reason
+    assert result.terminal_error == "every selected video was excluded before record assembly"
+    report = vision.load_json_gz(fixture.run_dir / fixture.runtime_module.REPORT_FILENAME)
+    assert report["exclusions"] == {fixture.video_id: expected_reason}
 
 
 def test_disabled_commentary_resume_reuses_every_visual_stage(

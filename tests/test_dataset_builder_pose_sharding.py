@@ -135,7 +135,7 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
 
     monkeypatch.setattr(pose_sharding, "run_isolated_pose_process", fake_run)
     output_dir = tmp_path / "pose"
-    stage = pose_sharding.extract_sharded_rtmlib_pose_stage(
+    extraction = pose_sharding.extract_sharded_rtmlib_pose_stage(
         metadata=metadata,
         output_dir=output_dir,
         interpreter=interpreter,
@@ -144,8 +144,6 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
         n_max=2,
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    extraction = stage.require_value()
     command = observed["command"]
     assert isinstance(command, list)
     assert command[0] == str(interpreter.resolve())
@@ -166,11 +164,15 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
     assert not list(output_dir.glob(".rtmlib-sharded-*"))
 
 
-@pytest.mark.parametrize("failure", ["subprocess", "padding"])
+@pytest.mark.parametrize(
+    ("failure", "error_type"),
+    [("subprocess", RuntimeError), ("padding", ValueError)],
+)
 def test_sharded_pose_failure_publishes_no_final_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
+    error_type: type[Exception],
 ) -> None:
     metadata = _metadata(tmp_path)
     interpreter = _interpreter(tmp_path)
@@ -187,16 +189,15 @@ def test_sharded_pose_failure_publishes_no_final_artifacts(
 
     monkeypatch.setattr(pose_sharding, "run_isolated_pose_process", fake_run)
     output_dir = tmp_path / "pose"
-    stage = pose_sharding.extract_sharded_rtmlib_pose_stage(
-        metadata=metadata,
-        output_dir=output_dir,
-        interpreter=interpreter,
-        shards=4,
-        n_max=2,
-    )
+    with pytest.raises(error_type):
+        pose_sharding.extract_sharded_rtmlib_pose_stage(
+            metadata=metadata,
+            output_dir=output_dir,
+            interpreter=interpreter,
+            shards=4,
+            n_max=2,
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None
     assert not any(path.exists() for path in vision.pose_artifact_paths(output_dir).as_mapping().values())
     assert not list(output_dir.glob(".rtmlib-sharded-*"))
 
@@ -377,12 +378,11 @@ def test_pose_plan_keeps_one_shard_sequential_and_selects_multiple_shards(
     runtime.pose_interpreter = InterpreterIdentity("/fixture/python", "Python 3.12")
     observed: list[str] = []
 
-    def extraction(boundary: str, **kwargs: object) -> vision.VisionStageResult[vision.PoseExtraction]:
+    def extraction(boundary: str, **kwargs: object) -> vision.PoseExtraction:
         observed.append(boundary)
         output_dir = Path(kwargs["output_dir"])
         artifacts = vision.save_pose_arrays(output_dir, arrays, metadata.frame_count)
-        result = vision.PoseExtraction(arrays, artifacts, (boundary,))
-        return vision.VisionStageResult("pose_extraction", StageOutcome.PROCESSED, result)
+        return vision.PoseExtraction(arrays, artifacts, (boundary,))
 
     monkeypatch.setattr(
         _vision_plans,

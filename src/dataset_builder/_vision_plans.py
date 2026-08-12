@@ -128,7 +128,7 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
             video_id=video_id,
             metadata=proxy,
             output_path=track_path,
-        ).require_value()
+        )
         runtime.state.tracks[video_id] = shuttle.track
         return StageExecution(
             StageOutcome.PROCESSED,
@@ -181,7 +181,7 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
     def execute() -> StageExecution:
         runtime._reset_stage_dir("pose", video_id)
         if shards == 1:
-            result = extract_rtmlib_pose_stage(
+            extraction = extract_rtmlib_pose_stage(
                 metadata=metadata,
                 output_dir=output_dir,
                 interpreter=runtime._pose().path,
@@ -189,7 +189,7 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
                 n_max=runtime.config.pose_n_max,
             )
         else:
-            result = extract_sharded_rtmlib_pose_stage(
+            extraction = extract_sharded_rtmlib_pose_stage(
                 metadata=metadata,
                 output_dir=output_dir,
                 interpreter=runtime._pose().path,
@@ -198,7 +198,6 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
                 n_max=runtime.config.pose_n_max,
                 decode_mode=POSE_SHARD_DECODE_MODE,
             )
-        extraction = result.require_value()
         runtime.state.poses[video_id] = extraction.arrays
         return StageExecution(
             StageOutcome.PROCESSED,

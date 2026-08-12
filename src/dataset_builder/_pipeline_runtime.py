@@ -550,7 +550,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 pose=self.state.poses[video_id],
                 detector=self.detector,
                 output_dir=output_dir,
-            ).require_value()
+            )
             if court.artifacts is None:
                 raise RuntimeError("court stage did not persist its operational artifacts")
             self.state.courts[video_id] = court
@@ -592,7 +592,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,
-            ).require_value()
+            )
             self.state.annotations[video_id] = annotation
             return StageExecution(
                 StageOutcome.PROCESSED,
