@@ -52,6 +52,21 @@ stages are listed in video order (`9WVwZSzixh0`, `P3OcTzwmqeY`).
 | Assembly | 1.5 | processed; 218 rallies, 2 videos |
 | Report | 0.1 | processed; 2 videos, 218 rallies |
 
+## Performance interpretation
+
+These timings are operational telemetry from the accepted run, not a controlled
+whole-pipeline before/after benchmark: provider availability, downloads,
+caches, and the corrective resume would confound such a comparison. The
+separate fixed-input TrackNet experiment measured roughly 2 hours 40 minutes
+at stride 1 and 22 minutes at stride 8 on about 154,000 512x288 frames, which
+is sufficient evidence for the adopted stride-8 shuttle configuration. See
+[video pipeline throughput research](video_pipeline_throughput_research.md).
+
+The one/four/eight-worker pose scaling comparison remains deferred. It and a
+clean end-to-end capacity run are required before making a production
+throughput or cost claim; they were not required for this correctness and
+resume acceptance.
+
 ## Final publication digests
 
 ```text
