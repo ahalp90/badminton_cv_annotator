@@ -1,7 +1,7 @@
 # Issue 15 Dataset Builder Implementation Plan
 
-Status: implemented, gated, and independently accepted locally through Batch
-5D; external acceptance gates pending
+Status: implemented, gated, and independently accepted through Batch 5D and
+the corrected external trial
 
 Prepared: 2026-08-08
 
@@ -699,8 +699,14 @@ suite with 29 skips and the unchanged 31 warnings. Repository-wide Ruff,
 configured whole-project Pyrefly (0 errors, 12 suppressions), and `git diff
 --check` pass. A fresh post-fix adversarial review read the complete diff and
 its callers, reran focused read-only checks, preserved the exact Git state,
-and reported zero findings. Batch 5D is locally accepted; only its guarded
-exact-environment Bourbaki probes and full E2E/resume acceptance remain.
+and reported zero findings. Batch 5D is locally accepted.
+
+The corrected external trial is accepted and recorded in
+`docs/dataset_builder/issue_15_batch_5_e2e_report.md`: both selected videos
+processed, assembly produced 218 rallies, and the final unchanged resume
+preserved all four publication files and all 45 stage-artifact checksums. The
+optional Gemini commentary lane was unavailable after a provider 503, while
+the reviewed visual fallback completed successfully.
 
 ### Extended OUT-list
 

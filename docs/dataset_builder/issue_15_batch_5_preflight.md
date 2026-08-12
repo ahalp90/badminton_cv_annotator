@@ -1,7 +1,7 @@
 # Issue 15 Batch 5 preflight handoff
 
-Status: three external attempts stopped; Batch 5D is corrected and accepted
-locally; a new exact-commit Bourbaki trial remains pending.
+Status: Batch 5D and the corrected external trial are accepted; the preserved
+Bourbaki root and evidence remain execution-only.
 
 This document began as the state freeze immediately before Batch 5 of
 `issue_15_implementation_plan.md`. It now also records the stopped first
@@ -58,10 +58,13 @@ whole-project Pyrefly (0 errors, 12 suppressions), and `git diff --check` pass.
 A fresh post-fix independent review verified every prior Batch 5D finding and
 the complete diff, preserved the exact Git state, and reported zero findings.
 
-The next trial must use a new clean exact-commit root. Before it starts, the
-exact Bourbaki TrackNet environment must pass the exact-multiple EOF regression
-and the exact RTMLib environment must import the sharded child without
-`frozendict`. A nominal zero-record publication is not acceptance.
+This gate is now complete. The corrected trial used
+`/scratch/cmarti/issue15_ce9405b` at commit
+`ce9405b2c1cb9aec948e510f9f1e6e3af410aabf`, processed both selected videos, and
+assembled 218 rallies. The first retry repaired three failed pose shards; the
+subsequent unchanged resume preserved all four publication files and all stage
+artifacts byte-for-byte. Full timing and digest evidence is in
+`issue_15_batch_5_e2e_report.md`.
 
 ## Preserved `8fc7503` commentary-timeout attempt
 
