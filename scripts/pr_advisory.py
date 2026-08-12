@@ -39,7 +39,7 @@ except ModuleNotFoundError:  # Direct execution puts scripts/, not the repo root
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 COMMENT_MARKER = "<!-- pr-advisory-bot -->"
-HTTP_TIMEOUT = 30  # seconds
+HTTP_TIMEOUT = 360  # seconds
 MAX_DIFF_FILES = 6
 MAX_DIFF_CHARS = 15_000
 MAX_FILE_DIFF_CHARS = 5_000

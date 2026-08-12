@@ -80,6 +80,7 @@ def test_main_posts_valid_quick_read(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setattr(pr_advisory, "gather_context", lambda pr: "prompt context")
     monkeypatch.setattr(pr_advisory, "call_gemini", lambda model, api_key, prompt: review)
 
