@@ -19,6 +19,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from typing import NamedTuple
 
 MAX_FILES = 8   # cap the list length
 MIN_CHURN = 3   # skip files with fewer changed lines
@@ -38,6 +39,13 @@ NOISE = re.compile(
     r"|pt|pth|onnx|npz|npy|bin|ckpt|ipynb)$"
     r"|(^|/)(__pycache__|node_modules|dist|build)/"
 )
+
+
+class RankedFile(NamedTuple):
+    path: str
+    added: int
+    deleted: int
+    score: int
 
 
 def weight_for(path: str) -> int:
@@ -60,29 +68,43 @@ def git(args: list[str]) -> str:
         return ""
 
 
-def build_block(base: str, head: str) -> str | None:
-    """Markdown block for the top files, or None if the PR changed nothing."""
-    numstat = git(["diff", "--numstat", f"{base}...{head}"]) if base and head else ""
-    scored: list[tuple[int, str]] = []  # (score, "- `path` (+a/-d)")
+def rank_changed_files(numstat: str) -> tuple[list[RankedFile], int]:
+    """Return meaningful changed files in score order and the total file count."""
+    ranked: list[RankedFile] = []
     total = 0
     for line in numstat.splitlines():
         parts = line.split("\t")
         if len(parts) != 3:
             continue
-        added, deleted, path = parts
+        added_text, deleted_text, path = parts
         total += 1
-        a = int(added) if added.isdigit() else 0   # binary files report "-"
-        d = int(deleted) if deleted.isdigit() else 0
+        added = int(added_text) if added_text.isdigit() else 0
+        deleted = int(deleted_text) if deleted_text.isdigit() else 0
         weight = weight_for(path)
-        if weight == 0 or a + d < MIN_CHURN or NOISE.search(path):
+        if weight == 0 or added + deleted < MIN_CHURN or NOISE.search(path):
             continue
-        scored.append(((a + d) * weight, f"- `{path}` (+{a}/-{d})"))
+        ranked.append(
+            RankedFile(
+                path=path,
+                added=added,
+                deleted=deleted,
+                score=(added + deleted) * weight,
+            )
+        )
+
+    ranked.sort(key=lambda file: (file.score, file.path), reverse=True)
+    return ranked, total
+
+
+def build_block(base: str, head: str) -> str | None:
+    """Markdown block for the top files, or None if the PR changed nothing."""
+    numstat = git(["diff", "--numstat", f"{base}...{head}"]) if base and head else ""
+    ranked, total = rank_changed_files(numstat)
 
     if total == 0:
         return None
 
-    scored.sort(reverse=True)
-    shown = [entry for _, entry in scored[:MAX_FILES]] or [
+    shown = [f"- `{file.path}` (+{file.added}/-{file.deleted})" for file in ranked[:MAX_FILES]] or [
         "_No code files stood out; this PR is docs/data/config only._"
     ]
     remaining = total - sum(s.startswith("- ") for s in shown)

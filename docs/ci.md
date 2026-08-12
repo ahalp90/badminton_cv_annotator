@@ -11,8 +11,8 @@ workflow are no longer tested or deployed.
 **`pr-quality.yml`** (PRs, all non-blocking):
 `commit-lint` (compatibility status for existing branch protection) · `pr-body`
 (optional template-section suggestions) · `main-files` (deterministic; inserts
-a short **Main files changed** block into the PR body) · `advisory` (AI review,
-including commit-message feedback).
+a short **Main files changed** block into the PR body) · `advisory` (AI quick
+read based on the PR text and implementation diff).
 
 The pull request template still provides **What / Why / Testing / Reviewer
 focus** sections. PR content does not make these jobs fail. Gitlint remains
@@ -28,10 +28,14 @@ and only PATCHes when the block actually changes, so its own edit can't retrigge
 the `edited` run. No key needed; on fork PRs the token is read-only so it no-ops.
 Don't mark it required (it edits, doesn't gate).
 
-## Enable the AI advisory (optional, free)
+## Enable the AI quick read (optional, free)
 
-Off until you add a key; without one it skips silently. With one, it comments on
-commit/PR legibility and only ever *warns* on rate limits or outages — never blocks.
+Off until you add a key; without one it skips silently. With one, it posts a
+short explanation based mainly on a ranked sample of the implementation diff.
+The sample takes up to six meaningful files, with per-file and total size
+limits. Rate limits and outages only produce warnings, so the quick read never
+blocks a PR. A cut-off or malformed model response also produces a warning and
+does not replace the existing PR comment.
 
 1. Free key: <https://aistudio.google.com/app/apikey>
 2. Add it as repo secret **`PR_MESSAGE_BOT_KEY`** (Settings → Secrets and variables → Actions).

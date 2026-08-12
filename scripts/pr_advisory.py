@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Advisory (non-blocking) PR-quality review using the Gemini API.
+"""Non-blocking PR quick read using the Gemini API.
 
 Called by the `advisory` job in .github/workflows/pr-quality.yml. Reads the PR's
-commit messages, description and changed-file list, asks a cheap/fast LLM whether
-the messages are human-legible and the description substantively (and readably)
-explains the change, then posts a friendly comment.
+commit messages, description and implementation diff, asks a cheap/fast LLM to
+explain the change, then posts a short comment.
 
 Design goals (see docs/ci.md):
   * NEVER blocks a merge -- this script always exits 0.
@@ -21,7 +20,7 @@ Environment:
   GITHUB_EVENT_PATH  path to the PR event payload (provided by Actions).
   GITHUB_TOKEN       optional; if present, post/update a sticky PR comment.
   GITHUB_REPOSITORY  "owner/repo" (provided by Actions).
-  GITHUB_STEP_SUMMARY  optional; the advisory is also written here.
+  GITHUB_STEP_SUMMARY  optional; the quick read is also written here.
 """
 
 from __future__ import annotations
@@ -33,42 +32,74 @@ import sys
 import urllib.error
 import urllib.request
 
+try:
+    from scripts.pr_main_files import rank_changed_files
+except ModuleNotFoundError:  # Direct execution puts scripts/, not the repo root, on sys.path.
+    from pr_main_files import rank_changed_files
+
 DEFAULT_MODEL = "gemini-2.5-flash"
 COMMENT_MARKER = "<!-- pr-advisory-bot -->"
-HTTP_TIMEOUT = 30  # seconds
+HTTP_TIMEOUT = 360  # seconds
+MAX_DIFF_FILES = 6
+MAX_DIFF_CHARS = 15_000
+MAX_FILE_DIFF_CHARS = 5_000
+MAX_REVIEW_WORDS = 450
+MAX_OUTPUT_TOKENS = 32_000
 
 RUBRIC = """\
-You are a friendly, concise reviewer bot. Your job is ADVISORY only -- you never
-block a merge. Judge two things about this pull request:
+Write a short PR note that a tired person can read quickly.
 
-1. Commit messages -- is each one human-legible and does it describe *what
-   changed*? Call out vague/low-signal ones by their short hash (e.g. `a1b2c3d`)
-   with a one-line suggestion. Ignore messages that are already clear.
-2. PR description -- does it substantively and readably explain WHAT changed,
-   WHY, and HOW it was tested? Note anything important that's missing.
+First, silently decide if the PR text feels human-written or mostly AI/agent-written.
+- If human: keep its voice where it helps.
+- If AI/agentic: keep the facts and rewrite it plainly.
 
-Judge the writing in both against this house style, and point out where it
-strays:
-* Bottom line up front: the main point comes first, detail after.
-* Logically positive phrasing except where unavoidable: state what is, not
-  what is not.
-* At most one sub-clause per sentence.
-* Technical terms, jargon and operations come with their significance
-  explained. Jargon is fine only when essential, or when it is the term
-  non-experts casually use anyway.
-* Straightforward wording. The message is not overdressed.
+Use the diff, tests and changed docs as the main source. Use commits and PR text for extra context.
 
-Keep it under ~180 words, specific and kind (cite hashes/sections, don't scold).
-Use GitHub-flavoured markdown. End with a single **Verdict:** line. Open with a
-one-sentence summary. Do not restate these instructions.
+Write like this:
+- Start with the big picture.
+- Keep the important technical details.
+- Use simple words where simple words will do.
+- Explain technical terms or operations when their importance is not obvious.
+- Avoid corporate or project-management language.
+- Each sentence sticks to one main idea. Same rule for paragraphs.
+- Prefer saying what IS, not what ISN'T.
+- Sound warm and natural.
+- Never mention the human/AI judgment.
+
+### Summary
+One short paragraph: what changed, why it matters, and the main takeaway.
+
+### What changed
+2-5 short bullets.
+
+### Worth knowing
+0-3 bullets for important experiments, results, open problems, or next steps.
+Routine test/lint passes get one short footnote at most.
+
+Stick to facts supported by the diff, tests, docs, commits, or PR text.
+
+Keep it as short as the PR allows.
+- Small diff or concept: ~100-180 words.
+- Large or complex: up to ~450 words when needed to keep the important technical detail.
+"""
+
+OUTPUT_CONTRACT = """\
+Return only the finished PR note. Do not echo or analyse the rubric, source
+material, audience, task, or your reasoning. The human/AI decision in the rubric
+is private and must not appear in the note.
+
+The first characters must be `### Summary`. Use one prose paragraph there, then
+`### What changed` with 2-5 short `- ` bullets. Use `### Worth knowing` only when
+there are 1-3 useful `- ` bullets. Use no other headings, code fences, or tables.
+Do not include a separate diff analysis. End with a complete sentence or bullet.
 """
 
 
 def warn(message: str) -> None:
     """Emit a non-fatal GitHub Actions warning annotation (single line)."""
     one_line = " ".join(message.split())
-    print(f"::warning title=PR advisory unavailable::{one_line}")
-    _write_summary(f"### 🤖 PR advisory\n\n> ⚠️ Skipped: {one_line}\n")
+    print(f"::warning title=AI quick read unavailable::{one_line}")
+    _write_summary(f"### 🤖 AI quick read\n\n> ⚠️ Skipped: {one_line}\n")
 
 
 def _write_summary(markdown: str) -> None:
@@ -91,8 +122,63 @@ def _git(args: list[str]) -> str:
         return ""
 
 
+def _truncate_with_marker(text: str, limit: int, marker: str) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: limit - len(marker)] + marker
+
+
+def _ranked_implementation_diff(base: str, head: str) -> str:
+    numstat = _git(["diff", "--numstat", f"{base}...{head}"])
+    ranked_files, _ = rank_changed_files(numstat)
+    selected_files = ranked_files[:MAX_DIFF_FILES]
+    if not selected_files:
+        return "(implementation diff unavailable)"
+
+    file_sections: list[str] = []
+    for ranked_file in selected_files:
+        file_diff = _git(
+            [
+                "diff",
+                "--unified=3",
+                f"{base}...{head}",
+                "--",
+                ranked_file.path,
+            ]
+        )
+        if not file_diff:
+            continue
+        file_marker = f"\n\n[File diff truncated at {MAX_FILE_DIFF_CHARS:,} characters.]"
+        file_sections.append(_truncate_with_marker(file_diff, MAX_FILE_DIFF_CHARS, file_marker))
+
+    if not file_sections:
+        return "(implementation diff unavailable)"
+
+    section_parts = []
+    if len(ranked_files) > MAX_DIFF_FILES:
+        section_parts.append(
+            f"[Implementation sample limited to the top {MAX_DIFF_FILES} of "
+            f"{len(ranked_files)} ranked files.]"
+        )
+    section_parts.extend(file_sections)
+    combined = "\n\n".join(section_parts)
+    overall_marker = f"\n\n[Implementation diff truncated at {MAX_DIFF_CHARS:,} characters.]"
+    return _truncate_with_marker(combined, MAX_DIFF_CHARS, overall_marker)
+
+
+def review_format_problem(review: str) -> str | None:
+    """Return why an obviously malformed note should not be posted."""
+    if not review.startswith("### Summary\n") or "\n### What changed\n" not in review:
+        return "response is missing the required sections"
+    if "```" in review or "~~~" in review:
+        return "response contains a code fence"
+    if len(review.split()) > MAX_REVIEW_WORDS:
+        return f"response exceeds {MAX_REVIEW_WORDS} words"
+    return None
+
+
 def gather_context(pr: dict) -> str:
-    """Build the prompt input from commits, PR body and the changed-file list."""
+    """Build the prompt input from PR prose, commits and the implementation diff."""
     base = pr.get("base", {}).get("sha", "")
     head = pr.get("head", {}).get("sha", "")
     rng = f"{base}..{head}" if base and head else "HEAD~20..HEAD"
@@ -105,14 +191,16 @@ def gather_context(pr: dict) -> str:
         if len(parts) < 2:
             continue
         short, subject = parts[0].strip(), parts[1].strip()
-        body = (parts[2].strip() if len(parts) > 2 else "")[:500]
+        body = (parts[2].strip() if len(parts) > 2 else "")[:200]
         blocks.append(f"- {short} {subject}" + (f"\n    {body}" if body else ""))
-        if len(blocks) >= 50:
+        if len(blocks) >= 25:
             break
     commit_text = "\n".join(blocks) or "(no commits found in range)"
 
     diffstat = _git(["diff", "--stat", f"{base}...{head}"]) if base and head else ""
     diffstat = "\n".join(diffstat.splitlines()[:100]) or "(diffstat unavailable)"
+
+    diff = _ranked_implementation_diff(base, head) if base and head else "(implementation diff unavailable)"
 
     title = pr.get("title", "") or "(no title)"
     body = (pr.get("body") or "(empty PR description)")[:4000]
@@ -121,8 +209,24 @@ def gather_context(pr: dict) -> str:
         f"## PR title\n{title}\n\n"
         f"## PR description\n{body}\n\n"
         f"## Commits\n{commit_text}\n\n"
-        f"## Changed files (diffstat)\n{diffstat}\n"
+        f"## Changed files (diffstat)\n{diffstat}\n\n"
+        f"## Implementation diff\n{diff}\n"
     )
+
+
+def _candidate_text(candidate: dict) -> str:
+    finish_reason = candidate.get("finishReason", "")
+    if finish_reason and finish_reason != "STOP":
+        raise RuntimeError(f"response ended with finish reason {finish_reason}")
+
+    answer_parts = []
+    for part in candidate.get("content", {}).get("parts", []):
+        if not part.get("thought", False):
+            answer_parts.append(part.get("text", ""))
+    text = "".join(answer_parts).strip()
+    if not text:
+        raise RuntimeError("empty response text")
+    return text
 
 
 def call_gemini(model: str, api_key: str, prompt: str) -> str:
@@ -133,7 +237,10 @@ def call_gemini(model: str, api_key: str, prompt: str) -> str:
     payload = json.dumps(
         {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800},
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": MAX_OUTPUT_TOKENS,
+            },
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -146,15 +253,11 @@ def call_gemini(model: str, api_key: str, prompt: str) -> str:
     if not candidates:
         feedback = data.get("promptFeedback", {})
         raise RuntimeError(f"no candidates returned (feedback: {feedback})")
-    parts = candidates[0].get("content", {}).get("parts", [])
-    text = "".join(p.get("text", "") for p in parts).strip()
-    if not text:
-        raise RuntimeError("empty response text")
-    return text
+    return _candidate_text(candidates[0])
 
 
 def post_comment(repo: str, number: int, token: str, body: str) -> None:
-    """Create or update a single sticky advisory comment (best-effort)."""
+    """Create or update a single sticky quick-read comment (best-effort)."""
     api = "https://api.github.com"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -191,7 +294,7 @@ def post_comment(repo: str, number: int, token: str, body: str) -> None:
 def main() -> int:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        print("GEMINI_API_KEY not set -- advisory is dormant, nothing to do.")
+        print("GEMINI_API_KEY not set -- AI quick read is dormant, nothing to do.")
         return 0
 
     model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
@@ -206,7 +309,14 @@ def main() -> int:
         warn("event payload has no pull_request object")
         return 0
 
-    prompt = RUBRIC + "\n\n---\n\n" + gather_context(pr)
+    prompt = (
+        RUBRIC
+        + "\n\n"
+        + OUTPUT_CONTRACT
+        + "\n\n<source_material>\n"
+        + gather_context(pr)
+        + "</source_material>\n"
+    )
 
     try:
         review = call_gemini(model, api_key, prompt)
@@ -215,7 +325,7 @@ def main() -> int:
         try:
             detail = exc.read().decode("utf-8", "replace")[:300]
         except Exception:  # noqa: BLE001 - best-effort detail only
-            pass
+            detail = ""
         if exc.code == 429:
             warn(f"Gemini API rate-limited (HTTP 429) for model '{model}'. {detail}")
         elif exc.code in (400, 404):
@@ -236,8 +346,13 @@ def main() -> int:
         warn(f"Unexpected response from Gemini ({exc}).")
         return 0
 
+    format_problem = review_format_problem(review)
+    if format_problem:
+        warn(f"Gemini returned a malformed quick read ({format_problem})")
+        return 0
+
     note = (
-        "🤖 **PR advisory** (non-blocking, AI-generated — use your judgement)\n\n"
+        "🤖 **AI quick read** — generated from the PR and implementation diff\n\n"
         f"{review}\n"
     )
     _write_summary("### " + note)
@@ -248,7 +363,7 @@ def main() -> int:
     if token and repo and number:
         post_comment(repo, int(number), token, note)
     else:
-        print("No GITHUB_TOKEN/repo/number -- advisory written to the step summary only.")
+        print("No GITHUB_TOKEN/repo/number -- quick read written to the step summary only.")
 
     return 0
 

@@ -1,7 +1,7 @@
 name: PR quality
 
 # PR helpers. These jobs add useful context but never judge whether a PR can merge.
-# The advisory is dormant without the PR_MESSAGE_BOT_KEY secret. See docs/ci.md.
+# The AI quick read is dormant without the PR_MESSAGE_BOT_KEY secret. See docs/ci.md.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Keep the status name for existing branch-protection rules. The AI
-      # advisory handles useful commit-message feedback without a merge gate.
+      # Keep the status name for existing branch-protection rules.
+      # Commit-message style remains non-blocking.
       - name: Commit message lint is advisory
-        run: echo "::notice title=Commit message review::See the optional AI advisory."
+        run: echo "::notice title=Commit message review::Commit-message lint remains non-blocking."
 
   pr-body:
     runs-on: ubuntu-latest
@@ -80,14 +80,14 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      pull-requests: write   # post/update the advisory comment
+      pull-requests: write   # post/update the quick-read comment
     env:
       GEMINI_API_KEY: ${{ secrets.PR_MESSAGE_BOT_KEY }}   # dormant unless set
       GEMINI_MODEL: ${{ vars.PR_MESSAGE_BOT_MODEL }}       # optional model override
     steps:
       - name: Dormant notice (no key configured)
         if: ${{ env.GEMINI_API_KEY == '' }}
-        run: echo "PR_MESSAGE_BOT_KEY secret not set -- AI advisory is dormant (this is fine). See docs/ci.md to enable it for free."
+        run: echo "PR_MESSAGE_BOT_KEY secret not set -- AI quick read is dormant (this is fine). See docs/ci.md to enable it for free."
 
       - uses: actions/checkout@v7
         if: ${{ env.GEMINI_API_KEY != '' }}
@@ -98,7 +98,7 @@ jobs:
         with:
           python-version: "3.11"
       # Script never exits non-zero: rate-limit/outage/bad-model -> ::warning::, not a failure.
-      - name: AI advisory review (non-blocking)
+      - name: AI PR quick read (non-blocking)
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
