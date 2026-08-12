@@ -21,6 +21,7 @@ from annotator.calibration.fixtures import (
     SHARED_FILES,
     verify_file,
     verify_fixture,
+    verify_run_video_fixture,
 )
 from annotator.calibration.gt_scoring import build_run_video_inputs
 
@@ -88,6 +89,15 @@ def test_fixture_pin_set_has_nine_files_with_expected_md5s(fixture):
     assert all(pin.root == "fixtures" for pin in fixture.files)
 
 
+@pytest.mark.parametrize("fixture", FIXTURES, ids=lambda fixture: fixture.name)
+def test_run_video_pin_set_excludes_only_unused_keypoint_scores(fixture):
+    assert len(fixture.run_video_files) == 8
+    assert fixture.pose_path("kp_scores") not in {
+        pin.path for pin in fixture.run_video_files
+    }
+    assert set(fixture.files) - set(fixture.run_video_files) == {fixture.files[4]}
+
+
 def test_replacing_a_fixtures_name_moves_every_operational_and_pin_path():
     """A copied fixture's paths must follow its own ``name``, not the original's."""
     renamed = dataclasses.replace(SSET_01, name="sset_99")
@@ -109,6 +119,36 @@ def test_verify_fixture_names_the_first_missing_canonical_path(tmp_path, monkeyp
     monkeypatch.setenv("ANNOTATOR_FIXTURES_ROOT", str(tmp_path))
     with pytest.raises(ValueError, match=r"fixture file missing: sset_01_track_npy/sset_01_track\.npy"):
         verify_fixture(SSET_01)
+
+
+def test_run_video_verification_does_not_require_unused_keypoint_scores(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setenv("ANNOTATOR_FIXTURES_ROOT", str(tmp_path))
+    payload = b"run-video-input"
+    digest = "d3d8d205907b04a807903e3dfa31ceba"
+    fixture = dataclasses.replace(
+        SSET_01,
+        digests=dataclasses.replace(
+            SSET_01.digests,
+            track=digest,
+            bboxes=digest,
+            scores=digest,
+            kps=digest,
+            ndet=digest,
+            dead_mask=digest,
+            court_present=digest,
+            scene_rows=digest,
+        ),
+    )
+    for pin in fixture.run_video_files:
+        path = tmp_path / pin.path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+    verify_run_video_fixture(fixture)
+    with pytest.raises(ValueError, match="pose_raw_kp_scores.npy"):
+        verify_fixture(fixture)
 
 
 @pytest.mark.parametrize("fixture", FIXTURES, ids=lambda fixture: fixture.name)

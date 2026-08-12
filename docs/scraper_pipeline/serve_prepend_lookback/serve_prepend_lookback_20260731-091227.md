@@ -1,5 +1,10 @@
 # Serve-prepend lookback: current build orientation
 
+> Update 2026-08-08: the three-video candidate follow-up is complete. Its
+> [measurement and decision](serve_prepend_lookback_20260808_measurement.md)
+> supersede this document for Issue 28. Keep this file for the earlier baseline
+> and processing-order orientation.
+
 Validated 2026-07-31 against commit `63f40938a62f6612ca9a63b61127d24442a80865`.
 This is the authoritative current-code orientation for the deferred feature. It records an
 exploratory measurement and the smallest next build. It does not implement serve prepend.

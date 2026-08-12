@@ -14,7 +14,8 @@ import pandas as pd
 
 from annotator.fps_constants import ScalingKind
 from annotator.calibration.fixtures import (
-    FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file, verify_fixture,
+    FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file,
+    verify_run_video_fixture,
 )
 from annotator.run_video import AnnotatorResult, run_video
 from annotator.inpaint_guard import code_counts, grade_track
@@ -410,7 +411,7 @@ def _norm_half(side: str) -> str:
 
 
 def load_fixture_arrays(fixture: Fixture) -> tuple[np.ndarray, ...]:
-    verify_fixture(fixture)
+    verify_run_video_fixture(fixture)
     root = fixtures_root()
     return (
         np.load(root / fixture.track_path), np.load(root / fixture.pose_path("bboxes")),
