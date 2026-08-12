@@ -10,11 +10,9 @@ from pathlib import Path
 import shutil
 import sys
 
-import numpy as np
-
 from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
+from annotator.video_metadata import probe_video_metadata
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
@@ -27,13 +25,12 @@ from dataset_builder._runtime_support import (
 from dataset_builder._vision_plans import pose_plans, shuttle_plans, tracknet_input_plans
 from dataset_builder.cli import BuilderConfig, StageExecution, StagePlan
 from dataset_builder.manifest import load_run_manifest, resolve_interpreter
-from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
+from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.records import (
     RALLY_RECORD_COLLECTION_SCHEMA,
     RALLY_RECORD_PROJECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RallyRecordProjection,
-    SourceReference,
     assemble_rally_records,
     load_rally_record_projection,
     write_rally_record_projection,
@@ -48,19 +45,11 @@ from dataset_builder.selection import (
     with_commentary_statuses,
     write_selection,
 )
-from dataset_builder.vision import (
-    RAW_REPLAY_MASK_FILENAME,
-    AnnotationOutput,
-    CourtVision,
-    PoseArrays,
-    run_full_annotation_stage,
-    save_json_gz,
-)
-from dataset_builder.tracknet_input import TrackNetInput
+from dataset_builder.vision import RAW_REPLAY_MASK_FILENAME, run_full_annotation_stage, save_json_gz
 from scraper import commentary_cleaning, config as scraper_config
 from scraper import download_scraped_videos, relevance_triage, search_index
 from scraper import transcript_acquisition
-from scraper.commentary_pairing import CanonicalPairing, pair_video_with_metadata
+from scraper.commentary_pairing import pair_video_with_metadata
 
 
 METADATA_FILENAME = "video_metadata.json.gz"
@@ -70,46 +59,12 @@ REPORT_FILENAME = "dataset_builder_report.json.gz"
 COMMENTARY_STATUS_FILENAME = "commentary_status.json.gz"
 
 
-class _State:
-    """Mutable values reconstructed stage-by-stage inside one coordinator run."""
-
-    def __init__(self) -> None:
-        self.candidates: list[dict[str, object]] = []
-        self.transcript_ids: set[str] = set()
-        self.decisions: tuple[SelectionDecision, ...] = ()
-        self.selected_ids: tuple[str, ...] = ()
-        self.videos: dict[str, Path] = {}
-        self.sources: dict[str, SourceReference] = {}
-        self.metadata: dict[str, VideoMetadata] = {}
-        self.tracknet_inputs: dict[str, TrackNetInput] = {}
-        self.active_ids: set[str] = set()
-        self.chunks: dict[str, list[dict[str, object]]] = {}
-        self.tracks: dict[str, np.ndarray] = {}
-        self.poses: dict[str, PoseArrays] = {}
-        self.courts: dict[str, CourtVision] = {}
-        self.annotations: dict[str, AnnotationOutput] = {}
-        self.pairings: dict[str, CanonicalPairing | None] = {}
-        self.commentary_outcomes: dict[str, StageOutcome] = {}
-        self.commentary_reasons: dict[str, str | None] = {}
-        self.commentary_statuses: dict[str, str] = {}
-        self.exclusions: dict[str, str] = {}
-        self.projections: dict[str, RallyRecordProjection] = {}
-        self.records: list[dict[str, object]] = []
-
-
 class DefaultPipelineRuntime(RuntimeSupport):
     """Concrete plans around the repository's existing producer functions."""
 
     def __init__(self, config: BuilderConfig, run_dir: Path, source_commit: str) -> None:
-        self.config = config
-        self.run_dir = Path(run_dir)
-        self.workspace = self.run_dir / "workspace"
+        super().__init__(config, run_dir)
         self.source_commit = source_commit
-        self.state = _State()
-        self.current_interpreter: InterpreterIdentity | None = None
-        self.tracknet_interpreter: InterpreterIdentity | None = None
-        self.pose_interpreter: InterpreterIdentity | None = None
-        self.ffmpeg_interpreter: InterpreterIdentity | None = None
         self.detector: object | None = None
 
     def preflight(self) -> None:

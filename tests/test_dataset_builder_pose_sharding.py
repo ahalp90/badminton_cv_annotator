@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from fractions import Fraction
 import os
 from pathlib import Path
@@ -11,7 +12,6 @@ import sys
 import tempfile
 import threading
 import time
-from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
@@ -21,7 +21,6 @@ from annotator.video_metadata import VideoMetadata
 from dataset_builder import _pose_process as pose_process_module
 from dataset_builder import _vision_plans, cli, pose_sharding, vision
 from dataset_builder._pose_process import POSE_CHILD_STEM, run_isolated_pose_process
-from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
 from dataset_builder._runtime_support import RuntimeSupport
 from dataset_builder.models import InterpreterIdentity, StageOutcome
 
@@ -371,10 +370,14 @@ def test_pose_plan_keeps_one_shard_sequential_and_selects_multiple_shards(
 ) -> None:
     metadata = _metadata(tmp_path)
     arrays = _pose_arrays(metadata.frame_count)
-    runtime = RuntimeSupport()
-    runtime.run_dir = tmp_path / "run"
-    runtime.state = SimpleNamespace(metadata={"video": metadata}, poses={}, exclusions={})
-    runtime.config = SimpleNamespace(pose_shards=shards, pose_device="cpu", pose_n_max=2)
+    config = replace(
+        cli.load_builder_config(cli.REPO_ROOT / "configs/dataset_builder/trial.toml"),
+        pose_shards=shards,
+        pose_device="cpu",
+        pose_n_max=2,
+    )
+    runtime = RuntimeSupport(config, tmp_path / "run")
+    runtime.state.metadata["video"] = metadata
     runtime.pose_interpreter = InterpreterIdentity("/fixture/python", "Python 3.12")
     observed: list[str] = []
 
@@ -395,7 +398,7 @@ def test_pose_plan_keeps_one_shard_sequential_and_selects_multiple_shards(
         lambda **kwargs: extraction("sharded", **kwargs),
     )
 
-    plan = _vision_plans._pose_plan(cast(DefaultPipelineRuntime, runtime), "video")
+    plan = _vision_plans._pose_plan(runtime, "video")
     execution = plan.execute()
 
     assert execution.outcome is StageOutcome.PROCESSED

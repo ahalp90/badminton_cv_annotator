@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 import csv
+from dataclasses import dataclass, field
 import json
 import math
 import os
@@ -11,7 +12,6 @@ from pathlib import Path
 import shutil
 import tempfile
 import tomllib
-from typing import Any
 
 import numpy as np
 
@@ -33,13 +33,14 @@ from dataset_builder._commentary_status import (
 )
 from dataset_builder.cli import BuilderConfig, SemanticValidator, StageExecution, StagePlan
 from dataset_builder.models import InterpreterIdentity, StageOutcome
-from dataset_builder.records import SourceReference, load_rally_records
+from dataset_builder.records import RallyRecordProjection, SourceReference, load_rally_records
 from dataset_builder.selection import (
     COMMENTARY_AVAILABLE,
     COMMENTARY_FAILED,
     COMMENTARY_INELIGIBLE,
     COMMENTARY_NO_PAIR,
     COMMENTARY_STATUSES,
+    SelectionDecision,
     load_selection,
     selected_video_ids,
 )
@@ -54,26 +55,57 @@ from dataset_builder.vision import (
     AnnotationArtifacts,
     AnnotationOutput,
     AnnotationRun,
+    CourtVision,
+    PoseArrays,
     load_court_vision,
     load_json_gz,
     load_npy_xz,
     load_pose_arrays,
 )
+from dataset_builder.tracknet_input import TrackNetInput
 from scraper import config as scraper_config
 from scraper.commentary_pairing import CanonicalPairing
 
 
-class RuntimeSupport:
-    """Mixin implementing deterministic runtime state restoration."""
+@dataclass
+class RuntimeState:
+    """Mutable values reconstructed stage-by-stage inside one coordinator run."""
 
-    config: BuilderConfig
-    run_dir: Path
-    workspace: Path
-    state: Any
-    current_interpreter: InterpreterIdentity | None
-    tracknet_interpreter: InterpreterIdentity | None
-    pose_interpreter: InterpreterIdentity | None
-    ffmpeg_interpreter: InterpreterIdentity | None
+    candidates: list[dict[str, object]] = field(default_factory=list)
+    transcript_ids: set[str] = field(default_factory=set)
+    decisions: tuple[SelectionDecision, ...] = ()
+    selected_ids: tuple[str, ...] = ()
+    videos: dict[str, Path] = field(default_factory=dict)
+    sources: dict[str, SourceReference] = field(default_factory=dict)
+    metadata: dict[str, VideoMetadata] = field(default_factory=dict)
+    tracknet_inputs: dict[str, TrackNetInput] = field(default_factory=dict)
+    active_ids: set[str] = field(default_factory=set)
+    chunks: dict[str, list[dict[str, object]]] = field(default_factory=dict)
+    tracks: dict[str, np.ndarray] = field(default_factory=dict)
+    poses: dict[str, PoseArrays] = field(default_factory=dict)
+    courts: dict[str, CourtVision] = field(default_factory=dict)
+    annotations: dict[str, AnnotationOutput] = field(default_factory=dict)
+    pairings: dict[str, CanonicalPairing | None] = field(default_factory=dict)
+    commentary_outcomes: dict[str, StageOutcome] = field(default_factory=dict)
+    commentary_reasons: dict[str, str | None] = field(default_factory=dict)
+    commentary_statuses: dict[str, str] = field(default_factory=dict)
+    exclusions: dict[str, str] = field(default_factory=dict)
+    projections: dict[str, RallyRecordProjection] = field(default_factory=dict)
+    records: list[dict[str, object]] = field(default_factory=list)
+
+
+class RuntimeSupport:
+    """Own shared runtime state and deterministic restoration helpers."""
+
+    def __init__(self, config: BuilderConfig, run_dir: Path) -> None:
+        self.config = config
+        self.run_dir = Path(run_dir)
+        self.workspace = self.run_dir / "workspace"
+        self.state = RuntimeState()
+        self.current_interpreter: InterpreterIdentity | None = None
+        self.tracknet_interpreter: InterpreterIdentity | None = None
+        self.pose_interpreter: InterpreterIdentity | None = None
+        self.ffmpeg_interpreter: InterpreterIdentity | None = None
 
     def _plan(
         self,
@@ -591,16 +623,6 @@ def _atomic_copy(source: Path, destination: Path) -> Path:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
     return destination
-
-
-def _tracknet_code_inputs(tracknet_dir: Path) -> dict[str, Path]:
-    """Return every Python implementation file under a configured TrackNet tree."""
-    root = Path(tracknet_dir).resolve(strict=True)
-    return {
-        f"tracknet_code.{path.relative_to(root).as_posix()}": path
-        for path in sorted(root.rglob("*.py"))
-        if path.is_file()
-    }
 
 
 def _mutable_child(path: Path, parent: Path, name: str) -> Path:

@@ -1516,8 +1516,8 @@ def test_stage_reset_rejects_a_symlinked_stage_root(tmp_path: Path) -> None:
     marker = outside / "search" / "keep.txt"
     marker.write_text("keep", encoding="utf-8")
     (run_dir / "stages").symlink_to(outside, target_is_directory=True)
-    support = RuntimeSupport()
-    support.run_dir = run_dir
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    support = RuntimeSupport(config, run_dir)
 
     with pytest.raises(ValueError, match="stage root must not be a symlink"):
         support._reset_stage_dir("search")
@@ -1536,9 +1536,28 @@ def test_mutable_root_validation_rejects_a_symlinked_workspace(
     outside.mkdir()
     workspace = run_dir / "workspace"
     workspace.symlink_to(outside, target_is_directory=True)
-    support = RuntimeSupport()
-    support.run_dir = run_dir
-    support.workspace = workspace
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    support = RuntimeSupport(config, run_dir)
 
     with pytest.raises(ValueError, match="scraper workspace must not be a symlink"):
         support._validate_mutable_roots()
+
+
+def test_runtime_support_owns_paths_interpreters_and_isolated_typed_state(
+    tmp_path: Path,
+) -> None:
+    from dataset_builder._runtime_support import RuntimeState, RuntimeSupport
+
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    first = RuntimeSupport(config, tmp_path / "first")
+    second = RuntimeSupport(config, tmp_path / "second")
+
+    assert first.config is config
+    assert first.workspace == tmp_path / "first" / "workspace"
+    assert isinstance(first.state, RuntimeState)
+    assert first.current_interpreter is None
+    assert first.tracknet_interpreter is None
+    assert first.pose_interpreter is None
+    assert first.ffmpeg_interpreter is None
+    first.state.active_ids.add("video")
+    assert second.state.active_ids == set()
