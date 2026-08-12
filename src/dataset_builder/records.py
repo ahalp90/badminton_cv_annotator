@@ -23,6 +23,7 @@ from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._record_validation import (
     RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RALLY_RECORDS_FILENAME,
     reject_manifest_output_cycle,
@@ -85,6 +86,56 @@ class RallyRecordProjection:
     input_manifest_sha256: str
     source: dict[str, object]
     records: tuple[dict[str, object], ...]
+
+
+def write_rally_record_projection(
+    path: Path,
+    manifest: RunManifest,
+    projection: RallyRecordProjection,
+) -> Path:
+    """Persist one validated per-video projection and its manifest binding."""
+    _validate_projection(manifest, projection)
+    return save_json_gz(
+        path,
+        {
+            "schema": RALLY_RECORD_PROJECTION_SCHEMA,
+            "input_manifest_sha256": projection.input_manifest_sha256,
+            "source": projection.source,
+            "records": list(projection.records),
+        },
+    )
+
+
+def load_rally_record_projection(
+    path: Path,
+    manifest: RunManifest,
+    *,
+    video_id: str,
+) -> RallyRecordProjection:
+    """Load and validate one exact per-video projection."""
+    video_id = _string(video_id, "primitive projection video_id")
+    payload = _mapping(load_json_gz(path), "primitive projection")
+    expected_fields = {"schema", "input_manifest_sha256", "source", "records"}
+    if set(payload) != expected_fields:
+        raise ValueError("primitive projection fields differ")
+    if payload["schema"] != RALLY_RECORD_PROJECTION_SCHEMA:
+        raise ValueError(f"unsupported primitive projection schema: {payload['schema']!r}")
+    source = dict(_mapping(payload["source"], "primitive projection source"))
+    if source.get("video_id") != video_id:
+        raise ValueError("primitive projection video_id differs from the expected video")
+    raw_records = payload["records"]
+    if not isinstance(raw_records, list):
+        raise ValueError("primitive projection records must be a list")
+    projection = RallyRecordProjection(
+        _string(
+            payload["input_manifest_sha256"],
+            "primitive projection input_manifest_sha256",
+        ),
+        source,
+        tuple(dict(_mapping(record, "primitive projection record")) for record in raw_records),
+    )
+    _validate_projection(manifest, projection)
+    return projection
 
 
 def assemble_rally_records(
@@ -173,25 +224,32 @@ def write_rally_records(
     *,
     code_version: str,
     assembly_configuration: Mapping[str, object],
+    projection_manifest: RunManifest | None = None,
 ) -> RallyRecordArtifacts:
     """Persist validated projections and the immutable run-manifest snapshot."""
     if not isinstance(manifest, RunManifest):
         raise TypeError("manifest must be RunManifest")
+    if projection_manifest is None:
+        projection_manifest = manifest
+    if not isinstance(projection_manifest, RunManifest):
+        raise TypeError("projection_manifest must be RunManifest")
+    validate_live_manifest_extension(projection_manifest, manifest)
     _validate_manifest_code_version(manifest, code_version)
     run_dir = Path(run_dir)
     records_path = run_dir / RALLY_RECORDS_FILENAME
     reject_manifest_output_cycle(manifest, run_dir, records_path)
     input_manifest_sha256 = run_manifest_sha256(manifest)
+    projection_manifest_sha256 = run_manifest_sha256(projection_manifest)
     sources: list[dict[str, object]] = []
     records: list[dict[str, object]] = []
     for projection in projections:
         if not isinstance(projection, RallyRecordProjection):
             raise TypeError("projections must contain RallyRecordProjection values")
-        if projection.input_manifest_sha256 != input_manifest_sha256:
+        if projection.input_manifest_sha256 != projection_manifest_sha256:
             raise ValueError("projection input-manifest digest differs from the supplied manifest")
         sources.append(dict(projection.source))
         records.extend(dict(record) for record in projection.records)
-    validate_record_collection(manifest, sources, records)
+    validate_record_collection(projection_manifest, sources, records)
     manifest_path = write_run_manifest(run_dir, manifest)
     records_path = save_json_gz(
         records_path,
@@ -208,6 +266,19 @@ def write_rally_records(
         },
     )
     return RallyRecordArtifacts(records=records_path, run_manifest=manifest_path)
+
+
+def _validate_projection(
+    manifest: RunManifest,
+    projection: RallyRecordProjection,
+) -> None:
+    if not isinstance(manifest, RunManifest):
+        raise TypeError("manifest must be RunManifest")
+    if not isinstance(projection, RallyRecordProjection):
+        raise TypeError("projection must be RallyRecordProjection")
+    if projection.input_manifest_sha256 != run_manifest_sha256(manifest):
+        raise ValueError("projection input-manifest digest differs from the supplied manifest")
+    validate_record_collection(manifest, [projection.source], projection.records)
 
 
 def load_rally_records(path: Path) -> list[dict[str, object]]:

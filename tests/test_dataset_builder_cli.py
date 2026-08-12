@@ -14,8 +14,15 @@ from annotator.run_video import AnnotatorResult
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.cli import StageExecution, StagePlan
+from dataset_builder.manifest import write_run_manifest
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
-from dataset_builder.records import RALLY_RECORD_COLLECTION_SCHEMA, RALLY_RECORD_SCHEMA
+from dataset_builder.records import (
+    RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
+    RALLY_RECORD_SCHEMA,
+    RallyRecordArtifacts,
+    RallyRecordProjection,
+)
 from dataset_builder.selection import (
     COMMENTARY_FAILED,
     COMMENTARY_INELIGIBLE,
@@ -711,6 +718,186 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
     assert [(event.name, event.reason) for event in second.events if not event.reused] == []
 
 
+def test_projection_is_produced_once_and_restored_for_assembly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    producer = fixture.runtime_module.assemble_rally_records
+    calls: list[str] = []
+
+    def assemble_spy(**kwargs: object) -> RallyRecordProjection:
+        calls.append(str(kwargs["video_id"]))
+        return producer(**kwargs)
+
+    monkeypatch.setattr(fixture.runtime_module, "assemble_rally_records", assemble_spy)
+
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    projection_payload = vision.load_json_gz(projection_path)
+    records_path = fixture.run_dir / "rally_records.json.gz"
+    collection = vision.load_json_gz(records_path)
+
+    assert first.stopped_after is None
+    assert calls == [fixture.video_id]
+    assert projection_payload["schema"] == RALLY_RECORD_PROJECTION_SCHEMA
+    assert projection_payload["source"] == collection["sources"][0]
+    assert projection_payload["records"] == collection["records"]
+    records_path.unlink()
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in resumed.events}
+
+    assert calls == [fixture.video_id]
+    assert events[f"primitive_projection:{fixture.video_id}"].reused is True
+    assert events["assembly"].reused is False
+    assert events["report"].reused is False
+    rebuilt = vision.load_json_gz(records_path)
+    assert rebuilt["sources"] == [projection_payload["source"]]
+    assert rebuilt["records"] == projection_payload["records"]
+
+
+def test_corrupt_projection_invalidates_resume_and_is_reproduced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    producer = fixture.runtime_module.assemble_rally_records
+    calls = 0
+
+    def assemble_spy(**kwargs: object) -> RallyRecordProjection:
+        nonlocal calls
+        calls += 1
+        return producer(**kwargs)
+
+    monkeypatch.setattr(fixture.runtime_module, "assemble_rally_records", assemble_spy)
+    cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    payload = vision.load_json_gz(projection_path)
+    del payload["records"][0]["contacts"]["accepted"]
+    vision.save_json_gz(projection_path, payload)
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in resumed.events}
+
+    assert calls == 2
+    assert events[f"primitive_projection:{fixture.video_id}"].reused is False
+    assert events["assembly"].reused is False
+    assert events["report"].reused is False
+
+
+def test_assembly_uses_selected_video_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataset_builder import _pipeline_runtime
+
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    run_dir = tmp_path / "run"
+    manifest = RunManifest("ordered-run", "2026-08-12T00:00:00Z")
+    write_run_manifest(run_dir, manifest)
+    runtime = _pipeline_runtime.DefaultPipelineRuntime(config, run_dir, "a" * 40)
+    runtime.current_interpreter = InterpreterIdentity("/fixture/python", "Python 3.12")
+    runtime.state.selected_ids = ("second", "first")
+    runtime.state.active_ids = {"first", "second"}
+    runtime.state.projections = {
+        "first": RallyRecordProjection("a" * 64, {"video_id": "first"}, ({"row": 1},)),
+        "second": RallyRecordProjection("b" * 64, {"video_id": "second"}, ({"row": 2},)),
+    }
+    captured: list[str] = []
+
+    def write_spy(
+        _run_dir: Path,
+        _manifest: RunManifest,
+        projections: list[RallyRecordProjection],
+        **_kwargs: object,
+    ) -> RallyRecordArtifacts:
+        captured.extend(str(projection.source["video_id"]) for projection in projections)
+        return RallyRecordArtifacts(
+            run_dir / "rally_records.json.gz",
+            run_dir / "run_manifest.json.gz",
+        )
+
+    monkeypatch.setattr(_pipeline_runtime, "write_rally_records", write_spy)
+
+    result = runtime._assembly_plans(manifest)[0].execute()
+
+    assert captured == ["second", "first"]
+    assert runtime.state.records == [{"row": 2}, {"row": 1}]
+    assert result.counts == {"videos": 2, "rallies": 2}
+
+
+def test_projection_manifest_keeps_upstream_stages_appended_after_retained_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    completed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    ).manifest
+    stages = {stage.name: stage for stage in completed.stages}
+    selection = replace(stages["selection"], dependencies=())
+    annotation = stages[f"annotation:{fixture.video_id}"]
+    projection = stages[f"primitive_projection:{fixture.video_id}"]
+    retained_annotation = replace(
+        annotation,
+        name="annotation:retained",
+        dependencies=("selection",),
+    )
+    retained_projection = replace(
+        projection,
+        name="primitive_projection:retained",
+        dependencies=("annotation:retained",),
+    )
+    rebuilt_annotation = replace(
+        annotation,
+        name="annotation:rebuilt",
+        dependencies=("selection",),
+    )
+    reordered = replace(
+        completed,
+        stages=(selection, retained_annotation, retained_projection, rebuilt_annotation),
+    )
+
+    projection_input = fixture.runtime_module._projection_input_manifest(reordered)
+
+    assert [stage.name for stage in projection_input.stages] == [
+        "selection",
+        "annotation:retained",
+        "annotation:rebuilt",
+    ]
+
+
 @pytest.mark.parametrize("change_directory", [False, True], ids=["predictor", "directory"])
 def test_tracknet_directory_or_predictor_change_invalidates_shuttle(
     tmp_path: Path,
@@ -1242,6 +1429,48 @@ def test_every_selected_video_excluded_is_a_terminal_error(
     report = vision.load_json_gz(fixture.run_dir / fixture.runtime_module.REPORT_FILENAME)
     assert report["processed_video_ids"] == []
     assert report["rally_count"] == 0
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    collection = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+    assert not projection_path.exists()
+    assert collection["sources"] == []
+    assert collection["records"] == []
+
+
+def test_projection_failure_excludes_video_without_blocking_empty_assembly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+
+    def fail_projection(**_kwargs: object) -> RallyRecordProjection:
+        raise RuntimeError("fixture projection failure")
+
+    monkeypatch.setattr(
+        fixture.runtime_module,
+        "assemble_rally_records",
+        fail_projection,
+    )
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in result.events}
+    collection = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+
+    assert events[f"primitive_projection:{fixture.video_id}"].outcome is StageOutcome.FAILED
+    assert events["assembly"].outcome is StageOutcome.PROCESSED
+    assert events["report"].outcome is StageOutcome.PROCESSED
+    assert result.terminal_error == "every selected video was excluded before record assembly"
+    assert collection["sources"] == []
+    assert collection["records"] == []
 
 
 def test_required_failure_unpublishes_invalidated_final_outputs(

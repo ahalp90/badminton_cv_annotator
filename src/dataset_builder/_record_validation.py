@@ -13,6 +13,7 @@ from dataset_builder.models import RunManifest, StageOutcome
 
 
 RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.2"
+RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.2"
 RALLY_RECORD_SCHEMA = "rally-record/0.2"
 RALLY_RECORDS_FILENAME = "rally_records.json.gz"
 RAW_REPLAY_ARTIFACT = "raw_replay_mask"

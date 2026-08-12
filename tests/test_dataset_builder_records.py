@@ -33,13 +33,16 @@ from dataset_builder.models import (
 )
 from dataset_builder.records import (
     RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RALLY_RECORDS_FILENAME,
     RallyRecordArtifacts,
     RallyRecordProjection,
     SourceReference,
     assemble_rally_records,
+    load_rally_record_projection,
     load_rally_records,
+    write_rally_record_projection,
     write_rally_records,
 )
 from dataset_builder.vision import load_json_gz, save_json_gz
@@ -760,6 +763,60 @@ def test_record_persistence_round_trips_and_writes_manifest(tmp_path: Path) -> N
         load_rally_records(unsupported_row)
 
 
+def test_projection_persistence_round_trips_source_and_minimal_rows(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = tmp_path / "primitive_projection.json.gz"
+
+    assert write_rally_record_projection(path, manifest, projection) == path
+    payload = load_json_gz(path)
+
+    assert payload == {
+        "schema": RALLY_RECORD_PROJECTION_SCHEMA,
+        "input_manifest_sha256": run_manifest_sha256(manifest),
+        "source": projection.source,
+        "records": list(projection.records),
+    }
+    assert load_rally_record_projection(
+        path,
+        manifest,
+        video_id=VIDEO_ID,
+    ) == projection
+
+
+def test_projection_loader_rejects_corrupt_record_content(tmp_path: Path) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = write_rally_record_projection(
+        tmp_path / "primitive_projection.json.gz",
+        manifest,
+        projection,
+    )
+    payload = load_json_gz(path)
+    del payload["records"][0]["contacts"]["accepted"]
+    save_json_gz(path, payload)
+
+    with pytest.raises(ValueError, match="record contacts fields differ"):
+        load_rally_record_projection(path, manifest, video_id=VIDEO_ID)
+
+
+def test_projection_loader_rejects_a_different_manifest_snapshot(tmp_path: Path) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = write_rally_record_projection(
+        tmp_path / "primitive_projection.json.gz",
+        manifest,
+        projection,
+    )
+    changed_stage = replace(manifest.stages[0], command=("python", "changed"))
+    changed = replace(manifest, stages=(changed_stage, *manifest.stages[1:]))
+
+    with pytest.raises(ValueError, match="projection input-manifest digest differs"):
+        load_rally_record_projection(path, changed, video_id=VIDEO_ID)
+
+
 def test_duplicate_record_composite_key_is_rejected_before_write(tmp_path: Path) -> None:
     projection = _assemble(tmp_path)
     duplicate = replace(
@@ -855,6 +912,30 @@ def test_writer_rejects_a_different_same_id_manifest_before_publication(tmp_path
 
     with pytest.raises(ValueError, match="projection input-manifest digest differs"):
         _write(run_dir, different, [projection])
+
+    assert not run_dir.exists()
+
+
+def test_writer_validates_rows_against_the_exact_projection_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest()
+    projection_manifest = replace(manifest, stages=manifest.stages[:1])
+    forged = replace(
+        _assemble(tmp_path, manifest=manifest),
+        input_manifest_sha256=run_manifest_sha256(projection_manifest),
+    )
+    run_dir = tmp_path / "missing-projection-mask"
+
+    with pytest.raises(ValueError, match="mask stage is absent"):
+        write_rally_records(
+            run_dir,
+            manifest,
+            [forged],
+            code_version=CODE_VERSION,
+            assembly_configuration={"record_mode": "primitive"},
+            projection_manifest=projection_manifest,
+        )
 
     assert not run_dir.exists()
 

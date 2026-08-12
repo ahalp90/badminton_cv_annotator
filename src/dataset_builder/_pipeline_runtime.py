@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from dataclasses import replace
 import os
 from pathlib import Path
 import shutil
@@ -17,10 +18,8 @@ from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
-    _load_projection,
     _load_report,
     _valid_candidates,
-    _valid_projection,
     _valid_report,
     _valid_selection,
     _write_candidates_snapshot,
@@ -31,10 +30,13 @@ from dataset_builder.manifest import load_run_manifest, resolve_interpreter
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.records import (
     RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RallyRecordProjection,
     SourceReference,
     assemble_rally_records,
+    load_rally_record_projection,
+    write_rally_record_projection,
     write_rally_records,
 )
 from dataset_builder.selection import (
@@ -91,6 +93,7 @@ class _State:
         self.commentary_reasons: dict[str, str | None] = {}
         self.commentary_statuses: dict[str, str] = {}
         self.exclusions: dict[str, str] = {}
+        self.projections: dict[str, RallyRecordProjection] = {}
         self.records: list[dict[str, object]] = []
 
 
@@ -705,23 +708,20 @@ class DefaultPipelineRuntime(RuntimeSupport):
         )
 
     def _projection_plans(self, manifest: RunManifest) -> Sequence[StagePlan]:
+        input_manifest = _projection_input_manifest(manifest)
         return tuple(
-            self._projection_plan(video_id, manifest)
+            self._projection_plan(video_id, input_manifest)
             for video_id in self._active_video_ids()
         )
 
-    def _projection_plan(self, video_id: str, _manifest: RunManifest) -> StagePlan:
+    def _projection_plan(self, video_id: str, input_manifest: RunManifest) -> StagePlan:
         output = self._video_dir("primitive_projection", video_id) / PROJECTION_FILENAME
 
         def execute() -> StageExecution:
             self._reset_stage_dir("primitive_projection", video_id)
-            input_manifest = load_run_manifest(self.run_dir)
             projection = self._assemble_one(input_manifest, video_id)
-            save_json_gz(output, {
-                "schema": "primitive-projection/0.1",
-                "video_id": video_id,
-                "rally_count": len(projection.records),
-            })
+            write_rally_record_projection(output, input_manifest, projection)
+            self.state.projections[video_id] = projection
             return StageExecution(
                 StageOutcome.PROCESSED,
                 {"primitive_projection": output},
@@ -739,18 +739,26 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 self._video_stage("commentary_pairing", video_id),
             ),
             command=(self._current().path, "dataset_builder.records", "project", video_id),
-            configuration={"record_schema": RALLY_RECORD_SCHEMA},
+            configuration={
+                "projection_schema": RALLY_RECORD_PROJECTION_SCHEMA,
+                "record_schema": RALLY_RECORD_SCHEMA,
+            },
             inputs=inputs,
             execute=execute,
-            restore=lambda: _load_projection(output, video_id),
+            restore=lambda: self._restore_projection(video_id, output, input_manifest),
             validators={
-                "projection_schema": lambda _root: _valid_projection(output, video_id),
+                "projection_schema": lambda _root: self._validate_projection(
+                    video_id,
+                    output,
+                    input_manifest,
+                ),
             },
             on_failure=lambda reason: self._exclude(video_id, reason),
         )
 
     def _assembly_plans(self, manifest: RunManifest) -> Sequence[StagePlan]:
         active = self._active_video_ids()
+        projection_manifest = _projection_input_manifest(manifest)
         dependencies = tuple(
             self._video_stage("primitive_projection", video_id)
             for video_id in active
@@ -766,7 +774,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         def execute() -> StageExecution:
             input_manifest = load_run_manifest(self.run_dir)
             projections = [
-                self._assemble_one(input_manifest, video_id)
+                self.state.projections[video_id]
                 for video_id in active
             ]
             records = [record for projection in projections for record in projection.records]
@@ -776,6 +784,9 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 projections,
                 code_version=self.source_commit,
                 assembly_configuration={"record_mode": "primitive"},
+                projection_manifest=(
+                    projection_manifest if projections else input_manifest
+                ),
             )
             self.state.records = records
             return StageExecution(
@@ -790,6 +801,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
             command=(self._current().path, "dataset_builder.records", "assemble"),
             configuration={
                 "collection_schema": RALLY_RECORD_COLLECTION_SCHEMA,
+                "projection_schema": RALLY_RECORD_PROJECTION_SCHEMA,
                 "record_schema": RALLY_RECORD_SCHEMA,
                 "validation_only": True,
             },
@@ -906,6 +918,38 @@ class DefaultPipelineRuntime(RuntimeSupport):
             commentary_provenance=self._commentary_provenance(video_id),
             mask_stage_name=self._video_stage("annotation", video_id),
         )
+
+    def _restore_projection(
+        self,
+        video_id: str,
+        path: Path,
+        manifest: RunManifest,
+    ) -> None:
+        self.state.projections[video_id] = load_rally_record_projection(
+            path,
+            manifest,
+            video_id=video_id,
+        )
+
+    def _validate_projection(
+        self,
+        video_id: str,
+        path: Path,
+        manifest: RunManifest,
+    ) -> bool:
+        self._restore_projection(video_id, path, manifest)
+        return True
+
+
+def _projection_input_manifest(manifest: RunManifest) -> RunManifest:
+    """Return the common manifest snapshot captured before projection starts."""
+    stages = tuple(
+        stage
+        for stage in manifest.stages
+        if not stage.name.startswith("primitive_projection:")
+        and stage.name not in {"assembly", "report"}
+    )
+    return manifest if stages == manifest.stages else replace(manifest, stages=stages)
 
 
 def _annotation_configuration() -> dict[str, object]:

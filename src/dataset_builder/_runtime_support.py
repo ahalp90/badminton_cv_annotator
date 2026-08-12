@@ -711,24 +711,6 @@ def _valid_selection(path: Path) -> bool:
     return True
 
 
-def _load_projection(path: Path, video_id: str) -> None:
-    payload = load_json_gz(path)
-    if (
-        set(payload) != {"schema", "video_id", "rally_count"}
-        or payload["schema"] != "primitive-projection/0.1"
-        or payload["video_id"] != video_id
-        or isinstance(payload["rally_count"], bool)
-        or not isinstance(payload["rally_count"], int)
-        or payload["rally_count"] < 0
-    ):
-        raise ValueError("primitive projection payload is invalid")
-
-
-def _valid_projection(path: Path, video_id: str) -> bool:
-    _load_projection(path, video_id)
-    return True
-
-
 def _load_report(path: Path, run_id: str) -> None:
     payload = load_json_gz(path)
     expected = {
