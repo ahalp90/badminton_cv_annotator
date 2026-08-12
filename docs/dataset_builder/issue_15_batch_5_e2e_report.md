@@ -67,20 +67,6 @@ clean end-to-end capacity run are required before making a production
 throughput or cost claim; they were not required for this correctness and
 resume acceptance.
 
-## Derived per-video throughput
-
-The following sums the video-specific manifest stages: metadata, TrackNet
-input, shuttle extraction, pose extraction, court evidence, annotation,
-commentary pairing, and primitive projection. It intentionally does not
-allocate shared search, transcript, triage, selection, download, cleaning,
-assembly, or report time to either video. These are stage-clock totals, not
-whole-run wall-clock durations.
-
-| Video | Source duration | Video-specific stage time | Stage time per source hour |
-| --- | ---: | ---: | ---: |
-| `9WVwZSzixh0` | 85m 20s | 2h 25m 59.2s | 1.71 h/h |
-| `P3OcTzwmqeY` | 91m 45s | 2h 45m 12.0s | 1.80 h/h |
-
 ## Final publication digests
 
 ```text
