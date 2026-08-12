@@ -24,6 +24,7 @@ from annotator.point_winner import (
     VerdictSource,
 )
 from annotator.run_video import AnnotatorResult
+from annotator.shuttle_track import validate_shuttle_track
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._commentary_status import (
@@ -57,7 +58,6 @@ from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
     load_pose_arrays,
-    validate_track,
 )
 from scraper import config as scraper_config
 from scraper.commentary_pairing import CanonicalPairing
@@ -408,7 +408,7 @@ class RuntimeSupport:
 
     def _restore_track(self, video_id: str, path: Path) -> None:
         track = load_npy_xz(path)
-        validate_track(track, self.state.metadata[video_id].frame_count)
+        validate_shuttle_track(track, self.state.metadata[video_id].frame_count)
         self.state.tracks[video_id] = track
 
     def _validate_track(self, video_id: str, path: Path) -> bool:

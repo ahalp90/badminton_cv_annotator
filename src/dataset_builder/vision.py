@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import numpy as np
 
+from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder._pose_process import (
     POSE_CHILD_STEM,
     load_raw_pose_mapping,
@@ -251,24 +252,10 @@ def convert_tracknet_csv_stage(
             width=metadata.width,
             height=metadata.height,
         )
-        validate_track(shuttle.track, metadata.frame_count)
         save_npy_xz(output_path, shuttle.track)
         return shuttle
 
     return _run_stage("tracknet_conversion", operation)
-
-
-def validate_track(track: np.ndarray, frame_count: int) -> None:
-    """Validate the annotator's whole-video shuttle array."""
-    values = np.asarray(track)
-    if values.shape != (frame_count, 3):
-        raise ValueError(f"track shape {values.shape} != {(frame_count, 3)}")
-    if not np.issubdtype(values.dtype, np.floating):
-        raise ValueError(f"track must have floating dtype, got {values.dtype}")
-    if not np.isfinite(values).all():
-        raise ValueError("track must contain only finite values")
-    if not np.isin(values[:, 2], (0.0, 1.0)).all():
-        raise ValueError("track visibility must contain only 0 or 1")
 
 
 def pose_artifact_paths(output_dir: Path) -> PoseArtifacts:
@@ -725,7 +712,7 @@ def run_full_annotation_stage(
         effective_landing = (
             SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
         )
-        validate_track(track, metadata.frame_count)
+        validate_shuttle_track(track, metadata.frame_count)
         validate_pose_arrays(pose, metadata.frame_count)
         _validate_court_vision(
             court.raw_cuts,

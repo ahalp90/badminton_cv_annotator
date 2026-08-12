@@ -80,6 +80,7 @@ api_key_environment = "GEMINI_API_KEY"
 class _FixtureControl:
     outcomes: dict[str, StageOutcome] = field(default_factory=dict)
     versions: dict[str, str] = field(default_factory=dict)
+    counts: dict[str, dict[str, int]] = field(default_factory=dict)
     planned: list[str] = field(default_factory=list)
     executed: list[str] = field(default_factory=list)
     restored: list[str] = field(default_factory=list)
@@ -116,7 +117,8 @@ class _FixtureRuntime:
                 )
             artifact.parent.mkdir(parents=True, exist_ok=True)
             artifact.write_text(f"{phase}:{version}\n", encoding="utf-8")
-            return StageExecution(outcome, {"artifact": artifact}, {"rows": 1})
+            counts = self.control.counts.get(phase, {"rows": 1})
+            return StageExecution(outcome, {"artifact": artifact}, counts)
 
         def restore() -> None:
             self.control.restored.append(phase)
@@ -254,11 +256,11 @@ def test_changed_stage_configuration_invalidates_only_it_and_dependants(tmp_path
 
 
 def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Path) -> None:
-    config_path = _write_config(tmp_path / "trial.toml", max_videos=0)
+    config_path = _write_config(tmp_path / "trial.toml")
 
     config = cli.load_builder_config(config_path, repo_root=tmp_path)
 
-    assert config.max_videos == 0
+    assert config.max_videos == 2
     assert config.search_count == 5
     assert config.tracknet_model == tmp_path / "weights" / "tracknet.pt"
     assert config.inpaint_model is None
@@ -268,6 +270,30 @@ def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Pat
     config_path.write_text(malformed, encoding="utf-8")
     with pytest.raises(ValueError, match="run fields differ"):
         cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_configuration_rejects_zero_max_videos(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "trial.toml", max_videos=0)
+
+    with pytest.raises(ValueError, match="run.max_videos must be positive"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_completed_run_with_no_selected_videos_is_a_terminal_error(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "trial.toml")
+    control = _FixtureControl(counts={
+        "selection": {"selected": 0},
+        "assembly": {"videos": 0, "rallies": 0},
+    })
+
+    result = cli.run_dataset_builder(
+        config,
+        tmp_path / "run",
+        runtime_factory=_factory(control),
+    )
+
+    assert result.stopped_after is None
+    assert result.terminal_error == "selection produced no videos"
 
 
 def test_dirty_source_refuses_before_runtime_or_run_directory_creation(

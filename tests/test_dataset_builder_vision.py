@@ -280,7 +280,57 @@ def test_whole_video_tracknet_rejects_non_numeric_values_as_failed_stage(tmp_pat
     )
 
     assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None and "finite numbers" in stage.reason
+    assert stage.reason is not None and "finite values" in stage.reason
+
+
+@pytest.mark.parametrize(("x", "y"), [(-1.0, 25.0), (101.0, 25.0), (50.0, -1.0), (50.0, 51.0)])
+def test_whole_video_tracknet_rejects_visible_coordinates_outside_video(
+    tmp_path: Path,
+    x: float,
+    y: float,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=1)
+    csv_path = tmp_path / "bad-coordinate.csv"
+    pd.DataFrame({"Frame": [0], "X": [x], "Y": [y], "Visibility": [1]}).to_csv(
+        csv_path,
+        index=False,
+    )
+
+    stage = vision.convert_tracknet_csv_stage(
+        csv_path,
+        video_id="video",
+        metadata=metadata,
+        output_path=tmp_path / vision.TRACK_FILENAME,
+    )
+
+    assert stage.outcome is StageOutcome.FAILED
+    assert stage.reason is not None and "within [0, 1]" in stage.reason
+
+
+def test_whole_video_tracknet_accepts_boundaries_and_ignores_invisible_coordinates(
+    tmp_path: Path,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=3)
+    csv_path = tmp_path / "boundary-coordinates.csv"
+    pd.DataFrame({
+        "Frame": [0, 1, 2],
+        "X": [0.0, 100.0, -500.0],
+        "Y": [50.0, 0.0, 500.0],
+        "Visibility": [1, 1, 0],
+    }).to_csv(csv_path, index=False)
+
+    stage = vision.convert_tracknet_csv_stage(
+        csv_path,
+        video_id="video",
+        metadata=metadata,
+        output_path=tmp_path / vision.TRACK_FILENAME,
+    )
+
+    assert stage.outcome is StageOutcome.PROCESSED
+    np.testing.assert_array_equal(
+        stage.require_value().track,
+        np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [-5.0, 10.0, 0.0]]),
+    )
 
 
 def test_scene_rows_keep_numeric_looking_string_video_ids() -> None:
