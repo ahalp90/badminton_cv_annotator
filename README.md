@@ -120,6 +120,12 @@ uv run pyrefly check
 uv run pytest
 ```
 
+Run the dataset-builder suite and its shared-boundary tests:
+
+```bash
+./scripts/test-dataset-builder.sh
+```
+
 This environment supports code-quality checks and CPU tests. Full extraction
 also needs component-specific model weights and large local inputs. The
 search-to-dataset orchestrator is still being integrated, so `run_video` is a
