@@ -1,0 +1,23 @@
+{
+  "labels_read": false,
+  "population": 153,
+  "prediction_file": "predictions.csv.gz",
+  "prediction_sha256": "6b946a6422681936472019f32965a2a9ba32a4d88ef8a15dc0e015ec72873e09",
+  "schema": "serve-rule-holdout-prediction-freeze/1",
+  "videos": [
+    {
+      "fps": 25.0,
+      "frame_count": 81650,
+      "height": 1080,
+      "video_id": "sset_20",
+      "width": 1920
+    },
+    {
+      "fps": 30.0,
+      "frame_count": 100896,
+      "height": 1080,
+      "video_id": "sset_22",
+      "width": 1920
+    }
+  ]
+}
