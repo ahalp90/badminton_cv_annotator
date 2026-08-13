@@ -1,8 +1,10 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-import subprocess
 from dataclasses import asdict, fields, replace
+import json
+from pathlib import Path
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -149,17 +151,51 @@ def test_resolve_accepts_every_fps_field_and_explicit_contact_threshold() -> Non
     assert resolved.thresholds.contact_impulse_multiple == 5.5
 
 
-def test_probe_fps_rejects_vfr_and_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: subprocess.CompletedProcess(
-        args, 0, '{"streams": [{"r_frame_rate": "25/1", "avg_frame_rate": "30/1"}]}', '',
-    ))
+def test_probe_fps_rejects_vfr_and_invalid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    video = tmp_path / "video.mp4"
+    video.touch()
+    stream = {
+        "codec_type": "video",
+        "nb_frames": "10",
+        "nb_read_frames": "10",
+        "width": 64,
+        "height": 48,
+        "r_frame_rate": "25/1",
+        "avg_frame_rate": "30/1",
+        "start_time": "0",
+    }
+    payload = {"streams": [stream], "format": {"start_time": "0"}}
+
+    def fake_run(*args: object, **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(ValueError, match='variable frame rate'):
-        probe_fps('video.mp4')  # type: ignore[arg-type]
-    monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: subprocess.CompletedProcess(
-        args, 0, '{"streams": [{"r_frame_rate": "0/1", "avg_frame_rate": "0/1"}]}', '',
-    ))
-    with pytest.raises(ValueError, match='invalid fps'):
-        probe_fps('video.mp4')  # type: ignore[arg-type]
+        probe_fps(video)
+    stream["r_frame_rate"] = "0/1"
+    stream["avg_frame_rate"] = "0/1"
+    with pytest.raises(ValueError, match='must be positive'):
+        probe_fps(video)
+
+
+def test_probe_fps_remains_lightweight_when_header_frame_count_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = tmp_path / "valid-cfr.mkv"
+    video.touch()
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        payload = {"streams": [{"r_frame_rate": "25/1", "avg_frame_rate": "25/1"}]}
+        return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert probe_fps(video) == 25.0
+    assert len(commands) == 1
+    assert "-count_frames" not in commands[0]
+    assert commands[0][commands[0].index("-show_entries") + 1] == "stream=r_frame_rate,avg_frame_rate"
 
 
 def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:

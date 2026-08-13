@@ -351,7 +351,7 @@ def _scene_row(
         ]
     )
     row: dict[str, object] = {
-        'video_id': int(video_id) if str(video_id).lstrip('-').isdigit() else str(video_id),
+        'video_id': video_id,
         'start_frame': interval[0],
         'end_frame': interval[1],
     }

@@ -30,6 +30,7 @@ import json
 import lzma
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 from preparing_data.raw_extract import extract_raw_frame
@@ -70,21 +71,20 @@ def atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def save_npy_xz(path: Path, array: np.ndarray) -> None:
-    buffer = lzma.compress(_npy_bytes(array), format=lzma.FORMAT_XZ, preset=9)
-    atomic_write_bytes(path, buffer)
+    """Stream one NumPy array through an atomic XZ temporary file."""
+    destination = Path(path)
+    temporary = destination.with_name(f".{destination.name}.{uuid4().hex}.tmp")
+    try:
+        with lzma.open(temporary, "wb", format=lzma.FORMAT_XZ, preset=9) as handle:
+            np.save(handle, np.asarray(array), allow_pickle=False)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def load_npy_xz(path: Path) -> np.ndarray:
     with lzma.open(path, "rb", format=lzma.FORMAT_XZ) as fh:
-        return np.load(fh)
-
-
-def _npy_bytes(array: np.ndarray) -> bytes:
-    import io
-
-    buf = io.BytesIO()
-    np.save(buf, array)
-    return buf.getvalue()
+        return np.load(fh, allow_pickle=False)
 
 
 def save_gz_json(path: Path, payload: dict) -> None:

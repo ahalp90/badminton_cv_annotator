@@ -30,6 +30,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from ._llm_errors import DailyRequestQuotaError, daily_request_quota_exhausted
 from .config import (
     ALT_PHRASINGS_K,
     API_KEY_ENV,
@@ -38,6 +39,7 @@ from .config import (
     CLEAN_MODEL,
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
+    LLM_REQUEST_TIMEOUT_S,
     TRIAGE_MAX_TOKENS,
     VIDEO_EXTENSIONS,
     WHISPERX_FINE_MODEL,
@@ -93,10 +95,13 @@ def _clean_once(text: str) -> dict:
     }
 
     from google import genai
+    from google.genai import types
 
     if API_KEY_ENV not in os.environ:
         raise RuntimeError(f'{API_KEY_ENV} is not set')
-    client = genai.Client()
+    client = genai.Client(http_options=types.HttpOptions(
+        timeout=LLM_REQUEST_TIMEOUT_S * 1000,
+    ))
     response = client.models.generate_content(**request_params)
     parsed = json.loads(response.text)
     return {
@@ -110,8 +115,10 @@ def call_clean_llm(text: str) -> dict:
 
     Ported from the proof-of-concept wrapper: catch broadly (the real SDK raises typed
     errors on rate limits and transient faults), back off ``LLM_BACKOFF_BASE_S``
-    doubled per attempt, and raise CleanError after ``LLM_MAX_RETRIES`` so the
-    caller can log-and-skip the video.
+    doubled per attempt, and raise ``CleanError`` after ``LLM_MAX_RETRIES`` so
+    the coordinator can mark the optional stage unavailable. An exhausted daily
+    request quota raises ``DailyRequestQuotaError`` immediately because it
+    cannot recover during this run.
 
     :param text: raw commentary text of one chunk.
     :return: dict with 'text_clean' and 'alt_phrasings'.
@@ -122,6 +129,10 @@ def call_clean_llm(text: str) -> dict:
             return _clean_once(text)
         except Exception as error:  # noqa: BLE001 - real code catches SDK errors
             last_error = error
+            if daily_request_quota_exhausted(error):
+                raise DailyRequestQuotaError(
+                    "clean call stopped because the daily request quota is exhausted"
+                ) from error
             if attempt == LLM_MAX_RETRIES - 1:
                 break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
@@ -176,8 +187,9 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
 
     Kept videos are those whose ``keep`` column parses ``== 'True'`` (parse, never
     truth-test: any non-empty cell is truthy, including 'False').
-    Failure is log-and-skip per video; the run blocks (raises) only when every
-    LLM call attempted failed, which signals a dead endpoint.
+    Exhausting one chunk's bounded request attempts stops this optional stage
+    so the coordinator can record it as unavailable instead of publishing a
+    partial result as reusable success.
 
     :param rows: candidate rows; read from candidates.csv when None.
     :param force: re-clean chunks that already carry ``text_clean``.
@@ -187,8 +199,6 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
         rows = read_candidates()
     kept = [row for row in rows if row.get('keep') == 'True']
 
-    attempted = 0  # LLM calls started this run
-    failed = 0  # LLM calls that died after retries
     cleaned_by_id: dict[str, int] = {}
     loaded_sidecars: list[tuple[str, Path, list[dict], str]] = []
 
@@ -211,35 +221,24 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
                     continue
                 if 'text_clean' in chunk and not force:
                     continue
-                attempted += 1
                 result = call_clean_llm(chunk['text'])
                 chunk['text_clean'] = result['text_clean']
                 chunk['alt_phrasings'] = result['alt_phrasings']
                 chunk['_score_pending'] = True
                 cleaned += 1
-        except CleanError as error:
-            failed += 1
+        except (CleanError, DailyRequestQuotaError) as error:
             print(f'  CLEAN FAILED {video_id}: {error}')
             if cleaned:  # persist the chunks cleaned before the failure
                 for chunk in chunks:
                     chunk.pop('_score_pending', None)
                 sidecar.write_text(json.dumps(chunks, indent=2), encoding='utf-8')
-            continue
+            raise
 
         original = json.dumps(chunks, indent=2)
         loaded_sidecars.append((video_id, sidecar, chunks, original))
         if cleaned:
             cleaned_by_id[video_id] = cleaned
         print(f'  {video_id}: cleaned {cleaned}/{to_clean} chunks')
-
-    if attempted > 0 and failed == attempted:
-        # Every call that was attempted failed: a dead endpoint, not scattered
-        # errors. failed counts one per dead video, attempted counts
-        # every chunk call, so this fires only when the first call of every video
-        # died and nothing got through.
-        raise RuntimeError(
-            f'Commentary cleaning: all {attempted} LLM calls failed. Check the endpoint.'
-        )
 
     pending_chunks: list[dict] = []
     for _, _, chunks, _ in loaded_sidecars:
@@ -387,11 +386,23 @@ def refine_timestamps(video_path: str, chunks: list[dict], models: tuple) -> lis
 
 
 def _find_video(video_dir: Path, video_id: str) -> Path | None:
-    """Return the <video_id>.<ext> file in video_dir, or None when absent."""
-    for candidate in sorted(video_dir.glob(f'{video_id}.*')):
-        if candidate.suffix.lower() in VIDEO_EXTENSIONS:
-            return candidate
-    return None
+    """Return one exact or legacy spaced-name source, or None when absent."""
+    if not video_dir.is_dir():
+        return None
+    matches = [
+        candidate
+        for candidate in sorted(video_dir.iterdir(), key=lambda path: path.name)
+        if candidate.is_file()
+        and (candidate.stem == video_id or candidate.stem.startswith(f'{video_id} '))
+        and candidate.suffix.lower() in VIDEO_EXTENSIONS
+        and not (
+            '.f' in candidate.stem
+            and candidate.stem.rpartition('.f')[2].isdecimal()
+        )
+    ]
+    if len(matches) > 1:
+        raise ValueError(f'multiple source videos found for {video_id!r}: {matches}')
+    return None if not matches else matches[0]
 
 
 def run_fine(video_dir: Path, rows: list[dict] | None = None) -> None:

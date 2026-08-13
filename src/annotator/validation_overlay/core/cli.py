@@ -15,7 +15,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from annotator.validation_overlay.core.decode import VideoInfo, iter_span_frames
+from annotator.validation_overlay.core.decode import iter_span_frames
+from annotator.video_metadata import VideoMetadata
 from annotator.validation_overlay.core.encode import encode_frames
 from annotator.validation_overlay.core.hud import HudStyle, draw_hud, make_hud_style
 from annotator.validation_overlay.core.timeline import (
@@ -145,7 +146,7 @@ def _round_fraction(value: Fraction) -> int:
 
 
 def make_render_plan(
-    info: VideoInfo,
+    info: VideoMetadata,
     segments: Sequence[Segment],
     output: Path,
     *,
@@ -188,11 +189,11 @@ def make_render_plan(
             f"output {output_width}x{output_height} exceeds the {_MAX_DIMENSION} px limit; "
             f"check the source's sample aspect ratio ({aspect}) and --render-width"
         )
-    timeline = build_timeline(segments, info.nb_frames, info.fps, lead_in, lead_out, spacer)
+    timeline = build_timeline(segments, info.frame_count, info.fps, lead_in, lead_out, spacer)
     hud_style = make_hud_style(output_width, output_height, hud_height)
     return RenderPlan(
         timeline=timeline,
-        video=info.path,
+        video=info.source_path,
         source_width=info.width,
         source_height=info.height,
         output=output,

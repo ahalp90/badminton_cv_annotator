@@ -12,6 +12,9 @@ Usage:
         [--tracknet-python /path/to/bst-venv/bin/python] [--profile {bst,scrape}]
 """
 import argparse
+from collections.abc import Sequence
+from dataclasses import dataclass
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -69,6 +72,93 @@ def normalize_shuttlecock(arr: np.ndarray, v_width: float, v_height: float) -> n
     return result
 
 
+@dataclass(frozen=True)
+class WholeVideoShuttle:
+    """One exact source ID and its frame-ordered annotator shuttle track."""
+
+    video_id: str
+    track: np.ndarray
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.video_id, str) or not self.video_id:
+            raise ValueError('whole-video shuttle video_id must be a non-empty string')
+        track = np.asarray(self.track)
+        if track.ndim != 2 or track.shape[1] != 3:
+            raise ValueError(f'whole-video shuttle track must have shape (frames, 3), got {track.shape}')
+        if not np.issubdtype(track.dtype, np.floating):
+            raise ValueError(f'whole-video shuttle track must have floating dtype, got {track.dtype}')
+        if not np.isfinite(track).all():
+            raise ValueError('whole-video shuttle track must contain only finite values')
+        if not np.isin(track[:, 2], (0.0, 1.0)).all():
+            raise ValueError('whole-video shuttle visibility must contain only 0 or 1')
+        object.__setattr__(self, 'track', np.ascontiguousarray(track).copy())
+
+
+def whole_video_csv_to_shuttle(
+    csv_path: Path,
+    *,
+    video_id: str,
+    frame_count: int,
+    width: float,
+    height: float,
+) -> WholeVideoShuttle:
+    """Validate and reindex a whole-video TrackNet CSV for the annotator.
+
+    Frame rows may arrive in any order, but must identify each integer frame in
+    ``0..frame_count-1`` exactly once. This adapter is deliberately separate
+    from :func:`shuttle_csvs_to_npy`, whose clip-specific duplicate handling and
+    numeric ShuttleSet IDs remain a legacy contract.
+    """
+    if not Path(csv_path).is_file():
+        raise FileNotFoundError(f'whole-video TrackNet CSV is not a regular file: {csv_path}')
+    if isinstance(frame_count, bool) or not isinstance(frame_count, int) or frame_count <= 0:
+        raise ValueError(f'frame_count must be a positive integer, got {frame_count!r}')
+    for name, value in (('width', width), ('height', height)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f'{name} must be a finite positive number, got {value!r}')
+        if not math.isfinite(float(value)) or float(value) <= 0:
+            raise ValueError(f'{name} must be a finite positive number, got {value!r}')
+
+    frame = pd.read_csv(csv_path)
+    columns = ('Frame', 'X', 'Y', 'Visibility')
+    missing_columns = sorted(set(columns).difference(frame.columns))
+    if missing_columns:
+        raise ValueError(f'whole-video TrackNet CSV is missing columns: {missing_columns}')
+
+    frame_values = pd.to_numeric(frame['Frame'], errors='coerce').to_numpy(dtype=float)
+    if not np.isfinite(frame_values).all():
+        raise ValueError('TrackNet Frame values must be finite numbers')
+    if not np.equal(frame_values, np.floor(frame_values)).all():
+        raise ValueError('TrackNet Frame values must be integers')
+    if ((frame_values < 0) | (frame_values >= frame_count)).any():
+        invalid = frame_values[(frame_values < 0) | (frame_values >= frame_count)]
+        raise ValueError(
+            f'TrackNet Frame values must be in [0, {frame_count - 1}], got {invalid.tolist()}'
+        )
+    frame_ids = frame_values.astype(np.int64)
+    duplicate_ids = np.unique(frame_ids[pd.Index(frame_ids).duplicated(keep=False)])
+    if duplicate_ids.size:
+        raise ValueError(f'TrackNet Frame values contain duplicates: {duplicate_ids.tolist()}')
+    if len(frame_ids) != frame_count:
+        missing_ids = np.setdiff1d(np.arange(frame_count, dtype=np.int64), frame_ids)
+        raise ValueError(f'TrackNet Frame values have gaps: {missing_ids.tolist()}')
+
+    ordered = frame.assign(_frame_id=frame_ids).set_index('_frame_id').reindex(range(frame_count))
+    values = ordered.loc[:, ['X', 'Y', 'Visibility']].apply(pd.to_numeric, errors='coerce')
+    shuttle_camera = values.to_numpy(dtype=float)
+    if shuttle_camera.shape != (frame_count, 3):
+        raise ValueError(
+            f'whole-video TrackNet values have shape {shuttle_camera.shape}, '
+            f'expected {(frame_count, 3)}'
+        )
+    if not np.isfinite(shuttle_camera).all():
+        raise ValueError('whole-video TrackNet X, Y and Visibility values must be finite numbers')
+    if not np.isin(shuttle_camera[:, 2], (0.0, 1.0)).all():
+        raise ValueError('whole-video TrackNet Visibility values must contain only 0 or 1')
+    shuttle_norm = normalize_shuttlecock(shuttle_camera, float(width), float(height))
+    return WholeVideoShuttle(video_id=video_id, track=shuttle_norm)
+
+
 # ---------------------------------------------------------------------------
 # TrackNetV3 subprocess invocation
 # ---------------------------------------------------------------------------
@@ -84,6 +174,8 @@ def extract_all_shuttles(
     tracknet_stride: int = TRACKNET_STRIDE,
     large_video: bool = TRACKNET_LARGE_VIDEO,
     dry_run: bool = False,
+    video_paths: Sequence[Path] | None = None,
+    enable_inpainting: bool = True,
 ) -> None:
     """Run TrackNetV3 on all clips using batch mode.
 
@@ -97,6 +189,12 @@ def extract_all_shuttles(
 
     :param tracknet_dir: Path to the cloned TrackNetV3 repository.
     :param clips_dir: Root clips directory to scan for .mp4 files.
+    :param video_paths: Optional explicit source paths. This preserves the legacy
+        ``clips_dir`` scan by default while allowing selected whole-video files
+        whose download container is not ``.mp4``.
+    :param enable_inpainting: Whether to resolve and pass InpaintNet weights.
+        Defaults to the legacy enabled behavior; dataset-builder callers can
+        explicitly disable it without falling back to the default checkpoint.
     :param output_csv_dir: Directory for TrackNetV3 CSV outputs.
         Defaults to clips_dir/../shuttle_csv.
     :param model_path: Path to TrackNet weights. Defaults to tracknet_dir/ckpts/TrackNet_best.pt.
@@ -119,17 +217,31 @@ def extract_all_shuttles(
     if not resolved_model.exists():
         raise FileNotFoundError(f'TrackNet weights not found: {resolved_model}')
 
-    resolved_inpaint = inpaintnet_path or (tracknet_dir / _DEFAULT_INPAINTNET_SUBPATH)
-    if not resolved_inpaint.exists():
-        print(f'  WARNING: InpaintNet weights not found: {resolved_inpaint}')
-        print(f'  Running TrackNet only (no inpainting of occluded frames)')
+    if not isinstance(enable_inpainting, bool):
+        raise ValueError('enable_inpainting must be boolean')
+    if not enable_inpainting:
         resolved_inpaint = None
+    else:
+        resolved_inpaint = inpaintnet_path or (tracknet_dir / _DEFAULT_INPAINTNET_SUBPATH)
+        if not resolved_inpaint.exists():
+            print(f'  WARNING: InpaintNet weights not found: {resolved_inpaint}')
+            print(f'  Running TrackNet only (no inpainting of occluded frames)')
+            resolved_inpaint = None
 
     if not output_csv_dir:
         output_csv_dir = _default_csv_dir(clips_dir)
     output_csv_dir.mkdir(parents=True, exist_ok=True)
 
-    all_clips = sorted(clips_dir.rglob('*.mp4'))
+    if video_paths is None:
+        all_clips = sorted(clips_dir.rglob('*.mp4'))
+    else:
+        all_clips = sorted((Path(path) for path in video_paths), key=lambda path: path.name)
+        missing = [path for path in all_clips if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(f'explicit TrackNet videos are not regular files: {missing}')
+        stems = [path.stem for path in all_clips]
+        if len(stems) != len(set(stems)):
+            raise ValueError('explicit TrackNet video paths must have unique stems')
     # Filter to clips that don't already have results (dry_run processes all)
     if dry_run:
         pending = all_clips

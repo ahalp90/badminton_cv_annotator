@@ -10,9 +10,13 @@ Run from repo root::
 
     ~/.venvs/badminton-cicd/bin/python -m pytest tests/test_scraper_relevance_triage.py -v
 """
+import json
+import sys
+from types import ModuleType, SimpleNamespace
+
 import pytest
 
-from src.scraper import config, relevance_triage
+from src.scraper import _llm_errors, config, relevance_triage
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +79,57 @@ def test_keep_rule_unknown_duration_uses_absolute_leg_only():
 _WINDOW = {'start': 0.0, 'end': 600.0, 'segments': [{'start': 0, 'end': 1, 'text': 'x'}]}
 
 
+def test_daily_quota_classifier_rejects_recoverable_or_unstructured_errors():
+    class ProviderError(RuntimeError):
+        def __init__(self, code, quota_id):
+            super().__init__('provider error')
+            self.code = code
+            self.details = {'violations': [{'quotaId': quota_id}]}
+
+    daily_id = 'GenerateRequestsPerDayPerProjectPerModel'
+    free_daily_id = f'{daily_id}-FreeTier'
+    minute_id = 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier'
+
+    assert _llm_errors.daily_request_quota_exhausted(ProviderError(429, daily_id)) is True
+    assert (
+        _llm_errors.daily_request_quota_exhausted(ProviderError(429, free_daily_id))
+        is True
+    )
+    assert _llm_errors.daily_request_quota_exhausted(ProviderError(429, minute_id)) is False
+    assert _llm_errors.daily_request_quota_exhausted(ProviderError(503, daily_id)) is False
+    assert _llm_errors.daily_request_quota_exhausted(RuntimeError(daily_id)) is False
+
+
+def test_triage_client_has_a_bounded_request_timeout(monkeypatch):
+    captured: dict[str, object] = {}
+    google = ModuleType('google')
+    genai = ModuleType('google.genai')
+
+    def http_options(*, timeout):
+        captured['timeout'] = timeout
+        return SimpleNamespace(timeout=timeout)
+
+    def client(**kwargs):
+        captured['client_kwargs'] = kwargs
+        response = SimpleNamespace(text=json.dumps([]))
+        return SimpleNamespace(models=SimpleNamespace(
+            generate_content=lambda **_request: response,
+        ))
+
+    genai.Client = client
+    genai.types = SimpleNamespace(HttpOptions=http_options)
+    google.genai = genai
+    monkeypatch.setitem(sys.modules, 'google', google)
+    monkeypatch.setitem(sys.modules, 'google.genai', genai)
+    monkeypatch.setenv(config.API_KEY_ENV, 'fixture-secret')
+
+    assert relevance_triage._call_once('system', 'user') == []
+    assert captured['timeout'] == config.LLM_REQUEST_TIMEOUT_S * 1000
+    client_kwargs = captured['client_kwargs']
+    assert isinstance(client_kwargs, dict)
+    assert client_kwargs['http_options'].timeout == captured['timeout']
+
+
 def test_call_triage_llm_retries_then_succeeds(monkeypatch):
     assert config.LLM_MAX_RETRIES >= 3  # the fixture below fails twice before succeeding
     calls = {'n': 0}
@@ -100,7 +155,7 @@ def test_call_triage_llm_raises_after_max_retries(monkeypatch):
 
     def always_fail(system_prompt, user_prompt):
         calls['n'] += 1
-        raise RuntimeError('endpoint down')
+        raise TimeoutError('request timed out')
 
     monkeypatch.setattr(relevance_triage, '_call_once', always_fail)
     monkeypatch.setattr(relevance_triage.time, 'sleep', lambda seconds: None)
@@ -108,6 +163,42 @@ def test_call_triage_llm_raises_after_max_retries(monkeypatch):
     with pytest.raises(relevance_triage.TriageError):
         relevance_triage.call_triage_llm(_WINDOW)
     assert calls['n'] == config.LLM_MAX_RETRIES
+
+
+@pytest.mark.parametrize('quota_suffix', ['', '-FreeTier'])
+def test_call_triage_llm_does_not_retry_exhausted_daily_quota(
+    monkeypatch,
+    quota_suffix,
+):
+    calls = 0
+    sleeps: list[float] = []
+
+    class DailyQuotaError(RuntimeError):
+        code = 429
+        details = {
+            'error': {
+                'details': [{
+                    'violations': [{
+                        'quotaId': (
+                            f'GenerateRequestsPerDayPerProjectPerModel{quota_suffix}'
+                        ),
+                    }],
+                }],
+            },
+        }
+
+    def exhausted(_system_prompt, _user_prompt):
+        nonlocal calls
+        calls += 1
+        raise DailyQuotaError('daily quota exhausted')
+
+    monkeypatch.setattr(relevance_triage, '_call_once', exhausted)
+    monkeypatch.setattr(relevance_triage.time, 'sleep', sleeps.append)
+
+    with pytest.raises(_llm_errors.DailyRequestQuotaError, match='daily request quota'):
+        relevance_triage.call_triage_llm(_WINDOW)
+    assert calls == 1
+    assert sleeps == []
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +261,25 @@ def test_run_relevance_triage_writes_chunks_and_keep(triage_env, monkeypatch):
     assert (relevance_triage.CHUNKS_DIR / 'v0.json').exists()
     written = {row['video_id']: row for row in config.read_candidates()}
     assert written['v0']['keep'] == 'True'
+
+
+def test_run_relevance_triage_daily_quota_stops_before_later_video(
+    triage_env,
+    monkeypatch,
+):
+    transcripts = triage_env
+    rows = _seed_transcript_rows(transcripts, 2)
+    calls: list[str] = []
+
+    def exhausted(video_id, _duration_s):
+        calls.append(video_id)
+        raise _llm_errors.DailyRequestQuotaError('daily quota exhausted')
+
+    monkeypatch.setattr(relevance_triage, 'triage_video', exhausted)
+
+    with pytest.raises(_llm_errors.DailyRequestQuotaError, match='daily quota'):
+        relevance_triage.run_relevance_triage(rows)
+    assert calls == ['v0']
 
 
 def test_run_relevance_triage_all_calls_fail_raises(triage_env, monkeypatch):

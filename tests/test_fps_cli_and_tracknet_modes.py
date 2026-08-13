@@ -241,6 +241,7 @@ def test_batch_shuttle_extractor_builds_tracknet_command(
     (tracknet_dir / 'ckpts').mkdir(parents=True)
     (tracknet_dir / 'batch_predict.py').touch()
     (tracknet_dir / 'ckpts' / 'TrackNet_best.pt').touch()
+    (tracknet_dir / 'ckpts' / 'InpaintNet_best.pt').touch()
     clips_dir = tmp_path / 'clips'
     clips_dir.mkdir()
     (clips_dir / 'clip.mp4').touch()
@@ -274,6 +275,53 @@ def test_batch_shuttle_extractor_builds_tracknet_command(
     argv = captured[0]
     assert argv[argv.index('--eval_mode') + 1] == expected_mode
     assert ('--large_video' in argv) is present
+    assert '--inpaintnet_file' in argv
+
+
+def test_batch_shuttle_extractor_accepts_an_explicit_non_mp4_video(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import src.bst_x.pipeline.shuttle_extractor as extractor
+
+    tracknet_dir = tmp_path / 'tracknet'
+    (tracknet_dir / 'ckpts').mkdir(parents=True)
+    (tracknet_dir / 'batch_predict.py').touch()
+    (tracknet_dir / 'ckpts' / 'InpaintNet_best.pt').touch()
+    model = tmp_path / 'tracknet.pt'
+    model.touch()
+    video = tmp_path / 'selected.mkv'
+    video.touch()
+    output_dir = tmp_path / 'csv'
+    captured = []
+
+    class FakeProcess:
+        returncode = 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(
+        extractor.subprocess,
+        'Popen',
+        lambda args, **_kwargs: captured.append(args) or FakeProcess(),
+    )
+
+    extractor.extract_all_shuttles(
+        tracknet_dir=tracknet_dir,
+        clips_dir=tmp_path / 'unused',
+        video_paths=[video],
+        output_csv_dir=output_dir,
+        model_path=model,
+        max_workers=1,
+        dry_run=True,
+        enable_inpainting=False,
+    )
+
+    argv = captured[0]
+    list_path = Path(argv[argv.index('--video_list') + 1])
+    assert list_path.parent == output_dir
+    assert '--inpaintnet_file' not in argv
 
 
 @pytest.mark.parametrize(

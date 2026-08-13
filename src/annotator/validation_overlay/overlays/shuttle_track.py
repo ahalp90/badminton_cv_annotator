@@ -20,9 +20,9 @@ from annotator.validation_overlay.core.cli import (
     make_render_plan,
     render,
 )
-from annotator.validation_overlay.core.decode import probe_video
 from annotator.validation_overlay.core.hud import HudStyle, draw_mark_label
 from annotator.validation_overlay.core.timeline import read_segments
+from annotator.video_metadata import probe_video_metadata
 
 
 BOX_COLOUR = (240, 16, 255)
@@ -100,15 +100,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Validate inputs, render the selected spans and return a process status."""
     args = build_parser().parse_args(argv)
     try:
-        info = probe_video(args.video)
+        info = probe_video_metadata(args.video)
         segments = read_segments(
             args.segments,
-            info.nb_frames,
+            info.frame_count,
             start_col=args.start_col,
             end_col=args.end_col,
             label_col=args.label_col,
         )
-        track = load_track(args.track, info.nb_frames)
+        track = load_track(args.track, info.frame_count)
         plan = make_render_plan(
             info,
             segments,

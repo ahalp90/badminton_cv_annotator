@@ -57,18 +57,28 @@ def expected_array_specs(span: int, n_max: int) -> dict[str, tuple[tuple[int, ..
 
 
 def validate_plan(plan: list[tuple[int, int]], n_frames: int) -> None:
-    """The plan must tile [0, n_frames) contiguously: no gap, overlap or dupe."""
+    """The plan must tile [0, n_frames) contiguously in canonical frame order."""
     if not plan:
         raise StitchError("empty shard plan")
+    for start, end in plan:
+        if (
+            isinstance(start, bool)
+            or not isinstance(start, int)
+            or isinstance(end, bool)
+            or not isinstance(end, int)
+            or start < 0
+            or end <= start
+        ):
+            raise StitchError(f"plan has an invalid range [{start}, {end})")
     ordered = sorted(plan)
+    if plan != ordered:
+        raise StitchError("plan ranges are not in ascending frame order")
     if ordered[0][0] != 0:
         raise StitchError(f"plan does not start at frame 0: {ordered[0]}")
     for (_, prev_end), (start, end) in itertools.pairwise(ordered):
         if start != prev_end:
             kind = "overlap" if start < prev_end else "gap"
             raise StitchError(f"plan has a {kind} at frame {min(start, prev_end)}")
-        if end <= start:
-            raise StitchError(f"plan has an empty/inverted range [{start}, {end})")
     if ordered[-1][1] != n_frames:
         raise StitchError(
             f"plan ends at {ordered[-1][1]}, expected n_frames={n_frames}"
@@ -88,6 +98,10 @@ def stitch_and_publish(run_dir: Path, publish_dir: Path, stem: str) -> Path:
     n_frames, n_max, run_id = run["n_frames"], run["n_max"], run["run_id"]
     plan = [tuple(r) for r in run["plan"]]
     validate_plan(plan, n_frames)
+    if run["n_shards"] != len(plan):
+        raise StitchError(
+            f"run records n_shards={run['n_shards']}, but its plan has {len(plan)} ranges"
+        )
 
     # Refuse unplanned shard artefacts: a stale shard from an earlier layout
     # of the same directory must fail loudly, not sit ignored next to a
@@ -119,6 +133,12 @@ def stitch_and_publish(run_dir: Path, publish_dir: Path, stem: str) -> Path:
             raise StitchError(
                 f"shard [{start}, {end}) has n_max={manifest['n_max']}, run expects {n_max}"
             )
+        for field in ("extractor", "decode_mode"):
+            if manifest[field] != run[field]:
+                raise StitchError(
+                    f"shard [{start}, {end}) {field}={manifest[field]!r}, "
+                    f"run expects {run[field]!r}"
+                )
         if (manifest["start"], manifest["end"]) != (start, end):
             raise StitchError(f"shard manifest {manifest_path.name} disagrees with its filename range")
         if manifest["frames_read"] != end - start:

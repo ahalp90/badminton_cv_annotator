@@ -1,0 +1,35 @@
+[run]
+source_dataset = "professional-singles"
+max_videos = 2
+download_workers = 1
+
+[search]
+result_count = 5
+
+[search.terms]
+match = ["BWF professional singles full match"]
+
+[environment]
+tracknet_python = "BADMINTON_TRACKNET_PYTHON"
+pose_python = "BADMINTON_POSE_PYTHON"
+
+[models]
+tracknet_dir = "src/shared/tracknetv3"
+tracknet = "src/shared/tracknetv3/ckpts/TrackNet_best.pt"
+inpaint = "src/shared/tracknetv3/ckpts/InpaintNet_best.pt"
+court = "src/courtkeynet/weights/courtkeynet_finetuned.safetensors"
+
+[vision]
+tracknet_workers = 1
+tracknet_batch_size = 16
+tracknet_stride = 8
+tracknet_large_video = true
+pose_device = "cuda"
+pose_n_max = 10
+pose_shards = 8
+court_device = "cuda"
+court_resize_mode = "pad"
+
+[commentary]
+enabled = true
+api_key_environment = "GEMINI_API_KEY"

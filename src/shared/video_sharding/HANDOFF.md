@@ -1,5 +1,21 @@
 # RTMLib long-video sharding PoC — what the agent found
 
+## Production-integration status (2026-08-10)
+
+Issue 15 Batch 5B promotes the tested core into the dataset builder without
+changing the five-array pose contract. `pose_shards = 1` retains the original
+sequential child. Larger values run the direct-seek planner/workers/stitcher in
+the configured pose interpreter, require OpenCV's planned frame count to equal
+canonical strict metadata before workers start, validate the final arrays, and
+publish only the existing compressed pose artefacts. Shard compression now
+streams through atomic XZ files instead of buffering a whole `.npy` payload.
+
+The deterministic local suite is part of the implementation gate. The two
+selected Bourbaki sources still require full sequential-versus-seek frame
+identity, and the moved production boundary still requires one-shard versus
+eight-shard RTMLib parity on the fixed A100 clip before the replacement E2E
+run. The historical investigation and measurements below remain unchanged.
+
 ## TL;DR
 
 The agent trialled splitting one long match video into frame ranges, running those ranges in separate RTMLib processes, and stitching the results back together afterwards. We wanted to know whether this could speed up full-match pose extraction without changing the files the rest of the repo already expects.

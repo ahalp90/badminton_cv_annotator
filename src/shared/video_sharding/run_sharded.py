@@ -51,17 +51,37 @@ def extract_sharded(
     decode_mode: str = "seek",
     limit_frames: int | None = None,
     run_id: str | None = None,
+    expected_frame_count: int | None = None,
 ) -> Path:
     """Run the full plan->workers->stitch pipeline; return the publish dir."""
-    if n_max > NDET_INT8_CAP:
-        raise ValueError(f"n_max {n_max} exceeds int8 ndet cap {NDET_INT8_CAP}")
-    n_frames = metadata_frame_count(video_path)
+    if isinstance(n_max, bool) or not isinstance(n_max, int) or not 0 < n_max <= NDET_INT8_CAP:
+        raise ValueError(f"n_max must be in [1, {NDET_INT8_CAP}], got {n_max!r}")
+    if not stem or Path(stem).name != stem or stem in {".", ".."}:
+        raise ValueError(f"stem must be a path-safe basename: {stem!r}")
+    observed_frame_count = metadata_frame_count(video_path)
+    if expected_frame_count is not None:
+        if (
+            isinstance(expected_frame_count, bool)
+            or not isinstance(expected_frame_count, int)
+            or expected_frame_count <= 0
+        ):
+            raise ValueError(
+                f"expected_frame_count must be a positive integer, got {expected_frame_count!r}"
+            )
+        if observed_frame_count != expected_frame_count:
+            raise ValueError(
+                "OpenCV frame count differs from canonical metadata: "
+                f"observed={observed_frame_count}, canonical={expected_frame_count}"
+            )
+    n_frames = observed_frame_count
     whole_video = limit_frames is None or limit_frames >= n_frames
     if not whole_video:
         n_frames = limit_frames
     plan = plan_frame_shards(n_frames, n_shards)
     source_md5 = md5_file(video_path)
     run_id = run_id or uuid.uuid4().hex[:12]
+    if Path(run_id).name != run_id or run_id in {"", ".", ".."}:
+        raise ValueError(f"run_id must be a path-safe basename: {run_id!r}")
 
     run_dir = out_root / f"run_{run_id}"
     run_dir.mkdir(parents=True)
@@ -71,37 +91,50 @@ def extract_sharded(
         "source_md5": source_md5,
         "n_frames": n_frames,
         "n_max": n_max,
+        "n_shards": n_shards,
         "extractor": extractor_spec,
         "decode_mode": decode_mode,
         "plan": [list(shard_range) for shard_range in plan],
     })
 
     ctx = multiprocessing.get_context("spawn")
-    workers = []
-    for start, end in plan:
-        kwargs = {
-            "video_path": str(video_path),
-            "start": start,
-            "end": end,
-            "n_max": n_max,
-            "run_dir": str(run_dir),
-            "run_id": run_id,
-            "source_md5": source_md5,
-            "extractor_spec": extractor_spec,
-            "decode_mode": decode_mode,
-            # Only the true last shard of a whole-video run probes for extra
-            # frames beyond the plan (guards a lying container frame count).
-            "probe_past_end": whole_video and end == n_frames,
-        }
-        process = ctx.Process(target=worker_entry, args=(kwargs,), name=f"shard_{start}_{end}")
-        process.start()
-        workers.append(((start, end), process))
+    workers: list[tuple[tuple[int, int], multiprocessing.Process]] = []
+    try:
+        for start, end in plan:
+            kwargs = {
+                "video_path": str(video_path),
+                "start": start,
+                "end": end,
+                "n_max": n_max,
+                "run_dir": str(run_dir),
+                "run_id": run_id,
+                "source_md5": source_md5,
+                "extractor_spec": extractor_spec,
+                "decode_mode": decode_mode,
+                # Only the true last shard of a whole-video run probes for extra
+                # frames beyond the plan (guards a lying container frame count).
+                "probe_past_end": whole_video and end == n_frames,
+            }
+            process = ctx.Process(
+                target=worker_entry,
+                args=(kwargs,),
+                name=f"shard_{start}_{end}",
+            )
+            process.start()
+            workers.append(((start, end), process))
 
-    failed: list[str] = []
-    for (start, end), process in workers:
-        process.join()
-        if process.exitcode != 0:
-            failed.append(f"[{start}, {end}) exit={process.exitcode}")
+        failed: list[str] = []
+        for (start, end), process in workers:
+            process.join()
+            if process.exitcode != 0:
+                failed.append(f"[{start}, {end}) exit={process.exitcode}")
+    except BaseException:
+        for _, process in workers:
+            if process.is_alive():
+                process.terminate()
+        for _, process in workers:
+            process.join()
+        raise
     if failed:
         raise RuntimeError(f"{len(failed)} shard worker(s) failed: {'; '.join(failed)}")
 
@@ -120,6 +153,7 @@ def main() -> int:
     parser.add_argument("--extractor", choices=EXTRACTOR_SPECS, default="fake")
     parser.add_argument("--decode-mode", choices=("seek", "scan"), default="seek")
     parser.add_argument("--limit-frames", type=int, default=None)
+    parser.add_argument("--expected-frame-count", type=int, default=None)
     args = parser.parse_args()
 
     published = extract_sharded(
@@ -131,6 +165,7 @@ def main() -> int:
         extractor_spec=args.extractor,
         decode_mode=args.decode_mode,
         limit_frames=args.limit_frames,
+        expected_frame_count=args.expected_frame_count,
     )
     print(f"published: {published}")
     return 0

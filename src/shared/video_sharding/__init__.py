@@ -1,7 +1,8 @@
-"""Frame-range-sharded RTMLib extraction PoC for one long video.
+"""Frame-range-sharded RTMLib extraction core for one long video.
 
-Investigation code, not production integration. See INVESTIGATION.md (ledger)
-and HANDOFF.md (findings + recommended production design) in this directory.
+The dataset builder uses the planner/worker/stitch path through its isolated
+pose-interpreter boundary. See INVESTIGATION.md for the historical ledger and
+HANDOFF.md for evidence plus environment-specific acceptance gates.
 
 Layout:
 

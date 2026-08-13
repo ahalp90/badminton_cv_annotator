@@ -9,15 +9,16 @@ import cv2
 import numpy as np
 
 from annotator.validation_overlay.core.cli import compose_frames, make_render_plan, render
-from annotator.validation_overlay.core.decode import iter_span_frames, probe_video
+from annotator.validation_overlay.core.decode import iter_span_frames
 from annotator.validation_overlay.core.timeline import Segment
 from annotator.validation_overlay.overlays.shuttle_track import BOX_COLOUR, make_draw
+from annotator.video_metadata import probe_video_metadata
 
 
 def test_composed_stream_pairs_every_source_frame_and_marks_before_encoding(
     validation_video: Path, tmp_path: Path
 ) -> None:
-    info = probe_video(validation_video)
+    info = probe_video_metadata(validation_video)
     segments = (Segment(1, 2, "one"), Segment(5, 6, "two"))
     plan = make_render_plan(
         info,
@@ -81,12 +82,15 @@ def test_shuttle_marks_track_their_own_source_row_when_upscaled(
     four times the source width and checks, on every frame, that the box centre
     sits where that frame's own track row puts it.
     """
-    info = probe_video(validation_video)
+    info = probe_video_metadata(validation_video)
     # One distinct position per source frame, spread across the lower half so the
     # HUD block (drawn afterwards, top-left) can never sit on top of a box.
-    span = info.nb_frames - 1
+    span = info.frame_count - 1
     track = np.array(
-        [[0.15 + 0.70 * index / span, 0.55 + 0.35 * index / span, 1.0] for index in range(info.nb_frames)]
+        [
+            [0.15 + 0.70 * index / span, 0.55 + 0.35 * index / span, 1.0]
+            for index in range(info.frame_count)
+        ]
     )
     plan = make_render_plan(
         info,

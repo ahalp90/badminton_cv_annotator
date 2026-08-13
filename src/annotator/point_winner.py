@@ -660,7 +660,12 @@ def corner_error_band_from_corners(
     return float(np.median(displacements))
 
 
-def corner_error_band_m(vid: int, homo_df: pd.DataFrame, court_info: dict, err_px: float) -> float:
+def corner_error_band_m(
+    vid: int | str,
+    homo_df: pd.DataFrame,
+    court_info: dict,
+    err_px: float,
+) -> float:
     """Corner error (refpx) propagated to court metres at the recorded-corner (line) locations.
 
     Shifts each recorded corner by err_px along +/-x and +/-y, re-projects it through the SAME
