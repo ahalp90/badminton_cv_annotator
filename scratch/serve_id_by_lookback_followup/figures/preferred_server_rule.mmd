@@ -1,0 +1,24 @@
+flowchart TB
+    START["Start with the rally's<br/>accepted contacts"] --> HIT["Find the earliest contact<br/>with believable motion away<br/>immediately afterwards"]
+
+    HIT -->|"none found"| FALLBACK["Keep the PR #82<br/>server answer"]
+    HIT -->|"contact found"| BEFORE{"Is the path before<br/>the contact usable?"}
+    BEFORE -->|"no"| FALLBACK
+    BEFORE -->|"yes"| INCOMING{"Was the shuttle moving<br/>towards that player?"}
+
+    INCOMING -->|"yes: return-like"| OTHER["The other player<br/>served"]
+    INCOMING -->|"no: serve-like"| SELECTED["The contact player<br/>served"]
+
+    FALLBACK --> RESULT["One server answer<br/>for the rally"]
+    OTHER --> RESULT
+    SELECTED --> RESULT
+
+    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
+    classDef decision fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef fallback fill:#e0e0e0,stroke:#888888,color:#1a1a1a
+    classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
+
+    class START,HIT stage
+    class BEFORE,INCOMING decision
+    class FALLBACK fallback
+    class OTHER,SELECTED,RESULT output
