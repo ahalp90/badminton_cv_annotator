@@ -110,6 +110,11 @@ scratch/bst_x_inputs/
 # Private dev scribbles. Outside the tracked scratch/README.md contract.
 local_scratch/
 
+# Keep timestamped trajectory runs local. The canonical investigation has its
+# own ignore rules for frozen inputs and generated outputs.
+scratch/serve_start_trajectory_exploration/20*/
+**/external_delegate/
+
 # Machine-local Pyrefly profile for Serena. CI uses [tool.pyrefly] in pyproject.toml.
 pyrefly.toml
 

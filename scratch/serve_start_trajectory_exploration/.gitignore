@@ -1,0 +1,6 @@
+assets/
+inputs/
+outputs/
+*.tar
+*.tar.gz
+!HANDOVER.md

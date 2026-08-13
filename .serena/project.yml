@@ -15,9 +15,10 @@ ls_workspace_folders:
 - "src"
 ls_additional_workspace_folders:
 - "tests"
+- "scratch/serve_start_trajectory_exploration"
 ignored_paths:
 - "local_scratch/**"
-- "scratch/**"
+- "scratch/swarm_review/**"
 - "scripts/archive/**"
 - "experiments/**"
 - "data/**"
