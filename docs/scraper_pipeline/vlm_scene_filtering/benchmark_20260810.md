@@ -1,73 +1,85 @@
 # Issue 38 local VLM benchmark
 
-*Run date: 10 August 2026. Report completed 11 August 2026.*
+*Run dates: 10-14 August 2026. Report updated 14 August 2026.*
 
 ## Decision
 
-Neither candidate passes the deployment gate for the fixed 30-minute test on
-the project's current GPUs. Do not integrate either model into the annotator
-yet.
+Do not integrate either tested VLM into the scene-filtering pipeline. Both
+models now have measured GPU results, but neither produced useful scene labels.
 
-The 10-frame `yanziang/InternVideo3-8B-Instruct` smoke run fits on Carmack's
-L40 and processes its requested smoke frame grid. It returned the same
-Markdown-fenced JSON after the one allowed correction retry. The strict
-response contract therefore rejected the run.
+InternVideo3 completed the full 20-minute shard on Sutherland. It covered all
+1,200 requested model frames at 1 FPS, used BF16 cache with no CPU offload, and
+peaked at 41,079 MiB. It predicted `live` for every one of the 30,000 source
+frames. Accuracy was 25.12%, macro-F1 was 0.0803, and it found none of the 93
+truth boundaries. The truth majority class, `cutaway`, covers 54.46% of this
+shard, so the model was also worse than that simple baseline.
 
-`Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` loads correctly with official vLLM 0.11.0.
-It cannot reserve enough BF16 KV cache for the complete-shard context on the
-L40. The other documented project GPUs have less memory.
+Qwen3-VL completed the planned 10-second boundary probe on the same L40. It
+covered all 50 requested model frames at 5 FPS, used BF16 cache with no CPU
+offload or swap, and peaked at 40,831 MiB. It predicted `other` for all 250
+source frames. The clip contains 125 `live-non-standard` frames followed by
+125 `cutaway` frames. Accuracy and macro-F1 were both zero, and it found none
+of the one truth boundary.
 
-No accuracy or boundary result is reported. Both models failed before the
-accuracy gate, so a confusion table or F1 value would be misleading.
+The result is enough to stop this experiment. Repeating these settings on the
+other labelled videos would spend GPU time without evidence that either model
+can separate the five scene classes. A new run needs a materially different
+model, prompt, or study design.
 
-## Fixed test
+## Fixed inputs
 
-| Item | Value |
-| --- | --- |
-| Source | `yu9oyMXRGHY.mp4` |
-| Source SHA-256 | `cbad108386055835bcd6e479adc297e18eb2d0df7ae2310857589f523bb3785f` |
-| Full source range | `[18419, 63419)` at 25 FPS |
-| Full source duration | 1,800 seconds |
-| Model input | 1,800 frames at 1 FPS and 512x288 |
-| Model-input SHA-256 | `70c71ff8b45339a2829e248ad1a87b056996cb06e36908b358bda537d05628ae` |
-| Smoke source range | `[18419, 18669)` |
-| Smoke model input | 10 frames at 1 FPS and 512x288 |
-| GPU | NVIDIA L40, 46,068 MiB total |
-| CPU offload | Prohibited |
-| Human labels | Excluded from inference |
+| Item | InternVideo3 long pass | Qwen3-VL boundary probe |
+| --- | --- | --- |
+| Source | `yu9oyMXRGHY.mp4` | `yu9oyMXRGHY.mp4` |
+| Source SHA-256 | `cbad108386055835bcd6e479adc297e18eb2d0df7ae2310857589f523bb3785f` | same |
+| Source frames | `[18419, 48419)` | `[20695, 20945)` |
+| Source duration | 1,200 seconds | 10 seconds |
+| Model sampling | 1 FPS, 1,200 frames | 5 FPS, 50 frames |
+| Resolution | 512x288 | 512x288 |
+| Prepared-input SHA-256 | `f5b93940aae493bff88fbde4b04b15e86356d0eee618125519bf79e0cc4560fc` | `bec483acfdbb98938b2200aefaa8ffb4275e5b23de15d14287e55cb44a3f8fb0` |
+| Human truth in inference directory | No | No |
 
-The source, reference video, and model video matched at the first, middle, and
-last sampled positions. All staged artifact hashes matched on Carmack. The
-full Qwen input requires 129,600 visual tokens before prompt text.
+The source, reference video, and prepared model video matched at the first,
+middle, and last sampled positions. The truth file was read only by the local
+scoring step after inference.
 
 ## Results
 
-| Candidate | Exact runtime | Last completed stage | Peak VRAM | Elapsed | Result |
-| --- | --- | --- | ---: | ---: | --- |
-| InternVideo3 8B | Transformers 4.57.3 | Smoke generation | 22,804 MiB | 208.46 s | Failed strict JSON after retry |
-| Qwen3-VL 30B-A3B FP8 | vLLM 0.11.0 | Model load and cache sizing | 40,758 MiB | 133.49 s | Full context cannot fit |
+| Candidate | Runtime | Coverage | Elapsed | Peak VRAM | Accuracy | Macro-F1 | Boundaries |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| InternVideo3 8B | Transformers 4.57.3 | 1,200/1,200 | 824.05 s | 41,079 MiB | 25.12% | 0.0803 | 0/93 |
+| Qwen3-VL 30B-A3B FP8 | vLLM 0.11.0 | 50/50 | 225.39 s | 40,831 MiB | 0% | 0 | 0/1 |
+
+Both runs used one generation attempt. Both frame grids were complete and
+uniform. InternVideo3 used 86,400 visual tokens and 101,349 total input tokens.
+Qwen used 3,600 visual tokens and 4,798 total input tokens.
 
 ### InternVideo3
 
 - Model revision:
   `c4602918b65225650d152db2850fe34e01d21fcd`.
 - Runtime SIF SHA-256:
-  `5861127b58769a2ad413b3ab817d61121f74566c50e8a0edc39226282be283f1`.
-- The processor consumed all 10 requested frames on a uniform grid.
-- Observed resolution was 512x288.
-- The request used 720 visual tokens and 2,804 total input tokens.
-- BF16 cache was used with no CPU offload.
-- Both responses had SHA-256
-  `22b49e89d60c21bda69301736aaea6d934c6f2d00bcbcd1d60999a121a8cdf2a`.
+  `fd1c42ea24386dde021f12c0fe9458f0d4f5f43ea97af2ad19c2b3ea9925c76a`.
+- The fixed-width response contained 1,316 complete codes before ending
+  mid-code at the generation limit.
+- The parser used the first 1,200 complete codes and ignored only the 116
+  complete codes after full input coverage.
+- Every accepted code was `LBRFRS9B`. This decodes to scene label `live` and
+  broadcast phase `between_rallies`.
 
-The two responses were byte-identical. Each contained a complete JSON object
-inside a `json` Markdown fence. The parser rejected the first byte as invalid
-JSON, and the correction retry did not remove the fence. The full run was not
-started because the frozen smoke gate failed.
+Earlier runs exposed two independent runtime problems. A retry could retain
+CUDA tensors from the first generation, and a complete fixed-width prefix
+could be enclosed in truncated JSON. The runner now releases generation
+tensors before retrying and accepts a bounded complete prefix only when it
+covers the exact requested frame grid.
 
-The generated content looked usable enough to justify one narrow follow-up.
-That follow-up must first approve deterministic Markdown-fence removal as a
-contract change. It must retain the original response before normalization.
+The retained InternVideo3 record uses the older schema. Its
+`first_attempt_valid_json` field says `true`, although the authenticated raw
+response ends in truncated JSON. The current provenance gate detects this
+legacy metadata mismatch. The raw-response digest still matches the record,
+the bounded prefix reconstructs the retained segment, and two score replays
+were byte-identical. The semantic score is usable with that caveat. The legacy
+record was not rewritten.
 
 ### Qwen3-VL
 
@@ -75,69 +87,46 @@ contract change. It must retain the original response before normalization.
   `d9748a51ae66354c4dad665aab2c71f26cf2c8cd`.
 - Official runtime image: `vllm/vllm-openai:v0.11.0`.
 - Runtime SIF SHA-256:
-  `1ee3797ccb230f937b5235b812265ba8d7e9400c48d30c49168e37515a39f03f`.
-- Runtime code revision:
-  `0ad9bd98e21c23b0a1c5788f0586905eb6779df7`.
-- Model loading used 30.3924 GiB and took 31.98 seconds.
-- vLLM loaded all four checkpoint shards without changing the model.
-- The engine selected the BF16 model dtype for KV cache through its documented
-  `auto` setting.
-- CPU offload and CPU swap were both explicitly zero.
+  `1cf06bf5a8a7bd5a2b2c469f0e72ac150f0781c126b593c7fcd9d7df4eb34d37`.
+- The exact FP8 checkpoint ran with BF16 KV cache. CPU offload and vLLM swap
+  were both zero.
+- The response passed the strengthened provenance and deployment gate on its
+  first attempt.
+- Every accepted code was `OBRFRS9G`. This decodes to scene label `other` and
+  broadcast phase `between_rallies`.
 
-After model loading and compilation, vLLM reported 6.30 GiB available for KV
-cache. It requires 24.00 GiB for the pinned 262,144-token context. It estimated
-a maximum supported length of 68,800 tokens on this L40.
-
-The complete video alone requires 129,600 visual tokens. It therefore exceeds
-the measured limit before prompt text or generated output is counted. Starting
-the full command would repeat the same deterministic capacity failure.
-
-The documented alternatives are Bourbaki's 40-GB A100 and Engelbart's 16-GB
-V100. Neither has more memory than Carmack's L40.
-
-## Runtime choice
-
-The canonical Qwen result uses the official stable version named by the Qwen
-deployment guidance. vLLM 0.11.0 loaded the exact model successfully. Released
-vLLM 0.25.1 and a pinned nightly were diagnostic attempts, and both rejected
-the checkpoint's fused-MoE tensors during loading.
-
-The model is still exactly
-`Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`. The long hexadecimal value beside its
-name is its pinned Hugging Face revision. It is not another model version.
+The original whole-shard Qwen request still cannot fit on a 48-GB L40. The
+retained capacity test measured 6.30 GiB available for KV cache and 24.00 GiB
+required for the 262,144-token configuration. Its estimated maximum was
+68,800 tokens, below the video's 129,600 visual tokens before prompt text.
+The completed boundary probe used a separate 16,384-token configuration. It
+tests the recommended short second pass without claiming whole-shard support.
 
 ## Evidence
 
-The compressed records are exact copies of the validated Carmack result files:
+The following files are deterministic gzip copies of the retained run data.
+Each digest is for the uncompressed content.
 
-- [InternVideo3 smoke record](data/benchmark_20260810/internvideo3-smoke-run.json.gz),
-  uncompressed SHA-256
-  `67a746f50c6ad4850c64025a27773555d1b7358464e1c1af9abb488b5da1f533`.
-- [Qwen stable capacity record](data/benchmark_20260810/qwen3-vl-stable-capacity-run.json.gz),
-  uncompressed SHA-256
-  `e2b18019cc308164a4c14b91579f75dc8fb67ec91711f7abfdd8b680ecec96a3`.
-- [InternVideo3 first response](data/benchmark_20260810/internvideo3-attempt-1.txt.gz)
-  and [correction response](data/benchmark_20260810/internvideo3-attempt-2.txt.gz),
-  each with uncompressed SHA-256
-  `22b49e89d60c21bda69301736aaea6d934c6f2d00bcbcd1d60999a121a8cdf2a`.
-- [Qwen stable capacity log](data/benchmark_20260810/qwen3-vl-stable-capacity.log.gz),
-  uncompressed SHA-256
-  `d15f096acdf77fc83bba550c5b51b6b4361de0afe9adb4acee25d7ff1b395072`.
+| Evidence | Uncompressed SHA-256 |
+| --- | --- |
+| [InternVideo3 run record](data/benchmark_20260810/internvideo3-long20-run.json.gz) | `11875041edc5b9f2db11bbec0258dfdd96fbfdcd2ed99cf8ad35638f1cfcf639` |
+| [InternVideo3 raw response](data/benchmark_20260810/internvideo3-long20-attempt-1.txt.gz) | `3ded3e69ed49a6f4ddbf10e76f91ed339e8e007c537c6574a5eba27d52e134ac` |
+| [InternVideo3 log](data/benchmark_20260810/internvideo3-long20.log.gz) | `36a1831365e4da394b58f975add14e0db3260ad08b70eab61aa407e29e15653c` |
+| [InternVideo3 score](data/benchmark_20260810/internvideo3-long20-score.json.gz) | `de05a1ce11638e62ea42373091d2b2083e443176777ebebdb79781ee6a679766` |
+| [Qwen run record](data/benchmark_20260810/qwen3-vl-fine-run.json.gz) | `fa65367b2b40d73c3a6a24d1b8a9672a9e6bfbbd2a81e601a18efb68c07bae1b` |
+| [Qwen raw response](data/benchmark_20260810/qwen3-vl-fine-attempt-1.txt.gz) | `2f46d1c733da7aa6e9bd8e58a4b0f4bd906d76bb354b970bd7812b6a35a6c5c8` |
+| [Qwen log](data/benchmark_20260810/qwen3-vl-fine.log.gz) | `79960a777f7d805533c01e7a81a2dbab48ab515bb4a43410abf807ad821ffc18` |
+| [Qwen score](data/benchmark_20260810/qwen3-vl-fine-score.json.gz) | `9a521c2db2cbb2615ecc9bb925b50ec74ef36b0c523ef2c8549d641a4df6f779` |
 
-The linked Qwen log records the exact snapshot path, BF16 engine dtype, all
-four loaded shards, model-memory measurement, and cache-sizing failure. The
-linked InternVideo3 files retain both fenced responses byte for byte. Human
-truth was never copied into the inference directory.
+The earlier Carmack smoke and Qwen capacity evidence remains linked in this
+directory. The full retained Sutherland run directories are outside Git at:
 
-## Next bounded experiment
+- `issue-38-vlm-benchmark/runs/issue38-intern-framecodes-prefix-v6-20260813T2256`;
+- `issue-38-vlm-benchmark/runs/issue38-4e051e6fa1cce60f`.
 
-There are two honest next options:
+## Integration consequence
 
-1. Approve a parser change that unwraps one plain Markdown JSON fence. Then run
-   the complete shard through InternVideo3 and score it.
-2. Keep the response contract unchanged and rerun Qwen on an 80-GB-class GPU,
-   or a supported multi-GPU host. This is a conservative hardware estimate
-   based on the measured cache shortfall.
-
-Lower sampling, FP8 KV cache, and CPU offload would define different
-experiments. They should not be reported as this benchmark passing.
+No model output is wired into `raw_exclusion_mask`. The existing pipeline
+behaviour remains unchanged. A later experiment can reuse the benchmark
+contracts and the existing injection point without silently enabling these
+predictions.

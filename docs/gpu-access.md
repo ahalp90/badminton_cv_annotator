@@ -12,6 +12,59 @@ Node GPUs are:
 - `bourbaki` A100 40gb
 - `carmack` L40 48gb
 
+## Sutherland for the Issue 38 VLM benchmark
+
+`sutherland` is reached through `turing`:
+
+```bash
+ssh turing
+ssh sutherland
+```
+
+It does not use the same home-directory mapping as the other project hosts.
+Do not rely on the checkout, virtual environment, models, or prepared videos
+being present there. The benchmark runner stages its restricted inference
+snapshot and prepared artifacts to a dedicated local scratch directory instead.
+
+On 12 August 2026, Sutherland had an Nvidia L40 with 46,068 MiB of VRAM,
+Apptainer 1.5.3, `tmux`, `flock`, `rsync`, and about 1.51 TB free in
+`/scratch`. It did not have `uv`, which is not needed on the remote host after
+the local preparation step. `/scratch/cmarti56` did not yet exist; the runner
+creates its remote root when staging or setting up.
+
+The interactive two-hop route works even when a direct local `ssh sutherland`
+does not forward the required inner credentials. For the benchmark wrapper,
+pass an SSH-compatible nested-hop script through `--ssh-command`. That same
+script is also exported to `rsync`. Then run the read-only prerequisite check
+from the Issue 38 worktree:
+
+```bash
+scripts/vlm_scene_benchmark/run_carmack.sh check \
+  --remote-host sutherland \
+  --remote-root /scratch/cmarti56/issue38-vlm \
+  --ssh-command /absolute/path/to/nested-ssh
+```
+
+Run the setup and smoke stages only while the GPU is idle. The runner refuses
+to start Qwen while another compute process is active. InternVideo3 can be
+explicitly allowed to share a GPU, but an exclusive GPU is the reproducible
+choice. One earlier check found an Ollama process using 15,024 MiB. Always run
+the prerequisite check again instead of assuming that historical state still
+applies.
+
+On 13 August 2026, the exclusive InternVideo3 20-minute run completed on
+Sutherland in 824.05 seconds. It peaked at 41,079 MiB with BF16 cache and no
+CPU offload. This confirms that the pinned InternVideo3 runtime fits the L40.
+Its retained predictions scored 25.12% accuracy and 0.0803 macro-F1, so it is
+not suitable for integration with the tested prompt.
+
+Sutherland does not change the established Qwen capacity limit. The pinned
+complete-shard Qwen3-VL test cannot fit on a 48-GB L40; it needs an 80-GB-class
+GPU or a supported multi-GPU host. On 14 August 2026, the separate 10-second
+Qwen boundary probe completed on Sutherland. It peaked at 40,831 MiB with BF16
+KV cache, no CPU offload, and no swap. It scored zero accuracy and macro-F1.
+The short result does not change the whole-shard capacity limit.
+
 ## Notes from UNE IT
 
 From a turing terminal you can `ssh -Y engelbart` to get a command prompt on
