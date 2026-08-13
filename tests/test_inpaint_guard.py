@@ -1,10 +1,20 @@
 """Synthetic tests for the inpaint fabrication grade detector."""
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
-from annotator.inpaint_guard import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT, grade_track
+from annotator.inpaint_guard import (
+    DEFAULT_HALO_FRAMES,
+    DEGRADED,
+    FABRICATED,
+    NO_FLAG,
+    SUSPECT_FLAT,
+    clear_cache,
+    grade_track,
+)
 
 
 def _track_with_recurrence(
@@ -47,6 +57,94 @@ def test_grade_track_marks_varying_flat_and_degraded_frames() -> None:
     assert np.count_nonzero(codes == FABRICATED) > 0
     assert np.count_nonzero(codes == SUSPECT_FLAT) > 0
     assert np.count_nonzero(codes == DEGRADED) > 0
+
+
+def test_grade_track_uses_three_absolute_halo_frames() -> None:
+    track = _track_with_recurrence()
+
+    codes, info = grade_track(track)
+
+    assert DEFAULT_HALO_FRAMES == 3
+    assert info["halo_frames"] == DEFAULT_HALO_FRAMES
+    np.testing.assert_array_equal(codes[17:20], np.full(3, DEGRADED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[20:36], np.full(16, FABRICATED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[36:39], np.full(3, DEGRADED, dtype=np.uint8))
+    assert codes[16] == NO_FLAG
+    assert codes[39] == NO_FLAG
+
+
+def test_grade_track_clips_halo_at_track_start() -> None:
+    track = _track_with_recurrence()
+    pattern = track[20:36, :2].copy()
+    original_indices = np.arange(20, 36, dtype=float)
+    track[20:36, :2] = np.column_stack(
+        (original_indices, original_indices * 0.37 + 1.0),
+    )
+    track[:16, :2] = pattern
+
+    codes, _info = grade_track(track)
+
+    np.testing.assert_array_equal(codes[:16], np.full(16, FABRICATED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[16:19], np.full(3, DEGRADED, dtype=np.uint8))
+    assert codes[19] == NO_FLAG
+
+
+def test_grade_track_clips_halo_at_track_end() -> None:
+    track = _track_with_recurrence()
+    pattern = track[20:36, :2].copy()
+    original_indices = np.arange(20, 36, dtype=float)
+    track[20:36, :2] = np.column_stack(
+        (original_indices, original_indices * 0.37 + 1.0),
+    )
+    track[-16:, :2] = pattern
+
+    codes, _info = grade_track(track)
+
+    np.testing.assert_array_equal(codes[-16:], np.full(16, FABRICATED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[-19:-16], np.full(3, DEGRADED, dtype=np.uint8))
+    assert codes[-20] == NO_FLAG
+
+
+def test_grade_track_keeps_distant_exact_attractor_hits_degraded() -> None:
+    track = _track_with_recurrence()
+    track[60, :2] = track[20, :2]
+
+    codes, _info = grade_track(track)
+
+    assert codes[60] == DEGRADED
+
+
+def test_grade_track_halo_is_part_of_cache_and_diagnostics_identity() -> None:
+    track = _track_with_recurrence()
+
+    narrow_codes, narrow_info = grade_track(track, halo_frames=1)
+    broad_codes, broad_info = grade_track(track, halo_frames=4)
+
+    assert narrow_info["halo_frames"] == 1
+    assert broad_info["halo_frames"] == 4
+    assert narrow_codes[18] == NO_FLAG
+    assert broad_codes[18] == DEGRADED
+
+
+def test_grade_track_cached_diagnostics_are_independent() -> None:
+    clear_cache()
+    track = _track_with_recurrence()
+    _codes, info = grade_track(track)
+    counts = info["counts_per_code"]
+    assert isinstance(counts, dict)
+    counts[NO_FLAG] = -1
+
+    _cached_codes, cached_info = grade_track(track)
+
+    cached_counts = cached_info["counts_per_code"]
+    assert isinstance(cached_counts, dict)
+    assert cached_counts[NO_FLAG] >= 0
+
+
+@pytest.mark.parametrize("halo_frames", [-1, 1.5, True])
+def test_grade_track_rejects_invalid_halo_frames(halo_frames: Any) -> None:
+    with pytest.raises(ValueError, match="halo_frames"):
+        grade_track(_track_with_recurrence(), halo_frames=halo_frames)
 
 
 def test_grade_track_refuses_a_weak_threshold() -> None:

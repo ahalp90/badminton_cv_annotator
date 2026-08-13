@@ -30,6 +30,7 @@ from dataset_builder.selection import (
     COMMENTARY_UNAVAILABLE_TRANSCRIPT,
     load_selection,
 )
+from dataset_builder.shuttle_quality import summarize_shuttle_quality
 from scraper import commentary_cleaning, download_scraped_videos
 
 ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
@@ -595,6 +596,22 @@ class _ConcreteRuntimeFixture:
             "Frame,X,Y,Visibility\n0,256,144,1\n1,128,72,1\n2,0,0,0\n",
             encoding="utf-8",
         )
+        stride = 8
+        sidecar = output.parent / f"{source_stem}_stride{stride}_inpaint_mask.json.gz"
+        vision.save_json_gz(sidecar, {
+            "schema": "inpaint_fill_mask/1",
+            "index_space": "frame",
+            "inpaint_status": "disabled",
+            "n_rows": 3,
+            "eval_mode": "nonoverlap",
+            "stride": stride,
+            "th_h_px": tracknet_input.TRACKNET_INPUT_HEIGHT * 0.05,
+            "tracknet_ckpt": "tracknet.pt",
+            "inpaintnet_ckpt": None,
+            "input_video": Path(video_paths[0]).name,
+            "extracted_utc": "2026-08-13T00:00:00Z",
+            "inpaint_selected": [],
+        })
 
     def pose_stage(
         self,
@@ -631,7 +648,7 @@ class _ConcreteRuntimeFixture:
         self,
         *,
         output_dir: Path,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> vision.AnnotationOutput:
         self.boundary_calls.append("annotation")
         result = (
@@ -646,6 +663,12 @@ class _ConcreteRuntimeFixture:
             result,
             np.zeros(3, dtype=bool),
             np.zeros(3, dtype=bool),
+            summarize_shuttle_quality(
+                kwargs["track"],
+                kwargs["inpaint_fill_mask"],
+                kwargs["guard_codes"],
+                frozenset({1, 2, 3}),
+            ),
         )
         output = vision.AnnotationOutput(
             run,

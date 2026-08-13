@@ -24,19 +24,19 @@ subset is the narrower evidence for proven fabrication.
 
 ## Who reads the sidecar today
 
-**No production consumer reads the sidecar JSON.** Grepping
-`inpaint_selected`, `inpaint_status`, and `inpaint_fill_mask` against
-`src/annotator/`, `src/scraper/`, and `src/bst_x/` (excluding the
-TrackNetV3 writer) returns no matches at the current tip. The
-sidecar boundary choice
-(`docs/tracknet/inpaint_sidecar.md` § Boundary choices) records this as
-"writer only". The producer contract is stable; consumer wiring is the
-open work.
+The dataset builder reads the sidecar through
+`dataset_builder.shuttle_evidence`. It validates the producer identity and
+expands the spans for quality measurement. It also derives recurrence-guard
+codes from the final normalised track. Both forms of evidence are persisted
+in the run manifest and checked again on resume.
+
+The sidecar remains source provenance. Its fill mask does not drive event
+rejection because every filled coordinate is not proven wrong. The derived
+guard codes are the authoritative rejection evidence in the dataset builder.
 
 ## The event-mask boundary in the annotator
 
-The annotator has an event-mask seam that the sidecar can feed into, but
-does so today through an in-memory recurrence detector, not the sidecar.
+The annotator has an event-mask seam for frame-aligned evidence.
 
 `annotator.calibration.gt_scoring.build_run_video_inputs` calls
 `annotator.inpaint_guard.grade_track` on the loaded shuttle track and
@@ -50,22 +50,21 @@ the codes described in `evidence/inpaint_fabrications_20260722/detector_options.
 (0 clean, 1 fabricated / proven, 2 flat / suspect, 3 degraded); their
 implementation is `src/annotator/inpaint_guard.py`.
 
-**Only the calibration path constructs `inpaint_codes` today.** The
-production scraper and stroke-classifier pipelines do not, so their
-`run_video` invocations receive no event-mask, and downstream contact /
-landing / lost-shuttle rules cannot distinguish invented frames. This is
-the seam a future sidecar consumer plugs into: build a boolean mask from
-the sidecar's `inpaint_selected` spans and pass it as the mutually
-exclusive `shuttle_hallucination_mask` argument to `run_video`.
+The dataset builder now follows the same recurrence-grade boundary. Its
+shuttle stage calls `grade_track`, persists the codes and diagnostics, and
+passes the codes into production annotation as `inpaint_codes`. It also
+writes `shuttle_quality.json.gz`, which records fill counts, guard-code
+counts, and their intersection.
+
+Other scraper and stroke-classifier `run_video` callers still receive no
+event mask. They need their own evidence and compatibility gate before
+adopting the dataset-builder policy.
 
 ## Open consumer work
 
-- **Wire the sidecar to production `run_video`.** Read
-  `{video_stem}_stride{N}_inpaint_mask.json.gz`, expand
-  `inpaint_selected` to a `(n_frames,) bool` array, pass it in as the
-  `shuttle_hallucination_mask` (never together with `inpaint_codes`). Decide
-  per lane whether the sidecar or the inpaint-guard codes are
-  authoritative and document the choice.
+- **Assess the remaining production lanes.** Scraper and stroke-classifier
+  callers need separate compatibility evidence before they adopt recurrence
+  grades. A raw sidecar fill mask must remain measurement evidence.
 - **Old-cache regenerate versus adapt.** Existing whole-video reference
   npys pre-date the sidecar and have no companion JSON. Two options:
   regenerate the reference tracks under the sidecar-writing tip and

@@ -11,14 +11,16 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
 
 log = logging.getLogger(__name__)
 
-DETECTOR_VERSION = 3
+DETECTOR_VERSION = 4
 DEFAULT_WINDOW = 16
+DEFAULT_HALO_FRAMES = 3
 NO_FLAG = 0
 FABRICATED = 1
 SUSPECT_FLAT = 2
@@ -100,18 +102,39 @@ def _validate_track(track: np.ndarray, window: int) -> None:
         raise ValueError("window must be a positive integer")
 
 
-def _cache_key(track: np.ndarray, window: int) -> tuple[Any, ...]:
+def _validate_halo_frames(halo_frames: int) -> None:
+    if (
+        isinstance(halo_frames, bool)
+        or not isinstance(halo_frames, (int, np.integer))
+        or halo_frames < 0
+    ):
+        raise ValueError("halo_frames must be a non-negative integer")
+
+
+def _cache_key(track: np.ndarray, window: int, halo_frames: int) -> tuple[Any, ...]:
     canonical_bytes = np.ascontiguousarray(track).tobytes(order="C")
     digest = hashlib.sha256(canonical_bytes).hexdigest()
-    return DETECTOR_VERSION, int(window), track.dtype.str, track.shape, digest
+    return (
+        DETECTOR_VERSION,
+        int(window),
+        int(halo_frames),
+        track.dtype.str,
+        track.shape,
+        digest,
+    )
 
 
 def _empty_info(
-    window: int, reason: str, threshold: int | None = None, margin: float | None = None,
+    window: int,
+    halo_frames: int,
+    reason: str,
+    threshold: int | None = None,
+    margin: float | None = None,
 ) -> dict[str, Any]:
     return {
         "detector_version": DETECTOR_VERSION,
         "window": window,
+        "halo_frames": halo_frames,
         "threshold": threshold,
         "margin": margin,
         "n_varying": 0,
@@ -123,7 +146,9 @@ def _empty_info(
 
 
 def _candidate_attractors(
-    track: np.ndarray, window: int,
+    track: np.ndarray,
+    window: int,
+    halo_frames: int,
 ) -> tuple[dict[bytes, list[int]], dict[bytes, int], dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:
     starts_by_pattern, episodes = pattern_episodes(track, window)
     threshold, margin = adaptive_threshold(episodes)
@@ -131,15 +156,33 @@ def _candidate_attractors(
     if len(candidate_counts) < 2:
         reason = f"fewer than 2 distinct candidate counts ({sorted(candidate_counts, reverse=True)})"
         log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return starts_by_pattern, episodes, {}, {}, _empty_info(window, reason, threshold, margin)
+        return (
+            starts_by_pattern,
+            episodes,
+            {},
+            {},
+            _empty_info(window, halo_frames, reason, threshold, margin),
+        )
     if threshold < _MIN_ACCEPTED_EPISODES:
         reason = f"derived threshold {threshold} is below {_MIN_ACCEPTED_EPISODES} episodes"
         log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return starts_by_pattern, episodes, {}, {}, _empty_info(window, reason, threshold, margin)
+        return (
+            starts_by_pattern,
+            episodes,
+            {},
+            {},
+            _empty_info(window, halo_frames, reason, threshold, margin),
+        )
     if margin < _MIN_ACCEPTED_MARGIN:
         reason = f"derived margin {margin:.6g} is below {_MIN_ACCEPTED_MARGIN:g}"
         log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return starts_by_pattern, episodes, {}, {}, _empty_info(window, reason, threshold, margin)
+        return (
+            starts_by_pattern,
+            episodes,
+            {},
+            {},
+            _empty_info(window, halo_frames, reason, threshold, margin),
+        )
 
     varying: dict[bytes, list[int]] = {}
     flat: dict[bytes, list[int]] = {}
@@ -152,6 +195,7 @@ def _candidate_attractors(
     info = {
         "detector_version": DETECTOR_VERSION,
         "window": window,
+        "halo_frames": halo_frames,
         "threshold": threshold,
         "margin": margin,
         "n_varying": len(varying),
@@ -211,20 +255,34 @@ def _cover(track_length: int, groups: dict[bytes, list[int]], window: int) -> np
     return covered
 
 
-def build_mask(track: np.ndarray, window: int = DEFAULT_WINDOW) -> tuple[np.ndarray, dict[str, Any]]:
+def build_mask(
+    track: np.ndarray,
+    window: int = DEFAULT_WINDOW,
+    *,
+    halo_frames: int = DEFAULT_HALO_FRAMES,
+) -> tuple[np.ndarray, dict[str, Any]]:
     """Build frame grades from accepted recurrence attractors.
 
     The supplied track is read only. The returned array has one ``uint8`` code
     for each original frame index.
     """
     _validate_track(track, window)
+    _validate_halo_frames(halo_frames)
     window = int(window)
+    halo_frames = int(halo_frames)
     if len(track) < window:
         reason = f"track length {len(track)} is shorter than window {window}"
         log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return np.zeros(len(track), dtype=np.uint8), _empty_info(window, reason)
+        return (
+            np.zeros(len(track), dtype=np.uint8),
+            _empty_info(window, halo_frames, reason),
+        )
 
-    starts_by_pattern, _episodes, varying, flat, info = _candidate_attractors(track, window)
+    starts_by_pattern, _episodes, varying, flat, info = _candidate_attractors(
+        track,
+        window,
+        halo_frames,
+    )
     codes = np.zeros(len(track), dtype=np.uint8)
     if not varying and not flat:
         info["counts_per_code"] = {
@@ -241,10 +299,10 @@ def build_mask(track: np.ndarray, window: int = DEFAULT_WINDOW) -> tuple[np.ndar
     halo = np.zeros(len(track), dtype=bool)
     edges = np.diff(np.concatenate(([False], core, [False])).astype(np.int8))
     for start in np.flatnonzero(edges == 1):
-        halo[max(0, int(start) - (window - 1)):int(start)] = True
+        halo[max(0, int(start) - halo_frames):int(start)] = True
     for stop in np.flatnonzero(edges == -1):
         stop = int(stop)
-        halo[stop:min(len(track), stop + window - 1)] = True
+        halo[stop:min(len(track), stop + halo_frames)] = True
 
     positions: set[tuple[Any, Any]] = set()
     for key in (*varying, *flat):
@@ -264,22 +322,30 @@ def build_mask(track: np.ndarray, window: int = DEFAULT_WINDOW) -> tuple[np.ndar
     return codes, info
 
 
-def grade_track(track: np.ndarray, window: int = DEFAULT_WINDOW) -> tuple[np.ndarray, dict[str, Any]]:
+def grade_track(
+    track: np.ndarray,
+    window: int = DEFAULT_WINDOW,
+    *,
+    halo_frames: int = DEFAULT_HALO_FRAMES,
+) -> tuple[np.ndarray, dict[str, Any]]:
     """Grade a canonical track and return frame-aligned codes and diagnostics.
 
     :param track: Loaded canonical track. Columns 0 and 1 are exact x and y values.
     :param window: Recurrence pattern width in frames.
+    :param halo_frames: Absolute degraded-frame radius around accepted recurrence cores.
     :return: ``(codes, info)`` where codes is ``uint8`` with one value per frame.
     """
     _validate_track(track, window)
+    _validate_halo_frames(halo_frames)
     window = int(window)
-    key = _cache_key(track, window)
+    halo_frames = int(halo_frames)
+    key = _cache_key(track, window, halo_frames)
     cached = _CACHE.get(key)
     if cached is not None:
         cached_codes, cached_info = cached
-        return cached_codes.copy(), dict(cached_info)
-    codes, info = build_mask(track, window)
-    _CACHE[key] = (codes.copy(), dict(info))
+        return cached_codes.copy(), deepcopy(cached_info)
+    codes, info = build_mask(track, window, halo_frames=halo_frames)
+    _CACHE[key] = (codes.copy(), deepcopy(info))
     return codes, info
 
 

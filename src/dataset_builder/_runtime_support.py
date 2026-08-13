@@ -15,6 +15,7 @@ import tomllib
 
 import numpy as np
 
+from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import (
     GeometricVerdictRow,
     Half,
@@ -24,7 +25,6 @@ from annotator.point_winner import (
     VerdictSource,
 )
 from annotator.run_video import AnnotatorResult
-from annotator.shuttle_track import validate_shuttle_track
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._commentary_status import (
@@ -44,6 +44,11 @@ from dataset_builder.selection import (
     load_selection,
     selected_video_ids,
 )
+from dataset_builder.shuttle_evidence import (
+    ShuttleEvidence,
+    ShuttleEvidenceArtifacts,
+    load_shuttle_evidence,
+)
 from dataset_builder.vision import (
     ANNOTATOR_RESULT_FILENAME,
     COURT_EVIDENCE_FILENAME,
@@ -52,6 +57,7 @@ from dataset_builder.vision import (
     DEFINITIVE_EXCLUSION_MASK_FILENAME,
     POSE_FILENAMES,
     RAW_REPLAY_MASK_FILENAME,
+    SHUTTLE_QUALITY_FILENAME,
     AnnotationArtifacts,
     AnnotationOutput,
     AnnotationRun,
@@ -61,6 +67,10 @@ from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
     load_pose_arrays,
+)
+from dataset_builder.shuttle_quality import (
+    ShuttleQualitySummary,
+    summarize_shuttle_quality,
 )
 from dataset_builder.tracknet_input import TrackNetInput
 from scraper import config as scraper_config
@@ -81,7 +91,7 @@ class RuntimeState:
     tracknet_inputs: dict[str, TrackNetInput] = field(default_factory=dict)
     active_ids: set[str] = field(default_factory=set)
     chunks: dict[str, list[dict[str, object]]] = field(default_factory=dict)
-    tracks: dict[str, np.ndarray] = field(default_factory=dict)
+    shuttles: dict[str, ShuttleEvidence] = field(default_factory=dict)
     poses: dict[str, PoseArrays] = field(default_factory=dict)
     courts: dict[str, CourtVision] = field(default_factory=dict)
     annotations: dict[str, AnnotationOutput] = field(default_factory=dict)
@@ -438,13 +448,28 @@ class RuntimeSupport:
         self._restore_metadata(video_id, path)
         return True
 
-    def _restore_track(self, video_id: str, path: Path) -> None:
-        track = load_npy_xz(path)
-        validate_shuttle_track(track, self.state.metadata[video_id].frame_count)
-        self.state.tracks[video_id] = track
+    def _restore_shuttle(
+        self,
+        video_id: str,
+        artifacts: ShuttleEvidenceArtifacts,
+    ) -> None:
+        proxy = self.state.tracknet_inputs[video_id].metadata
+        self.state.shuttles[video_id] = load_shuttle_evidence(
+            artifacts=artifacts,
+            input_video=proxy.source_path,
+            input_height=proxy.height,
+            frame_count=proxy.frame_count,
+            stride=self.config.tracknet_stride,
+            tracknet_model=self.config.tracknet_model,
+            inpaint_model=self.config.inpaint_model,
+        )
 
-    def _validate_track(self, video_id: str, path: Path) -> bool:
-        self._restore_track(video_id, path)
+    def _validate_shuttle(
+        self,
+        video_id: str,
+        artifacts: ShuttleEvidenceArtifacts,
+    ) -> bool:
+        self._restore_shuttle(video_id, artifacts)
         return True
 
     def _pose_files(self, video_id: str) -> dict[str, Path]:
@@ -488,13 +513,22 @@ class RuntimeSupport:
             "annotator_result": root / ANNOTATOR_RESULT_FILENAME,
             "raw_replay_mask": root / RAW_REPLAY_MASK_FILENAME,
             "definitive_exclusion_mask": root / DEFINITIVE_EXCLUSION_MASK_FILENAME,
+            "shuttle_quality": root / SHUTTLE_QUALITY_FILENAME,
         }
 
     def _restore_annotation(self, video_id: str, output_dir: Path) -> None:
+        shuttle = self.state.shuttles[video_id]
+        expected_quality = summarize_shuttle_quality(
+            shuttle.track,
+            shuttle.inpaint_fill_mask,
+            shuttle.guard_codes,
+            BaseAnnotatorConfig().rejected_grades,
+        )
         self.state.annotations[video_id] = _load_annotation(
             output_dir,
             video_id,
             self.state.metadata[video_id].frame_count,
+            expected_quality,
         )
 
     def _validate_annotation(self, video_id: str, output_dir: Path) -> bool:
@@ -782,7 +816,12 @@ def _report_video_ids(payload: object, name: str) -> list[str]:
     return values
 
 
-def _load_annotation(output_dir: Path, video_id: str, frame_count: int) -> AnnotationOutput:
+def _load_annotation(
+    output_dir: Path,
+    video_id: str,
+    frame_count: int,
+    expected_quality: ShuttleQualitySummary,
+) -> AnnotationOutput:
     payload = load_json_gz(output_dir / ANNOTATOR_RESULT_FILENAME)
     if set(payload) != {"schema", "video_id", "result"}:
         raise ValueError("annotator result payload fields differ")
@@ -794,11 +833,17 @@ def _load_annotation(output_dir: Path, video_id: str, frame_count: int) -> Annot
         output_dir / DEFINITIVE_EXCLUSION_MASK_FILENAME,
         frame_count,
     )
-    run = AnnotationRun(video_id, result, raw_mask, definitive_mask)
+    quality = ShuttleQualitySummary.from_payload(
+        load_json_gz(output_dir / SHUTTLE_QUALITY_FILENAME),
+    )
+    if quality != expected_quality:
+        raise ValueError("persisted shuttle quality differs from annotation inputs")
+    run = AnnotationRun(video_id, result, raw_mask, definitive_mask, quality)
     artifacts = AnnotationArtifacts(
         output_dir / ANNOTATOR_RESULT_FILENAME,
         output_dir / RAW_REPLAY_MASK_FILENAME,
         output_dir / DEFINITIVE_EXCLUSION_MASK_FILENAME,
+        output_dir / SHUTTLE_QUALITY_FILENAME,
     )
     return AnnotationOutput(run, artifacts)
 

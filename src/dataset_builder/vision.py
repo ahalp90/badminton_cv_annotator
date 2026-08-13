@@ -26,6 +26,10 @@ from dataset_builder._pose_process import (
     pose_subprocess_environment,
     resolve_pose_executable,
 )
+from dataset_builder.shuttle_quality import (
+    ShuttleQualitySummary,
+    summarize_shuttle_quality,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -43,6 +47,7 @@ COURT_EVIDENCE_SCHEMA = "court-evidence/0.1"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
+SHUTTLE_QUALITY_FILENAME = "shuttle_quality.json.gz"
 TRACK_FILENAME = "shuttle_track.npy.xz"
 COURT_EVIDENCE_FILENAME = "court_evidence.json.gz"
 COURT_KEEP_VOTE_FILENAME = "court_keep_vote.npy.xz"
@@ -123,6 +128,7 @@ class AnnotationRun:
     result: AnnotatorResult
     raw_replay_mask: np.ndarray
     definitive_exclusion_mask: np.ndarray
+    shuttle_quality: ShuttleQualitySummary
 
 
 @dataclass(frozen=True)
@@ -132,6 +138,7 @@ class AnnotationArtifacts:
     result: Path
     raw_replay_mask: Path
     definitive_exclusion_mask: Path
+    shuttle_quality: Path
 
     def as_mapping(self) -> dict[str, Path]:
         """Return stable manifest names mapped to their paths."""
@@ -139,6 +146,7 @@ class AnnotationArtifacts:
             "annotator_result": self.result,
             "raw_replay_mask": self.raw_replay_mask,
             "definitive_exclusion_mask": self.definitive_exclusion_mask,
+            "shuttle_quality": self.shuttle_quality,
         }
 
 
@@ -645,6 +653,8 @@ def run_full_annotation_stage(
     video_id: str,
     metadata: VideoMetadata,
     track: np.ndarray,
+    inpaint_fill_mask: np.ndarray,
+    guard_codes: np.ndarray,
     pose: PoseArrays,
     court: CourtVision,
     output_dir: Path,
@@ -667,6 +677,12 @@ def run_full_annotation_stage(
         SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
     )
     validate_shuttle_track(track, metadata.frame_count)
+    shuttle_quality = summarize_shuttle_quality(
+        track,
+        inpaint_fill_mask,
+        guard_codes,
+        effective_base.rejected_grades,
+    )
     validate_pose_arrays(pose, metadata.frame_count)
     _validate_court_vision(
         court.raw_cuts,
@@ -702,6 +718,7 @@ def run_full_annotation_stage(
         homography_rows=court_inputs.homography_rows,
         cut_frames=cut_frames,
         keep_vote=court.evidence.keep_vote,
+        inpaint_codes=guard_codes,
         court_invalid_is_excluded=True,
         landing_error_band_m=court_inputs.landing_error_band_m,
         capture=capture,
@@ -721,6 +738,7 @@ def run_full_annotation_stage(
         result=result,
         raw_replay_mask=raw_mask.copy(),
         definitive_exclusion_mask=definitive_mask.copy(),
+        shuttle_quality=shuttle_quality,
     )
     artifacts = persist_annotation_run(output_dir, run, metadata.frame_count)
     return AnnotationOutput(run=run, artifacts=artifacts)
@@ -738,6 +756,8 @@ def persist_annotation_run(
         frame_count,
         "definitive exclusion mask",
     )
+    if run.shuttle_quality.frame_count != frame_count:
+        raise ValueError("shuttle quality frame count differs from annotation frame count")
     root = Path(output_dir)
     raw_path = save_npy_xz(root / RAW_REPLAY_MASK_FILENAME, raw_mask)
     definitive_path = save_npy_xz(root / DEFINITIVE_EXCLUSION_MASK_FILENAME, definitive_mask)
@@ -745,10 +765,15 @@ def persist_annotation_run(
         root / ANNOTATOR_RESULT_FILENAME,
         annotation_result_payload(run.video_id, run.result),
     )
+    quality_path = save_json_gz(
+        root / SHUTTLE_QUALITY_FILENAME,
+        run.shuttle_quality.to_payload(),
+    )
     return AnnotationArtifacts(
         result=result_path,
         raw_replay_mask=raw_path,
         definitive_exclusion_mask=definitive_path,
+        shuttle_quality=quality_path,
     )
 
 
