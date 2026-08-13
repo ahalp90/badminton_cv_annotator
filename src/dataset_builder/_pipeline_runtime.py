@@ -584,10 +584,13 @@ class DefaultPipelineRuntime(RuntimeSupport):
 
         def execute() -> StageExecution:
             self._reset_stage_dir("annotation", video_id)
+            shuttle = self.state.shuttles[video_id]
             annotation = run_full_annotation_stage(
                 video_id=video_id,
                 metadata=metadata,
-                track=self.state.shuttles[video_id].track,
+                track=shuttle.track,
+                inpaint_fill_mask=shuttle.inpaint_fill_mask,
+                guard_codes=shuttle.guard_codes,
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,
@@ -596,11 +599,19 @@ class DefaultPipelineRuntime(RuntimeSupport):
             return StageExecution(
                 StageOutcome.PROCESSED,
                 annotation.artifacts.as_mapping(),
-                {"rallies": len(annotation.run.result.spans)},
+                {
+                    "rallies": len(annotation.run.result.spans),
+                    "guard_rejected_frames": (
+                        annotation.run.shuttle_quality.guard_rejected_frames
+                    ),
+                    "inpaint_filled_frames": (
+                        annotation.run.shuttle_quality.inpaint_filled_frames
+                    ),
+                },
             )
 
         inputs = {
-            "shuttle_track": self._video_dir("shuttle", video_id) / "shuttle_track.npy.xz",
+            **self.state.shuttles[video_id].artifacts.as_mapping(),
             **self._pose_files(video_id),
             **self._court_files(video_id),
         }

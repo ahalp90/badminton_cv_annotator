@@ -22,6 +22,7 @@ from dataset_builder.selection import (
     COMMENTARY_UNAVAILABLE_TRANSCRIPT,
     load_selection,
 )
+from dataset_builder.shuttle_quality import summarize_shuttle_quality
 from scraper import commentary_cleaning, download_scraped_videos
 
 ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
@@ -614,7 +615,7 @@ class _ConcreteRuntimeFixture:
         self,
         *,
         output_dir: Path,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> vision.VisionStageResult[vision.AnnotationOutput]:
         self.boundary_calls.append("annotation")
         result = (
@@ -629,6 +630,12 @@ class _ConcreteRuntimeFixture:
             result,
             np.zeros(3, dtype=bool),
             np.zeros(3, dtype=bool),
+            summarize_shuttle_quality(
+                kwargs["track"],
+                kwargs["inpaint_fill_mask"],
+                kwargs["guard_codes"],
+                frozenset({1, 2, 3}),
+            ),
         )
         output = vision.AnnotationOutput(
             run,
