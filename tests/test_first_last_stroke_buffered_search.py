@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
+import pytest
+
+from annotator.artifact_io import atomic_gzip_text_writer, write_json_object
 from scripts.analyse_first_last_stroke_buffered_search import main
 
 
@@ -32,25 +34,35 @@ WIDE_COLUMNS = (
 
 
 def _write_csv(path: Path, columns: tuple[str, ...], rows: list[tuple[object, ...]]) -> None:
+    if path.name.endswith(".csv.gz"):
+        with atomic_gzip_text_writer(path, newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(columns)
+            writer.writerows(rows)
+        return
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(columns)
         writer.writerows(rows)
 
 
+@pytest.mark.parametrize("compressed", [False, True])
 def test_post_hoc_search_classifies_gt_matches_and_predicted_span_position(
     tmp_path: Path,
     capsys,
+    compressed: bool,
 ) -> None:
     measurement_root = tmp_path / "measurement"
     configuration_id = "detected_ckn_opencv_consensus/sset_01/tracknet-stride-8"
     leaf_dir = measurement_root / configuration_id
     leaf_dir.mkdir(parents=True)
-    (measurement_root / "manifest.json").write_text(json.dumps({
+    json_suffix = ".json.gz" if compressed else ".json"
+    csv_suffix = ".csv.gz" if compressed else ".csv"
+    write_json_object(measurement_root / f"manifest{json_suffix}", {
         "status": "succeeded",
         "configurations": [{"configuration_id": configuration_id, "status": "succeeded"}],
-    }))
-    (leaf_dir / "annotations.json").write_text(json.dumps({
+    })
+    write_json_object(leaf_dir / f"annotations{json_suffix}", {
         "spans": [[100, 200], [300, 309], [310, 400]],
         "filtered_contacts": [
             {"rally_id": 0, "contact_frame": 115},
@@ -58,15 +70,15 @@ def test_post_hoc_search_classifies_gt_matches_and_predicted_span_position(
             {"rally_id": 0, "contact_frame": 190},
             {"rally_id": 1, "contact_frame": 306},
         ],
-    }))
-    _write_csv(leaf_dir / "strict_contacts.csv", STRICT_COLUMNS, [
+    })
+    _write_csv(leaf_dir / f"strict_contacts{csv_suffix}", STRICT_COLUMNS, [
         (0, 5, 5, "unmatched_gt", 110, "", ""),
         (0, 5, 5, "matched", 118, 118, 0),
         (0, 5, 5, "matched", 190, 190, 0),
         (1, 5, 5, "matched", 310, 306, -4),
         (2, 5, 5, "unmatched_gt", 500, "", ""),
     ])
-    _write_csv(leaf_dir / "wide_edge_contacts.csv", WIDE_COLUMNS, [
+    _write_csv(leaf_dir / f"wide_edge_contacts{csv_suffix}", WIDE_COLUMNS, [
         (0, 0, "first", 35, 151, "matched", 110, 118, 8),
         (0, 0, "first", 35, 151, "unmatched_candidate", "", 115, ""),
         (1, 0, "last", 151, 265, "matched", 190, 190, 0),

@@ -15,10 +15,9 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from enum import StrEnum
-import json
 from pathlib import Path
-from typing import Any
 
+from annotator.artifact_io import open_text_artifact, read_json_object
 from annotator.calibration.scoring import RallyBoundary, classify_rally_boundary
 
 
@@ -70,13 +69,6 @@ class BufferedSearchRow:
     required_boundary_extension_frames: int | None
 
 
-def _read_json_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"{path}: expected a JSON object")
-    return value
-
-
 def _parse_required_int(row: dict[str, str], field: str, path: Path) -> int:
     value = row[field]
     if not value:
@@ -89,7 +81,7 @@ def _load_gt_frames(
 ) -> tuple[dict[int, tuple[int, ...]], int]:
     frames_by_rally: dict[int, set[int]] = defaultdict(set)
     tolerance_frames: set[int] = set()
-    with path.open(newline="", encoding="utf-8") as handle:
+    with open_text_artifact(path, newline="") as handle:
         for row in csv.DictReader(handle):
             if int(row["tolerance_base30"]) != tolerance_base30:
                 continue
@@ -112,7 +104,7 @@ def _load_gt_frames(
 
 
 def _load_annotations(path: Path) -> tuple[list[tuple[int, int]], dict[int, int]]:
-    payload = _read_json_object(path)
+    payload = read_json_object(path)
     spans: list[tuple[int, int]] = []
     for raw_span in payload["spans"]:
         if len(raw_span) != 2:
@@ -138,7 +130,7 @@ def _load_buffer_rows(
 ) -> tuple[list[dict[str, str]], dict[int, int]]:
     targets: dict[int, dict[str, str]] = {}
     additional_counts: dict[int, int] = defaultdict(int)
-    with path.open(newline="", encoding="utf-8") as handle:
+    with open_text_artifact(path, newline="") as handle:
         for row in csv.DictReader(handle):
             window_id = int(row["window_id"])
             if row["row_kind"] == "unmatched_candidate":
@@ -232,17 +224,17 @@ def analyse_leaf(
     :return: One row per first/last-stroke buffer.
     """
     gt_frames_by_rally, tolerance_frames = _load_gt_frames(
-        leaf_dir / "strict_contacts.csv", tolerance_base30
+        leaf_dir / "strict_contacts.csv.gz", tolerance_base30
     )
-    spans, candidate_rally_ids = _load_annotations(leaf_dir / "annotations.json")
-    targets, additional_counts = _load_buffer_rows(leaf_dir / "wide_edge_contacts.csv")
+    spans, candidate_rally_ids = _load_annotations(leaf_dir / "annotations.json.gz")
+    targets, additional_counts = _load_buffer_rows(leaf_dir / "wide_edge_contacts.csv.gz")
 
     rows: list[BufferedSearchRow] = []
     for target in targets:
         window_id = int(target["window_id"])
         gt_rally_id = int(target["rally_id"])
         first_or_last = target["edge"]
-        gt_frame = _parse_required_int(target, "gt_frame", leaf_dir / "wide_edge_contacts.csv")
+        gt_frame = _parse_required_int(target, "gt_frame", leaf_dir / "wide_edge_contacts.csv.gz")
         gt_frames = gt_frames_by_rally[gt_rally_id]
         expected_gt_frame = gt_frames[0] if first_or_last == "first" else gt_frames[-1]
         if gt_frame != expected_gt_frame:
@@ -305,7 +297,7 @@ def analyse_measurement(
     tolerance_base30: int = 5,
 ) -> list[BufferedSearchRow]:
     """Analyse every successful configuration declared by a root manifest."""
-    root_manifest = _read_json_object(measurement_root / "manifest.json")
+    root_manifest = read_json_object(measurement_root / "manifest.json.gz")
     if root_manifest.get("status") != "succeeded":
         raise ValueError(f"{measurement_root}: root manifest is not successful")
 
@@ -389,7 +381,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "measurement_root",
         type=Path,
-        help="Completed e2e output root containing the terminal manifest.json",
+        help="Completed e2e output root containing the terminal manifest.json.gz",
     )
     parser.add_argument(
         "output_directory",
