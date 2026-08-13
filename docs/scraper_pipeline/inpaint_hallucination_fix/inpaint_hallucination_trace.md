@@ -1,6 +1,6 @@
 # Inpaint hallucination guard: operation trace
 
-Status: source trace of the current repository tip, 2026-07-31.
+Status: source trace updated for detector version 4, 2026-08-13.
 
 ## What this trace answers
 
@@ -14,9 +14,9 @@ video pixels or rerun InpaintNet. It reads the saved per-frame track and looks
 for exact position sequences that recur far more often than ordinary footage
 could explain.
 
-The guard's public entry point is
-`src/annotator/inpaint_guard.py:267`. The surrounding event-mask seam is
-`src/annotator/run_video.py:28`.
+The guard's public entry point is `annotator.inpaint_guard.grade_track`. The
+surrounding event-mask seam is
+`annotator.run_video._build_shuttle_hallucination_mask`.
 
 ## Plain-language summary
 
@@ -59,9 +59,9 @@ policy currently rejects all three non-zero grades.
 The chart follows the current control flow in
 `pattern_episodes`, `adaptive_threshold`, `_candidate_attractors`,
 `_validate_presence`, `_cover`, and `build_mask`
-(`src/annotator/inpaint_guard.py:40-264`).
+(`src/annotator/inpaint_guard.py:42-323`).
 
-`(§ Detector internals, src/annotator/inpaint_guard.py:40-264)`
+`(§ Detector internals, src/annotator/inpaint_guard.py:42-323)`
 
 ```mermaid
 flowchart TB
@@ -93,38 +93,37 @@ flowchart TB
 
 ### 1. Input validation and detector constants
 
-`grade_track(track, window=16)` validates the track, converts the window to
-an ordinary integer, and builds a cache key
-(`src/annotator/inpaint_guard.py:267-283`).
+`grade_track(track, window=16, *, halo_frames=3)` validates the track and policy
+parameters, converts them to ordinary integers, and builds a cache key.
 
 The key includes:
 
-- detector version 3;
+- detector version 4;
 - the window;
+- the absolute halo width;
 - NumPy dtype and shape;
 - a SHA-256 digest of the complete contiguous track bytes.
 
 The digest prevents a stale result being reused for a different track. A cache
-hit returns copies of both the codes and diagnostics, so a caller cannot
-mutate the cached arrays or dictionary through the returned objects
-(`src/annotator/inpaint_guard.py:20-37, 103-106, 274-283`).
+hit returns independent copies of both the codes and diagnostics, so a caller
+cannot mutate the cached result through the returned objects.
 
 `_validate_track` requires a NumPy array with two or more columns, at least
 the first two columns numeric and real, and a positive integer window. Boolean
-and complex arrays are rejected
-(`src/annotator/inpaint_guard.py:90-100`).
+and complex arrays are rejected. `_validate_halo_frames` requires a
+non-negative integer.
 
 The detector reads only columns 0 and 1 as exact x and y coordinates. It does
 not use the visibility column. This makes the method useful after InpaintNet
 has overwritten a missed frame's visibility flag, but it also means the method
 cannot know fill provenance from the track alone
-(`src/annotator/inpaint_guard.py:43-45, 51-58`).
+(`src/annotator/inpaint_guard.py:42-59`).
 
 ### 2. Find exact recurring windows
 
 `pattern_episodes` slides a window over every possible start index from
 0 through `n_frames - window`
-(`src/annotator/inpaint_guard.py:40-70`).
+(`src/annotator/inpaint_guard.py:42-72`).
 
 For each start:
 
@@ -143,7 +142,7 @@ The starts for each pattern are then merged into separated episodes. The
 episode gap is `2 * window`, which is 32 frames at the default window. A
 start whose distance from the previous start is greater than 32 begins a new
 episode. Starts at a distance of 32 remain in the same episode
-(`src/annotator/inpaint_guard.py:60-70`).
+(`src/annotator/inpaint_guard.py:62-72`).
 
 This prevents one long recurrence zone, with many overlapping window starts,
 from being counted as hundreds of independent events. The detector counts
@@ -152,7 +151,7 @@ separated recurrence episodes instead.
 ### 3. Derive a threshold from the track
 
 `adaptive_threshold` does not hardcode one recurrence count
-(`src/annotator/inpaint_guard.py:73-87`).
+(`src/annotator/inpaint_guard.py:75-89`).
 
 It:
 
@@ -176,7 +175,7 @@ checkpoint or choosing a universal count.
 ### 4. Apply the evidence gates
 
 `_candidate_attractors` applies three gates before accepting any attractor
-(`src/annotator/inpaint_guard.py:125-163`).
+(`src/annotator/inpaint_guard.py:148-188`).
 
 1. At least two distinct candidate episode counts must exist. If all candidate
    patterns have the same count, there is no count gap from which to derive a
@@ -189,7 +188,7 @@ checkpoint or choosing a universal count.
 If a gate fails, the function logs a warning and returns empty attractor sets.
 `build_mask` then returns an all-zero code array with diagnostic fields such
 as `unavailable_reason`, `threshold`, and `margin`
-(`src/annotator/inpaint_guard.py:109-123, 227-233`).
+(`src/annotator/inpaint_guard.py:127-145, 258-290`).
 
 The synthetic tests cover all three weak-evidence paths:
 `tests/test_inpaint_guard.py:52-84`.
@@ -199,7 +198,7 @@ The synthetic tests cover all three weak-evidence paths:
 For every pattern at or above the derived threshold, the guard reconstructs its
 `window x 2` coordinate array and checks whether either x or y has a non-zero
 peak-to-peak range
-(`src/annotator/inpaint_guard.py:144-151`).
+(`src/annotator/inpaint_guard.py:188-193`).
 
 - If x or y changes within the window, the pattern is a **varying attractor**.
 - If both x and y stay constant, the pattern is a **flat attractor**.
@@ -218,7 +217,7 @@ blending can flatten it into a constant
 ### 6. Validate presence in both halves
 
 `_validate_presence` divides the video at `n_frames // 2`
-(`src/annotator/inpaint_guard.py:166-203`).
+(`src/annotator/inpaint_guard.py:210-247`).
 
 For every accepted varying or flat attractor, it checks whether at least one
 window start overlaps the first half and at least one overlaps the second half.
@@ -236,15 +235,15 @@ attractors present in each half.
 
 ### 7. Convert attractors into frame regions
 
-`build_mask` starts with one code-0 value per original frame
-(`src/annotator/inpaint_guard.py:214-264`).
+`build_mask` starts with one code-0 value per original frame.
 
 It builds three boolean regions:
 
 - **proven**: every frame covered by every accepted varying-attractor window;
 - **suspect**: every frame covered by every accepted flat-attractor window;
-- **halo**: up to `window - 1` frames before and after each contiguous core
-  region, clipped to the track boundaries.
+- **halo**: `halo_frames` before and after each contiguous core region, clipped
+  to the track boundaries. Detector version 4 defaults to three absolute
+  frames. This radius does not scale with the recurrence window or FPS.
 
 The halo is not itself a hallucination proof. It marks neighbouring frames
 that sit around a proven or suspect recurrence region and may have been
@@ -253,13 +252,12 @@ degraded by the same gap-filling episode.
 The guard also collects every exact coordinate pair appearing in every accepted
 attractor. It marks any frame in the whole track that lands on one of those
 positions as `on_attractor`, even when that frame is far from every recurrence
-window and outside a complete recurrence window
-(`src/annotator/inpaint_guard.py:240-255`).
+window and outside a complete recurrence window. This on-attractor rule is
+separate from the three-frame halo and remains unchanged in detector version 4.
 
 ### 8. Apply code precedence
 
-The assignment order is load-bearing
-(`src/annotator/inpaint_guard.py:257-260`):
+The assignment order is load-bearing:
 
 1. Mark `halo` or `on_attractor` outside the core as code 3, degraded.
 2. Mark flat-attractor core frames as code 2, suspect flat.
@@ -271,8 +269,8 @@ varying proof outranks a flat suspicion if the regions overlap. Stored blank
 frames are never reported as a hallucination grade.
 
 Finally, the detector counts the number of frames assigned to each code and
-returns the `uint8` code array plus diagnostics
-(`src/annotator/inpaint_guard.py:260-264`).
+returns the `uint8` code array plus diagnostics. The diagnostics and cache key
+include the absolute halo width.
 Those are absolute frame counts. Use `len(track)` as the denominator when
 turning them into proportions.
 
@@ -468,7 +466,7 @@ A real shuttle can rest on one pixel, and a weight-mode blend can flatten a
 repeated fill cycle into one constant position. The same constant pattern
 therefore lacks the proof available from a moving sequence. The current
 implementation preserves that distinction as codes 1 and 2
-(`src/annotator/inpaint_guard.py:144-151, 257-260`).
+(`src/annotator/inpaint_guard.py:188-194, 310-317`).
 
 ### What the heuristic cannot see
 
