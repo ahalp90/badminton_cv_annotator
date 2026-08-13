@@ -26,6 +26,7 @@ if str(_SRC) not in sys.path:
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from annotator.shuttle_track import validate_shuttle_track  # noqa: E402
 from pipeline.config import (  # noqa: E402
     CLIPS_OUTPUT_DIR, SHUTTLE_OUTPUT_DIR, RESOLUTION_CSV_PATH,
 )
@@ -58,8 +59,8 @@ def _default_csv_dir(clips_dir: Path) -> Path:
 def normalize_shuttlecock(arr: np.ndarray, v_width: float, v_height: float) -> np.ndarray:
     """Normalize shuttle coordinates by video resolution.
 
-    Normalizes x and y to [0, 1]. If a visibility column is present
-    (3rd column), it is passed through unchanged.
+    Scales x and y by the frame dimensions. In-frame positions become values
+    in [0, 1]. A third visibility column passes through unchanged.
 
     :param arr: (t, 2) or (t, 3) array. Columns: x, y, [visibility].
     :param v_width: Video width in pixels.
@@ -83,14 +84,7 @@ class WholeVideoShuttle:
         if not isinstance(self.video_id, str) or not self.video_id:
             raise ValueError('whole-video shuttle video_id must be a non-empty string')
         track = np.asarray(self.track)
-        if track.ndim != 2 or track.shape[1] != 3:
-            raise ValueError(f'whole-video shuttle track must have shape (frames, 3), got {track.shape}')
-        if not np.issubdtype(track.dtype, np.floating):
-            raise ValueError(f'whole-video shuttle track must have floating dtype, got {track.dtype}')
-        if not np.isfinite(track).all():
-            raise ValueError('whole-video shuttle track must contain only finite values')
-        if not np.isin(track[:, 2], (0.0, 1.0)).all():
-            raise ValueError('whole-video shuttle visibility must contain only 0 or 1')
+        validate_shuttle_track(track)
         object.__setattr__(self, 'track', np.ascontiguousarray(track).copy())
 
 
@@ -146,15 +140,6 @@ def whole_video_csv_to_shuttle(
     ordered = frame.assign(_frame_id=frame_ids).set_index('_frame_id').reindex(range(frame_count))
     values = ordered.loc[:, ['X', 'Y', 'Visibility']].apply(pd.to_numeric, errors='coerce')
     shuttle_camera = values.to_numpy(dtype=float)
-    if shuttle_camera.shape != (frame_count, 3):
-        raise ValueError(
-            f'whole-video TrackNet values have shape {shuttle_camera.shape}, '
-            f'expected {(frame_count, 3)}'
-        )
-    if not np.isfinite(shuttle_camera).all():
-        raise ValueError('whole-video TrackNet X, Y and Visibility values must be finite numbers')
-    if not np.isin(shuttle_camera[:, 2], (0.0, 1.0)).all():
-        raise ValueError('whole-video TrackNet Visibility values must contain only 0 or 1')
     shuttle_norm = normalize_shuttlecock(shuttle_camera, float(width), float(height))
     return WholeVideoShuttle(video_id=video_id, track=shuttle_norm)
 

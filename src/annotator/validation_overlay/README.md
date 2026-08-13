@@ -27,8 +27,10 @@ The shuttle-track overlay, run from the repo root:
       --out src/annotator/validation_overlay/output_vids/check.mp4
 
 `--track` is a `(n_frames, 3)` array: x as a fraction of frame width, y as a
-fraction of frame height, and a visibility flag. Exactly `1` means tracked, and
-anything else means not tracked. That is the house TrackNetV3 convention.
+fraction of frame height, and a visibility flag. Exactly `1` means tracked and
+exactly `0` means not tracked. Other visibility values are invalid. Tracked x
+and y values must be within `[0, 1]`. Untracked coordinates must remain finite,
+but the bounds do not apply to them.
 
 `--segments` is a CSV with a start column, an end column, and optionally a
 label column. Frame numbers are inclusive and count from zero. If your CSV uses

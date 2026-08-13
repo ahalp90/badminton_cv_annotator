@@ -634,6 +634,53 @@ def test_existing_false_entry_is_not_reprobed_or_counted(
     assert not outcomes[0].failed
 
 
+def test_accept_silent_video_reprobes_false_entry_until_readable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    candidates_path = tmp_path / 'candidates.csv'
+    _write_candidates(candidates_path, [_candidate('existing')])
+    output_dir = tmp_path / 'videos'
+    output_dir.mkdir()
+    video_path = output_dir / 'existing.mp4'
+    video_path.write_bytes(b'broken')
+    manifest_path = output_dir / 'sources.toml'
+    manifest_path.write_text(
+        'dataset = "scraped"\n\n'
+        '[videos."existing.mp4"]\n'
+        'video_id = "existing"\n'
+        'title = "Title existing"\n'
+        'url = "https://example.test/existing"\n'
+        'commentary_eligible = false\n',
+        encoding='utf-8',
+    )
+
+    monkeypatch.setattr(downloader.shutil, 'which', lambda name: f'/bin/{name}')
+
+    def probe(path: Path) -> bool:
+        if path.read_bytes() == b'broken':
+            raise downloader._UnreadableMedia('fixture media failure')
+        return False
+
+    monkeypatch.setattr(downloader, '_probe_audio', probe)
+    first = downloader.download_all_videos(
+        candidates_path,
+        output_dir,
+        max_workers=1,
+        accept_silent_video=True,
+    )
+    video_path.write_bytes(b'readable silent video')
+    second = downloader.download_all_videos(
+        candidates_path,
+        output_dir,
+        max_workers=1,
+        accept_silent_video=True,
+    )
+
+    assert first[0].failed
+    assert not second[0].failed
+
+
 def test_unexpected_worker_exception_propagates_after_sibling_manifest_update(
     tmp_path: Path,
     monkeypatch,

@@ -14,7 +14,15 @@ from annotator.run_video import AnnotatorResult
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.cli import StageExecution, StagePlan
+from dataset_builder.manifest import write_run_manifest
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
+from dataset_builder.records import (
+    RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
+    RALLY_RECORD_SCHEMA,
+    RallyRecordArtifacts,
+    RallyRecordProjection,
+)
 from dataset_builder.selection import (
     COMMENTARY_FAILED,
     COMMENTARY_INELIGIBLE,
@@ -81,6 +89,7 @@ api_key_environment = "GEMINI_API_KEY"
 class _FixtureControl:
     outcomes: dict[str, StageOutcome] = field(default_factory=dict)
     versions: dict[str, str] = field(default_factory=dict)
+    counts: dict[str, dict[str, int]] = field(default_factory=dict)
     planned: list[str] = field(default_factory=list)
     executed: list[str] = field(default_factory=list)
     restored: list[str] = field(default_factory=list)
@@ -117,7 +126,8 @@ class _FixtureRuntime:
                 )
             artifact.parent.mkdir(parents=True, exist_ok=True)
             artifact.write_text(f"{phase}:{version}\n", encoding="utf-8")
-            return StageExecution(outcome, {"artifact": artifact}, {"rows": 1})
+            counts = self.control.counts.get(phase, {"rows": 1})
+            return StageExecution(outcome, {"artifact": artifact}, counts)
 
         def restore() -> None:
             self.control.restored.append(phase)
@@ -255,11 +265,11 @@ def test_changed_stage_configuration_invalidates_only_it_and_dependants(tmp_path
 
 
 def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Path) -> None:
-    config_path = _write_config(tmp_path / "trial.toml", max_videos=0)
+    config_path = _write_config(tmp_path / "trial.toml")
 
     config = cli.load_builder_config(config_path, repo_root=tmp_path)
 
-    assert config.max_videos == 0
+    assert config.max_videos == 2
     assert config.search_count == 5
     assert config.tracknet_model == tmp_path / "weights" / "tracknet.pt"
     assert config.inpaint_model is None
@@ -269,6 +279,30 @@ def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Pat
     config_path.write_text(malformed, encoding="utf-8")
     with pytest.raises(ValueError, match="run fields differ"):
         cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_configuration_rejects_zero_max_videos(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "trial.toml", max_videos=0)
+
+    with pytest.raises(ValueError, match="run.max_videos must be positive"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_completed_run_with_no_selected_videos_is_a_terminal_error(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "trial.toml")
+    control = _FixtureControl(counts={
+        "selection": {"selected": 0},
+        "assembly": {"videos": 0, "rallies": 0},
+    })
+
+    result = cli.run_dataset_builder(
+        config,
+        tmp_path / "run",
+        runtime_factory=_factory(control),
+    )
+
+    assert result.stopped_after is None
+    assert result.terminal_error == "selection produced no videos"
 
 
 def test_dirty_source_refuses_before_runtime_or_run_directory_creation(
@@ -584,18 +618,17 @@ class _ConcreteRuntimeFixture:
         *,
         output_dir: Path,
         **_kwargs: object,
-    ) -> vision.VisionStageResult[vision.PoseExtraction]:
+    ) -> vision.PoseExtraction:
         self.boundary_calls.append("pose")
         artifacts = vision.save_pose_arrays(output_dir, self.pose, 3)
-        extraction = vision.PoseExtraction(self.pose, artifacts, ("fixture-pose",))
-        return vision.VisionStageResult("pose_extraction", StageOutcome.PROCESSED, extraction)
+        return vision.PoseExtraction(self.pose, artifacts, ("fixture-pose",))
 
     def court_stage(
         self,
         *,
         output_dir: Path,
         **_kwargs: object,
-    ) -> vision.VisionStageResult[vision.CourtVision]:
+    ) -> vision.CourtVision:
         self.boundary_calls.append("court")
         output_dir.mkdir(parents=True, exist_ok=True)
         artifacts = vision.CourtArtifacts(
@@ -606,7 +639,7 @@ class _ConcreteRuntimeFixture:
         for path in artifacts.as_mapping().values():
             path.write_bytes(b"fixture court")
         self.court = vision.CourtVision(((0, 3),), object(), artifacts)
-        return vision.VisionStageResult("court_evidence", StageOutcome.PROCESSED, self.court)
+        return self.court
 
     def load_court(self, *_args: object, **_kwargs: object) -> vision.CourtVision:
         return self.court
@@ -616,7 +649,7 @@ class _ConcreteRuntimeFixture:
         *,
         output_dir: Path,
         **kwargs: object,
-    ) -> vision.VisionStageResult[vision.AnnotationOutput]:
+    ) -> vision.AnnotationOutput:
         self.boundary_calls.append("annotation")
         result = (
             AnnotatorResult(
@@ -641,7 +674,7 @@ class _ConcreteRuntimeFixture:
             run,
             vision.persist_annotation_run(output_dir, run, 3),
         )
-        return vision.VisionStageResult("annotation", StageOutcome.PROCESSED, output)
+        return output
 
     @classmethod
     def _candidate(cls) -> dict[str, object]:
@@ -706,6 +739,301 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
     assert fixture.boundary_calls == first_boundary_calls
     assert [event.name for event in second.events] == fixture.expected_stage_names
     assert [(event.name, event.reason) for event in second.events if not event.reused] == []
+
+
+def test_partial_selected_download_fails_and_can_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataset_builder import _pipeline_runtime
+
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    control = _FixtureControl()
+    selected_ids = ("accepted-video", "retry-video")
+    attempts = 0
+
+    def download(**kwargs: object) -> list[download_scraped_videos.DownloadOutcome]:
+        nonlocal attempts
+        attempts += 1
+        assert kwargs["selected_video_ids"] == selected_ids
+        fixture.video_dir.mkdir(parents=True, exist_ok=True)
+        if attempts == 2:
+            assert (fixture.video_dir / f"{selected_ids[0]}.mp4").is_file()
+        entries: dict[str, dict[str, object]] = {}
+        outcomes: list[download_scraped_videos.DownloadOutcome] = []
+        for video_id in selected_ids[:attempts]:
+            path = fixture.video_dir / f"{video_id}.mp4"
+            if not path.exists():
+                path.write_bytes(b"fixture video")
+            entry: dict[str, object] = dict(
+                video_id=video_id,
+                title=f"Fixture {video_id}",
+                url=f"https://example.test/{video_id}",
+                commentary_eligible=True,
+            )
+            entries[path.name] = entry
+            outcomes.append(download_scraped_videos.DownloadOutcome(
+                video_id, path.name, entry, False,
+            ))
+        if attempts == 1:
+            outcomes.append(download_scraped_videos.DownloadOutcome(
+                selected_ids[1], None, None, True,
+            ))
+        download_scraped_videos._write_manifest(
+            fixture.video_dir / fixture.scraper_config.SOURCES_MANIFEST_NAME,
+            {"dataset": "scraped-professional", "videos": entries},
+        )
+        return outcomes
+
+    monkeypatch.setattr(
+        _pipeline_runtime.download_scraped_videos,
+        "download_all_videos",
+        download,
+    )
+
+    candidate_input = fixture.run_dir / "stages" / "triage" / "candidates.csv"
+    selection_input = (
+        fixture.run_dir / "stages" / "selection" / fixture.runtime_module.SELECTED_VIDEOS_FILENAME
+    )
+    candidate_input.parent.mkdir(parents=True)
+    selection_input.parent.mkdir(parents=True)
+    candidate_input.write_text("fixture candidates\n", encoding="utf-8")
+    selection_input.write_bytes(b"fixture selection")
+
+    class PartialDownloadRuntime(_FixtureRuntime):
+        def __init__(
+            self,
+            config: cli.BuilderConfig,
+            run_dir: Path,
+            source_commit: str,
+        ) -> None:
+            super().__init__(run_dir, control)
+            self.download_runtime = _pipeline_runtime.DefaultPipelineRuntime(
+                config,
+                run_dir,
+                source_commit,
+            )
+            self.download_runtime.current_interpreter = self.interpreter
+
+        def plans(self, phase: str, manifest: RunManifest) -> tuple[StagePlan, ...]:
+            if phase != "download":
+                return super().plans(phase, manifest)
+            self.control.planned.append(phase)
+            self.download_runtime.state.selected_ids = selected_ids
+            return tuple(self.download_runtime._download_plans(manifest))
+
+    def factory(
+        config: cli.BuilderConfig,
+        run_dir: Path,
+        source_commit: str,
+    ) -> PartialDownloadRuntime:
+        return PartialDownloadRuntime(config, run_dir, source_commit)
+
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=factory,
+    )
+    first_executed = tuple(control.executed)
+    second = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=factory,
+    )
+    first_download = next(event for event in first.events if event.name == "download")
+    second_download = next(event for event in second.events if event.name == "download")
+    first_recorded = next(stage for stage in first.manifest.stages if stage.name == "download")
+    recorded = next(stage for stage in second.manifest.stages if stage.name == "download")
+
+    assert first.stopped_after == "download"
+    assert first_download.outcome is StageOutcome.FAILED
+    assert dict(first_recorded.counts) == {"selected": 2, "downloaded": 1, "failed": 1}
+    assert "metadata" not in first_executed
+    assert second.stopped_after is None
+    assert second_download.outcome is StageOutcome.PROCESSED
+    assert second_download.reused is False
+    assert dict(recorded.counts) == {"selected": 2, "downloaded": 2, "failed": 0}
+    assert attempts == 2
+
+
+def test_projection_is_produced_once_and_restored_for_assembly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    producer = fixture.runtime_module.assemble_rally_records
+    calls: list[str] = []
+
+    def assemble_spy(**kwargs: object) -> RallyRecordProjection:
+        calls.append(str(kwargs["video_id"]))
+        return producer(**kwargs)
+
+    monkeypatch.setattr(fixture.runtime_module, "assemble_rally_records", assemble_spy)
+
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    projection_payload = vision.load_json_gz(projection_path)
+    records_path = fixture.run_dir / "rally_records.json.gz"
+    collection = vision.load_json_gz(records_path)
+
+    assert first.stopped_after is None
+    assert calls == [fixture.video_id]
+    assert projection_payload["schema"] == RALLY_RECORD_PROJECTION_SCHEMA
+    assert projection_payload["source"] == collection["sources"][0]
+    assert projection_payload["records"] == collection["records"]
+    records_path.unlink()
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in resumed.events}
+
+    assert calls == [fixture.video_id]
+    assert events[f"primitive_projection:{fixture.video_id}"].reused is True
+    assert events["assembly"].reused is False
+    assert events["report"].reused is False
+    rebuilt = vision.load_json_gz(records_path)
+    assert rebuilt["sources"] == [projection_payload["source"]]
+    assert rebuilt["records"] == projection_payload["records"]
+
+
+def test_corrupt_projection_invalidates_resume_and_is_reproduced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+    producer = fixture.runtime_module.assemble_rally_records
+    calls = 0
+
+    def assemble_spy(**kwargs: object) -> RallyRecordProjection:
+        nonlocal calls
+        calls += 1
+        return producer(**kwargs)
+
+    monkeypatch.setattr(fixture.runtime_module, "assemble_rally_records", assemble_spy)
+    cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    payload = vision.load_json_gz(projection_path)
+    del payload["records"][0]["contacts"]["accepted"]
+    vision.save_json_gz(projection_path, payload)
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in resumed.events}
+
+    assert calls == 2
+    assert events[f"primitive_projection:{fixture.video_id}"].reused is False
+    assert events["assembly"].reused is False
+    assert events["report"].reused is False
+
+
+def test_assembly_uses_selected_video_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataset_builder import _pipeline_runtime
+
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    run_dir = tmp_path / "run"
+    manifest = RunManifest("ordered-run", "2026-08-12T00:00:00Z")
+    write_run_manifest(run_dir, manifest)
+    runtime = _pipeline_runtime.DefaultPipelineRuntime(config, run_dir, "a" * 40)
+    runtime.current_interpreter = InterpreterIdentity("/fixture/python", "Python 3.12")
+    runtime.state.selected_ids = ("second", "first")
+    runtime.state.active_ids = {"first", "second"}
+    runtime.state.projections = {
+        "first": RallyRecordProjection("a" * 64, {"video_id": "first"}, ({"row": 1},)),
+        "second": RallyRecordProjection("b" * 64, {"video_id": "second"}, ({"row": 2},)),
+    }
+    captured: list[str] = []
+
+    def write_spy(
+        _run_dir: Path,
+        _manifest: RunManifest,
+        projections: list[RallyRecordProjection],
+        **_kwargs: object,
+    ) -> RallyRecordArtifacts:
+        captured.extend(str(projection.source["video_id"]) for projection in projections)
+        return RallyRecordArtifacts(
+            run_dir / "rally_records.json.gz",
+            run_dir / "run_manifest.json.gz",
+        )
+
+    monkeypatch.setattr(_pipeline_runtime, "write_rally_records", write_spy)
+
+    result = runtime._assembly_plans(manifest)[0].execute()
+
+    assert captured == ["second", "first"]
+    assert runtime.state.records == [{"row": 2}, {"row": 1}]
+    assert result.counts == {"videos": 2, "rallies": 2}
+
+
+def test_projection_manifest_keeps_upstream_stages_appended_after_retained_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    completed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    ).manifest
+    stages = {stage.name: stage for stage in completed.stages}
+    selection = replace(stages["selection"], dependencies=())
+    annotation = stages[f"annotation:{fixture.video_id}"]
+    projection = stages[f"primitive_projection:{fixture.video_id}"]
+    retained_annotation = replace(
+        annotation,
+        name="annotation:retained",
+        dependencies=("selection",),
+    )
+    retained_projection = replace(
+        projection,
+        name="primitive_projection:retained",
+        dependencies=("annotation:retained",),
+    )
+    rebuilt_annotation = replace(
+        annotation,
+        name="annotation:rebuilt",
+        dependencies=("selection",),
+    )
+    reordered = replace(
+        completed,
+        stages=(selection, retained_annotation, retained_projection, rebuilt_annotation),
+    )
+
+    projection_input = fixture.runtime_module._projection_input_manifest(reordered)
+
+    assert [stage.name for stage in projection_input.stages] == [
+        "selection",
+        "annotation:retained",
+        "annotation:rebuilt",
+    ]
 
 
 @pytest.mark.parametrize("change_directory", [False, True], ids=["predictor", "directory"])
@@ -987,8 +1315,11 @@ def test_silent_visual_source_records_ineligible_commentary_reason(
 
     payload = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
     records = payload["records"]
+    assert payload["schema"] == RALLY_RECORD_COLLECTION_SCHEMA
+    assert len(payload["sources"]) == 1
     assert isinstance(records, list) and len(records) == 1
     assert isinstance(records[0], dict)
+    assert records[0]["schema"] == RALLY_RECORD_SCHEMA
     commentary = records[0]["commentary"]
     assert isinstance(commentary, dict)
     assert commentary["missing_reason"] == COMMENTARY_INELIGIBLE
@@ -1033,6 +1364,32 @@ def test_report_reruns_when_an_excluded_video_failure_reason_changes(
     assert failure_reason in str(vision.load_json_gz(
         fixture.run_dir / fixture.runtime_module.REPORT_FILENAME,
     )["exclusions"][fixture.video_id])
+
+
+def test_vision_exception_reaches_coordinator_outcome_and_exclusion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+
+    def fail_pose(**_kwargs: object) -> vision.PoseExtraction:
+        raise LookupError("fixture pose boundary failed")
+
+    monkeypatch.setattr(fixture.vision_plans, "extract_rtmlib_pose_stage", fail_pose)
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    expected_reason = "LookupError: fixture pose boundary failed"
+    pose_event = next(event for event in result.events if event.name == f"pose:{fixture.video_id}")
+    assert pose_event.outcome is StageOutcome.FAILED
+    assert pose_event.reason == expected_reason
+    assert result.terminal_error == "every selected video was excluded before record assembly"
+    report = vision.load_json_gz(fixture.run_dir / fixture.runtime_module.REPORT_FILENAME)
+    assert report["exclusions"] == {fixture.video_id: expected_reason}
 
 
 def test_disabled_commentary_resume_reuses_every_visual_stage(
@@ -1210,6 +1567,48 @@ def test_every_selected_video_excluded_is_a_terminal_error(
     report = vision.load_json_gz(fixture.run_dir / fixture.runtime_module.REPORT_FILENAME)
     assert report["processed_video_ids"] == []
     assert report["rally_count"] == 0
+    projection_path = (
+        fixture.run_dir
+        / "stages"
+        / "primitive_projection"
+        / fixture.video_id
+        / fixture.runtime_module.PROJECTION_FILENAME
+    )
+    collection = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+    assert not projection_path.exists()
+    assert collection["sources"] == []
+    assert collection["records"] == []
+
+
+def test_projection_failure_excludes_video_without_blocking_empty_assembly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, with_rally=True)
+
+    def fail_projection(**_kwargs: object) -> RallyRecordProjection:
+        raise RuntimeError("fixture projection failure")
+
+    monkeypatch.setattr(
+        fixture.runtime_module,
+        "assemble_rally_records",
+        fail_projection,
+    )
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in result.events}
+    collection = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+
+    assert events[f"primitive_projection:{fixture.video_id}"].outcome is StageOutcome.FAILED
+    assert events["assembly"].outcome is StageOutcome.PROCESSED
+    assert events["report"].outcome is StageOutcome.PROCESSED
+    assert result.terminal_error == "every selected video was excluded before record assembly"
+    assert collection["sources"] == []
+    assert collection["records"] == []
 
 
 def test_required_failure_unpublishes_invalidated_final_outputs(
@@ -1255,8 +1654,8 @@ def test_stage_reset_rejects_a_symlinked_stage_root(tmp_path: Path) -> None:
     marker = outside / "search" / "keep.txt"
     marker.write_text("keep", encoding="utf-8")
     (run_dir / "stages").symlink_to(outside, target_is_directory=True)
-    support = RuntimeSupport()
-    support.run_dir = run_dir
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    support = RuntimeSupport(config, run_dir)
 
     with pytest.raises(ValueError, match="stage root must not be a symlink"):
         support._reset_stage_dir("search")
@@ -1275,9 +1674,28 @@ def test_mutable_root_validation_rejects_a_symlinked_workspace(
     outside.mkdir()
     workspace = run_dir / "workspace"
     workspace.symlink_to(outside, target_is_directory=True)
-    support = RuntimeSupport()
-    support.run_dir = run_dir
-    support.workspace = workspace
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    support = RuntimeSupport(config, run_dir)
 
     with pytest.raises(ValueError, match="scraper workspace must not be a symlink"):
         support._validate_mutable_roots()
+
+
+def test_runtime_support_owns_paths_interpreters_and_isolated_typed_state(
+    tmp_path: Path,
+) -> None:
+    from dataset_builder._runtime_support import RuntimeState, RuntimeSupport
+
+    config = cli.load_builder_config(_write_config(tmp_path / "trial.toml"))
+    first = RuntimeSupport(config, tmp_path / "first")
+    second = RuntimeSupport(config, tmp_path / "second")
+
+    assert first.config is config
+    assert first.workspace == tmp_path / "first" / "workspace"
+    assert isinstance(first.state, RuntimeState)
+    assert first.current_interpreter is None
+    assert first.tracknet_interpreter is None
+    assert first.pose_interpreter is None
+    assert first.ffmpeg_interpreter is None
+    first.state.active_ids.add("video")
+    assert second.state.active_ids == set()

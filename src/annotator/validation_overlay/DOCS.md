@@ -64,7 +64,8 @@ per scene or per rally rather than per frame, do that mapping yourself. Mutate
 
 **A `main()`** that probes the video, reads the segments, loads and validates
 your inputs, builds a plan, and calls `render()`. Copy the shape of
-`overlays/shuttle_track.py`. It runs to 134 lines, most of them validation.
+`overlays/shuttle_track.py`; shared input contracts belong in a lightweight
+annotator module rather than in the overlay.
 
 Use `style.scale` from the `HudStyle` for any pixel measurement, so your marks
 size themselves the way the box does. Take new colours from

@@ -492,9 +492,9 @@ sidecar records sorted half-open `inpaint_selected` frame spans and the
 inpaint status
 (`docs/tracknet/inpaint_sidecar.md:33-87`).
 
-No production consumer currently reads that JSON. The existing
-`shuttle_hallucination_mask` parameter in `run_video` is the intended
-future seam
+The dataset builder reads and validates that JSON as source provenance. It
+uses the fill spans for quality measurement, while recurrence-guard codes are
+the rejection evidence passed to `run_video`
 (`docs/tracknet/inpaint_sidecar_consumption.md:26-69`).
 
 ## Current-policy mismatch to keep visible

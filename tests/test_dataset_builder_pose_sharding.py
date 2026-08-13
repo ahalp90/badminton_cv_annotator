@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from fractions import Fraction
 import os
 from pathlib import Path
@@ -11,7 +12,6 @@ import sys
 import tempfile
 import threading
 import time
-from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
@@ -21,7 +21,6 @@ from annotator.video_metadata import VideoMetadata
 from dataset_builder import _pose_process as pose_process_module
 from dataset_builder import _vision_plans, cli, pose_sharding, vision
 from dataset_builder._pose_process import POSE_CHILD_STEM, run_isolated_pose_process
-from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
 from dataset_builder._runtime_support import RuntimeSupport
 from dataset_builder.models import InterpreterIdentity, StageOutcome
 
@@ -135,7 +134,7 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
 
     monkeypatch.setattr(pose_sharding, "run_isolated_pose_process", fake_run)
     output_dir = tmp_path / "pose"
-    stage = pose_sharding.extract_sharded_rtmlib_pose_stage(
+    extraction = pose_sharding.extract_sharded_rtmlib_pose_stage(
         metadata=metadata,
         output_dir=output_dir,
         interpreter=interpreter,
@@ -144,8 +143,6 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
         n_max=2,
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    extraction = stage.require_value()
     command = observed["command"]
     assert isinstance(command, list)
     assert command[0] == str(interpreter.resolve())
@@ -166,11 +163,15 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
     assert not list(output_dir.glob(".rtmlib-sharded-*"))
 
 
-@pytest.mark.parametrize("failure", ["subprocess", "padding"])
+@pytest.mark.parametrize(
+    ("failure", "error_type"),
+    [("subprocess", RuntimeError), ("padding", ValueError)],
+)
 def test_sharded_pose_failure_publishes_no_final_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
+    error_type: type[Exception],
 ) -> None:
     metadata = _metadata(tmp_path)
     interpreter = _interpreter(tmp_path)
@@ -187,16 +188,15 @@ def test_sharded_pose_failure_publishes_no_final_artifacts(
 
     monkeypatch.setattr(pose_sharding, "run_isolated_pose_process", fake_run)
     output_dir = tmp_path / "pose"
-    stage = pose_sharding.extract_sharded_rtmlib_pose_stage(
-        metadata=metadata,
-        output_dir=output_dir,
-        interpreter=interpreter,
-        shards=4,
-        n_max=2,
-    )
+    with pytest.raises(error_type):
+        pose_sharding.extract_sharded_rtmlib_pose_stage(
+            metadata=metadata,
+            output_dir=output_dir,
+            interpreter=interpreter,
+            shards=4,
+            n_max=2,
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None
     assert not any(path.exists() for path in vision.pose_artifact_paths(output_dir).as_mapping().values())
     assert not list(output_dir.glob(".rtmlib-sharded-*"))
 
@@ -370,19 +370,22 @@ def test_pose_plan_keeps_one_shard_sequential_and_selects_multiple_shards(
 ) -> None:
     metadata = _metadata(tmp_path)
     arrays = _pose_arrays(metadata.frame_count)
-    runtime = RuntimeSupport()
-    runtime.run_dir = tmp_path / "run"
-    runtime.state = SimpleNamespace(metadata={"video": metadata}, poses={}, exclusions={})
-    runtime.config = SimpleNamespace(pose_shards=shards, pose_device="cpu", pose_n_max=2)
+    config = replace(
+        cli.load_builder_config(cli.REPO_ROOT / "configs/dataset_builder/trial.toml"),
+        pose_shards=shards,
+        pose_device="cpu",
+        pose_n_max=2,
+    )
+    runtime = RuntimeSupport(config, tmp_path / "run")
+    runtime.state.metadata["video"] = metadata
     runtime.pose_interpreter = InterpreterIdentity("/fixture/python", "Python 3.12")
     observed: list[str] = []
 
-    def extraction(boundary: str, **kwargs: object) -> vision.VisionStageResult[vision.PoseExtraction]:
+    def extraction(boundary: str, **kwargs: object) -> vision.PoseExtraction:
         observed.append(boundary)
         output_dir = Path(kwargs["output_dir"])
         artifacts = vision.save_pose_arrays(output_dir, arrays, metadata.frame_count)
-        result = vision.PoseExtraction(arrays, artifacts, (boundary,))
-        return vision.VisionStageResult("pose_extraction", StageOutcome.PROCESSED, result)
+        return vision.PoseExtraction(arrays, artifacts, (boundary,))
 
     monkeypatch.setattr(
         _vision_plans,
@@ -395,7 +398,7 @@ def test_pose_plan_keeps_one_shard_sequential_and_selects_multiple_shards(
         lambda **kwargs: extraction("sharded", **kwargs),
     )
 
-    plan = _vision_plans._pose_plan(cast(DefaultPipelineRuntime, runtime), "video")
+    plan = _vision_plans._pose_plan(runtime, "video")
     execution = plan.execute()
 
     assert execution.outcome is StageOutcome.PROCESSED

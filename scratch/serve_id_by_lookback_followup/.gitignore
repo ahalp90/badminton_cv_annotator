@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+delegates/
+outputs/
+**.mp4
+serve_id_by_lookback_followup.tar
+serve_id_followup_handover/
+!HANDOVER.md

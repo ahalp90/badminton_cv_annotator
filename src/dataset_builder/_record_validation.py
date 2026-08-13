@@ -1,20 +1,20 @@
-"""Deep structural validation for persisted ``rally-record/0.1`` rows."""
+"""Structural validation for persisted rally-record collections."""
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 import math
 from pathlib import Path
-import re
 
 from annotator.video_metadata import VideoMetadata
-from dataset_builder.manifest import MANIFEST_FILENAME
-from dataset_builder.models import ArtifactIntegrity, RunManifest, StageOutcome
+from dataset_builder.manifest import redact_configuration
+from dataset_builder.models import RunManifest, StageOutcome
 
 
-RALLY_RECORD_SCHEMA = "rally-record/0.1"
+RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.2"
+RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.2"
+RALLY_RECORD_SCHEMA = "rally-record/0.2"
 RALLY_RECORDS_FILENAME = "rally_records.json.gz"
 RAW_REPLAY_ARTIFACT = "raw_replay_mask"
 DEFINITIVE_EXCLUSION_ARTIFACT = "definitive_exclusion_mask"
@@ -22,78 +22,75 @@ DEFINITIVE_EXCLUSION_ARTIFACT = "definitive_exclusion_mask"
 _HALVES = frozenset({"Top", "Bot"})
 _VERDICTS = frozenset({"won", "lost"})
 _VERDICT_SOURCES = frozenset({"next_server", "landing_geometry", "net_rule"})
-_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def validate_record_collection(
-    run_id: str,
+    manifest: RunManifest,
+    sources: Sequence[Mapping[str, object]],
     records: Sequence[Mapping[str, object]],
 ) -> None:
-    """Validate every required persisted field and composite record key."""
-    collection_run_id = _string(run_id, "record collection run_id")
+    """Validate source provenance, minimal rows, ordering, and composite keys."""
+    if not isinstance(manifest, RunManifest):
+        raise TypeError("manifest must be RunManifest")
+    source_entries: dict[tuple[str, str], tuple[VideoMetadata, bool]] = {}
+    source_order: dict[tuple[str, str], int] = {}
+    for index, raw_source in enumerate(sources):
+        source_key, metadata, commentary_eligible = _source(raw_source, manifest)
+        if source_key in source_entries:
+            raise ValueError(f"record source is duplicated: {source_key}")
+        source_entries[source_key] = (metadata, commentary_eligible)
+        source_order[source_key] = index
+
     seen: set[tuple[str, str, str, int]] = set()
-    rally_ids: defaultdict[tuple[str, str], set[int]] = defaultdict(set)
-    rally_spans: defaultdict[tuple[str, str], dict[int, tuple[int, int]]] = defaultdict(dict)
-    outcome_links: defaultdict[
+    rally_spans: dict[tuple[str, str], list[tuple[int, int]]] = {
+        source_key: [] for source_key in source_entries
+    }
+    outcome_links: dict[
         tuple[str, str],
-        dict[int, tuple[str | None, str | None]],
-    ] = defaultdict(dict)
-    run_snapshot: Mapping[str, object] | None = None
-    source_snapshots: dict[tuple[str, str], Mapping[str, object]] = {}
+        list[tuple[str | None, str | None]],
+    ] = {source_key: [] for source_key in source_entries}
+    previous_source_index = -1
     for raw_record in records:
         record = _object(raw_record, "rally record")
         _exact_fields(
             record,
-            {
-                "schema", "key", "run", "source", "rally", "contacts",
-                "outcomes", "artifacts", "commentary",
-            },
+            {"schema", "key", "rally", "contacts", "outcomes", "commentary"},
             "rally record",
         )
         if record["schema"] != RALLY_RECORD_SCHEMA:
-            raise ValueError("rally record schema differs from rally-record/0.1")
-        key = _record_key(record["key"], collection_run_id)
+            raise ValueError(f"rally record schema differs from {RALLY_RECORD_SCHEMA}")
+        key = _record_key(record["key"], manifest.run_id)
         if key in seen:
             raise ValueError(f"rally record composite key is duplicated: {key}")
         seen.add(key)
         _, source_dataset, video_id, rally_id = key
         source_key = (source_dataset, video_id)
-        rally_ids[source_key].add(rally_id)
-        run = _run(record["run"], collection_run_id)
-        raw_run = _object(record["run"], "record run provenance")
-        if run_snapshot is None:
-            run_snapshot = raw_run
-        elif raw_run != run_snapshot:
-            raise ValueError("record run provenance differs within its collection")
-        metadata, commentary_eligible = _source(
-            record["source"], source_dataset, video_id,
-        )
-        raw_source = _object(record["source"], "record source provenance")
-        if source_key in source_snapshots and raw_source != source_snapshots[source_key]:
-            raise ValueError("record source provenance differs within one source video")
-        source_snapshots[source_key] = raw_source
-        rally = _rally(record["rally"], rally_id, metadata)
-        rally_spans[source_key][rally_id] = rally
-        stroke_count = _contacts(record["contacts"], rally)
-        outcome_links[source_key][rally_id] = _outcomes(
-            record["outcomes"], metadata.frame_count, stroke_count,
-        )
-        _record_artifacts(record["artifacts"], run)
-        _commentary(record["commentary"], commentary_eligible)
-    for source_key, ids in rally_ids.items():
-        if ids != set(range(len(ids))):
+        if source_key not in source_entries:
+            raise ValueError(f"rally record has no collection source: {source_key}")
+        current_source_index = source_order[source_key]
+        if current_source_index < previous_source_index:
+            raise ValueError("rally records do not follow collection source order")
+        previous_source_index = current_source_index
+        metadata, commentary_eligible = source_entries[source_key]
+        if rally_id != len(rally_spans[source_key]):
             raise ValueError(f"rally ids must be contiguous from zero for source {source_key}")
-        ordered_spans = [rally_spans[source_key][rally_id] for rally_id in range(len(ids))]
-        for previous, current in zip(ordered_spans, ordered_spans[1:]):
-            if current[0] < previous[1]:
-                raise ValueError(f"rally spans overlap or are unordered for source {source_key}")
-        for rally_id in range(len(ids)):
+        rally = _rally(record["rally"], rally_id, metadata)
+        if rally_spans[source_key] and rally[0] < rally_spans[source_key][-1][1]:
+            raise ValueError(f"rally spans overlap or are unordered for source {source_key}")
+        rally_spans[source_key].append(rally)
+        stroke_count = _contacts(record["contacts"], rally)
+        outcome_links[source_key].append(_outcomes(
+            record["outcomes"], metadata.frame_count, stroke_count,
+        ))
+        _commentary(record["commentary"], commentary_eligible)
+    for source_key, links in outcome_links.items():
+        for rally_id in range(len(links)):
             expected_next = (
-                outcome_links[source_key][rally_id + 1][0]
-                if rally_id + 1 < len(ids)
+                links[rally_id + 1][0]
+                if rally_id + 1 < len(links)
                 else None
             )
-            if outcome_links[source_key][rally_id][1] != expected_next:
+            if links[rally_id][1] != expected_next:
                 raise ValueError(f"next_server conflicts with the following rally for {source_key}")
 
 
@@ -169,104 +166,18 @@ def _record_key(payload: object, run_id: str) -> tuple[str, str, str, int]:
     return key_run_id, source_dataset, video_id, rally_id
 
 
-def _run(payload: object, run_id: str) -> dict[str, object]:
-    run = _object(payload, "record run provenance")
-    _exact_fields(
-        run,
-        {
-            "run_id", "created_at_utc", "run_manifest", "input_manifest_sha256", "code_version",
-            "configuration", "integrity", "stage_outcomes",
-        },
-        "record run provenance",
-    )
-    if _string(run["run_id"], "record run_id") != run_id:
-        raise ValueError("record run provenance differs from its composite key")
-    _string(run["created_at_utc"], "record created_at_utc")
-    if run["run_manifest"] != MANIFEST_FILENAME:
-        raise ValueError("record run provenance must reference run_manifest.json.gz")
-    manifest_digest = _string(
-        run["input_manifest_sha256"], "record input_manifest_sha256",
-    )
-    if not _SHA256_PATTERN.fullmatch(manifest_digest):
-        raise ValueError("record input_manifest_sha256 must be lowercase SHA-256")
-    _string(run["code_version"], "record code_version")
-    configuration = _run_configuration(run["configuration"])
-    integrity = _run_integrity(run["integrity"])
-    outcomes = _stage_outcomes(run["stage_outcomes"])
-    if set(configuration["stages"]) != set(integrity) or set(integrity) != set(outcomes):
-        raise ValueError("record run stage configuration, integrity, and outcomes differ")
-    return {
-        "configuration": configuration,
-        "integrity": integrity,
-        "stage_outcomes": outcomes,
-    }
-
-
-def _run_configuration(payload: object) -> dict[str, Mapping[str, object]]:
-    configuration = _object(payload, "record run configuration")
-    _exact_fields(configuration, {"assembly", "stages"}, "record run configuration")
-    assembly = _json_object(configuration["assembly"], "assembly configuration")
-    stages = _object(configuration["stages"], "stage configurations")
-    normalized_stages: dict[str, Mapping[str, object]] = {}
-    for stage_name, raw_stage in stages.items():
-        name = _string(stage_name, "stage configuration name")
-        normalized_stages[name] = _json_object(raw_stage, f"stage {name} configuration")
-    return {"assembly": assembly, "stages": normalized_stages}
-
-
-def _run_integrity(payload: object) -> dict[str, dict[str, object]]:
-    stages = _object(payload, "record run integrity")
-    normalized: dict[str, dict[str, object]] = {}
-    for stage_name, raw_stage in stages.items():
-        name = _string(stage_name, "stage integrity name")
-        stage = _object(raw_stage, f"stage {name} integrity")
-        _exact_fields(
-            stage,
-            {"fingerprint", "inputs", "model_weights", "outputs"},
-            f"stage {name} integrity",
-        )
-        fingerprint = _string(stage["fingerprint"], f"stage {name} fingerprint")
-        if not _SHA256_PATTERN.fullmatch(fingerprint):
-            raise ValueError(f"stage {name} fingerprint must be lowercase SHA-256")
-        normalized[name] = {
-            "fingerprint": fingerprint,
-            "inputs": _artifact_list(stage["inputs"], f"stage {name} inputs"),
-            "model_weights": _artifact_list(
-                stage["model_weights"], f"stage {name} model weights",
-            ),
-            "outputs": _artifact_list(stage["outputs"], f"stage {name} outputs"),
-        }
-    return normalized
-
-
-def _stage_outcomes(payload: object) -> dict[str, StageOutcome]:
-    stages = _object(payload, "record stage outcomes")
-    normalized: dict[str, StageOutcome] = {}
-    for stage_name, raw_stage in stages.items():
-        name = _string(stage_name, "stage outcome name")
-        stage = _object(raw_stage, f"stage {name} outcome")
-        _exact_fields(stage, {"outcome", "reason"}, f"stage {name} outcome")
-        outcome = _stage_outcome(stage["outcome"], f"stage {name} outcome")
-        reason = _optional_string(stage["reason"], f"stage {name} reason")
-        if outcome is not StageOutcome.PROCESSED and reason is None:
-            raise ValueError(f"stage {name} outcome {outcome.value!r} requires a reason")
-        normalized[name] = outcome
-    return normalized
-
-
 def _source(
     payload: object,
-    source_dataset: str,
-    video_id: str,
-) -> tuple[VideoMetadata, bool]:
+    manifest: RunManifest,
+) -> tuple[tuple[str, str], VideoMetadata, bool]:
     source = _object(payload, "record source provenance")
     _exact_fields(
         source,
-        {"source_dataset", "video_id", "source_reference", "video_metadata"},
+        {"source_dataset", "video_id", "source_reference", "video_metadata", "mask_stage"},
         "record source provenance",
     )
-    if source["source_dataset"] != source_dataset or source["video_id"] != video_id:
-        raise ValueError("record source provenance differs from its composite key")
+    source_dataset = _string(source["source_dataset"], "source dataset")
+    video_id = _string(source["video_id"], "source video_id")
     reference = _object(source["source_reference"], "source reference")
     _exact_fields(
         reference,
@@ -284,7 +195,22 @@ def _source(
     metadata = VideoMetadata.from_dict(dict(_object(source["video_metadata"], "video metadata")))
     if metadata.source_path.name != basename:
         raise ValueError("source reference conflicts with canonical video metadata")
-    return metadata, commentary_eligible
+    _mask_stage(source["mask_stage"], manifest)
+    return (source_dataset, video_id), metadata, commentary_eligible
+
+
+def _mask_stage(payload: object, manifest: RunManifest) -> None:
+    stage_name = _string(payload, "source mask stage")
+    stages = {stage.name: stage for stage in manifest.stages}
+    if stage_name not in stages:
+        raise ValueError(f"mask stage is absent from run manifest: {stage_name!r}")
+    mask_stage = stages[stage_name]
+    if mask_stage.outcome not in {StageOutcome.PROCESSED, StageOutcome.SKIPPED}:
+        raise ValueError("mask stage must have a reusable successful outcome")
+    output_names = {artifact.name for artifact in mask_stage.outputs}
+    missing = {RAW_REPLAY_ARTIFACT, DEFINITIVE_EXCLUSION_ARTIFACT} - output_names
+    if missing:
+        raise ValueError(f"mask stage is missing required outputs: {sorted(missing)}")
 
 
 def _rally(payload: object, rally_id: int, metadata: VideoMetadata) -> tuple[int, int]:
@@ -491,54 +417,6 @@ def _geometric_verdict(payload: object, *, resolved: bool) -> None:
         raise ValueError("unresolved striker cannot contain geometric verdict primitives")
 
 
-def _record_artifacts(payload: object, run: Mapping[str, object]) -> None:
-    artifacts = _object(payload, "record artifacts")
-    _exact_fields(artifacts, {"by_stage", "masks"}, "record artifacts")
-    integrity = _object(run["integrity"], "record run integrity")
-    by_stage = _object(artifacts["by_stage"], "record artifacts by stage")
-    expected_by_stage = {
-        stage_name: stage["outputs"]
-        for stage_name, stage in integrity.items()
-        if stage["outputs"]
-    }
-    normalized_by_stage = {
-        _string(stage_name, "artifact stage name"): _artifact_list(
-            rows, f"stage {stage_name} record artifacts",
-        )
-        for stage_name, rows in by_stage.items()
-    }
-    if normalized_by_stage != expected_by_stage:
-        raise ValueError("record stage artifact references differ from run integrity")
-    _mask_artifacts(artifacts["masks"], run)
-
-
-def _mask_artifacts(payload: object, run: Mapping[str, object]) -> None:
-    masks = _object(payload, "record mask artifacts")
-    _exact_fields(
-        masks,
-        {"stage", "stage_configuration", RAW_REPLAY_ARTIFACT, DEFINITIVE_EXCLUSION_ARTIFACT},
-        "record mask artifacts",
-    )
-    stage_name = _string(masks["stage"], "mask stage name")
-    configuration = _object(run["configuration"], "record run configuration")
-    stage_configurations = _object(configuration["stages"], "stage configurations")
-    if stage_name not in stage_configurations:
-        raise ValueError("mask stage is absent from record run configuration")
-    mask_configuration = _json_object(masks["stage_configuration"], "mask stage configuration")
-    if mask_configuration != stage_configurations[stage_name]:
-        raise ValueError("mask stage configuration differs from run configuration")
-    integrity = _object(run["integrity"], "record run integrity")
-    outputs = _object(integrity[stage_name], "mask stage integrity")["outputs"]
-    stage_outcomes = _object(run["stage_outcomes"], "record stage outcomes")
-    if stage_outcomes.get(stage_name) not in {StageOutcome.PROCESSED, StageOutcome.SKIPPED}:
-        raise ValueError("record mask stage must have a reusable successful outcome")
-    outputs_by_name = {artifact["name"]: artifact for artifact in outputs}
-    for artifact_name in (RAW_REPLAY_ARTIFACT, DEFINITIVE_EXCLUSION_ARTIFACT):
-        artifact = ArtifactIntegrity.from_dict(masks[artifact_name]).to_dict()
-        if artifact["name"] != artifact_name or outputs_by_name.get(artifact_name) != artifact:
-            raise ValueError(f"record mask artifact {artifact_name!r} differs from run integrity")
-
-
 def _commentary(payload: object, commentary_eligible: bool) -> None:
     commentary = _object(payload, "record commentary")
     _exact_fields(
@@ -557,6 +435,8 @@ def _commentary(payload: object, commentary_eligible: bool) -> None:
     chunk_id = _optional_string(commentary["chunk_id"], "commentary chunk_id")
     diagnostics = _commentary_diagnostics(commentary["cleaning_diagnostics"])
     provenance = _json_object(commentary["provenance"], "commentary provenance")
+    if redact_configuration(provenance) != provenance:
+        raise ValueError("commentary provenance contains unredacted secrets")
     if chunk_id is None:
         _missing_commentary(commentary, diagnostics)
         return
@@ -595,15 +475,6 @@ def _commentary_diagnostics(payload: object) -> tuple[float | None, bool | None]
         _optional_number(diagnostics["bert_f1"], "commentary bert_f1"),
         _optional_boolean(diagnostics["clean_pass"], "commentary clean_pass"),
     )
-
-
-def _artifact_list(payload: object, name: str) -> list[dict[str, object]]:
-    rows = _list(payload, name)
-    artifacts = [ArtifactIntegrity.from_dict(row).to_dict() for row in rows]
-    names = [artifact["name"] for artifact in artifacts]
-    if len(names) != len(set(names)):
-        raise ValueError(f"{name} contains duplicate artifact names")
-    return artifacts
 
 
 def _json_object(payload: object, name: str) -> Mapping[str, object]:

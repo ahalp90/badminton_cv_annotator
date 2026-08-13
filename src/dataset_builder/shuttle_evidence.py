@@ -12,12 +12,12 @@ from typing import Any
 import numpy as np
 
 from annotator.inpaint_guard import code_counts, grade_track
+from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
     save_json_gz,
     save_npy_xz,
-    validate_track,
 )
 
 
@@ -76,7 +76,7 @@ class ShuttleEvidence:
 
     def __post_init__(self) -> None:
         frame_count = len(self.track)
-        validate_track(self.track, frame_count)
+        validate_shuttle_track(self.track, frame_count)
         _validate_fill_mask(self.inpaint_fill_mask, frame_count)
         _validate_guard_codes(self.guard_codes, frame_count)
         object.__setattr__(self, "track", np.ascontiguousarray(self.track).copy())
@@ -119,7 +119,7 @@ def persist_shuttle_evidence(
     inpaint_model: Path | None,
 ) -> ShuttleEvidence:
     """Validate producer provenance, derive guard grades, and persist them."""
-    validate_track(track, frame_count)
+    validate_shuttle_track(track, frame_count)
     fill_mask = load_inpaint_fill_mask(
         artifacts.inpaint_sidecar,
         input_video=input_video,
@@ -148,7 +148,7 @@ def load_shuttle_evidence(
 ) -> ShuttleEvidence:
     """Load and semantically revalidate persisted shuttle evidence."""
     track = load_npy_xz(artifacts.shuttle_track)
-    validate_track(track, frame_count)
+    validate_shuttle_track(track, frame_count)
     fill_mask = load_inpaint_fill_mask(
         artifacts.inpaint_sidecar,
         input_video=input_video,

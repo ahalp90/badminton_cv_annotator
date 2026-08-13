@@ -14,6 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from annotator.shuttle_track import validate_shuttle_track
 from annotator.validation_overlay.core.cli import (
     DrawFn,
     build_shared_parser,
@@ -44,18 +45,7 @@ def load_track(track_path: Path, nb_frames: int) -> np.ndarray:
     if not track_path.is_file():
         raise FileNotFoundError(f"track is not a regular file: {track_path}")
     track = np.load(track_path, allow_pickle=False)
-    if track.shape != (nb_frames, 3):
-        raise ValueError(
-            f"track shape {track.shape} does not match video frame count {nb_frames} as (n_frames, 3)"
-        )
-    if not np.issubdtype(track.dtype, np.floating):
-        raise ValueError(f"track dtype must be floating, got {track.dtype}")
-    if not np.isfinite(track).all():
-        raise ValueError("track contains non-finite values")
-    tracked = track[:, 2] == 1.0
-    coordinates = track[tracked, :2]
-    if ((coordinates < 0.0) | (coordinates > 1.0)).any():
-        raise ValueError("tracked x and y coordinates must be within [0, 1]")
+    validate_shuttle_track(track, nb_frames)
     return track
 
 

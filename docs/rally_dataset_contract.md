@@ -2,19 +2,18 @@
 
 | Item | Value |
 | --- | --- |
-| Contract | `rally-record` |
-| Schema version | `rally-record/0.1` |
+| Collection contract | `rally-record-collection/0.2` |
+| Row contract | `rally-record/0.2` |
 | Status | Provisional |
-| Updated | 8 August 2026 |
+| Updated | 12 August 2026 |
 
-This document defines the logical boundary where the acquisition, annotator,
-and commentary lanes will meet. The repository currently produces the stage
-artefacts described below. It does not yet contain the general rally-record
-assembler planned for section 2.3.
+This document defines the implemented boundary where the acquisition,
+annotator, and commentary lanes meet. The dataset builder writes a compressed
+JSON collection and validates it against an immutable input-manifest snapshot.
 
-Version 0.1 fixes the record identity, timing rules, required provenance, and
-primitive evidence that an assembler must preserve. It does not freeze a
-physical file format or the final engineered feature table. Issue
+Version 0.2 fixes the provisional collection layout, record identity, timing
+rules, required provenance, and primitive evidence. It does not freeze the
+final engineered feature table or a stable version 1 storage format. Issue
 [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18) owns the
 final feature columns, column types, reliability metadata, and version 1
 schema.
@@ -72,20 +71,44 @@ extraction run.
 | Source dataset | Dataset label that namespaces video identifiers | Top-level `dataset` in `sources.toml` |
 | Source video | Manifest basename, exact string `video_id`, title, URL, and commentary eligibility | Per-video entry in `sources.toml` |
 | Video timing | Probed `fps` and `frame_count` for the decoded source used by every lane | Video probe and frame-aligned extraction outputs |
-| Code version | Git commit used for extraction, annotation, pairing, and assembly | Planned section 2.3 run manifest |
-| Run identity | Immutable non-empty `run_id` for the exact trial or extraction run | Planned section 2.3 run manifest |
-| Stage configuration | Model, weights, resolution, mode, thresholds, and other settings that affect an output | Stage configuration and planned run manifest |
+| Code version | Git commit used for extraction, annotation, pairing, and assembly | Collection envelope and input manifest |
+| Run identity | Immutable non-empty `run_id` for the exact trial or extraction run | Collection envelope and input manifest |
+| Stage configuration | Model, weights, resolution, mode, thresholds, and other settings that affect an output | Input manifest |
 | Input artefacts | Paths or stable references for shuttle, pose, court, mask, transcript, and commentary inputs | Existing stage outputs |
-| Integrity | Digest for persisted inputs and outputs when a digest is available | Release metadata or planned run manifest |
-| Stage outcome | Processed, skipped, excluded, failed, or unavailable, with a reason | Existing batch reports and planned run manifest |
+| Integrity | Digest for persisted inputs and outputs when a digest is available | Input manifest |
+| Stage outcome | Processed, skipped, excluded, failed, or unavailable, with a reason | Input manifest and batch report |
 
 An input supplied outside the acquisition lane needs an equivalent source
 reference. A local path alone is not enough provenance because it can change
 or disappear.
 
+## Persisted collection layout
+
+`rally_records.json.gz` contains one `rally-record-collection/0.2` envelope.
+The envelope stores `run_id`, `run_manifest`, `input_manifest_sha256`, the
+complete immutable `input_manifest` snapshot, `code_version`, the redacted
+assembly configuration, an ordered `sources` list, and `records`.
+
+Each source occurs once. A source contains `source_dataset`, `video_id`, the
+source reference, canonical video metadata, and the manifest stage that owns
+the annotation masks. The referenced mask stage must have a reusable outcome
+and both the raw-replay and definitive-exclusion mask outputs.
+
+Each `rally-record/0.2` row contains only `schema`, `key`, `rally`, `contacts`,
+`outcomes`, and `commentary`. Rows follow source-list order and rally IDs are
+contiguous from zero within each source. The composite key retains `run_id`,
+`source_dataset`, and `video_id`, so source identity does not depend on the
+source-list position.
+
+The loader verifies the manifest digest, code version, redaction, source and
+row structure, ordering, mask references, and all primitive relationships. It
+also requires the live run manifest to preserve and extend the embedded input
+snapshot. The manifest remains the single source of truth for stage
+configuration, integrity records, outcomes, and artifact paths.
+
 ## Primitive rally evidence
 
-Version 0.1 preserves the values already exposed by `AnnotatorResult` and the
+Version 0.2 preserves the values already exposed by `AnnotatorResult` and the
 rally CSV boundary. These are primitive pipeline outputs. They remain
 predictions or diagnostics unless a separate ground-truth source is joined.
 
@@ -168,9 +191,9 @@ assembler must normalise those empty fields to null.
 - A derived row or value that its source omits must remain null. Existing
   booleans emitted by the annotator keep their emitted values.
 
-The assembler must carry the relevant stage outcome or failure reason beside
-the record or in its referenced run manifest. It must not turn an absent stage
-into a negative label.
+The assembler carries commentary outcome details beside each commentary value.
+Other stage outcomes and failure reasons remain in the referenced manifest. An
+absent stage must not become a negative label.
 
 ## Reliability
 
@@ -204,15 +227,15 @@ then, consumers must use this origin table and the recorded stage provenance.
 | Rally annotator | Vision evidence, `fps`, configuration | Rally spans, raw and accepted contacts, and rally-level derived values |
 | Commentary triage and cleaning | Source transcript, video timing, cleaning configuration | Timestamped chunks, raw and cleaned text, alternatives, and cleaning diagnostics |
 | Commentary pairing | Rally spans, chunks, replay mask, `fps`, source manifest | One pair row per rally, with nullable chunk and commentary times |
-| Rally-record assembler, planned for section 2.3 | Validated outputs from all earlier stages and their run metadata | Records keyed by `(run_id, source_dataset, video_id, rally_id)` plus dataset-level provenance |
+| Rally-record assembler | Validated outputs from all earlier stages and their run metadata | A normalized collection keyed by `(run_id, source_dataset, video_id, rally_id)` plus dataset-level provenance |
 
 The assembler owns validation and joining. It must not rerun extraction,
 change rally boundaries, choose different contacts, or reinterpret a stage's
 missing value. It may report a failed validation and leave the run incomplete.
 
-Existing stage files remain their current interfaces. Version 0.1 does not
-require a migration or select JSON, CSV, Parquet, or another final storage
-format.
+Existing producer stage files remain their current interfaces. Version 0.2 is
+stored as compressed JSON. It remains provisional and has no compatibility
+loader for earlier drafts.
 
 ## Deferred schema decisions
 
@@ -227,6 +250,6 @@ will define and freeze:
 - model-ready tensor or sequence representations; and
 - the first stable version 1 schema.
 
-Those choices may add derived fields. They must keep the version 0.1 identity,
+Those choices may add derived fields. They must keep the version 0.2 identity,
 timing, provenance, and primitive evidence rules or record a new contract
 version with an explicit migration.

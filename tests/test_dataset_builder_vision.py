@@ -28,7 +28,6 @@ from annotator.types import ContactCandidate, DeadMaskMode
 from annotator.video_metadata import VideoMetadata
 from courtkeynet.court_corners import ConsensusRepair, FallbackDiagnostics
 from dataset_builder import vision
-from dataset_builder.models import StageOutcome
 from dataset_builder.shuttle_quality import ShuttleQualitySummary, summarize_shuttle_quality
 from scraper.commentary_pairing import pair_video
 
@@ -231,15 +230,13 @@ def test_whole_video_tracknet_conversion_reindexes_and_preserves_string_id(
     }).to_csv(csv_path, index=False)
     output = tmp_path / "vision" / vision.TRACK_FILENAME
 
-    stage = vision.convert_tracknet_csv_stage(
+    shuttle = vision.convert_tracknet_csv_stage(
         csv_path,
         video_id="match-alpha/001",
         metadata=metadata,
         output_path=output,
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    shuttle = stage.require_value()
     assert shuttle.video_id == "match-alpha/001"
     expected = np.array([[0.1, 0.1, 0.0], [0.2, 0.2, 1.0], [0.3, 0.3, 1.0]])
     np.testing.assert_allclose(shuttle.track, expected)
@@ -255,7 +252,7 @@ def test_whole_video_tracknet_conversion_reindexes_and_preserves_string_id(
         ([0, 1, 3], "must be in"),
     ],
 )
-def test_whole_video_tracknet_frame_contract_returns_failed_stage(
+def test_whole_video_tracknet_frame_contract_raises_original_error(
     tmp_path: Path,
     frames: list[float | int],
     reason: str,
@@ -264,20 +261,18 @@ def test_whole_video_tracknet_frame_contract_returns_failed_stage(
     csv_path = _tracknet_csv(tmp_path / "bad.csv", frames)
     output = tmp_path / vision.TRACK_FILENAME
 
-    stage = vision.convert_tracknet_csv_stage(
-        csv_path,
-        video_id="not-a-number",
-        metadata=metadata,
-        output_path=output,
-    )
+    with pytest.raises(ValueError, match=reason):
+        vision.convert_tracknet_csv_stage(
+            csv_path,
+            video_id="not-a-number",
+            metadata=metadata,
+            output_path=output,
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.value is None
-    assert stage.reason is not None and reason in stage.reason
     assert not output.exists()
 
 
-def test_whole_video_tracknet_rejects_non_numeric_values_as_failed_stage(tmp_path: Path) -> None:
+def test_whole_video_tracknet_rejects_non_numeric_values(tmp_path: Path) -> None:
     metadata = _metadata(tmp_path, frame_count=2)
     csv_path = tmp_path / "bad-values.csv"
     pd.DataFrame({
@@ -287,15 +282,60 @@ def test_whole_video_tracknet_rejects_non_numeric_values_as_failed_stage(tmp_pat
         "Visibility": [1, 1],
     }).to_csv(csv_path, index=False)
 
-    stage = vision.convert_tracknet_csv_stage(
+    with pytest.raises(ValueError, match="finite values"):
+        vision.convert_tracknet_csv_stage(
+            csv_path,
+            video_id="video",
+            metadata=metadata,
+            output_path=tmp_path / vision.TRACK_FILENAME,
+        )
+
+
+@pytest.mark.parametrize(("x", "y"), [(-1.0, 25.0), (101.0, 25.0), (50.0, -1.0), (50.0, 51.0)])
+def test_whole_video_tracknet_rejects_visible_coordinates_outside_video(
+    tmp_path: Path,
+    x: float,
+    y: float,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=1)
+    csv_path = tmp_path / "bad-coordinate.csv"
+    pd.DataFrame({"Frame": [0], "X": [x], "Y": [y], "Visibility": [1]}).to_csv(
+        csv_path,
+        index=False,
+    )
+
+    with pytest.raises(ValueError, match=r"within \[0, 1\]"):
+        vision.convert_tracknet_csv_stage(
+            csv_path,
+            video_id="video",
+            metadata=metadata,
+            output_path=tmp_path / vision.TRACK_FILENAME,
+        )
+
+
+def test_whole_video_tracknet_accepts_boundaries_and_ignores_invisible_coordinates(
+    tmp_path: Path,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=3)
+    csv_path = tmp_path / "boundary-coordinates.csv"
+    pd.DataFrame({
+        "Frame": [0, 1, 2],
+        "X": [0.0, 100.0, -500.0],
+        "Y": [50.0, 0.0, 500.0],
+        "Visibility": [1, 1, 0],
+    }).to_csv(csv_path, index=False)
+
+    shuttle = vision.convert_tracknet_csv_stage(
         csv_path,
         video_id="video",
         metadata=metadata,
         output_path=tmp_path / vision.TRACK_FILENAME,
     )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None and "finite numbers" in stage.reason
+    np.testing.assert_array_equal(
+        shuttle.track,
+        np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [-5.0, 10.0, 0.0]]),
+    )
 
 
 def test_scene_rows_keep_numeric_looking_string_video_ids() -> None:
@@ -329,15 +369,13 @@ def test_rtmlib_pose_uses_configured_interpreter_and_publishes_compressed_arrays
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(vision.subprocess, "run", fake_run)
-    stage = vision.extract_rtmlib_pose_stage(
+    extraction = vision.extract_rtmlib_pose_stage(
         metadata=metadata,
         output_dir=tmp_path / "pose",
         interpreter=interpreter,
         device="cpu",
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    extraction = stage.require_value()
     command = observed["command"]
     assert isinstance(command, list)
     assert command[0] == str(interpreter.resolve())
@@ -387,7 +425,7 @@ def test_compressed_numpy_publication_streams_to_atomic_xz_file(
     "failure",
     ["shape", "dtype", "frame_count", "kps_padding", "bboxes_padding", "kp_scores_padding"],
 )
-def test_pose_contract_failures_return_explicit_failed_stage(
+def test_pose_contract_failures_raise_original_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
@@ -435,14 +473,13 @@ def test_pose_contract_failures_return_explicit_failed_stage(
 
     monkeypatch.setattr(vision.subprocess, "run", fake_run)
     output_dir = tmp_path / "pose"
-    stage = vision.extract_rtmlib_pose_stage(
-        metadata=metadata,
-        output_dir=output_dir,
-        interpreter=interpreter,
-    )
+    with pytest.raises(ValueError):
+        vision.extract_rtmlib_pose_stage(
+            metadata=metadata,
+            output_dir=output_dir,
+            interpreter=interpreter,
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None
     for path in vision.pose_artifact_paths(output_dir).as_mapping().values():
         assert not path.exists()
 
@@ -479,7 +516,7 @@ def test_detected_court_stage_uses_canonical_native_resolution_and_existing_buil
     monkeypatch.setattr(court_evidence_module, "build_detected_court_evidence", fake_build)
 
     output_dir = tmp_path / "court"
-    stage = vision.build_detected_court_stage(
+    court = vision.build_detected_court_stage(
         video_id="0012",
         metadata=metadata,
         pose=pose,
@@ -487,8 +524,6 @@ def test_detected_court_stage_uses_canonical_native_resolution_and_existing_buil
         output_dir=output_dir,
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    court = stage.require_value()
     assert court.artifacts is not None
     for path in court.artifacts.as_mapping().values():
         assert path.is_file()
@@ -619,7 +654,7 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         guard_codes,
     )
 
-    stage = vision.run_full_annotation_stage(
+    output = vision.run_full_annotation_stage(
         video_id=video_id,
         metadata=metadata,
         track=track,
@@ -630,8 +665,6 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         output_dir=tmp_path / "annotation",
     )
 
-    assert stage.outcome is StageOutcome.PROCESSED
-    output = stage.require_value()
     assert output.run.result == direct_result
     assert direct_capture.raw_exclusion_mask is not None
     assert direct_capture.definitive_exclusion_mask is not None
@@ -648,20 +681,19 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
 
 def test_full_annotation_rejects_non_replay_dead_mask_mode(tmp_path: Path) -> None:
     metadata = _metadata(tmp_path, frame_count=10)
-    stage = vision.run_full_annotation_stage(
-        video_id="video",
-        metadata=metadata,
-        track=np.zeros((metadata.frame_count, 3), dtype=float),
-        inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
-        guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
-        pose=_pose_arrays(metadata.frame_count),
-        court=_court_vision("video", metadata.frame_count),
-        output_dir=tmp_path / "annotation",
-        base=BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.COMPOSITION),
-    )
+    with pytest.raises(ValueError, match="DeadMaskMode.REPLAY"):
+        vision.run_full_annotation_stage(
+            video_id="video",
+            metadata=metadata,
+            track=np.zeros((metadata.frame_count, 3), dtype=float),
+            inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
+            guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
+            pose=_pose_arrays(metadata.frame_count),
+            court=_court_vision("video", metadata.frame_count),
+            output_dir=tmp_path / "annotation",
+            base=BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.COMPOSITION),
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None and "DeadMaskMode.REPLAY" in stage.reason
     assert not (tmp_path / "annotation" / vision.ANNOTATOR_RESULT_FILENAME).exists()
 
 
@@ -690,7 +722,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
-    stage = vision.run_full_annotation_stage(
+    output = vision.run_full_annotation_stage(
         video_id="video",
         metadata=metadata,
         track=track,
@@ -701,7 +733,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         output_dir=tmp_path / "annotation",
     )
 
-    quality = stage.require_value().run.shuttle_quality
+    quality = output.run.shuttle_quality
     assert quality.inpaint_filled_frames == metadata.frame_count
     assert quality.inpaint_visible_filled_frames == metadata.frame_count
     assert quality.guard_counts_per_code == (7, 1, 1, 1)
@@ -719,7 +751,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         ("definitive_exclusion_mask", np.zeros(10, dtype=np.uint8)),
     ],
 )
-def test_malformed_run_capture_masks_return_explicit_failed_annotation_stage(
+def test_malformed_run_capture_masks_raise_original_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mask_name: str,
@@ -739,19 +771,18 @@ def test_malformed_run_capture_masks_return_explicit_failed_annotation_stage(
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
     output_dir = tmp_path / "annotation"
-    stage = vision.run_full_annotation_stage(
-        video_id="video",
-        metadata=metadata,
-        track=np.zeros((metadata.frame_count, 3), dtype=float),
-        inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
-        guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
-        pose=_pose_arrays(metadata.frame_count),
-        court=_court_vision("video", metadata.frame_count),
-        output_dir=output_dir,
-    )
+    with pytest.raises(ValueError, match="one-dimensional boolean"):
+        vision.run_full_annotation_stage(
+            video_id="video",
+            metadata=metadata,
+            track=np.zeros((metadata.frame_count, 3), dtype=float),
+            inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
+            guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
+            pose=_pose_arrays(metadata.frame_count),
+            court=_court_vision("video", metadata.frame_count),
+            output_dir=output_dir,
+        )
 
-    assert stage.outcome is StageOutcome.FAILED
-    assert stage.reason is not None and "one-dimensional boolean" in stage.reason
     assert not (output_dir / vision.ANNOTATOR_RESULT_FILENAME).exists()
 
 
