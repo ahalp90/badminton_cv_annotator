@@ -718,6 +718,121 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
     assert [(event.name, event.reason) for event in second.events if not event.reused] == []
 
 
+def test_partial_selected_download_fails_and_can_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataset_builder import _pipeline_runtime
+
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    control = _FixtureControl()
+    selected_ids = ("accepted-video", "retry-video")
+    attempts = 0
+
+    def download(**kwargs: object) -> list[download_scraped_videos.DownloadOutcome]:
+        nonlocal attempts
+        attempts += 1
+        assert kwargs["selected_video_ids"] == selected_ids
+        fixture.video_dir.mkdir(parents=True, exist_ok=True)
+        if attempts == 2:
+            assert (fixture.video_dir / f"{selected_ids[0]}.mp4").is_file()
+        entries: dict[str, dict[str, object]] = {}
+        outcomes: list[download_scraped_videos.DownloadOutcome] = []
+        for video_id in selected_ids[:attempts]:
+            path = fixture.video_dir / f"{video_id}.mp4"
+            if not path.exists():
+                path.write_bytes(b"fixture video")
+            entry: dict[str, object] = dict(
+                video_id=video_id,
+                title=f"Fixture {video_id}",
+                url=f"https://example.test/{video_id}",
+                commentary_eligible=True,
+            )
+            entries[path.name] = entry
+            outcomes.append(download_scraped_videos.DownloadOutcome(
+                video_id, path.name, entry, False,
+            ))
+        if attempts == 1:
+            outcomes.append(download_scraped_videos.DownloadOutcome(
+                selected_ids[1], None, None, True,
+            ))
+        download_scraped_videos._write_manifest(
+            fixture.video_dir / fixture.scraper_config.SOURCES_MANIFEST_NAME,
+            {"dataset": "scraped-professional", "videos": entries},
+        )
+        return outcomes
+
+    monkeypatch.setattr(
+        _pipeline_runtime.download_scraped_videos,
+        "download_all_videos",
+        download,
+    )
+
+    candidate_input = fixture.run_dir / "stages" / "triage" / "candidates.csv"
+    selection_input = (
+        fixture.run_dir / "stages" / "selection" / fixture.runtime_module.SELECTED_VIDEOS_FILENAME
+    )
+    candidate_input.parent.mkdir(parents=True)
+    selection_input.parent.mkdir(parents=True)
+    candidate_input.write_text("fixture candidates\n", encoding="utf-8")
+    selection_input.write_bytes(b"fixture selection")
+
+    class PartialDownloadRuntime(_FixtureRuntime):
+        def __init__(
+            self,
+            config: cli.BuilderConfig,
+            run_dir: Path,
+            source_commit: str,
+        ) -> None:
+            super().__init__(run_dir, control)
+            self.download_runtime = _pipeline_runtime.DefaultPipelineRuntime(
+                config,
+                run_dir,
+                source_commit,
+            )
+            self.download_runtime.current_interpreter = self.interpreter
+
+        def plans(self, phase: str, manifest: RunManifest) -> tuple[StagePlan, ...]:
+            if phase != "download":
+                return super().plans(phase, manifest)
+            self.control.planned.append(phase)
+            self.download_runtime.state.selected_ids = selected_ids
+            return tuple(self.download_runtime._download_plans(manifest))
+
+    def factory(
+        config: cli.BuilderConfig,
+        run_dir: Path,
+        source_commit: str,
+    ) -> PartialDownloadRuntime:
+        return PartialDownloadRuntime(config, run_dir, source_commit)
+
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=factory,
+    )
+    first_executed = tuple(control.executed)
+    second = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=factory,
+    )
+    first_download = next(event for event in first.events if event.name == "download")
+    second_download = next(event for event in second.events if event.name == "download")
+    first_recorded = next(stage for stage in first.manifest.stages if stage.name == "download")
+    recorded = next(stage for stage in second.manifest.stages if stage.name == "download")
+
+    assert first.stopped_after == "download"
+    assert first_download.outcome is StageOutcome.FAILED
+    assert dict(first_recorded.counts) == {"selected": 2, "downloaded": 1, "failed": 1}
+    assert "metadata" not in first_executed
+    assert second.stopped_after is None
+    assert second_download.outcome is StageOutcome.PROCESSED
+    assert second_download.reused is False
+    assert dict(recorded.counts) == {"selected": 2, "downloaded": 2, "failed": 0}
+    assert attempts == 2
+
+
 def test_projection_is_produced_once_and_restored_for_assembly(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

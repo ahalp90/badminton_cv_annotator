@@ -335,26 +335,23 @@ class DefaultPipelineRuntime(RuntimeSupport):
             self._restore_downloads(sources_path)
             outputs = {"sources": sources_path}
             outputs.update({f"video.{video_id}": path for video_id, path in self.state.videos.items()})
-            failures = sum(outcome.failed for outcome in outcomes)
-            if self.state.selected_ids and not self.state.videos:
+            failed_ids = {outcome.video_id for outcome in outcomes if outcome.failed}
+            failed_ids.update(set(self.state.selected_ids) - set(self.state.videos))
+            counts = {
+                "selected": len(self.state.selected_ids),
+                "downloaded": len(self.state.videos),
+                "failed": len(failed_ids),
+            }
+            if failed_ids:
                 return StageExecution(
                     StageOutcome.FAILED,
                     outputs,
-                    {"selected": len(self.state.selected_ids), "failed": failures},
-                    "every selected video failed download",
+                    counts,
+                    "not every selected video was downloaded and verified",
                 )
             outcome = StageOutcome.PROCESSED if self.state.selected_ids else StageOutcome.EXCLUDED
             reason = None if outcome is StageOutcome.PROCESSED else "visual selection was empty"
-            return StageExecution(
-                outcome,
-                outputs,
-                {
-                    "selected": len(self.state.selected_ids),
-                    "downloaded": len(self.state.videos),
-                    "failed": failures,
-                },
-                reason,
-            )
+            return StageExecution(outcome, outputs, counts, reason)
 
         return (self._plan(
             name="download",

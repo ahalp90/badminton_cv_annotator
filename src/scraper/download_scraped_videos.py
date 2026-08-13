@@ -411,7 +411,7 @@ def _existing_download_outcome(
         if existing_entry is not None
         else None
     )
-    if recorded_eligibility is False:
+    if recorded_eligibility is False and not accept_silent_video:
         print(f'  Skipping video {video_id} (already marked commentary-ineligible)')
         return DownloadOutcome(
             video_id,
