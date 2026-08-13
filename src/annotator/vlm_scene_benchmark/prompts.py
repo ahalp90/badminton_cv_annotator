@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from .contracts import ShardSpec
 
 
-PROMPT_VERSION = "issue38-whole-shard-v1"
+PROMPT_VERSION = "issue38-whole-shard-v5-observed-frame-codes"
 
 
 def _cut_text(cut_frames: Sequence[int]) -> str:
@@ -55,32 +55,26 @@ Use exactly these scene labels:
 
 Candidate cuts are mechanical hints. A class may continue across a cut or change inside a detected scene. A side-on service setup is cutaway until actual play begins. If actual play begins before that shot ends, label the whole shot live-non-standard.
 
-Return JSON only, with exactly one top-level key named "segments". Its value must be an ordered array of objects with exactly these keys:
-- start_frame: integer absolute source frame, inclusive
-- end_frame: integer absolute source frame, exclusive
-- scene_label: live, live-non-standard, replay, cutaway, or other
-- broadcast_phase: live_rally, between_rallies, replay, cutaway, other, or unknown
-- view: full_court, partial_court, side_on, close_up, crowd, graphic, other, or unknown
-- playback: real_time, slow_motion, freeze_frame, or unknown
-- continuity_from_previous: same_rally, new_rally, not_applicable, or unknown
-- data_use: usable_standard, usable_alternate_view, exclude, or review
-- confidence: number from 0 to 1
-- evidence_frames: array of integer absolute source frames inside this segment
-- reason: one short sentence based only on visible broadcast evidence
+Return exactly one code for every supplied video frame, in the same order as the source-frame grid. The JSON must have exactly one top-level key named "frames". Its value must be an array of exactly {len(sampled_source_frames)} strings. Every string must contain exactly eight characters with no spaces:
+0. scene: L=live, N=live-non-standard, R=replay, C=cutaway, O=other
+1. phase: L=live_rally, B=between_rallies, R=replay, C=cutaway, O=other, U=unknown
+2. playback: R=real_time, S=slow_motion, F=freeze_frame, U=unknown
+3. view: F=full_court, P=partial_court, S=side_on, C=close_up, D=crowd, G=graphic, O=other, U=unknown
+4. continuity: S=same_rally, R=new_rally or reset, A=not_applicable, U=unknown
+5. data use: S=usable_standard, A=usable_alternate_view, E=exclude, R=review
+6. confidence: 0 through 9 mean 0.0 through 0.9, A means 1.0
+7. visible reason: R=active rally, B=between rallies or preparing, P=replay, C=cutaway, G=graphic or other, U=unclear
 
-The segments must form a complete partition of [{shard.start_frame}, {shard.end_frame}). The first start_frame must be {shard.start_frame}. Every next start_frame must equal the preceding end_frame. The final end_frame must be {shard.end_frame}. Do not add markdown fences, commentary, or keys outside the schema."""
+Example shape for two frames only: {{"frames":["LBRFRS9B","LLRFRS9R"]}}
+
+Do not group frames, omit frames, repeat frames, include frame numbers, or use segment objects. The parser maps each code to its source-frame interval, merges adjacent identical states, and reconstructs a complete partition of [{shard.start_frame}, {shard.end_frame}). Return JSON only, as one bare object. Do not add markdown fences, commentary, or other keys."""
 
 
-def build_correction_prompt(initial_prompt: str, invalid_response: str, validation_error: str) -> str:
-    """Ask once for a full replacement after strict validation fails."""
-    if not invalid_response:
-        invalid_response = "<empty response>"
+def build_correction_prompt(initial_prompt: str, validation_error: str) -> str:
+    """Ask once for a fixed-width replacement after strict validation fails."""
     return f"""{initial_prompt}
 
 Your preceding response failed strict validation with this error:
 {validation_error}
 
-Replace it with a complete corrected response. Return JSON only. Do not explain the correction.
-
-Preceding invalid response:
-{invalid_response}"""
+Re-evaluate the video and replace the preceding response. Do not copy or continue it. Return exactly the requested number of eight-character frame codes in one bare JSON object."""

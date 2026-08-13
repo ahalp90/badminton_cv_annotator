@@ -22,6 +22,7 @@ from .prepare import PreparedShardManifest, read_manifest, resolve_model_video
 from .prompts import build_correction_prompt, build_scene_prompt
 from .runtime import (
     GpuMemoryMonitor,
+    is_strict_json_response,
     package_versions,
     parse_prediction_response,
     write_raw_response,
@@ -96,10 +97,13 @@ def run_benchmark(
     *,
     run_id: str,
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
+    max_model_len: int | None = None,
 ) -> BenchmarkRunRecord:
     """Run at most two generations and always retain a backend outcome record."""
     if max_new_tokens < 1:
         raise ValueError("max_new_tokens must be positive")
+    if max_model_len is not None and max_model_len <= max_new_tokens:
+        raise ValueError("maximum model length must exceed maximum new tokens")
     manifest_path = Path(manifest_path)
     output_path = Path(output_path)
     retained_paths = [output_path, _raw_path(output_path, 1), _raw_path(output_path, 2)]
@@ -129,7 +133,9 @@ def run_benchmark(
     segments = ()
     attempt_count = 0
     first_attempt_valid = False
+    first_attempt_valid_prediction = False
     raw_digest: str | None = None
+    raw_digests: list[str] = []
     failure_reason: str | None = None
 
     monitor.start()
@@ -137,20 +143,26 @@ def run_benchmark(
         backend = load_backend(
             backend_name,
             expected_input_frames=manifest.model_video.frame_count,
+            max_model_len=max_model_len,
         )
         backend_version = backend.backend_version
         evidence = _attempt(backend, video_path, initial_prompt, request, max_new_tokens)
         attempt_count = 1
         raw_digest = write_raw_response(_raw_path(output_path, attempt_count), evidence.raw_response)
+        raw_digests.append(raw_digest)
         observed = _absolute_observation(evidence, manifest)
         first_observed = observed
+        first_attempt_valid = is_strict_json_response(evidence.raw_response)
         try:
-            segments = parse_prediction_response(evidence.raw_response, manifest.shard)
-            first_attempt_valid = True
+            segments = parse_prediction_response(
+                evidence.raw_response,
+                manifest.shard,
+                manifest.sampled_source_frames,
+            )
+            first_attempt_valid_prediction = True
         except ValueError as first_error:
             correction = build_correction_prompt(
                 initial_prompt,
-                evidence.raw_response,
                 str(first_error),
             )
             corrected = _attempt(backend, video_path, correction, request, max_new_tokens)
@@ -159,10 +171,15 @@ def run_benchmark(
                 _raw_path(output_path, attempt_count),
                 corrected.raw_response,
             )
+            raw_digests.append(raw_digest)
             observed = _absolute_observation(corrected, manifest)
             if not _same_visual_input(first_observed, observed):
                 raise ValueError("correction retry consumed a different visual input")
-            segments = parse_prediction_response(corrected.raw_response, manifest.shard)
+            segments = parse_prediction_response(
+                corrected.raw_response,
+                manifest.shard,
+                manifest.sampled_source_frames,
+            )
     except Exception as error:
         failure_reason = f"{type(error).__name__}: {error}"
     finally:
@@ -196,9 +213,11 @@ def run_benchmark(
         runtime=runtime,
         attempt_count=attempt_count,
         first_attempt_valid_json=first_attempt_valid,
+        first_attempt_valid_prediction=first_attempt_valid_prediction,
         raw_response_sha256=raw_digest,
         failure_reason=failure_reason or "backend did not produce a valid prediction partition",
         segments=(),
+        attempt_response_sha256s=tuple(raw_digests),
     )
     if failure_reason is None:
         base = replace(
@@ -218,6 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
+    parser.add_argument("--max-model-len", type=int)
     return parser
 
 
@@ -230,6 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.out,
             run_id=args.run_id,
             max_new_tokens=args.max_new_tokens,
+            max_model_len=args.max_model_len,
         )
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         build_parser().error(str(error))

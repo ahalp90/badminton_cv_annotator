@@ -102,7 +102,7 @@ def _patch_runtime(
     )
     monkeypatch.setattr(
         "annotator.vlm_scene_benchmark.run_cli.load_backend",
-        lambda _name, expected_input_frames: backend,
+        lambda _name, expected_input_frames, max_model_len: backend,
     )
     monkeypatch.setattr("annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor", FakeMonitor)
     return manifest_path
@@ -126,10 +126,95 @@ def test_runner_writes_success_record_and_raw_response(
     assert record.outcome is RunOutcome.SUCCEEDED
     assert record.attempt_count == 1
     assert record.first_attempt_valid_json is True
+    assert record.first_attempt_valid_prediction is True
+    assert record.attempt_response_sha256s == (record.raw_response_sha256,)
     assert record.observed_sampling is not None
     assert record.observed_sampling.sampled_source_frames == (10, 35)
     assert read_run_record(output_path) == record
     assert (tmp_path / "run.attempt-1.txt").read_text(encoding="utf-8") == _valid_response()
+
+
+def test_runner_passes_explicit_qwen_context_to_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = FakeBackend([_valid_response()])
+    manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
+    calls: list[tuple[int, int | None]] = []
+
+    def load(_name: str, *, expected_input_frames: int, max_model_len: int | None) -> FakeBackend:
+        calls.append((expected_input_frames, max_model_len))
+        return backend
+
+    monkeypatch.setattr("annotator.vlm_scene_benchmark.run_cli.load_backend", load)
+
+    record = run_benchmark(
+        "qwen3-vl",
+        manifest_path,
+        tmp_path / "qwen.json",
+        run_id="qwen-fine-test",
+        max_new_tokens=4_096,
+        max_model_len=16_384,
+    )
+
+    assert record.outcome is RunOutcome.SUCCEEDED
+    assert calls == [(2, 16_384)]
+
+
+def test_runner_rejects_context_that_cannot_hold_requested_output(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must exceed maximum new tokens"):
+        run_benchmark(
+            "qwen3-vl",
+            tmp_path / "unused-manifest.json",
+            tmp_path / "unused-result.json",
+            run_id="qwen-invalid-context",
+            max_new_tokens=4_096,
+            max_model_len=4_096,
+        )
+
+
+def test_runner_accepts_fenced_json_without_retry_and_retains_raw_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fenced_response = f"```json\n{_valid_response()}\n```"
+    backend = FakeBackend([fenced_response])
+    manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
+    output_path = tmp_path / "fenced.json"
+
+    record = run_benchmark(
+        "internvideo3",
+        manifest_path,
+        output_path,
+        run_id="internvideo3-fenced",
+    )
+
+    assert record.outcome is RunOutcome.SUCCEEDED
+    assert record.attempt_count == 1
+    assert record.first_attempt_valid_json is False
+    assert record.first_attempt_valid_prediction is True
+    assert (tmp_path / "fenced.attempt-1.txt").read_text(encoding="utf-8") == fenced_response
+
+
+def test_runner_accepts_complete_frame_code_prefix_without_claiming_valid_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = '{"frames":["LLRFSS9R","LBRFRS8B","unterminated'
+    backend = FakeBackend([response])
+    manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
+
+    record = run_benchmark(
+        "internvideo3",
+        manifest_path,
+        tmp_path / "prefix.json",
+        run_id="internvideo3-prefix",
+    )
+
+    assert record.outcome is RunOutcome.SUCCEEDED
+    assert record.attempt_count == 1
+    assert record.first_attempt_valid_json is False
+    assert record.first_attempt_valid_prediction is True
 
 
 def test_runner_retries_once_with_validation_error(
@@ -149,9 +234,34 @@ def test_runner_retries_once_with_validation_error(
     assert record.outcome is RunOutcome.SUCCEEDED
     assert record.attempt_count == 2
     assert record.first_attempt_valid_json is False
+    assert record.first_attempt_valid_prediction is False
+    assert record.attempt_response_sha256s is not None
+    assert len(record.attempt_response_sha256s) == 2
     assert "failed strict validation" in backend.prompts[1]
     assert (tmp_path / "retry.attempt-1.txt").read_text(encoding="utf-8") == "not JSON"
     assert (tmp_path / "retry.attempt-2.txt").read_text(encoding="utf-8") == _valid_response()
+
+
+def test_runner_retries_strict_json_that_fails_prediction_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = FakeBackend(['{"frames":[]}', _valid_response()])
+    manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
+    output_path = tmp_path / "schema-retry.json"
+
+    record = run_benchmark(
+        "internvideo3",
+        manifest_path,
+        output_path,
+        run_id="internvideo3-schema-retry",
+    )
+
+    assert record.outcome is RunOutcome.SUCCEEDED
+    assert record.attempt_count == 2
+    assert record.first_attempt_valid_json is True
+    assert record.first_attempt_valid_prediction is False
+    assert read_run_record(output_path) == record
 
 
 def test_runner_retains_failed_second_response(
@@ -201,7 +311,12 @@ def test_runner_does_not_claim_cache_dtype_when_backend_load_fails(
     backend = FakeBackend([_valid_response()])
     manifest_path = _patch_runtime(monkeypatch, tmp_path, backend)
 
-    def fail_load(_name: str, *, expected_input_frames: int) -> FakeBackend:
+    def fail_load(
+        _name: str,
+        *,
+        expected_input_frames: int,
+        max_model_len: int | None,
+    ) -> FakeBackend:
         raise RuntimeError(f"load failed for {expected_input_frames} frames")
 
     monkeypatch.setattr(

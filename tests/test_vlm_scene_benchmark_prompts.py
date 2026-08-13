@@ -28,6 +28,10 @@ def test_scene_prompt_contains_exact_grid_cuts_and_partition() -> None:
     assert "complete partition of [10, 60)" in prompt
     assert "live-non-standard" in prompt
     assert "Return JSON only" in prompt
+    assert 'one top-level key named "frames"' in prompt
+    assert "array of exactly 3 strings" in prompt
+    assert "exactly eight characters" in prompt
+    assert '"frames":["LBRFRS9B","LLRFRS9R"]' in prompt
 
 
 def test_scene_prompt_rejects_unordered_or_outside_evidence() -> None:
@@ -39,9 +43,11 @@ def test_scene_prompt_rejects_unordered_or_outside_evidence() -> None:
         build_scene_prompt(_shard(), (10, 35), (60,))
 
 
-def test_correction_prompt_includes_error_and_unchanged_response() -> None:
-    correction = build_correction_prompt("initial", "raw invalid response", "gap at frame 30")
+def test_correction_prompt_includes_error_without_repeating_response() -> None:
+    correction = build_correction_prompt("initial", "gap at frame 30")
 
     assert "initial" in correction
     assert "gap at frame 30" in correction
-    assert correction.endswith("raw invalid response")
+    assert "Do not copy or continue it" in correction
+    assert "eight-character frame codes" in correction
+    assert "raw invalid response" not in correction

@@ -68,9 +68,11 @@ def valid_record() -> BenchmarkRunRecord:
         ),
         attempt_count=1,
         first_attempt_valid_json=True,
+        first_attempt_valid_prediction=True,
         raw_response_sha256="b" * 64,
         failure_reason=None,
         segments=(_segment(10, 30), _segment(30, 60, SceneTruth.CUTAWAY)),
+        attempt_response_sha256s=("b" * 64,),
     )
 
 
@@ -119,14 +121,41 @@ def test_failed_record_keeps_failure_evidence_without_predictions() -> None:
         replace(failed, segments=(_segment(10, 60),))
 
 
-def test_successful_invalid_first_response_requires_correction_retry() -> None:
+def test_successful_normalized_first_response_does_not_claim_valid_json() -> None:
+    record = replace(valid_record(), first_attempt_valid_json=False, attempt_count=1)
+
+    assert record.outcome is RunOutcome.SUCCEEDED
+    assert record.attempt_count == 1
+    assert record.first_attempt_valid_json is False
+
+
+def test_successful_invalid_first_prediction_requires_correction_retry() -> None:
     with pytest.raises(ValueError, match="requires the correction retry"):
-        replace(valid_record(), first_attempt_valid_json=False, attempt_count=1)
+        replace(valid_record(), first_attempt_valid_prediction=False)
 
 
 def test_successful_valid_first_response_rejects_correction_retry() -> None:
     with pytest.raises(ValueError, match="requires exactly one attempt"):
-        replace(valid_record(), attempt_count=2)
+        replace(
+            valid_record(),
+            attempt_count=2,
+            attempt_response_sha256s=("b" * 64, "b" * 64),
+        )
+
+
+def test_reader_keeps_schema_one_evidence_compatible(tmp_path: Path) -> None:
+    value = valid_record().to_json()
+    value["schema_version"] = 1
+    del value["first_attempt_valid_prediction"]
+    del value["attempt_response_sha256s"]
+    path = tmp_path / "legacy.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    record = read_run_record(path)
+
+    assert record.schema_version == 1
+    assert record.first_attempt_valid_prediction is True
+    assert record.attempt_response_sha256s is None
 
 
 def test_record_rejects_unknown_fields_and_enum_values(tmp_path: Path) -> None:

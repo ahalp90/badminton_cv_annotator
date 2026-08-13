@@ -13,7 +13,8 @@ from typing import Any, Mapping, TypeVar
 from annotator.broadcast_timeline_labels import SceneTruth
 
 
-RUN_SCHEMA_VERSION = 1
+RUN_SCHEMA_VERSION = 2
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, RUN_SCHEMA_VERSION)
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 EnumType = TypeVar("EnumType", bound=StrEnum)
@@ -578,13 +579,15 @@ class BenchmarkRunRecord:
     runtime: RuntimeTelemetry
     attempt_count: int
     first_attempt_valid_json: bool
+    first_attempt_valid_prediction: bool
     raw_response_sha256: str | None
     failure_reason: str | None
     segments: tuple[PredictionSegment, ...]
+    attempt_response_sha256s: tuple[str, ...] | None = None
     schema_version: int = RUN_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version != RUN_SCHEMA_VERSION:
+        if self.schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported run schema version {self.schema_version}")
         if not RUN_ID_PATTERN.fullmatch(self.run_id):
             raise ValueError("run_id must contain only letters, digits, dots, underscores, and hyphens")
@@ -594,19 +597,35 @@ class BenchmarkRunRecord:
         if self.attempt_count > 2:
             raise ValueError("attempt_count cannot exceed the initial request and one correction retry")
         _boolean(self.first_attempt_valid_json, "first_attempt_valid_json")
+        _boolean(self.first_attempt_valid_prediction, "first_attempt_valid_prediction")
         _sha256(self.raw_response_sha256, "raw_response_sha256", optional=True)
         if self.first_attempt_valid_json and self.attempt_count < 1:
             raise ValueError("first_attempt_valid_json requires at least one attempt")
         if self.attempt_count > 0 and self.raw_response_sha256 is None:
             raise ValueError("an attempted generation requires raw_response_sha256")
+        if self.schema_version == 1:
+            if self.attempt_response_sha256s is not None:
+                raise ValueError("schema 1 cannot contain per-attempt response digests")
+        else:
+            if not isinstance(self.attempt_response_sha256s, tuple):
+                raise ValueError("schema 2 requires per-attempt response digests")
+            if len(self.attempt_response_sha256s) != self.attempt_count:
+                raise ValueError("per-attempt response digest count differs from attempt_count")
+            for index, digest in enumerate(self.attempt_response_sha256s):
+                _sha256(digest, f"attempt_response_sha256s[{index}]")
+            if self.attempt_response_sha256s:
+                if self.raw_response_sha256 != self.attempt_response_sha256s[-1]:
+                    raise ValueError("final response digest differs from the last attempt digest")
+            elif self.raw_response_sha256 is not None:
+                raise ValueError("a run without attempts cannot contain a response digest")
 
         if self.outcome is RunOutcome.SUCCEEDED:
             if self.attempt_count not in {1, 2}:
                 raise ValueError("a successful run requires one or two attempts")
-            if self.first_attempt_valid_json and self.attempt_count != 1:
-                raise ValueError("a successful run with valid first JSON requires exactly one attempt")
-            if not self.first_attempt_valid_json and self.attempt_count != 2:
-                raise ValueError("a successful run with invalid first JSON requires the correction retry")
+            if self.first_attempt_valid_prediction and self.attempt_count != 1:
+                raise ValueError("a successful run with a valid first prediction requires exactly one attempt")
+            if not self.first_attempt_valid_prediction and self.attempt_count != 2:
+                raise ValueError("a successful run with an invalid first prediction requires the correction retry")
             if self.failure_reason is not None:
                 raise ValueError("a successful run cannot have failure_reason")
             if self.observed_sampling is None:
@@ -626,30 +645,46 @@ class BenchmarkRunRecord:
     @classmethod
     def from_json(cls, value: Any) -> BenchmarkRunRecord:
         data = _object(value, "run record")
+        schema_version = _integer(data.get("schema_version"), "schema_version", minimum=1)
+        keys = {
+            "schema_version",
+            "run_id",
+            "outcome",
+            "model",
+            "shard",
+            "requested_sampling",
+            "observed_sampling",
+            "runtime",
+            "attempt_count",
+            "first_attempt_valid_json",
+            "raw_response_sha256",
+            "failure_reason",
+            "segments",
+        }
+        if schema_version == RUN_SCHEMA_VERSION:
+            keys.update({"first_attempt_valid_prediction", "attempt_response_sha256s"})
         _exact_keys(
             data,
-            {
-                "schema_version",
-                "run_id",
-                "outcome",
-                "model",
-                "shard",
-                "requested_sampling",
-                "observed_sampling",
-                "runtime",
-                "attempt_count",
-                "first_attempt_valid_json",
-                "raw_response_sha256",
-                "failure_reason",
-                "segments",
-            },
+            keys,
             "run record",
         )
         segments = data["segments"]
         if not isinstance(segments, list):
             raise ValueError("segments must be a JSON array")
+        attempt_digests = data.get("attempt_response_sha256s")
+        if schema_version == RUN_SCHEMA_VERSION and not isinstance(attempt_digests, list):
+            raise ValueError("attempt_response_sha256s must be a JSON array")
+        parsed_attempt_digests: tuple[str, ...] | None = None
+        if isinstance(attempt_digests, list):
+            parsed_digests: list[str] = []
+            for index, digest in enumerate(attempt_digests):
+                parsed = _sha256(digest, f"attempt_response_sha256s[{index}]")
+                assert parsed is not None
+                parsed_digests.append(parsed)
+            parsed_attempt_digests = tuple(parsed_digests)
+        first_valid_json = _boolean(data["first_attempt_valid_json"], "first_attempt_valid_json")
         return cls(
-            schema_version=_integer(data["schema_version"], "schema_version", minimum=1),
+            schema_version=schema_version,
             run_id=_string(data["run_id"], "run_id"),
             outcome=_enum(data["outcome"], RunOutcome, "outcome"),
             model=ModelIdentity.from_json(data["model"]),
@@ -660,16 +695,25 @@ class BenchmarkRunRecord:
             ),
             runtime=RuntimeTelemetry.from_json(data["runtime"]),
             attempt_count=_integer(data["attempt_count"], "attempt_count", minimum=0),
-            first_attempt_valid_json=_boolean(data["first_attempt_valid_json"], "first_attempt_valid_json"),
+            first_attempt_valid_json=first_valid_json,
+            first_attempt_valid_prediction=(
+                first_valid_json
+                if schema_version == 1
+                else _boolean(
+                    data["first_attempt_valid_prediction"],
+                    "first_attempt_valid_prediction",
+                )
+            ),
             raw_response_sha256=_sha256(data["raw_response_sha256"], "raw_response_sha256", optional=True),
             failure_reason=(
                 None if data["failure_reason"] is None else _string(data["failure_reason"], "failure_reason")
             ),
             segments=tuple(PredictionSegment.from_json(segment, index) for index, segment in enumerate(segments)),
+            attempt_response_sha256s=parsed_attempt_digests,
         )
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        value = {
             "schema_version": self.schema_version,
             "run_id": self.run_id,
             "outcome": self.outcome.value,
@@ -684,6 +728,10 @@ class BenchmarkRunRecord:
             "failure_reason": self.failure_reason,
             "segments": [segment.to_json() for segment in self.segments],
         }
+        if self.schema_version == RUN_SCHEMA_VERSION:
+            value["first_attempt_valid_prediction"] = self.first_attempt_valid_prediction
+            value["attempt_response_sha256s"] = list(self.attempt_response_sha256s or ())
+        return value
 
 
 def read_run_record(path: Path) -> BenchmarkRunRecord:

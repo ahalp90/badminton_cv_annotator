@@ -270,6 +270,7 @@ def score_run_record(record: BenchmarkRunRecord, intervals: Sequence[LabelInterv
             "outcome": record.outcome.value,
             "attempt_count": record.attempt_count,
             "first_attempt_valid_json": record.first_attempt_valid_json,
+            "first_attempt_valid_prediction": record.first_attempt_valid_prediction,
         },
         "runtime": record.runtime.to_json(),
         "requested_sampling": record.requested_sampling.to_json(),

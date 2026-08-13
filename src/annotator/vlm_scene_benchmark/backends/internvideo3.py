@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ SPEC = BackendSpec(
     model_revision="c4602918b65225650d152db2850fe34e01d21fcd",
     backend_name="transformers",
     backend_distribution="transformers",
+    expected_backend_version="4.57.3",
     cache_dtype="bfloat16",
     package_names=(
         "accelerate",
@@ -23,6 +25,7 @@ SPEC = BackendSpec(
         "opencv-python-headless",
         "qwen-vl-utils",
         "torch",
+        "torchcodec",
         "torchvision",
         "transformers",
     ),
@@ -153,13 +156,21 @@ class InternVideo3Backend:
                 max_new_tokens=max_new_tokens,
                 use_cache=True,
             )
-        input_length = int(inputs["input_ids"].shape[-1])
-        generated = output[:, input_length:]
-        raw_response = self._processor.batch_decode(
-            generated,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )[0]
+        generated = None
+        try:
+            input_length = int(inputs["input_ids"].shape[-1])
+            generated = output[:, input_length:]
+            raw_response = self._processor.batch_decode(
+                generated,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            )[0]
+        finally:
+            del generated
+            del output
+            del inputs
+            gc.collect()
+            self._torch.cuda.empty_cache()
         return GenerationEvidence(
             raw_response=raw_response,
             sampled_input_frames=frame_indices,

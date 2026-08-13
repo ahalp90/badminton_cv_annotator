@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+import gc
 from importlib.metadata import version
 import math
 import os
@@ -18,6 +19,7 @@ SPEC = BackendSpec(
     model_revision="d9748a51ae66354c4dad665aab2c71f26cf2c8cd",
     backend_name="vllm",
     backend_distribution="vllm",
+    expected_backend_version="0.11.0",
     cache_dtype="bfloat16",
     package_names=(
         "qwen-vl-utils",
@@ -54,8 +56,10 @@ def _resolve_model_snapshot(
     return snapshot
 
 
-def _engine_config(model_path: Path) -> dict[str, Any]:
+def _engine_config(model_path: Path, max_model_len: int) -> dict[str, Any]:
     """Return the pinned single-L40 vLLM engine configuration."""
+    if not 4_096 <= max_model_len <= 262_144:
+        raise ValueError("Qwen maximum model length must be between 4,096 and 262,144")
     return {
         "model": str(model_path),
         "tokenizer": str(model_path),
@@ -64,7 +68,7 @@ def _engine_config(model_path: Path) -> dict[str, Any]:
         # vLLM 0.11 resolves "auto" to the BF16 model dtype. Its attention
         # backend treats an explicit "bfloat16" value as a quantized cache.
         "kv_cache_dtype": "auto",
-        "max_model_len": 262_144,
+        "max_model_len": max_model_len,
         "gpu_memory_utilization": 0.90,
         "tensor_parallel_size": 1,
         "cpu_offload_gb": 0,
@@ -129,7 +133,7 @@ class Qwen3VLBackend:
     cpu_offload = False
     cache_dtype = SPEC.cache_dtype
 
-    def __init__(self, *, expected_input_frames: int) -> None:
+    def __init__(self, *, expected_input_frames: int, max_model_len: int) -> None:
         if expected_input_frames < 2:
             raise ValueError("Qwen3-VL requires at least two supplied video frames")
         _configure_vllm_environment()
@@ -143,7 +147,7 @@ class Qwen3VLBackend:
             model_path,
             local_files_only=True,
         )
-        self._llm = LLM(**_engine_config(model_path))
+        self._llm = LLM(**_engine_config(model_path, max_model_len))
 
     def generate(
         self,
@@ -217,17 +221,27 @@ class Qwen3VLBackend:
             seed=0,
         )
         outputs = self._llm.generate([engine_input], sampling_params=sampling, use_tqdm=False)
-        if len(outputs) != 1 or not outputs[0].outputs:
-            raise RuntimeError("vLLM returned no generation output")
-        prompt_token_ids = outputs[0].prompt_token_ids
-        if prompt_token_ids is None:
-            raise RuntimeError("vLLM did not expose prompt token IDs")
-        raw_response = outputs[0].outputs[0].text
+        prompt_token_ids = None
+        try:
+            if len(outputs) != 1 or not outputs[0].outputs:
+                raise RuntimeError("vLLM returned no generation output")
+            prompt_token_ids = outputs[0].prompt_token_ids
+            if prompt_token_ids is None:
+                raise RuntimeError("vLLM did not expose prompt token IDs")
+            raw_response = outputs[0].outputs[0].text
+            total_input_tokens = len(prompt_token_ids)
+        finally:
+            del prompt_token_ids
+            del outputs
+            del engine_input
+            del video_tensor
+            del video_inputs
+            gc.collect()
         return GenerationEvidence(
             raw_response=raw_response,
             sampled_input_frames=frame_indices,
             width=observed_width,
             height=observed_height,
             visual_tokens=visual_tokens,
-            total_input_tokens=len(prompt_token_ids),
+            total_input_tokens=total_input_tokens,
         )

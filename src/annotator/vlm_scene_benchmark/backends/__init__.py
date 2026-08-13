@@ -18,6 +18,7 @@ class BackendSpec:
     model_revision: str
     backend_name: str
     backend_distribution: str
+    expected_backend_version: str
     cache_dtype: str
     package_names: tuple[str, ...]
 
@@ -89,7 +90,12 @@ def backend_spec(name: str) -> BackendSpec:
     raise ValueError(f"unknown VLM backend {name!r}")
 
 
-def load_backend(name: str, *, expected_input_frames: int) -> SceneBackend:
+def load_backend(
+    name: str,
+    *,
+    expected_input_frames: int,
+    max_model_len: int | None = None,
+) -> SceneBackend:
     """Import heavy backend dependencies only after CLI validation."""
     if name == "internvideo3":
         from .internvideo3 import InternVideo3Backend
@@ -98,7 +104,12 @@ def load_backend(name: str, *, expected_input_frames: int) -> SceneBackend:
     if name == "qwen3-vl":
         from .qwen3_vl import Qwen3VLBackend
 
-        return Qwen3VLBackend(expected_input_frames=expected_input_frames)
+        if max_model_len is None:
+            raise ValueError("Qwen3-VL requires an explicit maximum model length")
+        return Qwen3VLBackend(
+            expected_input_frames=expected_input_frames,
+            max_model_len=max_model_len,
+        )
     raise ValueError(f"unknown VLM backend {name!r}")
 
 

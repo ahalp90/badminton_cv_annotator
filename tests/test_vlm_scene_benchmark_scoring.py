@@ -68,9 +68,11 @@ def _valid_record() -> BenchmarkRunRecord:
         ),
         attempt_count=1,
         first_attempt_valid_json=True,
+        first_attempt_valid_prediction=True,
         raw_response_sha256="b" * 64,
         failure_reason=None,
         segments=(_segment(10, 30), _segment(30, 60, SceneTruth.CUTAWAY)),
+        attempt_response_sha256s=("b" * 64,),
     )
 
 
