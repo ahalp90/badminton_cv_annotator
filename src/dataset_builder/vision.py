@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 import gzip
@@ -14,11 +14,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 import numpy as np
 
+from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder._pose_process import (
     POSE_CHILD_STEM,
     load_raw_pose_mapping,
@@ -35,7 +36,6 @@ if TYPE_CHECKING:
     from annotator.run_video import AnnotatorResult
     from annotator.video_metadata import VideoMetadata
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
-    from dataset_builder.models import StageOutcome
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.1"
@@ -52,41 +52,6 @@ POSE_FILENAMES = {
     "kp_scores": "pose_kp_scores.npy.xz", "ndet": "pose_ndet.npy.xz",
 }
 _POSE_CHILD_COMMAND = "_extract-rtmlib-pose"
-
-T = TypeVar("T")
-
-
-@dataclass(frozen=True)
-class VisionStageResult(Generic[T]):
-    """One processed or failed vision-stage boundary."""
-
-    stage: str
-    outcome: StageOutcome
-    value: T | None = None
-    reason: str | None = None
-
-    def __post_init__(self) -> None:
-        from dataset_builder.models import StageOutcome
-
-        if not self.stage:
-            raise ValueError("vision stage name must be non-empty")
-        if self.outcome is StageOutcome.PROCESSED:
-            if self.value is None or self.reason is not None:
-                raise ValueError("processed vision stages require a value and no reason")
-        elif self.outcome is StageOutcome.FAILED:
-            if self.value is not None or not self.reason:
-                raise ValueError("failed vision stages require a reason and no value")
-        else:
-            raise ValueError(f"vision stage result does not support outcome {self.outcome.value!r}")
-
-    def require_value(self) -> T:
-        """Return a processed value or raise with the recorded failure reason."""
-        from dataset_builder.models import StageOutcome
-
-        if self.outcome is not StageOutcome.PROCESSED or self.value is None:
-            raise RuntimeError(f"{self.stage} did not process: {self.reason}")
-        return self.value
-
 
 @dataclass(frozen=True)
 class PoseArrays:
@@ -239,36 +204,19 @@ def convert_tracknet_csv_stage(
     video_id: str,
     metadata: VideoMetadata,
     output_path: Path,
-) -> VisionStageResult[WholeVideoShuttle]:
+) -> WholeVideoShuttle:
     """Convert and persist a strict whole-video TrackNet CSV."""
-    def operation() -> WholeVideoShuttle:
-        from bst_x.pipeline.shuttle_extractor import whole_video_csv_to_shuttle
+    from bst_x.pipeline.shuttle_extractor import whole_video_csv_to_shuttle
 
-        shuttle = whole_video_csv_to_shuttle(
-            csv_path,
-            video_id=video_id,
-            frame_count=metadata.frame_count,
-            width=metadata.width,
-            height=metadata.height,
-        )
-        validate_track(shuttle.track, metadata.frame_count)
-        save_npy_xz(output_path, shuttle.track)
-        return shuttle
-
-    return _run_stage("tracknet_conversion", operation)
-
-
-def validate_track(track: np.ndarray, frame_count: int) -> None:
-    """Validate the annotator's whole-video shuttle array."""
-    values = np.asarray(track)
-    if values.shape != (frame_count, 3):
-        raise ValueError(f"track shape {values.shape} != {(frame_count, 3)}")
-    if not np.issubdtype(values.dtype, np.floating):
-        raise ValueError(f"track must have floating dtype, got {values.dtype}")
-    if not np.isfinite(values).all():
-        raise ValueError("track must contain only finite values")
-    if not np.isin(values[:, 2], (0.0, 1.0)).all():
-        raise ValueError("track visibility must contain only 0 or 1")
+    shuttle = whole_video_csv_to_shuttle(
+        csv_path,
+        video_id=video_id,
+        frame_count=metadata.frame_count,
+        width=metadata.width,
+        height=metadata.height,
+    )
+    save_npy_xz(output_path, shuttle.track)
+    return shuttle
 
 
 def pose_artifact_paths(output_dir: Path) -> PoseArtifacts:
@@ -284,42 +232,39 @@ def extract_rtmlib_pose_stage(
     interpreter: str | Path,
     device: str = "cuda",
     n_max: int = 16,
-) -> VisionStageResult[PoseExtraction]:
+) -> PoseExtraction:
     """Run the canonical pose producer in its configured interpreter."""
-    def operation() -> PoseExtraction:
-        if isinstance(n_max, bool) or not isinstance(n_max, int) or not 0 < n_max <= 127:
-            raise ValueError(f"n_max must be an integer in [1, 127], got {n_max!r}")
-        executable = resolve_pose_executable(interpreter)
-        root = Path(output_dir)
-        root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix=".rtmlib-", dir=root) as raw_dir_text:
-            raw_dir = Path(raw_dir_text)
-            command = rtmlib_pose_command(
-                executable=executable,
-                video_path=metadata.source_path,
-                raw_output_dir=raw_dir,
-                device=device,
-                n_max=n_max,
+    if isinstance(n_max, bool) or not isinstance(n_max, int) or not 0 < n_max <= 127:
+        raise ValueError(f"n_max must be an integer in [1, 127], got {n_max!r}")
+    executable = resolve_pose_executable(interpreter)
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".rtmlib-", dir=root) as raw_dir_text:
+        raw_dir = Path(raw_dir_text)
+        command = rtmlib_pose_command(
+            executable=executable,
+            video_path=metadata.source_path,
+            raw_output_dir=raw_dir,
+            device=device,
+            n_max=n_max,
+        )
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=Path(__file__).resolve().parents[2],
+            env=pose_subprocess_environment(),
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).strip()
+            raise RuntimeError(
+                f"RTMLib pose subprocess exited with status {completed.returncode}: {detail}"
             )
-            completed = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=Path(__file__).resolve().parents[2],
-                env=pose_subprocess_environment(),
-            )
-            if completed.returncode != 0:
-                detail = (completed.stderr or completed.stdout).strip()
-                raise RuntimeError(
-                    f"RTMLib pose subprocess exited with status {completed.returncode}: {detail}"
-                )
-            arrays = PoseArrays(**load_raw_pose_mapping(raw_dir, POSE_CHILD_STEM))
-        validate_pose_arrays(arrays, metadata.frame_count)
-        artifacts = save_pose_arrays(root, arrays, metadata.frame_count)
-        return PoseExtraction(arrays=arrays, artifacts=artifacts, command=tuple(command))
-
-    return _run_stage("pose_extraction", operation)
+        arrays = PoseArrays(**load_raw_pose_mapping(raw_dir, POSE_CHILD_STEM))
+    validate_pose_arrays(arrays, metadata.frame_count)
+    artifacts = save_pose_arrays(root, arrays, metadata.frame_count)
+    return PoseExtraction(arrays=arrays, artifacts=artifacts, command=tuple(command))
 
 
 def rtmlib_pose_command(
@@ -430,53 +375,50 @@ def build_detected_court_stage(
     case_id: str | None = None,
     parent: str = "detected_ckn_opencv_consensus",
     ref_err_px: float = 3.5,
-) -> VisionStageResult[CourtVision]:
+) -> CourtVision:
     """Build raw-cut and detected CourtKeyNet evidence with existing producers."""
-    def operation() -> CourtVision:
-        from annotator.court_evidence import (
-            build_detected_court_evidence,
-            build_raw_cut_intervals,
-            detect_scene_evidence,
-        )
+    from annotator.court_evidence import (
+        build_detected_court_evidence,
+        build_raw_cut_intervals,
+        detect_scene_evidence,
+    )
 
-        validate_pose_arrays(pose, metadata.frame_count)
-        cuts = build_raw_cut_intervals(
-            metadata.source_path,
-            metadata.frame_count,
-            float(metadata.fps),
-        )
-        scene_evidence = detect_scene_evidence(metadata.source_path, cuts, detector)
-        resolution = (float(metadata.width), float(metadata.height))
-        result = build_detected_court_evidence(
-            case_id or video_id,
-            parent,
-            video_id,
-            resolution,
-            cuts,
-            scene_evidence,
-            pose.bboxes,
-            pose.scores,
-            pose.ndet,
-            detector_resolution=resolution,
-            ref_err_px=ref_err_px,
-        )
-        court = CourtVision(tuple(cuts), result)
-        _validate_court_vision(
-            cuts,
-            result,
-            metadata.frame_count,
-            (float(metadata.width), float(metadata.height)),
-        )
-        artifacts = persist_court_vision(
-            output_dir,
-            video_id=video_id,
-            court=court,
-            frame_count=metadata.frame_count,
-            resolution=(float(metadata.width), float(metadata.height)),
-        )
-        return CourtVision(court.raw_cuts, court.evidence, artifacts)
-
-    return _run_stage("court_evidence", operation)
+    validate_pose_arrays(pose, metadata.frame_count)
+    cuts = build_raw_cut_intervals(
+        metadata.source_path,
+        metadata.frame_count,
+        float(metadata.fps),
+    )
+    scene_evidence = detect_scene_evidence(metadata.source_path, cuts, detector)
+    resolution = (float(metadata.width), float(metadata.height))
+    result = build_detected_court_evidence(
+        case_id or video_id,
+        parent,
+        video_id,
+        resolution,
+        cuts,
+        scene_evidence,
+        pose.bboxes,
+        pose.scores,
+        pose.ndet,
+        detector_resolution=resolution,
+        ref_err_px=ref_err_px,
+    )
+    court = CourtVision(tuple(cuts), result)
+    _validate_court_vision(
+        cuts,
+        result,
+        metadata.frame_count,
+        resolution,
+    )
+    artifacts = persist_court_vision(
+        output_dir,
+        video_id=video_id,
+        court=court,
+        frame_count=metadata.frame_count,
+        resolution=resolution,
+    )
+    return CourtVision(court.raw_cuts, court.evidence, artifacts)
 
 
 def persist_court_vision(
@@ -709,82 +651,79 @@ def run_full_annotation_stage(
     base: BaseAnnotatorConfig | None = None,
     landing_options: LandingFilterOptions | None = None,
     ref_err_px: float = 3.5,
-) -> VisionStageResult[AnnotationOutput]:
+) -> AnnotationOutput:
     """Run the full annotator with replay masking and persist all primitives."""
-    def operation() -> AnnotationOutput:
-        from annotator.config import BaseAnnotatorConfig
-        from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-        from annotator.run_video import RunCapture, run_video
-        from annotator.types import DeadMaskMode
+    from annotator.config import BaseAnnotatorConfig
+    from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
+    from annotator.run_video import RunCapture, run_video
+    from annotator.types import DeadMaskMode
 
-        effective_base = BaseAnnotatorConfig() if base is None else base
-        if effective_base.dead_mask_mode is not DeadMaskMode.REPLAY:
-            raise ValueError(
-                "dataset-builder/0.1 requires BaseAnnotatorConfig.dead_mask_mode=DeadMaskMode.REPLAY"
-            )
-        effective_landing = (
-            SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
+    effective_base = BaseAnnotatorConfig() if base is None else base
+    if effective_base.dead_mask_mode is not DeadMaskMode.REPLAY:
+        raise ValueError(
+            "dataset-builder/0.1 requires BaseAnnotatorConfig.dead_mask_mode=DeadMaskMode.REPLAY"
         )
-        validate_track(track, metadata.frame_count)
-        validate_pose_arrays(pose, metadata.frame_count)
-        _validate_court_vision(
-            court.raw_cuts,
-            court.evidence,
-            metadata.frame_count,
-            (float(metadata.width), float(metadata.height)),
-        )
-        court_inputs = court.evidence.inputs
-        if court_inputs is None:
-            raise ValueError("detected court evidence has no operational inputs")
+    effective_landing = (
+        SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
+    )
+    validate_shuttle_track(track, metadata.frame_count)
+    validate_pose_arrays(pose, metadata.frame_count)
+    _validate_court_vision(
+        court.raw_cuts,
+        court.evidence,
+        metadata.frame_count,
+        (float(metadata.width), float(metadata.height)),
+    )
+    court_inputs = court.evidence.inputs
+    if court_inputs is None:
+        raise ValueError("detected court evidence has no operational inputs")
 
-        capture = RunCapture()
-        cut_frames = [end for _start, end in court.raw_cuts[:-1]]
-        result = run_video(
-            track,
-            pose.bboxes,
-            pose.scores,
-            pose.kps,
-            pose.ndet,
-            fps=float(metadata.fps),
-            base=effective_base,
-            landing_options=effective_landing,
-            net_band=court_inputs.net_band,
-            resolution=court_inputs.resolution,
-            video_id=video_id,
-            court_info=court_inputs.court_info,
-            homo_df=None,
-            gate_court_info=court_inputs.gate_court_info,
-            gate_resolution_table=court_inputs.gate_resolution_table,
-            ref_err_px=ref_err_px,
-            raw_exclusion_mask=None,
-            court_present=court.evidence.court_present,
-            homography_rows=court_inputs.homography_rows,
-            cut_frames=cut_frames,
-            keep_vote=court.evidence.keep_vote,
-            court_invalid_is_excluded=True,
-            landing_error_band_m=court_inputs.landing_error_band_m,
-            capture=capture,
-        )
-        raw_mask = _validated_mask(
-            capture.raw_exclusion_mask,
-            metadata.frame_count,
-            "captured raw replay mask",
-        )
-        definitive_mask = _validated_mask(
-            capture.definitive_exclusion_mask,
-            metadata.frame_count,
-            "captured definitive exclusion mask",
-        )
-        run = AnnotationRun(
-            video_id=video_id,
-            result=result,
-            raw_replay_mask=raw_mask.copy(),
-            definitive_exclusion_mask=definitive_mask.copy(),
-        )
-        artifacts = persist_annotation_run(output_dir, run, metadata.frame_count)
-        return AnnotationOutput(run=run, artifacts=artifacts)
-
-    return _run_stage("annotation", operation)
+    capture = RunCapture()
+    cut_frames = [end for _start, end in court.raw_cuts[:-1]]
+    result = run_video(
+        track,
+        pose.bboxes,
+        pose.scores,
+        pose.kps,
+        pose.ndet,
+        fps=float(metadata.fps),
+        base=effective_base,
+        landing_options=effective_landing,
+        net_band=court_inputs.net_band,
+        resolution=court_inputs.resolution,
+        video_id=video_id,
+        court_info=court_inputs.court_info,
+        homo_df=None,
+        gate_court_info=court_inputs.gate_court_info,
+        gate_resolution_table=court_inputs.gate_resolution_table,
+        ref_err_px=ref_err_px,
+        raw_exclusion_mask=None,
+        court_present=court.evidence.court_present,
+        homography_rows=court_inputs.homography_rows,
+        cut_frames=cut_frames,
+        keep_vote=court.evidence.keep_vote,
+        court_invalid_is_excluded=True,
+        landing_error_band_m=court_inputs.landing_error_band_m,
+        capture=capture,
+    )
+    raw_mask = _validated_mask(
+        capture.raw_exclusion_mask,
+        metadata.frame_count,
+        "captured raw replay mask",
+    )
+    definitive_mask = _validated_mask(
+        capture.definitive_exclusion_mask,
+        metadata.frame_count,
+        "captured definitive exclusion mask",
+    )
+    run = AnnotationRun(
+        video_id=video_id,
+        result=result,
+        raw_replay_mask=raw_mask.copy(),
+        definitive_exclusion_mask=definitive_mask.copy(),
+    )
+    artifacts = persist_annotation_run(output_dir, run, metadata.frame_count)
+    return AnnotationOutput(run=run, artifacts=artifacts)
 
 
 def persist_annotation_run(
@@ -902,16 +841,6 @@ def _json_ready(value: object) -> object:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     raise TypeError(f"cannot serialise structured annotation value {type(value).__name__}")
-
-
-def _run_stage(stage: str, operation: Callable[[], T]) -> VisionStageResult[T]:
-    from dataset_builder.models import StageOutcome
-
-    try:
-        return VisionStageResult(stage, StageOutcome.PROCESSED, value=operation())
-    except Exception as error:
-        reason = f"{type(error).__name__}: {error}"
-        return VisionStageResult(stage, StageOutcome.FAILED, reason=reason)
 
 
 def _extract_pose_child(

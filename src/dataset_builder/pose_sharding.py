@@ -20,7 +20,6 @@ from dataset_builder._pose_process import (
 from dataset_builder.vision import (
     PoseArrays,
     PoseExtraction,
-    VisionStageResult,
     save_pose_arrays,
     validate_pose_arrays,
 )
@@ -28,38 +27,6 @@ from dataset_builder.vision import (
 
 POSE_SHARD_DECODE_MODE = "seek"
 _POSE_SHARD_CHILD_COMMAND = "_extract-sharded-rtmlib-pose"
-
-
-def extract_sharded_rtmlib_pose_stage(
-    *,
-    metadata: VideoMetadata,
-    output_dir: Path,
-    interpreter: str | Path,
-    shards: int,
-    device: str = "cuda",
-    n_max: int = 16,
-    decode_mode: str = POSE_SHARD_DECODE_MODE,
-) -> VisionStageResult[PoseExtraction]:
-    """Run validated multi-process RTMLib extraction in the pose environment."""
-    from dataset_builder.models import StageOutcome
-
-    try:
-        extraction = _extract_sharded_rtmlib_pose(
-            metadata=metadata,
-            output_dir=output_dir,
-            interpreter=interpreter,
-            shards=shards,
-            device=device,
-            n_max=n_max,
-            decode_mode=decode_mode,
-        )
-    except Exception as error:
-        return VisionStageResult(
-            "pose_extraction",
-            StageOutcome.FAILED,
-            reason=f"{type(error).__name__}: {error}",
-        )
-    return VisionStageResult("pose_extraction", StageOutcome.PROCESSED, extraction)
 
 
 def sharded_rtmlib_pose_command(
@@ -99,16 +66,17 @@ def sharded_rtmlib_pose_command(
     ]
 
 
-def _extract_sharded_rtmlib_pose(
+def extract_sharded_rtmlib_pose_stage(
     *,
     metadata: VideoMetadata,
     output_dir: Path,
     interpreter: str | Path,
     shards: int,
-    device: str,
-    n_max: int,
-    decode_mode: str,
+    device: str = "cuda",
+    n_max: int = 16,
+    decode_mode: str = POSE_SHARD_DECODE_MODE,
 ) -> PoseExtraction:
+    """Run validated multi-process RTMLib extraction in the pose environment."""
     _validate_settings(shards=shards, n_max=n_max, device=device, decode_mode=decode_mode)
     executable = resolve_pose_executable(interpreter)
     root = Path(output_dir)

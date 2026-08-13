@@ -210,7 +210,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         source_dataset=_nonempty(run["source_dataset"], "run.source_dataset"),
         search_terms=search_terms,
         search_count=_positive_integer(search["result_count"], "search.result_count"),
-        max_videos=_nonnegative_integer(run["max_videos"], "run.max_videos"),
+        max_videos=_positive_integer(run["max_videos"], "run.max_videos"),
         download_workers=_positive_integer(run["download_workers"], "run.download_workers"),
         tracknet_python_environment=_nonempty(
             environment["tracknet_python"], "environment.tracknet_python",
@@ -299,8 +299,10 @@ def _empty_selected_run_reason(manifest: RunManifest) -> str | None:
     selected = dict(selection.counts).get("selected")
     videos = dict(assembly.counts).get("videos")
     rallies = dict(assembly.counts).get("rallies")
-    if selected is None or selected == 0 or videos is None or rallies is None:
+    if selected is None or videos is None or rallies is None:
         return None
+    if selected == 0:
+        return "selection produced no videos"
     if videos == 0:
         return "every selected video was excluded before record assembly"
     if rallies == 0:

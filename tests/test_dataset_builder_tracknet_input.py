@@ -213,7 +213,7 @@ def test_proxy_pixel_coordinates_normalise_to_canonical_proportions(tmp_path: Pa
         video_id="source-id",
         metadata=proxy,
         output_path=output_path,
-    ).require_value()
+    )
 
     expected = np.array([[0.5, 0.5, 1.0], [0.25, 0.25, 1.0]])
     np.testing.assert_array_equal(result.track, expected)

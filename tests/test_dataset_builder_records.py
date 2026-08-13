@@ -32,11 +32,17 @@ from dataset_builder.models import (
     StageRecord,
 )
 from dataset_builder.records import (
+    RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
     RALLY_RECORD_SCHEMA,
     RALLY_RECORDS_FILENAME,
+    RallyRecordArtifacts,
+    RallyRecordProjection,
     SourceReference,
     assemble_rally_records,
+    load_rally_record_projection,
     load_rally_records,
+    write_rally_record_projection,
     write_rally_records,
 )
 from dataset_builder.vision import load_json_gz, save_json_gz
@@ -244,8 +250,7 @@ def _assemble(
     commentary_reason: str | None = None,
     missing_reasons: dict[int, str] | None = None,
     commentary_provenance: dict[str, object] | None = None,
-    assembly_configuration: dict[str, object] | None = None,
-) -> list[dict[str, object]]:
+) -> RallyRecordProjection:
     canonical = _metadata(tmp_path) if metadata is None else metadata
     selected_manifest = _manifest() if manifest is None else manifest
     selected_pairing = _pairing(canonical) if pairing is None else pairing
@@ -268,90 +273,42 @@ def _assemble(
         commentary_provenance=(
             _provenance() if commentary_provenance is None else commentary_provenance
         ),
+        mask_stage_name="annotation",
+    )
+
+
+def _write(
+    run_dir: Path,
+    manifest: RunManifest,
+    projections: list[RallyRecordProjection],
+    *,
+    assembly_configuration: dict[str, object] | None = None,
+) -> RallyRecordArtifacts:
+    return write_rally_records(
+        run_dir,
+        manifest,
+        projections,
         code_version=CODE_VERSION,
         assembly_configuration=(
             {"record_mode": "primitive"}
             if assembly_configuration is None
             else assembly_configuration
         ),
-        mask_stage_name="annotation",
     )
-
-
-def _expected_run() -> dict[str, object]:
-    return {
-        "run_id": "run-15",
-        "created_at_utc": "2026-08-09T00:00:00Z",
-        "run_manifest": "run_manifest.json.gz",
-        "input_manifest_sha256": run_manifest_sha256(_manifest()),
-        "code_version": CODE_VERSION,
-        "configuration": {
-            "assembly": {"record_mode": "primitive"},
-            "stages": {
-                "vision": {"device": "cuda"},
-                "annotation": {"dead_mask_mode": "replay"},
-                "commentary": {"window_seconds": 8},
-            },
-        },
-        "integrity": {
-            "vision": {
-                "fingerprint": "1" * 64,
-                "inputs": [],
-                "model_weights": [],
-                "outputs": [_artifact("track", "vision/shuttle_track.npy.xz", "1").to_dict()],
-            },
-            "annotation": {
-                "fingerprint": "2" * 64,
-                "inputs": [],
-                "model_weights": [],
-                "outputs": [artifact.to_dict() for artifact in _manifest().stages[1].outputs],
-            },
-            "commentary": {
-                "fingerprint": "3" * 64,
-                "inputs": [],
-                "model_weights": [],
-                "outputs": [_artifact("pairs", "commentary/pairs.csv.gz", "5").to_dict()],
-            },
-        },
-        "stage_outcomes": {
-            "vision": {"outcome": "processed", "reason": None},
-            "annotation": {"outcome": "processed", "reason": None},
-            "commentary": {"outcome": "processed", "reason": None},
-        },
-    }
-
-
-def _expected_artifacts() -> dict[str, object]:
-    manifest = _manifest()
-    return {
-        "by_stage": {
-            stage.name: [artifact.to_dict() for artifact in stage.outputs]
-            for stage in manifest.stages
-        },
-        "masks": {
-            "stage": "annotation",
-            "stage_configuration": {"dead_mask_mode": "replay"},
-            "raw_replay_mask": manifest.stages[1].outputs[1].to_dict(),
-            "definitive_exclusion_mask": manifest.stages[1].outputs[2].to_dict(),
-        },
-    }
 
 
 def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> None:
     metadata = _metadata(tmp_path)
-    records = _assemble(tmp_path, metadata=metadata)
+    projection = _assemble(tmp_path, metadata=metadata)
+    records = list(projection.records)
     expected_source = {
         "source_dataset": "scraped-professional",
         "video_id": VIDEO_ID,
         "source_reference": _source_reference().to_dict(),
         "video_metadata": metadata.to_dict(),
+        "mask_stage": "annotation",
     }
-    shared = {
-        "schema": RALLY_RECORD_SCHEMA,
-        "run": _expected_run(),
-        "source": expected_source,
-        "artifacts": _expected_artifacts(),
-    }
+    shared = {"schema": RALLY_RECORD_SCHEMA}
     expected = [
         {
             **shared,
@@ -502,6 +459,7 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
         },
     ]
 
+    assert projection.source == expected_source
     assert records == expected
     assert records[0]["key"]["video_id"] == VIDEO_ID
     assert isinstance(records[0]["key"]["video_id"], str)
@@ -655,14 +613,14 @@ def test_source_basename_is_provenance_not_record_identity(tmp_path: Path) -> No
         commentary_eligible=True,
     )
 
-    records = _assemble(
+    projection = _assemble(
         tmp_path,
         metadata=metadata,
         source_reference=source_reference,
     )
 
-    key = records[0]["key"]
-    source_payload = records[0]["source"]
+    key = projection.records[0]["key"]
+    source_payload = projection.source
     assert isinstance(key, dict)
     assert isinstance(source_payload, dict)
     reference_payload = source_payload["source_reference"]
@@ -674,16 +632,37 @@ def test_source_basename_is_provenance_not_record_identity(tmp_path: Path) -> No
 def test_persisted_free_form_provenance_is_redacted(tmp_path: Path) -> None:
     provenance = _provenance()
     provenance["transcript_api_token"] = "secret-value"
-    records = _assemble(
-        tmp_path,
-        commentary_provenance=provenance,
+    projection = _assemble(tmp_path, commentary_provenance=provenance)
+    artifacts = _write(
+        tmp_path / "redacted",
+        _manifest(),
+        [projection],
         assembly_configuration={"service_password": "secret-value"},
     )
-    run = records[0]["run"]
-    commentary = records[0]["commentary"]
+    payload = load_json_gz(artifacts.records)
+    commentary = payload["records"][0]["commentary"]
 
-    assert run["configuration"]["assembly"] == {"service_password": "<redacted>"}
+    assert payload["assembly_configuration"] == {"service_password": "<redacted>"}
     assert commentary["provenance"]["transcript_api_token"] == "<redacted>"
+    assert "secret-value" not in str(payload)
+    assert load_rally_records(artifacts.records) == list(projection.records)
+
+    payload["assembly_configuration"] = {"service_password": "secret-value"}
+    tampered = save_json_gz(tmp_path / "redacted" / "unredacted.json.gz", payload)
+    with pytest.raises(ValueError, match="unredacted secrets"):
+        load_rally_records(tampered)
+
+    malformed_records = deepcopy(projection.records)
+    malformed_records[0]["commentary"]["provenance"]["api_token"] = "secret-value"
+    malformed = replace(projection, records=tuple(malformed_records))
+    with pytest.raises(ValueError, match="commentary provenance contains unredacted secrets"):
+        _write(tmp_path / "unredacted-projection", _manifest(), [malformed])
+
+    payload = load_json_gz(artifacts.records)
+    payload["records"][0]["commentary"]["provenance"]["api_token"] = "secret-value"
+    tampered = save_json_gz(tmp_path / "redacted" / "unredacted-commentary.json.gz", payload)
+    with pytest.raises(ValueError, match="commentary provenance contains unredacted secrets"):
+        load_rally_records(tampered)
 
 
 def test_paired_commentary_requires_transcript_and_cleaning_provenance(tmp_path: Path) -> None:
@@ -692,24 +671,18 @@ def test_paired_commentary_requires_transcript_and_cleaning_provenance(tmp_path:
 
 
 def test_assembled_records_do_not_share_mutable_provenance(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
-    first_run = records[0]["run"]
-    second_run = records[1]["run"]
+    records = _assemble(tmp_path).records
     first_commentary = records[0]["commentary"]
     second_commentary = records[1]["commentary"]
-    assert isinstance(first_run, dict)
-    assert isinstance(second_run, dict)
     assert isinstance(first_commentary, dict)
     assert isinstance(second_commentary, dict)
 
-    first_run["code_version"] = "mutated"
     first_provenance = first_commentary["provenance"]
     second_provenance = second_commentary["provenance"]
     assert isinstance(first_provenance, dict)
     assert isinstance(second_provenance, dict)
     first_provenance["transcript"] = "mutated"
 
-    assert second_run["code_version"] == CODE_VERSION
     assert second_provenance["transcript"] == _provenance()["transcript"]
 
 
@@ -734,7 +707,7 @@ def test_unavailable_commentary_keeps_every_rally_with_null_values(tmp_path: Pat
         commentary_outcome=StageOutcome.UNAVAILABLE,
         commentary_reason="unavailable_transcript",
         missing_reasons={},
-    )
+    ).records
 
     assert len(records) == len(_annotation().spans)
     for record in records:
@@ -761,32 +734,139 @@ def test_successful_commentary_requires_canonical_pairing(
 
 
 def test_record_persistence_round_trips_and_writes_manifest(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
     run_dir = tmp_path / "run"
 
-    artifacts = write_rally_records(run_dir, _manifest(), records)
+    artifacts = _write(run_dir, _manifest(), [projection])
+    payload = load_json_gz(artifacts.records)
 
     assert artifacts.records == run_dir / RALLY_RECORDS_FILENAME
     assert artifacts.run_manifest == run_dir / "run_manifest.json.gz"
-    assert load_rally_records(artifacts.records) == records
+    assert payload["schema"] == RALLY_RECORD_COLLECTION_SCHEMA
+    assert payload["sources"] == [projection.source]
+    assert all(record["schema"] == RALLY_RECORD_SCHEMA for record in payload["records"])
+    assert all(
+        set(record) == {"schema", "key", "rally", "contacts", "outcomes", "commentary"}
+        for record in payload["records"]
+    )
+    assert load_rally_records(artifacts.records) == list(projection.records)
+
+    payload["schema"] = "rally-record-collection/0.1"
+    unsupported = save_json_gz(run_dir / "unsupported.json.gz", payload)
+    with pytest.raises(ValueError, match="unsupported rally record collection schema"):
+        load_rally_records(unsupported)
+
+    payload = load_json_gz(artifacts.records)
+    payload["records"][0]["schema"] = "rally-record/0.1"
+    unsupported_row = save_json_gz(run_dir / "unsupported-row.json.gz", payload)
+    with pytest.raises(ValueError, match="rally record schema differs"):
+        load_rally_records(unsupported_row)
+
+
+def test_projection_persistence_round_trips_source_and_minimal_rows(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = tmp_path / "primitive_projection.json.gz"
+
+    assert write_rally_record_projection(path, manifest, projection) == path
+    payload = load_json_gz(path)
+
+    assert payload == {
+        "schema": RALLY_RECORD_PROJECTION_SCHEMA,
+        "input_manifest_sha256": run_manifest_sha256(manifest),
+        "source": projection.source,
+        "records": list(projection.records),
+    }
+    assert load_rally_record_projection(
+        path,
+        manifest,
+        video_id=VIDEO_ID,
+    ) == projection
+
+
+def test_projection_loader_rejects_corrupt_record_content(tmp_path: Path) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = write_rally_record_projection(
+        tmp_path / "primitive_projection.json.gz",
+        manifest,
+        projection,
+    )
+    payload = load_json_gz(path)
+    del payload["records"][0]["contacts"]["accepted"]
+    save_json_gz(path, payload)
+
+    with pytest.raises(ValueError, match="record contacts fields differ"):
+        load_rally_record_projection(path, manifest, video_id=VIDEO_ID)
+
+
+def test_projection_loader_rejects_a_different_manifest_snapshot(tmp_path: Path) -> None:
+    manifest = _manifest()
+    projection = _assemble(tmp_path, manifest=manifest)
+    path = write_rally_record_projection(
+        tmp_path / "primitive_projection.json.gz",
+        manifest,
+        projection,
+    )
+    changed_stage = replace(manifest.stages[0], command=("python", "changed"))
+    changed = replace(manifest, stages=(changed_stage, *manifest.stages[1:]))
+
+    with pytest.raises(ValueError, match="projection input-manifest digest differs"):
+        load_rally_record_projection(path, changed, video_id=VIDEO_ID)
 
 
 def test_duplicate_record_composite_key_is_rejected_before_write(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
+    duplicate = replace(
+        projection,
+        records=(projection.records[0], projection.records[0]),
+    )
 
     with pytest.raises(ValueError, match="composite key is duplicated"):
-        write_rally_records(tmp_path / "run", _manifest(), [records[0], records[0]])
+        _write(tmp_path / "run", _manifest(), [duplicate])
+
+
+def test_duplicate_source_is_rejected_before_write(tmp_path: Path) -> None:
+    projection = _assemble(tmp_path)
+
+    with pytest.raises(ValueError, match="record source is duplicated"):
+        _write(tmp_path / "duplicate-source", _manifest(), [projection, projection])
+
+
+def test_loader_rejects_rows_outside_collection_source_order(tmp_path: Path) -> None:
+    first = _assemble(tmp_path)
+    second_source = deepcopy(first.source)
+    second_source["source_dataset"] = "second-dataset"
+    second_records = deepcopy(first.records)
+    for record in second_records:
+        record["key"]["source_dataset"] = "second-dataset"
+    second = RallyRecordProjection(
+        first.input_manifest_sha256,
+        second_source,
+        tuple(second_records),
+    )
+    run_dir = tmp_path / "source-order"
+    artifacts = _write(run_dir, _manifest(), [first, second])
+    payload = load_json_gz(artifacts.records)
+    payload["records"] = [*payload["records"][2:], *payload["records"][:2]]
+    tampered = save_json_gz(run_dir / "source-order-tampered.json.gz", payload)
+
+    with pytest.raises(ValueError, match="source order"):
+        load_rally_records(tampered)
 
 
 def test_persistence_rejects_a_missing_nested_record_primitive(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
-    malformed = deepcopy(records)
+    projection = _assemble(tmp_path)
+    malformed = deepcopy(projection.records)
     del malformed[0]["contacts"]["accepted"]
+    malformed_projection = replace(projection, records=tuple(malformed))
 
     with pytest.raises(ValueError, match="record contacts fields differ"):
-        write_rally_records(tmp_path / "rejected", _manifest(), malformed)
+        _write(tmp_path / "rejected", _manifest(), [malformed_projection])
 
-    artifacts = write_rally_records(tmp_path / "valid", _manifest(), records)
+    artifacts = _write(tmp_path / "valid", _manifest(), [projection])
     payload = load_json_gz(artifacts.records)
     payload["records"][0]["contacts"].pop("accepted")
     tampered = save_json_gz(tmp_path / "tampered.json.gz", payload)
@@ -794,40 +874,68 @@ def test_persistence_rejects_a_missing_nested_record_primitive(tmp_path: Path) -
         load_rally_records(tampered)
 
 
-def test_persistence_rejects_cross_record_provenance_and_span_drift(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
-    mismatched_run = deepcopy(records)
-    mismatched_run[1]["run"]["code_version"] = "b" * 40
-    with pytest.raises(ValueError, match="run provenance differs within"):
-        write_rally_records(tmp_path / "run-drift", _manifest(), mismatched_run)
-
-    overlapping = deepcopy(records)
+def test_persistence_rejects_span_and_outcome_link_drift(tmp_path: Path) -> None:
+    projection = _assemble(tmp_path)
+    overlapping = deepcopy(projection.records)
     overlapping[1]["rally"].update({
         "start_frame": 40,
         "duration_frames": 60,
         "duration_seconds": 2.4,
     })
     with pytest.raises(ValueError, match="overlap or are unordered"):
-        write_rally_records(tmp_path / "span-drift", _manifest(), overlapping)
+        _write(
+            tmp_path / "span-drift",
+            _manifest(),
+            [replace(projection, records=tuple(overlapping))],
+        )
 
-    wrong_next_server = deepcopy(records)
+    wrong_next_server = deepcopy(projection.records)
     wrong_next_server[0]["outcomes"]["next_server"] = "Top"
     with pytest.raises(ValueError, match="next_server conflicts with the following rally"):
-        write_rally_records(tmp_path / "next-server-drift", _manifest(), wrong_next_server)
+        _write(
+            tmp_path / "next-server-drift",
+            _manifest(),
+            [replace(projection, records=tuple(wrong_next_server))],
+        )
 
 
 def test_writer_rejects_a_different_same_id_manifest_before_publication(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
     original = _manifest()
+    changed_stage = replace(original.stages[0], command=("python", "different"))
     different = RunManifest(
         run_id=original.run_id,
         created_at_utc=original.created_at_utc,
-        stages=original.stages[:1],
+        stages=(changed_stage, *original.stages[1:]),
     )
     run_dir = tmp_path / "mismatched-manifest"
 
-    with pytest.raises(ValueError, match="supplied input-manifest snapshot"):
-        write_rally_records(run_dir, different, records)
+    with pytest.raises(ValueError, match="projection input-manifest digest differs"):
+        _write(run_dir, different, [projection])
+
+    assert not run_dir.exists()
+
+
+def test_writer_validates_rows_against_the_exact_projection_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest()
+    projection_manifest = replace(manifest, stages=manifest.stages[:1])
+    forged = replace(
+        _assemble(tmp_path, manifest=manifest),
+        input_manifest_sha256=run_manifest_sha256(projection_manifest),
+    )
+    run_dir = tmp_path / "missing-projection-mask"
+
+    with pytest.raises(ValueError, match="mask stage is absent"):
+        write_rally_records(
+            run_dir,
+            manifest,
+            [forged],
+            code_version=CODE_VERSION,
+            assembly_configuration={"record_mode": "primitive"},
+            projection_manifest=projection_manifest,
+        )
 
     assert not run_dir.exists()
 
@@ -837,7 +945,7 @@ def test_writer_rejects_a_different_same_id_manifest_before_publication(tmp_path
     ["command", "dependencies", "counts", "elapsed_seconds", "semantic_validation", "fingerprint"],
 )
 def test_manifest_digest_covers_every_stage_identity_group(tmp_path: Path, field: str) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
     original = _manifest()
     stages = list(original.stages)
     stage_index = 2 if field == "dependencies" else 0
@@ -867,18 +975,21 @@ def test_manifest_digest_covers_every_stage_identity_group(tmp_path: Path, field
         stages=tuple(stages),
     )
     run_dir = tmp_path / field
+    artifacts = _write(run_dir, original, [projection])
+    payload = load_json_gz(artifacts.records)
+    payload["input_manifest"] = different.to_dict()
+    tampered = save_json_gz(run_dir / f"tampered-{field}.json.gz", payload)
 
-    with pytest.raises(ValueError, match="supplied input-manifest snapshot"):
-        write_rally_records(run_dir, different, records)
-
-    assert not run_dir.exists()
+    assert run_manifest_sha256(original) != run_manifest_sha256(different)
+    with pytest.raises(ValueError, match="digest differs from its snapshot"):
+        load_rally_records(tampered)
 
 
 def test_loader_rejects_live_manifest_drift_from_the_input_snapshot(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
     original = _manifest()
     run_dir = tmp_path / "load-manifest-drift"
-    artifacts = write_rally_records(run_dir, original, records)
+    artifacts = _write(run_dir, original, [projection])
     changed_stage = replace(original.stages[0], command=("python", "different"))
     different = RunManifest(
         run_id=original.run_id,
@@ -892,10 +1003,10 @@ def test_loader_rejects_live_manifest_drift_from_the_input_snapshot(tmp_path: Pa
 
 
 def test_live_manifest_can_append_the_assembly_output_without_a_hash_cycle(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
+    projection = _assemble(tmp_path)
     input_manifest = _manifest()
     run_dir = tmp_path / "assembly-extension"
-    artifacts = write_rally_records(run_dir, input_manifest, records)
+    artifacts = _write(run_dir, input_manifest, [projection])
     assembly = _stage(
         "assembly",
         configuration={"record_mode": "primitive"},
@@ -910,17 +1021,42 @@ def test_live_manifest_can_append_the_assembly_output_without_a_hash_cycle(tmp_p
     )
     write_run_manifest(run_dir, live_manifest)
 
-    assert load_rally_records(artifacts.records) == records
+    assert load_rally_records(artifacts.records) == list(projection.records)
     reassembled = _assemble(tmp_path, manifest=live_manifest)
     with pytest.raises(ValueError, match="already references the rally-record output"):
-        write_rally_records(run_dir, live_manifest, reassembled)
-    assert load_rally_records(artifacts.records) == records
+        _write(run_dir, live_manifest, [reassembled])
+    assert load_rally_records(artifacts.records) == list(projection.records)
+
+
+def test_loader_rejects_live_manifest_extension_from_a_different_code_version(
+    tmp_path: Path,
+) -> None:
+    projection = _assemble(tmp_path)
+    input_manifest = _manifest()
+    run_dir = tmp_path / "assembly-version-drift"
+    artifacts = _write(run_dir, input_manifest, [projection])
+    assembly = _stage(
+        "assembly",
+        configuration={"record_mode": "primitive"},
+        outputs=(artifact_integrity("rally_records", artifacts.records, relative_to=run_dir),),
+        dependencies=("commentary",),
+        marker="6",
+    )
+    assembly = replace(
+        assembly,
+        fingerprint=replace(assembly.fingerprint, source_commit="b" * 40),
+    )
+    live_manifest = replace(input_manifest, stages=(*input_manifest.stages, assembly))
+    write_run_manifest(run_dir, live_manifest)
+
+    with pytest.raises(ValueError, match="run manifest code versions"):
+        load_rally_records(artifacts.records)
 
 
 def test_empty_collection_detects_live_manifest_drift(tmp_path: Path) -> None:
     original = _manifest()
     run_dir = tmp_path / "empty-manifest-drift"
-    artifacts = write_rally_records(run_dir, original, [])
+    artifacts = _write(run_dir, original, [])
     changed_stage = replace(original.stages[0], command=("python", "different"))
     different = RunManifest(
         run_id=original.run_id,
@@ -934,27 +1070,31 @@ def test_empty_collection_detects_live_manifest_drift(tmp_path: Path) -> None:
 
 
 def test_persistence_rejects_masks_from_a_failed_stage(tmp_path: Path) -> None:
-    records = _assemble(tmp_path)
-    malformed = deepcopy(records)
-    for record in malformed:
-        record["run"]["stage_outcomes"]["annotation"] = {
-            "outcome": "failed",
-            "reason": "synthetic failure",
-        }
+    projection = _assemble(tmp_path)
+    manifest = _manifest()
+    failed_annotation = replace(
+        manifest.stages[1],
+        outcome=StageOutcome.FAILED,
+        reason="synthetic failure",
+    )
+    failed_manifest = replace(
+        manifest,
+        stages=(manifest.stages[0], failed_annotation, manifest.stages[2]),
+    )
+    failed_projection = replace(
+        projection,
+        input_manifest_sha256=run_manifest_sha256(failed_manifest),
+    )
 
     with pytest.raises(ValueError, match="mask stage must have a reusable"):
-        write_rally_records(tmp_path / "failed-mask", _manifest(), malformed)
+        _write(tmp_path / "failed-mask", failed_manifest, [failed_projection])
 
-    manifest = _manifest()
-    payload = {
-        "schema": RALLY_RECORD_SCHEMA,
-        "run_id": manifest.run_id,
-        "run_manifest": "run_manifest.json.gz",
-        "input_manifest_sha256": run_manifest_sha256(manifest),
-        "input_manifest": manifest.to_dict(),
-        "records": malformed,
-    }
-    tampered = save_json_gz(tmp_path / "failed-mask.json.gz", payload)
+    run_dir = tmp_path / "valid-mask"
+    artifacts = _write(run_dir, manifest, [projection])
+    payload = load_json_gz(artifacts.records)
+    payload["input_manifest"] = failed_manifest.to_dict()
+    payload["input_manifest_sha256"] = run_manifest_sha256(failed_manifest)
+    tampered = save_json_gz(run_dir / "failed-mask.json.gz", payload)
     with pytest.raises(ValueError, match="mask stage must have a reusable"):
         load_rally_records(tampered)
 

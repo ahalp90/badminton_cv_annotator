@@ -166,7 +166,7 @@ Draft commit: `Assemble provisional rally records`
 2. Preserve raw and cleaned commentary with quality diagnostics.
 3. Represent missing commentary as null with a stage outcome or reason.
 4. Validate half-open rally intervals and composite-key uniqueness.
-5. Emit one `rally-record/0.1` row per detected rally.
+5. Emit one versioned provisional rally-record row per detected rally.
 6. Write `rally_records.json.gz` and `run_manifest.json.gz`.
 7. Reference large vision artefacts instead of embedding their arrays.
 8. Keep assembly limited to validation and joining. It must not rerun or

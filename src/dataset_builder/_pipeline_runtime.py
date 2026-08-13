@@ -4,23 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from dataclasses import replace
 import os
 from pathlib import Path
 import shutil
 import sys
 
-import numpy as np
-
 from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
+from annotator.video_metadata import probe_video_metadata
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
-    _load_projection,
     _load_report,
     _valid_candidates,
-    _valid_projection,
     _valid_report,
     _valid_selection,
     _write_candidates_snapshot,
@@ -28,8 +25,17 @@ from dataset_builder._runtime_support import (
 from dataset_builder._vision_plans import pose_plans, shuttle_plans, tracknet_input_plans
 from dataset_builder.cli import BuilderConfig, StageExecution, StagePlan
 from dataset_builder.manifest import load_run_manifest, resolve_interpreter
-from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
-from dataset_builder.records import SourceReference, assemble_rally_records, write_rally_records
+from dataset_builder.models import RunManifest, StageOutcome
+from dataset_builder.records import (
+    RALLY_RECORD_COLLECTION_SCHEMA,
+    RALLY_RECORD_PROJECTION_SCHEMA,
+    RALLY_RECORD_SCHEMA,
+    RallyRecordProjection,
+    assemble_rally_records,
+    load_rally_record_projection,
+    write_rally_record_projection,
+    write_rally_records,
+)
 from dataset_builder.selection import (
     SELECTED_VIDEOS_FILENAME,
     SelectionDecision,
@@ -39,19 +45,11 @@ from dataset_builder.selection import (
     with_commentary_statuses,
     write_selection,
 )
-from dataset_builder.vision import (
-    RAW_REPLAY_MASK_FILENAME,
-    AnnotationOutput,
-    CourtVision,
-    PoseArrays,
-    run_full_annotation_stage,
-    save_json_gz,
-)
-from dataset_builder.tracknet_input import TrackNetInput
+from dataset_builder.vision import RAW_REPLAY_MASK_FILENAME, run_full_annotation_stage, save_json_gz
 from scraper import commentary_cleaning, config as scraper_config
 from scraper import download_scraped_videos, relevance_triage, search_index
 from scraper import transcript_acquisition
-from scraper.commentary_pairing import CanonicalPairing, pair_video_with_metadata
+from scraper.commentary_pairing import pair_video_with_metadata
 
 
 METADATA_FILENAME = "video_metadata.json.gz"
@@ -61,45 +59,12 @@ REPORT_FILENAME = "dataset_builder_report.json.gz"
 COMMENTARY_STATUS_FILENAME = "commentary_status.json.gz"
 
 
-class _State:
-    """Mutable values reconstructed stage-by-stage inside one coordinator run."""
-
-    def __init__(self) -> None:
-        self.candidates: list[dict[str, object]] = []
-        self.transcript_ids: set[str] = set()
-        self.decisions: tuple[SelectionDecision, ...] = ()
-        self.selected_ids: tuple[str, ...] = ()
-        self.videos: dict[str, Path] = {}
-        self.sources: dict[str, SourceReference] = {}
-        self.metadata: dict[str, VideoMetadata] = {}
-        self.tracknet_inputs: dict[str, TrackNetInput] = {}
-        self.active_ids: set[str] = set()
-        self.chunks: dict[str, list[dict[str, object]]] = {}
-        self.tracks: dict[str, np.ndarray] = {}
-        self.poses: dict[str, PoseArrays] = {}
-        self.courts: dict[str, CourtVision] = {}
-        self.annotations: dict[str, AnnotationOutput] = {}
-        self.pairings: dict[str, CanonicalPairing | None] = {}
-        self.commentary_outcomes: dict[str, StageOutcome] = {}
-        self.commentary_reasons: dict[str, str | None] = {}
-        self.commentary_statuses: dict[str, str] = {}
-        self.exclusions: dict[str, str] = {}
-        self.records: list[dict[str, object]] = []
-
-
 class DefaultPipelineRuntime(RuntimeSupport):
     """Concrete plans around the repository's existing producer functions."""
 
     def __init__(self, config: BuilderConfig, run_dir: Path, source_commit: str) -> None:
-        self.config = config
-        self.run_dir = Path(run_dir)
-        self.workspace = self.run_dir / "workspace"
+        super().__init__(config, run_dir)
         self.source_commit = source_commit
-        self.state = _State()
-        self.current_interpreter: InterpreterIdentity | None = None
-        self.tracknet_interpreter: InterpreterIdentity | None = None
-        self.pose_interpreter: InterpreterIdentity | None = None
-        self.ffmpeg_interpreter: InterpreterIdentity | None = None
         self.detector: object | None = None
 
     def preflight(self) -> None:
@@ -370,26 +335,23 @@ class DefaultPipelineRuntime(RuntimeSupport):
             self._restore_downloads(sources_path)
             outputs = {"sources": sources_path}
             outputs.update({f"video.{video_id}": path for video_id, path in self.state.videos.items()})
-            failures = sum(outcome.failed for outcome in outcomes)
-            if self.state.selected_ids and not self.state.videos:
+            failed_ids = {outcome.video_id for outcome in outcomes if outcome.failed}
+            failed_ids.update(set(self.state.selected_ids) - set(self.state.videos))
+            counts = {
+                "selected": len(self.state.selected_ids),
+                "downloaded": len(self.state.videos),
+                "failed": len(failed_ids),
+            }
+            if failed_ids:
                 return StageExecution(
                     StageOutcome.FAILED,
                     outputs,
-                    {"selected": len(self.state.selected_ids), "failed": failures},
-                    "every selected video failed download",
+                    counts,
+                    "not every selected video was downloaded and verified",
                 )
             outcome = StageOutcome.PROCESSED if self.state.selected_ids else StageOutcome.EXCLUDED
             reason = None if outcome is StageOutcome.PROCESSED else "visual selection was empty"
-            return StageExecution(
-                outcome,
-                outputs,
-                {
-                    "selected": len(self.state.selected_ids),
-                    "downloaded": len(self.state.videos),
-                    "failed": failures,
-                },
-                reason,
-            )
+            return StageExecution(outcome, outputs, counts, reason)
 
         return (self._plan(
             name="download",
@@ -550,7 +512,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 pose=self.state.poses[video_id],
                 detector=self.detector,
                 output_dir=output_dir,
-            ).require_value()
+            )
             if court.artifacts is None:
                 raise RuntimeError("court stage did not persist its operational artifacts")
             self.state.courts[video_id] = court
@@ -592,7 +554,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,
-            ).require_value()
+            )
             self.state.annotations[video_id] = annotation
             return StageExecution(
                 StageOutcome.PROCESSED,
@@ -698,27 +660,24 @@ class DefaultPipelineRuntime(RuntimeSupport):
         )
 
     def _projection_plans(self, manifest: RunManifest) -> Sequence[StagePlan]:
+        input_manifest = _projection_input_manifest(manifest)
         return tuple(
-            self._projection_plan(video_id, manifest)
+            self._projection_plan(video_id, input_manifest)
             for video_id in self._active_video_ids()
         )
 
-    def _projection_plan(self, video_id: str, _manifest: RunManifest) -> StagePlan:
+    def _projection_plan(self, video_id: str, input_manifest: RunManifest) -> StagePlan:
         output = self._video_dir("primitive_projection", video_id) / PROJECTION_FILENAME
 
         def execute() -> StageExecution:
             self._reset_stage_dir("primitive_projection", video_id)
-            input_manifest = load_run_manifest(self.run_dir)
-            records = self._assemble_one(input_manifest, video_id)
-            save_json_gz(output, {
-                "schema": "primitive-projection/0.1",
-                "video_id": video_id,
-                "rally_count": len(records),
-            })
+            projection = self._assemble_one(input_manifest, video_id)
+            write_rally_record_projection(output, input_manifest, projection)
+            self.state.projections[video_id] = projection
             return StageExecution(
                 StageOutcome.PROCESSED,
                 {"primitive_projection": output},
-                {"rallies": len(records)},
+                {"rallies": len(projection.records)},
             )
 
         inputs = self._annotation_files(video_id)
@@ -732,18 +691,26 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 self._video_stage("commentary_pairing", video_id),
             ),
             command=(self._current().path, "dataset_builder.records", "project", video_id),
-            configuration={"record_schema": "rally-record/0.1"},
+            configuration={
+                "projection_schema": RALLY_RECORD_PROJECTION_SCHEMA,
+                "record_schema": RALLY_RECORD_SCHEMA,
+            },
             inputs=inputs,
             execute=execute,
-            restore=lambda: _load_projection(output, video_id),
+            restore=lambda: self._restore_projection(video_id, output, input_manifest),
             validators={
-                "projection_schema": lambda _root: _valid_projection(output, video_id),
+                "projection_schema": lambda _root: self._validate_projection(
+                    video_id,
+                    output,
+                    input_manifest,
+                ),
             },
             on_failure=lambda reason: self._exclude(video_id, reason),
         )
 
     def _assembly_plans(self, manifest: RunManifest) -> Sequence[StagePlan]:
         active = self._active_video_ids()
+        projection_manifest = _projection_input_manifest(manifest)
         dependencies = tuple(
             self._video_stage("primitive_projection", video_id)
             for video_id in active
@@ -758,12 +725,21 @@ class DefaultPipelineRuntime(RuntimeSupport):
 
         def execute() -> StageExecution:
             input_manifest = load_run_manifest(self.run_dir)
-            records = [
-                record
+            projections = [
+                self.state.projections[video_id]
                 for video_id in active
-                for record in self._assemble_one(input_manifest, video_id)
             ]
-            artifacts = write_rally_records(self.run_dir, input_manifest, records)
+            records = [record for projection in projections for record in projection.records]
+            artifacts = write_rally_records(
+                self.run_dir,
+                input_manifest,
+                projections,
+                code_version=self.source_commit,
+                assembly_configuration={"record_mode": "primitive"},
+                projection_manifest=(
+                    projection_manifest if projections else input_manifest
+                ),
+            )
             self.state.records = records
             return StageExecution(
                 StageOutcome.PROCESSED,
@@ -775,7 +751,12 @@ class DefaultPipelineRuntime(RuntimeSupport):
             name="assembly",
             dependencies=dependencies,
             command=(self._current().path, "dataset_builder.records", "assemble"),
-            configuration={"record_schema": "rally-record/0.1", "validation_only": True},
+            configuration={
+                "collection_schema": RALLY_RECORD_COLLECTION_SCHEMA,
+                "projection_schema": RALLY_RECORD_PROJECTION_SCHEMA,
+                "record_schema": RALLY_RECORD_SCHEMA,
+                "validation_only": True,
+            },
             inputs=inputs,
             execute=execute,
             restore=lambda: self._restore_records(records_path),
@@ -861,7 +842,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self,
         manifest: RunManifest,
         video_id: str,
-    ) -> list[dict[str, object]]:
+    ) -> RallyRecordProjection:
         annotation = self.state.annotations[video_id]
         pairing = self.state.pairings.get(video_id)
         commentary_outcome = self.state.commentary_outcomes.get(
@@ -887,10 +868,40 @@ class DefaultPipelineRuntime(RuntimeSupport):
             commentary_reason=commentary_reason,
             commentary_missing_reasons=missing_reasons,
             commentary_provenance=self._commentary_provenance(video_id),
-            code_version=self.source_commit,
-            assembly_configuration={"record_mode": "primitive"},
             mask_stage_name=self._video_stage("annotation", video_id),
         )
+
+    def _restore_projection(
+        self,
+        video_id: str,
+        path: Path,
+        manifest: RunManifest,
+    ) -> None:
+        self.state.projections[video_id] = load_rally_record_projection(
+            path,
+            manifest,
+            video_id=video_id,
+        )
+
+    def _validate_projection(
+        self,
+        video_id: str,
+        path: Path,
+        manifest: RunManifest,
+    ) -> bool:
+        self._restore_projection(video_id, path, manifest)
+        return True
+
+
+def _projection_input_manifest(manifest: RunManifest) -> RunManifest:
+    """Return the common manifest snapshot captured before projection starts."""
+    stages = tuple(
+        stage
+        for stage in manifest.stages
+        if not stage.name.startswith("primitive_projection:")
+        and stage.name not in {"assembly", "report"}
+    )
+    return manifest if stages == manifest.stages else replace(manifest, stages=stages)
 
 
 def _annotation_configuration() -> dict[str, object]:

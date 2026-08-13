@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Protocol
 
 from bst_x.pipeline.shuttle_extractor import extract_all_shuttles
-from dataset_builder._runtime_support import _tracknet_code_inputs
-from dataset_builder.cli import StageExecution, StagePlan
-from dataset_builder.models import RunManifest, StageOutcome
+from dataset_builder._runtime_support import RuntimeState
+from dataset_builder.cli import BuilderConfig, SemanticValidator, StageExecution, StagePlan
+from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.pose_sharding import (
     POSE_SHARD_DECODE_MODE,
     extract_sharded_rtmlib_pose_stage,
@@ -26,19 +27,51 @@ from dataset_builder.tracknet_input import (
 from dataset_builder.vision import convert_tracknet_csv_stage, extract_rtmlib_pose_stage
 from scraper import config as scraper_config
 
-if TYPE_CHECKING:
-    from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
+class VisionPlanRuntime(Protocol):
+    """Runtime surface required by TrackNet-input, shuttle, and pose plans."""
+
+    config: BuilderConfig
+    state: RuntimeState
+
+    def _active_video_ids(self) -> list[str]: ...
+    def _video_dir(self, phase: str, video_id: str) -> Path: ...
+    def _reset_stage_dir(self, phase: str, video_id: str | None = None) -> Path: ...
+    def _video_stage(self, phase: str, video_id: str) -> str: ...
+    def _tracknet(self) -> InterpreterIdentity: ...
+    def _pose(self) -> InterpreterIdentity: ...
+    def _ffmpeg(self) -> InterpreterIdentity: ...
+    def _exclude(self, video_id: str, reason: str) -> None: ...
+    def _restore_track(self, video_id: str, path: Path) -> None: ...
+    def _validate_track(self, video_id: str, path: Path) -> bool: ...
+    def _restore_pose(self, video_id: str, output_dir: Path) -> None: ...
+    def _validate_pose(self, video_id: str, output_dir: Path) -> bool: ...
+
+    def _plan(
+        self,
+        *,
+        name: str,
+        dependencies: tuple[str, ...],
+        command: tuple[str, ...],
+        configuration: Mapping[str, object],
+        execute: Callable[[], StageExecution],
+        restore: Callable[[], None],
+        validators: Mapping[str, SemanticValidator],
+        interpreter: InterpreterIdentity | None = None,
+        model_weights: Mapping[str, Path] | None = None,
+        inputs: Mapping[str, Path] | None = None,
+        on_failure: Callable[[str], None] | None = None,
+    ) -> StagePlan: ...
 
 
 def tracknet_input_plans(
-    runtime: DefaultPipelineRuntime,
+    runtime: VisionPlanRuntime,
     _manifest: RunManifest,
 ) -> tuple[StagePlan, ...]:
     """Return one source-ordered TrackNet proxy plan per active video."""
     return tuple(_tracknet_input_plan(runtime, video_id) for video_id in runtime._active_video_ids())
 
 
-def _tracknet_input_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
+def _tracknet_input_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
     source = runtime.state.metadata[video_id]
     output_dir = runtime._video_dir("tracknet_input", video_id)
     proxy_path, _ = tracknet_input_paths(source, output_dir)
@@ -89,14 +122,14 @@ def _tracknet_input_plan(runtime: DefaultPipelineRuntime, video_id: str) -> Stag
 
 
 def shuttle_plans(
-    runtime: DefaultPipelineRuntime,
+    runtime: VisionPlanRuntime,
     _manifest: RunManifest,
 ) -> tuple[StagePlan, ...]:
     """Return one source-ordered TrackNet inference plan per active video."""
     return tuple(_shuttle_plan(runtime, video_id) for video_id in runtime._active_video_ids())
 
 
-def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
+def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
     canonical = runtime.state.metadata[video_id]
     tracknet_input = runtime.state.tracknet_inputs[video_id]
     proxy = tracknet_input.metadata
@@ -128,7 +161,7 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
             video_id=video_id,
             metadata=proxy,
             output_path=track_path,
-        ).require_value()
+        )
         runtime.state.tracks[video_id] = shuttle.track
         return StageExecution(
             StageOutcome.PROCESSED,
@@ -165,14 +198,14 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
 
 
 def pose_plans(
-    runtime: DefaultPipelineRuntime,
+    runtime: VisionPlanRuntime,
     _manifest: RunManifest,
 ) -> tuple[StagePlan, ...]:
     """Return one source-ordered canonical-video pose plan per active video."""
     return tuple(_pose_plan(runtime, video_id) for video_id in runtime._active_video_ids())
 
 
-def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
+def _pose_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
     metadata = runtime.state.metadata[video_id]
     output_dir = runtime._video_dir("pose", video_id)
     shards = runtime.config.pose_shards
@@ -181,7 +214,7 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
     def execute() -> StageExecution:
         runtime._reset_stage_dir("pose", video_id)
         if shards == 1:
-            result = extract_rtmlib_pose_stage(
+            extraction = extract_rtmlib_pose_stage(
                 metadata=metadata,
                 output_dir=output_dir,
                 interpreter=runtime._pose().path,
@@ -189,7 +222,7 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
                 n_max=runtime.config.pose_n_max,
             )
         else:
-            result = extract_sharded_rtmlib_pose_stage(
+            extraction = extract_sharded_rtmlib_pose_stage(
                 metadata=metadata,
                 output_dir=output_dir,
                 interpreter=runtime._pose().path,
@@ -198,7 +231,6 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
                 n_max=runtime.config.pose_n_max,
                 decode_mode=POSE_SHARD_DECODE_MODE,
             )
-        extraction = result.require_value()
         runtime.state.poses[video_id] = extraction.arrays
         return StageExecution(
             StageOutcome.PROCESSED,
@@ -230,3 +262,13 @@ def _pose_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
         },
         on_failure=lambda reason: runtime._exclude(video_id, reason),
     )
+
+
+def _tracknet_code_inputs(tracknet_dir: Path) -> dict[str, Path]:
+    """Return every Python implementation file under a configured TrackNet tree."""
+    root = Path(tracknet_dir).resolve(strict=True)
+    return {
+        f"tracknet_code.{path.relative_to(root).as_posix()}": path
+        for path in sorted(root.rglob("*.py"))
+        if path.is_file()
+    }
