@@ -9,8 +9,6 @@ from pathlib import Path
 import shutil
 import sys
 
-import numpy as np
-
 from annotator.config import BaseAnnotatorConfig
 from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
@@ -39,6 +37,7 @@ from dataset_builder.selection import (
     with_commentary_statuses,
     write_selection,
 )
+from dataset_builder.shuttle_evidence import ShuttleEvidence
 from dataset_builder.vision import (
     RAW_REPLAY_MASK_FILENAME,
     AnnotationOutput,
@@ -75,7 +74,7 @@ class _State:
         self.tracknet_inputs: dict[str, TrackNetInput] = {}
         self.active_ids: set[str] = set()
         self.chunks: dict[str, list[dict[str, object]]] = {}
-        self.tracks: dict[str, np.ndarray] = {}
+        self.shuttles: dict[str, ShuttleEvidence] = {}
         self.poses: dict[str, PoseArrays] = {}
         self.courts: dict[str, CourtVision] = {}
         self.annotations: dict[str, AnnotationOutput] = {}
@@ -588,7 +587,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
             annotation = run_full_annotation_stage(
                 video_id=video_id,
                 metadata=metadata,
-                track=self.state.tracks[video_id],
+                track=self.state.shuttles[video_id].track,
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,

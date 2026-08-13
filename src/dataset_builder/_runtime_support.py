@@ -42,6 +42,10 @@ from dataset_builder.selection import (
     load_selection,
     selected_video_ids,
 )
+from dataset_builder.shuttle_evidence import (
+    ShuttleEvidenceArtifacts,
+    load_shuttle_evidence,
+)
 from dataset_builder.vision import (
     ANNOTATOR_RESULT_FILENAME,
     COURT_EVIDENCE_FILENAME,
@@ -57,7 +61,6 @@ from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
     load_pose_arrays,
-    validate_track,
 )
 from scraper import config as scraper_config
 from scraper.commentary_pairing import CanonicalPairing
@@ -406,13 +409,28 @@ class RuntimeSupport:
         self._restore_metadata(video_id, path)
         return True
 
-    def _restore_track(self, video_id: str, path: Path) -> None:
-        track = load_npy_xz(path)
-        validate_track(track, self.state.metadata[video_id].frame_count)
-        self.state.tracks[video_id] = track
+    def _restore_shuttle(
+        self,
+        video_id: str,
+        artifacts: ShuttleEvidenceArtifacts,
+    ) -> None:
+        proxy = self.state.tracknet_inputs[video_id].metadata
+        self.state.shuttles[video_id] = load_shuttle_evidence(
+            artifacts=artifacts,
+            input_video=proxy.source_path,
+            input_height=proxy.height,
+            frame_count=proxy.frame_count,
+            stride=self.config.tracknet_stride,
+            tracknet_model=self.config.tracknet_model,
+            inpaint_model=self.config.inpaint_model,
+        )
 
-    def _validate_track(self, video_id: str, path: Path) -> bool:
-        self._restore_track(video_id, path)
+    def _validate_shuttle(
+        self,
+        video_id: str,
+        artifacts: ShuttleEvidenceArtifacts,
+    ) -> bool:
+        self._restore_shuttle(video_id, artifacts)
         return True
 
     def _pose_files(self, video_id: str) -> dict[str, Path]:

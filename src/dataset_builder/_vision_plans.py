@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from bst_x.pipeline.shuttle_extractor import extract_all_shuttles
 from dataset_builder._runtime_support import _tracknet_code_inputs
 from dataset_builder.cli import StageExecution, StagePlan
@@ -13,6 +15,10 @@ from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.pose_sharding import (
     POSE_SHARD_DECODE_MODE,
     extract_sharded_rtmlib_pose_stage,
+)
+from dataset_builder.shuttle_evidence import (
+    persist_shuttle_evidence,
+    shuttle_evidence_artifacts,
 )
 from dataset_builder.tracknet_input import (
     create_tracknet_input,
@@ -101,8 +107,11 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
     tracknet_input = runtime.state.tracknet_inputs[video_id]
     proxy = tracknet_input.metadata
     output_dir = runtime._video_dir("shuttle", video_id)
-    csv_path = output_dir / f"{proxy.source_path.stem}_ball.csv"
-    track_path = output_dir / "shuttle_track.npy.xz"
+    artifacts = shuttle_evidence_artifacts(
+        output_dir,
+        input_video=proxy.source_path,
+        stride=runtime.config.tracknet_stride,
+    )
     weights = {"tracknet": runtime.config.tracknet_model}
     if runtime.config.inpaint_model is not None:
         weights["inpaintnet"] = runtime.config.inpaint_model
@@ -124,16 +133,30 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
             enable_inpainting=runtime.config.inpaint_model is not None,
         )
         shuttle = convert_tracknet_csv_stage(
-            csv_path,
+            artifacts.tracknet_csv,
             video_id=video_id,
             metadata=proxy,
-            output_path=track_path,
+            output_path=artifacts.shuttle_track,
         ).require_value()
-        runtime.state.tracks[video_id] = shuttle.track
+        evidence = persist_shuttle_evidence(
+            track=shuttle.track,
+            artifacts=artifacts,
+            input_video=proxy.source_path,
+            input_height=proxy.height,
+            frame_count=proxy.frame_count,
+            stride=runtime.config.tracknet_stride,
+            tracknet_model=runtime.config.tracknet_model,
+            inpaint_model=runtime.config.inpaint_model,
+        )
+        runtime.state.shuttles[video_id] = evidence
         return StageExecution(
             StageOutcome.PROCESSED,
-            {"tracknet_csv": csv_path, "shuttle_track": track_path},
-            {"frames": canonical.frame_count},
+            evidence.artifacts.as_mapping(),
+            {
+                "frames": canonical.frame_count,
+                "inpaint_filled_frames": int(evidence.inpaint_fill_mask.sum()),
+                "guard_flagged_frames": int(np.count_nonzero(evidence.guard_codes)),
+            },
         )
 
     return runtime._plan(
@@ -156,9 +179,11 @@ def _shuttle_plan(runtime: DefaultPipelineRuntime, video_id: str) -> StagePlan:
             **_tracknet_code_inputs(runtime.config.tracknet_dir),
         },
         execute=execute,
-        restore=lambda: runtime._restore_track(video_id, track_path),
+        restore=lambda: runtime._restore_shuttle(video_id, artifacts),
         validators={
-            "track_schema": lambda _root: runtime._validate_track(video_id, track_path),
+            "shuttle_evidence_schema": (
+                lambda _root: runtime._validate_shuttle(video_id, artifacts)
+            ),
         },
         on_failure=lambda reason: runtime._exclude(video_id, reason),
     )
