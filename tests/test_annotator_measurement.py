@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import annotator.e2e_court_annotator as runner
+from annotator.artifact_io import load_npy, open_text_artifact, read_json_object, write_json_object
 from annotator.court_evidence import (
     COURT_SCENE_SAMPLE_LIMIT,
     PERSON_COURT_MARGIN,
@@ -236,14 +237,14 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
     root.mkdir()
 
     runner._write_raw_cuts(case, root)
-    with (root / "shared" / fixed.case_id / "raw_cuts.csv").open(newline="", encoding="utf-8") as handle:
+    with open_text_artifact(root / "shared" / fixed.case_id / "raw_cuts.csv.gz", newline="") as handle:
         raw_rows = list(csv.reader(handle))
     assert raw_rows == [["scene_index", "start_frame", "end_frame"], ["0", "0", "2"]]
 
     court_result = _fake_court_result(case, runner.PARENTS[0])
     directory = root / runner.PARENTS[0] / fixed.case_id
     runner._write_scene_evidence(directory, court_result)
-    with (directory / "court_scenes.csv").open(newline="", encoding="utf-8") as handle:
+    with open_text_artifact(directory / "court_scenes.csv.gz", newline="") as handle:
         scene_rows = list(csv.reader(handle))
     assert scene_rows[0] == list(runner.COURT_SCENES_COLUMNS)
     scene_row = dict(zip(scene_rows[0], scene_rows[1]))
@@ -253,7 +254,7 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
     assert scene_row["raw_br_x"] == "1.0"
     assert scene_row["active_bl_y"] == "1.0"
     assert scene_row["scene_valid"] == "true"
-    with (directory / "scene_rows.csv").open(newline="", encoding="utf-8") as handle:
+    with open_text_artifact(directory / "scene_rows.csv.gz", newline="") as handle:
         assert next(csv.reader(handle)) == [
             "video_id", "start_frame", "end_frame", "upleft_x", "upleft_y",
             "upright_x", "upright_y", "downleft_x", "downleft_y", "downright_x", "downright_y",
@@ -261,12 +262,13 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
 
     result = AnnotatorResult([], [], [], {10: [1], 2: [0]}, [], [], [], [], {}, {}, {}, {}, [])
     runner._write_annotations(directory, result)
-    annotation = json.loads((directory / "annotations.json").read_text(encoding="utf-8"))
+    annotation = read_json_object(directory / "annotations.json.gz")
     assert list(annotation) == list(AnnotatorResult._fields)
     assert list(annotation["filtered_by_rally"]) == ["2", "10"]
-    bool_path = directory / "bool.csv"
+    bool_path = directory / "bool.csv.gz"
     runner._write_rows(bool_path, ("value",), [{"value": np.bool_(True)}])
-    assert bool_path.read_text(encoding="utf-8").splitlines() == ["value", "true"]
+    with open_text_artifact(bool_path) as handle:
+        assert handle.read().splitlines() == ["value", "true"]
 
 
 def test_gt_membership_is_checked_as_one_exact_global_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -303,16 +305,16 @@ def test_setup_failure_returns_one_and_writes_only_terminal_run_manifest(
     monkeypatch.setattr(runner, "_require_clean_source_tree", lambda: (_ for _ in ()).throw(ValueError("dirty")))
     output_root = tmp_path / "run"
     assert runner.run_annotator_measurement(manifest_path, output_root) == 1
-    payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+    payload = read_json_object(output_root / "manifest.json.gz")
     assert payload["status"] == "failed"
     assert payload["source_commit"] == "a" * 40
-    assert (output_root / "setup_failure.json").is_file()
+    assert (output_root / "setup_failure.json.gz").is_file()
     assert len(payload["cases"]) == 4
     assert all(case["status"] == "not_run" for case in payload["cases"])
     assert len(payload["configurations"]) == 8
     assert [item["status"] for item in payload["configurations"]] == ["not_run"] * 8
     assert all(item["manifest"] is None and item["failure"] is None for item in payload["configurations"])
-    assert not list(output_root.glob("*/**/manifest.json"))
+    assert not list(output_root.glob("*/**/manifest.json.gz"))
 
 
 def test_cli_does_not_accept_an_external_output_path(tmp_path: Path) -> None:
@@ -347,11 +349,11 @@ def test_inference_failure_keeps_closed_court_evidence_and_terminal_manifest(
     runner._run_one_configuration(state, driver)
     assert state.status == "failed"
     assert state.manifest_path is not None
-    assert (state.directory / "court_scenes.csv").is_file()
-    assert (state.directory / "failure.json").is_file()
-    payload = json.loads(state.manifest_path.read_text(encoding="utf-8"))
+    assert (state.directory / "court_scenes.csv.gz").is_file()
+    assert (state.directory / "failure.json.gz").is_file()
+    payload = read_json_object(state.manifest_path)
     assert payload["status"] == "failed"
-    assert any(item["path"].endswith("court_scenes.csv") for item in payload["artifacts"])
+    assert any(item["path"].endswith("court_scenes.csv.gz") for item in payload["artifacts"])
 
 
 def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
@@ -374,16 +376,16 @@ def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
         status="inference_only",
     )
     state.directory.mkdir(parents=True)
-    (state.directory / "annotations.json").write_text("{}\n", encoding="utf-8")
+    write_json_object(state.directory / "annotations.json.gz", {})
     driver.configurations = [state]
     monkeypatch.setattr(runner, "verify_eligible_gt_files", lambda: (_ for _ in ()).throw(ValueError("gt")))
     runner._score_configurations(driver)
     assert driver.scoring_failure_path is not None
     assert state.status == "inference_only"
     assert state.manifest_path is not None
-    payload = json.loads(state.manifest_path.read_text(encoding="utf-8"))
+    payload = read_json_object(state.manifest_path)
     assert payload["status"] == "inference_only"
-    assert (state.directory / "annotations.json").is_file()
+    assert (state.directory / "annotations.json.gz").is_file()
 
 
 def _fake_case(fixed: runner.FixedCase, fixture: runner.Fixture) -> runner.CaseData:
@@ -568,12 +570,16 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
             for fixed in runner.CASES:
                 directory = output_root / parent / fixed.case_id
                 for name in (
-                    "raw_replay_mask.npy",
-                    "definitive_exclusion_mask.npy",
-                    "annotations.json",
-                    "landing_horizons.csv",
+                    "raw_replay_mask.npy.xz",
+                    "definitive_exclusion_mask.npy.xz",
+                    "annotations.json.gz",
+                    "landing_horizons.csv.gz",
                 ):
                     assert (directory / name).read_bytes()
+                np.testing.assert_array_equal(
+                    load_npy(directory / "raw_replay_mask.npy.xz"),
+                    np.zeros(2, dtype=bool),
+                )
         gt_verified = True
         return {}
 
@@ -612,18 +618,21 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     assert detector_calls == 1
     assert inference_calls == 8
     assert gt_verified
-    assert len(list((output_root / "shared").rglob("raw_cuts.csv"))) == 4
-    manifests = sorted(output_root.glob("*/**/manifest.json"))
+    assert len(list((output_root / "shared").rglob("raw_cuts.csv.gz"))) == 4
+    manifests = sorted(output_root.glob("*/**/manifest.json.gz"))
     assert len(manifests) == 8
-    assert (output_root / "manifest.json").is_file()
-    payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+    assert (output_root / "manifest.json.gz").is_file()
+    assert read_json_object(output_root / "input_manifest.json.gz") == _manifest_payload()
+    for plain_pattern in ("*.npy", "*.json", "*.csv"):
+        assert not list(output_root.rglob(plain_pattern))
+    payload = read_json_object(output_root / "manifest.json.gz")
     assert payload["status"] == "succeeded"
     assert "--output-root" not in payload["command"]
     assert len(payload["configurations"]) == 8
     assert all(item["status"] == "succeeded" for item in payload["configurations"])
     assert payload["environment"]["packages"]["opencv"] == runner.cv2.__version__
     for manifest_path in manifests:
-        config_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        config_payload = read_json_object(manifest_path)
         assert config_payload["configuration"]["dead_mask_mode"] == (
             config_payload["resolved_annotator_config"]["dead_mask_mode"]
         )
@@ -645,7 +654,7 @@ def test_shared_case_failure_marks_both_parents_failed_and_keeps_independent_cas
     )
 
     assert runner.run_annotator_measurement(manifest_path, output_root) == 3
-    payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+    payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{failed_case}"] == "failed"
     assert statuses[f"{runner.PARENTS[1]}/{failed_case}"] == "failed"
@@ -672,7 +681,7 @@ def test_parent_inference_failure_does_not_stop_sibling_or_later_configurations(
     )
 
     assert runner.run_annotator_measurement(manifest_path, output_root) == 3
-    payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+    payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
     assert statuses[f"{runner.PARENTS[1]}/{target.case_id}"] == "succeeded"
@@ -695,7 +704,7 @@ def test_local_scoring_failure_does_not_stop_later_scoring(
     )
 
     assert runner.run_annotator_measurement(manifest_path, output_root) == 3
-    payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+    payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
     assert statuses[f"{runner.PARENTS[1]}/{target.case_id}"] == "succeeded"

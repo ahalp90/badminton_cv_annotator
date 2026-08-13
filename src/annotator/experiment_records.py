@@ -11,7 +11,16 @@ import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 from typing import Any, Sequence
+
+from annotator.artifact_io import (
+    encode_json_object,
+    open_text_artifact,
+    read_json_object,
+    resolve_artifact_path,
+    write_json_object,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -35,11 +44,11 @@ def utc_run_directory(now: datetime | None = None) -> Path:
     return RUNS_DIRECTORY / current.astimezone(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
 
-def count_ignored_npy(run_root: Path) -> dict[str, int]:
-    """Count ignored arrays that the run actually wrote."""
+def count_compressed_npy(run_root: Path) -> dict[str, int]:
+    """Count compressed arrays that the run actually wrote."""
     count = 0
     total_bytes = 0
-    for path in run_root.rglob("*.npy"):
+    for path in run_root.rglob("*.npy.xz"):
         if path.is_file() and not path.is_symlink():
             count += 1
             total_bytes += path.stat().st_size
@@ -57,14 +66,11 @@ def human_bytes(total_bytes: int) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"JSON object required: {path}")
-    return payload
+    return read_json_object(path)
 
 
 def _regular_run_file(run_root: Path, relative_path: str) -> Path:
-    path = run_root / relative_path
+    path = resolve_artifact_path(run_root / relative_path)
     resolved = path.resolve()
     if path.is_symlink() or not resolved.is_file() or run_root not in resolved.parents:
         raise ValueError(f"run manifest references an invalid file: {relative_path}")
@@ -73,14 +79,14 @@ def _regular_run_file(run_root: Path, relative_path: str) -> Path:
 
 def build_summary(run_root: Path) -> dict[str, Any]:
     """Collect the closed measurement manifests and existing metrics files."""
-    root_manifest = _read_json(_regular_run_file(run_root, "manifest.json"))
+    root_manifest = _read_json(_regular_run_file(run_root, "manifest.json.gz"))
     configurations: list[dict[str, Any]] = []
     for record in root_manifest.get("configurations", []):
         if not isinstance(record, dict) or not isinstance(record.get("manifest"), dict):
             raise ValueError("successful run manifest has an invalid configuration record")
         manifest_path = _regular_run_file(run_root, str(record["manifest"]["path"]))
         leaf = _read_json(manifest_path)
-        metrics_relative = (manifest_path.parent / "metrics.json").relative_to(run_root).as_posix()
+        metrics_relative = (manifest_path.parent / "metrics.json.gz").relative_to(run_root).as_posix()
         metrics = _read_json(_regular_run_file(run_root, metrics_relative))
         configurations.append({
             "configuration_id": leaf["configuration_id"],
@@ -107,7 +113,7 @@ def build_summary(run_root: Path) -> dict[str, Any]:
         },
         "environment": root_manifest["environment"],
         "configurations": configurations,
-        "ignored_npy": count_ignored_npy(run_root),
+        "compressed_npy": count_compressed_npy(run_root),
     }
 
 
@@ -136,7 +142,7 @@ def format_report(summary: dict[str, Any]) -> str:
         ten = "/".join(_number(_metric(strict, "base30_10", key)) for key in ("precision", "recall", "f1"))
         rows.append(f"| {item['configuration_id']} | {_number(coverage)} | {contact} | {five} | {ten} | "
                     f"{_number(metrics.get('court_valid_fraction'))} |")
-    ignored = summary["ignored_npy"]
+    compressed = summary["compressed_npy"]
     return "\n".join([
         f"# Annotator run {summary['run_id']}",
         "",
@@ -148,19 +154,19 @@ def format_report(summary: dict[str, Any]) -> str:
         "",
         "Live CourtKeyNet/OpenCV detection is the operational default. Static homography is the controlled "
         "reference and manual fixed-camera fallback.",
-        f"Ignored masks and arrays: {ignored['file_count']} NPY files ({human_bytes(ignored['total_bytes'])}). "
-        "Git will not preserve them; copy or archive them if wanted.",
+        f"Compressed masks and arrays: {compressed['file_count']} NPY.XZ files "
+        f"({human_bytes(compressed['total_bytes'])}). Git will preserve them with the run.",
     ])
 
 
 def write_summary_and_report(run_root: Path) -> tuple[Path, Path, dict[str, int]]:
     """Write the two small run records after a successful measurement."""
     summary = build_summary(run_root)
-    summary_path = run_root / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    summary_path = run_root / "summary.json.gz"
+    write_json_object(summary_path, summary)
     report_path = run_root / "report.md"
     report_path.write_text(format_report(summary) + "\n", encoding="utf-8")
-    return summary_path, report_path, summary["ignored_npy"]
+    return summary_path, report_path, summary["compressed_npy"]
 
 
 def _validate_run_root(path: Path) -> Path:
@@ -176,7 +182,9 @@ def _candidate_files(run_root: Path) -> list[Path]:
     return [
         path
         for path in sorted(run_root.rglob("*"))
-        if path.is_file() and not path.is_symlink() and path.suffix != ".npy"
+        if path.is_file()
+        and not path.is_symlink()
+        and not path.name.endswith((".npy", ".npy.xz"))
     ]
 
 
@@ -202,7 +210,7 @@ def _sanitise_path(value: str) -> str:
 
 
 def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], set[str]]:
-    root_path = _regular_run_file(run_root, "manifest.json")
+    root_path = _regular_run_file(run_root, "manifest.json.gz")
     root = _read_json(root_path)
     tokens = _private_tokens(root)
     changes: dict[Path, dict[str, Any]] = {}
@@ -228,7 +236,7 @@ def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], s
             cleaned = [_sanitise_path(item) if isinstance(item, str) else item for item in command]
             if cleaned != command:
                 leaf["command"] = cleaned
-                encoded = (json.dumps(leaf, indent=2) + "\n").encode()
+                encoded = encode_json_object(leaf_path, leaf)
                 record["manifest"]["bytes"] = len(encoded)
                 record["manifest"]["md5"] = hashlib.md5(encoded).hexdigest()
                 changes[leaf_path] = leaf
@@ -237,7 +245,7 @@ def _planned_json_changes(run_root: Path) -> tuple[dict[Path, dict[str, Any]], s
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_json_object(path, payload)
 
 
 def _backup(run_root: Path) -> Path:
@@ -254,6 +262,28 @@ def _backup(run_root: Path) -> Path:
 def _require_tool(name: str) -> None:
     if shutil.which(name) is None:
         raise RuntimeError(f"missing {name}; install with: uv sync --extra annotator-experiments")
+
+
+def _build_scan_mirror(run_root: Path, files: list[Path], mirror_root: Path) -> dict[Path, Path]:
+    """Copy text candidates into a plain temporary tree mapped to their sources."""
+    sources_by_mirror: dict[Path, Path] = {}
+    for source in files:
+        relative = source.relative_to(run_root)
+        compressed_text = source.name.endswith((".json.gz", ".csv.gz"))
+        if compressed_text:
+            relative = relative.with_name(relative.name[:-3])
+        mirrored = mirror_root / relative
+        if mirrored in sources_by_mirror:
+            raise ValueError(f"compressed and plain scan candidates collide: {relative}")
+        mirrored.parent.mkdir(parents=True, exist_ok=True)
+        if compressed_text:
+            with open_text_artifact(source, newline="") as input_handle:
+                with mirrored.open("w", encoding="utf-8", newline="") as output_handle:
+                    shutil.copyfileobj(input_handle, output_handle)
+        else:
+            shutil.copyfile(source, mirrored)
+        sources_by_mirror[mirrored] = source
+    return sources_by_mirror
 
 
 def _scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> set[Path]:
@@ -318,6 +348,15 @@ def _scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> se
     return findings
 
 
+def _decompressed_scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> set[Path]:
+    """Scan plain temporary copies and map each finding to its run artifact."""
+    with tempfile.TemporaryDirectory(prefix="annotator-run-scan-") as temporary_directory:
+        mirror_root = Path(temporary_directory)
+        sources_by_mirror = _build_scan_mirror(run_root, files, mirror_root)
+        mirror_findings = _scanner_findings(mirror_root, list(sources_by_mirror), tokens)
+        return {sources_by_mirror[path] for path in mirror_findings}
+
+
 def clean_run(run_path: Path) -> Path | None:
     """Back up and clean one completed run. Return the archive, if one was needed."""
     run_root = _validate_run_root(run_path)
@@ -328,7 +367,7 @@ def clean_run(run_path: Path) -> Path | None:
             archive = _backup(run_root)
             for path, payload in changes.items():
                 _write_json(path, payload)
-        findings = _scanner_findings(run_root, _candidate_files(run_root), tokens)
+        findings = _decompressed_scanner_findings(run_root, _candidate_files(run_root), tokens)
         if findings and archive is None:
             archive = _backup(run_root)
         for path in sorted(findings):
