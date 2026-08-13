@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from scenedetect import open_video
 
+from annotator.artifact_io import artifacts_are_byte_equal, load_npy
 from annotator.calibration.scoring import _scale_base30_frames, load_gt_rallies
 from annotator.composition_mask import (
     CompositionSegment,
@@ -28,8 +29,8 @@ HOMOGRAPHIES = {
     "static": "static_shuttleset_homography",
     "detected": "detected_ckn_opencv_consensus",
 }
-VOTE_RELATIVE_PATH = Path("tracknet-stride-8/keep_vote.npy")
-STRIDE_1_VOTE_RELATIVE_PATH = Path("tracknet-stride-1/keep_vote.npy")
+VOTE_RELATIVE_PATH = Path("tracknet-stride-8/keep_vote.npy.xz")
+STRIDE_1_VOTE_RELATIVE_PATH = Path("tracknet-stride-1/keep_vote.npy.xz")
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,7 +61,7 @@ def parse_args() -> argparse.Namespace:
 
 def load_keep_vote(path: Path) -> np.ndarray:
     """Load one one-dimensional boolean court-view vote array."""
-    keep_vote = np.load(path)
+    keep_vote = load_npy(path)
     if keep_vote.ndim != 1 or keep_vote.dtype != np.bool_:
         raise ValueError(f"{path}: expected a one-dimensional bool array, got {keep_vote.shape} {keep_vote.dtype}")
     return keep_vote
@@ -281,7 +282,7 @@ def main() -> None:
             print(f"  {homog}: keep_vote length={len(keep_vote)} true={int(keep_vote.sum())}")
             if video_id == 1:
                 stride_1_path = run_root / config_name / "sset_01" / STRIDE_1_VOTE_RELATIVE_PATH
-                stride_independent = stride_1_path.read_bytes() == vote_path.read_bytes()
+                stride_independent = artifacts_are_byte_equal(stride_1_path, vote_path)
                 print(f"    stride-1_vs_stride-8_byte_equal={stride_independent}")
 
         baseline_path = analysis_dir / f"data/cuts_{video_id}_content27.csv.gz"

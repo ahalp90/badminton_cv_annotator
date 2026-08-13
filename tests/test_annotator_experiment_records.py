@@ -12,6 +12,7 @@ import tarfile
 import pytest
 
 import annotator.experiment_records as records
+from annotator.artifact_io import read_json_object, write_json_object
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
@@ -91,7 +92,12 @@ def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_fai
     events: list[str] = []
     monkeypatch.setattr(runner, "utc_run_directory", lambda: run)
     monkeypatch.setattr(runner, "run_annotator_measurement", lambda *_args, **_kwargs: 0)
-    monkeypatch.setattr(runner, "write_summary_and_report", lambda _path: (events.append("report") or (run / "summary.json", run / "report.md", {"file_count": 2, "total_bytes": 4})))
+
+    def write_records(_path: Path) -> tuple[Path, Path, dict[str, int]]:
+        events.append("report")
+        return run / "summary.json.gz", run / "report.md", {"file_count": 2, "total_bytes": 4}
+
+    monkeypatch.setattr(runner, "write_summary_and_report", write_records)
     monkeypatch.setattr(runner, "clean_run", lambda _path: (events.append("clean") or None))
     assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",)) == 0
     assert events == ["report", "clean"]
@@ -135,13 +141,15 @@ def test_summary_report_and_actual_npy_totals(tmp_path: Path, monkeypatch: pytes
     for path in [*(run / f"parent{index}" / "case" / "manifest.json" for index in range(7))]:
         _write_json(path.parent / "metrics.json", {"existing_calibration": {}, "strict_contacts": {}, "court_valid_fraction": 1.0})
     _write_json(run / "manifest.json", root)
-    (run / "array.npy").write_bytes(b"1234")
-    summary_path, report_path, ignored = records.write_summary_and_report(run)
-    assert ignored == {"file_count": 1, "total_bytes": 4}
-    assert len(json.loads(summary_path.read_text())["configurations"]) == 8
+    (run / "array.npy.xz").write_bytes(b"1234")
+    summary_path, report_path, compressed = records.write_summary_and_report(run)
+    assert compressed == {"file_count": 1, "total_bytes": 4}
+    assert summary_path.name == "summary.json.gz"
+    assert len(read_json_object(summary_path)["configurations"]) == 8
     report = report_path.read_text()
     assert "| 1.000 |" in report
     assert "CourtKeyNet/OpenCV" in report
+    assert "Git will preserve them" in report
 
 
 def test_cleaner_sanitises_only_manifests_updates_md5_and_preserves_npy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,6 +184,38 @@ def test_cleaner_sanitises_only_manifests_updates_md5_and_preserves_npy(tmp_path
     archives = list(records.BACKUPS_DIRECTORY.iterdir())
     assert records.clean_run(run) is None
     assert list(records.BACKUPS_DIRECTORY.iterdir()) == archives
+
+
+def test_cleaner_sanitises_compressed_manifests_and_scans_decompressed_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _run(tmp_path, monkeypatch)
+    leaf = run / "parent" / "case" / "manifest.json.gz"
+    scratch_path = "/scratch/allocation-id/student-user/sset_measure_deadbeef/input_manifest.json"
+    write_json_object(leaf, _leaf(["python", scratch_path]))
+    write_json_object(
+        run / "manifest.json.gz",
+        _root(run, leaf, ["/home/student-user/badminton_cv_annotator/tool"]),
+    )
+    unsafe = run / "unsafe.json.gz"
+    write_json_object(unsafe, {"secret": "token"})
+    array = run / "array.npy.xz"
+    array.write_bytes(b"compressed-array")
+    _install_scanners(monkeypatch, ["unsafe.json"])
+
+    archive = records.clean_run(run)
+
+    assert archive is not None and archive.is_file()
+    cleaned_root = read_json_object(run / "manifest.json.gz")
+    assert cleaned_root["command"][0] == "<repo>/tool"
+    assert read_json_object(leaf)["command"][1].startswith("<scratch>")
+    assert cleaned_root["configurations"][0]["manifest"]["md5"] == hashlib.md5(leaf.read_bytes()).hexdigest()
+    assert not unsafe.exists()
+    assert array.read_bytes() == b"compressed-array"
+    with tarfile.open(archive) as handle:
+        assert "manifest.json.gz" in handle.getnames()
+        assert "array.npy.xz" not in handle.getnames()
 
 
 def test_cleaner_rejects_outside_path_and_deletes_only_positive_findings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
@@ -257,6 +297,7 @@ def test_candidate_files_exclude_npy_and_symlinks(tmp_path: Path, monkeypatch: p
     regular = run / "record.json"
     regular.write_text("{}\n", encoding="utf-8")
     (run / "array.npy").write_bytes(b"array")
+    (run / "array.npy.xz").write_bytes(b"compressed-array")
     outside = tmp_path / "outside.txt"
     outside.write_text("outside", encoding="utf-8")
     (run / "linked.txt").symlink_to(outside)

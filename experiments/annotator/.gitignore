@@ -1,1 +1,2 @@
+# Keep only legacy uncompressed arrays local. New E2E arrays use tracked .npy.xz files.
 /runs/**/*.npy

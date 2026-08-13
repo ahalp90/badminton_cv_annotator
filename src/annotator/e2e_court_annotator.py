@@ -29,6 +29,13 @@ import cv2
 import numpy as np
 
 import annotator.calibration.gt_scoring as gt_scoring_module
+from annotator.artifact_io import (
+    atomic_gzip_text_writer,
+    load_npy,
+    save_npy_xz,
+    write_gzip_bytes,
+    write_json_object,
+)
 from annotator.calibration.fixtures import (
     FIXTURES,
     REPO_ROOT,
@@ -297,10 +304,10 @@ def _integer_like(value: str) -> bool:
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        json.dump(_json_ready(value, top_level=True), handle, indent=2, allow_nan=False)
-        handle.write("\n")
+    payload = _json_ready(value, top_level=True)
+    if not isinstance(payload, Mapping):
+        raise TypeError("top-level JSON artifact must be an object")
+    write_json_object(path, payload)
 
 
 def _csv_value(value: object) -> object:
@@ -318,8 +325,7 @@ def _csv_value(value: object) -> object:
 
 
 def _write_rows(path: Path, columns: Sequence[str], rows: Iterable[Mapping[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
+    with atomic_gzip_text_writer(path, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(columns), extrasaction="raise", lineterminator="\n")
         writer.writeheader()
         for row in rows:
@@ -520,7 +526,7 @@ def _save_mask(path: Path, values: np.ndarray) -> None:
     values = np.asarray(values, dtype=np.bool_)
     if values.ndim != 1:
         raise ValueError("saved masks must be one-dimensional")
-    np.save(path, np.ascontiguousarray(values), allow_pickle=False)
+    save_npy_xz(path, np.ascontiguousarray(values))
 
 
 def _corner_values(corners: np.ndarray | None) -> list[object]:
@@ -783,7 +789,7 @@ def _load_case(fixed: FixedCase, manifest: InputManifest, fixture: Fixture) -> C
 
 
 def _write_raw_cuts(case: CaseData, root: Path) -> None:
-    path = root / "shared" / case.fixed.case_id / "raw_cuts.csv"
+    path = root / "shared" / case.fixed.case_id / "raw_cuts.csv.gz"
     _write_rows(path, ("scene_index", "start_frame", "end_frame"), _raw_cut_rows(case.raw_cuts))
     case.raw_cuts_artifact = _artifact_record(root, path)
     case.status = "succeeded"
@@ -791,28 +797,28 @@ def _write_raw_cuts(case: CaseData, root: Path) -> None:
 
 def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult) -> None:
     _write_rows(
-        directory / "court_scenes.csv",
+        directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
         (_scene_row(record) for record in court_result.scene_records),
     )
     _write_rows(
-        directory / "scene_rows.csv",
+        directory / "scene_rows.csv.gz",
         ("video_id", "start_frame", "end_frame", "upleft_x", "upleft_y", "upright_x", "upright_y",
          "downleft_x", "downleft_y", "downright_x", "downright_y"),
         court_result.inputs.homography_rows.to_dict("records") if court_result.inputs is not None else (),
     )
-    _save_mask(directory / "keep_vote.npy", court_result.keep_vote)
-    _save_mask(directory / "court_present.npy", court_result.court_present)
+    _save_mask(directory / "keep_vote.npy.xz", court_result.keep_vote)
+    _save_mask(directory / "court_present.npy.xz", court_result.court_present)
 
 
 def _write_annotations(directory: Path, result: AnnotatorResult) -> None:
-    _write_json(directory / "annotations.json", result)
+    _write_json(directory / "annotations.json.gz", result)
 
 
 def _write_landing_horizons(directory: Path, rows: Sequence[LandingHorizonRow]) -> None:
     ordered = sorted(rows, key=lambda row: (row.rally_id, row.horizon_seconds))
     _write_rows(
-        directory / "landing_horizons.csv",
+        directory / "landing_horizons.csv.gz",
         LANDING_HORIZON_COLUMNS,
         (_horizon_row(row) for row in ordered),
     )
@@ -830,8 +836,8 @@ def _write_scoring_outputs(
     rallies = _gt_rallies_for_fixture(master, fixture)
     strict_rows = strict_contact_rows(result.spans, result.filtered_contacts, rallies, case.fixed.fps)
     wide_rows = wide_edge_contact_rows(rallies, result.filtered_contacts, case.fixed.fps, case.fixed.n_frames)
-    _write_rows(directory / "strict_contacts.csv", STRICT_CONTACT_COLUMNS, strict_rows)
-    _write_rows(directory / "wide_edge_contacts.csv", WIDE_CONTACT_COLUMNS, wide_rows)
+    _write_rows(directory / "strict_contacts.csv.gz", STRICT_CONTACT_COLUMNS, strict_rows)
+    _write_rows(directory / "wide_edge_contacts.csv.gz", WIDE_CONTACT_COLUMNS, wide_rows)
     scoring = score_video(
         fixture, result, master, {fixture.video_id: court_info}, canonical_tolerance(case.fixed.fps)
     )
@@ -848,9 +854,9 @@ def _write_scoring_outputs(
         "landing_horizons": _landing_metrics(capture.landing_horizon_rows),
     }
     # The court-valid value comes from the parent evidence, not from the exclusion mask.
-    court_present = np.load(directory / "court_present.npy", allow_pickle=False)
+    court_present = load_npy(directory / "court_present.npy.xz")
     metrics["court_valid_fraction"] = float(court_present.mean())
-    _write_json(directory / "metrics.json", metrics)
+    _write_json(directory / "metrics.json.gz", metrics)
     return metrics
 
 
@@ -870,7 +876,7 @@ def _configuration_manifest(
     finished = utc_now()
     artefacts = []
     for path in sorted(state.directory.rglob("*")):
-        if path.is_file() and path.name != "manifest.json":
+        if path.is_file() and path.name != "manifest.json.gz":
             artefacts.append(_artifact_record(driver.output_root, path))
     artefacts.sort(key=lambda record: record["path"])
     inputs = list(state.inputs)
@@ -922,7 +928,7 @@ def _configuration_manifest(
 
 def _write_terminal_configuration_manifest(state: ConfigurationState, driver: RunDriver,
                                            failure_record: dict[str, Any] | None = None) -> None:
-    manifest_path = state.directory / "manifest.json"
+    manifest_path = state.directory / "manifest.json.gz"
     _write_json(manifest_path, _configuration_manifest(state, driver, failure_record))
     state.manifest_path = manifest_path
 
@@ -964,14 +970,14 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     except CourtConsensusError as error:
         state.court_result = error.result
         _write_scene_evidence_partial(state.directory, error.result)
-        failure_path = state.directory / "failure.json"
+        failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "court_consensus", error)
         state.failure_path = failure_path
         state.status = "failed"
         _write_terminal_configuration_manifest(state, driver, _artifact_record(driver.output_root, failure_path))
         return
     except Exception as error:
-        failure_path = state.directory / "failure.json"
+        failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "court_evidence", error)
         state.failure_path = failure_path
         state.status = "failed"
@@ -1012,12 +1018,12 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         state.result = result
         if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
             raise ValueError("run_video did not capture both exclusion masks")
-        _save_mask(state.directory / "raw_replay_mask.npy", capture.raw_exclusion_mask)
-        _save_mask(state.directory / "definitive_exclusion_mask.npy", capture.definitive_exclusion_mask)
+        _save_mask(state.directory / "raw_replay_mask.npy.xz", capture.raw_exclusion_mask)
+        _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", capture.definitive_exclusion_mask)
         _write_annotations(state.directory, result)
         _write_landing_horizons(state.directory, capture.landing_horizon_rows)
     except Exception as error:
-        failure_path = state.directory / "failure.json"
+        failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "inference", error)
         state.failure_path = failure_path
         state.status = "failed"
@@ -1028,12 +1034,12 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
 
 def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult) -> None:
     _write_rows(
-        directory / "court_scenes.csv",
+        directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
         (_scene_row(record) for record in result.scene_records),
     )
-    _save_mask(directory / "keep_vote.npy", result.keep_vote)
-    _save_mask(directory / "court_present.npy", result.court_present)
+    _save_mask(directory / "keep_vote.npy.xz", result.keep_vote)
+    _save_mask(directory / "court_present.npy.xz", result.court_present)
 
 
 def _configuration_summary(state: ConfigurationState, driver: RunDriver) -> dict[str, object]:
@@ -1209,7 +1215,7 @@ def _setup(driver: RunDriver) -> None:
                 [],
                 status="failed",
             )
-            failure_path = driver.output_root / "shared" / fixed.case_id / "failure.json"
+            failure_path = driver.output_root / "shared" / fixed.case_id / "failure.json.gz"
             _write_failure(failure_path, "configuration", fixed.case_id, None, "shared_case", error)
             case.failure_path = failure_path
             cases[fixed.case_id] = case
@@ -1231,7 +1237,7 @@ def _score_configurations(driver: RunDriver) -> None:
     try:
         verify_eligible_gt_files()
     except Exception as error:
-        path = driver.output_root / "scoring_failure.json"
+        path = driver.output_root / "scoring_failure.json.gz"
         _write_failure(path, "scoring", None, None, "gt_verification", error)
         driver.scoring_failure_path = path
         for state in driver.configurations:
@@ -1257,7 +1263,7 @@ def _score_configurations(driver: RunDriver) -> None:
             state.status = "succeeded"
             _write_terminal_configuration_manifest(state, driver)
         except Exception as error:
-            path = state.directory / "failure.json"
+            path = state.directory / "failure.json.gz"
             _write_failure(path, "configuration", state.fixed.case_id, state.parent, "scoring", error)
             state.failure_path = path
             state.status = "failed"
@@ -1265,8 +1271,8 @@ def _score_configurations(driver: RunDriver) -> None:
 
 
 def _write_initial_run_files(driver: RunDriver) -> None:
-    input_manifest_path = driver.output_root / "input_manifest.json"
-    input_manifest_path.write_bytes(driver.input_manifest_bytes)
+    input_manifest_path = driver.output_root / "input_manifest.json.gz"
+    write_gzip_bytes(input_manifest_path, driver.input_manifest_bytes)
     driver.input_manifest_output_path = input_manifest_path
 
     run_log_path = driver.output_root / "run.log"
@@ -1302,7 +1308,7 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
         _write_initial_run_files(driver)
         _setup(driver)
     except Exception as error:
-        path = resolved_output / "setup_failure.json"
+        path = resolved_output / "setup_failure.json.gz"
         _write_failure(path, "setup", None, None, "setup", error)
         driver.setup_failure_path = path
         exit_code = 1
@@ -1315,7 +1321,7 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
         if failed or any(state.status != "succeeded" for state in driver.configurations or ()):
             exit_code = 3
     try:
-        _write_json(resolved_output / "manifest.json", _run_manifest(driver, exit_code, setup_failure))
+        _write_json(resolved_output / "manifest.json.gz", _run_manifest(driver, exit_code, setup_failure))
     except Exception as error:
         print(f"could not write terminal run manifest: {error}", file=sys.stderr)
         return 1
@@ -1332,7 +1338,7 @@ def _run_cli_measurement(manifest_path: Path, device: str, command: Sequence[str
     if exit_code != 0:
         return exit_code
     try:
-        _summary_path, _report_path, ignored = write_summary_and_report(output_root)
+        _summary_path, _report_path, compressed = write_summary_and_report(output_root)
         archive = clean_run(output_root)
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"measurement completed in {output_root}, but reporting or cleaning failed: {error}", file=sys.stderr)
@@ -1341,8 +1347,8 @@ def _run_cli_measurement(manifest_path: Path, device: str, command: Sequence[str
     if archive is not None:
         print(f"Pre-clean backup: {archive}")
     print(
-        f"Ignored masks and arrays: {ignored['file_count']} NPY files ({human_bytes(ignored['total_bytes'])}). "
-        "Git will not preserve them; copy or archive them if wanted."
+        f"Compressed masks and arrays: {compressed['file_count']} NPY.XZ files "
+        f"({human_bytes(compressed['total_bytes'])}). Git will preserve them with the run."
     )
     return 0
 
