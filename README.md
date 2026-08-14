@@ -160,6 +160,8 @@ See [data attribution](data/ATTRIBUTION.md) and the
 
 ## Documentation
 
+- [Trial feature list](docs/trial_feature_list.md): candidate performance
+  features, readiness, validation limits, and deferred ideas.
 - [Provisional rally dataset contract](docs/rally_dataset_contract.md): record
   identity, timing, provenance, primitive evidence, and the planned assembly
   boundary.
