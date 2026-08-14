@@ -160,7 +160,8 @@ pre-build red-teams; reopen only with a concrete reachable failure.
   directory and basename: it cannot prove the listed file is the same
   bytes it originally described, and that trust boundary is recorded
   and accepted
-- writer only: nothing downstream reads the flag yet
+- raw producer provenance only: consumers must not equate every selected fill
+  with a proven hallucination
 
 ## Landscape notes from the build
 
