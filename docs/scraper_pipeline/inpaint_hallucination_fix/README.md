@@ -29,8 +29,9 @@ more producer provenance covered, not more hallucinations caught.
 The [issue-95 production decision](ransac_production_decision_20260814.md)
 keeps RANSAC analysis-only. The positive-only visual set cannot establish
 precision, and current guard-clean candidates overlap many labelled contacts.
-It recomputes live version-4 guard codes with the three-frame halo and leaves
-the historical audit outputs unchanged.
+It recomputes live version-4 guard codes with the three-frame halo. It also
+separates defined RANSAC cuts, recurrence-policy variants, and context-only
+unions while leaving the historical audit outputs unchanged.
 
 ## Contents
 
@@ -177,6 +178,10 @@ Run from the repository root:
 ~/.venvs/badminton-cicd/bin/python \
   docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_tracks.py
 
+~/.venvs/badminton-cicd/bin/python \
+  docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_production_variants.py \
+  > /tmp/ransac-production-variants.json
+
 MPLCONFIGDIR=/tmp/badminton-matplotlib \
   ~/.venvs/badminton-cicd/bin/python \
   docs/scraper_pipeline/inpaint_hallucination_fix/analysis/plot_recurrence_grids.py \
@@ -189,6 +194,11 @@ windows, uses a 3-pixel residual and 32 deterministic sample triples, and
 steps windows by four frames. Any window containing exact `(0, 0)` masking is
 excluded. A frame becomes a candidate when at least half of its eligible
 windows vote it outside the model.
+
+`audit_production_variants.py` reloads those tracked arrays, recomputes current
+guard codes, and prints the issue-95 comparison as JSON. It keeps candidate
+cuts, recurrence policies, source-aware masks, and context-only unions in
+separate result groups.
 
 These settings generate leads only. Real acceleration can look like an
 outlier, while a smooth fill can fit a quadratic and look like an inlier.

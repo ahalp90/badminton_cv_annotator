@@ -64,19 +64,54 @@ come from `training/data/shuttleset/annotations/shots_master.csv`. They do not
 prove that every nearby coordinate is visually correct. They do prove that
 automatic rejection would frequently operate at known real motion changes.
 
-## Simple production subsets
+## Defined variants and bounded sensitivity checks
 
-The following checks use the current guard-clean lead. A challenge span counts
-as hit when at least one selected frame falls inside its half-open range.
+The first decision pass scored the current guard-clean lead, residual-severity
+cuts, and one impulse veto. It did not score every finite mask that the tracked
+evidence can reconstruct. The expanded pass below corrects that gap.
 
-| Additional rule | Selected frames | Challenge spans hit | Exact contact conflicts | Final-contact conflicts |
+It covers the raw RANSAC mask, current-guard relation, sidecar relation,
+complete producer blocks, raw-impulse veto, vote fraction, eligible-window
+count, contiguous candidate runs, and maximum residual. These are comparisons
+on one existing RANSAC output, not independent fitted detectors. A positive
+span counts as hit when any selected frame falls inside its half-open range.
+
+| RANSAC candidate rule | Selected frames | Issue #31 positive spans hit | Exact contact conflicts | Final-contact conflicts |
 | --- | ---: | ---: | ---: | ---: |
-| None | 39,480 | 18 of 18 | 1,656 | 147 |
-| Maximum residual at least 50 px | 18,002 | 18 of 18 | 359 | 26 |
-| Maximum residual at least 100 px | 11,309 | 17 of 18 | 58 | 3 |
-| Maximum residual at least 200 px | 4,716 | 13 of 18 | 1 | 0 |
-| Maximum residual at least 250 px | 2,533 | 12 of 18 | 0 | 0 |
-| Maximum residual at least 400 px | 262 | 6 of 18 | 0 | 0 |
+| Raw RANSAC candidate | 107,251 | 18 of 18 | 1,742 | 160 |
+| Current guard-clean | 39,480 | 18 of 18 | 1,656 | 147 |
+| Guard-clean and sidecar-selected | 20,197 | 9 of 18 | 760 | 65 |
+| Guard-clean and sidecar-negative | 19,283 | 12 of 18 | 896 | 82 |
+| Guard-clean and sidecar run at least 15 frames | 7,536 | 3 of 18 | 59 | 8 |
+| Guard-clean and vote fraction at least 0.75 | 26,113 | 17 of 18 | 959 | 83 |
+| Guard-clean and unanimous eligible-window votes | 23,210 | 17 of 18 | 712 | 63 |
+| Guard-clean and at least 2 eligible windows | 29,731 | 15 of 18 | 1,567 | 140 |
+| Guard-clean and at least 3 eligible windows | 19,618 | 11 of 18 | 1,372 | 121 |
+| Guard-clean and 4 eligible windows | 13,445 | 6 of 18 | 1,096 | 97 |
+| Guard-clean and candidate run at least 2 frames | 34,215 | 18 of 18 | 1,509 | 128 |
+| Guard-clean and candidate run at least 4 frames | 25,674 | 16 of 18 | 1,045 | 86 |
+| Guard-clean and candidate run at least 8 frames | 8,454 | 11 of 18 | 180 | 12 |
+| Guard-clean and maximum residual at least 50 px | 18,002 | 18 of 18 | 359 | 26 |
+| Guard-clean and maximum residual at least 100 px | 11,309 | 17 of 18 | 58 | 3 |
+| Guard-clean and maximum residual at least 200 px | 4,716 | 13 of 18 | 1 | 0 |
+| Guard-clean and maximum residual at least 250 px | 2,533 | 12 of 18 | 0 | 0 |
+| Guard-clean and maximum residual at least 400 px | 262 | 6 of 18 | 0 | 0 |
+| Guard-clean outside a three-frame raw-impulse radius | 11,660 | 7 of 18 | 239 | 22 |
+
+The source-aware proposals are separate from the guard-clean cuts. The
+non-overlap producer tiles 16-frame windows from frame zero.
+
+| Source-aware rule or intersection | Selected frames | Issue #31 positive spans hit | Exact contact conflicts | Final-contact conflicts |
+| --- | ---: | ---: | ---: | ---: |
+| Sidecar-selected run at least 15 frames | 175,742 | 3 of 18 | 238 | 37 |
+| Fully selected, coordinate-valid aligned block | 140,608 | 0 of 18 | 91 | 17 |
+| Raw RANSAC and fully selected aligned block | 54,830 | 0 of 18 | 45 | 9 |
+| Current guard-clean RANSAC and fully selected aligned block | 0 | 0 of 18 | 0 | 0 |
+
+The complete-block result means that the current recurrence guard catches all
+raw RANSAC candidates in this source class on these fixtures. It does not
+establish the full-block rule's precision. It hits none of the 18 issue #31
+spans because those spans were selected from current guard-clean material.
 
 The 250-pixel subset still selects a frame within three frames of a labelled
 contact. The 400-pixel subset avoids that narrow contact check. It leaves 262
@@ -98,6 +133,74 @@ independent veto.
 Stationary motion is not a safe subset either. Issue #31 contains three fixed
 false positions, but it has no real stationary shuttle controls. A shuttle on
 the ground or held by a player can create the same motion class.
+
+The audit did not sweep alternate RANSAC window lengths, steps, trial counts,
+inlier minima, or base residual radii. Those settings do not define separate
+documented guards. Sweeping them on the same positive-only fixtures would add
+post-hoc choices without producing a precision denominator.
+
+## Recurrence variants and context unions
+
+The parked follow-up also proposed splitting the current recurrence grade 3.
+That is current-guard policy, not a RANSAC production rule. The expanded pass
+reproduced its finite masks for completeness.
+
+| Recurrence rejection policy | Selected frames | Issue #31 positive spans hit | Exact contact conflicts | Final-contact conflicts |
+| --- | ---: | ---: | ---: | ---: |
+| Grade-1 recurrence core only | 143,727 | 0 of 18 | 95 | 17 |
+| Core plus three-frame halo | 157,377 | 0 of 18 | 137 | 19 |
+| Core plus global exact-coordinate hits | 146,193 | 0 of 18 | 112 | 21 |
+| Current all-non-zero policy | 159,835 | 0 of 18 | 154 | 23 |
+
+PR #93 did not run these four policy arms. Its fixed replay compared no guard,
+the all-non-zero policy with a 15-frame halo, and the same policy with the
+current three-frame halo. The table above is a track and label cross-check,
+not a substitute for that missing E2E decomposition.
+
+The historical audit also stored several unions. They were designed as review
+context, not rejection masks. Union 1 includes sidecar frames and raw impulses.
+Union 2 includes raw impulses and an inductive rally-ending proxy. Treating
+either union as a guard would reject evidence sources that were added to show
+real event context.
+
+| Context-only view refreshed with current guard | Selected frames | Exact contact conflicts | Final-contact conflicts |
+| --- | ---: | ---: | ---: |
+| Guard-clean RANSAC or sidecar | 225,214 | 2,074 | 207 |
+| Union 1: guard-clean RANSAC, sidecar, or impulse | 231,610 | 2,182 | 214 |
+| Union 2: guard-clean RANSAC, impulse, or TP ender | 55,201 | 1,816 | 164 |
+| Current guard or Union 2 | 206,232 | 1,943 | 183 |
+
+All four context views touch all 18 positive spans. That is expected because
+each contains the guard-clean RANSAC source used to select those spans. It is
+not independent evidence and does not make any union a production candidate.
+
+Several parked ideas do not define a production mask. The ledger below records
+them as unscored studies or experiments instead of quietly treating them as
+failed guards.
+
+## Proposal ledger
+
+The parked follow-up contains broader analysis leads as well as candidate
+guards. The tables above score the finite frame masks selected for this
+decision from tracked inputs and stated cutoffs. They do not claim to execute
+every proposed feature study. This ledger keeps that distinction explicit.
+
+| Parked lead | Issue-95 status | Reason |
+| --- | --- | --- |
+| Aligned Inpaint support fields | Partly scored | The strongest all-selected aligned block is scored. Selected count, non-Inpaint pass-through count, nearest-support distance, and boundary position have no proposed rejection cutoff. |
+| Fully selected aligned-window rule | Scored | The source mask and its raw and guard-clean RANSAC intersections are in the source-aware table. |
+| Split recurrence grade 3 | Scored at track and label level | Core, halo, and global-hit policies are separated. The four-arm E2E experiment remains unrun. |
+| Producer-phase and boundary diagnostics | Unscored analysis | Jump, acceleration, and residual comparisons by producer phase do not define a rejection mask. Phase-shift nulls were not run. |
+| Early versus late handling | Unscored experiment | It requires a selected source-aware mask and fixed-clip counterfactual. No candidate passed the precision gate. |
+| Isolation Forest span ranker | Unscored model | No fitted model, held-out score, or production cutoff exists. |
+| LOF, One-Class SVM, and Elliptic Envelope | Not production candidates | The parked review rejects or defers them behind a successful Isolation Forest baseline. None has a fitted model or cutoff. |
+| Base-TrackNet heatmap morphology | Unscored input study | The required heatmaps were not saved for these tracks, and no rule or cutoff is defined. |
+| Separate path shape from absolute location | Unscored analysis | Centred and scale-normalised features were proposed for plotting, not as a rejection rule. |
+| Circular-shift, block-preserving, span-length, and phase nulls | Unscored statistical checks | These can test association and plot interpretation. They cannot supply visual precision or turn a context union into a safe guard. |
+
+The unscored items are missing experiments or undefined policies. They are not
+quietly counted as failed guards. None can support production rejection from
+the existing positive-only labels.
 
 ## Current consumer evidence
 
@@ -165,6 +268,14 @@ Both passes reloaded the compressed pinned tracks and RANSAC masks. Both
 recomputed current guard codes through `grade_track` rather than using the
 older stored guard arrays. The second pass also confirmed that labelled contact
 frames are unique within each fixture.
+
+The expanded comparison is reproduced by
+`analysis/audit_production_variants.py`. It asserts that the frame-audit vote
+fields reproduce each stored RANSAC candidate mask. It also reconstructs the
+recurrence core, halo, and global exact-hit components and asserts that halo or
+global hits outside the core reproduce public grade 3. The script prints JSON
+with candidate rules, recurrence policies, source-aware proposals, and
+context-only unions kept in separate groups.
 
 A separate visual spot-check sampled three exact conflicts across each fixture
 at deterministic positions in the ordered conflict list:
