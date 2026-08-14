@@ -2,17 +2,107 @@
 
 ## Decision
 
-Keep the production TrackNet settings:
+PR #101 changes no runtime configuration. Retain the TrackNet preset that was
+already active when the Issue 75 benchmark began:
 
 - non-overlapping stride 8;
 - batch size 16;
-- one TrackNet worker.
+- one TrackNet worker with large-video mode enabled.
 
 Keep the persisted 512x288 FFV1 input until the exact streaming candidate is
 implemented behind the dataset-builder contract. The candidate was 26.0%
 faster across the fixed clips and exactly reproduced proxy-decoded pixels and
 TrackNet CSVs. This benchmark records that result but does not put scratch
 prototype code into production.
+
+The benchmark compared TrackNet stride, batch size, and input paths. It held
+`tracknet_workers = 1` constant. Pose and court settings were outside its
+measurement scope.
+
+## Configuration chronology and work-start baseline
+
+"Pre-Issue-75" is ambiguous because the issue was opened before its benchmark
+worktree was created. These are separate states.
+
+Issue #75 was created at `2026-08-10T04:01:20Z`. The dataset builder had not
+yet reached `main`; the active Issue 15 configuration introduced by `449d8b1`
+and present at `51fa592` was:
+
+- TrackNet worker 1, batch 16, stride 1, and large-video mode;
+- InpaintNet enabled by its configured checkpoint;
+- direct canonical-source input, with no persisted TrackNet proxy stage;
+- one sequential CUDA pose process with `n_max = 10` and no `pose_shards`
+  field;
+- CUDA court inference with padded resize.
+
+This is the older state described in the Issue #75 body. No accepted run
+manifest was checked for it, so these are code and configuration facts, not a
+claim that every setting completed an external run.
+
+Before the Issue 75 worktree started, Issue 15 commit `5337163` changed stride
+1 to stride 8 and added the persisted 512x288 FFV1 proxy. Commit `32dcefa`
+then added eight pose shards. The Issue 75 worktree was created later at branch
+point `462d5b868e5308a497794955c486f3312fc876a6`.
+
+Those were the only tracked trial-TOML changes between the issue-creation
+configuration and the Issue 75 work-start preset:
+
+| Setting | Issue-creation configuration | Issue 75 work-start preset |
+| --- | --- | --- |
+| `tracknet_stride` | `1` | `8` |
+| `pose_shards` | absent; sequential pose producer | `8` |
+
+TrackNet workers remained 1, batch size remained 16, and large-video mode
+remained enabled. Pose stayed on CUDA with `n_max = 10`; court stayed on CUDA
+with padded resize. Model paths, the two-video limit, and the single download
+worker also did not change. The proxy was an implementation-stage addition,
+not another TOML option: it changed TrackNet input from the canonical source
+to a derived 512x288 FFV1 video. Adding `pose_shards = 8` changed pose execution
+from one sequential process to eight seek-based shard processes.
+
+The original stride-1 choice in `449d8b1` has no recorded rationale. Earlier
+evidence committed in `d68550d` had already measured about 2 hours 40 minutes
+for stride 1 versus 22 minutes for stride 8, with detected-artefact shares of
+35.8% and 34.1% respectively. It described stride 1 as a regression in
+detectability, not an improvement. The later throughput note made the intended
+next step explicit: compare fixed clips, then move future runs to stride 8 if
+quality held.
+
+The complete `[vision]` section at that branch point is the authoritative
+Issue 75 work-start preset. `load_builder_config` requires every field, and
+the stage plans pass each value explicitly to its producer.
+
+| Setting | Tracked preset at `462d5b8` | Accepted-run evidence |
+| --- | --- | --- |
+| TrackNet worker processes | `tracknet_workers = 1` | both shuttle stages recorded `workers: 1` |
+| TrackNet batch size | `tracknet_batch_size = 16` | both shuttle stages recorded `batch_size: 16` |
+| TrackNet stride | `tracknet_stride = 8` | both shuttle stages recorded `stride: 8`; the wrapper maps this to `nonoverlap` |
+| TrackNet decode path | `tracknet_large_video = true` | both shuttle stages recorded `large_video: true` |
+| InpaintNet | configured checkpoint, therefore enabled | both shuttle stages recorded `inpainting: true` and bound the checkpoint |
+| TrackNet input | derived stage, not a TOML option | persisted 512x288 bicubic FFV1 level 3, GOP 1, YUV420P, square-pixel video |
+| Pose device | `pose_device = "cuda"` | both pose stages recorded `device: "cuda"` |
+| Pose capacity | `pose_n_max = 10` | both pose stages recorded `n_max: 10` |
+| Pose shards | `pose_shards = 8` | both pose stages recorded `shards: 8` and `decode_mode: "seek"` |
+| Court device | `court_device = "cuda"` | both court stages recorded `device: "cuda"` |
+| Court resize | `court_resize_mode = "pad"` | both court stages recorded `resize_mode: "pad"` |
+
+The accepted two-video run manifest is
+`/scratch/cmarti/issue84_6359790/external/trial-run/run_manifest.json.gz`. Its
+stage fingerprints name source commit
+`6359790063216b0270aadc89a4c9f5a006eccf85`, and its compressed SHA-256 is
+`e98f12c7aa28a30619f0fa2c513b13f2356afff37a7c1cdd4becf0f6e173b5e3`.
+The tracked trial configuration is byte-identical at that run commit, the
+Issue 75 branch point, and audited `origin/main` commit `5576410`; its SHA-256
+is `884d01cf52622e399c8337ff8df5aa4b23534cc6296c5836b6f5b47bbc2a8fd5`.
+
+PR #101 changes no configuration, source, or test file. It records these
+states and the benchmark results only.
+
+The lower-level `extract_all_shuttles` helper still declares generic callable
+defaults of two workers, batch 32, stride 1, and non-large-video mode. They are
+not dataset-builder defaults: the builder call site overrides all four with
+the required tracked preset. This distinction matters when reconstructing an
+executed run.
 
 ## Evidence
 
