@@ -186,6 +186,42 @@ def test_canonical_metadata_rejects_conflicting_frame_counts(
         probe_video_metadata(video)
 
 
+@pytest.mark.parametrize("header_frame_count", [None, "N/A"])
+def test_canonical_metadata_accepts_missing_header_count_when_decoded_count_is_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    header_frame_count: str | None,
+) -> None:
+    video = tmp_path / "missing-header-count.mp4"
+    video.touch()
+    payload = {
+        "frames": [
+            {"best_effort_timestamp": 0},
+            {"best_effort_timestamp": 1},
+            {"best_effort_timestamp": 2},
+        ],
+        "streams": [{
+            "codec_type": "video",
+            "nb_frames": header_frame_count,
+            "nb_read_frames": "3",
+            "width": SOURCE_WIDTH,
+            "height": SOURCE_HEIGHT,
+            "r_frame_rate": "25/1",
+            "avg_frame_rate": "25/1",
+            "time_base": "1/25",
+            "start_time": "0",
+        }],
+        "format": {"start_time": "0"},
+    }
+    monkeypatch.setattr(
+        video_metadata_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, json.dumps(payload), ""),
+    )
+
+    assert probe_video_metadata(video).frame_count == 3
+
+
 def test_canonical_metadata_rejects_equal_rate_vfr(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
