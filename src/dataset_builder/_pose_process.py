@@ -36,7 +36,7 @@ def load_raw_pose_mapping(output_dir: Path, stem: str) -> dict[str, np.ndarray]:
 
 
 def resolve_pose_executable(executable: str | Path) -> Path:
-    """Resolve and validate the configured pose-interpreter executable."""
+    """Locate and validate a pose interpreter without bypassing its venv."""
     requested = os.fspath(executable)
     located = shutil.which(requested)
     if located is None:
@@ -44,10 +44,13 @@ def resolve_pose_executable(executable: str | Path) -> Path:
         if not candidate.is_file():
             raise FileNotFoundError(f"pose interpreter is not an executable file: {requested}")
         located = os.fspath(candidate)
-    resolved = Path(located).resolve(strict=True)
-    if not os.access(resolved, os.X_OK):
-        raise PermissionError(f"pose interpreter is not executable: {resolved}")
-    return resolved
+    launch_path = Path(os.path.abspath(located))
+    launch_path.resolve(strict=True)
+    if not launch_path.is_file():
+        raise FileNotFoundError(f"pose interpreter is not a regular file: {launch_path}")
+    if not os.access(launch_path, os.X_OK):
+        raise PermissionError(f"pose interpreter is not executable: {launch_path}")
+    return launch_path
 
 
 def pose_subprocess_environment() -> dict[str, str]:
