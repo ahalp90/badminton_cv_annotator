@@ -106,9 +106,8 @@ source_kind = "download"
 [[videos]]
 id = 14
 video = "LEE_Zii_Jia_Kento_MOMOTA_Tota_Energies_BWF_Thomas_and_Uber_Cup_Finals_2022_Group D_Trim"
-url = "https://www.youtube.com/watch?v=vKdkbGNUM84"
-youtube_id = "vKdkbGNUM84"
-source_kind = "download"
+source_kind = "unresolved"
+unresolved_reason = "The official full-session upload vKdkbGNUM84 is not frame-aligned with the trimmed annotations."
 
 [[videos]]
 id = 15

@@ -19,6 +19,7 @@ from shuttleset22.manifest import (
     annotation_corpus_sha256,
     load_annotation_corpus,
     load_source_context,
+    load_source_manifest,
     resolve_sources,
 )
 
@@ -162,6 +163,16 @@ def test_load_source_context_cross_checks_all_matches_and_overlap(tmp_path: Path
     assert context.manifest.videos[0].kind is SourceKind.SHUTTLESET_OVERLAP
     assert context.manifest.videos[0].overlap_shuttleset_id == 23
     assert context.manifest.videos[1].kind is SourceKind.DOWNLOAD
+
+
+def test_reviewed_manifest_excludes_misaligned_match_14() -> None:
+    manifest = load_source_manifest(
+        Path(__file__).parents[1] / "configs" / "shuttleset22" / "sources.toml"
+    )
+
+    entry = manifest.by_id()[14]
+    assert entry.kind is SourceKind.UNRESOLVED
+    assert "not frame-aligned" in str(entry.unresolved_reason)
 
 
 def test_load_annotation_corpus_rejects_missing_match_id(tmp_path: Path) -> None:
