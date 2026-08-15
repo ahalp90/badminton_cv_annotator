@@ -13,8 +13,10 @@ import time
 import tomllib
 from typing import Protocol, TypeVar, cast
 
+from dataset_builder.fixed_sources import FIXED_SOURCE_DATASET
 from dataset_builder.manifest import (
     build_stage_fingerprint,
+    load_run_manifest,
     make_stage_record,
     record_stage,
     reuse_or_invalidate_stage,
@@ -44,6 +46,15 @@ PHASE_ORDER = (
     "annotation",
     "commentary_pairing",
     "primitive_projection",
+    "artifact_index",
+    "assembly",
+    "report",
+)
+REPLAY_PHASE_ORDER = (
+    "annotation",
+    "commentary_pairing",
+    "primitive_projection",
+    "artifact_index",
     "assembly",
     "report",
 )
@@ -56,7 +67,18 @@ _FINAL_PUBLICATIONS = {
 
 SemanticValidator = Callable[[Path], bool]
 RuntimeFactory = Callable[["BuilderConfig", Path, str], "PipelineRuntime"]
+ReplayRuntimeFactory = Callable[["BuilderConfig", Path, str], "ReplayPipelineRuntime"]
 ChoiceT = TypeVar("ChoiceT")
+
+
+@dataclass(frozen=True)
+class FixedSourceConfig:
+    """Configuration for one explicit fixed-source acquisition."""
+
+    manifest: Path
+    source_root_environment: str
+    ground_truth_root: Path
+    video_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -85,6 +107,7 @@ class BuilderConfig:
     court_resize_mode: str
     commentary_enabled: bool
     commentary_api_key_environment: str
+    fixed_sources: FixedSourceConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -172,15 +195,24 @@ class PipelineRuntime(Protocol):
         """Return source-ordered plans for one coordinator phase."""
 
 
+class ReplayPipelineRuntime(PipelineRuntime, Protocol):
+    """Production runtime surface needed by annotation replay."""
+
+    def preflight_replay(self) -> None:
+        """Validate replay-only source, model, and interpreter boundaries."""
+
+    def prepare_annotation_replay(self, manifest: RunManifest) -> tuple[str, ...]:
+        """Restore pinned expensive artifacts into current runtime state."""
+
+
 def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderConfig:
     """Read and strictly validate one dataset-builder TOML configuration."""
     with Path(path).open("rb") as handle:
         payload = tomllib.load(handle)
-    _exact_fields(
-        payload,
-        {"run", "search", "environment", "models", "vision", "commentary"},
-        "dataset-builder configuration",
-    )
+    expected_sections = {"run", "search", "environment", "models", "vision", "commentary"}
+    if "fixed_sources" in payload:
+        expected_sections.add("fixed_sources")
+    _exact_fields(payload, expected_sections, "dataset-builder configuration")
     run = _section(payload, "run", {"source_dataset", "max_videos", "download_workers"})
     search = _section(payload, "search", {"result_count", "terms"})
     environment = _section(payload, "environment", {"tracknet_python", "pose_python"})
@@ -195,6 +227,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         },
     )
     commentary = _section(payload, "commentary", {"enabled", "api_key_environment"})
+    fixed_sources = _fixed_source_config(payload.get("fixed_sources"), repo_root)
     terms_payload = _object(search["terms"], "search.terms")
     if not terms_payload:
         raise ValueError("search.terms must contain at least one substream")
@@ -206,11 +239,22 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
     inpaint_model = None if inpaint_value in (None, "") else _repo_path(
         inpaint_value, "models.inpaint", repo_root,
     )
+    source_dataset = _nonempty(run["source_dataset"], "run.source_dataset")
+    max_videos = _positive_integer(run["max_videos"], "run.max_videos")
+    if fixed_sources is not None:
+        if source_dataset != FIXED_SOURCE_DATASET:
+            raise ValueError(
+                f"run.source_dataset must be {FIXED_SOURCE_DATASET!r} in fixed-source mode"
+            )
+        if max_videos != len(fixed_sources.video_ids):
+            raise ValueError(
+                "run.max_videos must equal fixed_sources.video_ids length in fixed-source mode"
+            )
     return BuilderConfig(
-        source_dataset=_nonempty(run["source_dataset"], "run.source_dataset"),
+        source_dataset=source_dataset,
         search_terms=search_terms,
         search_count=_positive_integer(search["result_count"], "search.result_count"),
-        max_videos=_positive_integer(run["max_videos"], "run.max_videos"),
+        max_videos=max_videos,
         download_workers=_positive_integer(run["download_workers"], "run.download_workers"),
         tracknet_python_environment=_nonempty(
             environment["tracknet_python"], "environment.tracknet_python",
@@ -245,6 +289,31 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         commentary_api_key_environment=_nonempty(
             commentary["api_key_environment"], "commentary.api_key_environment",
         ),
+        fixed_sources=fixed_sources,
+    )
+
+
+def _fixed_source_config(
+    payload: object,
+    repo_root: Path,
+) -> FixedSourceConfig | None:
+    if payload is None:
+        return None
+    section = _object(payload, "fixed_sources")
+    _exact_fields(
+        section,
+        {"manifest", "source_root_environment", "ground_truth_root", "video_ids"},
+        "fixed_sources",
+    )
+    return FixedSourceConfig(
+        manifest=_repo_path(section["manifest"], "fixed_sources.manifest", repo_root),
+        source_root_environment=_nonempty(
+            section["source_root_environment"], "fixed_sources.source_root_environment",
+        ),
+        ground_truth_root=_repo_path(
+            section["ground_truth_root"], "fixed_sources.ground_truth_root", repo_root,
+        ),
+        video_ids=tuple(_string_list(section["video_ids"], "fixed_sources.video_ids")),
     )
 
 
@@ -265,9 +334,63 @@ def run_dataset_builder(
     runtime = factory(config, destination, source_commit)
     runtime.preflight()
     manifest = start_or_resume_run(destination)
+    return _run_pipeline_phases(
+        runtime,
+        destination,
+        source_commit,
+        manifest,
+        PHASE_ORDER,
+        retry_unavailable=retry_unavailable,
+    )
+
+
+def run_dataset_builder_replay(
+    config_path: Path,
+    run_dir: Path,
+    *,
+    runtime_factory: ReplayRuntimeFactory | None = None,
+    retry_unavailable: bool = False,
+) -> DatasetBuilderRun:
+    """Rerun annotation and projection from validated fixed vision artifacts."""
+    config = load_builder_config(config_path)
+    if config.fixed_sources is None:
+        raise ValueError("annotation replay requires fixed_sources configuration")
+    destination = Path(run_dir).resolve(strict=True)
+    source_commit = _clean_source_commit(REPO_ROOT)
+    workspace = destination / SCRAPER_WORKSPACE_NAME
+    os.environ["BADMINTON_SCRAPE_DIR"] = os.fspath(workspace)
+    from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
+
+    runtime = (
+        DefaultPipelineRuntime(config, destination, source_commit)
+        if runtime_factory is None
+        else runtime_factory(config, destination, source_commit)
+    )
+    runtime.preflight_replay()
+    manifest = load_run_manifest(destination)
+    runtime.prepare_annotation_replay(manifest)
+    return _run_pipeline_phases(
+        runtime,
+        destination,
+        source_commit,
+        manifest,
+        REPLAY_PHASE_ORDER,
+        retry_unavailable=retry_unavailable,
+    )
+
+
+def _run_pipeline_phases(
+    runtime: PipelineRuntime,
+    destination: Path,
+    source_commit: str,
+    manifest: RunManifest,
+    phases: Sequence[str],
+    *,
+    retry_unavailable: bool,
+) -> DatasetBuilderRun:
     events: list[StageEvent] = []
     stopped_after: str | None = None
-    for phase in PHASE_ORDER:
+    for phase in phases:
         for plan in runtime.plans(phase, manifest):
             manifest, event = _run_stage_plan(
                 destination,
@@ -292,6 +415,14 @@ def run_dataset_builder(
 
 def _empty_selected_run_reason(manifest: RunManifest) -> str | None:
     stages = {stage.name: stage for stage in manifest.stages}
+    failed_indexes = sorted(
+        stage.name.partition(":")[2]
+        for stage in manifest.stages
+        if stage.name.startswith("artifact_index:")
+        and stage.outcome is StageOutcome.FAILED
+    )
+    if failed_indexes:
+        return f"video artifact index failed for: {', '.join(failed_indexes)}"
     selection = stages.get("selection")
     assembly = stages.get("assembly")
     if selection is None or assembly is None:
@@ -547,6 +678,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retry validated optional unavailable stages instead of reusing them.",
     )
+    replay_parser = subparsers.add_parser(
+        "replay",
+        help="Rerun annotation and projection from pinned fixed-source vision artifacts.",
+    )
+    replay_parser.add_argument("--config", type=Path, required=True)
+    replay_parser.add_argument("--run-dir", type=Path, required=True)
+    replay_parser.add_argument(
+        "--retry-unavailable",
+        action="store_true",
+        help="Retry validated optional unavailable stages instead of reusing them.",
+    )
     return parser
 
 
@@ -554,10 +696,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse the one-command interface and return a process exit status."""
     parser = _build_parser()
     arguments = parser.parse_args(argv)
-    if arguments.command != "run":
-        parser.error(f"unsupported command: {arguments.command}")
     try:
-        result = run_dataset_builder(
+        runner = run_dataset_builder if arguments.command == "run" else run_dataset_builder_replay
+        result = runner(
             arguments.config,
             arguments.run_dir,
             retry_unavailable=arguments.retry_unavailable,

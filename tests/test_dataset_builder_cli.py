@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,8 +14,16 @@ import pytest
 from annotator.run_video import AnnotatorResult
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import cli, tracknet_input, vision
+from dataset_builder.artifact_index import (
+    VIDEO_ARTIFACT_INDEX_SCHEMA,
+    VideoArtifactIndex,
+    artifact_index_path,
+    load_video_artifact_index,
+    require_replayable_vision,
+)
 from dataset_builder.cli import StageExecution, StagePlan
-from dataset_builder.manifest import write_run_manifest
+from dataset_builder.fixed_sources import load_fixed_source_manifest
+from dataset_builder.manifest import load_run_manifest, write_run_manifest
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.records import (
     RALLY_RECORD_COLLECTION_SCHEMA,
@@ -42,10 +51,27 @@ def _write_config(
     max_videos: int = 2,
     commentary_enabled: bool = True,
     pose_shards: int = 1,
+    fixed_manifest: Path | None = None,
+    fixed_source_root_environment: str = "SHUTTLESET_SOURCE_ROOT",
+    fixed_ground_truth_root: Path | None = None,
+    fixed_video_ids: tuple[str, ...] = ("fixture-video",),
 ) -> Path:
+    source_dataset = "ShuttleSet" if fixed_manifest is not None else "scraped-professional"
+    fixed_section = ""
+    if fixed_manifest is not None:
+        if fixed_ground_truth_root is None:
+            raise ValueError("fixed_ground_truth_root is required with fixed_manifest")
+        video_ids = ", ".join(json.dumps(video_id) for video_id in fixed_video_ids)
+        fixed_section = f"""
+[fixed_sources]
+manifest = {json.dumps(str(fixed_manifest))}
+source_root_environment = {json.dumps(fixed_source_root_environment)}
+ground_truth_root = {json.dumps(str(fixed_ground_truth_root))}
+video_ids = [{video_ids}]
+"""
     path.write_text(
         f'''[run]
-source_dataset = "scraped-professional"
+source_dataset = "{source_dataset}"
 max_videos = {max_videos}
 download_workers = 1
 
@@ -79,6 +105,7 @@ court_resize_mode = "pad"
 [commentary]
 enabled = {str(commentary_enabled).lower()}
 api_key_environment = "GEMINI_API_KEY"
+{fixed_section}
 ''',
         encoding="utf-8",
     )
@@ -288,6 +315,99 @@ def test_configuration_rejects_zero_max_videos(tmp_path: Path) -> None:
         cli.load_builder_config(config_path, repo_root=tmp_path)
 
 
+def test_configuration_loads_optional_fixed_sources_without_changing_normal_mode(
+    tmp_path: Path,
+) -> None:
+    normal = cli.load_builder_config(_write_config(tmp_path / "normal.toml"), repo_root=tmp_path)
+    manifest = tmp_path / "fixed_sources.toml"
+    ground_truth = tmp_path / "annotations"
+    fixed_path = _write_config(
+        tmp_path / "fixed.toml",
+        max_videos=1,
+        fixed_manifest=manifest,
+        fixed_ground_truth_root=ground_truth,
+        fixed_video_ids=("sset_01",),
+    )
+
+    fixed = cli.load_builder_config(fixed_path, repo_root=tmp_path)
+
+    assert normal.fixed_sources is None
+    assert fixed.source_dataset == "ShuttleSet"
+    assert fixed.fixed_sources == cli.FixedSourceConfig(
+        manifest=manifest,
+        source_root_environment="SHUTTLESET_SOURCE_ROOT",
+        ground_truth_root=ground_truth,
+        video_ids=("sset_01",),
+    )
+
+
+def test_fixed_source_configuration_rejects_duplicates_and_video_cap_drift(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "fixed_sources.toml"
+    ground_truth = tmp_path / "annotations"
+    duplicates = _write_config(
+        tmp_path / "duplicates.toml",
+        max_videos=2,
+        fixed_manifest=manifest,
+        fixed_ground_truth_root=ground_truth,
+        fixed_video_ids=("sset_01", "sset_01"),
+    )
+    wrong_cap = _write_config(
+        tmp_path / "wrong-cap.toml",
+        max_videos=2,
+        fixed_manifest=manifest,
+        fixed_ground_truth_root=ground_truth,
+        fixed_video_ids=("sset_01",),
+    )
+
+    with pytest.raises(ValueError, match="fixed_sources.video_ids must not contain duplicates"):
+        cli.load_builder_config(duplicates, repo_root=tmp_path)
+    with pytest.raises(ValueError, match="max_videos must equal"):
+        cli.load_builder_config(wrong_cap, repo_root=tmp_path)
+
+
+def test_tracked_fixed_source_configuration_and_manifest_load() -> None:
+    config = cli.load_builder_config(
+        cli.REPO_ROOT / "configs/dataset_builder/shuttleset_fixed.toml"
+    )
+
+    assert config.fixed_sources is not None
+    assert config.fixed_sources.video_ids == ("sset_01", "sset_21")
+    manifest = load_fixed_source_manifest(config.fixed_sources.manifest)
+    assert tuple(entry.video_id for entry in manifest.videos) == tuple(
+        f"sset_{source_id:02d}" for source_id in range(1, 45)
+    )
+    by_id = {entry.video_id: entry for entry in manifest.videos}
+    assert by_id["sset_01"].fps == Fraction(25)
+    assert by_id["sset_21"].fps == Fraction(30)
+    assert all(
+        entry.fps == Fraction(25)
+        for entry in manifest.videos[:20]
+        if entry.source_available
+    )
+    assert all(entry.fps == Fraction(30) for entry in manifest.videos[20:])
+    assert {entry.video_id for entry in manifest.videos if not entry.eligible} == {
+        "sset_09",
+        "sset_10",
+        "sset_12",
+        "sset_27",
+    }
+    assert {entry.video_id for entry in manifest.videos if not entry.source_available} == {
+        "sset_12"
+    }
+    assert {
+        entry.video_id: entry.exclusion_reason
+        for entry in manifest.videos
+        if not entry.eligible
+    } == {
+        "sset_09": "whole labeling incorrect",
+        "sset_10": "whole labeling incorrect",
+        "sset_12": "all frame numbers incorrect",
+        "sset_27": "video removed",
+    }
+
+
 def test_completed_run_with_no_selected_videos_is_a_terminal_error(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "trial.toml")
     control = _FixtureControl(counts={
@@ -371,6 +491,7 @@ class _ConcreteRuntimeFixture:
         stale_source_basename: str | None = None,
         commentary_eligible: bool = True,
         with_rally: bool = False,
+        fixed_sources: bool = False,
     ) -> None:
         monkeypatch.syspath_prepend(str(cli.REPO_ROOT / "src" / "bst_x"))
         from dataset_builder import _pipeline_runtime, _runtime_support, _vision_plans
@@ -383,9 +504,16 @@ class _ConcreteRuntimeFixture:
         self.stale_source_basename = stale_source_basename
         self.commentary_eligible = commentary_eligible
         self.with_rally = with_rally
+        self.fixed_sources = fixed_sources
+        self.fixed_source_root = tmp_path / "fixed-sources"
+        self.fixed_ground_truth_root = tmp_path / "fixed-annotations"
+        fixed_manifest = self._write_fixed_inputs(tmp_path) if fixed_sources else None
         self.config_path = _write_config(
             tmp_path / "trial.toml",
             commentary_enabled=commentary_enabled,
+            max_videos=1 if fixed_sources else 2,
+            fixed_manifest=fixed_manifest,
+            fixed_ground_truth_root=(self.fixed_ground_truth_root if fixed_sources else None),
         )
         self.run_dir = tmp_path / "run"
         self.workspace = self.run_dir / "workspace"
@@ -409,7 +537,7 @@ class _ConcreteRuntimeFixture:
     @property
     def expected_stage_names(self) -> list[str]:
         video_id = self.video_id
-        return [
+        names = [
             "search", "transcript", "triage", "selection", "download",
             f"metadata:{video_id}", "commentary_cleaning", f"tracknet_input:{video_id}",
             f"shuttle:{video_id}",
@@ -417,13 +545,16 @@ class _ConcreteRuntimeFixture:
             f"commentary_pairing:{video_id}", f"primitive_projection:{video_id}",
             "assembly", "report",
         ]
+        if self.fixed_sources:
+            names.insert(-2, f"artifact_index:{video_id}")
+        return names
 
     def factory(
         self,
         config: cli.BuilderConfig,
         destination: Path,
         source_commit: str,
-    ) -> cli.PipelineRuntime:
+    ) -> cli.ReplayPipelineRuntime:
         effective = replace(
             config,
             tracknet_dir=self.tracknet_dir,
@@ -443,9 +574,67 @@ class _ConcreteRuntimeFixture:
             runtime.pose_interpreter = identity
             runtime.ffmpeg_interpreter = identity
             runtime.detector = object()
+            runtime._prepare_fixed_sources()
 
         runtime.preflight = preflight  # type: ignore[method-assign]
+        runtime.preflight_replay = preflight  # type: ignore[method-assign]
         return runtime
+
+    def load_artifact_index(self, *, validate_models: bool = False) -> VideoArtifactIndex:
+        config = cli.load_builder_config(self.config_path)
+        runtime = self.factory(config, self.run_dir, "fixture-source-commit")
+        runtime.preflight()
+        runtime._restore_selection(
+            self.run_dir / "stages/selection" / self.runtime_module.SELECTED_VIDEOS_FILENAME
+        )
+        runtime._restore_fixed_acquisition(
+            self.run_dir / "stages/download/fixed_acquisition.json.gz",
+            validate_source_integrity=True,
+        )
+        if runtime.fixed_manifest is None:
+            raise AssertionError("fixed manifest was not prepared")
+        return load_video_artifact_index(
+            artifact_index_path(self.run_dir, self.video_id),
+            run_dir=self.run_dir,
+            manifest=load_run_manifest(self.run_dir),
+            source_dataset=config.source_dataset,
+            fixed_manifest=runtime.fixed_manifest,
+            resolved_source=runtime.fixed_resolved[self.video_id],
+            source_reference=runtime.state.sources[self.video_id],
+            validate_models=validate_models,
+        )
+
+    def _write_fixed_inputs(self, tmp_path: Path) -> Path:
+        self.fixed_source_root.mkdir()
+        source = self.fixed_source_root / self.source_basename
+        source.write_bytes(b"fixture video")
+        ground_truth = self.fixed_ground_truth_root / "set" / "match-one"
+        ground_truth.mkdir(parents=True)
+        (ground_truth / "set1.csv").write_text("frame,type\n1,serve\n", encoding="utf-8")
+        digest = hashlib.md5(source.read_bytes()).hexdigest()
+        manifest = tmp_path / "fixed_sources.toml"
+        manifest.write_text(
+            f'''schema = "dataset-builder-fixed-sources/1"
+dataset = "ShuttleSet"
+
+[[videos]]
+video_id = "{self.video_id}"
+source_id = "1"
+source_url = "https://example.test/{self.video_id}"
+source_basename = "{self.source_basename}"
+source_available = true
+source_md5 = "{digest}"
+fps = "25/1"
+frame_count = 3
+eligible = true
+
+[videos.ground_truth]
+match_id = "1"
+annotation_directory = "set/match-one"
+''',
+            encoding="utf-8",
+        )
+        return manifest
 
     def _install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         paths = {
@@ -461,6 +650,8 @@ class _ConcreteRuntimeFixture:
             monkeypatch.setenv("GEMINI_API_KEY", "fixture-secret")
         else:
             monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        if self.fixed_sources:
+            monkeypatch.setenv("SHUTTLESET_SOURCE_ROOT", str(self.fixed_source_root))
         monkeypatch.setattr(self.runtime_module.search_index, "build_candidates", self.search)
         monkeypatch.setattr(
             self.runtime_module.transcript_acquisition,
@@ -739,6 +930,385 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
     assert fixture.boundary_calls == first_boundary_calls
     assert [event.name for event in second.events] == fixture.expected_stage_names
     assert [(event.name, event.reason) for event in second.events if not event.reused] == []
+
+
+def test_fixed_runtime_bypasses_acquisition_and_reuses_shared_downstream_stages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(
+        tmp_path,
+        monkeypatch,
+        fixed_sources=True,
+        commentary_enabled=True,
+        with_rally=True,
+    )
+
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert [event.name for event in first.events] == fixture.expected_stage_names
+    assert first.stopped_after is None
+    events = {event.name: event for event in first.events}
+    for name in ("search", "transcript", "triage", "download", "commentary_cleaning"):
+        assert events[name].outcome is StageOutcome.SKIPPED
+    assert fixture.boundary_calls == [
+        "metadata",
+        "tracknet_input",
+        "shuttle",
+        "pose",
+        "court",
+        "annotation",
+    ]
+    selection = load_selection(fixture.run_dir / "selected_videos.csv.gz")
+    assert selection[0].selection_source == "fixed_manifest"
+    assert selection[0].commentary_status == COMMENTARY_INELIGIBLE
+    acquisition = vision.load_json_gz(
+        fixture.run_dir / "stages/download/fixed_acquisition.json.gz"
+    )
+    assert acquisition["videos"][0]["video_id"] == fixture.video_id
+    assert acquisition["videos"][0]["metadata"]["frame_count"] == 3
+    index_payload = vision.load_json_gz(artifact_index_path(fixture.run_dir, fixture.video_id))
+    assert index_payload["schema"] == VIDEO_ARTIFACT_INDEX_SCHEMA
+    indexed_stages = {stage["name"]: stage for stage in index_payload["stages"]}
+    assert set(indexed_stages) == {
+        "download",
+        f"metadata:{fixture.video_id}",
+        "commentary_cleaning",
+        f"tracknet_input:{fixture.video_id}",
+        f"shuttle:{fixture.video_id}",
+        f"pose:{fixture.video_id}",
+        f"court:{fixture.video_id}",
+        f"annotation:{fixture.video_id}",
+        f"commentary_pairing:{fixture.video_id}",
+        f"primitive_projection:{fixture.video_id}",
+    }
+    annotation_outputs = {
+        artifact["name"] for artifact in indexed_stages[f"annotation:{fixture.video_id}"]["outputs"]
+    }
+    assert {"raw_replay_mask", "definitive_exclusion_mask"} <= annotation_outputs
+    index = fixture.load_artifact_index(validate_models=True)
+    require_replayable_vision(index)
+    assert index.metadata.frame_count == 3
+    assert index.stage("primitive_projection") is not None
+    first_boundary_calls = list(fixture.boundary_calls)
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert fixture.boundary_calls == first_boundary_calls
+    assert all(event.reused for event in resumed.events)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing", "digest", "vfr", "fps", "frame_count"],
+)
+def test_fixed_source_preflight_stops_before_vision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    source = fixture.fixed_source_root / fixture.source_basename
+    if failure == "missing":
+        source.unlink()
+    elif failure == "digest":
+        source.write_bytes(b"different fixture video")
+    elif failure == "vfr":
+
+        def invalid_metadata(_source: Path) -> VideoMetadata:
+            raise ValueError("variable frame rate is unsupported")
+
+        monkeypatch.setattr(fixture.runtime_module, "probe_video_metadata", invalid_metadata)
+    elif failure == "fps":
+        monkeypatch.setattr(
+            fixture.runtime_module,
+            "probe_video_metadata",
+            lambda path: VideoMetadata(path.resolve(), Fraction(30), 3, 100, 50),
+        )
+    else:
+        monkeypatch.setattr(
+            fixture.runtime_module,
+            "probe_video_metadata",
+            lambda path: VideoMetadata(path.resolve(), Fraction(25), 4, 100, 50),
+        )
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert result.stopped_after == "download"
+    assert result.events[-1].name == "download"
+    assert result.events[-1].outcome is StageOutcome.FAILED
+    assert fixture.boundary_calls == []
+
+
+def test_fixed_source_change_invalidates_resume_before_vision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    first_boundary_calls = list(fixture.boundary_calls)
+    source = fixture.fixed_source_root / fixture.source_basename
+    source.write_bytes(b"changed after first run")
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    download = next(event for event in resumed.events if event.name == "download")
+    assert first.stopped_after is None
+    assert resumed.stopped_after == "download"
+    assert download.reused is False
+    assert download.outcome is StageOutcome.FAILED
+    assert fixture.boundary_calls == first_boundary_calls
+
+
+def test_video_artifact_index_rejects_corrupt_stage_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert result.stopped_after is None
+    index = fixture.load_artifact_index()
+    pose = index.stage("pose")
+    assert pose is not None
+    output = fixture.run_dir / pose.outputs[0].path
+    output.write_bytes(b"corrupt pose artifact")
+
+    with pytest.raises(ValueError, match="integrity differs"):
+        fixture.load_artifact_index()
+
+
+def test_video_artifact_index_rejects_changed_model_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert result.stopped_after is None
+    fixture.court_model.write_bytes(b"changed court model")
+
+    with pytest.raises(ValueError, match="indexed model 'courtkeynet' integrity differs"):
+        fixture.load_artifact_index(validate_models=True)
+
+
+def test_partial_vision_failure_persists_nonreplayable_video_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+
+    def fail_shuttle(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("fixture shuttle failure")
+
+    monkeypatch.setattr(fixture.vision_plans, "extract_all_shuttles", fail_shuttle)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert result.stopped_after is None
+    index = fixture.load_artifact_index()
+    shuttle = index.stage("shuttle")
+    assert shuttle is not None
+    assert shuttle.outcome is StageOutcome.FAILED
+    assert index.stage("pose") is None
+    with pytest.raises(ValueError, match="replay stage 'shuttle' has outcome 'failed'"):
+        require_replayable_vision(index)
+
+
+def test_video_artifact_index_rejects_cross_source_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert result.stopped_after is None
+    path = artifact_index_path(fixture.run_dir, fixture.video_id)
+    payload = vision.load_json_gz(path)
+    payload["source_reference"]["url"] = "https://example.test/other-source"
+    vision.save_json_gz(path, payload)
+
+    with pytest.raises(ValueError, match="source reference differs"):
+        fixture.load_artifact_index()
+
+
+def test_artifact_index_failure_is_terminal_after_sibling_safe_processing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True, with_rally=True)
+
+    def fail_index(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("fixture index write failure")
+
+    monkeypatch.setattr(fixture.runtime_module, "write_video_artifact_index", fail_index)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    index_event = next(
+        event for event in result.events if event.name == f"artifact_index:{fixture.video_id}"
+    )
+    assert index_event.outcome is StageOutcome.FAILED
+    assert result.events[-2].name == "assembly"
+    assert result.events[-1].name == "report"
+    assert result.terminal_error == f"video artifact index failed for: {fixture.video_id}"
+
+
+def test_replay_reruns_annotation_and_projection_without_expensive_producers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(
+        tmp_path,
+        monkeypatch,
+        fixed_sources=True,
+        with_rally=True,
+    )
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    before = {stage.name: stage for stage in first.manifest.stages}
+    original_configuration = fixture.runtime_module._annotation_configuration
+
+    def changed_annotation_configuration() -> dict[str, object]:
+        return {**original_configuration(), "fixture_revision": "issue-96-final"}
+
+    monkeypatch.setattr(
+        fixture.runtime_module,
+        "_annotation_configuration",
+        changed_annotation_configuration,
+    )
+    fixture.boundary_calls.clear()
+
+    replayed = cli.run_dataset_builder_replay(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert [event.name for event in replayed.events] == [
+        f"annotation:{fixture.video_id}",
+        f"commentary_pairing:{fixture.video_id}",
+        f"primitive_projection:{fixture.video_id}",
+        f"artifact_index:{fixture.video_id}",
+        "assembly",
+        "report",
+    ]
+    assert fixture.boundary_calls == ["annotation"]
+    events = {event.name: event for event in replayed.events}
+    assert events[f"annotation:{fixture.video_id}"].reused is False
+    assert events[f"primitive_projection:{fixture.video_id}"].reused is False
+    after = {stage.name: stage for stage in replayed.manifest.stages}
+    for base_name in ("tracknet_input", "shuttle", "pose", "court"):
+        stage_name = f"{base_name}:{fixture.video_id}"
+        assert after[stage_name] == before[stage_name]
+
+    no_op = cli.run_dataset_builder_replay(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert fixture.boundary_calls == ["annotation"]
+    assert all(event.reused for event in no_op.events)
+
+
+def test_replay_repairs_corrupt_annotation_from_pinned_vision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert first.stopped_after is None
+    raw_mask = (
+        fixture.run_dir
+        / "stages/annotation"
+        / fixture.video_id
+        / vision.RAW_REPLAY_MASK_FILENAME
+    )
+    raw_mask.write_bytes(b"corrupt annotation mask")
+    fixture.boundary_calls.clear()
+
+    replayed = cli.run_dataset_builder_replay(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    annotation = next(
+        event for event in replayed.events if event.name == f"annotation:{fixture.video_id}"
+    )
+    assert annotation.reused is False
+    assert fixture.boundary_calls == ["annotation"]
+    fixture.load_artifact_index()
+
+
+def test_replay_rejects_partial_vision_index_before_annotation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+
+    def fail_shuttle(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("fixture shuttle failure")
+
+    monkeypatch.setattr(fixture.vision_plans, "extract_all_shuttles", fail_shuttle)
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert first.terminal_error == "every selected video was excluded before record assembly"
+    fixture.boundary_calls.clear()
+
+    with pytest.raises(ValueError, match="replay stage 'shuttle' has outcome 'failed'"):
+        cli.run_dataset_builder_replay(
+            fixture.config_path,
+            fixture.run_dir,
+            runtime_factory=fixture.factory,
+        )
+    assert fixture.boundary_calls == []
 
 
 def test_partial_selected_download_fails_and_can_retry(
@@ -1505,6 +2075,7 @@ def test_retry_unavailable_cli_switch_is_explicit() -> None:
     parser = cli._build_parser()
 
     default = parser.parse_args(("run", "--config", "trial.toml", "--run-dir", "run"))
+    replay = parser.parse_args(("replay", "--config", "trial.toml", "--run-dir", "run"))
     retry = parser.parse_args((
         "run",
         "--config",
@@ -1515,6 +2086,8 @@ def test_retry_unavailable_cli_switch_is_explicit() -> None:
     ))
 
     assert default.retry_unavailable is False
+    assert replay.command == "replay"
+    assert replay.retry_unavailable is False
     assert retry.retry_unavailable is True
 
 

@@ -1,0 +1,663 @@
+schema = "dataset-builder-fixed-sources/1"
+dataset = "ShuttleSet"
+
+[[videos]]
+video_id = "sset_01"
+source_id = "1"
+source_url = "https://www.youtube.com/watch?v=O669aZhH0LI"
+source_basename = "1 Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals.mp4"
+source_available = true
+source_md5 = "e7957b64a88d8af53f0598064584a325"
+fps = "25/1"
+frame_count = 154393
+eligible = true
+
+[videos.ground_truth]
+match_id = "1"
+annotation_directory = "set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals"
+
+[[videos]]
+video_id = "sset_02"
+source_id = "2"
+source_url = "https://www.youtube.com/watch?v=-aOI9_JxoWc"
+source_basename = "2 CHEN_Long_CHOU_Tien_Chen_World_Tour_Finals_Group_Stage.mp4"
+source_available = true
+source_md5 = "b3cb0d7dd228959e827eecf6f2824a70"
+fps = "25/1"
+frame_count = 95417
+eligible = true
+
+[videos.ground_truth]
+match_id = "2"
+annotation_directory = "set/CHEN_Long_CHOU_Tien_Chen_World_Tour_Finals_Group_Stage"
+
+[[videos]]
+video_id = "sset_03"
+source_id = "3"
+source_url = "https://www.youtube.com/watch?v=eugfCRwSBJo"
+source_basename = "3 Kento_MOMOTA_CHOU_Tien_Chen_KOREA_OPEN_2019_Final.mp4"
+source_available = true
+source_md5 = "3ef2c97e02a196108aaf8fb80018d0b6"
+fps = "25/1"
+frame_count = 107901
+eligible = true
+
+[videos.ground_truth]
+match_id = "3"
+annotation_directory = "set/Kento_MOMOTA_CHOU_Tien_Chen_KOREA_OPEN_2019_Final"
+
+[[videos]]
+video_id = "sset_04"
+source_id = "4"
+source_url = "https://www.youtube.com/watch?v=y6QbtrTV-K0"
+source_basename = "4 CHEN_Long_CHOU_Tien_Chen_Denmark_Open_2019_QuarterFinal.mp4"
+source_available = true
+source_md5 = "03c9495a5aaf7fff2631862a582eb300"
+fps = "25/1"
+frame_count = 103476
+eligible = true
+
+[videos.ground_truth]
+match_id = "4"
+annotation_directory = "set/CHEN_Long_CHOU_Tien_Chen_Denmark_Open_2019_QuarterFinal"
+
+[[videos]]
+video_id = "sset_05"
+source_id = "5"
+source_url = "https://www.youtube.com/watch?v=xhUi2KpmVkI"
+source_basename = "5 Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2018_Finals.mp4"
+source_available = true
+source_md5 = "60cc69b38c32e8328b9fd7243c3f05b2"
+fps = "25/1"
+frame_count = 128780
+eligible = true
+
+[videos.ground_truth]
+match_id = "5"
+annotation_directory = "set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2018_Finals"
+
+[[videos]]
+video_id = "sset_06"
+source_id = "6"
+source_url = "https://www.youtube.com/watch?v=SYyvDrUgClc"
+source_basename = "6 Kento_MOMOTA_CHOU_Tien_Chen_Denmark_Open_2018_Finals.mp4"
+source_available = true
+source_md5 = "2b6c3e7d5711a8929261ee4c016586cc"
+fps = "25/1"
+frame_count = 151301
+eligible = true
+
+[videos.ground_truth]
+match_id = "6"
+annotation_directory = "set/Kento_MOMOTA_CHOU_Tien_Chen_Denmark_Open_2018_Finals"
+
+[[videos]]
+video_id = "sset_07"
+source_id = "7"
+source_url = "https://www.youtube.com/watch?v=Y0tCJ6DWXKM"
+source_basename = "7 Kento_MOMOTA_CHOU_Tien_Chen_Malaysia_Open_2018_QuarterFinals.mp4"
+source_available = true
+source_md5 = "f64c982859d0a589fbfc8ba800451cfa"
+fps = "25/1"
+frame_count = 102329
+eligible = true
+
+[videos.ground_truth]
+match_id = "7"
+annotation_directory = "set/Kento_MOMOTA_CHOU_Tien_Chen_Malaysia_Open_2018_QuarterFinals"
+
+[[videos]]
+video_id = "sset_08"
+source_id = "8"
+source_url = "https://www.youtube.com/watch?v=32j2Tg64Zbg"
+source_basename = "8 CHOU_Tien_Chen_Anders_ANTONSEN_Fuzhou_Open_2019_Semi-finals.mp4"
+source_available = true
+source_md5 = "cedb83c79aa46d4d370e0c01836f86bc"
+fps = "25/1"
+frame_count = 85921
+eligible = true
+
+[videos.ground_truth]
+match_id = "8"
+annotation_directory = "set/CHOU_Tien_Chen_Anders_ANTONSEN_Fuzhou_Open_2019_Semi-finals"
+
+[[videos]]
+video_id = "sset_09"
+source_id = "9"
+source_url = "https://www.youtube.com/watch?v=8E98Gpk-fOM"
+source_basename = "9 CHOU_Tien_Chen_Jonatan_CHRISTIE_Sudirman_Cup_2019_Quarter-finals.mp4"
+source_available = true
+source_md5 = "9f6b8f52130de648432390cf915e76b8"
+fps = "25/1"
+frame_count = 73738
+eligible = false
+exclusion_reason = "whole labeling incorrect"
+
+[videos.ground_truth]
+match_id = "9"
+annotation_directory = "set/CHOU_Tien_Chen_Jonatan_CHRISTIE_Sudirman_Cup_2019_Quarter-finals"
+
+[[videos]]
+video_id = "sset_10"
+source_id = "10"
+source_url = "https://www.youtube.com/watch?v=li1sbr6S34g"
+source_basename = "10 CHOU_Tien_Chen_NG_Ka_Long_Angus_Sudirman_Cup_2019_Group_Stage.mp4"
+source_available = true
+source_md5 = "8ebe84af1e5624a42254516f2e3a90c7"
+fps = "25/1"
+frame_count = 85991
+eligible = false
+exclusion_reason = "whole labeling incorrect"
+
+[videos.ground_truth]
+match_id = "10"
+annotation_directory = "set/CHOU_Tien_Chen_NG_Ka_Long_Angus_Sudirman_Cup_2019_Group_Stage"
+
+[[videos]]
+video_id = "sset_11"
+source_id = "11"
+source_url = "https://www.youtube.com/watch?v=yD6WKVqsAKc"
+source_basename = "11 CHOU_Tien_Chen_Jonatan_CHRISTIE_Indonesia_Open_2019_Quarter-finals.mp4"
+source_available = true
+source_md5 = "038f957642a4d65fab0cd1e3904b48f6"
+fps = "25/1"
+frame_count = 130581
+eligible = true
+
+[videos.ground_truth]
+match_id = "11"
+annotation_directory = "set/CHOU_Tien_Chen_Jonatan_CHRISTIE_Indonesia_Open_2019_Quarter-finals"
+
+[[videos]]
+video_id = "sset_12"
+source_id = "12"
+source_url = "https://www.youtube.com/watch?v=maLGQ7fjCt4"
+source_basename = "12 NG_Ka_Long_Angus_SHI_Yu_Qi_Thailand_Masters_2020_SemiFinals.mp4"
+source_available = false
+eligible = false
+exclusion_reason = "all frame numbers incorrect"
+
+[videos.ground_truth]
+match_id = "12"
+annotation_directory = "set/NG_Ka_Long_Angus_SHI_Yu_Qi_Thailand_Masters_2020_SemiFinals"
+
+[[videos]]
+video_id = "sset_13"
+source_id = "13"
+source_url = "https://www.youtube.com/watch?v=boQC4J4E1ZQ"
+source_basename = "13 Kento_MOMOTA_Viktor_AXELSEN_Malaysia_Masters_2020_Finals.mp4"
+source_available = true
+source_md5 = "269673db307108523ace0d39938d0fc1"
+fps = "25/1"
+frame_count = 113751
+eligible = true
+
+[videos.ground_truth]
+match_id = "13"
+annotation_directory = "set/Kento_MOMOTA_Viktor_AXELSEN_Malaysia_Masters_2020_Finals"
+
+[[videos]]
+video_id = "sset_14"
+source_id = "14"
+source_url = "https://www.youtube.com/watch?v=5W6txLGZ1Rs"
+source_basename = "14 Anders_ANTONSEN_Jonatan_CHRISTIE Indonesia_Masters_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "fa89186f16161adef6347be7a40755f7"
+fps = "25/1"
+frame_count = 120939
+eligible = true
+
+[videos.ground_truth]
+match_id = "14"
+annotation_directory = "set/Anders_ANTONSEN_Jonatan_CHRISTIE Indonesia_Masters_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_15"
+source_id = "15"
+source_url = "https://www.youtube.com/watch?v=yu9oyMXRGHY"
+source_basename = "15 Anthony_Sinisuka_GINTING_Anders_ANTONSEN_Indonesia_Masters_2020_Final.mp4"
+source_available = true
+source_md5 = "cf55aafe6a56de5e5207c5eb5abd4987"
+fps = "25/1"
+frame_count = 149487
+eligible = true
+
+[videos.ground_truth]
+match_id = "15"
+annotation_directory = "set/Anthony_Sinisuka_GINTING_Anders_ANTONSEN_Indonesia_Masters_2020_Final"
+
+[[videos]]
+video_id = "sset_16"
+source_id = "16"
+source_url = "https://www.youtube.com/watch?v=5kS_a7vS5xI"
+source_basename = "16 Anthony_Sinisuka_GINTING_Viktor_AXELSEN_Indonesia_Masters_2020_SemiFinals.mp4"
+source_available = true
+source_md5 = "b383447af2b902c4970502639dadaaa4"
+fps = "25/1"
+frame_count = 92040
+eligible = true
+
+[videos.ground_truth]
+match_id = "16"
+annotation_directory = "set/Anthony_Sinisuka_GINTING_Viktor_AXELSEN_Indonesia_Masters_2020_SemiFinals"
+
+[[videos]]
+video_id = "sset_17"
+source_id = "17"
+source_url = "https://www.youtube.com/watch?v=G9r400zkkz8"
+source_basename = "17 NG_Ka_Long_Angus_Jonatan_CHRISTIE_Malaysia_Masters_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "2134d93010d2291d2abb76ac6707782a"
+fps = "25/1"
+frame_count = 110727
+eligible = true
+
+[videos.ground_truth]
+match_id = "17"
+annotation_directory = "set/NG_Ka_Long_Angus_Jonatan_CHRISTIE_Malaysia_Masters_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_18"
+source_id = "18"
+source_url = "https://www.youtube.com/watch?v=8lHAsyRhYYQ"
+source_basename = "18 Viktor_AXELSEN_SHI_Yu_Qi_All_England_Open_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "5fb5469e3b37f2318520ede0315ed171"
+fps = "25/1"
+frame_count = 75305
+eligible = true
+
+[videos.ground_truth]
+match_id = "18"
+annotation_directory = "set/Viktor_AXELSEN_SHI_Yu_Qi_All_England_Open_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_19"
+source_id = "19"
+source_url = "https://www.youtube.com/watch?v=YmW83aQFADg"
+source_basename = "19 Viktor_AXELSEN_CHEN_Long_Malaysia_Masters_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "e23b740b6abb32cfc9da156be7466e6c"
+fps = "25/1"
+frame_count = 120864
+eligible = true
+
+[videos.ground_truth]
+match_id = "19"
+annotation_directory = "set/Viktor_AXELSEN_CHEN_Long_Malaysia_Masters_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_20"
+source_id = "20"
+source_url = "https://www.youtube.com/watch?v=4e3JJ4rvT3Q"
+source_basename = "20 Viktor_AXELSEN_NG_Ka_Long_Angus_Malaysia_Masters_2020_SemiFinals.mp4"
+source_available = true
+source_md5 = "0008a1697db283363e11bb16e353651b"
+fps = "25/1"
+frame_count = 81650
+eligible = true
+
+[videos.ground_truth]
+match_id = "20"
+annotation_directory = "set/Viktor_AXELSEN_NG_Ka_Long_Angus_Malaysia_Masters_2020_SemiFinals"
+
+[[videos]]
+video_id = "sset_21"
+source_id = "21"
+source_url = "https://www.youtube.com/watch?v=gloiZ_gTJaE"
+source_basename = "21 An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "a68c83d612b49cc432937e3342c47b8f"
+fps = "30/1"
+frame_count = 100349
+eligible = true
+
+[videos.ground_truth]
+match_id = "21"
+annotation_directory = "set/An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_22"
+source_id = "22"
+source_url = "https://www.youtube.com/watch?v=8u_UHCnYSkk"
+source_basename = "22 Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "bf75caa024f792a0b05413222beb54f3"
+fps = "30/1"
+frame_count = 100896
+eligible = true
+
+[videos.ground_truth]
+match_id = "22"
+annotation_directory = "set/Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_23"
+source_id = "23"
+source_url = "https://www.youtube.com/watch?v=rSK9Qx8LapE"
+source_basename = "23 Ng_Ka_Long_Angus_Lee_Cheuk_Yiu_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "72f0ae50c24bf7a8cb2116e37c9cdfd2"
+fps = "30/1"
+frame_count = 97050
+eligible = true
+
+[videos.ground_truth]
+match_id = "23"
+annotation_directory = "set/Ng_Ka_Long_Angus_Lee_Cheuk_Yiu_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_24"
+source_id = "24"
+source_url = "https://www.youtube.com/watch?v=NlDrJyQUTSI"
+source_basename = "24 Anthony_Sinisuka_Ginting_Rasmus_Gemke_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "83f26b1b0649fbe9d58297b9679167bd"
+fps = "30/1"
+frame_count = 134850
+eligible = true
+
+[videos.ground_truth]
+match_id = "24"
+annotation_directory = "set/Anthony_Sinisuka_Ginting_Rasmus_Gemke_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_25"
+source_id = "25"
+source_url = "https://www.youtube.com/watch?v=FZPrpoGdyHI"
+source_basename = "25 Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "b4bc624061b6041361ae9cd9347f948d"
+fps = "30/1"
+frame_count = 94493
+eligible = true
+
+[videos.ground_truth]
+match_id = "25"
+annotation_directory = "set/Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_26"
+source_id = "26"
+source_url = "https://www.youtube.com/watch?v=RRI_k2KZgOM"
+source_basename = "26 Viktor_Axelsen_Jonatan_Christie_YONEX_Thailand_Open_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "8ffbfa001b420b0eb04659dcb17085a3"
+fps = "30/1"
+frame_count = 91050
+eligible = true
+
+[videos.ground_truth]
+match_id = "26"
+annotation_directory = "set/Viktor_Axelsen_Jonatan_Christie_YONEX_Thailand_Open_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_27"
+source_id = "27"
+source_url = "https://www.youtube.com/watch?v=HTBf9wFL0mk"
+source_basename = "27 Viktor_Axelsen_Anthony_Sinisuka_Ginting_YONEX_Thailand_Open_2021_SemiFinals.mp4"
+source_available = true
+source_md5 = "6d3694d6e1df67b706523848f64cef80"
+fps = "30/1"
+frame_count = 140250
+eligible = false
+exclusion_reason = "video removed"
+
+[videos.ground_truth]
+match_id = "27"
+annotation_directory = "set/Viktor_Axelsen_Anthony_Sinisuka_Ginting_YONEX_Thailand_Open_2021_SemiFinals"
+
+[[videos]]
+video_id = "sset_28"
+source_id = "28"
+source_url = "https://www.youtube.com/watch?v=IuXmsimDOW8"
+source_basename = "28 Viktor_Axelsen_Ng_Ka_Long_Angus_YONEX_Thailand_Open_2021_Finals.mp4"
+source_available = true
+source_md5 = "33ad27f43f03415b5e2ffd29e3ecfcbe"
+fps = "30/1"
+frame_count = 114600
+eligible = true
+
+[videos.ground_truth]
+match_id = "28"
+annotation_directory = "set/Viktor_Axelsen_Ng_Ka_Long_Angus_YONEX_Thailand_Open_2021_Finals"
+
+[[videos]]
+video_id = "sset_29"
+source_id = "29"
+source_url = "https://www.youtube.com/watch?v=TXT-qlniM90"
+source_basename = "29 An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "d56838c5cdc80ecc0bae951d197539fd"
+fps = "30/1"
+frame_count = 97500
+eligible = true
+
+[videos.ground_truth]
+match_id = "29"
+annotation_directory = "set/An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_30"
+source_id = "30"
+source_url = "https://www.youtube.com/watch?v=YP8YlZkrQq8"
+source_basename = "30 Anders_Antonsen_Sameer_Verma_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "01b27e8cfb50b528b550c892b47c8cbb"
+fps = "30/1"
+frame_count = 164250
+eligible = true
+
+[videos.ground_truth]
+match_id = "30"
+annotation_directory = "set/Anders_Antonsen_Sameer_Verma_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_31"
+source_id = "31"
+source_url = "https://www.youtube.com/watch?v=gJ_KHu0EC6I"
+source_basename = "31 Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "191e1298e5aeab5d8d6ca8b5b8eb003f"
+fps = "30/1"
+frame_count = 79200
+eligible = true
+
+[videos.ground_truth]
+match_id = "31"
+annotation_directory = "set/Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_32"
+source_id = "32"
+source_url = "https://www.youtube.com/watch?v=ROAnTfC_8zA"
+source_basename = "32 Hans-Kristian_Solberg_Vittinghus_Lee_Cheuk_Yu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "cc346c8c9cbc7f6763555f334d69dfc2"
+fps = "30/1"
+frame_count = 157050
+eligible = true
+
+[videos.ground_truth]
+match_id = "32"
+annotation_directory = "set/Hans-Kristian_Solberg_Vittinghus_Lee_Cheuk_Yu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_33"
+source_id = "33"
+source_url = "https://www.youtube.com/watch?v=OzRtd3D0hEo"
+source_basename = "33 Viktor_Axelsen_Liew_Daren_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "58811cc841828eb2a4d9e73a402ae42a"
+fps = "30/1"
+frame_count = 99450
+eligible = true
+
+[videos.ground_truth]
+match_id = "33"
+annotation_directory = "set/Viktor_Axelsen_Liew_Daren_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_34"
+source_id = "34"
+source_url = "https://www.youtube.com/watch?v=o51ingUOU20"
+source_basename = "34 Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals.mp4"
+source_available = true
+source_md5 = "4a58464fd74ece43d8a320f052017c41"
+fps = "30/1"
+frame_count = 87150
+eligible = true
+
+[videos.ground_truth]
+match_id = "34"
+annotation_directory = "set/Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals"
+
+[[videos]]
+video_id = "sset_35"
+source_id = "35"
+source_url = "https://www.youtube.com/watch?v=XmJ-OdVFQtk"
+source_basename = "35 Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals.mp4"
+source_available = true
+source_md5 = "3ff8cf0d3cf3ea2eb9f96cb3782bad7b"
+fps = "30/1"
+frame_count = 112649
+eligible = true
+
+[videos.ground_truth]
+match_id = "35"
+annotation_directory = "set/Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals"
+
+[[videos]]
+video_id = "sset_36"
+source_id = "36"
+source_url = "https://www.youtube.com/watch?v=D27aAZvuRTw"
+source_basename = "36 Hans-Kristian_Solberg_Vittinghus_Anders_Antonsen_TOYOTA_THAILAND_OPEN_2021_SemiFinals.mp4"
+source_available = true
+source_md5 = "296aa92651d2d10bea25b69fee3632d0"
+fps = "30/1"
+frame_count = 100050
+eligible = true
+
+[videos.ground_truth]
+match_id = "36"
+annotation_directory = "set/Hans-Kristian_Solberg_Vittinghus_Anders_Antonsen_TOYOTA_THAILAND_OPEN_2021_SemiFinals"
+
+[[videos]]
+video_id = "sset_37"
+source_id = "37"
+source_url = "https://www.youtube.com/watch?v=4rQUHv9oGpI"
+source_basename = "37 Viktor_Axelsen_Hans_Kristian_Solberg_VIittinghus_TOYOTA_THAILAND_OPEN_2021_Finals.mp4"
+source_available = true
+source_md5 = "caf0ec6f4aacf6ebdcc14f5a1712003c"
+fps = "30/1"
+frame_count = 104399
+eligible = true
+
+[videos.ground_truth]
+match_id = "37"
+annotation_directory = "set/Viktor_Axelsen_Hans_Kristian_Solberg_VIittinghus_TOYOTA_THAILAND_OPEN_2021_Finals"
+
+[[videos]]
+video_id = "sset_38"
+source_id = "38"
+source_url = "https://www.youtube.com/watch?v=OH6dnTXhZy4"
+source_basename = "38 Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "097e157217722cc2c02867c827ce5481"
+fps = "30/1"
+frame_count = 118950
+eligible = true
+
+[videos.ground_truth]
+match_id = "38"
+annotation_directory = "set/Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_39"
+source_id = "39"
+source_url = "https://www.youtube.com/watch?v=XYY6YXv6Nss"
+source_basename = "39 Anthony_Sinisuka_Ginting_Lee_Zii_Jia_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "0afe90d0903e505bb192b7e2c101dadd"
+fps = "30/1"
+frame_count = 108900
+eligible = true
+
+[videos.ground_truth]
+match_id = "39"
+annotation_directory = "set/Anthony_Sinisuka_Ginting_Lee_Zii_Jia_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_40"
+source_id = "40"
+source_url = "https://www.youtube.com/watch?v=IDSr0z5f52k"
+source_basename = "40 Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "9cef94354a34ce1e40aa9c71ec681775"
+fps = "30/1"
+frame_count = 78900
+eligible = true
+
+[videos.ground_truth]
+match_id = "40"
+annotation_directory = "set/Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_41"
+source_id = "41"
+source_url = "https://www.youtube.com/watch?v=yr2JQTdzNjY"
+source_basename = "41 Ng_Ka_Long_Angus_Kidambi_Srikanth_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "86f5b494ba87cb117871567e13dd4039"
+fps = "30/1"
+frame_count = 133950
+eligible = true
+
+[videos.ground_truth]
+match_id = "41"
+annotation_directory = "set/Ng_Ka_Long_Angus_Kidambi_Srikanth_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_42"
+source_id = "42"
+source_url = "https://www.youtube.com/watch?v=Mawo3l3Hb9E"
+source_basename = "42 Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals.mp4"
+source_available = true
+source_md5 = "a65b278592297a1b78d78d11816728bb"
+fps = "30/1"
+frame_count = 99150
+eligible = true
+
+[videos.ground_truth]
+match_id = "42"
+annotation_directory = "set/Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+
+[[videos]]
+video_id = "sset_43"
+source_id = "43"
+source_url = "https://www.youtube.com/watch?v=vfzkc3lFTdM"
+source_basename = "43 Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals.mp4"
+source_available = true
+source_md5 = "c495c93299be6eea1fa03409aef3c467"
+fps = "30/1"
+frame_count = 97950
+eligible = true
+
+[videos.ground_truth]
+match_id = "43"
+annotation_directory = "set/Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals"
+
+[[videos]]
+video_id = "sset_44"
+source_id = "44"
+source_url = "https://www.youtube.com/watch?v=j7_cjmJDYNU"
+source_basename = "44 Anders_Antonsen_Viktor_Axelsen_HSBC_BWF_WORLD_TOUR_FINALS_2020_Finals.mp4"
+source_available = true
+source_md5 = "5217c61f94bdb14c4d7030b0b01c7e4b"
+fps = "30/1"
+frame_count = 144450
+eligible = true
+
+[videos.ground_truth]
+match_id = "44"
+annotation_directory = "set/Anders_Antonsen_Viktor_Axelsen_HSBC_BWF_WORLD_TOUR_FINALS_2020_Finals"

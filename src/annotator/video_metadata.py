@@ -92,7 +92,10 @@ class VideoMetadata:
 
 
 def probe_video_metadata(video: Path) -> VideoMetadata:
-    """Read strict CFR metadata and compare header and counted frame totals.
+    """Read strict CFR metadata and validate the decoded frame total.
+
+    A container header count is checked when present. The decoded total and
+    complete frame timestamp sequence remain required.
 
     :param video: Source video path.
     :return: Exact source dimensions, frame count and frame rate.
@@ -115,9 +118,9 @@ def probe_video_metadata(video: Path) -> VideoMetadata:
     if not isinstance(format_metadata, dict):
         raise ValueError(f"video format metadata is missing: {source_path}")
 
-    header_frame_count = _parse_positive_int(stream.get("nb_frames"), "nb_frames")
     counted_frame_count = _parse_positive_int(stream.get("nb_read_frames"), "nb_read_frames")
-    if header_frame_count != counted_frame_count:
+    header_frame_count = _parse_optional_positive_int(stream.get("nb_frames"), "nb_frames")
+    if header_frame_count is not None and header_frame_count != counted_frame_count:
         raise ValueError(
             "video has conflicting frame counts: "
             f"nb_frames={header_frame_count}, nb_read_frames={counted_frame_count}"
@@ -132,12 +135,12 @@ def probe_video_metadata(video: Path) -> VideoMetadata:
         )
     if _has_rotation_metadata(stream):
         raise ValueError(f"video has rotation metadata: {source_path}")
-    _validate_frame_timestamps(metadata, stream, rate, header_frame_count)
+    _validate_frame_timestamps(metadata, stream, rate, counted_frame_count)
 
     return VideoMetadata(
         source_path=source_path,
         fps=rate,
-        frame_count=header_frame_count,
+        frame_count=counted_frame_count,
         width=_parse_positive_int(stream.get("width"), "width"),
         height=_parse_positive_int(stream.get("height"), "height"),
         sample_aspect_ratio=_parse_sample_aspect_ratio(stream.get("sample_aspect_ratio")),
@@ -267,6 +270,12 @@ def _parse_positive_int(value: object, field_name: str) -> int:
     if result <= 0:
         raise ValueError(f"video metadata {field_name} must be positive: {value!r}")
     return result
+
+
+def _parse_optional_positive_int(value: object, field_name: str) -> int | None:
+    if value in (None, "N/A"):
+        return None
+    return _parse_positive_int(value, field_name)
 
 
 def _parse_int(value: object, field_name: str) -> int:
