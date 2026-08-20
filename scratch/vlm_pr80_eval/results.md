@@ -5,6 +5,9 @@
 Changing the task fixed the spectacular output collapse. It did not make either
 model a safe general cleanup filter.
 
+See [`experiments.md`](experiments.md) for the order of the trials and
+[`prompts.md`](prompts.md) for the requests used.
+
 | Test | Qwen3-VL | InternVideo3 | Meaning |
 |---|---:|---:|---|
 | Contact timing at ±15 base-30 frames | 88.6% precision, 97.5% recall | 83.3% precision, 50.0% recall | Structural timing only; not proof of visible contact |

@@ -32,6 +32,28 @@
       }
     }
   },
+  "two_model_contact_agreement": {
+    "at_10_frames": {
+      "qwen_alone": {
+        "precision": 0.6363636363636364,
+        "recall": 0.9655172413793104
+      },
+      "both_models": {
+        "precision": 0.7272727272727273,
+        "recall": 0.5517241379310345
+      }
+    },
+    "at_15_frames": {
+      "qwen_alone": {
+        "precision": 0.8863636363636364,
+        "recall": 0.975
+      },
+      "both_models": {
+        "precision": 0.8636363636363636,
+        "recall": 0.475
+      }
+    }
+  },
   "complete_rally_replay": {
     "backend": "qwen3-vl",
     "candidate_contacts": 84,
@@ -76,6 +98,33 @@
     "hallucinations_total": 18,
     "controls_accepted": 7,
     "controls_total": 18
+  },
+  "tracker_prompt_evolution": {
+    "development_cases_per_truth_group": 12,
+    "internvideo3": {
+      "plain_marked": {
+        "hallucinations_rejected": 9,
+        "controls_accepted": 9
+      },
+      "slow_marked": {
+        "hallucinations_rejected": 9,
+        "controls_accepted": 12
+      },
+      "slow_enlarged_marked": {
+        "hallucinations_rejected": 11,
+        "controls_accepted": 12
+      }
+    },
+    "qwen3-vl": {
+      "slow_marked": {
+        "hallucinations_rejected": 7,
+        "controls_accepted": 12
+      },
+      "slow_enlarged_marked": {
+        "hallucinations_rejected": 5,
+        "controls_accepted": 12
+      }
+    }
   },
   "broadcast_direct": {
     "cases": {

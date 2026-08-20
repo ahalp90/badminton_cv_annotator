@@ -8,6 +8,10 @@ model container.
 The retained code is the reusable part of the PR 80 follow-up. Old run folders,
 machine paths, logs, caches, and session notes are deliberately absent.
 
+For the human-readable experiment history, start with
+[`../experiments.md`](../experiments.md). The exact prompt variants are indexed
+in [`../prompts.md`](../prompts.md).
+
 ## What is here
 
 - `build_trials.py`: balanced contact-timing cases and broadcast controls.
