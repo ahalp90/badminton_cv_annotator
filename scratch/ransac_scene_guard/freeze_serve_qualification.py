@@ -7,6 +7,9 @@ fixture is available, before running ``score_serve_protection.py``.
 
 from __future__ import annotations
 
+# This standalone script adds the project source folder before importing it.
+# ruff: noqa: E402
+
 import argparse
 import gzip
 import hashlib

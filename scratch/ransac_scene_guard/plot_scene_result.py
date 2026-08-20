@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Matplotlib reads MPLCONFIGDIR during import, so configure it first.
+# ruff: noqa: E402
+
 import argparse
 import gzip
 import json

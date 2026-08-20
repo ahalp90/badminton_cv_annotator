@@ -11,6 +11,9 @@ Run from the repository root::
 
 from __future__ import annotations
 
+# This standalone script adds the audit and project folders before importing them.
+# ruff: noqa: E402
+
 import argparse
 import csv
 import gzip

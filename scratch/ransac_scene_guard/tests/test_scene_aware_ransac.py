@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# Import the standalone experiment after adding its folder to sys.path.
+# ruff: noqa: E402
+
 import gzip
 import json
 import sys
