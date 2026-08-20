@@ -1,0 +1,115 @@
+{
+  "schema": "vlm-cleanup-summary-v1",
+  "source_pr_head": "96e0e289a951d63fbaaa62f26c399a4beb61ae79",
+  "models": {
+    "internvideo3": {
+      "backend": "transformers",
+      "backend_version": "4.57.3",
+      "model_id": "yanziang/InternVideo3-8B-Instruct",
+      "revision": "c4602918b65225650d152db2850fe34e01d21fcd"
+    },
+    "qwen3-vl": {
+      "backend": "vllm",
+      "backend_version": "0.11.0",
+      "model_id": "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
+      "revision": "d9748a51ae66354c4dad665aab2c71f26cf2c8cd"
+    }
+  },
+  "contact_timing_video_only": {
+    "cases": 60,
+    "truth": "ShuttleSet timing within the stated base-30 frame margin",
+    "at_15_frames": {
+      "internvideo3": {
+        "kept": 24,
+        "precision": 0.8333333333333334,
+        "recall": 0.5
+      },
+      "qwen3-vl": {
+        "invalid": 2,
+        "kept": 44,
+        "precision": 0.8863636363636364,
+        "recall": 0.975
+      }
+    }
+  },
+  "complete_rally_replay": {
+    "backend": "qwen3-vl",
+    "candidate_contacts": 84,
+    "invalid_replies": 4,
+    "rallies": 12,
+    "at_10_frames": {
+      "natural": {
+        "contacts_kept": 84,
+        "exact_contact_count": 4,
+        "structurally_usable": 1
+      },
+      "vlm_yes_preserve_first": {
+        "contacts_kept": 70,
+        "exact_contact_count": 4,
+        "structurally_usable": 1
+      }
+    }
+  },
+  "marked_tracker": {
+    "truth_limit": "Hallucinations are human-labelled; accepted controls are unlabelled tracker paths near ShuttleSet contacts.",
+    "development": {
+      "cases_per_truth_group": 12,
+      "internvideo3": {
+        "hallucinations_rejected": 11,
+        "controls_accepted": 12
+      },
+      "qwen3-vl": {
+        "hallucinations_rejected": 7,
+        "controls_accepted": 12
+      }
+    },
+    "safety": {
+      "cases_per_truth_group": 6,
+      "internvideo3": {
+        "hallucinations_rejected": 5,
+        "controls_accepted": 6
+      }
+    }
+  },
+  "clean_tracker_internvideo3": {
+    "hallucinations_rejected": 18,
+    "hallucinations_total": 18,
+    "controls_accepted": 7,
+    "controls_total": 18
+  },
+  "broadcast_direct": {
+    "cases": {
+      "cutaway": 2,
+      "live": 6,
+      "replay": 4
+    },
+    "internvideo3": {
+      "invalid": 3,
+      "predicted_live": 9
+    },
+    "qwen3-vl": {
+      "invalid": 0,
+      "predicted_cutaway": 1,
+      "predicted_live": 11
+    }
+  },
+  "broadcast_priors": {
+    "generator": "experiments.analyse_broadcast_priors",
+    "cases": {
+      "cutaway": 2,
+      "live": 176,
+      "replay": 19,
+      "total": 197
+    },
+    "track_visible_fraction_at_0_8": {
+      "keep_precision": 0.9314285714285714,
+      "live_recall": 0.9261363636363636,
+      "nonlive_rejected": 9,
+      "nonlive_total": 21
+    }
+  },
+  "candidate_ceiling": {
+    "complete_rallies_at_10_frames": 56,
+    "meaning": "An oracle can select a candidate near every ShuttleSet contact in 56 rallies."
+  }
+}
