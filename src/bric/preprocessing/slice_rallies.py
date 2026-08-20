@@ -19,13 +19,14 @@ The ``+0.5/fps`` offset on the seek time prevents sub-frame rounding
 landing on the previous frame.
 
 For each ``(vid, set, rally)`` group in shots_master.csv:
-  - Compute extent ``[min(shuttle_start_f), max(shuttle_end_f))`` across strokes
+  - Read its stored ``[clip_start_frame, clip_end_frame)`` context extent
   - Slice the source video with the above ffmpeg incantation
   - Verify output frame count via ffprobe (allows ±1 tolerance for
     boundary frames; >1 mismatch is a hard fail)
   - Save to ``training/data/shuttleset/rally_clips/<vid>_<set>_<rally>.mp4``
 
-Idempotency: skip if output exists. ``--force`` to redo.
+Idempotency: skip only when the output's bounds sidecar matches the current
+metadata and canonical source. ``--force`` to redo.
 
 Usage:
     uv run python -m bric.preprocessing.slice_rallies                # all vids
@@ -35,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import multiprocessing as mp
 import subprocess
 import sys
@@ -47,27 +49,86 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 from classifier_shared.dataset import VIDEO_METADATA_PATH  # noqa: E402
+from classifier_shared.video_io import get_video_info  # noqa: E402
 
 SHOTS_MASTER_PATH = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 RAW_VIDEO_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'raw_video'
 RALLY_CLIPS_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'rally_clips'
+BOUNDS_METADATA_VERSION = 1
 
 
 def find_source_video(vid: int) -> Path | None:
-    matches = sorted(RAW_VIDEO_DIR.glob(f'{vid} *.mp4'))
+    candidates = {RAW_VIDEO_DIR / f'{vid}.mp4'}
+    candidates.update(RAW_VIDEO_DIR.glob(f'{vid} *.mp4'))
+    candidates.update(RAW_VIDEO_DIR.glob(f'{vid}_*.mp4'))
+    matches = sorted(path for path in candidates if path.is_file())
+    if len(matches) > 1:
+        raise RuntimeError(f'multiple canonical raw videos found for vid={vid}: {matches}')
     return matches[0] if matches else None
 
 
 def compute_rally_bounds(
     strokes: pd.DataFrame,
+    frame_count: int,
 ) -> list[tuple[str, int, int, int]]:
-    """Return per-rally ``(set_id, rally, start_f, end_f)`` from strokes."""
+    """Return validated stored ``(set_id, rally, start_f, end_f)`` values."""
     bounds = []
     for (set_id, rally), grp in strokes.groupby(['set_id', 'rally'], sort=True):
-        start_f = max(0, int(grp['shuttle_start_f'].min()))
-        end_f = int(grp['shuttle_end_f'].max())
+        starts = grp['clip_start_frame'].unique()
+        ends = grp['clip_end_frame'].unique()
+        if len(starts) != 1 or len(ends) != 1:
+            raise ValueError(f'set={set_id} rally={rally}: inconsistent stored clip bounds')
+        start_f = int(starts[0])
+        end_f = int(ends[0])
+        if not 0 <= start_f < end_f <= frame_count:
+            raise ValueError(
+                f'set={set_id} rally={rally}: clip bounds [{start_f}, {end_f}) '
+                f'invalid for source frame count {frame_count}'
+            )
         bounds.append((set_id, int(rally), start_f, end_f))
     return bounds
+
+
+def bounds_metadata_path(clip_path: Path) -> Path:
+    """Return the bounds sidecar path for one rally clip."""
+    return clip_path.with_suffix('.bounds.json')
+
+
+def expected_bounds_metadata(
+    source_path: Path,
+    source_frame_count: int,
+    start_frame: int,
+    end_frame: int,
+    fps: float,
+) -> dict[str, int | float | str]:
+    """Build the metadata that proves a clip's source-frame mapping."""
+    return {
+        'version': BOUNDS_METADATA_VERSION,
+        'source_video': source_path.name,
+        'source_frame_count': source_frame_count,
+        'clip_start_frame': start_frame,
+        'clip_end_frame': end_frame,
+        'fps': float(fps),
+    }
+
+
+def clip_bounds_are_current(clip_path: Path, expected: dict[str, int | float | str]) -> bool:
+    """Return whether an existing clip has matching bounds metadata."""
+    if not clip_path.exists():
+        return False
+    try:
+        actual = json.loads(bounds_metadata_path(clip_path).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return False
+    return actual == expected
+
+
+def write_bounds_metadata(clip_path: Path, metadata: dict[str, int | float | str]) -> None:
+    """Atomically record the source-frame mapping for a verified clip."""
+    path = bounds_metadata_path(clip_path)
+    tmp_path = path.with_suffix(f'{path.suffix}.tmp')
+    tmp_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    tmp_path.replace(path)
 
 
 def probe_frame_count(video_path: Path) -> int:
@@ -134,15 +195,27 @@ def process_one_vid(
         print(f'vid={vid}: no strokes in shots_master, skipping', flush=True)
         return
 
-    bounds = compute_rally_bounds(strokes)
+    source_info = get_video_info(video_path)
+    if abs(source_info.fps - fps) > 0.01:
+        raise ValueError(
+            f'vid={vid}: source fps {source_info.fps:g} does not match metadata fps {fps:g}'
+        )
+    bounds = compute_rally_bounds(strokes, source_info.n_frames)
     print(f'vid={vid}: {len(bounds)} rallies to slice from {video_path.name}', flush=True)
 
     n_done = n_skipped = n_mismatch = n_failed = 0
     for set_id, rally, start_f, end_f in bounds:
         out_path = RALLY_CLIPS_DIR / f'{vid}_{set_id}_{rally}.mp4'
-        if out_path.exists() and not force:
+        metadata = expected_bounds_metadata(
+            video_path, source_info.n_frames, start_f, end_f, fps,
+        )
+        if not force and clip_bounds_are_current(out_path, metadata):
             n_skipped += 1
             continue
+        if out_path.exists() and not force:
+            print(f'vid={vid} {out_path.name}: stale or missing bounds metadata; regenerating', flush=True)
+        metadata_path = bounds_metadata_path(out_path)
+        metadata_path.unlink(missing_ok=True)
         try:
             slice_rally(video_path, out_path, start_f, end_f, fps)
         except subprocess.CalledProcessError as e:
@@ -158,6 +231,7 @@ def process_one_vid(
         except subprocess.CalledProcessError as e:
             print(f'vid={vid} {out_path.name}: ffprobe failed: {e}', flush=True)
             n_failed += 1
+            out_path.unlink(missing_ok=True)
             continue
 
         if abs(actual - expected) > 1:
@@ -169,6 +243,7 @@ def process_one_vid(
             out_path.unlink()
             n_mismatch += 1
         else:
+            write_bounds_metadata(out_path, metadata)
             n_done += 1
 
     print(

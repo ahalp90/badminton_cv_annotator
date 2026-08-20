@@ -362,7 +362,7 @@ SSET_21 = _build_fixture(
 FIXTURES = (SSET_01, SSET_15, SSET_21)
 
 SHARED_FILES = (
-    FilePin(Path("training/data/shuttleset/annotations/shots_master.csv"), "39cdc201057050abfe4c6f8770734fde", "repo"),
+    FilePin(Path("training/data/shuttleset/annotations/shots_master.csv"), "4c356bfb9809d08338b31e45d0b995b2", "repo"),
     FilePin(Path("training/data/shuttleset/annotations/set/homography.csv"), "07de7edf7951f4f5ca2d76d9f5490600", "repo"),
     FilePin(Path("training/data/shuttleset/annotations/my_raw_video_resolution.csv"), "d252694e01497e43aedcdd01c6dce251", "repo"),
     FilePin(Path("training/data/shuttleset/annotations/set/Kento_MOMOTA_CHOU_Tien_Chen_Fuzhou_Open_2019_Finals/set1.csv"), "cd627c256043d128b4eeb05895b3e8d7", "repo"),
