@@ -55,6 +55,7 @@ def _write_config(
     fixed_source_root_environment: str = "SHUTTLESET_SOURCE_ROOT",
     fixed_ground_truth_root: Path | None = None,
     fixed_video_ids: tuple[str, ...] = ("fixture-video",),
+    tracknet_input_mode: str = "exact_ffv1_stream",
 ) -> Path:
     source_dataset = "ShuttleSet" if fixed_manifest is not None else "scraped-professional"
     fixed_section = ""
@@ -96,6 +97,7 @@ tracknet_workers = 1
 tracknet_batch_size = 8
 tracknet_stride = 8
 tracknet_large_video = true
+tracknet_input_mode = "{tracknet_input_mode}"
 pose_device = "cuda"
 pose_n_max = 16
 pose_shards = {pose_shards}
@@ -492,6 +494,7 @@ class _ConcreteRuntimeFixture:
         commentary_eligible: bool = True,
         with_rally: bool = False,
         fixed_sources: bool = False,
+        tracknet_input_mode: str = "exact_ffv1_stream",
     ) -> None:
         monkeypatch.syspath_prepend(str(cli.REPO_ROOT / "src" / "bst_x"))
         from dataset_builder import _pipeline_runtime, _runtime_support, _vision_plans
@@ -505,6 +508,7 @@ class _ConcreteRuntimeFixture:
         self.commentary_eligible = commentary_eligible
         self.with_rally = with_rally
         self.fixed_sources = fixed_sources
+        self.tracknet_input_mode = tracknet_input.TrackNetInputMode(tracknet_input_mode)
         self.fixed_source_root = tmp_path / "fixed-sources"
         self.fixed_ground_truth_root = tmp_path / "fixed-annotations"
         fixed_manifest = self._write_fixed_inputs(tmp_path) if fixed_sources else None
@@ -514,6 +518,7 @@ class _ConcreteRuntimeFixture:
             max_videos=1 if fixed_sources else 2,
             fixed_manifest=fixed_manifest,
             fixed_ground_truth_root=(self.fixed_ground_truth_root if fixed_sources else None),
+            tracknet_input_mode=tracknet_input_mode,
         )
         self.run_dir = tmp_path / "run"
         self.workspace = self.run_dir / "workspace"
@@ -760,24 +765,34 @@ annotation_directory = "set/match-one"
         return None
 
     def tracknet_input_stage(
-        self, *, source: VideoMetadata, output_dir: Path, **_kwargs: object,
+        self,
+        *,
+        source: VideoMetadata,
+        output_dir: Path,
+        mode: tracknet_input.TrackNetInputMode,
+        **_kwargs: object,
     ) -> tracknet_input.TrackNetInput:
         self.boundary_calls.append("tracknet_input")
         proxy_path, metadata_path = tracknet_input.tracknet_input_paths(source, output_dir)
-        proxy_path.parent.mkdir(parents=True, exist_ok=True)
-        proxy_path.write_bytes(b"fixture TrackNet input")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        video_path = source.source_path
+        if mode is tracknet_input.TrackNetInputMode.PERSISTED_FFV1_PROXY:
+            proxy_path.write_bytes(b"fixture TrackNet input")
+            video_path = proxy_path.resolve()
         metadata = replace(
             source,
-            source_path=proxy_path.resolve(),
+            source_path=video_path,
             width=tracknet_input.TRACKNET_INPUT_WIDTH,
             height=tracknet_input.TRACKNET_INPUT_HEIGHT,
         )
         vision.save_json_gz(metadata_path, metadata.to_dict())
-        return tracknet_input.TrackNetInput(proxy_path, metadata_path, metadata)
+        return tracknet_input.TrackNetInput(mode, video_path, metadata_path, metadata)
 
     def tracknet(self, **kwargs: object) -> None:
         self.boundary_calls.append("shuttle")
         assert kwargs["enable_inpainting"] is False
+        assert kwargs["input_mode"] == self.tracknet_input_mode.value
+        assert kwargs["expected_frame_count"] == 3
         video_paths = kwargs["video_paths"]
         assert isinstance(video_paths, list) and len(video_paths) == 1
         source_stem = Path(video_paths[0]).stem
@@ -799,7 +814,7 @@ annotation_directory = "set/match-one"
             "th_h_px": tracknet_input.TRACKNET_INPUT_HEIGHT * 0.05,
             "tracknet_ckpt": "tracknet.pt",
             "inpaintnet_ckpt": None,
-            "input_video": Path(video_paths[0]).name,
+            "input_video": Path(kwargs["input_video_identity"]).name,
             "extracted_utc": "2026-08-13T00:00:00Z",
             "inpaint_selected": [],
         })
@@ -1004,6 +1019,214 @@ def test_fixed_runtime_bypasses_acquisition_and_reuses_shared_downstream_stages(
 
     assert fixture.boundary_calls == first_boundary_calls
     assert all(event.reused for event in resumed.events)
+
+
+def test_fixed_stream_and_proxy_runs_publish_equal_annotation_primitives(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, dict[str, object]] = {}
+    for mode in ("exact_ffv1_stream", "persisted_ffv1_proxy"):
+        mode_root = tmp_path / mode
+        mode_root.mkdir()
+        fixture = _ConcreteRuntimeFixture(
+            mode_root,
+            monkeypatch,
+            fixed_sources=True,
+            with_rally=True,
+            tracknet_input_mode=mode,
+        )
+        first = cli.run_dataset_builder(
+            fixture.config_path,
+            fixture.run_dir,
+            runtime_factory=fixture.factory,
+        )
+        stages = {stage.name: stage for stage in first.manifest.stages}
+        tracknet_stage = stages[f"tracknet_input:{fixture.video_id}"]
+        shuttle_stage = stages[f"shuttle:{fixture.video_id}"]
+        annotation = vision.load_json_gz(
+            fixture.run_dir
+            / "stages"
+            / "annotation"
+            / fixture.video_id
+            / vision.ANNOTATOR_RESULT_FILENAME
+        )
+        collection = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")
+        shuttle_track = vision.load_npy_xz(
+            fixture.run_dir
+            / "stages"
+            / "shuttle"
+            / fixture.video_id
+            / "shuttle_track.npy.xz"
+        )
+        sidecar = vision.load_json_gz(
+            fixture.run_dir
+            / "stages"
+            / "shuttle"
+            / fixture.video_id
+            / f"{Path(fixture.source_basename).stem}_stride8_inpaint_mask.json.gz"
+        )
+        publications = (
+            "run_manifest.json.gz",
+            "rally_records.json.gz",
+            "dataset_builder_report.json.gz",
+            "selected_videos.csv.gz",
+        )
+        published_bytes = {
+            name: (fixture.run_dir / name).read_bytes()
+            for name in publications
+        }
+
+        resumed = cli.run_dataset_builder(
+            fixture.config_path,
+            fixture.run_dir,
+            runtime_factory=fixture.factory,
+        )
+
+        assert first.stopped_after is None
+        assert all(event.reused for event in resumed.events)
+        assert {
+            name: (fixture.run_dir / name).read_bytes()
+            for name in publications
+        } == published_bytes
+        assert sidecar["input_video"] == fixture.source_basename
+        output_names = {artifact.name for artifact in tracknet_stage.outputs}
+        input_names = {artifact.name for artifact in shuttle_stage.fingerprint.inputs}
+        if mode == "exact_ffv1_stream":
+            assert output_names == {"tracknet_input_metadata"}
+            assert not list((fixture.run_dir / "stages/tracknet_input").rglob("*.avi"))
+            assert "tracknet_stream_implementation" in input_names
+            assert "tracknet_input_video" not in input_names
+        else:
+            assert output_names == {"tracknet_input_metadata", "tracknet_input_video"}
+            assert len(list((fixture.run_dir / "stages/tracknet_input").rglob("*.avi"))) == 1
+            assert "tracknet_input_video" in input_names
+            assert "tracknet_stream_implementation" not in input_names
+        captured[mode] = {
+            "annotation": annotation,
+            "records": [
+                {
+                    key: record[key]
+                    for key in ("rally", "contacts", "outcomes", "commentary")
+                }
+                for record in collection["records"]
+            ],
+            "track": shuttle_track,
+            "record_count": len(collection["records"]),
+        }
+
+    stream = captured["exact_ffv1_stream"]
+    proxy = captured["persisted_ffv1_proxy"]
+    assert stream["annotation"] == proxy["annotation"]
+    assert stream["records"] == proxy["records"]
+    assert stream["record_count"] == proxy["record_count"] == 1
+    np.testing.assert_array_equal(stream["track"], proxy["track"])
+
+
+def test_proxy_backed_retry_reuses_proxy_and_replays_without_producers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(
+        tmp_path,
+        monkeypatch,
+        fixed_sources=True,
+        with_rally=True,
+        tracknet_input_mode="persisted_ffv1_proxy",
+    )
+    attempts = 0
+
+    def flaky_tracknet(**kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            fixture.boundary_calls.append("shuttle")
+            output_dir = Path(kwargs["output_csv_dir"])
+            (output_dir / "partial.csv").write_text("partial", encoding="utf-8")
+            raise RuntimeError("fixture TrackNet worker failure")
+        fixture.tracknet(**kwargs)
+
+    monkeypatch.setattr(fixture.vision_plans, "extract_all_shuttles", flaky_tracknet)
+    first = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    proxy_path = next((fixture.run_dir / "stages/tracknet_input").rglob("*.avi"))
+    proxy_bytes = proxy_path.read_bytes()
+    proxy_mtime = proxy_path.stat().st_mtime_ns
+    first_events = {event.name: event for event in first.events}
+
+    assert first_events[f"tracknet_input:{fixture.video_id}"].outcome is StageOutcome.PROCESSED
+    assert first_events[f"shuttle:{fixture.video_id}"].outcome is StageOutcome.FAILED
+    assert not list((fixture.run_dir / "stages/shuttle" / fixture.video_id).glob("*"))
+
+    retried = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    retry_events = {event.name: event for event in retried.events}
+
+    assert retry_events[f"tracknet_input:{fixture.video_id}"].reused is True
+    assert retry_events[f"shuttle:{fixture.video_id}"].reused is False
+    assert retry_events[f"shuttle:{fixture.video_id}"].outcome is StageOutcome.PROCESSED
+    assert proxy_path.read_bytes() == proxy_bytes
+    assert proxy_path.stat().st_mtime_ns == proxy_mtime
+    assert fixture.boundary_calls.count("tracknet_input") == 1
+    assert fixture.boundary_calls.count("shuttle") == 2
+    sidecar = vision.load_json_gz(
+        fixture.run_dir
+        / "stages"
+        / "shuttle"
+        / fixture.video_id
+        / f"{Path(fixture.source_basename).stem}_stride8_inpaint_mask.json.gz"
+    )
+    assert sidecar["input_video"] == fixture.source_basename
+    calls_after_retry = list(fixture.boundary_calls)
+
+    replayed = cli.run_dataset_builder_replay(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    assert fixture.boundary_calls == calls_after_retry
+    assert all(event.reused for event in replayed.events)
+
+
+def test_tracknet_input_mode_change_invalidates_stream_and_shuttle_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch, fixed_sources=True)
+    cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    fixture.config_path.write_text(
+        fixture.config_path.read_text(encoding="utf-8").replace(
+            'tracknet_input_mode = "exact_ffv1_stream"',
+            'tracknet_input_mode = "persisted_ffv1_proxy"',
+        ),
+        encoding="utf-8",
+    )
+    fixture.tracknet_input_mode = tracknet_input.TrackNetInputMode.PERSISTED_FFV1_PROXY
+
+    resumed = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    events = {event.name: event for event in resumed.events}
+
+    assert events[f"metadata:{fixture.video_id}"].reused is True
+    assert events[f"tracknet_input:{fixture.video_id}"].reused is False
+    assert events[f"shuttle:{fixture.video_id}"].reused is False
+    assert fixture.boundary_calls.count("tracknet_input") == 2
+    assert fixture.boundary_calls.count("shuttle") == 2
+    assert len(list((fixture.run_dir / "stages/tracknet_input").rglob("*.avi"))) == 1
 
 
 @pytest.mark.parametrize(

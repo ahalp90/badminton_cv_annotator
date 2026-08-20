@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import cv2
 import math
 import parse
@@ -813,3 +814,101 @@ class Video_IterableDataset(IterableDataset):
         # Normalization
         frames /= 255.
         return frames
+
+
+class ExactFFV1StreamDataset(Video_IterableDataset):
+    """Non-overlapping TrackNet dataset backed by exact in-memory FFV1 streams."""
+
+    def __init__(self,
+        video_file,
+        seq_len=8,
+        sliding_step=8,
+        bg_mode='',
+        HEIGHT=HEIGHT,
+        WIDTH=WIDTH,
+        max_sample_num=1800,
+        video_range=None,
+        median=None,
+        *,
+        expected_frame_count,
+        ffmpeg,
+    ):
+        if sliding_step != seq_len:
+            raise ValueError('exact FFV1 stream supports non-overlapping TrackNet only')
+        if video_range is not None:
+            raise ValueError('exact FFV1 stream does not support a bounded median range')
+        if HEIGHT != 288 or WIDTH != 512:
+            raise ValueError(f'exact FFV1 stream dimensions must be 512x288, got {WIDTH}x{HEIGHT}')
+        if isinstance(expected_frame_count, bool) or not isinstance(expected_frame_count, int):
+            raise ValueError('expected_frame_count must be a positive integer')
+        if expected_frame_count <= 0:
+            raise ValueError('expected_frame_count must be a positive integer')
+        self.HEIGHT = HEIGHT
+        self.WIDTH = WIDTH
+        self.video_file = video_file
+        self.video_len = expected_frame_count
+        self.fps = 0
+        self.w, self.h = WIDTH, HEIGHT
+        self.w_scaler, self.h_scaler = 1.0, 1.0
+        self.seq_len = seq_len
+        self.sliding_step = sliding_step
+        self.bg_mode = bg_mode
+        self.ffmpeg = ffmpeg
+        if self.bg_mode:
+            self.median = median if median is not None else self._stream_median(max_sample_num)
+
+    def _stream_median(self, max_sample_num):
+        from dataset_builder.ffv1_stream import iter_exact_ffv1_frames
+
+        print('Generate exact streamed median image...', flush=True)
+        sample_step = self.video_len // max_sample_num if self.video_len > max_sample_num else 1
+        frames = list(iter_exact_ffv1_frames(
+            Path(self.video_file),
+            expected_source_frames=self.video_len,
+            ffmpeg=self.ffmpeg,
+            sample_step=sample_step,
+        ))
+        median = np.median(frames, 0)[..., ::-1]
+        if self.bg_mode == 'concat':
+            median = Image.fromarray(median.astype('uint8'))
+            median = np.array(median.resize(size=(self.WIDTH, self.HEIGHT)))
+            median = np.moveaxis(median, -1, 0)
+        print('Exact streamed median image generated.', flush=True)
+        return median
+
+    def __iter__(self):
+        from dataset_builder.ffv1_stream import iter_exact_ffv1_frames
+
+        start_frame = 0
+        frame_list = []
+        frame_stream = iter_exact_ffv1_frames(
+            Path(self.video_file),
+            expected_source_frames=self.video_len,
+            ffmpeg=self.ffmpeg,
+        )
+        try:
+            for frame in frame_stream:
+                frame_list.append(frame)
+                if len(frame_list) < self.seq_len:
+                    continue
+                data_idx = np.array([
+                    (0, index)
+                    for index in range(start_frame, start_frame + self.seq_len)
+                ])
+                frames = self.__process__(np.array(frame_list)[..., ::-1])
+                yield data_idx, frames
+                frame_list.clear()
+                start_frame += self.seq_len
+        finally:
+            frame_stream.close()
+
+        if frame_list:
+            observed = len(frame_list)
+            data_idx = [
+                (0, index)
+                for index in range(start_frame, start_frame + observed)
+            ]
+            data_idx.extend([(0, start_frame + observed - 1)] * (self.seq_len - observed))
+            frame_list.extend([frame_list[-1]] * (self.seq_len - observed))
+            frames = self.__process__(np.array(frame_list)[..., ::-1])
+            yield np.array(data_idx), frames

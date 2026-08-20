@@ -453,12 +453,13 @@ class RuntimeSupport:
         video_id: str,
         artifacts: ShuttleEvidenceArtifacts,
     ) -> None:
-        proxy = self.state.tracknet_inputs[video_id].metadata
+        logical_input = self.state.tracknet_inputs[video_id].metadata
+        canonical = self.state.metadata[video_id]
         self.state.shuttles[video_id] = load_shuttle_evidence(
             artifacts=artifacts,
-            input_video=proxy.source_path,
-            input_height=proxy.height,
-            frame_count=proxy.frame_count,
+            input_video=canonical.source_path,
+            input_height=logical_input.height,
+            frame_count=logical_input.frame_count,
             stride=self.config.tracknet_stride,
             tracknet_model=self.config.tracknet_model,
             inpaint_model=self.config.inpaint_model,

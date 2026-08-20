@@ -24,6 +24,7 @@ tracknet_workers = 1
 tracknet_batch_size = 16
 tracknet_stride = 8
 tracknet_large_video = true
+tracknet_input_mode = "exact_ffv1_stream"
 pose_device = "cuda"
 pose_n_max = 10
 pose_shards = 8

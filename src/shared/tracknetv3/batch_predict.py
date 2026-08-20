@@ -41,6 +41,11 @@ def main():
                         help='Temporal ensemble mode (default: weight)')
     parser.add_argument('--large_video', action='store_true', default=False,
                         help='whether to process large video')
+    parser.add_argument('--input_mode', type=str, default='persisted_ffv1_proxy',
+                        choices=['exact_ffv1_stream', 'persisted_ffv1_proxy'])
+    parser.add_argument('--ffmpeg', type=str, default='ffmpeg')
+    parser.add_argument('--expected_frame_count', type=int, default=None)
+    parser.add_argument('--input_video_identity', type=str, default=None)
     parser.add_argument('--dry_run', action='store_true', default=False,
                         help='Run inference without writing output files')
     args = parser.parse_args()
@@ -57,6 +62,10 @@ def main():
     # Read clip list
     video_paths = Path(args.video_list).read_text().strip().splitlines()
     total = len(video_paths)
+    if args.input_mode == 'exact_ffv1_stream' and total != 1:
+        raise ValueError('exact FFV1 stream batch must contain exactly one video')
+    if args.input_video_identity is not None and total != 1:
+        raise ValueError('canonical input identity requires exactly one video')
     print(f'Batch mode: {total} clips to process', flush=True)
 
     successes, failures, skipped = 0, 0, 0
@@ -81,6 +90,9 @@ def main():
                 batch_size=args.batch_size, dry_run=args.dry_run,
                 large_video=args.large_video,
                 tracknet_ckpt=tracknet_ckpt, inpaintnet_ckpt=inpaintnet_ckpt,
+                input_mode=args.input_mode, ffmpeg=args.ffmpeg,
+                expected_frame_count=args.expected_frame_count,
+                input_video_identity=args.input_video_identity,
             )
             successes += 1
         except Exception as e:
@@ -97,7 +109,8 @@ def main():
 
     print(f'BATCH_COMPLETE successes={successes} failures={failures} '
           f'skipped={skipped}', flush=True)
+    return 1 if failures else 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

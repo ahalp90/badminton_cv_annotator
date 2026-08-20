@@ -1,4 +1,4 @@
-"""Frame, metadata, and failure gates for TrackNet-only proxy videos."""
+"""Frame, metadata, and failure gates for exact TrackNet inputs."""
 
 from __future__ import annotations
 
@@ -17,10 +17,13 @@ from dataset_builder import cli, tracknet_input
 from dataset_builder.tracknet_input import (
     TRACKNET_INPUT_HEIGHT,
     TRACKNET_INPUT_WIDTH,
+    TrackNetInputMode,
     create_tracknet_input,
     load_tracknet_input,
     tracknet_input_paths,
     tracknet_proxy_command,
+    tracknet_stream_decoder_command,
+    tracknet_stream_producer_command,
 )
 from dataset_builder.vision import convert_tracknet_csv_stage, load_npy_xz
 
@@ -59,9 +62,56 @@ def test_tracked_trial_configuration_has_the_bounded_external_scope() -> None:
     assert config.search_count == 5
     assert config.max_videos == 2
     assert config.tracknet_stride == 8
+    assert config.tracknet_input_mode is TrackNetInputMode.EXACT_FFV1_STREAM
     assert config.pose_shards == 8
     assert list(config.search_terms) == ["match"]
     assert len(config.search_terms["match"]) == 1
+
+
+def test_persisted_proxy_is_an_explicit_selectable_fallback(tmp_path: Path) -> None:
+    tracked = cli.REPO_ROOT / "configs/dataset_builder/trial.toml"
+    payload = tracked.read_text(encoding="utf-8")
+    payload = payload.replace('tracknet_input_mode = "exact_ffv1_stream"', (
+        'tracknet_input_mode = "persisted_ffv1_proxy"'
+    ))
+    payload = payload.replace("tracknet_stride = 8", "tracknet_stride = 1")
+    payload = payload.replace("tracknet_large_video = true", "tracknet_large_video = false")
+    config_path = tmp_path / "proxy.toml"
+    config_path.write_text(payload, encoding="utf-8")
+
+    config = cli.load_builder_config(config_path)
+
+    assert config.tracknet_input_mode is TrackNetInputMode.PERSISTED_FFV1_PROXY
+    assert config.tracknet_stride == 1
+    assert config.tracknet_large_video is False
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        ("tracknet_stride = 8", "tracknet_stride = 1", "requires stride 8"),
+        (
+            "tracknet_large_video = true",
+            "tracknet_large_video = false",
+            "requires tracknet_large_video=true",
+        ),
+    ],
+)
+def test_exact_stream_configuration_rejects_incompatible_tracknet_modes(
+    tmp_path: Path,
+    old: str,
+    new: str,
+    message: str,
+) -> None:
+    tracked = cli.REPO_ROOT / "configs/dataset_builder/trial.toml"
+    config_path = tmp_path / "invalid.toml"
+    config_path.write_text(
+        tracked.read_text(encoding="utf-8").replace(old, new),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        cli.load_builder_config(config_path)
 
 
 def test_proxy_command_is_lossless_bicubic_video_only(tmp_path: Path) -> None:
@@ -80,6 +130,52 @@ def test_proxy_command_is_lossless_bicubic_video_only(tmp_path: Path) -> None:
     assert command[command.index("-pix_fmt") + 1] == "yuv420p"
     assert {"-an", "-sn", "-dn"}.issubset(command)
     assert command[-1] == str(output)
+
+
+def test_stream_commands_keep_the_ffv1_colour_boundary(tmp_path: Path) -> None:
+    source = tmp_path / "source.mp4"
+
+    producer = tracknet_stream_producer_command(
+        ffmpeg="/usr/bin/ffmpeg",
+        source_path=source,
+        sample_step=17,
+    )
+    decoder = tracknet_stream_decoder_command(ffmpeg="/usr/bin/ffmpeg")
+
+    assert producer[producer.index("-vf") + 1] == (
+        "select=not(mod(n\\,17)),scale=512:288:flags=bicubic,setsar=1/1"
+    )
+    assert producer[producer.index("-c:v") + 1] == "ffv1"
+    assert producer[producer.index("-pix_fmt") + 1] == "yuv420p"
+    assert producer[-2:] == ["nut", "pipe:1"]
+    assert decoder[decoder.index("-i") + 1] == "pipe:0"
+    assert decoder[decoder.index("-pix_fmt") + 1] == "bgr24"
+    assert decoder[-1] == "pipe:1"
+
+
+def test_stream_input_persists_only_logical_metadata(tmp_path: Path) -> None:
+    source = _metadata(tmp_path)
+    output_dir = tmp_path / "tracknet-input"
+
+    result = create_tracknet_input(
+        source=source,
+        output_dir=output_dir,
+        ffmpeg="ffmpeg",
+        mode=TrackNetInputMode.EXACT_FFV1_STREAM,
+    )
+
+    proxy_path, metadata_path = tracknet_input_paths(source, output_dir)
+    assert result.mode is TrackNetInputMode.EXACT_FFV1_STREAM
+    assert result.video_path == source.source_path
+    assert result.as_mapping() == {"tracknet_input_metadata": metadata_path}
+    assert not proxy_path.exists()
+    assert result.metadata.frame_count == source.frame_count
+    assert (result.metadata.width, result.metadata.height) == (512, 288)
+    assert load_tracknet_input(
+        source=source,
+        output_dir=output_dir,
+        mode=TrackNetInputMode.EXACT_FFV1_STREAM,
+    ) == result
 
 
 @pytest.mark.skipif(

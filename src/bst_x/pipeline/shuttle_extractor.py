@@ -15,9 +15,14 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
 import math
+import os
+import signal
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
+from types import FrameType
 
 _SRC = Path(__file__).resolve().parents[2]
 if str(_SRC) not in sys.path:
@@ -161,6 +166,10 @@ def extract_all_shuttles(
     dry_run: bool = False,
     video_paths: Sequence[Path] | None = None,
     enable_inpainting: bool = True,
+    input_mode: str = 'persisted_ffv1_proxy',
+    ffmpeg: str | Path = 'ffmpeg',
+    expected_frame_count: int | None = None,
+    input_video_identity: Path | None = None,
 ) -> None:
     """Run TrackNetV3 on all clips using batch mode.
 
@@ -191,6 +200,10 @@ def extract_all_shuttles(
     :param batch_size: Batch size for TrackNet DataLoader (default 32).
         Safe at 32 with max_workers=2; use 64 with max_workers=1.
     :param large_video: Use large video mode (default TRACKNET_LARGE_VIDEO).
+    :param input_mode: Exact in-memory stream or persisted proxy input.
+    :param ffmpeg: FFmpeg executable used by exact stream mode.
+    :param expected_frame_count: Canonical frame count required by exact stream mode.
+    :param input_video_identity: Canonical source path recorded in the Inpaint sidecar.
     """
     # Preflight: verify TrackNetV3 is set up correctly
     if not tracknet_dir.is_dir():
@@ -227,6 +240,21 @@ def extract_all_shuttles(
         stems = [path.stem for path in all_clips]
         if len(stems) != len(set(stems)):
             raise ValueError('explicit TrackNet video paths must have unique stems')
+    if input_mode not in {'exact_ffv1_stream', 'persisted_ffv1_proxy'}:
+        raise ValueError(f'unsupported TrackNet input mode: {input_mode}')
+    if input_video_identity is not None and len(all_clips) != 1:
+        raise ValueError('canonical TrackNet input identity requires exactly one video')
+    if input_mode == 'exact_ffv1_stream':
+        if len(all_clips) != 1:
+            raise ValueError('exact FFV1 stream requires exactly one explicit video')
+        if tracknet_stride != 8 or not large_video:
+            raise ValueError('exact FFV1 stream requires stride 8 and large-video mode')
+        if (
+            isinstance(expected_frame_count, bool)
+            or not isinstance(expected_frame_count, int)
+            or expected_frame_count <= 0
+        ):
+            raise ValueError('exact FFV1 stream requires a positive expected frame count')
     # Filter to clips that don't already have results (dry_run processes all)
     if dry_run:
         pending = all_clips
@@ -246,44 +274,80 @@ def extract_all_shuttles(
     python_exe = str(tracknet_python) if tracknet_python else sys.executable #TODO is this check necessary?
     batch_script = tracknet_dir / 'batch_predict.py'
 
-    # Write each chunk to its own list file and launch a batch worker
-    list_files = []
-    processes = []
-    for worker_i, chunk in enumerate(chunks):
-        list_file = output_csv_dir / f'_pending_clips_{worker_i}.txt'
-        list_file.write_text('\n'.join(str(p) for p in chunk))
-        list_files.append(list_file)
+    # Install signal handling before launch so partial startup is also cleaned up.
+    list_files: list[Path] = []
+    processes: list[subprocess.Popen[str]] = []
+    handled_signals = (signal.SIGINT, signal.SIGTERM)
+    previous_handlers = {signum: signal.getsignal(signum) for signum in handled_signals}
+    installed_handlers = threading.current_thread() is threading.main_thread()
+    pending_signal: int | None = None
 
-        process_args = [
-            python_exe, str(batch_script),
-            '--video_list', str(list_file),
-            '--tracknet_file', str(resolved_model),
-            '--save_dir', str(output_csv_dir),
-            '--batch_size', str(batch_size),
-            '--eval_mode', _tracknet_eval_mode(tracknet_stride),
-        ]
-        if large_video:
-            process_args.append('--large_video')
-        if resolved_inpaint: #TODO aren't we *only* running inpaint, making this redundant?
-            process_args.extend(['--inpaintnet_file', str(resolved_inpaint)])
-        if dry_run:
-            process_args.append('--dry_run')
+    def cancel(signum: int, _frame: FrameType | None) -> None:
+        nonlocal pending_signal
+        pending_signal = signum if pending_signal is None else pending_signal
+        raise SystemExit(128 + pending_signal)
 
-        # stdout and stderr both go to terminal. Piping stderr risks
-        # deadlock if a worker produces >64KB of error output (pipe
-        # buffer fills, worker blocks, parent blocks on wait).
-        proc = subprocess.Popen(process_args, text=True)
-        processes.append(proc)
-
-    print(f'Launched {len(processes)} batch worker(s)')
-
-    # Wait for all workers
     try:
+        if installed_handlers:
+            for signum in handled_signals:
+                signal.signal(signum, cancel)
+
+        for worker_i, chunk in enumerate(chunks):
+            list_file = output_csv_dir / f'_pending_clips_{worker_i}.txt'
+            list_file.write_text('\n'.join(str(path) for path in chunk))
+            list_files.append(list_file)
+
+            process_args = [
+                python_exe, str(batch_script),
+                '--video_list', str(list_file),
+                '--tracknet_file', str(resolved_model),
+                '--save_dir', str(output_csv_dir),
+                '--batch_size', str(batch_size),
+                '--eval_mode', _tracknet_eval_mode(tracknet_stride),
+            ]
+            if large_video:
+                process_args.append('--large_video')
+            process_args.extend(['--input_mode', input_mode])
+            if input_mode == 'exact_ffv1_stream':
+                process_args.extend([
+                    '--ffmpeg', os.fspath(ffmpeg),
+                    '--expected_frame_count', str(expected_frame_count),
+                ])
+            if input_video_identity is not None:
+                process_args.extend([
+                    '--input_video_identity',
+                    os.fspath(input_video_identity),
+                ])
+            if resolved_inpaint:
+                process_args.extend(['--inpaintnet_file', str(resolved_inpaint)])
+            if dry_run:
+                process_args.append('--dry_run')
+
+            # stdout and stderr inherit the terminal. Piping either one can
+            # deadlock if a worker fills the OS pipe while the parent waits.
+            processes.append(
+                subprocess.Popen(
+                    process_args,
+                    text=True,
+                    env=_tracknet_subprocess_environment(),
+                    start_new_session=True,
+                )
+            )
+
+        print(f'Launched {len(processes)} batch worker(s)')
         for proc in processes:
             proc.wait()
             if proc.returncode != 0:
-                print(f'WARNING: worker exited with code {proc.returncode}')
+                raise RuntimeError(f'TrackNet worker exited with status {proc.returncode}')
+    except BaseException:
+        _terminate_process_groups(processes)
+        if pending_signal is not None:
+            raise SystemExit(128 + pending_signal) from None
+        raise
     finally:
+        if installed_handlers:
+            for signum in handled_signals:
+                signal.signal(signum, previous_handlers[signum])
         for f in list_files:
             f.unlink(missing_ok=True)
 
@@ -291,6 +355,52 @@ def extract_all_shuttles(
     done = sum(1 for c in all_clips
                if (output_csv_dir / (c.stem + '_ball.csv')).exists())
     print(f'Extraction complete: {done}/{len(all_clips)} clips have CSVs')
+
+
+def _terminate_process_groups(processes: Sequence[subprocess.Popen[str]]) -> None:
+    """Terminate every owned TrackNet worker group and reap direct children."""
+    for process in processes:
+        _signal_process_group(process.pid, signal.SIGTERM)
+    for process in processes:
+        try:
+            process.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            _signal_process_group(process.pid, signal.SIGKILL)
+            process.wait(timeout=2.0)
+    deadline = time.monotonic() + 2.0
+    for process in processes:
+        while _process_group_exists(process.pid) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        if _process_group_exists(process.pid):
+            _signal_process_group(process.pid, signal.SIGKILL)
+
+
+def _tracknet_subprocess_environment() -> dict[str, str]:
+    """Expose repository packages to the isolated TrackNet interpreter."""
+    environment = os.environ.copy()
+    required = [os.fspath(_SRC)]
+    existing = environment.get('PYTHONPATH')
+    if existing:
+        required.append(existing)
+    environment['PYTHONPATH'] = os.pathsep.join(required)
+    return environment
+
+
+def _signal_process_group(process_group: int, signum: signal.Signals) -> None:
+    try:
+        os.killpg(process_group, signum)
+    except ProcessLookupError:
+        pass
+
+
+def _process_group_exists(process_group: int) -> bool:
+    try:
+        os.killpg(process_group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 # ---------------------------------------------------------------------------
