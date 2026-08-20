@@ -1,31 +1,56 @@
 # Local VLM recommendation for badminton scene filtering
 
-*Research cut-off: 6 August 2026. Sources checked 8 August 2026.*
+*Research cut-off: 6 August 2026. Local results updated 14 August 2026.*
 
-## Result
+## Measured local result
 
-Trial `yanziang/InternVideo3-8B-Instruct` first on each complete video shard.
-Keep `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` as the single fallback if
-InternVideo3 cannot process the complete request or performs poorly on the
-existing annotated broadcasts.
+Do not integrate either tested model. The revised InternVideo3 long pass and
+the Qwen short boundary probe both completed on Sutherland, but both failed
+the label-quality test. See the [benchmark report](benchmark_20260810.md) for
+the retained records, raw responses, logs, and deterministic scores.
 
-Use two calls for different jobs:
+- InternVideo3 covered all 1,200 requested frames at 1 FPS and 512x288 with no
+  CPU offload. It took 824.05 seconds and peaked at 41,079 MiB on the L40.
+- The fixed-width response contained 1,316 complete codes. The parser accepted
+  the required first 1,200 and ignored only the post-coverage continuation.
+  Every accepted label was `live`. Accuracy was 25.12%, macro-F1 was 0.0803,
+  and it found none of 93 truth boundaries.
+- Qwen covered the complete 10-second boundary clip at 5 FPS. It took 225.39
+  seconds and peaked at 40,831 MiB with BF16 KV cache, no CPU offload, and no
+  swap. Every label was `other`. Accuracy and macro-F1 were zero, and it found
+  none of the one truth boundary.
+- Qwen's original whole-shard request still cannot fit on the L40. The short
+  probe used the planned 16,384-token boundary configuration and does not
+  establish whole-shard support.
+
+These results satisfy the planned stop condition. Do not repeat the same
+settings on the other two annotated videos. Resume only for a materially
+different model, prompt, or study design. No 4-bit substitute was used.
+
+## Tested design
+
+The pre-test recommendation was to trial
+`yanziang/InternVideo3-8B-Instruct` on a complete shard, then use
+`Qwen/Qwen3-VL-30B-A3B-Instruct-FP8` for one short boundary probe if the long
+model's labels were poor. Both parts of that design are now measured.
+
+The tested design used two calls for different jobs:
 
 1. A complete 20-30 minute shard establishes broadcast phase, camera view,
    playback speed and continuity.
 2. A short, densely sampled boundary clip refines a candidate transition to
    source-frame precision.
 
-The model should use existing cuts, court evidence and suspected rally spans as
-context. It does not replace player, shuttle or court tracking. This design is
-a project recommendation that still needs a short run on the intended GPU and
-an accuracy measurement. It is not a published guarantee from either model
-author.
+The model would use existing cuts, court evidence and suspected rally spans as
+context. It would not replace player, shuttle or court tracking. The local
+measurements show that the current prompt and checkpoints are not accurate
+enough for that role. The two-pass design remains a project experiment, not a
+published guarantee from either model author.
 
 GitHub issue [#38](https://github.com/ahalp90/badminton_cv_annotator/issues/38)
 tracks implementation and evaluation.
 
-## Why InternVideo3 is first
+## Why InternVideo3 was first
 
 InternVideo3 is designed for long-video context and temporal grounding. Its
 [model card](https://huggingface.co/yanziang/InternVideo3-8B-Instruct) records:
@@ -50,15 +75,15 @@ scene accuracy.
 
 The 2,048-frame and 4-fps figures describe training, not an unconditional
 runtime cap or default. The model card shows a separate 1-fps example. The
-first project run must therefore log the actual sampled frame IDs, token count,
-resolution and coverage rather than assuming the processor consumed the
+project run therefore logged the actual sampled frame IDs, token count,
+resolution, and coverage instead of assuming the processor consumed the
 requested grid.
 
-## Qwen fallback
+## Qwen fallback rationale
 
-Use
+The fallback candidate was
 [`Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`](https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Instruct-FP8)
-only if InternVideo3 fails the runtime or label test. Qwen's official model card
+because InternVideo3 failed the label test. Qwen's official model card
 describes the checkpoint as block-128 FP8 quantisation of the BF16 30B-A3B
 Instruct model. It documents vLLM and SGLang deployment and says direct
 Transformers loading is not supported for those weights at the research cut-off.
@@ -66,8 +91,8 @@ Transformers loading is not supported for those weights at the research cut-off.
 Qwen's card records native 256K context and an optional extension to 1M. Treat
 the larger value as an explicit extension configuration, not the default.
 
-The fallback is attractive because vLLM provides a mature video path and can
-constrain output structure. It is less attractive for this first trial because
+The fallback was attractive because vLLM provides a mature video path and can
+constrain output structure. It was less attractive for this trial because
 its larger checkpoint leaves less spare GPU memory for a long video request.
 No official source establishes that the proposed complete-shard request
 fits the project's 45 GB L40. Hardware fit remains a project estimate to test,
@@ -77,12 +102,12 @@ Do not assume that the attention cache uses FP8 because the model weights do.
 Confirm the selected cache data type in the runtime log and record it with each
 measurement.
 
-## First pass: review the whole shard
+## Long-pass test design
 
-Send each 20-30 minute shard as one video item. Sample uniformly across the
-whole shard and ask the model to classify contiguous scene intervals.
+The long pass sent the 20-minute shard as one video item. It sampled uniformly
+across the whole shard and asked the model to classify contiguous intervals.
 
-Start the InternVideo3 trial at 1 fps and 512x288 because that matches the
+The InternVideo3 trial used 1 fps and 512x288 because that matches the
 project's current low-resolution analysis and the model card's example
 sampling rate. These are trial settings, not model defaults. Keep one request
 at a time until memory and elapsed time have been measured.
@@ -92,8 +117,8 @@ close-ups and side views. Do not start with a one-to-two-hour match. Its frame
 and token coverage are harder to verify, and it adds no value before shard
 behaviour is known.
 
-Pass these existing signals as compact text or structured metadata alongside
-the video:
+A future revision could pass these existing signals as compact text or
+structured metadata alongside the video:
 
 - source frame IDs and timestamps for sampled frames;
 - PySceneDetect cut IDs;
@@ -106,18 +131,18 @@ The VLM still receives the complete shard. The deterministic signals provide
 extra context. They do not choose frames in advance or remove frames from the
 model's available context.
 
-## Second pass: refine each transition
+## Boundary-probe test design
 
-After the first pass proposes a transition, send a short raw clip around that
-boundary. Start with two to five seconds on each side and 6-10 fps sampling.
+The boundary probe sent a short raw clip around a reviewed transition. The
+general design uses two to five seconds on each side and denser sampling.
 
-Ask for the source-frame boundary rather than a free-form timestamp. Convert
+It asked for the source-frame boundary rather than a free-form timestamp. Convert
 the returned frame ID to time in the application code. The first measurement
 target is an error within 5-10 frames at 30 fps, or 10-20 frames at 60 fps.
 
-Keep PySceneDetect hard cuts where they already provide the boundary. Use the
-dense VLM pass mainly for within-shot changes such as slow-motion onset or a
-camera view that changes without a hard cut.
+The design retains PySceneDetect hard cuts where they already provide the
+boundary. The dense VLM pass targets within-shot changes such as slow-motion
+onset or a camera view that changes without a hard cut.
 
 This whole-shard and short-clip schedule is a project design. The model
 authors document long-video reasoning, temporal grounding and adjustable video
@@ -125,34 +150,31 @@ sampling, but do not prescribe this badminton-specific two-pass policy.
 
 ## Structured output
 
-Return one short JSON object per segment and no separate reasoning prose. The
-following schema is provisional until the first labelled run:
+The benchmark requested one fixed-width code for every sampled frame. The
+response has one `frames` array and no other key:
 
 ```json
 {
-  "start_frame": 184220,
-  "end_frame": 184278,
-  "scene_label": "live-non-standard",
-  "broadcast_phase": "live_rally",
-  "view": "partial_court",
-  "playback": "real_time",
-  "continuity_from_previous": "same_rally",
-  "data_use": "usable_alternate_view",
-  "confidence": 0.86,
-  "evidence_frames": ["F03", "F07"],
-  "reason": "Live players and shuttle remain visible, but the full court is outside the view."
+  "frames": ["LBRFRS9B", "LLRFRS9R"]
 }
 ```
 
-Use the existing five-way dataset label for `scene_label`: `live`,
-`live-non-standard`, `replay`, `cutaway` or `other`. Keep view, playback,
-continuity and data use as separate fields because a side view can be either
-live or replayed.
+Each eight-character code records scene, phase, playback, view, continuity,
+data use, confidence, and visible reason in that order. The scene character
+uses the existing five-way labels: `L` for `live`, `N` for
+`live-non-standard`, `R` for `replay`, `C` for `cutaway`, and `O` for `other`.
+The prompt defines the allowed character for every other position.
+
+The array must match the ordered sampled-frame grid exactly. The parser maps
+each code back to its absolute source-frame interval and merges adjacent equal
+states into the retained segment contract. The model must not return frame
+numbers or segment objects.
 
 InternVideo3's custom Transformers path cannot be assumed to enforce a JSON
-schema while generating. Validate the object in the application code. Return
-the validation error for one retry, then record the segment as failed if the
-retry is invalid.
+schema while generating. The runner validates the response, includes the
+validation error in one correction request, and records the run as failed if
+the correction is invalid. A complete fixed-code prefix is accepted only when
+it covers the exact requested frame grid.
 
 ## Runtime limits and what the sources establish
 
@@ -175,12 +197,10 @@ retry is invalid.
   Apptainer's `--nv` binds host NVIDIA devices and libraries; it does not make
   a container independent of host driver compatibility.
 
-## First test and when to stop
+## Completed test and stop condition
 
-Run one complete 30-minute annotated shard through InternVideo3 at the proposed
-1-fps, 512x288 setting.
-
-Before assessing labels, confirm:
+The complete 20-minute InternVideo3 shard and the Qwen boundary probe are now
+complete. Both runs confirmed:
 
 - frames are sampled uniformly across the full duration;
 - the token count stays inside the model's context;
@@ -188,8 +208,8 @@ Before assessing labels, confirm:
 - the model remained on GPU without CPU offload; and
 - peak memory and elapsed time are plausible for the dataset volume.
 
-Then align predictions to the existing scene annotations by source-frame
-overlap. Record:
+Their predictions were aligned to the existing scene annotations by
+source-frame overlap. The retained scores record:
 
 - the five-class confusion table and macro-F1;
 - `live` versus `live-non-standard` confusion;
@@ -199,11 +219,10 @@ overlap. Record:
 - sampled frames and tokens; and
 - peak VRAM and elapsed time.
 
-Repeat on the other two annotated videos after the first run passes. Try the
-Qwen fallback once only if InternVideo3 cannot cover the complete shard or its
-scene labels are not useful. Stop rather than removing the complete-shard
-context or quietly changing attention precision. If both models fail, record
-that the current hardware and design do not meet the requirement.
+The first long run did not pass the label test, and the one planned Qwen probe
+also failed. The experiment therefore stops before the other two annotated
+videos. The current checkpoints, prompt, hardware, and two-pass design do not
+meet the scene-filtering requirement.
 
 ## Official and author sources
 

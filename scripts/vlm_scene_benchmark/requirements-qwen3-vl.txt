@@ -1,0 +1,4 @@
+# Installed inside the pinned official vLLM 0.11.0 SIF in the quickstart.
+av==18.0.0
+opencv-python-headless==4.13.0.92
+qwen-vl-utils==0.0.14

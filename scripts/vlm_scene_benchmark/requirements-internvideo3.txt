@@ -1,0 +1,7 @@
+# Installed inside pytorch/pytorch:2.8.0-cuda12.9-cudnn9-runtime.
+accelerate==1.14.0
+av==18.0.0
+opencv-python-headless==4.13.0.92
+qwen-vl-utils==0.0.14
+torchcodec==0.7.0
+transformers==4.57.3
