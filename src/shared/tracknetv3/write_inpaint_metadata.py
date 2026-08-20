@@ -143,6 +143,7 @@ def write_inpaint_metadata(
     inpaintnet: object | None,
     tracknet_ckpt: str | None = None,
     inpaintnet_ckpt: str | None = None,
+    input_video_identity: str | os.PathLike[str] | None = None,
 ) -> None:
     """Write the inpaint fill-mask sidecar beside ``out_csv_file``.
 
@@ -156,15 +157,18 @@ def write_inpaint_metadata(
     :param inpaintnet: Loaded InpaintNet, or ``None`` when disabled.
     :param tracknet_ckpt: TrackNet checkpoint basename, if known.
     :param inpaintnet_ckpt: InpaintNet checkpoint basename, if known.
+    :param input_video_identity: Canonical source path recorded in provenance.
     """
     csv_path = os.fspath(out_csv_file)
     video_path = os.fspath(video_file)
+    identity_path = video_path if input_video_identity is None else os.fspath(input_video_identity)
     inpaint_applied = inpaintnet is not None
     inpaint_mask = tracknet_pred_dict['Inpaint_Mask']
     frame_ids = pred_dict['Frame']
     spans = _build_spans(inpaint_mask, frame_ids, inpaint_applied=inpaint_applied)
     stride = tracknet_seq_len if eval_mode == 'nonoverlap' else 1
     video_basename = os.path.basename(video_path)
+    identity_basename = os.path.basename(identity_path)
     tracknet_ckpt = os.path.basename(tracknet_ckpt) if tracknet_ckpt else None
     inpaintnet_ckpt = os.path.basename(inpaintnet_ckpt) if inpaintnet_ckpt else None
 
@@ -178,9 +182,9 @@ def write_inpaint_metadata(
         'th_h_px': h * 0.05,
         'tracknet_ckpt': tracknet_ckpt,
         'inpaintnet_ckpt': inpaintnet_ckpt if inpaint_applied else None,
-        'input_video': video_basename,
+        'input_video': identity_basename,
     }
-    metadata.update(_read_source_provenance(video_path))
+    metadata.update(_read_source_provenance(identity_path))
 
     video_name = os.path.splitext(video_basename)[0]
     sidecar_name = f'{video_name}_stride{stride}_inpaint_mask.json.gz'

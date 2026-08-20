@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from inference_utils import predict_location, get_ensemble_weight, generate_inpaint_mask
 from write_inpaint_metadata import write_inpaint_metadata
-from dataset import Shuttlecock_Trajectory_Dataset, Video_IterableDataset
+from dataset import ExactFFV1StreamDataset, Shuttlecock_Trajectory_Dataset, Video_IterableDataset
 from utils.general import *
 
 # NOTE: This file uses a star import from utils.general (upstream TrackNetV3 code).
@@ -117,7 +117,9 @@ def predict_video(video_file, tracknet, inpaintnet,
                   save_dir, eval_mode='weight', batch_size=16,
                   large_video=False, max_sample_num=1800, video_range=None,
                   output_video=False, traj_len=8, dry_run=False,
-                  *, tracknet_ckpt=None, inpaintnet_ckpt=None):
+                  *, tracknet_ckpt=None, inpaintnet_ckpt=None,
+                  input_mode='persisted_ffv1_proxy', ffmpeg='ffmpeg',
+                  expected_frame_count=None, input_video_identity=None):
     """Run TrackNet (+ InpaintNet) inference on one video and write CSV.
 
     This is the per-video inference loop extracted from __main__.
@@ -142,21 +144,40 @@ def predict_video(video_file, tracknet, inpaintnet,
         dry_run (bool): Run inference but skip writing CSV/video (default False).
         tracknet_ckpt (str or None): TrackNet checkpoint basename, if known.
         inpaintnet_ckpt (str or None): InpaintNet checkpoint basename, if known.
+        input_mode (str): Physical TrackNet input boundary selected by the builder.
+        ffmpeg (str): FFmpeg executable for exact stream mode.
+        expected_frame_count (int or None): Canonical frame count for exact stream mode.
+        input_video_identity (str or None): Canonical source identity for the sidecar.
     """
+    exact_stream = input_mode == 'exact_ffv1_stream'
+    if input_mode not in {'exact_ffv1_stream', 'persisted_ffv1_proxy'}:
+        raise ValueError(f'unsupported TrackNet input mode: {input_mode}')
+    if exact_stream:
+        if not large_video or eval_mode != 'nonoverlap':
+            raise ValueError('exact FFV1 stream requires large-video non-overlap inference')
+        if (
+            isinstance(expected_frame_count, bool)
+            or not isinstance(expected_frame_count, int)
+            or expected_frame_count <= 0
+        ):
+            raise ValueError('exact FFV1 stream requires a positive expected frame count')
     # Workers=0: frames are already in a NumPy array in RAM, so spawning
     # subprocesses just to index into it adds overhead for short clips.
     # The large_video path already uses workers=0 (DataLoader default).
     num_workers = 0
-    video_name = video_file.split('/')[-1][:-4]
+    video_name = os.path.splitext(os.path.basename(video_file))[0]
     out_csv_file = os.path.join(save_dir, f'{video_name}_ball.csv')
     out_video_file = os.path.join(save_dir, f'{video_name}.mp4')
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    cap = cv2.VideoCapture(video_file)
-    w, h = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    cap.release()
+    if exact_stream:
+        w, h = WIDTH, HEIGHT
+    else:
+        cap = cv2.VideoCapture(video_file)
+        w, h = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        cap.release()
     w_scaler, h_scaler = w / WIDTH, h / HEIGHT
     img_scaler = (w_scaler, h_scaler)
 
@@ -169,8 +190,15 @@ def predict_video(video_file, tracknet, inpaintnet,
     if eval_mode == 'nonoverlap':
         # Create dataset with non-overlap sampling
         if large_video:
-            dataset = Video_IterableDataset(video_file, seq_len=seq_len, sliding_step=seq_len, bg_mode=bg_mode,
-                                            max_sample_num=max_sample_num, video_range=video_range)
+            if exact_stream:
+                dataset = ExactFFV1StreamDataset(
+                    video_file, seq_len=seq_len, sliding_step=seq_len, bg_mode=bg_mode,
+                    max_sample_num=max_sample_num, video_range=video_range,
+                    expected_frame_count=expected_frame_count, ffmpeg=ffmpeg,
+                )
+            else:
+                dataset = Video_IterableDataset(video_file, seq_len=seq_len, sliding_step=seq_len, bg_mode=bg_mode,
+                                                max_sample_num=max_sample_num, video_range=video_range)
             data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False)
             print(f'Video length: {dataset.video_len}')
         else:
@@ -369,6 +397,7 @@ def predict_video(video_file, tracknet, inpaintnet,
         inpaintnet=inpaintnet,
         tracknet_ckpt=tracknet_ckpt,
         inpaintnet_ckpt=inpaintnet_ckpt if inpaintnet is not None else None,
+        input_video_identity=input_video_identity,
     )
     write_pred_csv(pred_dict, save_file=out_csv_file)
 

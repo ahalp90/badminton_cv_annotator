@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import importlib.util
+from itertools import zip_longest
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 from types import ModuleType
 
 import numpy as np
 import pytest
+
+from annotator.video_metadata import probe_video_metadata
+from dataset_builder.tracknet_input import TrackNetInputMode, create_tracknet_input
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -47,10 +53,15 @@ class _VideoCapture:
         self.released = True
 
 
-def _load_dataset_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+def _load_dataset_module(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    height: int = 2,
+    width: int = 2,
+) -> ModuleType:
     general = ModuleType("utils.general")
-    general.HEIGHT = 2
-    general.WIDTH = 2
+    general.HEIGHT = height
+    general.WIDTH = width
     general.SIGMA = 1
     general.IMG_FORMAT = "png"
     general.get_rally_dirs = lambda *_args, **_kwargs: []
@@ -98,3 +109,66 @@ def test_video_iterable_stops_after_real_frames(
     assert [indices[:, 1].tolist() for indices, _frames in batches] == expected_ids
     assert all(frames.shape == (24, 2, 2) for _indices, frames in batches)
     assert capture.released is True
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="FFmpeg integration tools are unavailable",
+)
+def test_exact_stream_matches_proxy_tracknet_model_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=640x480:rate=30",
+            "-frames:v",
+            "9",
+            "-c:v",
+            "mpeg4",
+            "-pix_fmt",
+            "yuv420p",
+            str(source_path),
+        ],
+        check=True,
+    )
+    source = probe_video_metadata(source_path)
+    proxy = create_tracknet_input(
+        source=source,
+        output_dir=tmp_path / "proxy",
+        ffmpeg="ffmpeg",
+        mode=TrackNetInputMode.PERSISTED_FFV1_PROXY,
+    )
+    module = _load_dataset_module(monkeypatch, height=288, width=512)
+    common = {
+        "seq_len": 8,
+        "sliding_step": 8,
+        "bg_mode": "subtract_concat",
+        "HEIGHT": 288,
+        "WIDTH": 512,
+        "max_sample_num": 4,
+    }
+    persisted = module.Video_IterableDataset(str(proxy.video_path), **common)
+    streamed = module.ExactFFV1StreamDataset(
+        str(source.source_path),
+        **common,
+        expected_frame_count=source.frame_count,
+        ffmpeg="ffmpeg",
+    )
+
+    np.testing.assert_array_equal(streamed.median, persisted.median)
+    sentinel = object()
+    for streamed_batch, persisted_batch in zip_longest(streamed, persisted, fillvalue=sentinel):
+        assert streamed_batch is not sentinel and persisted_batch is not sentinel
+        streamed_indices, streamed_frames = streamed_batch
+        persisted_indices, persisted_frames = persisted_batch
+        np.testing.assert_array_equal(streamed_indices, persisted_indices)
+        np.testing.assert_array_equal(streamed_frames, persisted_frames)

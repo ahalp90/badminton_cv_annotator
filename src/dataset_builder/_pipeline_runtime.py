@@ -187,11 +187,12 @@ class DefaultPipelineRuntime(RuntimeSupport):
             tracknet_input = load_tracknet_input(
                 source=self.state.metadata[video_id],
                 output_dir=self._video_dir("tracknet_input", video_id),
+                mode=self.config.tracknet_input_mode,
             )
             self.state.tracknet_inputs[video_id] = tracknet_input
             shuttle_artifacts = shuttle_evidence_artifacts(
                 self._video_dir("shuttle", video_id),
-                input_video=tracknet_input.metadata.source_path,
+                input_video=self.state.metadata[video_id].source_path,
                 stride=self.config.tracknet_stride,
             )
             self._restore_shuttle(video_id, shuttle_artifacts)

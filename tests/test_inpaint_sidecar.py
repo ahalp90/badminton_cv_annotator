@@ -227,6 +227,52 @@ def test_input_video_keeps_extension(tmp_path: Path) -> None:
     assert payload['input_video'] == 'clip.webm'
 
 
+def test_writer_uses_canonical_identity_and_provenance_for_proxy_input(tmp_path: Path) -> None:
+    canonical_dir = tmp_path / 'canonical'
+    proxy_dir = tmp_path / 'proxy'
+    output_dir = tmp_path / 'output'
+    canonical_dir.mkdir()
+    proxy_dir.mkdir()
+    output_dir.mkdir()
+    canonical = canonical_dir / 'fixture.webm'
+    proxy = proxy_dir / 'fixture.avi'
+    canonical.touch()
+    proxy.touch()
+    (canonical_dir / 'sources.toml').write_text(
+        '''dataset = "fixture-dataset"
+
+[videos."fixture.webm"]
+video_id = "fixture-id"
+title = "Fixture title"
+url = "https://example.test/fixture"
+fps = 30
+''',
+        encoding='utf-8',
+    )
+
+    write_inpaint_metadata(
+        output_dir / 'fixture_ball.csv',
+        tracknet_pred_dict={'Frame': [0], 'Inpaint_Mask': []},
+        pred_dict={'Frame': [0], 'Visibility': [1]},
+        video_file=proxy,
+        eval_mode='nonoverlap',
+        tracknet_seq_len=8,
+        h=288.0,
+        inpaintnet=None,
+        input_video_identity=canonical,
+    )
+
+    with gzip.open(
+        output_dir / 'fixture_stride8_inpaint_mask.json.gz',
+        'rt',
+        encoding='utf-8',
+    ) as sidecar_file:
+        payload = json.load(sidecar_file)
+    assert payload['input_video'] == 'fixture.webm'
+    assert payload['dataset'] == 'fixture-dataset'
+    assert payload['video_id'] == 'fixture-id'
+
+
 def test_writer_does_not_mutate_prediction_inputs(tmp_path: Path) -> None:
     tracknet_pred_dict = {'Frame': [100, 101, 102], 'Inpaint_Mask': [1, 0, 1]}
     pred_dict = {'Frame': [2, 0, 1], 'Visibility': [1, 0, 1]}

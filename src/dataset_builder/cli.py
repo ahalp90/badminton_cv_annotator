@@ -29,6 +29,7 @@ from dataset_builder.models import (
     StageFingerprint,
     StageOutcome,
 )
+from dataset_builder.tracknet_input import TrackNetInputMode
 
 
 PHASE_ORDER = (
@@ -100,6 +101,7 @@ class BuilderConfig:
     tracknet_batch_size: int
     tracknet_stride: int
     tracknet_large_video: bool
+    tracknet_input_mode: TrackNetInputMode
     pose_device: str
     pose_n_max: int
     pose_shards: int
@@ -222,8 +224,8 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         "vision",
         {
             "tracknet_workers", "tracknet_batch_size", "tracknet_stride",
-            "tracknet_large_video", "pose_device", "pose_n_max", "pose_shards", "court_device",
-            "court_resize_mode",
+            "tracknet_large_video", "tracknet_input_mode", "pose_device", "pose_n_max",
+            "pose_shards", "court_device", "court_resize_mode",
         },
     )
     commentary = _section(payload, "commentary", {"enabled", "api_key_environment"})
@@ -241,6 +243,22 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
     )
     source_dataset = _nonempty(run["source_dataset"], "run.source_dataset")
     max_videos = _positive_integer(run["max_videos"], "run.max_videos")
+    tracknet_stride = _choice(vision["tracknet_stride"], {1, 8}, "vision.tracknet_stride")
+    tracknet_large_video = _boolean(
+        vision["tracknet_large_video"], "vision.tracknet_large_video",
+    )
+    tracknet_input_mode = TrackNetInputMode(_choice(
+        vision["tracknet_input_mode"],
+        {mode.value for mode in TrackNetInputMode},
+        "vision.tracknet_input_mode",
+    ))
+    if tracknet_input_mode is TrackNetInputMode.EXACT_FFV1_STREAM:
+        if tracknet_stride != 8:
+            raise ValueError("vision.tracknet_input_mode exact_ffv1_stream requires stride 8")
+        if not tracknet_large_video:
+            raise ValueError(
+                "vision.tracknet_input_mode exact_ffv1_stream requires tracknet_large_video=true"
+            )
     if fixed_sources is not None:
         if source_dataset != FIXED_SOURCE_DATASET:
             raise ValueError(
@@ -272,10 +290,9 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         tracknet_batch_size=_positive_integer(
             vision["tracknet_batch_size"], "vision.tracknet_batch_size",
         ),
-        tracknet_stride=_choice(vision["tracknet_stride"], {1, 8}, "vision.tracknet_stride"),
-        tracknet_large_video=_boolean(
-            vision["tracknet_large_video"], "vision.tracknet_large_video",
-        ),
+        tracknet_stride=tracknet_stride,
+        tracknet_large_video=tracknet_large_video,
+        tracknet_input_mode=tracknet_input_mode,
         pose_device=_choice(vision["pose_device"], {"cpu", "cuda"}, "vision.pose_device"),
         pose_n_max=_bounded_integer(vision["pose_n_max"], 1, 127, "vision.pose_n_max"),
         pose_shards=_positive_integer(vision["pose_shards"], "vision.pose_shards"),

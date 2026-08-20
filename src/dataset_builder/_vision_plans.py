@@ -23,12 +23,14 @@ from dataset_builder.shuttle_evidence import (
     shuttle_evidence_artifacts,
 )
 from dataset_builder.tracknet_input import (
+    TrackNetInputMode,
     create_tracknet_input,
     load_tracknet_input,
     tracknet_input_configuration,
     tracknet_input_paths,
     tracknet_input_temporary_path,
     tracknet_proxy_command,
+    tracknet_stream_producer_command,
     validate_tracknet_input,
 )
 from dataset_builder.vision import convert_tracknet_csv_stage, extract_rtmlib_pose_stage
@@ -83,7 +85,7 @@ def tracknet_input_plans(
     runtime: VisionPlanRuntime,
     _manifest: RunManifest,
 ) -> tuple[StagePlan, ...]:
-    """Return one source-ordered TrackNet proxy plan per active video."""
+    """Return one source-ordered TrackNet input plan per active video."""
     return tuple(_tracknet_input_plan(runtime, video_id) for video_id in runtime._active_video_ids())
 
 
@@ -91,11 +93,18 @@ def _tracknet_input_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan
     source = runtime.state.metadata[video_id]
     output_dir = runtime._video_dir("tracknet_input", video_id)
     proxy_path, _ = tracknet_input_paths(source, output_dir)
-    temporary_path = tracknet_input_temporary_path(proxy_path)
-    command = tracknet_proxy_command(
-        ffmpeg=runtime._ffmpeg().path,
-        source_path=source.source_path,
-        output_path=temporary_path,
+    mode = runtime.config.tracknet_input_mode
+    command = (
+        tracknet_stream_producer_command(
+            ffmpeg=runtime._ffmpeg().path,
+            source_path=source.source_path,
+        )
+        if mode is TrackNetInputMode.EXACT_FFV1_STREAM
+        else tracknet_proxy_command(
+            ffmpeg=runtime._ffmpeg().path,
+            source_path=source.source_path,
+            output_path=tracknet_input_temporary_path(proxy_path),
+        )
     )
 
     def execute() -> StageExecution:
@@ -104,6 +113,7 @@ def _tracknet_input_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan
             source=source,
             output_dir=output_dir,
             ffmpeg=runtime._ffmpeg().path,
+            mode=mode,
         )
         runtime.state.tracknet_inputs[video_id] = tracknet_input
         return StageExecution(
@@ -116,13 +126,14 @@ def _tracknet_input_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan
         runtime.state.tracknet_inputs[video_id] = load_tracknet_input(
             source=source,
             output_dir=output_dir,
+            mode=mode,
         )
 
     return runtime._plan(
         name=runtime._video_stage("tracknet_input", video_id),
         dependencies=(runtime._video_stage("metadata", video_id),),
         command=tuple(command),
-        configuration=tracknet_input_configuration(),
+        configuration=tracknet_input_configuration(mode),
         interpreter=runtime._ffmpeg(),
         inputs={"source_video": source.source_path},
         execute=execute,
@@ -131,6 +142,7 @@ def _tracknet_input_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan
             "tracknet_input_metadata": lambda _root: validate_tracknet_input(
                 source=source,
                 output_dir=output_dir,
+                mode=mode,
             ),
         },
         on_failure=lambda reason: runtime._exclude(video_id, reason),
@@ -148,11 +160,11 @@ def shuttle_plans(
 def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
     canonical = runtime.state.metadata[video_id]
     tracknet_input = runtime.state.tracknet_inputs[video_id]
-    proxy = tracknet_input.metadata
+    logical_input = tracknet_input.metadata
     output_dir = runtime._video_dir("shuttle", video_id)
     artifacts = shuttle_evidence_artifacts(
         output_dir,
-        input_video=proxy.source_path,
+        input_video=canonical.source_path,
         stride=runtime.config.tracknet_stride,
     )
     weights = {"tracknet": runtime.config.tracknet_model}
@@ -161,36 +173,44 @@ def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
 
     def execute() -> StageExecution:
         runtime._reset_stage_dir("shuttle", video_id)
-        extract_all_shuttles(
-            tracknet_dir=runtime.config.tracknet_dir,
-            clips_dir=scraper_config.VIDEOS_DIR,
-            video_paths=[proxy.source_path],
-            output_csv_dir=output_dir,
-            model_path=runtime.config.tracknet_model,
-            inpaintnet_path=runtime.config.inpaint_model,
-            tracknet_python=Path(runtime._tracknet().path),
-            max_workers=runtime.config.tracknet_workers,
-            batch_size=runtime.config.tracknet_batch_size,
-            tracknet_stride=runtime.config.tracknet_stride,
-            large_video=runtime.config.tracknet_large_video,
-            enable_inpainting=runtime.config.inpaint_model is not None,
-        )
-        shuttle = convert_tracknet_csv_stage(
-            artifacts.tracknet_csv,
-            video_id=video_id,
-            metadata=proxy,
-            output_path=artifacts.shuttle_track,
-        )
-        evidence = persist_shuttle_evidence(
-            track=shuttle.track,
-            artifacts=artifacts,
-            input_video=proxy.source_path,
-            input_height=proxy.height,
-            frame_count=proxy.frame_count,
-            stride=runtime.config.tracknet_stride,
-            tracknet_model=runtime.config.tracknet_model,
-            inpaint_model=runtime.config.inpaint_model,
-        )
+        try:
+            extract_all_shuttles(
+                tracknet_dir=runtime.config.tracknet_dir,
+                clips_dir=scraper_config.VIDEOS_DIR,
+                video_paths=[tracknet_input.video_path],
+                output_csv_dir=output_dir,
+                model_path=runtime.config.tracknet_model,
+                inpaintnet_path=runtime.config.inpaint_model,
+                tracknet_python=Path(runtime._tracknet().path),
+                max_workers=runtime.config.tracknet_workers,
+                batch_size=runtime.config.tracknet_batch_size,
+                tracknet_stride=runtime.config.tracknet_stride,
+                large_video=runtime.config.tracknet_large_video,
+                enable_inpainting=runtime.config.inpaint_model is not None,
+                input_mode=tracknet_input.mode.value,
+                ffmpeg=runtime._ffmpeg().path,
+                expected_frame_count=canonical.frame_count,
+                input_video_identity=canonical.source_path,
+            )
+            shuttle = convert_tracknet_csv_stage(
+                artifacts.tracknet_csv,
+                video_id=video_id,
+                metadata=logical_input,
+                output_path=artifacts.shuttle_track,
+            )
+            evidence = persist_shuttle_evidence(
+                track=shuttle.track,
+                artifacts=artifacts,
+                input_video=canonical.source_path,
+                input_height=logical_input.height,
+                frame_count=logical_input.frame_count,
+                stride=runtime.config.tracknet_stride,
+                tracknet_model=runtime.config.tracknet_model,
+                inpaint_model=runtime.config.inpaint_model,
+            )
+        except BaseException:
+            runtime._reset_stage_dir("shuttle", video_id)
+            raise
         runtime.state.shuttles[video_id] = evidence
         return StageExecution(
             StageOutcome.PROCESSED,
@@ -205,7 +225,12 @@ def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
     return runtime._plan(
         name=runtime._video_stage("shuttle", video_id),
         dependencies=(runtime._video_stage("tracknet_input", video_id),),
-        command=(runtime._tracknet().path, "TrackNetV3", os.fspath(proxy.source_path)),
+        command=(
+            runtime._tracknet().path,
+            "TrackNetV3",
+            tracknet_input.mode.value,
+            os.fspath(tracknet_input.video_path),
+        ),
         configuration={
             "stride": runtime.config.tracknet_stride,
             "large_video": runtime.config.tracknet_large_video,
@@ -213,12 +238,26 @@ def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
             "batch_size": runtime.config.tracknet_batch_size,
             "inpainting": runtime.config.inpaint_model is not None,
             "coordinate_space": "tracknet_input_pixels",
+            "tracknet_input": tracknet_input_configuration(tracknet_input.mode),
+            "ffmpeg": runtime._ffmpeg().to_dict(),
+            "sidecar_input_identity": "canonical_source_basename",
             "tracknet_directory": os.fspath(runtime.config.tracknet_dir.resolve(strict=True)),
         },
         interpreter=runtime._tracknet(),
         model_weights=weights,
         inputs={
-            "tracknet_input_video": proxy.source_path,
+            "canonical_source_video": canonical.source_path,
+            "tracknet_input_metadata": tracknet_input.metadata_path,
+            **(
+                {"tracknet_input_video": tracknet_input.video_path}
+                if tracknet_input.mode is TrackNetInputMode.PERSISTED_FFV1_PROXY
+                else {}
+            ),
+            **(
+                {"tracknet_stream_implementation": Path(__file__).with_name("ffv1_stream.py")}
+                if tracknet_input.mode is TrackNetInputMode.EXACT_FFV1_STREAM
+                else {}
+            ),
             **_tracknet_code_inputs(runtime.config.tracknet_dir),
         },
         execute=execute,
