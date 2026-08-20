@@ -47,3 +47,24 @@ the cross-arch primitive for the live-upload inference path.
 single-stroke clips with ground-truth stroke timing. Everything else
 (TrackNetV3, YOLO11) is pretrained and frozen. Heuristic stroke
 localisation (SRA / swing detector) is deferred to v2.
+
+## Rally clip preprocessing
+
+`shots_master.csv` stores one rally context interval on every stroke row. The
+half-open interval starts two seconds before the first ShuttleSet contact and
+ends three seconds after the final contact. Both bounds are clamped to the
+canonical source video. Regeneration therefore requires the raw videos under
+`training/data/shuttleset/raw_video/`:
+
+```bash
+python -m scripts.build_shots_master
+uv run python -m bric.preprocessing.slice_rallies
+uv run python -m bric.preprocessing.extract_shuttle
+```
+
+Run the stages in that order after changing rally bounds or canonical source
+videos. The slicer writes a `.bounds.json` sidecar beside each rally clip. A
+clip without matching bounds metadata is regenerated instead of skipped. The
+TrackNet cache stores the same rally bounds and source frame count, so an old
+cache is also regenerated. `--force` remains available when the stored
+metadata matches but a manual rebuild is needed.

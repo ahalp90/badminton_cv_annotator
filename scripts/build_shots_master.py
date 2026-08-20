@@ -25,13 +25,15 @@ ignores player overlap between train and val/test, leaking player
 identity, and any results derived from it are misleading.
 
 Output (`training/data/shuttleset/annotations/shots_master.csv`)
-carries every column notebook 03's clips_master has, plus three new
+carries every column notebook 03's clips_master has, plus five
 ones in source-video frame coordinates:
 
   - frame_num        : target stroke frame
   - shuttle_start_f  : shuttle window start, BST 'between_2_hits_with_max_limits':
                        [prev_shot, next_shot + 0.25s] clamped to ±1.5s of frame_num
   - shuttle_end_f    : shuttle window end (exclusive)
+  - clip_start_frame : rally context start, two seconds before first contact
+  - clip_end_frame   : rally context end, three seconds after final contact
 
 Source-video paths are derivable from the `vid` column at lookup time;
 they are not stored in the CSV.
@@ -62,11 +64,16 @@ from classifier_shared.dataset import (  # noqa: E402  — must follow sys.path 
 )
 from classifier_shared.player_mapping import collect_shots  # noqa: E402
 from classifier_shared.taxonomy import STROKE_TYPES_19_ZH  # noqa: E402
+from classifier_shared.video_io import get_video_info  # noqa: E402
 
 OUT_PATH = (
     REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations'
     / 'shots_master.csv'
 )
+RAW_VIDEO_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'raw_video'
+
+RALLY_CLIP_LEAD_SECONDS = 2
+RALLY_CLIP_TAIL_SECONDS = 3
 
 # Final column order. ``split_v2`` is listed before ``split_bst_baseline``
 # to signal which one BRIC training selects on. Downstream code reads by
@@ -78,7 +85,111 @@ OUT_COLS = [
     'split_v2', 'split_bst_baseline',
     'aroundhead', 'backhand',
     'frame_num', 'shuttle_start_f', 'shuttle_end_f',
+    'clip_start_frame', 'clip_end_frame',
 ]
+
+
+def find_source_video(vid: int) -> Path:
+    """Return the one canonical raw video matching ``vid``."""
+    candidates = {RAW_VIDEO_DIR / f'{vid}.mp4'}
+    candidates.update(RAW_VIDEO_DIR.glob(f'{vid} *.mp4'))
+    candidates.update(RAW_VIDEO_DIR.glob(f'{vid}_*.mp4'))
+    matches = sorted(path for path in candidates if path.is_file())
+    if not matches:
+        raise FileNotFoundError(f'no canonical raw video found for vid={vid} in {RAW_VIDEO_DIR}')
+    if len(matches) != 1:
+        raise RuntimeError(f'multiple canonical raw videos found for vid={vid}: {matches}')
+    return matches[0]
+
+
+def probe_source_frame_count(video_path: Path) -> int:
+    """Return the frame count used by the downstream BRIC consumers."""
+    frame_count = get_video_info(video_path).n_frames
+    if frame_count <= 0:
+        raise ValueError(f'{video_path}: invalid decoded frame count {frame_count}')
+    return frame_count
+
+
+def load_rally_contacts(folder_path: Path) -> pd.DataFrame:
+    """Load every ShuttleSet contact needed to derive rally clip bounds."""
+    parts = []
+    for set_num in range(1, 4):
+        csv_path = folder_path / f'set{set_num}.csv'
+        if not csv_path.exists():
+            continue
+        contacts = pd.read_csv(csv_path, usecols=['rally', 'ball_round', 'frame_num'])
+        contacts.insert(0, 'set', set_num)
+        parts.append(contacts)
+    if not parts:
+        raise FileNotFoundError(f'no set annotation CSVs found in {folder_path}')
+    return pd.concat(parts, ignore_index=True)
+
+
+def add_rally_clip_bounds(
+    shots: pd.DataFrame,
+    contacts: pd.DataFrame,
+    fps: int,
+    frame_count: int,
+) -> pd.DataFrame:
+    """Attach one clamped context interval to every retained rally row."""
+    if fps <= 0:
+        raise ValueError(f'fps must be positive, got {fps}')
+    if frame_count <= 0:
+        raise ValueError(f'frame_count must be positive, got {frame_count}')
+    key_cols = ['set', 'rally', 'ball_round']
+    if contacts[key_cols + ['frame_num']].isna().any().any():
+        raise ValueError('rally contacts contain missing key or frame values')
+
+    contacts = contacts.copy()
+    for column in key_cols + ['frame_num']:
+        contacts[column] = contacts[column].astype(int)
+    if contacts.duplicated(key_cols).any():
+        duplicates = contacts.loc[contacts.duplicated(key_cols, keep=False), key_cols]
+        raise ValueError(f'duplicate rally contact keys:\n{duplicates.head(20)}')
+
+    lead_frames = int(round(RALLY_CLIP_LEAD_SECONDS * fps))
+    tail_frames = int(round(RALLY_CLIP_TAIL_SECONDS * fps))
+    rows = []
+    for (set_num, rally), group in contacts.groupby(['set', 'rally'], sort=True):
+        ordered = group.sort_values('ball_round', kind='stable')
+        first_contact_frame = int(ordered.iloc[0]['frame_num'])
+        final_contact_frame = int(ordered.iloc[-1]['frame_num'])
+        if not 0 <= first_contact_frame < frame_count:
+            raise ValueError(
+                f'set={set_num} rally={rally}: first contact {first_contact_frame} '
+                f'outside [0, {frame_count})'
+            )
+        if not 0 <= final_contact_frame < frame_count:
+            raise ValueError(
+                f'set={set_num} rally={rally}: final contact {final_contact_frame} '
+                f'outside [0, {frame_count})'
+            )
+        start_frame = max(0, first_contact_frame - lead_frames)
+        end_frame = min(frame_count, final_contact_frame + tail_frames)
+        if start_frame >= end_frame:
+            raise ValueError(
+                f'set={set_num} rally={rally}: derived invalid clip bounds '
+                f'[{start_frame}, {end_frame})'
+            )
+        rows.append({
+            'set': int(set_num),
+            'rally': int(rally),
+            'clip_start_frame': start_frame,
+            'clip_end_frame': end_frame,
+        })
+
+    bounds = pd.DataFrame(rows)
+    result = shots.merge(bounds, on=['set', 'rally'], how='left', validate='many_to_one')
+    if result[['clip_start_frame', 'clip_end_frame']].isna().any().any():
+        missing = result.loc[
+            result['clip_start_frame'].isna() | result['clip_end_frame'].isna(),
+            ['set', 'rally'],
+        ].drop_duplicates()
+        raise ValueError(f'shots missing rally clip bounds:\n{missing.head(20)}')
+    result[['clip_start_frame', 'clip_end_frame']] = result[
+        ['clip_start_frame', 'clip_end_frame']
+    ].astype(int)
+    return result
 
 
 def collect_all_shots() -> tuple[pd.DataFrame, dict[int, int]]:
@@ -88,6 +199,7 @@ def collect_all_shots() -> tuple[pd.DataFrame, dict[int, int]]:
     the per-vid fps map. Columns produced here:
 
       vid, set, rally, ball_round, frame_num, shuttle_start_f, shuttle_end_f,
+      clip_start_frame, clip_end_frame,
       player (Top/Bottom), type (English), match (folder name)
     """
     match_df = pd.read_csv(SET_INFO_DIR / 'match.csv')[['id', 'video', 'downcourt']]
@@ -120,6 +232,10 @@ def collect_all_shots() -> tuple[pd.DataFrame, dict[int, int]]:
         shots['shuttle_start_f'] = [int(b[0]) for b in bounds]
         shots['shuttle_end_f'] = [int(b[1]) for b in bounds]
         shots['frame_num'] = shots['frame_num'].astype(int)
+        contacts = load_rally_contacts(folder_path)
+        source_path = find_source_video(int(vid))
+        frame_count = probe_source_frame_count(source_path)
+        shots = add_rally_clip_bounds(shots, contacts, fps, frame_count)
         shots['vid'] = vid
         shots['match'] = v_info['video']
         parts.append(shots)
@@ -305,6 +421,17 @@ def check_invariants(master: pd.DataFrame, vmeta: dict[int, int]) -> None:
     )
     assert (master['shuttle_start_f'] >= 0).all(), 'negative shuttle_start_f'
     assert (master['frame_num'] >= 0).all(), 'negative frame_num'
+    assert (master['clip_start_frame'] >= 0).all(), 'negative clip_start_frame'
+    assert (master['clip_start_frame'] <= master['frame_num']).all(), (
+        'clip_start_frame after retained contact'
+    )
+    assert (master['frame_num'] < master['clip_end_frame']).all(), (
+        'retained contact outside clip_end_frame'
+    )
+    per_rally_bounds = master.groupby(['vid', 'set_id', 'rally'])[
+        ['clip_start_frame', 'clip_end_frame']
+    ].nunique()
+    assert (per_rally_bounds == 1).all().all(), 'inconsistent clip bounds within rally'
 
     fps_series = master['vid'].map(vmeta)
     dur_sec = (master['shuttle_end_f'] - master['shuttle_start_f']) / fps_series
