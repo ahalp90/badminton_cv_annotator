@@ -4,4 +4,6 @@ external_delegate/
 **/__pycache__/
 .pytest_cache/
 *.pyc
-
+*.log
+*.bk
+results/*_run*.json.gz
