@@ -8,10 +8,11 @@ bounded visual ground truth added after that review.
 
 ## TL;DR
 
-The guard catches 66.93%, 79.98%, and 68.07% of the separate RANSAC candidate
-frames in `sset_01`, `sset_15`, and `sset_21`. Those figures are agreement with
-one heuristic, not hallucination recall. Curtis labelled all 18 selected
-high-risk spans as visual hallucinations. The blind human review corrected one
+The stored pre-PR #93 guard arrays catch 66.93%, 79.98%, and 68.07% of the
+separate RANSAC candidate frames in `sset_01`, `sset_15`, and `sset_21`. They
+use the older 15-frame recurrence halo. Those figures are agreement with one
+heuristic, not hallucination recall. Curtis labelled all 18 selected high-risk
+spans as visual hallucinations. The blind human review corrected one
 provisional label that had mistaken marketing text for a resting shuttle. The
 purposive result supports candidate ranking, not a population precision or
 recall claim.
@@ -24,6 +25,13 @@ are evidence-view counts, not hallucination counts.
 The separate provenance-coverage follow-up compares the current guard with an
 exploratory `guard OR Union 2` tag over sidecar-selected material. It shows
 more producer provenance covered, not more hallucinations caught.
+
+The [issue-95 production decision](ransac_production_decision_20260814.md)
+keeps RANSAC analysis-only. The positive-only visual set cannot establish
+precision, and current guard-clean candidates overlap many labelled contacts.
+It recomputes live version-4 guard codes with the three-frame halo. It also
+separates defined RANSAC cuts, recurrence-policy variants, and context-only
+unions while leaving the historical audit outputs unchanged.
 
 ## Contents
 
@@ -59,16 +67,19 @@ more producer provenance covered, not more hallucinations caught.
   the separate frame- and span-level comparison behind the new infographic.
 - [Issue-31 visual audit](shuttle_hallucination_visual_audit_20260809.md):
   18 reviewed spans, exact source ranges, visual labels, and remaining checks.
+- [Issue-95 production decision](ransac_production_decision_20260814.md):
+  no-go decision, labelled-contact cross-check, and the missing evidence gate.
 
 External review and planning records are kept outside this committed workset.
 
 ## Executive overview
 
-The guard is useful as a broad screening heuristic. It catches structured
-recurrence in the saved track and exposes inspectable non-zero grades. It does
-not know whether a coordinate came from ordinary detector output, inpaint,
-masking or real shuttle motion. The RANSAC comparison and sidecar overlap are
-therefore leads, not recall or precision measurements.
+The recurrence guard is useful as a broad screening heuristic. It catches
+structured recurrence in the saved track and exposes inspectable non-zero
+grades. It does not know whether a coordinate came from ordinary detector
+output, inpaint, masking or real shuttle motion. The stored RANSAC comparison
+uses the pre-PR #93 guard baseline. Its overlap and the sidecar overlap are
+leads, not recall or precision measurements.
 
 The new unions add context around possible blind spots. Raw impulses follow
 the current fps-resolved contact path. A TP rally-ender means shuttle events
@@ -167,6 +178,10 @@ Run from the repository root:
 ~/.venvs/badminton-cicd/bin/python \
   docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_tracks.py
 
+~/.venvs/badminton-cicd/bin/python \
+  docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_production_variants.py \
+  > /tmp/ransac-production-variants.json
+
 MPLCONFIGDIR=/tmp/badminton-matplotlib \
   ~/.venvs/badminton-cicd/bin/python \
   docs/scraper_pipeline/inpaint_hallucination_fix/analysis/plot_recurrence_grids.py \
@@ -179,6 +194,11 @@ windows, uses a 3-pixel residual and 32 deterministic sample triples, and
 steps windows by four frames. Any window containing exact `(0, 0)` masking is
 excluded. A frame becomes a candidate when at least half of its eligible
 windows vote it outside the model.
+
+`audit_production_variants.py` reloads those tracked arrays, recomputes current
+guard codes, and prints the issue-95 comparison as JSON. It keeps candidate
+cuts, recurrence policies, source-aware masks, and context-only unions in
+separate result groups.
 
 These settings generate leads only. Real acceleration can look like an
 outlier, while a smooth fill can fit a quadratic and look like an inlier.
