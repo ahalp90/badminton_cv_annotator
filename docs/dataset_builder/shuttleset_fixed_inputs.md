@@ -33,6 +33,50 @@ missing or symlinked files, unsupported containers, digest changes,
 ground-truth mapping changes, variable frame rate, and FPS or frame-count
 mismatches.
 
+## Full-corpus production operation
+
+Use the versioned source manifest as the only source-identity and eligibility
+authority. A full-corpus configuration must list every manifest entry marked
+eligible, preserve every entry marked ineligible, and set `run.max_videos` to
+the eligible count. Do not add another exclusion because a stage fails.
+
+Before the first launch, record the following values outside the clean source
+checkout:
+
+- the clean source commit and effective configuration identity;
+- the source-manifest identity, eligible IDs, and all exclusions;
+- each source path, digest, ground-truth mapping, FPS, and canonical frame
+  count;
+- every model, interpreter, wrapper, cache-file, and artifact-root identity;
+- the host, GPU environment, available storage, and launch time.
+
+Run the fixed-input preflight for the complete selection before starting a GPU
+stage. It must validate all sources and ground-truth mappings in one call so
+duplicate paths or identities cannot pass as independent checks. Confirm that
+the exact launch environment also passes `DefaultPipelineRuntime.preflight()`.
+Start the normal `dataset_builder run` command only after both gates pass.
+
+Monitor the process, GPU, storage, run manifest, per-video stage records, and
+production log. If a process is interrupted or a stage fails, keep the run
+directory and rerun the same command with the same configuration. Resume
+fingerprints and integrity checks decide which stages can be reused. Do not
+copy artifacts between video directories, edit a stage record, or mark work
+complete by hand. This preserves successful sibling artifacts when one video
+fails.
+
+After the run succeeds, run the same command once more as a no-op validation.
+Reload every per-video artifact index with full source, model, configuration,
+and output-integrity validation. Reconcile the index metadata and array lengths
+for TrackNet input, shuttle outputs and masks, pose outputs, court masks,
+annotations, commentary pairing, and primitive projections against the
+canonical frame count.
+
+The corpus handoff must state the exact artifact-index identities and artifact
+paths that the downstream consumer may read. It must also retain every failed,
+unavailable, and excluded video with its reason, plus stage counts, timings,
+retries, and integrity results. Keep the run directory and expensive vision
+artifacts pinned so `replay` can rebuild annotation and projection later.
+
 ## Outputs
 
 The run directory contains `run_manifest.json.gz`, `rally_records.json.gz`,
