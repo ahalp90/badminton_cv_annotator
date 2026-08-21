@@ -22,9 +22,26 @@ in [`../prompts.md`](../prompts.md).
   rally boundary.
 - `analyse_event_consensus.py`: compares the two model decisions.
 - `analyse_broadcast_priors.py`: measures existing scene signals.
+- `build_multiscale_trials.py`: builds paired 90- and 120-second cut-aware
+  storyboards from suspected spans.
+- `run_multiscale_trials.py` and `score_multiscale_trials.py`: run and score
+  the broad segment-reading prompt.
+- `build_detail_from_context.py`: builds identical 120-frame close clips for
+  the three prompt arms. It can also build them without a broad VLM pass.
+- `run_detail_trials.py` and `score_detail_trials.py`: run and score all detail
+  arms, or only named arms with repeated `--only-arm` arguments.
+- `combined_visual_trials.py`: reproduces the failed 80-frame broad plus
+  120-frame close input.
+- `replay_pair_trials.py`: builds, runs, and scores the failed 120-frame
+  earlier-action plus 120-frame target comparison.
+- `replay_pair_pilot_ids.txt`: the frozen requested cases for that bounded
+  trial.
+- `replay_pair_remote.sh`: GPU-safe launcher for either pinned backend.
+- `analyse_detail_routes.py`: compares detail arms and simple two-model rules.
 - `backends/`: the exact pinned PR 80 adapters made local to this experiment.
 - `signals.md`: useful annotator fields for routing and prompts.
-- `next_experiment.md`: the next test after the binary contact model exists.
+- `next_experiment.md`: the multiscale protocol and its current status.
+- `contact_model_followup.md`: the later contact-model and VLM comparison.
 - `results/summary.json`: compact results from the completed bounded trials.
 
 ## Requirements
@@ -117,12 +134,21 @@ For InternVideo3 set `VLM_INTERN_IMAGE`, `VLM_INTERN_ENV_ROOT`,
 Both launchers:
 
 - refuse to start while the GPU has a compute process;
-- stop after 25 minutes;
+- keep the older bounded trials under their recorded 25-minute limit;
 - mount the package and manifest read-only;
 - record the GPU process list on exit;
 - keep model caches and temporary files under `VLM_WORK_ROOT`.
 
+The multiscale launchers have no time cap. They still run one recorded job at
+a time and record the empty GPU state when they finish.
+
 Run chunky jobs inside `tmux` on a shared machine.
+
+For the multiscale work, each job must write `status.json` and a final `DONE`
+or `FAILED` marker. The main session must not repeatedly poll the remote host.
+Use one blocking `tmux wait-for` watcher, preferably owned by a cheap Luna
+agent, or make one delayed marker check near the expected finish time. See
+[`next_experiment.md`](next_experiment.md#remote-runs-without-repeated-polling).
 
 ## Score the result
 
@@ -147,8 +173,44 @@ scoring. Its main comparison is exact contact count, alternating attribution,
 point outcome, and structurally usable rallies. Candidate precision alone is
 diagnostic.
 
-## Finished result and next run
+## Reproduce the direct replay-pair trial
+
+The builder selects an earlier reference using only automatic span order and
+signals. Human scene truth is read only by the scorer.
+
+```bash
+python -m experiments.replay_pair_trials build \
+  --detail-manifest "$VLM_WORK_ROOT/detail/inference/short_only/manifest.json" \
+  --source-video sset_01=/path/to/sset_01.avi \
+  --source-video sset_15=/path/to/sset_15.avi \
+  --source-video sset_21=/path/to/sset_21.avi \
+  --case-id-file scratch/vlm_pr80_eval/experiments/replay_pair_pilot_ids.txt \
+  --out "$VLM_WORK_ROOT/replay-pair/cases"
+
+scratch/vlm_pr80_eval/experiments/replay_pair_remote.sh \
+  internvideo3 \
+  "$VLM_WORK_ROOT/replay-pair/cases/inference/manifest.json" \
+  "$VLM_WORK_ROOT/replay-pair/attempts/intern"
+
+python -m experiments.replay_pair_trials score \
+  --manifest "$VLM_WORK_ROOT/replay-pair/cases/inference/manifest.json" \
+  --attempts "$VLM_WORK_ROOT/replay-pair/attempts/intern" \
+  --backend internvideo3 \
+  --parent-score "$VLM_WORK_ROOT/detail/scores/intern.json" \
+  --truth "$VLM_WORK_ROOT/detail/scoring/truth.json" \
+  --out "$VLM_WORK_ROOT/replay-pair/scores/intern.json"
+```
+
+Keep every path under a new run directory. The public wrapper refuses to mix a
+retry with an existing output.
+
+## Current result and next step
 
 The completed bounded measurements are summarised in `../results.md` and
-`results/summary.json`. Do not rerun them merely to recreate old logs. The next
-worthwhile run is the contact-detector comparison in `next_experiment.md`.
+`results/summary.json`. Do not rerun them merely to recreate old logs. The
+multiscale work is complete. Its broad, fact-bearing, combined-visual, and
+two-model paths all lost to InternVideo3's 120-frame short-only arm. The
+463-target wide run then found only 44.7% of material unsafe targets. Stronger
+replay wording and the direct replay pair also failed. The scene rule is not a
+safe automatic keep rule. The next meaningful comparison follows the frozen
+contact-detector output in `contact_model_followup.md`.

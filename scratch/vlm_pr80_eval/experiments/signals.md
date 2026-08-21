@@ -78,7 +78,8 @@ The first automatic comparison should treat the VLM as one signal:
 4. Freeze the simple final rule on the development videos before the held-out
    video is read.
 
-The detailed comparison and stop rules are in `next_experiment.md`.
+The later contact-model comparison and stop rules are in
+`contact_model_followup.md`.
 
 ## Existing evidence is useful but limited
 
@@ -91,6 +92,12 @@ Across 197 pure scene-control windows, 176 were live, 19 replay, and 2 cutaway.
 Keeping cases with `track_visible_fraction >= 0.8` gave 0.931 keep precision,
 0.926 live recall, and rejected 9 of 21 non-live windows. This is useful routing
 evidence. It is not strong enough to be the cleanup rule on its own.
+
+The later 347-target material scene score tested that threshold after the
+Intern close-view label. Their intersection reached 0.931 safe-live precision,
+0.900 routine-live recall, and 0.574 unsafe recall. It passed 20 of 47 material
+unsafe targets. This confirms that tracker visibility adds useful evidence, but
+the pair is still not a safe final keep rule.
 
 The first measurement is retained in
 `docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_replay_and_serve_behaviour_20260805/report.md`.

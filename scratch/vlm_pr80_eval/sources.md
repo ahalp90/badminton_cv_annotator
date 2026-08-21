@@ -1,7 +1,16 @@
 # Evidence map
 
+This is a reference file. Use it when you need to trace a claim back to the GitHub record or retained inputs.
+
 This is the short route back to the evidence behind `evaluation.md`. GitHub was
 read with `gh`; no GitHub record was changed.
+
+## Contents
+
+- [Main record](#main-record)
+- [Related intent and safety evidence](#related-intent-and-safety-evidence)
+- [Exact PR 80 code and artefacts](#exact-pr-80-code-and-artefacts)
+- [What is and is not retained](#what-is-and-is-not-retained)
 
 ## Main record
 
@@ -57,3 +66,11 @@ Useful local measurement context is in:
 The compact follow-up measurements are in
 `experiments/results/summary.json`. They can be regenerated from fresh attempts
 with the retained builders and scorers.
+
+## What is and is not retained
+
+PR 80 is the most directly auditable part of this investigation. Its raw model replies and benchmark artefacts are retained in Git history.
+
+The later contact, tracker, multiscale, and replay-pair experiments are not retained at the same level. The repository/package contains the compact aggregate `experiments/results/summary.json`, but not all later raw attempts, manifests, or row-level score files. Those later aggregate claims therefore cannot be independently recomputed from repository evidence alone.
+
+The standard-view versus unusual-view live split was recovered after the main write-up by joining the original full-fixture scene score with the untouched human scene truth. The original row-level score is not retained in the repository, so the recovered counts are preserved explicitly in [`experiments/results/scene_live_view_split.json`](experiments/results/scene_live_view_split.json) together with the derivation note and human-truth source hashes.
