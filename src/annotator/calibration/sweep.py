@@ -378,6 +378,14 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
         metrics = contact["tolerances"][str(frames)]
         raw = contact["precision_raw"][str(frames)]
         row.update({f"tolerance_frames_{band}": frames, f"recall_{band}": metrics["recall"], f"precision_{band}": metrics["precision"], f"f1_{band}": metrics["f1"], f"precision_raw_{band}": raw["precision_raw"]})
+        # Corpus sweeps need integer numerators and denominators. Aggregating
+        # rounded per-fixture ratios would give videos equal weight regardless
+        # of their number of ground-truth strokes.
+        row[f"_contact_matched_{band}"] = metrics["matched"]
+        row[f"_contact_gt_{band}"] = metrics["gt"]
+        row[f"_contact_candidates_{band}"] = metrics["candidates"]
+        row[f"_contact_raw_matched_{band}"] = raw["matched"]
+        row[f"_contact_raw_candidates_{band}"] = raw["candidates"]
     row["count_gate_covered_fraction"] = contact["count_gate"]["covered"]["fraction"]
     row["count_gate_unmerged_fraction"] = contact["count_gate"]["unmerged"]["fraction"]
     row["f1_raw_5"] = selection.f1_raw_5(row)
@@ -409,10 +417,11 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
 
 def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spec: CandidateSpec) -> dict[str, Any]:
     """Run and score one candidate; resolution remains inside ``run_video``."""
+    video_id = fixture_inputs.keyword["video_id"]
     fixture = next(
         fixture
         for fixture in FIXTURES
-        if fixture.video_id == fixture_inputs.keyword["video_id"]
+        if fixture.video_id == video_id or fixture.name == video_id
     )
     base, serve_start = _base_and_serve(candidate_spec)
     keyword = dict(fixture_inputs.keyword)
