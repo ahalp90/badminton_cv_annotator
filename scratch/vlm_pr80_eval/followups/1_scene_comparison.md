@@ -6,6 +6,10 @@ Run Qwen on the exact same full short-scene benchmark already run with Intern.
 
 This fills the biggest missing apples-to-apples comparison. It does **not** make the final model choice by itself.
 
+**Status: complete.** The result is recorded in
+[`results/1_scene_comparison.md`](results/1_scene_comparison.md). Intern is the
+provisional preference. Follow-up 2 still makes the final model choice.
+
 ## Run
 
 Run Qwen's existing 120-frame local scene prompt on the same 463 clips.

@@ -30,10 +30,11 @@ step unless this plan explicitly says otherwise.
 
 - [0. Audit the completed record](#0-audit-the-completed-record)
 - [1. Fill the missing Qwen scene benchmark](#1-fill-the-missing-qwen-scene-benchmark)
+- [Planning note: reuse compact automatic evidence](#planning-note-reuse-compact-automatic-evidence)
 - [2. Choose one VLM on the 32 rally starts](#2-choose-one-vlm-on-the-32-rally-starts)
 - [3. Test a precision-first dataset route](#3-test-a-precision-first-dataset-route)
 - [4. Run the larger serve experiment](#4-run-the-larger-serve-experiment)
-- [5. Reconcile with PR 88](#5-reconcile-with-pr-88)
+- [5. Reconcile with the PR 88 serve-lookback work](#5-reconcile-with-the-pr-88-serve-lookback-work)
 
 ## 0. Audit the completed record
 
@@ -45,6 +46,10 @@ Detailed prompt: [`followups/0_audit_docs.md`](followups/0_audit_docs.md)
 
 ## 1. Fill the missing Qwen scene benchmark
 
+**Status: complete.** Qwen and Intern have now been compared on the same 463
+clips. Intern is the provisional preference. See
+[`followups/results/1_scene_comparison.md`](followups/results/1_scene_comparison.md).
+
 Run Qwen on the **same 463 short scene clips** already run with Intern. Use the same 120-frame input, prompt, truth and scoring.
 
 Compare the models on standard-view live play, unusual-view live play, non-live footage and replay. Inspect representative mistakes.
@@ -53,7 +58,28 @@ This can produce a **provisional preference**, but do not permanently choose the
 
 Detailed spec: [`followups/1_scene_comparison.md`](followups/1_scene_comparison.md)
 
+## Planning note: reuse compact automatic evidence
+
+The existing observations of court visibility, player visibility, court-absence
+runs, shuttle visibility and contact proximity can still help. The completed
+deterministic-facts arm summarised whole rally spans, so it did not test concise
+observations local to the target.
+
+Do not add another experiment before Follow-up 2. Use the evidence directly in
+Follow-up 3's strict filtering rule. In Follow-up 4, test whether a short list
+of plain-language observations helps the chosen model. Do not give the model
+internal scores such as `composition: 0.96` or mask implementation names.
+
+Assessment and wording rules:
+[`followups/compact_automatic_evidence.md`](followups/compact_automatic_evidence.md)
+
 ## 2. Choose one VLM on the 32 rally starts
+
+**Status: complete.** InternVideo3 is the clean-interface choice and the model
+to use first in the remaining follow-ups. Intern identified 23 of 32 servers
+correctly, compared with 14 for Qwen. Neither model was dependable for serve
+state or contact timing. See
+[`followups/results/2_final_model_gate.md`](followups/results/2_final_model_gate.md).
 
 Run the same clean rally-start serve task on **both models** using the existing 32 reviewed cases.
 
@@ -80,12 +106,20 @@ Detailed spec: [`followups/3_precision_first_dataset.md`](followups/3_precision_
 
 With the chosen model, test which automatic support helps serve reconstruction, then widen server attribution across all three labelled fixtures if the 32-case gate was promising.
 
+If a winning evidence format materially changes the intended model interface,
+freeze that format and run one Qwen confirmation on the same 32 clips. Record
+any changed operational choice as a new result. Do not revise the completed
+Follow-up 2 comparison.
+
 Detailed spec: [`followups/4_serve_reconstruction.md`](followups/4_serve_reconstruction.md)
 
-## 5. Reconcile with PR 88
+## 5. Reconcile with the PR 88 serve-lookback work
 
 Do this only after the clean serve experiment is frozen.
 
 Read PR 88, identify any useful automatic evidence the new route did not use, and test **at most one simple hybrid**.
 
 Do not reopen the clean experiment's tuning after reading PR 88.
+
+Detailed spec:
+[`followups/5_pr88_serve_lookback.md`](followups/5_pr88_serve_lookback.md)

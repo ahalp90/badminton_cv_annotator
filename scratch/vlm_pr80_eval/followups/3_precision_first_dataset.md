@@ -20,7 +20,13 @@ At minimum check:
 - server;
 - point outcome.
 
-If another field is required for the intended dataset, include it before the rule is frozen.
+Use the project's canonical ±5 base-30-frame contact tolerance for the primary
+result. Report ±10 and ±15 as sensitivity checks, not as alternative rules.
+
+Landing and hit-height estimates are outside this first completeness predicate.
+The current pipeline treats them as experimental outputs. If either becomes a
+required dataset field later, run a new evaluation rather than revising this
+result.
 
 One error means that retained rally is not perfect.
 
@@ -30,9 +36,19 @@ Use only automatic signals that exist after Follow-up 2.
 
 Possible inputs include current heuristics and already tested advisory signals from the chosen VLM.
 
+Prefer using observations of court visibility, two detected players,
+court-absence runs, shuttle visibility and explicit contact proximity directly
+in the rule. Do not pass unexplained internal scores to the model. The evidence
+limits are recorded in
+[`compact_automatic_evidence.md`](compact_automatic_evidence.md).
+
 The rule may reject almost every rally.
 
 Prefer a simple rule that can be explained in a few sentences. Do not build a large learned meta-model for this test.
+
+Freeze a short monotone rule ladder before opening held-out results. Fit only by
+choosing the strictest useful rung on the two development fixtures. Do not fit a
+classifier or run a dense threshold sweep.
 
 ## Test without leakage
 

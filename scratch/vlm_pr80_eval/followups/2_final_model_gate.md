@@ -6,6 +6,11 @@ Use the existing 32 reviewed rally starts as the final model-selection gate.
 
 Run **both models on the same automatically built clips with the same clean prompt**. Then choose one VLM for all later work.
 
+**Status: complete.** InternVideo3 is the clean-interface choice and the model
+to use first in the remaining follow-ups. Neither model was dependable for
+serve-state classification or contact timing. See
+[`results/2_final_model_gate.md`](results/2_final_model_gate.md).
+
 ## Build the clips
 
 Use only automatic pipeline evidence.
@@ -36,6 +41,9 @@ Use the same prompt:
 Start with video + selected cut only. Do not add raw keypoints or PR 88 mechanisms.
 
 If the models are genuinely too close to choose, one compact automatic-evidence arm may be run on both before the decision. Do not start a large prompt sweep.
+That arm is a contingency, not a step to run before the clean comparison. Follow
+the wording and evidence limits in
+[`compact_automatic_evidence.md`](compact_automatic_evidence.md).
 
 ## Score
 

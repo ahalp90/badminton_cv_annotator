@@ -2,7 +2,8 @@
 
 ## Bottom line
 
-Use the **chosen VLM only**.
+Start with the chosen VLM, **InternVideo3**, only. Add Qwen only if the
+predeclared model-reassessment gate in this plan passes.
 
 The 32-case model-selection gate has already shown whether the basic serve task has promise. Now test which automatic support helps, then widen the useful result.
 
@@ -21,12 +22,43 @@ Use the same clips and chosen model.
 Compare:
 
 1. video + selected PySceneDetect cut;
-2. add compact automatic facts from shuttle/player/court evidence;
-3. also add current pipeline guesses, clearly labelled as fallible.
+2. add compact, plain-language observations from shuttle/player/court evidence;
+3. also add the current pipeline's proposed server and contact time, clearly
+   labelled as fallible conclusions.
 
 Do not send raw keypoint arrays or long coordinate tables.
 
+Describe what the automatic analysis observed in the supplied clip. Do not
+expose unexplained scores or mask names. Keep the facts short, local and
+explicitly fallible. See
+[`compact_automatic_evidence.md`](compact_automatic_evidence.md).
+
+Do not add an internal live or replay label.
+
 Keep added evidence only when it improves measured results.
+
+## Recheck the model choice only if the interface changes
+
+Follow-up 2 remains the completed comparison of both models with video and the
+selected cut. A better evidence format may change which model is preferable for
+future use, but it does not change that historical result.
+
+Run one Qwen confirmation on the best enhanced Intern arm only when that arm is
+parse-complete and reaches at least one of these predeclared improvements over
+clean Intern:
+
+- server identity improves by at least four cases, from 23 to 27 or more;
+- serve state improves by at least four cases, from 19 to 23 or more, and
+  unsupported exact-frame claims fall from 13 to 9 or fewer;
+- visible contact timing within project tolerance improves by at least four
+  cases, from 1 to 5 or more.
+
+The enhanced arm must also keep server and serve-state correctness within two
+cases of the clean result. Unsupported exact-frame claims must not increase.
+
+If this gate passes, freeze the evidence format before running Qwen. Compare
+the two models once on that identical format. Record any changed operational
+model choice as a new result rather than revising Follow-up 2.
 
 ## Score on the reviewed rally starts
 
