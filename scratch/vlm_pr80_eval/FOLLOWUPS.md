@@ -126,6 +126,12 @@ Detailed spec: [`followups/4_serve_reconstruction.md`](followups/4_serve_reconst
 
 ## 5. Reconcile with the PR 88 serve-lookback work
 
+**Status: complete.** PR 88's 170/239 deterministic development result
+recomputes exactly, but it still needs an unseen evaluation. The retained VLM
+cases do not justify a selector or prompt hybrid, so no hybrid experiment was
+run. See
+[`followups/results/5_pr88_serve_lookback.md`](followups/results/5_pr88_serve_lookback.md).
+
 Do this only after the clean serve experiment is frozen.
 
 Read PR 88, identify any useful automatic evidence the new route did not use, and test **at most one simple hybrid**.

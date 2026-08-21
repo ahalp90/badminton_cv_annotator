@@ -1,6 +1,6 @@
 > ARCHIVED 2026-08-12: original second-iteration report. Current narrative: `../../report.md`.
 
-# Two measured corrections help, but no wider safe rule was found
+# Two measured corrections help, but no wider dependable rule was found
 
 Trajectory evidence improves the existing result in two measured cases with no
 observed damage. It cannot yet recover the wider set of GT-unmatched earliest
@@ -149,7 +149,7 @@ server answer. The one fix lies in the old 97 slice. The damage lies outside
 it.
 
 The extra pose evidence makes the theory more specific. It does not make the
-intervention safe.
+intervention dependable.
 
 ## Why the other evidence stays a no-op
 

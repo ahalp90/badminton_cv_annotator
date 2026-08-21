@@ -43,7 +43,7 @@ The final correction fixes 2 of the 97 GT-unmatched first contacts. It leaves
 PR #82 gets 58 server answers right in this slice. The correction gets 59
 right. The slice controls no decision.
 
-## F5. A broad serve-setup differential is unsafe
+## F5. A broad serve-setup differential causes too much damage
 
 The existing sticky serve-setup primitive was measured at accepted contacts.
 The broad proposal changes to a later passing contact when the first contact
@@ -55,7 +55,7 @@ making them right. Net change is -41. Intervention precision is 15.9%.
 All 22 fixes fall in the old 97 slice. The 63 damages fall outside it. GT cannot
 be used to choose the favourable slice.
 
-## F6. Continued same-player setup is still not safe
+## F6. Continued same-player setup is still not dependable
 
 A stricter state requires the same player at both contacts, close wrist
 evidence after the early impulse, a fixed short lookback, and measured
@@ -106,7 +106,7 @@ The final policy produces 237 `NO-OP`, 2 `CORRECT`, and 0 `CONFLICT` rows.
 ## F11. The wider state is not identifiable from the tested fields
 
 TrackNet paths, accepted impulses, player attribution, alternating order,
-sticky pose setup, and scene bounds do not give a safe general test for an
+sticky pose setup, and scene bounds do not give a dependable general test for an
 early false contact.
 
 A plausible next measurement is direct physical-stroke evidence at a candidate

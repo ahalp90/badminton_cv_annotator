@@ -26,3 +26,6 @@ boundary before starting the next experiment.
   observations led Intern to repeat the supplied inspection point. Adding
   fallible server and contact proposals reduced server correctness. Neither arm
   passed the gate for a Qwen confirmation or wider run.
+- [`5_pr88_serve_lookback.md`](5_pr88_serve_lookback.md): PR 88's deterministic
+  development result recomputes exactly. The retained VLM evidence does not
+  justify a hybrid, so the separate rule still needs an unseen evaluation.

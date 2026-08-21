@@ -19,7 +19,7 @@ the new launch file.
 
 ## Verified baseline
 
-- Repository: `/home/ariel/Documents/COSC594/badminton_cv_annotator`
+- Repository: the repository root
 - Branch: `investigation/serve-id-by-lookback-followup`
 - Base tip: `4f9703f339e2f9821d986d376dbfca9d6fd18ad7`
 - Population: all 239 one-to-one rallies across `sset_01`, `sset_15`, and `sset_21`

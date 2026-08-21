@@ -7,7 +7,7 @@
 - Stage: additive correction complete and checked
 - Next action: hand over without a commit
 - Active workers or audits: none
-- Worktree: `/home/ariel/Documents/COSC594/badminton_cv_annotator`, branch `investigation/serve-id-by-lookback-followup`, actual tip `eb83513`
+- Worktree: the repository root, branch `investigation/serve-id-by-lookback-followup`, actual tip `eb83513`
 - Last verified gates: deterministic H3/R8 check exit 0; independent review
   `CLEAN`; 58 combined scratch tests and focused Ruff pass; whole Pyrefly 0 errors;
   whole pytest 1,456 passed; whole Ruff has 661 unrelated existing findings

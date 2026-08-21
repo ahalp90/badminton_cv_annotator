@@ -59,7 +59,7 @@ has run.
 | High-shot additive correction write | 239 frozen decisions; 2 interventions, 2 fixes, 0 damage; visible starts 125 to 127; servers 163 to 164 |
 | Serve-setup broad differential | 138 interventions; 22 fixes, 63 damage, 53 unchanged errors; net -41 |
 | Serve-setup continued same-player state | 2 interventions; 1 fix, 1 damage; no server changes |
-| Claude Opus 4.6 Thinking consultation | Exit 0; read-only tripwire passed; proposed the broad serve-setup differential; coordinator corrected its threshold claim and measured the proposal as unsafe |
+| Claude Opus 4.6 Thinking consultation | Exit 0; read-only tripwire passed; proposed the broad serve-setup differential; coordinator corrected its threshold claim and measured the proposal as damaging |
 | Frozen-video stream probe | Exit 0; H.264 video stream present; no audio stream |
 | Final headless Sol red-team launch and retry | Both exited 1 before reading the brief because the isolated app-server state was read-only; no review ran and no repository file changed |
 | Additive correction deterministic check | Exit 0; rebuilt and matched all 239 saved decisions and summary counts |

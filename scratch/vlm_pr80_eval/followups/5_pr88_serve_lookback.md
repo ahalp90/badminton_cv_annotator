@@ -2,9 +2,13 @@
 
 ## Bottom line
 
-Inspect PR 88 only after Follow-ups 3 and 4 are complete and frozen. Then test
-at most one simple serve-lookback hybrid justified by evidence retained in that
-pull request.
+**Status: complete.** PR 88 recomputes exactly, but the retained evidence does
+not justify a VLM hybrid. No hybrid experiment was run. See
+[`results/5_pr88_serve_lookback.md`](results/5_pr88_serve_lookback.md).
+
+The frozen plan was to inspect PR 88 only after Follow-ups 3 and 4 were
+complete, then test at most one simple serve-lookback hybrid justified by its
+retained evidence.
 
 This is a separate follow-up. It may change the recommended future route, but
 it does not rewrite the clean experiments that came before it.
