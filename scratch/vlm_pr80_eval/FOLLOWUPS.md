@@ -35,6 +35,7 @@ step unless this plan explicitly says otherwise.
 - [3. Test a precision-first dataset route](#3-test-a-precision-first-dataset-route)
 - [4. Run the larger serve experiment](#4-run-the-larger-serve-experiment)
 - [5. Reconcile with the PR 88 serve-lookback work](#5-reconcile-with-the-pr-88-serve-lookback-work)
+- [6. Test dense rally-opening context](#6-test-dense-rally-opening-context)
 
 ## 0. Audit the completed record
 
@@ -140,3 +141,19 @@ Do not reopen the clean experiment's tuning after reading PR 88.
 
 Detailed spec:
 [`followups/5_pr88_serve_lookback.md`](followups/5_pr88_serve_lookback.md)
+
+## 6. Test dense rally-opening context
+
+**Status: complete.** The reusable join retains all 311 automatic spans and
+selects 253 with an opening shot change. On 12 reviewed routed cases, clean
+half-native input identified 8 servers. Timing cues reduced this to 7, and
+native density changed no cued answer. No wider run or Follow-up 2 reassessment
+is justified. See
+[`followups/results/6_rally_opening_context.md`](followups/results/6_rally_opening_context.md).
+
+Keep the completed Follow-up 2 and Follow-up 4 findings unchanged. Any future
+positive result would be a new operational reassessment, not a historical
+rewrite.
+
+Detailed spec:
+[`followups/6_rally_opening_context.md`](followups/6_rally_opening_context.md)

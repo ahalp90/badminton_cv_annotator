@@ -29,3 +29,7 @@ boundary before starting the next experiment.
 - [`5_pr88_serve_lookback.md`](5_pr88_serve_lookback.md): PR 88's deterministic
   development result recomputes exactly. The retained VLM evidence does not
   justify a hybrid, so the separate rule still needs an unseen evaluation.
+- [`6_rally_opening_context.md`](6_rally_opening_context.md): 22-second dense
+  rally-opening clips did not improve Intern's server attribution on the 12
+  reviewed routed cases. Timing cues reduced correctness by one, while native
+  density changed no answer.
