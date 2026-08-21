@@ -7,6 +7,7 @@ import pytest
 from scratch.vlm_pr80_eval.experiments.rally_opening_trials import (
     ATTEMPT_SCHEMA,
     _navigation_sentence,
+    _paired_summary,
     _standard_window,
     _validate_attempt,
     parse_response,
@@ -102,3 +103,23 @@ def test_validate_attempt_checks_identity_and_sampled_grid() -> None:
     attempt["clip_sha256"] = "wrong"
     with pytest.raises(ValueError, match="clip_sha256 differs"):
         _validate_attempt(attempt, case)
+
+
+def test_paired_summary_counts_changed_outcomes() -> None:
+    rows = [
+        {"case_id": "a", "arm": "left", "server_correct": True, "predicted_server": "top"},
+        {"case_id": "b", "arm": "left", "server_correct": False, "predicted_server": "top"},
+        {"case_id": "a", "arm": "right", "server_correct": False, "predicted_server": "bottom"},
+        {"case_id": "b", "arm": "right", "server_correct": True, "predicted_server": "bottom"},
+    ]
+
+    assert _paired_summary(rows, "left", "right") == {
+        "left_arm": "left",
+        "right_arm": "right",
+        "cases": 2,
+        "both_correct": 0,
+        "left_only_correct": 1,
+        "right_only_correct": 1,
+        "both_wrong": 0,
+        "changed_predictions": 2,
+    }

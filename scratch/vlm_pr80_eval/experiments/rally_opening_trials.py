@@ -423,6 +423,45 @@ def _validate_attempt(
         raise ValueError(f"{case['trial_id']}: requested FPS differs")
 
 
+def _paired_summary(
+    rows: Sequence[Mapping[str, object]],
+    left_arm: str,
+    right_arm: str,
+) -> dict[str, object]:
+    left = {str(row["case_id"]): row for row in rows if row["arm"] == left_arm}
+    right = {str(row["case_id"]): row for row in rows if row["arm"] == right_arm}
+    if set(left) != set(right):
+        raise ValueError(f"paired arms have different case identities: {left_arm}, {right_arm}")
+    outcomes = Counter()
+    changed_predictions = 0
+    for case_id in sorted(left):
+        left_row = left[case_id]
+        right_row = right[case_id]
+        left_correct = bool(left_row["server_correct"])
+        right_correct = bool(right_row["server_correct"])
+        if left_correct and right_correct:
+            outcomes["both_correct"] += 1
+        elif left_correct:
+            outcomes["left_only_correct"] += 1
+        elif right_correct:
+            outcomes["right_only_correct"] += 1
+        else:
+            outcomes["both_wrong"] += 1
+        changed_predictions += int(
+            left_row["predicted_server"] != right_row["predicted_server"]
+        )
+    return {
+        "left_arm": left_arm,
+        "right_arm": right_arm,
+        "cases": len(left),
+        "both_correct": outcomes["both_correct"],
+        "left_only_correct": outcomes["left_only_correct"],
+        "right_only_correct": outcomes["right_only_correct"],
+        "both_wrong": outcomes["both_wrong"],
+        "changed_predictions": changed_predictions,
+    }
+
+
 def score_trials(manifest_path: Path, truth_path: Path, attempts_dir: Path) -> dict[str, object]:
     manifest = _load_json(manifest_path)
     truth = _load_json(truth_path)
@@ -482,7 +521,20 @@ def score_trials(manifest_path: Path, truth_path: Path, attempts_dir: Path) -> d
             "generation_errors": sum(row["generation_error"] is not None for row in arm_rows),
             "parser_errors": sum(row["parser_error"] is not None for row in arm_rows),
         }
-    return {"schema": SCORE_SCHEMA, "summaries": summaries, "rows": rows}
+    paired = {
+        "cue_effect_at_half_native": _paired_summary(
+            rows, "clean_half_native", "cued_half_native"
+        ),
+        "density_effect_with_cues": _paired_summary(
+            rows, "cued_half_native", "cued_native"
+        ),
+    }
+    return {
+        "schema": SCORE_SCHEMA,
+        "summaries": summaries,
+        "paired_comparisons": paired,
+        "rows": rows,
+    }
 
 
 def _source_mapping(values: Sequence[str]) -> dict[str, Path]:
