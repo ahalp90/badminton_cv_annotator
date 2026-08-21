@@ -109,6 +109,12 @@ Detailed spec: [`followups/3_precision_first_dataset.md`](followups/3_precision_
 
 ## 4. Run the larger serve experiment
 
+**Status: complete.** Neither enhanced InternVideo3 prompt passed the
+predeclared gate. Plain observations produced a timing shortcut by naming the
+inspection point. Fallible server and contact proposals reduced server
+correctness. No Qwen confirmation or wider fixture run was justified. See
+[`followups/results/4_serve_reconstruction.md`](followups/results/4_serve_reconstruction.md).
+
 With the chosen model, test which automatic support helps serve reconstruction, then widen server attribution across all three labelled fixtures if the 32-case gate was promising.
 
 If a winning evidence format materially changes the intended model interface,

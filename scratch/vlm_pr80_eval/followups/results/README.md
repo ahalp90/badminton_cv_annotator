@@ -22,3 +22,7 @@ boundary before starting the next experiment.
 - [`3_precision_first_dataset.md`](3_precision_first_dataset.md): the frozen
   deterministic ladder could not select a non-empty zero-error rally subset on
   held-out fixture data.
+- [`4_serve_reconstruction.md`](4_serve_reconstruction.md): compact automatic
+  observations led Intern to repeat the supplied inspection point. Adding
+  fallible server and contact proposals reduced server correctness. Neither arm
+  passed the gate for a Qwen confirmation or wider run.

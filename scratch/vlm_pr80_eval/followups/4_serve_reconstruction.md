@@ -2,8 +2,12 @@
 
 ## Bottom line
 
-Start with the chosen VLM, **InternVideo3**, only. Add Qwen only if the
-predeclared model-reassessment gate in this plan passes.
+**Status: complete.** Neither enhanced InternVideo3 arm passed the predeclared
+gate. Qwen and the wider fixture experiment were not run. See
+[`results/4_serve_reconstruction.md`](results/4_serve_reconstruction.md).
+
+The frozen plan was to start with the chosen VLM, **InternVideo3**, only. Qwen
+would be added only if the predeclared model-reassessment gate passed.
 
 The 32-case model-selection gate has already shown whether the basic serve task has promise. Now test which automatic support helps, then widen the useful result.
 
@@ -21,10 +25,13 @@ Use the same clips and chosen model.
 
 Compare:
 
-1. video + selected PySceneDetect cut;
+1. the frozen Follow-up 2 result for video + selected PySceneDetect cut;
 2. add compact, plain-language observations from shuttle/player/court evidence;
 3. also add the current pipeline's proposed server and contact time, clearly
    labelled as fallible conclusions.
+
+Do not rerun the first arm. It is the clean Intern baseline already retained
+for these exact clips.
 
 Do not send raw keypoint arrays or long coordinate tables.
 
@@ -59,6 +66,11 @@ cases of the clean result. Unsupported exact-frame claims must not increase.
 If this gate passes, freeze the evidence format before running Qwen. Compare
 the two models once on that identical format. Record any changed operational
 model choice as a new result rather than revising Follow-up 2.
+
+If both enhanced arms pass, choose one before the Qwen run. Prefer, in order:
+more correct servers; more correct serve states; fewer unsupported exact-frame
+claims; then more visible contacts within project tolerance. Use the simpler
+observations-only arm if the scored results are otherwise tied.
 
 ## Score on the reviewed rally starts
 
