@@ -31,6 +31,7 @@ REVIEW_DIR = Path(
 SERVER_TRUTH_PATH = Path(
     "scratch/serve_id_by_lookback_followup/results/preferred_server_rule.csv.gz"
 )
+SHOTS_MASTER_PATH = Path("training/data/shuttleset/annotations/shots_master.csv")
 
 _FORBIDDEN_INFERENCE_KEYS = {
     "expected_server",
@@ -61,6 +62,11 @@ def _load_json_gz(path: Path) -> dict[str, Any]:
 
 def _load_csv_gz(path: Path) -> list[dict[str, str]]:
     with gzip.open(path, "rt", encoding="utf-8", newline="") as stream:
+        return list(csv.DictReader(stream))
+
+
+def _load_csv(path: Path) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as stream:
         return list(csv.DictReader(stream))
 
 
@@ -290,19 +296,37 @@ def _best_span_match(
     return scored[0][1], scored[0][0]
 
 
-def _server_truth(repo_root: Path) -> dict[tuple[str, str, int], str]:
+def _preferred_server_truth(repo_root: Path) -> dict[tuple[str, str, int], str]:
     rows = _load_csv_gz(repo_root / SERVER_TRUTH_PATH)
     mapped: dict[tuple[str, str, int], str] = {}
     for row in rows:
         key = (row["fixture"], row["set_id"], int(row["rally"]))
-        server = row["gt_server"].lower()
-        if server not in {"top", "bot"}:
+        server = {"top": "top", "bot": "bottom"}.get(row["gt_server"].lower())
+        if server is None:
             raise ValueError(f"{key}: unsupported server label {server!r}")
         if key in mapped and mapped[key] != server:
             raise ValueError(f"{key}: conflicting server truth")
         mapped[key] = server
     if len(mapped) != 239:
         raise ValueError(f"expected 239 server-truth rows, found {len(mapped)}")
+    return mapped
+
+
+def _canonical_server_truth(repo_root: Path) -> dict[tuple[str, str, int], str]:
+    mapped: dict[tuple[str, str, int], str] = {}
+    for row in _load_csv(repo_root / SHOTS_MASTER_PATH):
+        if int(row["ball_round"]) != 1:
+            continue
+        video_id = f"sset_{int(row['vid']):02d}"
+        if video_id not in VIDEO_FPS:
+            continue
+        key = (video_id, row["set_id"], int(row["rally"]))
+        server = row["player_side"].lower()
+        if server not in {"top", "bottom"}:
+            raise ValueError(f"{key}: unsupported canonical server label {server!r}")
+        if key in mapped:
+            raise ValueError(f"{key}: duplicate canonical first stroke")
+        mapped[key] = server
     return mapped
 
 
@@ -341,7 +365,11 @@ def build_truth(
     for case in manifest_cases:
         cases_by_video[str(case["video_id"])].append(case)
 
-    server_truth = _server_truth(repo_root)
+    server_truth = _canonical_server_truth(repo_root)
+    preferred_server_truth = _preferred_server_truth(repo_root)
+    for key, expected_server in preferred_server_truth.items():
+        if server_truth.get(key) != expected_server:
+            raise ValueError(f"{key}: preferred-rule truth differs from shots master")
     reviewed_truth = _reviewed_truth(repo_root)
     committed_by_case: dict[str, list[dict[str, object]]] = defaultdict(list)
     unmatched_committed: list[dict[str, object]] = []
@@ -400,8 +428,9 @@ def build_truth(
         for row in unmatched_committed
         if row["expected_server"] is not None
     }
-    if mapped_server_keys | unmatched_server_keys != set(server_truth):
-        missing = sorted(set(server_truth) - mapped_server_keys - unmatched_server_keys)
+    committed_server_keys = mapped_server_keys | unmatched_server_keys
+    if committed_server_keys != set(server_truth):
+        missing = sorted(set(server_truth) - committed_server_keys)
         raise ValueError(f"server truth disappeared during the join: {missing[:3]}")
 
     truth_cases: list[dict[str, object]] = []
@@ -438,6 +467,7 @@ def build_truth(
         ),
     }
     truth_inputs.append(_portable_input(repo_root / SERVER_TRUTH_PATH, "preferred_server_rule"))
+    truth_inputs.append(_portable_input(repo_root / SHOTS_MASTER_PATH, "shots_master"))
     truth_inputs.extend(
         _portable_input(
             repo_root / REVIEW_DIR / f"{video_id}_rally_start_reviewed.csv.gz",
