@@ -96,7 +96,12 @@ Detailed spec: [`followups/2_final_model_gate.md`](followups/2_final_model_gate.
 
 ## 3. Test a precision-first dataset route
 
-With the chosen model, ask:
+**Status: complete.** The frozen automatic ladder could not select any
+non-empty zero-error rule on its development fixtures. The held-out procedure
+therefore retained none of the 311 current predicted rally spans. See
+[`followups/results/3_precision_first_dataset.md`](followups/results/3_precision_first_dataset.md).
+
+The experiment asked:
 
 > Can today's automatic signals keep a non-empty set of rallies with zero observed annotation errors on held-out labelled data, even if almost everything is discarded?
 

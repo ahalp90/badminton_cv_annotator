@@ -2,7 +2,11 @@
 
 ## Bottom line
 
-With the chosen VLM, test whether a **very strict automatic rule** can keep a non-empty set of rallies with **zero observed end-to-end errors** on held-out labelled data.
+**Status: complete.** The frozen deterministic ladder could not keep a
+non-empty set without observed end-to-end errors. See
+[`results/3_precision_first_dataset.md`](results/3_precision_first_dataset.md).
+
+The experiment tested whether a **very strict automatic rule** could keep a non-empty set of rallies with **zero observed end-to-end errors** on held-out labelled data.
 
 Terrible recall is acceptable.
 

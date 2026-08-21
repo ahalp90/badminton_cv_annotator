@@ -19,3 +19,6 @@ boundary before starting the next experiment.
   on 32 reviewed cases. Intern is the clean-interface choice and starting model
   for later follow-ups, but neither model handled serve state or contact timing
   reliably.
+- [`3_precision_first_dataset.md`](3_precision_first_dataset.md): the frozen
+  deterministic ladder could not select a non-empty zero-error rally subset on
+  held-out fixture data.
