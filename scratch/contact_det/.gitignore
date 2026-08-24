@@ -1,0 +1,8 @@
+*
+!.gitignore
+!contact_det_feasibility.md
+!contact_recall_and_player_geometry.md
+!binary_contact_detector_options.md
+!freeze_contact_evidence.py
+!score_contact_evidence.py
+!test_contact_evidence.py
