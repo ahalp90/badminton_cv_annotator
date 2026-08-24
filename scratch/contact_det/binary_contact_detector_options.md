@@ -2,13 +2,15 @@
 
 ## Short answer
 
-Start with a boosted tree over the evidence we already compute. It is the fastest way to find out whether the current rules contain enough information to place contacts reliably.
+The boosted-tree trial is complete. Histogram boosting over physical features reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10 on the corrected search region. It remains the cheap baseline.
 
-If the tree reaches a ceiling, try BST-X next. BST-X already uses pose, shuttle and player position. It is a better fit than X3D-S for a first learned contact detector because its inputs and most of its data path already exist.
+Try BST-X next. BST-X already uses pose, shuttle and player position. It is a better fit than X3D-S for a first learned contact detector because its inputs and most of its data path already exist.
 
 Keep X3D-S as the next source of genuinely new evidence. RGB can see the racket, body motion and broadcast context that the numeric inputs omit. It also needs a new RGB data path and careful crop handling, so it is the easiest option to lose time on before we know whether RGB is needed.
 
 All three models should solve the same small problem. Simple rules make short search regions. The learned model scores each possible centre frame inside those regions. Nearby hits are reduced to the frame with the strongest contact score.
+
+The measured region now includes 45 base-30 frames before each eligible court-view interval. Its ±10 ceiling is 98.4% for non-serves and 97.9% for serves overall. `sset_21` remains lower at 93.7% and 94.7%. A whole-video relaxed-impulse fallback can cover nearly everything, but it searches 90.6% of the broadcasts and is not a useful pose-model boundary.
 
 The regions cannot come only from today's raw shuttle-impulse proposals. At the 10-frame tolerance, those proposals cover 83.8% of later contacts and 66.1% of serves. That is the highest recall any scorer could reach if it never looks elsewhere.
 
@@ -120,21 +122,19 @@ Split by whole video, or at least by whole match section. Randomly splitting nei
 
 For an offscreen or broadcast-omitted serve, use an unknown label when the exact frame cannot be supported by the video. A scene-cut lookback rule may still propose a likely serve region. No model should be trained to claim that it saw an invisible impact.
 
-## Smallest useful experiment
+## Completed tree experiment
 
-1. Freeze candidate regions and per-frame features without using GT.
-2. Measure how many GT contacts fall inside those regions. This is the ceiling for every learned scorer in the test.
-3. Add GT afterwards to make centre-frame labels, ignore bands and grouped train/test splits.
-4. Train scikit-learn histogram gradient boosting and a random forest on the same rows.
-5. Score contact recall at 5, 10 and 15 base-30 frames, plus extra predictions per real contact.
-6. Inspect failures and rerun without each main feature group.
-7. Build the BST-X contact-window path only if the tree leaves useful misses that temporal learning could plausibly fix.
-8. Build X3D-S when those remaining misses call for RGB evidence.
+1. Candidate regions and per-frame features were frozen twice without GT; both outputs are byte-identical.
+2. GT was added only after verification for labels, grouped splits and coverage scoring.
+3. HGB and RF were compared on identical rows with physics, context and missingness controls.
+4. HGB physics is the best tree. RF needs no further tuning.
+5. The remaining classifier question is whether BST-X can beat HGB on the same centres.
+6. The separate search question is how to admit shuttle-visible live close-ups without admitting most replay and cutaway footage.
 
-This order gives a useful answer after the first small experiment. It also leaves one clean reason to try each larger model.
+The [tree trial report](tree_contact_detector_results.md) has the full numbers and region limits.
 
 ## Recommendation
 
-For the next detector experiment, use histogram gradient boosting inside heuristic search regions. Run a random forest beside it as a cheap check.
+For the next detector experiment, keep histogram boosting as the reference and test BST-X inside the same frozen region. Do not run another random-forest sweep.
 
 Between the two neural choices, use BST-X first. It fits the data already present and needs less new setup. Use X3D-S when the measured failures show that pose and shuttle evidence are insufficient, especially for unusual serves, racket-only cues and difficult broadcast views.

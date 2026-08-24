@@ -8,7 +8,7 @@ At the useful 10-frame tolerance, the raw proposals find 83.8% of non-serve cont
 
 The simple ankle-height player rule gives almost the same result on these fixtures. Direct player-side attribution is already about 89% accurate on matched final contacts. The bad rally-level result comes mainly from fitting a strict Top/Bottom alternation after contacts have been missed.
 
-For the learned contact scorer, start with scikit-learn histogram gradient boosting over the numeric evidence already available. Run a random forest on the same rows as a cheap control. If temporal learning is still needed, add a contact output to BST-X. Build X3D-S after that when the remaining failures show a real need for RGB.
+The tree trial is now complete. Histogram gradient boosting over physical features reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10 on region version 2. Use it as the cheap baseline. BST-X is the next classifier experiment. Build X3D-S later when the remaining failures show a real need for RGB.
 
 ## Contact coverage
 
@@ -57,7 +57,7 @@ Use the same search method for all three learned options:
 5. Keep local score peaks above a held-out threshold.
 6. When nearby peaks describe the same contact, keep the strongest score.
 
-Measure region recall before model quality. A model cannot recover a contact outside every region.
+Measure region recall before model quality. A model cannot recover a contact outside every region. The measured version-2 ceiling at ±10 is 98.4% for non-serves and 97.9% for serves overall. `sset_21` remains lower at 93.7% and 94.7%.
 
 The first model should be histogram gradient boosting because the repository already provides shuttle impulses, wrist distances, player positions, visibility, scene context and rule outcomes. It can show quickly whether those inputs are enough. A random forest is a useful control and costs almost nothing to add.
 
@@ -70,4 +70,6 @@ Use one contact score and a separate Top/Bottom score. A low contact score means
 ## Reports
 
 - [Contact recall and player geometry](contact_recall_and_player_geometry.md) has the full measurement and PR88 details.
-- [Binary contact detector options](binary_contact_detector_options.md) has the tree, BST-X and X3D-S comparison and the smallest useful experiment.
+- [Binary contact detector options](binary_contact_detector_options.md) compares the tree, BST-X and X3D-S paths.
+- [Tree contact detector trial](tree_contact_detector_results.md) has the measured region-v2 and tree results.
+- [BST-X contact detector plan](bst_x_contact_detector_plan.md) turns the next classifier experiment into an executable design.

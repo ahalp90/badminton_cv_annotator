@@ -4,11 +4,11 @@
 
 Build BST-X as a local, frame-aligned contact scorer over 21 consecutive source frames. Keep the current player, shuttle and court streams. Replace the clip-level readout with a temporal head that emits one contact logit per frame, then use only the centre-frame logit for each stride-1 window.
 
-The first executable experiment should test whether temporal physical evidence beats the measured histogram-boosting physics baseline inside one shared set of label-blind regions. At ±10, that tree reached 87.5% precision, 88.4% recall and 87.9% F1. BST-X should reach at least 89.9% F1 while retaining at least 87.5% precision. A validity-only control must remain clearly below the full model.
+The first executable experiment should test whether temporal physical evidence beats histogram boosting inside one shared set of label-blind regions. On region version 2 at ±10, HGB physics reaches 84.5% precision, 90.5% recall and 87.4% F1. An eligible-court-only sensitivity refit reaches 86.3% precision, 89.1% recall and 87.7% F1. The harder acceptance floor remains 89.9% F1 with at least 87.5% precision. A validity-only control must remain clearly below the full model.
 
-Do not start full training on region version 1. Its pooled operational ±10 ceiling is strong at 98.3% for non-serves and 91.4% for serves, but `sset_21` reaches only 93.7% and 80.0%. Build region version 2 first. It must reach at least 97% non-serve coverage and 90% serve coverage at ±10 on every fixture.
+Region version 2 is now measured. Its 45-base-30-frame pre-roll before court-view intervals raises pooled operational ±10 coverage to 98.4% for non-serves and 97.9% for serves. Every fixture passes the 90% serve gate. `sset_21` remains at 93.7% non-serve coverage, below the 97% gate. A bounded BST-X pilot can compare classifiers on this region, but full training and whole-video claims remain blocked until a separate off-court shuttle search is defined.
 
-The tree result also sets the physical controls. HGB physics reached 91.1% non-serve recall and 62.7% serve recall. Adding context raised total recall to 90.4% but lowered precision to 82.7% and F1 to 86.4%. Context-only F1 was 56.8%; missingness-only F1 was 27.9%. The primary BST-X comparison is therefore the physics tree, not the context-added tree.
+The version-2 tree result also sets the physical controls. HGB physics reaches 92.9% non-serve recall and 67.5% serve recall. Adding context lowers F1 to 85.5%. Context-only F1 is 59.1%; missingness-only F1 is 27.5%. The primary BST-X comparison is therefore the physics tree.
 
 Use ShuttleSet for model development. Keep ShuttleSet22 separate for the first cross-dataset test. ShuttleSet22 has the same stroke annotation format and is prepared separately. Holding it out gives a much stronger generalisation result than mixing it into the first training run.
 
@@ -21,7 +21,7 @@ Use ShuttleSet for model development. Keep ShuttleSet22 separate for the first c
 | Contact labels | Positive within ±2 base-30 frames; ignore from 3 to 5; negative from 6 onward | This tolerates small annotation error while still training a narrow peak |
 | Main loss | Mean binary cross-entropy on sampled eligible centre labels | The fixed sampler already controls the class mix |
 | Side output | Separate Top/Bottom logit, supervised only on positive centres | Contact confidence and side confidence can abstain independently |
-| Search | Region version 2, then stride-1 centre scoring | Version 1 fails the per-fixture coverage gate on `sset_21` |
+| Search | Frozen region version 2, then stride-1 centre scoring | The bounded surface fixes serves but still omits 37 `sset_21` non-serves |
 | Peak selection | Held-out logit threshold, local maxima, then temporal NMS | It preserves the strongest frame for each event |
 | Development split | Whole source videos and fixtures | Neighbouring windows from one rally must not cross splits |
 | External test | ShuttleSet22 held out in full | This tests dataset and match generalisation |
@@ -318,17 +318,23 @@ Version 1 expands those seeds within each detected rally span by these base-30 r
 
 Version 1 clears the pooled operational ±10 gate at 98.3% non-serve and 91.4% serve coverage. It fails the per-fixture gate on `sset_21`, at 93.7% and 80.0%. Its hard detected-span boundary is the main restriction.
 
-Build `contact-regions/2` before any BST-X training. Version 2 should:
+The measured `tree-contact-features/2` freeze implements region version 2:
 
 - retain the six version-1 seed definitions and radii
-- emit eligible rows across court-present, non-replay scene intervals rather than only inside detected rally spans
+- emit eligible rows across court-present, non-replay tracker intervals rather than only inside detected rally spans
 - compute relaxed impulse, wrist and visibility seeds across those full eligible intervals
-- add a `serve_lookback` channel covering the first 45 base-30 frames after every court-present scene start and every `tracker_segments` start after the first
-- expand and clamp every region within its eligible scene interval
+- add a `serve_lookback` channel covering the 45 base-30 frames before every eligible interval
+- merge overlapping pre-rolls and clamp them to the source timeline
 
-This allows evidence outside a missed or late-opened rally span without turning the whole broadcast into a search region. Move the frozen version-2 contract into `contact/search.py` rather than maintaining a neural copy.
+The backwards pre-roll is important. A forwards-only window cannot recover a serve shown in a close-up immediately before the court view appears. Move this frozen contract into `contact/search.py` rather than maintaining a neural copy.
 
-Regenerate and freeze the version-2 per-frame feature table, then rerun histogram boosting and random forest unchanged. Region version 2 becomes the single comparison surface only after every fixture clears 97% non-serve and 90% serve operational coverage at ±10. Never compare BST-X on version 2 with tree results from version 1.
+The final freeze contains 130,624 rows and has SHA-256 `4a5efbd6582701a708270a3b273be2d2572bc3753085ec449b7db815dffec722`. Two independent freezes are byte-identical. At ±10, pooled coverage is 98.4% for non-serves and 97.9% for serves. `sset_21` reaches 93.7% and 94.7%. The HGB physics rerun reaches 84.5% precision, 90.5% recall and 87.4% F1.
+
+The tree's “physics” input includes explicit validity masks. Its search intervals also include the non-court serve pre-roll. A court-view-only refit still reaches 87.7% F1, so boundary context does not explain the baseline. Keep the same validity information available to BST-X, but mask context that crosses a scene, replay or source-video boundary.
+
+Use region version 2 as the shared surface for a classifier pilot. Keep the failed `sset_21` non-serve gate explicit. Do not compare a version-2 BST-X score with version-1 tree predictions.
+
+The 37 uncovered `sset_21` non-serves all have visible shuttle evidence within ±10, but no sticky player analysis and no detected rally span. A whole-video relaxed-impulse diagnostic covers every non-serve and 291 of 292 serves, but searches 90.6% of the broadcasts. That is a ceiling check, not the production region. A final whole-video detector needs a stricter shuttle-only fallback with replay rejection, or an RGB scene path for live close-ups.
 
 The generator must not accept ground-truth rows or a scorer callback. Coverage is measured later in `evaluate.py` after the frozen region file has passed its forbidden-field and provenance checks.
 
@@ -444,7 +450,7 @@ required F1 = max(89.9%, version-2 HGB physics F1 + 2.0 points)
 required precision = max(87.5%, version-2 HGB physics precision)
 ```
 
-Also report against the current HGB physics recall breakdown: 88.4% overall, 91.1% non-serve and 62.7% serve. The key comparison is event precision and recall at the selected ±10 operating point, not centre-row accuracy.
+Also report against the version-2 HGB physics breakdown: 90.5% overall recall, 92.9% non-serve recall and 67.5% serve recall. The key comparison is event precision and recall at the selected ±10 operating point, not centre-row accuracy.
 
 ## Implementation stages
 
@@ -531,8 +537,8 @@ Files:
 
 Work:
 
-- build and freeze region version 2 before launching a BST-X training job
-- verify the per-fixture coverage gate and rerun unchanged HGB and RF baselines
+- port and verify the measured region-version-2 contract before launching a BST-X job
+- bind the pilot to the retained region SHA and HGB baseline
 - train one contact-only and one contact-plus-side pilot
 - score merged search regions at stride 1
 - select local maxima and apply temporal NMS
@@ -541,13 +547,17 @@ Work:
 
 Gate:
 
-- every fixture reaches 97% non-serve and 90% serve operational coverage at ±10
+- the region identity and measured ceiling match the retained version-2 result
+- the pilot report states that `sset_21` remains below the non-serve coverage gate
+- no full multi-seed or whole-video claim proceeds until the off-court search path is resolved
 - the scorer reproduces synthetic one-to-one event counts at all three tolerances
 - threshold and NMS selection never read the held-out fixture
 - deterministic tie handling and overlapping-region de-duplication pass
 - raw centre logits can be re-decoded without rerunning inference
 
 ### Stage 4: run the ShuttleSet22 generalisation test
+
+Start this stage only after the off-court search path clears the coverage gate, or after the user explicitly accepts a bounded inside-region generalisation result.
 
 Files:
 
@@ -646,12 +656,14 @@ Use one bounded remote command per stage. Let the training command run to comple
 
 ## Failure and stop criteria
 
-Stop before model training when:
+Stop before full model training when:
 
 - any fixture's version-2 regions remain below 97% non-serve or 90% serve operational coverage at ±10
 - source-to-clip frame alignment is inconsistent
 - more than 1% of otherwise eligible positive contacts fall outside aligned prepared arrays
 - ShuttleSet and ShuttleSet22 masks have incompatible meanings that the adapter cannot state explicitly
+
+The measured version-2 region passes the serve gate but fails the non-serve gate on `sset_21`. One bounded classifier pilot is still useful. Label it as an inside-region comparison, and do not use it for a whole-video claim or a full multi-seed run.
 
 Stop or redesign the model when:
 
@@ -686,8 +698,8 @@ Keep each commit limited to the stage named by its message. Do not mix the exist
 
 This is the first real run after Stages 0 to 3 exist.
 
-1. Build and freeze `contact-regions/2` for `sset_01`, `sset_15` and `sset_21` without loading ground truth.
-2. Score its region ceiling. Continue only when every fixture passes 97% non-serve and 90% serve operational coverage at ±10. Then rerun unchanged HGB and RF baselines on the frozen version-2 centres.
+1. Reuse the verified region-version-2 contract and port it into `contact/search.py`. The isolated tree freeze has already passed its label-blind and reproducibility gates.
+2. Preserve the measured coverage warning: `sset_21` has 93.7% non-serve and 94.7% serve coverage at ±10. Use the pilot only to compare classifiers inside that region.
 3. Build 21-frame ShuttleSet shards from source videos outside all three fixtures. Use positive ±2, ignore through ±5 and four negatives per exact contact.
 4. Run the alignment report and inspect its failed-row list. It must be empty or contain only explicitly ignored unresolved contacts.
 5. Run the CPU 100-example overfit for the full model and validity-only control.
@@ -731,7 +743,8 @@ Before implementation starts, approve or change these choices:
 
 - 21 consecutive frames with centre index 10
 - positive ±2 and ignore through ±5 base-30 frames
-- required region version 2 and per-fixture gates of 97% non-serve and 90% serve at ±10
+- region version 2 with a 45-base-30-frame pre-roll before eligible court-view intervals
+- one bounded classifier pilot despite the known `sset_21` non-serve gate failure; full training remains gated
 - the BST-X target formula, with a current minimum of 89.9% F1 and 87.5% precision at ±10
 - separate contact and optional Top/Bottom heads
 - contact-only versus contact-plus-side as the first head ablation
