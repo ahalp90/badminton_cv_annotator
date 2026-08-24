@@ -32,15 +32,15 @@ from freeze_contact_evidence import (
     _stage_paths,
 )
 
-FEATURE_SCHEMA = "tree-contact-features/1"
-MANIFEST_SCHEMA = "tree-contact-feature-manifest/1"
+FEATURE_SCHEMA = "tree-contact-features/2"
+MANIFEST_SCHEMA = "tree-contact-feature-manifest/2"
 FEATURE_FILENAME = "tree_contact_features.npy.xz"
 MANIFEST_FILENAME = "tree_contact_features_manifest.json"
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
 RELAXED_IMPULSE_MULTIPLE = 1.25
 WRIST_LOCAL_MINIMUM_LIMIT = 3.0
 
-IDENTITY_FIELDS = ("fixture", "span_id", "frame", "fps")
+IDENTITY_FIELDS = ("fixture", "interval_id", "frame", "fps")
 REGION_FIELDS = (
     "region_current_raw",
     "region_relaxed_impulse",
@@ -48,6 +48,7 @@ REGION_FIELDS = (
     "region_visibility",
     "region_rally_start",
     "region_scene_start",
+    "region_serve_lookback",
 )
 BASE_PHYSICS_SIGNALS = (
     "shuttle_vx",
@@ -80,9 +81,9 @@ CONTEXT_FIELDS = (
     "bbox_height_top",
     "bbox_height_bot",
     "standing_count",
-    "span_progress",
-    "distance_from_span_start",
-    "distance_to_span_end",
+    "interval_progress",
+    "distance_from_interval_start",
+    "distance_to_interval_end",
     "distance_from_scene_start",
 ) + REGION_FIELDS
 
@@ -236,6 +237,49 @@ def _local_minima(values: np.ndarray, limit: float, radius: int) -> np.ndarray:
     return minima
 
 
+def build_eligible_intervals(
+    tracker_intervals: Sequence[tuple[int, int]],
+    exclusion_mask: np.ndarray,
+) -> list[tuple[int, int]]:
+    """Split court-present tracker intervals around excluded broadcast frames."""
+    if exclusion_mask.ndim != 1 or exclusion_mask.dtype != np.bool_:
+        raise ValueError("exclusion mask must be a one-dimensional boolean array")
+
+    eligible: list[tuple[int, int]] = []
+    for start, end in tracker_intervals:
+        if not 0 <= start <= end <= len(exclusion_mask):
+            raise ValueError("tracker interval lies outside the exclusion mask")
+        run_start: int | None = None
+        for frame in range(start, end):
+            if not exclusion_mask[frame] and run_start is None:
+                run_start = frame
+            elif exclusion_mask[frame] and run_start is not None:
+                eligible.append((run_start, frame))
+                run_start = None
+        if run_start is not None:
+            eligible.append((run_start, end))
+    return eligible
+
+
+def extend_intervals_with_lookback(
+    eligible_intervals: Sequence[tuple[int, int]],
+    frame_count: int,
+    fps: float,
+) -> list[tuple[int, int]]:
+    """Add a bounded pre-roll before each eligible court-view interval."""
+    lookback = _scaled_frames(45, fps)
+    expanded = [(max(0, start - lookback), end) for start, end in eligible_intervals]
+    merged: list[tuple[int, int]] = []
+    for start, end in expanded:
+        if not 0 <= start < end <= frame_count:
+            raise ValueError("lookback interval lies outside the source timeline")
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def _expand_within_span(seed: np.ndarray, start: int, end: int, radius: int) -> np.ndarray:
     expanded = np.zeros(len(seed), dtype=bool)
     local_seed = seed[start:end]
@@ -248,7 +292,8 @@ def _expand_within_span(seed: np.ndarray, start: int, end: int, radius: int) -> 
 
 def build_region_masks(
     signals: Mapping[str, np.ndarray],
-    spans: Sequence[tuple[int, int]],
+    eligible_intervals: Sequence[tuple[int, int]],
+    rally_spans: Sequence[tuple[int, int]],
     raw_contacts: Sequence[Mapping[str, object]],
     scene_spans: Sequence[tuple[int, int]],
     fps: float,
@@ -257,19 +302,24 @@ def build_region_masks(
     n_frames = len(signals["shuttle_visible"])
     seeds = {name: np.zeros(n_frames, dtype=bool) for name in REGION_FIELDS}
     for row in raw_contacts:
-        seeds["region_current_raw"][int(row["contact_frame"])] = True
+        frame = int(row["contact_frame"])
+        if 0 <= frame < n_frames:
+            seeds["region_current_raw"][frame] = True
     seeds["region_relaxed_impulse"] = (
         np.isfinite(signals["shuttle_impulse_ratio"])
         & (signals["shuttle_impulse_ratio"] >= RELAXED_IMPULSE_MULTIPLE)
     )
-    seeds["region_wrist"] = _local_minima(
-        signals["wrist_gap_min"],
-        WRIST_LOCAL_MINIMUM_LIMIT,
-        radius=_scaled_frames(3, fps),
-    )
+    wrist_radius = _scaled_frames(3, fps)
     visible = signals["shuttle_visible"].astype(bool)
-    seeds["region_visibility"][1:] = visible[1:] != visible[:-1]
-    for start, _end in spans:
+    for start, end in eligible_intervals:
+        seeds["region_wrist"][start:end] = _local_minima(
+            signals["wrist_gap_min"][start:end],
+            WRIST_LOCAL_MINIMUM_LIMIT,
+            radius=wrist_radius,
+        )
+        if end - start > 1:
+            seeds["region_visibility"][start + 1 : end] = visible[start + 1 : end] != visible[start : end - 1]
+    for start, _end in rally_spans:
         seeds["region_rally_start"][start] = True
     for start, _end in scene_spans:
         seeds["region_scene_start"][start] = True
@@ -283,14 +333,22 @@ def build_region_masks(
         "region_scene_start": 15,
     }
     regions = {name: np.zeros(n_frames, dtype=bool) for name in REGION_FIELDS}
-    for start, end in spans:
-        for name in REGION_FIELDS:
+    serve_lookback = _scaled_frames(45, fps)
+    for start, end in eligible_intervals:
+        for name in REGION_FIELDS[:-1]:
             radius = _scaled_frames(radii_base30[name], fps)
             regions[name] |= _expand_within_span(seeds[name], start, end, radius)
+        regions["region_serve_lookback"][max(0, start - serve_lookback) : start] = True
     return regions
 
 
-def _shift_inside_span(values: np.ndarray, frames: np.ndarray, offset: int, start: int, end: int) -> np.ndarray:
+def _shift_inside_interval(
+    values: np.ndarray,
+    frames: np.ndarray,
+    offset: int,
+    start: int,
+    end: int,
+) -> np.ndarray:
     source = frames + offset
     result = np.full(len(frames), np.nan, dtype=np.float32)
     valid = (source >= start) & (source < end)
@@ -309,7 +367,12 @@ def _feature_family_names() -> dict[str, list[str]]:
 
 
 def _record_dtype(feature_families: Mapping[str, Sequence[str]]) -> np.dtype:
-    fields: list[tuple[str, str]] = [("fixture", "S7"), ("span_id", "<i2"), ("frame", "<i4"), ("fps", "<f4")]
+    fields: list[tuple[str, str]] = [
+        ("fixture", "S7"),
+        ("interval_id", "<i2"),
+        ("frame", "<i4"),
+        ("fps", "<f4"),
+    ]
     fields.extend((name, "u1") for name in REGION_FIELDS)
     existing = {name for name, _dtype in fields}
     for family in ("physics", "context", "missingness"):
@@ -321,13 +384,29 @@ def _record_dtype(feature_families: Mapping[str, Sequence[str]]) -> np.dtype:
 
 
 def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, dict[str, Any]]:
-    track, pose, court, _segments, sticky, annotation = _load_inputs(data_root, fixture)
-    spans = annotation.spans
-    signals = _shuttle_signals(track, spans, fixture.fps)
+    from dataset_builder.vision import load_npy_xz
+
+    track, pose, court, tracker_intervals, sticky, annotation = _load_inputs(data_root, fixture)
+    exclusion_path = (
+        Path(data_root) / "stages" / "annotation" / fixture.name / "definitive_exclusion_mask.npy.xz"
+    )
+    exclusion_mask = load_npy_xz(exclusion_path)
+    if exclusion_mask.shape != (len(track),) or exclusion_mask.dtype != np.bool_:
+        raise ValueError(f"{fixture.name}: definitive exclusion mask must match the shuttle timeline")
+    eligible_intervals = build_eligible_intervals(tracker_intervals, exclusion_mask)
+    search_intervals = extend_intervals_with_lookback(eligible_intervals, len(track), fixture.fps)
+    signals = _shuttle_signals(track, search_intervals, fixture.fps)
     signals.update(_player_signals(track, pose.kps, sticky, (fixture.width, fixture.height)))
     signals["standing_count"] = np.asarray(sticky.standing_count, dtype=np.float32)
     signals["sticky_analysed"] = np.asarray(sticky.analysed, dtype=np.float32)
-    regions = build_region_masks(signals, spans, annotation.contacts, court.raw_cuts, fixture.fps)
+    regions = build_region_masks(
+        signals,
+        eligible_intervals,
+        annotation.spans,
+        annotation.contacts,
+        court.raw_cuts,
+        fixture.fps,
+    )
     union = np.zeros(len(track), dtype=bool)
     for region in regions.values():
         union |= region
@@ -335,13 +414,11 @@ def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, di
     dtype = _record_dtype(feature_families)
     chunks: list[np.ndarray] = []
     scene_starts = np.asarray([start for start, _end in court.raw_cuts], dtype=int)
-    for span_id, (start, end) in enumerate(spans):
-        frames = np.flatnonzero(union[start:end]) + start
-        if not len(frames):
-            continue
+    for interval_id, (start, end) in enumerate(search_intervals):
+        frames = np.arange(start, end, dtype=np.int32)
         rows = np.zeros(len(frames), dtype=dtype)
         rows["fixture"] = fixture.name.encode("ascii")
-        rows["span_id"] = span_id
+        rows["interval_id"] = interval_id
         rows["frame"] = frames
         rows["fps"] = fixture.fps
         for name in REGION_FIELDS:
@@ -350,21 +427,21 @@ def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, di
         for signal in BASE_PHYSICS_SIGNALS:
             for offset_base30 in WINDOW_OFFSETS_BASE30:
                 offset = 0 if offset_base30 == 0 else int(math.copysign(_scaled_frames(abs(offset_base30), fixture.fps), offset_base30))
-                rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_span(
+                rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_interval(
                     signals[signal], frames, offset, start, end
                 )
         for signal in BASE_MISSINGNESS_SIGNALS:
             for offset_base30 in WINDOW_OFFSETS_BASE30:
                 offset = 0 if offset_base30 == 0 else int(math.copysign(_scaled_frames(abs(offset_base30), fixture.fps), offset_base30))
-                rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_span(
+                rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_interval(
                     signals[signal], frames, offset, start, end
                 )
 
         for name in ("shuttle_x", "shuttle_y", "ankle_x_top", "ankle_y_top", "ankle_x_bot", "ankle_y_bot", "bbox_height_top", "bbox_height_bot", "standing_count"):
             rows[name] = signals[name][frames]
-        rows["span_progress"] = (frames - start) / max(1, end - start - 1)
-        rows["distance_from_span_start"] = (frames - start) / fixture.fps
-        rows["distance_to_span_end"] = (end - 1 - frames) / fixture.fps
+        rows["interval_progress"] = (frames - start) / max(1, end - start - 1)
+        rows["distance_from_interval_start"] = (frames - start) / fixture.fps
+        rows["distance_to_interval_end"] = (end - 1 - frames) / fixture.fps
         preceding_scene = np.searchsorted(scene_starts, frames, side="right") - 1
         scene_distance = np.full(len(frames), np.nan, dtype=np.float32)
         has_scene = preceding_scene >= 0
@@ -378,7 +455,16 @@ def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, di
     summary = {
         "fixture": fixture.name,
         "frame_count": len(track),
-        "span_count": len(spans),
+        "rally_span_count": len(annotation.spans),
+        "tracker_interval_count": len(tracker_intervals),
+        "tracker_intervals": [list(interval) for interval in tracker_intervals],
+        "eligible_interval_count": len(eligible_intervals),
+        "eligible_intervals": [list(interval) for interval in eligible_intervals],
+        "eligible_frame_count": int(sum(end - start for start, end in eligible_intervals)),
+        "search_interval_count": len(search_intervals),
+        "search_intervals": [list(interval) for interval in search_intervals],
+        "search_frame_count": int(sum(end - start for start, end in search_intervals)),
+        "seeded_frame_count": int(union.sum()),
         "row_count": len(fixture_rows),
         "region_frame_counts": {name: int(regions[name].sum()) for name in REGION_FIELDS},
     }
@@ -411,9 +497,18 @@ def freeze(data_root: Path, output_dir: Path, source_commit: str) -> tuple[Path,
                 "size_bytes": path.stat().st_size,
                 "sha256": _sha256(path),
             })
+        exclusion_path = (
+            Path(data_root) / "stages" / "annotation" / fixture.name / "definitive_exclusion_mask.npy.xz"
+        )
+        files.append({
+            "role": "definitive_exclusion_mask",
+            "filename": exclusion_path.name,
+            "size_bytes": exclusion_path.stat().st_size,
+            "sha256": _sha256(exclusion_path),
+        })
         input_rows.append({"fixture": name, "files": files})
     rows = np.concatenate(fixture_chunks)
-    order = np.lexsort((rows["frame"], rows["span_id"], rows["fixture"]))
+    order = np.lexsort((rows["frame"], rows["interval_id"], rows["fixture"]))
     rows = rows[order]
 
     output_root = Path(output_dir)
@@ -424,6 +519,8 @@ def freeze(data_root: Path, output_dir: Path, source_commit: str) -> tuple[Path,
         "schema": MANIFEST_SCHEMA,
         "feature_schema": FEATURE_SCHEMA,
         "labels_read": False,
+        "row_domain": "eligible tracker intervals plus 45-base-30 serve pre-roll",
+        "model_search_surface": "seeded region union",
         "source_commit": source_commit,
         "fixture_set": list(FIXTURE_SPECS),
         "feature_file": FEATURE_FILENAME,

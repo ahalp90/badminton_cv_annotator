@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import lzma
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,7 +43,7 @@ def test_impulses_keep_the_production_junction_alignment() -> None:
     assert np.isnan(signals["shuttle_impulse"][[2, 15]]).all()
 
 
-def test_broad_regions_stay_inside_each_span_even_when_the_kernel_is_longer() -> None:
+def test_broad_regions_stay_inside_each_eligible_interval() -> None:
     n_frames = 30
     signals = {
         "shuttle_visible": np.ones(n_frames, dtype=np.float32),
@@ -53,7 +54,8 @@ def test_broad_regions_stay_inside_each_span_even_when_the_kernel_is_longer() ->
     signals["wrist_gap_min"][18] = 1.0
     regions = freezer.build_region_masks(
         signals,
-        spans=((10, 14), (17, 21)),
+        eligible_intervals=((10, 14), (17, 21)),
+        rally_spans=((10, 14),),
         raw_contacts=({"contact_frame": 11},),
         scene_spans=((0, 17), (17, 30)),
         fps=30.0,
@@ -64,6 +66,51 @@ def test_broad_regions_stay_inside_each_span_even_when_the_kernel_is_longer() ->
     assert not regions["region_current_raw"][14:].any()
     assert regions["region_wrist"][17:21].all()
     assert not regions["region_wrist"][:17].any()
+    assert regions["region_serve_lookback"][:10].all()
+    assert regions["region_serve_lookback"][14:17].all()
+    assert not regions["region_serve_lookback"][17:21].any()
+
+
+def test_eligible_intervals_split_around_excluded_frames() -> None:
+    exclusion = np.asarray([True, False, False, True, False, False, False, True])
+    intervals = freezer.build_eligible_intervals(((0, 4), (4, 8)), exclusion)
+    assert intervals == [(1, 3), (4, 7)]
+
+
+def test_serve_lookback_is_backward_only_and_clipped() -> None:
+    n_frames = 120
+    signals = {
+        "shuttle_visible": np.ones(n_frames, dtype=np.float32),
+        "shuttle_impulse_ratio": np.full(n_frames, np.nan, dtype=np.float32),
+        "wrist_gap_min": np.full(n_frames, np.nan, dtype=np.float32),
+    }
+    regions = freezer.build_region_masks(
+        signals,
+        eligible_intervals=((10, 80), (90, 110)),
+        rally_spans=(),
+        raw_contacts=(),
+        scene_spans=((0, 90), (90, 120)),
+        fps=30.0,
+    )
+    lookback = regions["region_serve_lookback"]
+    assert lookback[:10].all()
+    assert not lookback[10:45].any()
+    assert lookback[45:90].all()
+    assert not lookback[90:].any()
+
+
+def test_search_intervals_merge_overlapping_serve_lookbacks() -> None:
+    intervals = freezer.extend_intervals_with_lookback(((50, 60), (80, 90)), 100, 30.0)
+    assert intervals == [(5, 90)]
+
+
+def test_feature_offsets_do_not_cross_an_eligible_interval_boundary() -> None:
+    values = np.arange(12, dtype=np.float32)
+    frames = np.asarray([4, 5, 6], dtype=np.int32)
+    shifted = freezer._shift_inside_interval(values, frames, offset=-1, start=5, end=8)
+    assert np.isnan(shifted[0])
+    assert np.isnan(shifted[1])
+    assert shifted[2] == 5
 
 
 def test_player_geometry_follows_current_frame_sticky_picks() -> None:
@@ -89,7 +136,7 @@ def _write_verified_fixture(tmp_path: Path) -> Path:
     dtype = freezer._record_dtype(families)
     rows = np.zeros(3, dtype=dtype)
     rows["fixture"] = [b"sset_01", b"sset_15", b"sset_21"]
-    rows["span_id"] = 0
+    rows["interval_id"] = 0
     rows["frame"] = [10, 20, 30]
     rows["fps"] = [25.0, 25.0, 30.0]
     feature_path = tmp_path / freezer.FEATURE_FILENAME
@@ -99,6 +146,8 @@ def _write_verified_fixture(tmp_path: Path) -> Path:
         "schema": freezer.MANIFEST_SCHEMA,
         "feature_schema": freezer.FEATURE_SCHEMA,
         "labels_read": False,
+        "row_domain": "eligible tracker intervals plus 45-base-30 serve pre-roll",
+        "model_search_surface": "seeded region union",
         "source_commit": "ad8da4f",
         "fixture_set": list(freezer.FIXTURE_SPECS),
         "feature_file": feature_path.name,
@@ -107,6 +156,16 @@ def _write_verified_fixture(tmp_path: Path) -> Path:
         "feature_families": families,
         "identity_fields": list(freezer.IDENTITY_FIELDS),
         "region_fields": list(freezer.REGION_FIELDS),
+        "fixtures": [
+            {
+                "fixture": fixture,
+                "frame_count": 100,
+                "tracker_intervals": [[0, 100]],
+                "eligible_intervals": [[0, 100]],
+                "search_intervals": [[frame, frame + 1]],
+            }
+            for fixture, frame in zip(freezer.FIXTURE_SPECS, (10, 20, 30), strict=True)
+        ],
     }
     manifest_path = tmp_path / freezer.MANIFEST_FILENAME
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -131,8 +190,55 @@ def test_freeze_verification_rejects_a_labelled_or_changed_table(tmp_path: Path)
         scorer.verify_freeze(manifest_path)
 
 
+def test_freeze_verification_rejects_rows_outside_manifest_intervals(tmp_path: Path) -> None:
+    manifest_path = _write_verified_fixture(tmp_path)
+    feature_path = tmp_path / freezer.FEATURE_FILENAME
+    with lzma.open(feature_path, "rb") as source:
+        rows = np.load(source, allow_pickle=False)
+    rows["frame"][0] = 101
+    with lzma.open(feature_path, "wb") as destination:
+        np.save(destination, rows, allow_pickle=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["feature_sha256"] = freezer._sha256(feature_path)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="feature rows differ from search interval"):
+        scorer.verify_freeze(manifest_path)
+
+
+def test_freeze_verification_rejects_wrong_fixture_fps(tmp_path: Path) -> None:
+    manifest_path = _write_verified_fixture(tmp_path)
+    feature_path = tmp_path / freezer.FEATURE_FILENAME
+    with lzma.open(feature_path, "rb") as source:
+        rows = np.load(source, allow_pickle=False)
+    rows["fps"][0] = 30.0
+    with lzma.open(feature_path, "wb") as destination:
+        np.save(destination, rows, allow_pickle=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["feature_sha256"] = freezer._sha256(feature_path)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="feature row fps differs"):
+        scorer.verify_freeze(manifest_path)
+
+
+def test_manifest_intervals_reject_overlaps() -> None:
+    manifest = {
+        "fixtures": [
+            {
+                "fixture": fixture,
+                "frame_count": 20,
+                "tracker_intervals": [[0, 10], [9, 20]] if fixture == "sset_21" else [[0, 20]],
+            }
+            for fixture in freezer.FIXTURE_SPECS
+        ]
+    }
+    with pytest.raises(ValueError, match="overlap"):
+        scorer._manifest_intervals(manifest, "tracker_intervals")
+
+
 def test_training_selection_keeps_positives_ignores_adjacent_frames() -> None:
-    dtype = np.dtype([("fixture", "S7"), ("span_id", "i2"), ("frame", "i4"), ("fps", "f4")])
+    dtype = np.dtype([("fixture", "S7"), ("interval_id", "i2"), ("frame", "i4"), ("fps", "f4")])
     rows = np.zeros(31, dtype=dtype)
     rows["fixture"] = b"sset_21"
     rows["frame"] = np.arange(85, 116)
@@ -156,6 +262,14 @@ def test_temporal_nms_is_per_span_and_keeps_the_strongest_frame() -> None:
     probabilities = np.asarray([0.7, 0.9, 0.8, 0.6])
     kept = scorer.temporal_nms(frames, spans, probabilities, threshold=0.5, radius=3)
     assert set(kept.tolist()) == {1, 3}
+
+
+def test_seeded_region_mask_selects_each_frame_once() -> None:
+    families = freezer._feature_family_names()
+    rows = np.zeros(4, dtype=freezer._record_dtype(families))
+    rows["region_wrist"][[0, 2]] = 1
+    rows["region_serve_lookback"][[1, 2]] = 1
+    assert scorer.seeded_region_mask(rows).tolist() == [True, True, True, False]
 
 
 def test_event_matching_is_one_to_one_and_reports_serve_split() -> None:

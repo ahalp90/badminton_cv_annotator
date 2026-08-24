@@ -33,7 +33,7 @@ from freeze_tree_contact_features import (
     _feature_family_names,
 )
 
-RESULTS_SCHEMA = "tree-contact-results/2"
+RESULTS_SCHEMA = "tree-contact-results/3"
 TOLERANCES_BASE30 = (5, 10, 15)
 POSITIVE_RADIUS_BASE30 = 1
 IGNORE_RADIUS_BASE30 = 4
@@ -112,6 +112,35 @@ def _feature_families(value: object) -> dict[str, list[str]]:
     return parsed
 
 
+def _manifest_intervals(manifest: Mapping[str, Any], field: str) -> dict[str, tuple[tuple[int, int], ...]]:
+    summaries = manifest.get("fixtures")
+    if not isinstance(summaries, list):
+        raise TypeError("feature fixture summaries are malformed")
+    by_fixture: dict[str, tuple[tuple[int, int], ...]] = {}
+    for summary in summaries:
+        if not isinstance(summary, Mapping) or summary.get("fixture") not in FIXTURE_SPECS:
+            raise ValueError("feature fixture summary is malformed")
+        fixture = str(summary["fixture"])
+        frame_count = summary.get("frame_count")
+        raw_intervals = summary.get(field)
+        if not isinstance(frame_count, int) or not isinstance(raw_intervals, list):
+            raise TypeError(f"feature fixture {field} is malformed")
+        intervals: list[tuple[int, int]] = []
+        for value in raw_intervals:
+            if not isinstance(value, list) or len(value) != 2 or not all(isinstance(bound, int) for bound in value):
+                raise ValueError(f"feature fixture {field} is malformed")
+            start, end = value
+            if not 0 <= start < end <= frame_count:
+                raise ValueError(f"feature fixture {field} lies outside the timeline")
+            if intervals and start < intervals[-1][1]:
+                raise ValueError(f"feature fixture {field} overlap")
+            intervals.append((start, end))
+        by_fixture[fixture] = tuple(intervals)
+    if set(by_fixture) != set(FIXTURE_SPECS):
+        raise ValueError("feature fixture summaries differ")
+    return by_fixture
+
+
 def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
     """Verify the label-blind manifest and table before any GT import."""
     manifest_path = Path(manifest_path)
@@ -120,6 +149,10 @@ def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
         raise ValueError("feature manifest schema differs")
     if manifest.get("labels_read") is not False:
         raise ValueError("feature manifest does not prove a label-blind freeze")
+    if manifest.get("row_domain") != "eligible tracker intervals plus 45-base-30 serve pre-roll":
+        raise ValueError("feature row domain differs")
+    if manifest.get("model_search_surface") != "seeded region union":
+        raise ValueError("model search surface differs")
     if manifest.get("fixture_set") != list(FIXTURE_SPECS):
         raise ValueError("feature fixture set differs")
     filename = _relative_filename(manifest.get("feature_file"), "manifest.feature_file")
@@ -136,6 +169,9 @@ def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
         raise ValueError("feature identity fields differ")
     if manifest.get("region_fields") != list(REGION_FIELDS):
         raise ValueError("feature region fields differ")
+    _manifest_intervals(manifest, "tracker_intervals")
+    _manifest_intervals(manifest, "eligible_intervals")
+    search_intervals = _manifest_intervals(manifest, "search_intervals")
 
     with lzma.open(feature_path, "rb") as source:
         rows = np.load(source, allow_pickle=False)
@@ -151,7 +187,19 @@ def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
     fixtures = np.char.decode(rows["fixture"], "ascii")
     if set(fixtures) != set(FIXTURE_SPECS):
         raise ValueError("feature rows contain an unexpected fixture")
-    identities = np.rec.fromarrays([fixtures, rows["span_id"], rows["frame"]])
+    for fixture, (_video_id, fps) in FIXTURE_SPECS.items():
+        fixture_rows = rows[fixtures == fixture]
+        if not np.all(fixture_rows["fps"] == fps):
+            raise ValueError(f"{fixture}: feature row fps differs")
+        intervals = search_intervals[fixture]
+        expected_row_count = sum(end - start for start, end in intervals)
+        if len(fixture_rows) != expected_row_count:
+            raise ValueError(f"{fixture}: feature rows do not cover the search intervals")
+        for interval_id, (start, end) in enumerate(intervals):
+            interval_rows = fixture_rows[fixture_rows["interval_id"] == interval_id]
+            if not np.array_equal(interval_rows["frame"], np.arange(start, end, dtype=np.int32)):
+                raise ValueError(f"{fixture}: feature rows differ from search interval {interval_id}")
+    identities = np.rec.fromarrays([fixtures, rows["interval_id"], rows["frame"]])
     if len(np.unique(identities)) != len(rows):
         raise ValueError("feature frame identities are duplicated")
     return VerifiedFeatures(manifest_path, manifest, rows)
@@ -187,6 +235,14 @@ def _scaled_frames(base30: int, fps: float) -> int:
 
 def _fixture_names(rows: np.ndarray) -> np.ndarray:
     return np.char.decode(rows["fixture"], "ascii")
+
+
+def seeded_region_mask(rows: np.ndarray) -> np.ndarray:
+    """Return rows selected by at least one label-blind region channel."""
+    selected = np.zeros(len(rows), dtype=bool)
+    for field in REGION_FIELDS:
+        selected |= rows[field].astype(bool)
+    return selected
 
 
 def _nearest_distances(frames: np.ndarray, targets: np.ndarray) -> np.ndarray:
@@ -279,15 +335,15 @@ def _make_model(model_name: str) -> Any:
 
 def temporal_nms(
     frames: np.ndarray,
-    spans: np.ndarray,
+    intervals: np.ndarray,
     probabilities: np.ndarray,
     threshold: float,
     radius: int,
 ) -> np.ndarray:
     """Keep the strongest thresholded frame within each temporal neighbourhood."""
     accepted: list[int] = []
-    for span_id in np.unique(spans):
-        local = np.flatnonzero((spans == span_id) & (probabilities >= threshold))
+    for interval_id in np.unique(intervals):
+        local = np.flatnonzero((intervals == interval_id) & (probabilities >= threshold))
         order = sorted(local, key=lambda index: (-probabilities[index], frames[index]))
         kept: list[int] = []
         for index in order:
@@ -392,7 +448,7 @@ def _choose_threshold(
             fixture_rows = rows[fixture_indices]
             kept = temporal_nms(
                 fixture_rows["frame"],
-                fixture_rows["span_id"],
+                fixture_rows["interval_id"],
                 probabilities[fixture_indices],
                 float(threshold),
                 _scaled_frames(NMS_RADIUS_BASE30, FIXTURE_SPECS[fixture][1]),
@@ -470,7 +526,7 @@ def _outer_fold(
     test_rows = rows[test_indices]
     kept = temporal_nms(
         test_rows["frame"],
-        test_rows["span_id"],
+        test_rows["interval_id"],
         test_probabilities,
         threshold,
         _scaled_frames(NMS_RADIUS_BASE30, FIXTURE_SPECS[test_fixture][1]),
@@ -540,51 +596,80 @@ def _aggregate_region_coverage(rows: Sequence[Mapping[str, int | float]]) -> dic
     return totals
 
 
-def _region_ceiling(rows: np.ndarray, ground_truth: GroundTruth) -> dict[str, dict[str, Any]]:
+def _coverage_surface(
+    region_frames_by_fixture: Mapping[str, np.ndarray],
+    ground_truth: GroundTruth,
+) -> dict[str, Any]:
+    by_fixture: dict[str, dict[str, dict[str, int | float]]] = {}
+    for fixture, gt_frames in ground_truth.frames.items():
+        fixture_fps = FIXTURE_SPECS[fixture][1]
+        by_fixture[fixture] = {
+            str(tolerance): _region_coverage(
+                gt_frames,
+                ground_truth.serves[fixture],
+                region_frames_by_fixture[fixture],
+                0 if tolerance == 0 else _scaled_frames(tolerance, fixture_fps),
+            )
+            for tolerance in (0, *TOLERANCES_BASE30)
+        }
+    return {
+        "strict": _aggregate_region_coverage([values["0"] for values in by_fixture.values()]),
+        "operational": {
+            str(tolerance): _aggregate_region_coverage(
+                [values[str(tolerance)] for values in by_fixture.values()]
+            )
+            for tolerance in TOLERANCES_BASE30
+        },
+        "fixtures": by_fixture,
+    }
+
+
+def _region_ceiling(
+    rows: np.ndarray,
+    manifest: Mapping[str, Any],
+    ground_truth: GroundTruth,
+) -> dict[str, dict[str, Any]]:
     names = _fixture_names(rows)
     output: dict[str, dict[str, Any]] = {}
-    region_sets = {"broad_union": tuple(REGION_FIELDS)}
+    region_sets = {"search_intervals": (), "seeded_union": tuple(REGION_FIELDS)}
     region_sets.update({name.removeprefix("region_"): (name,) for name in REGION_FIELDS})
     for label, fields in region_sets.items():
-        by_fixture: dict[str, dict[str, dict[str, int | float]]] = {}
-        for fixture, gt_frames in ground_truth.frames.items():
+        region_frames_by_fixture: dict[str, np.ndarray] = {}
+        for fixture in ground_truth.frames:
             fixture_rows = rows[names == fixture]
-            in_region = np.zeros(len(fixture_rows), dtype=bool)
+            in_region = np.ones(len(fixture_rows), dtype=bool) if not fields else np.zeros(len(fixture_rows), dtype=bool)
             for field in fields:
                 in_region |= fixture_rows[field].astype(bool)
-            region_frames = np.sort(fixture_rows["frame"][in_region])
-            fixture_fps = FIXTURE_SPECS[fixture][1]
-            by_fixture[fixture] = {
-                str(tolerance): _region_coverage(
-                    gt_frames,
-                    ground_truth.serves[fixture],
-                    region_frames,
-                    0 if tolerance == 0 else _scaled_frames(tolerance, fixture_fps),
-                )
-                for tolerance in (0, *TOLERANCES_BASE30)
-            }
-        output[label] = {
-            "strict": _aggregate_region_coverage([values["0"] for values in by_fixture.values()]),
-            "operational": {
-                str(tolerance): _aggregate_region_coverage(
-                    [values[str(tolerance)] for values in by_fixture.values()]
-                )
-                for tolerance in TOLERANCES_BASE30
-            },
-            "fixtures": by_fixture,
-        }
+            region_frames_by_fixture[fixture] = np.sort(fixture_rows["frame"][in_region])
+        output[label] = _coverage_surface(region_frames_by_fixture, ground_truth)
+
+    tracker_intervals = _manifest_intervals(manifest, "tracker_intervals")
+    tracker_frames = {
+        fixture: np.concatenate([np.arange(start, end, dtype=np.int32) for start, end in intervals])
+        for fixture, intervals in tracker_intervals.items()
+    }
+    output["court_present_tracker_intervals"] = _coverage_surface(tracker_frames, ground_truth)
+    eligible_intervals = _manifest_intervals(manifest, "eligible_intervals")
+    eligible_frames = {
+        fixture: np.concatenate([np.arange(start, end, dtype=np.int32) for start, end in intervals])
+        for fixture, intervals in eligible_intervals.items()
+    }
+    output["eligible_intervals"] = _coverage_surface(eligible_frames, ground_truth)
     return output
 
 
 def score(verified: VerifiedFeatures) -> dict[str, Any]:
     ground_truth = _load_ground_truth()
+    model_rows = verified.rows[seeded_region_mask(verified.rows)]
     output: dict[str, Any] = {
         "schema": RESULTS_SCHEMA,
         "source_commit": verified.manifest["source_commit"],
         "feature_sha256": verified.manifest["feature_sha256"],
         "row_count": len(verified.rows),
+        "model_row_count": len(model_rows),
+        "model_search_surface": "seeded_union",
         "ground_truth_rallies": ground_truth.rally_count,
-        "region_ceiling": _region_ceiling(verified.rows, ground_truth),
+        "region_ceiling": _region_ceiling(verified.rows, verified.manifest, ground_truth),
         "models": {},
         "training": {
             "positive_radius_base30": POSITIVE_RADIUS_BASE30,
@@ -602,7 +687,7 @@ def score(verified: VerifiedFeatures) -> dict[str, Any]:
             folds = []
             for test_fixture in FIXTURE_SPECS:
                 fold, fold_predictions = _outer_fold(
-                    verified.rows,
+                    model_rows,
                     test_fixture,
                     ground_truth,
                     feature_names,
