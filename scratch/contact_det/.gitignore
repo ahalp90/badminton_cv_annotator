@@ -6,3 +6,8 @@
 !freeze_contact_evidence.py
 !score_contact_evidence.py
 !test_contact_evidence.py
+!freeze_tree_contact_features.py
+!score_tree_contact_detector.py
+!test_tree_contact_detector.py
+!tree_contact_detector_results.md
+!bst_x_contact_detector_plan.md
