@@ -8,11 +8,13 @@ At the useful 10-frame tolerance, the noisy raw list finds 2,377 of 2,836 later 
 
 At 15 frames, the raw list still misses 376 later contacts and 76 serves. Extra noise is not enough to give complete coverage.
 
-The ankle-height rule does not repair player attribution in these fixtures. It gives almost exactly the same answer as the current box-and-net rule. Direct player-side attribution is already about 89% accurate on matched final contacts at the 10-frame tolerance. The poor rally-level result mainly comes from missed contacts upsetting the expected Top/Bottom alternation.
+The ankle-height rule does not repair player attribution in these fixtures. It gives almost exactly the same answer as the current box-and-net rule. Direct player-side attribution is already about 89% accurate on matched final contacts at the 10-frame tolerance. The much lower rally-level result is consistent with missed contacts upsetting the expected Top/Bottom alternation.
 
 ## What is being measured
 
 The three fixtures are `sset_01`, `sset_15`, and `sset_21`. Together they contain 292 rallies and 3,128 labelled strokes.
+
+The serve is the first labelled stroke in each rally. The other 2,836 strokes are reported as later contacts or non-serves.
 
 Frame tolerances are scaled from a 30 fps base. A tolerance of 10 therefore means 8 frames in the 25 fps fixtures and 10 frames in the 30 fps fixture.
 
@@ -37,6 +39,10 @@ The raw proposals are not completely unconstrained. They only exist inside detec
 The measurement uses saved artefacts from the current `ad8da4f` pipeline run. The prediction save was made twice and the files were byte-for-byte identical. GT was opened only after the saved evidence and its checksum were verified.
 
 There are 6,170 raw proposals. The current wrist and suppression filters leave 3,706.
+
+![The old proposals remain incomplete even with a loose tolerance. Region v2 removes most of that search ceiling.](contact_coverage.png)
+
+The detailed region-v2 evaluation is in the [tree trial report](tree_contact_detector_results.md).
 
 ### Raw, noisy proposals
 
@@ -91,7 +97,7 @@ A looser question asks whether any prediction is near the serve, without one-to-
 
 Those numbers are not PR88's own serve-selection result. At the 10-frame tolerance, PR88 chose the correct visible start in 132 of 239 rallies. It got both that visible start and the server side right in 117. The rule can therefore infer the right server side from the wrong contact, and the two scores must stay separate.
 
-The linked GitHub PR97 later tested the frozen PR88 rule on held-out videos. PR88 tied the older rule on overall server accuracy and became worse on one of the two held-out videos. The useful part of PR97 is its clean separation between saved predictions and later GT scoring, not the serve rule itself.
+[PR97](https://github.com/ahalp90/badminton_cv_annotator/pull/97) later tested the frozen PR88 rule on held-out videos. PR88 tied the older rule on overall server accuracy and became worse on one of the two held-out videos. The useful part of PR97 is its clean separation between saved predictions and later GT scoring, not the serve rule itself.
 
 ## How player attribution works now
 
@@ -126,6 +132,8 @@ The same rally alternation fit is then applied to the ankle guesses. This makes 
 
 The rule barely changes the result.
 
+![Both geometry rules are strong on directly matched contacts and weak after fitting one alternating phase across each rally.](player_side_accuracy.png)
+
 Across all 3,706 final contact candidates:
 
 - the current and ankle rules give the same answer on 3,680;
@@ -140,9 +148,11 @@ On the 2,481 final contacts matched at the 10-frame tolerance:
 | Current box-and-net rule | 2,207 / 2,480 | 89.0% | 2,480 / 2,481 |
 | Ankle-height rule | 2,208 / 2,481 | 89.0% | 2,481 / 2,481 |
 
+“Correct player side” means that the predicted Top/Bottom side agrees with ShuttleSet's `player_side` label for the temporally matched stroke.
+
 Only four matched contacts have one usable player detection. Both rules get two of the four right. That is too small a group to support a strong claim about the one-player fallback.
 
-The final rally fit remains poor:
+The final rally fit remains poor. Each denominator is the number of 292 rallies for which that rule's alternation fit produced a side answer. The two fits can abstain on different rallies, so the current and ankle denominators differ.
 
 | Rally-level result | Current rule | Ankle-height rule |
 | --- | ---: | ---: |
@@ -150,7 +160,9 @@ The final rally fit remains poor:
 | Server side | 148 / 228 (64.9%) | 145 / 226 (64.2%) |
 | Rallies with an answer | 228 / 292 (78.1%) | 226 / 292 (77.4%) |
 
-This gap explains why contact-player attribution can look woeful even though the direct side call is usually right. The rally cleanup assumes strict Top/Bottom alternation. If a contact is missed, every later odd/even position can move to the wrong phase. Changing box feet to ankles does not repair that missing-contact problem.
+This gap explains why contact-player attribution can look woeful even though the direct side call is usually right. The rally cleanup assumes strict Top/Bottom alternation. A missed contact can move every later odd/even position to the wrong phase. Changing box feet to ankles does not improve the result.
+
+The result supports missed-contact parity as a likely cause, but it does not measure that cause directly. A complete-contact alternation ablation would be needed to separate missing contacts from errors in the alternation rule itself.
 
 ## Scene cuts and serve lookback
 
@@ -169,3 +181,5 @@ An offscreen or broadcast-omitted contact has no exact visible impact to recover
 The PR88 table is historical and covers 239 of the 292 fixture rallies. It is useful evidence, but it is not a substitute for the current full-fixture raw-proposal measurement.
 
 The direct player-side score covers contacts that received a temporal GT match. It does not say that a side was correct for proposals that missed the real contact.
+
+The figures are generated by `plot_contact_det_reports.py` from the retained contact score and region-v2 result files.

@@ -1,140 +1,92 @@
 # Binary contact detector options
 
-## Short answer
+## Recommendation
 
-The boosted-tree trial is complete. Histogram boosting over physical features reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10 on the corrected search region. It remains the cheap baseline.
+Use histogram gradient boosting as the reference and test BST-X next. Keep X3D-S for a later experiment if BST-X shows that pose and shuttle evidence are insufficient.
 
-Try BST-X next. BST-X already uses pose, shuttle and player position. It is a better fit than X3D-S for a first learned contact detector because its inputs and most of its data path already exist.
+The tree trial is complete. Across three leave-one-fixture-out folds, HGB with physical features and validity masks reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10 base-30 frames. Random forest is worse and needs no further tuning.
 
-Keep X3D-S as the next source of genuinely new evidence. RGB can see the racket, body motion and broadcast context that the numeric inputs omit. It also needs a new RGB data path and careful crop handling, so it is the easiest option to lose time on before we know whether RGB is needed.
+BST-X is the most practical neural step because its pose, shuttle and court inputs already exist. X3D-S could add racket and body-motion evidence from RGB, but it first needs a frame-exact RGB and crop pipeline.
 
-All three models should solve the same small problem. Simple rules make short search regions. The learned model scores each possible centre frame inside those regions. Nearby hits are reduced to the frame with the strongest contact score.
+## The comparison
 
-The measured region now includes 45 base-30 frames before each eligible court-view interval. Its ±10 ceiling is 98.4% for non-serves and 97.9% for serves overall. `sset_21` remains lower at 93.7% and 94.7%. A whole-video relaxed-impulse fallback can cover nearly everything, but it searches 90.6% of the broadcasts and is not a useful pose-model boundary.
+| Model | Evidence | New work | Current status |
+| --- | --- | --- | --- |
+| Histogram boosting | Hand-built shuttle, wrist, ankle and validity features | None for the baseline | Measured at 87.4% F1 |
+| BST-X | Consecutive pose, shuttle and court sequences | Contact-centred windows, validity masks and a contact head | Recommended next pilot |
+| X3D-S | Cropped RGB sequence | Decoder, court crops, alignment and temporal contact output | Hold until RGB is justified |
 
-The regions cannot come only from today's raw shuttle-impulse proposals. At the 10-frame tolerance, those proposals cover 83.8% of later contacts and 66.1% of serves. That is the highest recall any scorer could reach if it never looks elsewhere.
+All three models should score the same label-blind region-v2 centres: every frame selected by at least one frozen seed channel. An eligible court-view interval has active court tracking and a clear definitive exclusion mask. Region v2 also adds a backwards 45-base-30-frame pre-roll outside each interval. Before model scoring, this surface contains a centre within ±10 of 2,790/2,836 non-serves (98.4%) and 286/292 serves (97.9%). `sset_21` remains the limiting fixture; the exact coverage and failure audit are in the [tree trial report](tree_contact_detector_results.md).
 
-## The shared search method
+## Shared detector shape
 
-There is little reason to slide a learned model across every frame of a match. The current shuttle impulse and player checks already provide useful priors about where a contact may be.
+1. Build short regions from relaxed shuttle impulse, wrist evidence, visibility changes, rally starts, scene starts and the serve pre-roll.
+2. Score every possible centre frame inside the merged regions.
+3. Select local peaks above a threshold, then apply temporal NMS.
+4. Choose thresholds and suppression distance using only inner validation videos from the two training fixtures. Keep the outer test fixture untouched.
 
-A practical search is:
+The regions and model inputs must remain label-blind during evaluation. Ground truth can label frozen centres and tune development settings. It cannot add a region that the runtime search missed.
 
-1. Keep every plausible shuttle-impulse proposal, including proposals that the final rule currently suppresses.
-2. Add other cheap region seeds: wrist-motion peaks, relaxed impulse peaks, shuttle loss or return, and suspected serves near a scene or rally start.
-3. Make a short search region around each seed and merge overlaps.
-4. Score a tightly centred window at each frame in that region.
-5. Find local score peaks.
-6. When nearby peaks appear to be the same contact, keep the strongest one.
+## Option 1: histogram boosting
 
-Use temporal NMS over a tree probability or neural-network logit. Set each model's threshold on held-out videos before comparing them.
+The tree converts each candidate centre into one numeric row. The measured physical row includes:
 
-The deduplication distance needs to be tuned on held-out rallies. It should not simply equal the whole input-window width. A wide input window can contain useful lead-in and follow-through while two real contacts may still occur closer together than that width.
+- shuttle visibility, speed, direction change and impulse strength
+- distance and relative position between the shuttle and each wrist
+- wrist and ankle motion at nearby frame offsets
+- explicit shuttle, pose and player validity flags
 
-The proposal rules must remain label-blind at test time. Ground truth can set search widths and thresholds on development videos, but it cannot add a missed region during evaluation.
+Absolute image position, player size, interval progress, scene timing and proposal-source flags were excluded from the best model.
 
-## Option 1: boosted tree or random forest
+HGB is the useful tree. On the same version-2 rows, random forest reaches 84.6% F1. Adding context lowers HGB to 85.5% F1. Context-only and missingness-only controls are far weaker, so the headline result is not explained by broadcast timing alone.
 
-A tree model can score a candidate centre frame from a fixed row of numeric features. The row can include the centre frame, several nearby offsets, and short-window summaries.
+The [tree trial report](tree_contact_detector_results.md) contains the exact per-fixture results, controls and boundary sensitivity. The remaining limitation is structural: a tree only sees the temporal differences and offsets supplied as features. It does not learn motion directly from the sequence.
 
-Useful inputs already exist:
+## Option 2: BST-X contact detector
 
-- shuttle visibility, position, speed, direction change and impulse strength;
-- the local impulse floor and the ratio above that floor;
-- shuttle distance to each wrist, scaled by body height;
-- pose visibility and missing-data flags;
-- wrist, ankle and player-box positions;
-- distance from each player to the net band and court edges;
-- the current wrist and proximity rule results;
-- whether the current proposal was suppressed, kept only as an optional record of the old rule rather than a core input;
-- distance from a scene cut, rally start, shuttle gap or tracking reset;
-- values from a few frames before and after the proposed centre.
+BST-X already accepts two-player pose, shuttle position and player court position over time. That makes it the cleanest test of whether learned temporal physical evidence can beat the tree.
 
-Missing-data flags matter. A missing shuttle or wrist is not the same as a measured coordinate of zero.
+The current BST-X is a whole-clip shot classifier. A contact detector needs:
 
-### Random forest or boosted tree?
+- consecutive contact-centred source frames rather than resampled stroke clips
+- explicit pose, shuttle and source-frame validity masks
+- a temporal contact output or one contact score for the proposed centre
+- a separate Top/Bottom side output that may abstain
 
-Use histogram gradient boosting as the main tree baseline. Boosting is usually better at combining many weak, related clues such as impulse strength, wrist distance and visibility. A random forest is still worth running as a check because it is forgiving and needs little tuning.
+Changing the present 14-class head to a binary head is not enough. The current loader also zero-fills missing pose and discards shuttle visibility. Those missing values must become explicit masks.
 
-The current environment has scikit-learn 1.8 with both models. It does not have XGBoost, LightGBM or CatBoost. There is no need to add one of those packages for this test.
-
-The tree baseline has three strong advantages:
-
-- it uses data the pipeline already computes;
-- training and inference are cheap;
-- feature importance and reruns with feature groups removed can show whether the gain came from shuttle motion, player evidence, scene context or an accidental shortcut.
-
-Its main limit is also clear. Trees do not learn motion directly from a sequence. We must give them useful temporal differences, offset samples and window summaries. They may also learn a particular camera layout unless the split and coordinate normalisation are careful.
-
-## Option 2: BST-X with a contact output
-
-BST-X is the most practical neural model for the existing evidence. It already accepts two-player pose, shuttle position and player court position over time.
-
-The present BST-X is a clip classifier. It reduces the whole clip to three summary vectors and emits one shot-class result. A contact detector therefore needs more than changing the last layer from 14 classes to two. It needs:
-
-- short contact-centred training windows;
-- a time-aligned contact output, or one score for each proposed centre;
-- contact-frame labels and an ignore flag for invisible or uncertain contacts;
-- explicit pose and shuttle visibility inputs;
-- a training loss for contact rather than stroke type.
-
-The current data loader uniformly resamples a whole stroke clip when the clip is too long. Setting its sequence length to 20 would not make a 20-frame contact window. The window builder must select consecutive source frames around a candidate centre.
-
-The model is small. With the repository's current 17-joint plus bone input and 14-class head, it has about 1.84 million parameters at 20 or 39 frames. A binary contact version would be similar. The forward pass is cheap enough that sliding over a short proposal region is reasonable.
-
-BST-X's largest data problem is missing evidence. The current prepared arrays zero-fill failed pose frames. They also discard shuttle visibility, so a missing shuttle becomes `(0, 0)`. A contact model must keep the visibility flags instead of asking the network to guess what zero means.
+The model is small enough to score every centre in the bounded regions. The [BST-X contact detector plan](bst_x_contact_detector_plan.md) contains the checked parameter count, exact window and label design, ShuttleSet22 split, tests and acceptance rule.
 
 ## Option 3: X3D-S over cropped RGB
 
-X3D-S adds information that the other two models cannot see: racket motion, body motion, a shuttle blur that TrackNet missed, and broadcast context. For this contact detector, a court crop with a small buffer is a sensible first RGB view. This is separate from the repository's planned wrist-crop X3D-S stroke classifier.
+X3D-S adds evidence the numeric models cannot see: racket motion, body motion, shuttle blur and broadcast view context. A detected-court crop with a small buffer is a sensible first RGB view.
 
-The cost is mostly in the data path, not the forward pass. The repository does not currently have an X3D implementation or a contact-centred RGB dataset. It would need:
+The forward pass is not the main risk. The repository still needs:
 
-- frame-exact RGB decoding;
-- a saved court crop and crop-validity record;
-- contact-centred windows and labels;
-- handling for scene changes and missing court views;
-- a temporal contact output instead of the standard clip-classification output;
-- tests for frame alignment between RGB, shuttle and pose.
+- frame-exact RGB decoding
+- saved crop geometry and crop-validity masks
+- alignment between RGB, pose, shuttle and labels
+- handling for scene changes and missing court views
+- a temporal contact output rather than a whole-clip class
 
-The official PyTorchVideo X3D-S model uses 13 sampled frames at a sample rate of 6. It is listed at 3.79 million parameters and 2.96 GFLOPs per view. Its standard head pools over space and time to produce one clip result. A stride-1 contact detector is therefore a real fine-tuning change, not just a different call to the stock model. See the [official model table](https://github.com/facebookresearch/pytorchvideo/blob/main/docs/source/model_zoo.md) and [official X3D code](https://github.com/facebookresearch/pytorchvideo/blob/main/pytorchvideo/models/x3d.py).
+The official PyTorchVideo X3D-S uses 13 sampled frames at a sample rate of 6. It is listed at 3.79 million parameters and 2.96 GFLOPs per view. Its standard head pools over space and time. A stride-1 detector is therefore a real fine-tuning change. See the [official model table](https://github.com/facebookresearch/pytorchvideo/blob/main/docs/source/model_zoo.md) and [official X3D code](https://github.com/facebookresearch/pytorchvideo/blob/main/pytorchvideo/models/x3d.py).
 
-A roughly 20-frame stride-1 window is a reasonable experiment, but the exact width should be treated as a measured choice. The window must be tight enough that the label refers to one contact. It must still show enough lead-in to recognise a serve or a partly hidden hit.
+A roughly 20-frame window of consecutive source frames at stride 1 remains a reasonable first test. The exact width should be chosen on held-out data.
 
-## Labels and negative examples
+## Labels and evaluation
 
-Use one contact score and a separate Top/Bottom score. “No contact” should come from the contact threshold, not from forcing Top, Bottom and None into one three-way choice. The side score can abstain when player evidence is missing or weak.
+Use one contact score and a separate Top/Bottom score. A low contact score means no contact. Weak or missing side evidence means the side head abstains.
 
-The training set needs several kinds of negatives:
+Training needs quiet negatives, failed heuristic proposals, swings without contact, offsets around real contacts, and scene or visibility failures. Use positives within ±2 base-30 frames and ignore offsets 3 to 5. A visible positive takes priority over every ignore band. Sample a centre as negative only when it is at least 6 base-30 frames from every contact.
 
-- easy quiet frames;
-- raw impulse proposals rejected by the current player checks;
-- suppressed neighbouring proposals;
-- racket swings and player motion without contact;
-- offsets before and after a real contact;
-- scene-cut and visibility failures that look tempting to the rules.
+Use whole-video splits for this experiment. Neighbouring windows cannot be split randomly because they contain nearly identical frames.
 
-Offsets near a labelled contact need an ignore band. The source label may be a frame or two late, and a model should not be punished for placing its peak slightly closer to the visible impact.
+Treat an offscreen or broadcast-omitted impact as an ignored interval with no contact or side loss. A model may infer a likely serve region from the lead-in, but it should not be trained to claim that the unseen impact is visible.
 
-A sensible first labelling rule is positive within about two frames of a reviewed contact, then an ignored band before clear negatives begin. Offset negatives must also be checked against every other contact in the rally.
+## Next step
 
-Split by whole video, or at least by whole match section. Randomly splitting neighbouring windows would put almost identical frames in training and validation and give a misleading result.
+Run one bounded BST-X pilot on the same frozen region, leave-one-fixture-out folds, event matcher and temporal NMS as HGB. Require pooled F1 of at least 89.9% and precision of at least 87.5% at ±10 before expanding the experiment.
 
-For an offscreen or broadcast-omitted serve, use an unknown label when the exact frame cannot be supported by the video. A scene-cut lookback rule may still propose a likely serve region. No model should be trained to claim that it saw an invisible impact.
+Contact event quality decides whether the pilot expands. Report side accuracy and answer coverage separately; the side head is auxiliary because direct geometry already reaches about 89% on matched contacts.
 
-## Completed tree experiment
-
-1. Candidate regions and per-frame features were frozen twice without GT; both outputs are byte-identical.
-2. GT was added only after verification for labels, grouped splits and coverage scoring.
-3. HGB and RF were compared on identical rows with physics, context and missingness controls.
-4. HGB physics is the best tree. RF needs no further tuning.
-5. The remaining classifier question is whether BST-X can beat HGB on the same centres.
-6. The separate search question is how to admit shuttle-visible live close-ups without admitting most replay and cutaway footage.
-
-The [tree trial report](tree_contact_detector_results.md) has the full numbers and region limits.
-
-## Recommendation
-
-For the next detector experiment, keep histogram boosting as the reference and test BST-X inside the same frozen region. Do not run another random-forest sweep.
-
-Between the two neural choices, use BST-X first. It fits the data already present and needs less new setup. Use X3D-S when the measured failures show that pose and shuttle evidence are insufficient, especially for unusual serves, racket-only cues and difficult broadcast views.
+If BST-X misses the contact thresholds, stop after the pilot and inspect the errors. Build X3D-S only when the remaining in-region failures cluster around visible racket/body evidence or view types that the numeric inputs cannot represent. Handle uncovered off-court contacts as a separate search problem.

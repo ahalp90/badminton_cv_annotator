@@ -2,11 +2,11 @@
 
 ## Bottom line
 
-Region version 2 fixes most of the serve search problem. It searches ordinary physical seeds across court-view intervals and adds 45 base-30 frames before each interval for serves shown just before a broadcast cut. At ±10, the region contains 98.4% of non-serves and 97.9% of serves.
+Region version 2 substantially raises pooled serve coverage. It searches ordinary physical seeds across court-view intervals and adds 45 base-30 frames before each interval for serves shown just before a broadcast cut. At ±10, the region contains 98.4% of non-serves and 97.9% of serves.
 
 `sset_21` still limits the result. Its region contains 93.7% of non-serves and 94.7% of serves at ±10. All 37 missing non-serves have a visible shuttle nearby, but no usable sticky player evidence and no detected rally span. A wider shuttle-only search could reach them, but the simple version covers about 91% of the whole broadcast and admits replay noise.
 
-Histogram boosting remains the best tree. With physical features and validity masks on region v2, it reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10. Non-serve recall is 92.9%; serve recall is 67.5%. This gains recall over region v1, but loses half an F1 point because of the extra search noise.
+Histogram boosting remains the best tree. With physical features and validity masks on region v2, it reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10. Non-serve recall is 92.9%; serve recall is 67.5%. Against region v1, version 2 trades 3.0 precision points for 2.1 recall points.
 
 The sensible next step is a BST-X pilot on the same frozen region. Keep the tree as the cheap baseline. Treat the missing off-court `sset_21` contacts as a separate search problem rather than tuning the tree around them.
 
@@ -50,15 +50,30 @@ At ±10, the fixture split is:
 
 The pre-roll is doing real work. Without it, `sset_15` serve coverage is 95.2% and `sset_21` serve coverage is 82.7% at ±10.
 
+### `sset_21` miss audit
+
+The following table counts the 37 `sset_21` non-serves still outside region v2 at ±10.
+
+| Evidence within ±10 of the labelled contact | Missed contacts meeting the condition |
+| --- | ---: |
+| Shuttle visible | 37 / 37 |
+| Sticky player frame analysed | 0 / 37 |
+| Player pick available | 0 / 37 |
+| Inside a detected rally span | 0 / 37 |
+
+The common failure is therefore a shuttle-visible frame outside both court tracking and the detected rally spans. A wider pose search cannot add player evidence that is absent.
+
 ### The deliberately noisy ceiling
 
 As a diagnostic, the same relaxed impulse rule was run across each entire video with no court, replay or rally boundary. Its ±15 expansion covers 366,048 of 404,229 source frames, or 90.6% of the broadcasts. At ±10 it contains every non-serve and 291 of 292 serves.
 
-That answers the pure ceiling question: the saved shuttle track can seed almost every contact if noise is allowed to become extreme. It is not a useful shared search region yet. It would score most replay, close-up and between-rally footage and would give the pose model mostly missing player inputs.
+That answers the pure ceiling question: the saved shuttle track can seed almost every contact if noise is allowed to become extreme. It is not a useful shared search region yet. It does not exclude replay, close-up or between-rally footage, and it gives the pose model mostly missing player inputs.
 
 ## Main tree result
 
 The physical input contains shuttle motion and impulse, player–shuttle wrist gaps, relative wrist position, ankle motion and explicit validity masks. It excludes absolute image position, player size, interval progress, scene timing and proposal-source flags.
+
+![Left: the four main tree variants at ±10. Right: the chosen HGB physical model by held-out fixture. The sset_21 serve result is the clearest weakness.](tree_trial_summary.png)
 
 | Margin | Precision | Recall | F1 | Non-serve recall | Serve recall | Median error |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -117,7 +132,7 @@ The main table should still be read as physical features plus explicit validity 
 
 ## Recommendation
 
-Use region v2 for the next bounded classifier comparison. Its serve pre-roll should remain exactly as a backwards window before the court view. A forwards-only window misses the close-up lead-in it is meant to recover.
+Use region v2 for the next bounded classifier comparison. Keep the serve pre-roll as a backwards window because its purpose is to inspect the close-up lead-in before the court view begins. A forward window starts after that evidence.
 
 Keep HGB physics as the cheap baseline. Do not tune the random forest further. For a same-region comparison, BST-X needs to beat the version-2 HGB result of 87.4% F1. The existing plan's harder acceptance floor remains sensible: 89.9% F1 with at least 87.5% precision at ±10.
 
@@ -129,7 +144,7 @@ Before claiming a final detector, add a separate search path for shuttle-visible
 
 There are only three fixture videos. Leave-one-fixture-out prevents direct frame leakage, but it remains a small in-domain test.
 
-All 37 uncovered `sset_21` non-serves have visible shuttle evidence within ±10. None has sticky player analysis or lies in a detected rally span. This is a search and missing-input problem before it is a classifier problem.
+The `sset_21` miss audit above supports a search and missing-input diagnosis. It does not show whether an RGB view model can reliably separate live close-ups from replay.
 
 The negative sampler uses fixture ground truth only after the label-blind freeze. That is correct for supervised fitting. ShuttleSet22 is still needed before treating a threshold as portable.
 
@@ -146,5 +161,6 @@ The tracked scripts are:
 - `freeze_tree_contact_features.py`
 - `score_tree_contact_detector.py`
 - `test_tree_contact_detector.py`
+- `plot_contact_det_reports.py`
 
 Focused Ruff and pytest results, whole-repository gates and the read-only audit are recorded in the ignored worklog. The scorer now also verifies that every saved row matches its declared search interval and fixture frame rate.

@@ -1,75 +1,45 @@
 # Contact detection feasibility
 
-## Bottom line
+## Decision
 
-The current pipeline does not find every contact. This remains true when every noisy raw proposal is kept.
+Use histogram gradient boosting as the cheap baseline, then test BST-X on the same frozen search region. Keep X3D-S for later, when a measured failure shows that RGB would add evidence the shuttle and pose inputs cannot provide.
 
-At the useful 10-frame tolerance, the raw proposals find 83.8% of non-serve contacts and 66.1% of serves. At 15 frames they find 86.7% and 74.0%. A learned model that only searches around existing proposals therefore has a hard ceiling unless the proposal regions are widened or another way of making regions is added.
+The current raw proposals are too narrow for any sliding classifier. At ±10 base-30 frames, they cover 83.8% of non-serves and 66.1% of serves. Region v2 raises the pooled operational ceiling to 98.4% and 97.9%. This ceiling means that the frozen search surface contains a centre within ±10 of the contact; it is not model recall. `sset_21` remains the limiting fixture at 93.7% and 94.7%.
 
-The simple ankle-height player rule gives almost the same result on these fixtures. Direct player-side attribution is already about 89% accurate on matched final contacts. The bad rally-level result comes mainly from fitting a strict Top/Bottom alternation after contacts have been missed.
+The best tree uses physical features plus validity masks. Its pooled leave-one-fixture-out result is 84.5% precision, 90.5% recall and 87.4% F1 at ±10. BST-X should use the same region, event matching and temporal NMS. Its acceptance target is 89.9% F1 with at least 87.5% precision.
 
-The tree trial is now complete. Histogram gradient boosting over physical features reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10 on region version 2. Use it as the cheap baseline. BST-X is the next classifier experiment. Build X3D-S later when the remaining failures show a real need for RGB.
+## Results at a glance
 
-## Contact coverage
+| Question | Answer | Main evidence |
+| --- | --- | --- |
+| Do the current proposals find every contact? | No | Raw coverage at ±10: 83.8% non-serve, 66.1% serve |
+| Does a broader search built without GT fix the pooled ceiling? | Almost | Region v2 at ±10: 98.4% non-serve, 97.9% serve |
+| Is player-side geometry the main attribution problem? | No | Current and ankle rules are both 89.0% accurate on directly matched contacts |
+| Which tree is worth keeping? | Histogram boosting | 84.5% precision, 90.5% recall, 87.4% F1 at ±10 |
+| What should run next? | BST-X | It already uses the available pose, shuttle and court inputs |
 
-The three fixtures contain 292 rallies and 3,128 labelled contacts: 292 serves and 2,836 later contacts.
+“Serve” means the first contact in a rally. “Non-serve” means every later contact. A ±10 base-30 tolerance is eight frames in the 25 fps fixtures and ten frames in the 30 fps fixture.
 
-| Proposal list | Allowed error | Serves found | Later contacts found | Unmatched proposals |
-| --- | ---: | ---: | ---: | ---: |
-| Raw and noisy | 5 | 144 / 292 (49.3%) | 2,206 / 2,836 (77.8%) | 3,820 / 6,170 |
-| Raw and noisy | 10 | 193 / 292 (66.1%) | 2,377 / 2,836 (83.8%) | 3,600 / 6,170 |
-| Raw and noisy | 15 | 216 / 292 (74.0%) | 2,460 / 2,836 (86.7%) | 3,494 / 6,170 |
-| Current final | 5 | 132 / 292 (45.2%) | 2,093 / 2,836 (73.8%) | 1,481 / 3,706 |
-| Current final | 10 | 178 / 292 (61.0%) | 2,303 / 2,836 (81.2%) | 1,225 / 3,706 |
-| Current final | 15 | 208 / 292 (71.2%) | 2,355 / 2,836 (83.0%) | 1,143 / 3,706 |
+The geometry result needs one caveat. Direct side calls are strong, but the inferred final-hitter side is correct in only 112 of 228 answered rallies, or 49.1%, under the current rule. The gap is consistent with missed contacts disrupting the strict Top/Bottom alternation. The current evidence does not isolate how much comes from missing contacts versus the alternation rule itself.
 
-The tolerance is scaled from a 30 fps base. Ten means eight frames in the 25 fps fixtures and ten in the 30 fps fixture.
+## What remains unsolved
 
-The prediction save contains no ground-truth (GT) fields. It was made twice from the saved current `ad8da4f` artefacts, with identical bytes. The scorer verified the checksum before opening GT. An independent recalculation reproduced every count in the table.
+Region v2 still misses 37 non-serves in `sset_21`. Every one has a visible shuttle within ±10, but none has usable tracked-player analysis or a detected rally span. That is now a separate search outside court-view tracking, with missing player inputs.
 
-PR88 does not change the conclusion. On its historical 239-rally subset, its accepted candidates find 82.7% of later contacts and 69.9% of serves at 10 frames. PR88 itself chooses the correct visible start in 132 of 239 rallies and gets both that start and the server side right in 117. Those are different tests and should not be combined.
+A deliberately broad shuttle-only diagnostic finds every non-serve and 291 of 292 serves at ±10. Its regions contain 366,048 of 404,229 source frames, or 90.6% of the broadcasts. It does not exclude replay or cutaway footage, so it is a ceiling check rather than a useful model boundary.
 
-## Player side
+## Next experiment
 
-The current code does use geometry, but not blindly. It first picks the tracked player whose wrist is nearest the shuttle. It then uses the bottom of that player's box and the calibrated net band to call Top or Bottom. Finally, it fits one alternating Top/Bottom phase across the rally.
+1. Train one bounded BST-X pilot on the frozen region-v2 centres.
+2. Compare it directly with HGB using the same leave-one-fixture-out folds, event matching and temporal NMS.
+3. Test ShuttleSet22 as a separate same-format generalisation set.
+4. Handle the uncovered `sset_21` contacts through a separate live close-up or shuttle-only search path.
 
-The ankle test keeps the nearest-wrist player choice and changes only the side rule:
+No further random-forest sweep is warranted. Build X3D-S only when the BST-X failures show a clear need for racket, body-motion or broadcast-view evidence from RGB.
 
-```text
-two visible players: smaller mean ankle y is Top
-one visible player: ankle y above the net-band midpoint is Top, otherwise Bottom
-```
+## Detailed reports
 
-At the 10-frame tolerance, the current rule gets 2,207 of 2,480 available matched contacts right. The ankle rule gets 2,208 of 2,481 right. Both round to 89.0%.
-
-The rally-level final-hitter result is only about 49% for both rules. Server-side accuracy is 64.9% for the current rule and 64.2% for the ankle rule. Missed contacts alter the odd/even alternation, so a mostly correct direct side label can still produce a poor rally phase.
-
-There is also little work for a scene-cut missing-player fallback in these fixtures. All 167 final candidates within 15 base-30 frames of a scene start already have a player-side answer. A lookback might help wrong answers near cuts, but it is not repairing missing attribution here.
-
-## Learned scorer
-
-Use the same search method for all three learned options:
-
-1. Start from raw heuristic candidates.
-2. Add cheap seeds for current misses, such as relaxed impulse peaks, wrist-motion peaks, shuttle gaps and suspected serves near scene starts.
-3. Expand and merge the seeds into short search regions.
-4. Score each possible centre frame with a tight temporal window.
-5. Keep local score peaks above a held-out threshold.
-6. When nearby peaks describe the same contact, keep the strongest score.
-
-Measure region recall before model quality. A model cannot recover a contact outside every region. The measured version-2 ceiling at ±10 is 98.4% for non-serves and 97.9% for serves overall. `sset_21` remains lower at 93.7% and 94.7%.
-
-The first model should be histogram gradient boosting because the repository already provides shuttle impulses, wrist distances, player positions, visibility, scene context and rule outcomes. It can show quickly whether those inputs are enough. A random forest is a useful control and costs almost nothing to add.
-
-BST-X is the next neural option. It is about 1.84 million parameters in the current configuration and already accepts pose, shuttle and court position. It still needs consecutive contact-centred windows, visibility flags and a real contact output. Replacing the present 14-class clip head alone is not enough.
-
-X3D-S adds RGB and may help when racket motion or broadcast context matters. It is also the largest data job: frame-exact decoding, court crops, crop validity and RGB alignment do not yet exist for this task. The standard model is still small at 3.79 million parameters, but cheap inference does not remove the data risk.
-
-Use one contact score and a separate Top/Bottom score. A low contact score means no contact. A weak or missing player-side score means no side answer.
-
-## Reports
-
-- [Contact recall and player geometry](contact_recall_and_player_geometry.md) has the full measurement and PR88 details.
-- [Binary contact detector options](binary_contact_detector_options.md) compares the tree, BST-X and X3D-S paths.
-- [Tree contact detector trial](tree_contact_detector_results.md) has the measured region-v2 and tree results.
-- [BST-X contact detector plan](bst_x_contact_detector_plan.md) turns the next classifier experiment into an executable design.
+- [Contact recall and player geometry](contact_recall_and_player_geometry.md) contains the exact raw/final tables, PR88 result and ankle-rule evaluation.
+- [Tree contact detector trial](tree_contact_detector_results.md) contains region-v2 coverage, held-out tree results, controls and failure analysis.
+- [Binary contact detector options](binary_contact_detector_options.md) compares the tree, BST-X and X3D-S data paths.
+- [BST-X contact detector plan](bst_x_contact_detector_plan.md) specifies the next experiment.
