@@ -1,6 +1,9 @@
-# RF/HGB contact detector experiments
+# Random-forest and histogram-gradient-boosting contact detector experiments
 
 This report contains the technical detail behind the contact-detector results.
+
+The two learned models are random forest (RF) and histogram gradient boosting
+(HGB).
 
 It does not restate rally-segmentation results or the overall annotator scorecard. Those belong in [`auto_annotator_progress.md`](auto_annotator_progress.md).
 
@@ -12,6 +15,8 @@ It does not restate rally-segmentation results or the overall annotator scorecar
 - [Training and timing evaluation](#training-and-timing-evaluation)
 - [Timing-only model sweep](#timing-only-model-sweep)
 - [Player-side scoring](#player-side-scoring)
+- [Strict complete-rally evaluation](#strict-complete-rally-evaluation)
+- [Missed-contact audit](#missed-contact-audit)
 - [Region v1 versus region v2](#region-v1-versus-region-v2)
 - [Boundary sensitivity](#boundary-sensitivity)
 - [Where it still fails](#where-it-still-fails)
@@ -25,7 +30,7 @@ The work has three stages:
 ```text
 deterministic search-region construction
 → RF/HGB contact scoring
-→ existing Top/Bottom attribution on frozen predicted events
+→ existing Top/Bottom player-side attribution on frozen predicted events
 ```
 
 The current **final** heuristic event list is only a comparison point; HGB does not use it as an input.
@@ -38,7 +43,7 @@ The current **raw** proposals are one of several inputs used to build the search
 
 The current raw proposals make too many real contacts unreachable by a later classifier.
 
-At ±10 they cover only:
+At ±10 base-30 frames they cover only:
 
 - **83.8% of non-serves**
 - **66.1% of serves**
@@ -46,6 +51,9 @@ At ±10 they cover only:
 The search-region experiment therefore asks:
 
 > **How much of the video can we discard while still leaving almost every contact available to the classifier?**
+
+The three evaluation fixtures are the videos identified as `sset_01`,
+`sset_15` and `sset_21`.
 
 ### Region-v2 construction
 
@@ -232,6 +240,120 @@ For serves, the side rule is right on **84.1%** of HGB timing matches versus **7
 
 A simpler check using centre-frame `wrist_gap_top` and `wrist_gap_bot` gives essentially the same HGB side result.
 
+## Strict complete-rally evaluation
+
+The event-level result does not tell us how often a whole rally is usable. One
+missed contact, one extra event, or one wrong player side rejects the complete
+output.
+
+The strict evaluator keeps the current 311 predicted rally spans unchanged.
+These time windows come from the existing upstream rally segmentation. The
+evaluator uses the current region-v2 HGB events and replays the shipped
+Top/Bottom rule at those fixed event frames. Timing and player-side labels load
+only after the event scores, score cut-offs, NMS decisions, spans and side
+predictions are fixed.
+
+A kept predicted span is fully correct only when it maps to one real rally,
+finds every contact, adds no extra event, and gives the correct side for every
+contact. The main timing tolerance is ±10 base-30 frames. A ±5 result is kept
+as a sensitivity check.
+
+Timing confidence is the weakest retained HGB score in the span. A score cut
+abstains on the whole span. It never drops one weak event and keeps the rest of
+the rally.
+
+| Minimum timing score | Kept spans | Fully correct at ±10 | Accuracy among kept | Fully correct at ±5 |
+| --- | ---: | ---: | ---: | ---: |
+| 0.00 | 291 | 21 | 7.2% | 19 |
+| 0.80 | 216 | 17 | 7.9% | 15 |
+| 0.85 | 123 | 13 | 10.6% | 11 |
+| 0.90 | 51 | 9 | **17.6%** | 7 |
+| 0.95 | 11 | 1 | 9.1% | 0 |
+
+Confidence filtering does not produce a useful clean subset yet. The 0.90 cut
+keeps only 51 predicted spans and nine are fully correct. The highest observed
+accuracy is still below one in five.
+
+For an exclusive summary, each span is assigned to the first checkpoint it
+fails in the order shown below:
+
+| First failed checkpoint | Predicted spans |
+| --- | ---: |
+| No predicted event | 16 |
+| Events but no real rally | 31 |
+| More than one real rally | 4 |
+| Contact timing or event count | **210** |
+| Player side after exact timing | 29 |
+| Fully correct | 21 |
+
+The 210 timing failures contain 101 spans with both missing and extra events,
+58 with extra events only, and 51 with missing contacts only. A side answer is
+missing in four spans. Three are timing failures and one contains no real
+rally. Thirteen retained HGB events fall outside every current span and are
+reported separately. These priority buckets are derived from overlapping
+rejection flags. They are not causal labels emitted by the scorer.
+
+## Missed-contact audit
+
+The primary ±10 timing score matches 2,832 of 3,128 labelled contacts. The 296
+misses split into 95 serves and 201 ordinary exchanges.
+
+| Contact type | Labelled | Missed | Miss rate | Misses with a seeded candidate nearby |
+| --- | ---: | ---: | ---: | ---: |
+| Serve | 292 | 95 | **32.5%** | 89 |
+| Ordinary exchange | 2,836 | 201 | 7.1% | 155 |
+| **All contacts** | **3,128** | **296** | **9.5%** | **244** |
+
+For each missed contact, the audit inspects every held-out HGB score inside the
+fixed ±10 window. It ranks up to three peaks after applying the current
+within-interval NMS distance, but it does not apply the score cut-off. This is
+an observational, ground-truth-centred table. It does not define a deployable
+shortlist.
+
+The strongest nearby candidate for each miss is:
+
+| Strongest nearby candidate | Missed contacts | Missed serves |
+| --- | ---: | ---: |
+| Below the per-fold probability cut-off | **207** | **84** |
+| Removed as a nearby duplicate | 19 | 2 |
+| Retained, but lost the one-to-one match | 18 | 3 |
+| No seeded candidate in the window | 52 | 6 |
+
+The raw nearby-decision flags overlap. For example, one missed contact may
+have both a retained event and lower-scoring rows in the same window. The table
+above avoids double counting by classifying only the strongest candidate.
+
+Most misses have usable frozen evidence somewhere in the audit window. Shuttle
+evidence is present for 240 of 296 misses. Pose and wrist evidence are each
+present for 230. The evidence check is deliberately simple: it reports whether
+each stream is valid on any frozen row in the window. It does not prove that
+all streams are valid together at the strongest peak.
+
+The filtered handcrafted rule finds 103 of the 296 HGB misses. That overlap
+could support one bounded merge test after the shortlist gate. It is not
+evidence for replacing HGB because the handcrafted stream also has many misses
+and false alarms of its own.
+
+Only 13 spans are otherwise exact apart from one missing contact. All 13
+missing contacts already have a seeded region-v2 candidate nearby. Eleven are
+best represented by a below-cut-off row, one was removed as a duplicate, and
+one loses the one-to-one match despite a retained event. Eight are serves and
+six are found by the handcrafted rule.
+
+This supports three Phase 2 decisions:
+
+- test frame-rate-normalised motion features because the fixtures mix 25 and 30 fps
+- test a small decision-layer set, including start-specific score handling
+- keep physical values plus validity as the baseline for focused feature checks
+
+Search outside the region-v2 candidate surface stays deferred. Among those 13
+otherwise-exact spans, no missing contact is outside region v2. A second
+learned cleanup stage also stays deferred until a label-blind shortlist has
+measured coverage and false-alarm cost.
+
+If that later shortlist gate passes, the 103 HGB misses found by the
+handcrafted rule support one simple merge before any cleanup tree.
+
 ## Region v1 versus region v2
 
 The region choice is a simple trade-off: v1 is more selective; v2 keeps more contacts reachable.
@@ -295,9 +417,9 @@ Three other decisions are worth keeping.
 
 **Ankle side attribution.** On current-final timing matches, the shipped box/net rule scores **2,207 / 2,480 = 89.0%** correct Top/Bottom answers. Replacing the final half test with ankle height gives **2,208 / 2,481 = 89.0%**. That is effectively no change.
 
-**PR88 server rule.** PR88 used shuttle motion before and after a chosen contact to decide whether it looked like a serve or return. When that was unclear, it fell back to the older PR82 alternation answer. It got the server side right on **170 / 239 = 71.1%** of an older fixed 239-rally development set. This is not directly comparable with the 292-rally evaluation used here. On a later held-out test it tied the older rule overall and got worse on one video, so we did not keep it.
+**Pull request 88 (PR88) server rule.** PR88 used shuttle motion before and after a chosen contact to decide whether it looked like a serve or return. When that was unclear, it fell back to the older pull request 82 (PR82) alternation answer. It got the server side right on **170 / 239 = 71.1%** of an older fixed 239-rally development set. This is not directly comparable with the 292-rally evaluation used here. On a later held-out test it tied the older rule overall and got worse on one video, so we did not keep it.
 
-**X3D-S.** Leave it aside for now. RGB may contain useful contact clues that pose and shuttle do not. Revisit it only if the failure cases point to missing visual information.
+**X3D Small (X3D-S) video model.** Leave it aside for now. RGB may contain useful contact clues that pose and shuttle do not. Revisit it only if the failure cases point to missing visual information.
 
 ## Recommendation
 
@@ -307,6 +429,12 @@ Use:
 - **HGB physical + validity** as the simple learned contact model.
 
 Do not add the tested context block to HGB.
+
+Use this model as the fixed Phase 2 baseline. The strict rally result is too
+weak for deployment by confidence filtering alone. Run only the frame-rate,
+decision-layer and rally-start checks selected by the failure audit above.
+Measure a label-blind shortlist before considering the simple merge or a
+cleanup tree.
 
 The **87.4% timing F1** is only the timing score. When player side matters, the corresponding HGB results are:
 
@@ -334,6 +462,18 @@ Player-side scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_player_attribution.py
+```
+
+Strict rally scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_rallies.py
+```
+
+Missed-contact audit:
+
+```text
+scratch/contact_det/scripts/analyse_contact_failures.py
 ```
 
 Summary figures:

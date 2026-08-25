@@ -52,6 +52,11 @@ So the useful conclusion is:
 
 > **Use region v2 as the search surface. HGB is the best region-v2 timing model tested. Region v1 still has slightly better timing F1 and joint event+side F1; region v2 keeps more contacts and serves reachable and gives higher timing+side recall.**
 
+The new end-to-end rally check is much stricter than event F1. At the default
+zero score cut, the system keeps 291 predicted spans and only 21 are fully
+correct. A 0.90 timing-score cut keeps 51 spans and nine are fully correct.
+Confidence filtering alone does not yet produce a useful clean rally subset.
+
 
 ![The old standalone path and the experimental search-plus-classifier path.](figures/contact_pipeline_architecture.png)
 
@@ -70,11 +75,22 @@ For the next classifier, that extra coverage matters more than v1's small precis
 
 ## What is still open
 
-The RF/HGB work does **not** establish that rally segmentation improved.
+The RF/HGB work does **not** change the rally-span finder. It now measures the
+current HGB events and Top/Bottom answers inside those fixed spans.
 
-Direct Top/Bottom attribution is now measured on frozen HGB/RF contact events.
+Direct Top/Bottom attribution is measured on frozen HGB/RF contact events.
 
 The separate **rally-level alternation fit** has not been rerun on those new events, so we do not yet know whether its final-hitter or server-side scores improve.
+
+The strict result shows what usually blocks complete output. Of 311 predicted
+spans, 210 map to one real rally but fail contact timing or event count before
+player side is considered. Only 29 first fail at player side after exact
+timing.
+
+The missed-contact audit also narrows the next work. It finds a seeded HGB
+candidate near 244 of 296 missed contacts. This includes 89 of 95 missed
+serves. All 13 predicted spans that are otherwise exact apart from one missing
+contact already have a region-v2 candidate nearby.
 
 `sset_21` is the main warning sign: region v2 contains **94.7%** of its serves, but HGB finds only **44.0%**.
 
@@ -83,6 +99,11 @@ The separate **rally-level alternation fit** has not been rerun on those new eve
 Read [`auto_annotator_progress.md`](auto_annotator_progress.md) if you care about the annotator's outputs: rally spans, contact time + player side, serve time + serving side, and rally-level server attribution.
 
 Read [`tree_contact_detector_results.md`](tree_contact_detector_results.md) for the experiment itself: region construction, exact feature sets, RF/HGB training, controls, player-side scoring and failure cases.
+
+The next bounded pass should test frame-rate-normalised motion, a small set of
+score/NMS decisions, and separate handling near rally starts. Rescue search is
+deferred. A second learned stage must wait for a label-blind shortlist that
+shows useful extra coverage without a large false-alarm burden.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
 

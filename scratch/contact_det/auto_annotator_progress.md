@@ -8,6 +8,7 @@ It does not explain the RF/HGB feature engineering or training procedure. Those 
 
 - [Current scorecard](#current-scorecard)
 - [Rally identification](#rally-identification)
+- [Strict complete-rally result](#strict-complete-rally-result)
 - [Contact timing and contact player side](#contact-timing-and-contact-player-side)
 - [Serve timing and serving side](#serve-timing-and-serving-side)
 - [Rally-level server attribution](#rally-level-server-attribution)
@@ -18,11 +19,12 @@ It does not explain the RF/HGB feature engineering or training procedure. Those 
 
 ## Current scorecard
 
-The six outputs should stay separate.
+The outputs should stay separate.
 
 | Output | Current result | Best result from this work | What changed |
 | --- | ---: | ---: | --- |
 | Rally segmentation | 77.3% clean one-rally F1 with no padding cap | unchanged | RF/HGB not rerun through span finder |
+| Fully correct kept rally | not previously measured | **21 / 291 at no score cut; 9 / 51 at a 0.90 cut** | fixed HGB events and side answers scored end to end at ±10 base-30 frames |
 | Contact timing | 72.6% F1 | **87.9% region-v1 HGB F1** | chosen region-v2 HGB reaches 87.4% |
 | Contact timing + correct player side | 70.6% recall | **75.7% HGB recall** | side rule scored on frozen events |
 | Serve timing | 61.0% recall | **67.5% HGB recall** | first-contact subset |
@@ -56,7 +58,59 @@ With no padding cap, the same clean one-rally containment rule gives **77.3% F1*
 
 ![Rally-span quality by extra padding cap.](figures/rally_segmentation_quality.png)
 
-The new contact stream may eventually help rally decoding, but that has not been measured.
+The new contact stream has now been scored inside these fixed spans. The span finder itself is still unchanged.
+
+## Strict complete-rally result
+
+The earlier 77.3% rally-span F1 answers a boundary question. It checks whether
+a predicted span contains one complete labelled rally and no contact from
+another rally. It does not check the predicted contact list or player sides.
+
+The new strict score checks the complete output. A predicted span is fully
+correct only when:
+
+- it maps to exactly one real rally
+- every contact is found within ±10 base-30 frames
+- no extra event remains
+- every event has a Top/Bottom answer
+- every Top/Bottom answer is correct
+
+The system may abstain on a whole predicted span. Its timing confidence is the
+lowest held-out HGB score among the retained events in that span. Player-side
+confidence remains the current binary answered-or-missing signal.
+
+| Minimum timing score | Predicted spans kept | Fully correct | Fully correct among kept |
+| --- | ---: | ---: | ---: |
+| 0.00 | 291 | 21 | 7.2% |
+| 0.80 | 216 | 17 | 7.9% |
+| 0.85 | 123 | 13 | 10.6% |
+| 0.90 | 51 | 9 | **17.6%** |
+| 0.95 | 11 | 1 | 9.1% |
+
+These are kept predicted spans, not automatically valid rallies. At a zero
+score cut, 34 kept spans do not map to one real rally. The curve also shows
+that timing confidence alone is a weak rejection rule. A 0.90 cut discards
+most output and leaves only nine fully correct spans.
+
+At the stricter ±5 timing tolerance, 19 spans are fully correct at a zero
+score cut and seven are fully correct at 0.90.
+
+For an exclusive summary, each span is assigned to the first checkpoint it
+fails in the order shown below:
+
+| First failed checkpoint at ±10 | Predicted spans |
+| --- | ---: |
+| No predicted event | 16 |
+| Events but no real rally | 31 |
+| More than one real rally | 4 |
+| Contact timing or event count | **210** |
+| Player side after exact timing | 29 |
+| Fully correct | 21 |
+
+Among the 210 timing failures, 101 have both missing and extra events. Another
+58 have extra events only, while 51 have missing contacts only. These groups
+are derived from overlapping rejection flags. They describe where the
+evaluation rules first fail, not a physical cause for the model error.
 
 ## Contact timing and contact player side
 
@@ -157,9 +211,11 @@ For the current auto-annotator:
 
 - use **region v2** as the search region;
 - use **HGB physical + validity** as the simple learned contact model;
+- treat HGB as the Phase 2 baseline, not as a ready complete-rally output;
 - always report timing and timing+correct-side metrics together;
 - do not treat **87.4% timing F1** as the score for the complete contact+side output;
-- work on direct player-side attribution next;
+- test the cheap contact decision layer and rally-start handling before a separate side model;
+- keep rescue search deferred because all 13 otherwise-exact one-missing spans already have a region-v2 candidate;
 - do not claim rally-level server attribution improved until the alternation fit is rerun.
 
 The exact region, features, controls and failure cases are in [`tree_contact_detector_results.md`](tree_contact_detector_results.md).
@@ -214,3 +270,7 @@ The tree timing experiment is evaluated whole-fixture leave-one-out.
 For player-side scoring, the event streams are frozen before player-side ground truth is loaded.
 
 All three fixtures come from the same dataset, and there are only three of them. `sset_21` is the clearest reminder that the pooled score is not the whole story.
+
+The strict rally curve uses the current fixed spans. It does not claim that a
+new span finder would give the same result. The score cut-offs are pilot
+measurements on three videos and must be refitted on the planned larger set.
