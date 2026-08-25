@@ -125,7 +125,7 @@ Compute side loss only when the gathered centre is a positive contact and the an
 
 Do not force `None`, Top and Bottom into one three-class target. A weak side answer must not suppress a strong contact.
 
-Direct geometry already gives about 89% side accuracy on temporally matched final contacts. The current rally alternation mainly fails after contacts are missed. Contact recall is therefore the primary decision metric. The side head is an auxiliary output and a possible replacement for direct geometry later.
+Direct geometry gives **89.0%** side accuracy on temporally matched current-final contacts. On the frozen region-v2 HGB event stream, the same shipped side rule gives **83.7%** conditional side accuracy. The current rally alternation mainly fails after contacts are missed. Contact recall is therefore the primary decision metric. The side head is an auxiliary output and a possible replacement for direct geometry later.
 
 One small head ablation is required in the first pilot:
 
@@ -416,7 +416,7 @@ Run one bounded remote inventory before implementation. Record only:
 - which full videos, shuttle tracks, raw pose arrays and filtered pose arrays exist
 - content hashes or counts needed to bind the run
 
-Keep exact data paths and environment-specific access commands in the ignored `implementation_paths.md`. Do not put them in tracked documents.
+Keep exact data paths and environment-specific access commands in the ignored `local_agents/implementation_paths.md`. Do not put them in tracked documents.
 
 If only per-clip ShuttleSet22 pose is prepared, choose and freeze a whole-match test subset before extracting the missing full-timeline pose or shuttle evidence. Do not select the subset after seeing model results.
 
@@ -443,7 +443,7 @@ Retain raw per-centre logits and decoded events in compressed, ignored artefacts
 
 Compare BST-X with unchanged histogram boosting and random forest on the same frozen version-2 regions and held-out fixture folds. Do not tune the random forest further.
 
-The minimum BST-X acceptance target at ±10 is 89.9% F1 and 87.5% precision. After the mandatory HGB physics rerun on version 2, raise the target if needed:
+The version-2 HGB physics rerun is complete. The minimum BST-X acceptance target at ±10 is therefore:
 
 ```text
 required F1 = max(89.9%, version-2 HGB physics F1 + 2.0 points)
@@ -652,7 +652,7 @@ Use a GPU server for:
 
 The model is small enough that the first 100-example overfit and one-batch forward can run on CPU. The full experiment belongs on the GPU data environment because the data are already there and stride-1 windows multiply inference rows.
 
-Use one bounded remote command per stage. Let the training command run to completion and retrieve its manifest and outputs once. Do not poll. Keep private paths and command details in the ignored `implementation_paths.md`.
+Use one bounded remote command per stage. Let the training command run to completion and retrieve its manifest and outputs once. Do not poll. Keep private paths and command details in the ignored `local_agents/implementation_paths.md`.
 
 ## Failure and stop criteria
 

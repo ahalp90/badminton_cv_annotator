@@ -21,8 +21,9 @@ from typing import Any
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_ROOT = Path(__file__).resolve().parent
+CONTACT_DET_ROOT = MODULE_ROOT.parent
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 if str(MODULE_ROOT) not in sys.path:
@@ -794,7 +795,7 @@ def write_results(path: Path, payload: Mapping[str, object]) -> None:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    raw_root = MODULE_ROOT / "raw"
+    raw_root = CONTACT_DET_ROOT / "raw"
     parser.add_argument("--evidence-manifest", type=Path, default=raw_root / "contact_evidence_manifest.json")
     parser.add_argument(
         "--evidence-results", type=Path, default=raw_root / "contact_evidence_score.json.gz"

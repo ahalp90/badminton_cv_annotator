@@ -1,166 +1,355 @@
-# Tree contact detector trial
+# RF/HGB contact detector experiments
 
-## Bottom line
+This report contains the technical detail behind the contact-detector results.
 
-Region version 2 substantially raises pooled serve coverage. It searches ordinary physical seeds across court-view intervals and adds 45 base-30 frames before each interval for serves shown just before a broadcast cut. At ±10, the region contains 98.4% of non-serves and 97.9% of serves.
+It does not restate rally-segmentation results or the overall annotator scorecard. Those belong in [`auto_annotator_progress.md`](auto_annotator_progress.md).
 
-`sset_21` still limits the result. Its region contains 93.7% of non-serves and 94.7% of serves at ±10. All 37 missing non-serves have a visible shuttle nearby, but no usable sticky player evidence and no detected rally span. A wider shuttle-only search could reach them, but the simple version covers about 91% of the whole broadcast and admits replay noise.
+## Table of contents
 
-Histogram boosting remains the best tree. With physical features and validity masks on region v2, it reaches 84.5% precision, 90.5% recall and 87.4% F1 at ±10. Non-serve recall is 92.9%; serve recall is 67.5%. Against region v1, version 2 trades 3.0 precision points for 2.1 recall points.
+- [Experiment structure](#experiment-structure)
+- [Search-region experiment](#search-region-experiment)
+- [Exact tree inputs](#exact-tree-inputs)
+- [Training and timing evaluation](#training-and-timing-evaluation)
+- [Timing-only model sweep](#timing-only-model-sweep)
+- [Player-side scoring](#player-side-scoring)
+- [Region v1 versus region v2](#region-v1-versus-region-v2)
+- [Boundary sensitivity](#boundary-sensitivity)
+- [Where it still fails](#where-it-still-fails)
+- [Recommendation](#recommendation)
+- [Reproduction](#reproduction)
 
-The sensible next step is a BST-X pilot on the same frozen region. Keep the tree as the cheap baseline. Treat the missing off-court `sset_21` contacts as a separate search problem rather than tuning the tree around them.
+## Experiment structure
 
-## What region v2 does
+The work has three stages:
 
-The freezer does not load ground truth. It derives hard court-view intervals from the saved tracker intervals and definitive exclusion mask. It then:
+```text
+deterministic search-region construction
+→ RF/HGB contact scoring
+→ existing Top/Bottom attribution on frozen predicted events
+```
 
-- calculates shuttle and player features across the full search intervals, including pre-roll;
-- keeps the six region-v1 seeds and expansion widths;
-- adds a 45-base-30-frame pre-roll before every eligible interval;
-- clips feature windows to the resulting search interval;
-- freezes every search frame so the full ceiling can be measured;
-- trains and scores trees only on frames selected by at least one region channel.
+The current **final** heuristic event list is only a comparison point; HGB does not use it as an input.
 
-The six retained seeds are current raw proposals, relaxed shuttle impulse, wrist-gap minima, shuttle visibility changes, detected rally starts and scene starts. The seventh channel is the serve pre-roll.
+The current **raw** proposals are one of several inputs used to build the search region.
 
-The three videos contain 404,229 source frames. Region v2 freezes 130,624 frames and selects 128,824 for model scoring, or 31.9% of the videos. Two independent freezes are byte-identical.
+## Search-region experiment
 
-The pre-roll deliberately sits outside the eligible court-view interval. The headline region ceiling therefore means “the model's full search surface”, not “court-view frames only”. Both ceilings are reported below.
+### Why a new region was needed
 
-## Search ceiling
+The current raw proposals make too many real contacts unreachable by a later classifier.
 
-Strict coverage requires the exact labelled frame to be present. Operational coverage allows the normal evaluation margin.
+At ±10 they cover only:
 
-| Surface | Measure | Non-serves | Serves | All contacts |
-| --- | --- | ---: | ---: | ---: |
-| Court-view intervals only | Strict | 2,783 / 2,836 (98.1%) | 251 / 292 (86.0%) | 3,034 / 3,128 (97.0%) |
-| Court-view intervals only | ±10 | 2,789 / 2,836 (98.3%) | 272 / 292 (93.2%) | 3,061 / 3,128 (97.9%) |
-| Region v2 with serve pre-roll | Strict | 2,790 / 2,836 (98.4%) | 285 / 292 (97.6%) | 3,075 / 3,128 (98.3%) |
-| Region v2 with serve pre-roll | ±10 | 2,790 / 2,836 (98.4%) | 286 / 292 (97.9%) | 3,076 / 3,128 (98.3%) |
+- **83.8% of non-serves**
+- **66.1% of serves**
 
-The seed union and the full version-2 search surface have the same contact coverage. The relaxed impulse and wrist channels already cover nearly every eligible frame.
+The search-region experiment therefore asks:
 
-At ±10, the fixture split is:
+> **How much of the video can we discard while still leaving almost every contact available to the classifier?**
 
-| Fixture | Non-serve coverage | Serve coverage | All contacts |
+### Region-v2 construction
+
+Region v2 is deterministic and label-blind.
+
+It takes temporal neighbourhoods around:
+
+- current raw contact proposals;
+- relaxed shuttle impulse / direction-change peaks;
+- local shuttle-to-wrist minima;
+- shuttle visibility changes;
+- detected rally starts;
+- scene starts;
+- a 45-base-30-frame look-back immediately before eligible court-view intervals.
+
+The final item exists because some serves happen during the close-up immediately before the broadcast returns to the full court.
+
+Ground truth is loaded only after a region has been constructed, to measure coverage.
+
+### Coverage
+
+Region v2 scores **128,824 candidate centres**, about **31.9% of 404,229 source frames**.
+
+At ±10:
+
+| Search surface | All contacts | Non-serves | Serves |
 | --- | ---: | ---: | ---: |
-| `sset_01` | 1,519 / 1,528 (99.4%) | 111 / 113 (98.2%) | 1,630 / 1,641 (99.3%) |
-| `sset_15` | 720 / 720 (100.0%) | 104 / 104 (100.0%) | 824 / 824 (100.0%) |
-| `sset_21` | 551 / 588 (93.7%) | 71 / 75 (94.7%) | 622 / 663 (93.8%) |
+| Court-view intervals only | 97.9% | 98.3% | 93.2% |
+| **Region v2** | **98.3%** | **98.4%** | **97.9%** |
 
-The pre-roll is doing real work. Without it, `sset_15` serve coverage is 95.2% and `sset_21` serve coverage is 82.7% at ±10.
+Per fixture:
 
-### `sset_21` miss audit
+| Fixture | Non-serve coverage | Serve coverage | All-contact coverage |
+| --- | ---: | ---: | ---: |
+| `sset_01` | 99.4% | 98.2% | 99.3% |
+| `sset_15` | 100.0% | 100.0% | 100.0% |
+| `sset_21` | 93.7% | 94.7% | 93.8% |
 
-The following table counts the 37 `sset_21` non-serves still outside region v2 at ±10.
+These are **search coverage** numbers, not model recall.
 
-| Evidence within ±10 of the labelled contact | Missed contacts meeting the condition |
+![Region v2 reduces the search workload while keeping almost every labelled contact reachable.](figures/region_v2_search_tradeoff.png)
+
+Region v2 is intentionally permissive. An extra candidate frame only gives the classifier more work; a real contact left outside the region cannot be recovered.
+
+## Exact tree inputs
+
+The main `physics` feature set contains **85 columns**.
+
+### Physical signals: 60 columns
+
+Twelve signals sampled at offsets −10, −5, 0, +5 and +10 base-30 frames:
+
+- `shuttle_vx`
+- `shuttle_vy`
+- `shuttle_speed`
+- `shuttle_impulse`
+- `shuttle_impulse_ratio`
+- `wrist_gap_min`
+- `wrist_gap_top`
+- `wrist_gap_bot`
+- `nearest_wrist_dx`
+- `nearest_wrist_dy`
+- `ankle_speed_top`
+- `ankle_speed_bot`
+
+### Validity / missingness: 25 columns
+
+Five signals at the same five offsets:
+
+- `shuttle_visible`
+- `pose_valid_top`
+- `pose_valid_bot`
+- `wrist_valid_top`
+- `wrist_valid_bot`
+
+### Optional context: 20 columns
+
+The context block contains centre-frame absolute positions, ankle positions, bbox heights, standing count, interval timing, scene timing and seven region-source flags.
+
+The four tested feature sets are therefore:
+
+| Feature set | Columns |
 | --- | ---: |
-| Shuttle visible | 37 / 37 |
-| Sticky player frame analysed | 0 / 37 |
-| Player pick available | 0 / 37 |
-| Inside a detected rally span | 0 / 37 |
+| `physics` | **85** |
+| `physics_context` | **105** |
+| `context_only` | **20** |
+| `missingness_only` | **25** |
 
-The common failure is therefore a shuttle-visible frame outside both court tracking and the detected rally spans. A wider pose search cannot add player evidence that is absent.
+### PySceneDetect
 
-### The deliberately noisy ceiling
+PySceneDetect affects where candidates can occur through scene/court interval construction and the scene-start seed.
 
-As a diagnostic, the same relaxed impulse rule was run across each entire video with no court, replay or rally boundary. Its ±15 expansion covers 366,048 of 404,229 source frames, or 90.6% of the broadcasts. At ±10 it contains every non-serve and 291 of 292 serves.
+Scene timing is also present in the optional context block.
 
-That answers the pure ceiling question: the saved shuttle track can seed almost every contact if noise is allowed to become extreme. It is not a useful shared search region yet. It does not exclude replay, close-up or between-rally footage, and it gives the pose model mostly missing player inputs.
+The winning 85-column HGB `physics` model does **not** receive scene timing or region-source flags as explicit inputs.
 
-## Main tree result
+## Training and timing evaluation
 
-The physical input contains shuttle motion and impulse, player–shuttle wrist gaps, relative wrist position, ankle motion and explicit validity masks. It excludes absolute image position, player size, interval progress, scene timing and proposal-source flags.
+The scorer uses three outer leave-one-fixture-out folds.
 
-![Left: the four main tree variants at ±10. Right: the chosen HGB physical model by held-out fixture. The sset_21 serve result is the clearest weakness.](tree_trial_summary.png)
+For each held-out fixture:
 
-| Margin | Precision | Recall | F1 | Non-serve recall | Serve recall | Median error |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ±5 | 81.1% | 86.9% | 83.9% | 90.1% | 55.8% | 1 frame |
-| ±10 | 84.5% | 90.5% | **87.4%** | 92.9% | 67.5% | 1 frame |
-| ±15 | 85.1% | 91.1% | 88.0% | 93.1% | 71.9% | 1 frame |
+- the other two fixtures are the training side;
+- inner out-of-fold predictions choose the probability threshold;
+- the held-out fixture does not choose its threshold.
 
-At ±10, the model emits 3,350 events and matches 2,832 of 3,128 labelled contacts.
+Training rows:
 
-The held-out fixtures still differ substantially:
+- positive through ±1 base-30 frame of a labelled contact;
+- ignored through ±4;
+- hard negatives through ±15;
+- easy negatives sampled toward at most 12:1 negatives to positives.
 
-| Fixture | Threshold | Precision | Recall | F1 | Non-serve recall | Serve recall |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `sset_01` | 0.80 | 92.9% | 92.3% | 92.6% | 93.6% | 74.3% |
-| `sset_15` | 0.75 | 78.4% | 91.0% | 84.2% | 93.1% | 76.9% |
-| `sset_21` | 0.75 | 74.3% | 85.7% | 79.6% | 91.0% | 44.0% |
+Temporal NMS radius: **5 base-30 frames**.
 
-Thresholds come from inner held-out fixture predictions. The outer test fixture does not choose its threshold.
+Metrics are reported at ±5, ±10 and ±15. The main comparison is ±10.
 
-## Region-v1 comparison
+## Heuristic proposal and cleanup
 
-| Region and model | Precision | Recall | F1 | Non-serve recall | Serve recall |
+Before the learned models, the existing heuristic path moves from a broad raw proposal stream to a cleaner final event list:
+
+| Timing-only event stream at ±10 | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: |
+| Current raw proposals | 41.7% | **82.2%** | 55.3% |
+| Current final heuristic cleanup | **66.9%** | 79.3% | **72.6%** |
+
+The wrist/proximity cleanup greatly improves precision, but it also removes some real contacts. That is why the new path keeps the search region relaxed and lets the classifier do the cleanup.
+
+## Timing-only model sweep
+
+This table is **timing-only**.
+
+| Event stream at ±10 | Precision | Recall | F1 | Non-serve recall | Serve recall |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| V1 HGB physics | **87.5%** | 88.4% | **87.9%** | 91.1% | 62.7% |
-| V2 HGB physics | 84.5% | **90.5%** | 87.4% | **92.9%** | **67.5%** |
+| Current final heuristics | 66.9% | 79.3% | 72.6% | 81.2% | 61.0% |
+| **HGB physical** | **84.5%** | **90.5%** | **87.4%** | **92.9%** | **67.5%** |
+| RF physical | 84.1% | 85.2% | 84.6% | 89.6% | 42.8% |
+| HGB + context | 81.7% | 89.8% | 85.5% | 92.5% | 63.4% |
+| RF + context | 83.9% | 86.5% | 85.2% | 90.4% | 47.9% |
 
-Version 2 finds more real contacts and more false contacts. Its 2.1-point recall gain costs 3.0 precision points. The best observed tree F1 remains version 1, while version 2 is the fair baseline for any model using the corrected search surface.
+Controls:
 
-## Model and shortcut comparison
-
-| Model | Features | Precision | Recall | F1 | Non-serve recall | Serve recall |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Histogram boosting | Physics + validity | **84.5%** | **90.5%** | **87.4%** | **92.9%** | **67.5%** |
-| Histogram boosting | Physics + context + validity | 81.7% | 89.8% | 85.5% | 92.5% | 63.4% |
-| Random forest | Physics + validity | 84.1% | 85.2% | 84.6% | 89.6% | 42.8% |
-| Random forest | Physics + context + validity | 83.9% | 86.5% | 85.2% | 90.4% | 47.9% |
-
-Histogram boosting is still the clear tree choice. Context no longer gives a useful recall trade on version 2. It lowers every main pooled measure.
-
-| Control at ±10 | Precision | Recall | F1 |
+| Timing-only control | Precision | Recall | F1 |
 | --- | ---: | ---: | ---: |
 | HGB context only | 47.0% | 79.6% | 59.1% |
 | RF context only | 37.1% | 82.2% | 51.1% |
 | HGB missingness only | 16.1% | 96.9% | 27.5% |
 | RF missingness only | 16.0% | 96.9% | 27.5% |
 
-The missingness controls obtain high recall by spraying predictions across the search surface. Their precision makes the shortcut obvious. Context carries broadcast timing, but remains far below the physical model.
+The main conclusions from the sweep are:
 
-### Boundary sensitivity
+- HGB is the strongest timing model;
+- context hurts HGB;
+- missingness alone only achieves high recall by producing far too many events;
+- there is no clear reason to spend more time tuning RF.
 
-The physical model includes validity masks, so it can recognise tracking and scene boundaries. An independent audit reran every fold after removing all frames outside the eligible court-view intervals. Threshold selection, training and temporal NMS were all repeated on the filtered rows.
+## Player-side scoring
 
-At ±10, that stricter refit reaches 86.3% precision, 89.1% recall and 87.7% F1. Non-serve recall is 91.5% and serve recall is 65.8%. This is effectively the same result as the full search surface. Only 9 of the full model's 3,350 detections land in pre-roll frames.
+The tree does not predict player side.
 
-The main table should still be read as physical features plus explicit validity information. It is not a test of shuttle mechanics with every broadcast-boundary cue removed.
+For the existing heuristic, region-v1 and region-v2 event streams, the player-side scorer leaves every prediction frame, threshold and NMS decision unchanged, then applies `attribute_half` at each predicted frame.
+
+The **eligible-court-only HGB** row is the one exception: it is a new full HGB refit on the eligible-court rows, including threshold selection and NMS. That entire event stream is still completed and frozen **before** player-side ground truth is loaded.
+
+Before scoring side, the script checks that the original timing counts are unchanged.
+
+At ±10:
+
+| Event stream | Timing recall | Side accuracy given timing match | Timing + correct-side recall | Joint event+side precision | Joint event+side F1 | Serve timing + correct-side recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Current final heuristics | 79.3% | **89.0%** | 70.6% | 59.6% | 64.6% | 46.2% |
+| **HGB physical** | **90.5%** | 83.7% | **75.7%** | 70.7% | **73.1%** | **56.2%** |
+| HGB + context | 89.8% | 81.9% | 73.4% | 66.8% | 69.9% | 46.2% |
+| RF physical | 85.2% | 85.8% | 73.1% | **72.1%** | 72.6% | 37.0% |
+| Eligible-court-only HGB | 89.1% | 84.1% | 74.8% | 72.5% | **73.7%** | 53.4% |
+
+Adding side correctness narrows the gap:
+
+- HGB is still the region-v2 tree model we would use;
+- RF nearly catches HGB once correct player side is required;
+- on timing matches, the side rule is right **83.7%** of the time for HGB and **89.0%** for the current final heuristics. We do not know whether the extra recovered contacts explain that difference.
+
+For serves, the side rule is right on **84.1%** of HGB timing matches versus **75.8%** of current-final timing matches, while serve timing recall rises from **61.0% to 67.5%**.
+
+A simpler check using centre-frame `wrist_gap_top` and `wrist_gap_bot` gives essentially the same HGB side result.
+
+## Region v1 versus region v2
+
+The region choice is a simple trade-off: v1 is more selective; v2 keeps more contacts reachable.
+
+| HGB physical metric | Region v1 | Region v2 |
+| --- | ---: | ---: |
+| Serve search coverage | 91.4% | **97.9%** |
+| Timing precision | **87.5%** | 84.5% |
+| Timing recall | 88.4% | **90.5%** |
+| Timing F1 | **87.9%** | 87.4% |
+| Timing + correct-side recall | 74.6% | **75.7%** |
+| Joint event+side F1 | **74.1%** | 73.1% |
+| Serve timing + correct-side recall | 52.7% | **56.2%** |
+
+Region v1 is slightly more selective.
+
+Region v2 keeps more contacts, especially serves, available to the classifier. Since the region's job is search-space reduction rather than final event prediction, use v2 as the search surface.
+
+## Boundary sensitivity
+
+We also refit HGB using eligible court-view rows only, to check whether the extra rows just before court view were somehow driving the result.
+
+| HGB physical search | Timing P | Timing R | Timing F1 | Timing + correct-side recall | Joint event+side F1 | Serve timing + correct-side recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Main region v2 | 84.5% | **90.5%** | 87.4% | **75.7%** | 73.1% | **56.2%** |
+| Eligible court only | **86.3%** | 89.1% | **87.7%** | 74.8% | **73.7%** | 53.4% |
+
+Only nine of the main HGB's 3,350 detections are in the extra before-court rows.
+
+Those rows help **search coverage**, especially for serves, but HGB scores almost the same without them.
+
+## Where it still fails
+
+### `sset_21`
+
+HGB physical at ±10:
+
+| Fixture | Timing F1 | Timing + correct-side recall | Serve timing recall | Serve timing + correct-side recall |
+| --- | ---: | ---: | ---: | ---: |
+| `sset_01` | 92.6% | 77.3% | 74.3% | 60.2% |
+| `sset_15` | 84.2% | 76.5% | 76.9% | 67.3% |
+| `sset_21` | **79.6%** | **70.7%** | **44.0%** | **34.7%** |
+
+Region v2 contains **71 / 75 = 94.7%** of `sset_21` serves, while HGB finds **33 / 75 = 44.0%**. Four serves sit outside region v2, but most misses happen after search. With only three fixtures, we cannot tell whether `sset_21` is simply different from the other two or whether the model has fit the other two too closely.
+
+### Contacts outside region v2
+
+The 37 `sset_21` non-serves outside region v2 all have visible shuttle evidence near the labelled contact, but none has sticky player analysis or a player pick and none lies inside a detected rally span.
+
+That is an off-court/live-close-up search problem.
+
+### Very broad shuttle-only check
+
+A deliberately broad shuttle-only check searches **90.6% of the broadcasts** and covers every non-serve plus 291 of 292 serves at ±10.
+
+That shows the shuttle evidence exists, but the search is far too broad to use and often lacks usable player evidence.
+
+## Other useful experiments
+
+Three other decisions are worth keeping.
+
+**Ankle side attribution.** On current-final timing matches, the shipped box/net rule scores **2,207 / 2,480 = 89.0%** correct Top/Bottom answers. Replacing the final half test with ankle height gives **2,208 / 2,481 = 89.0%**. That is effectively no change.
+
+**PR88 server rule.** PR88 used shuttle motion before and after a chosen contact to decide whether it looked like a serve or return. When that was unclear, it fell back to the older PR82 alternation answer. It got the server side right on **170 / 239 = 71.1%** of an older fixed 239-rally development set. This is not directly comparable with the 292-rally evaluation used here. On a later held-out test it tied the older rule overall and got worse on one video, so we did not keep it.
+
+**X3D-S.** Leave it aside for now. RGB may contain useful contact clues that pose and shuttle do not. Revisit it only if the failure cases point to missing visual information.
 
 ## Recommendation
 
-Use region v2 for the next bounded classifier comparison. Keep the serve pre-roll as a backwards window because its purpose is to inspect the close-up lead-in before the court view begins. A forward window starts after that evidence.
+Use:
 
-Keep HGB physics as the cheap baseline. Do not tune the random forest further. For a same-region comparison, BST-X needs to beat the version-2 HGB result of 87.4% F1. The existing plan's harder acceptance floor remains sensible: 89.9% F1 with at least 87.5% precision at ±10.
+- **region v2** as the search region;
+- **HGB physical + validity** as the simple learned contact model.
 
-Region v2 still misses the plan's 97% per-fixture non-serve gate on `sset_21`. A small BST-X pilot can still answer whether temporal pose and shuttle evidence beat the tree inside the bounded region. It cannot establish whole-video recall.
+Do not add the tested context block to HGB.
 
-Before claiming a final detector, add a separate search path for shuttle-visible frames outside court tracking. The likely choices are a stricter shuttle-only proposal with replay rejection, or an RGB/scene model that can distinguish live close-ups from replay and cutaway footage. Do not widen the pose search to 91% of the whole broadcast and call that solved.
+The **87.4% timing F1** is only the timing score. When player side matters, the corresponding HGB results are:
 
-## Limits
+- **75.7% timing + correct-side recall**
+- **73.1% joint event+side F1**
+- **56.2% serve timing + correct-side recall**
 
-There are only three fixture videos. Leave-one-fixture-out prevents direct frame leakage, but it remains a small in-domain test.
+For the annotator-level result, see [`auto_annotator_progress.md`](auto_annotator_progress.md).
 
-The `sset_21` miss audit above supports a search and missing-input diagnosis. It does not show whether an RGB view model can reliably separate live close-ups from replay.
+## Reproduction
 
-The negative sampler uses fixture ground truth only after the label-blind freeze. That is correct for supervised fitting. ShuttleSet22 is still needed before treating a threshold as portable.
+Feature freezer:
 
-Event scoring uses the project's closest-pair greedy matcher for comparability. The earlier maximum-cardinality sensitivity check left the HGB physics matched total unchanged at ±10.
+```text
+scratch/contact_det/scripts/freeze_tree_contact_features.py
+```
 
-## Reproduction record
+Timing scorer:
 
-The current result uses `tree-contact-features/2` from standard-stage source commit `ad8da4f`. The two final compressed freezes and manifests are byte-identical. The feature SHA-256 is `4a5efbd6582701a708270a3b273be2d2572bc3753085ec449b7db815dffec722`.
+```text
+scratch/contact_det/scripts/score_tree_contact_detector.py
+```
 
-The ignored evidence lives under `scratch/contact_det/raw/region_v2/`. Version-1 evidence remains under `scratch/contact_det/raw/tree_trial/`.
+Player-side scorer:
 
-The tracked scripts are:
+```text
+scratch/contact_det/scripts/score_contact_player_attribution.py
+```
 
-- `freeze_tree_contact_features.py`
-- `score_tree_contact_detector.py`
-- `test_tree_contact_detector.py`
-- `plot_contact_det_reports.py`
+Summary figures:
 
-Focused Ruff and pytest results, whole-repository gates and the read-only audit are recorded in the ignored worklog. The scorer now also verifies that every saved row matches its declared search interval and fixture frame rate.
+```text
+scratch/contact_det/scripts/plot_summary_figures.py
+```
+
+Saved region-v2 timing result:
+
+```text
+scratch/contact_det/raw/region_v2/tree_contact_results.json.gz
+```
+
+Saved player-side result:
+
+```text
+scratch/contact_det/raw/contact_player_attribution_score.json.gz
+```
