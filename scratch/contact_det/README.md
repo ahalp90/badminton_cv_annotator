@@ -57,6 +57,12 @@ zero score cut, the system keeps 291 predicted spans and only 21 are fully
 correct. A 0.90 timing-score cut keeps 51 spans and nine are fully correct.
 Confidence filtering alone does not yet produce a useful clean rally subset.
 
+The frame-rate check did not improve that result. Removing raw motion values
+reduced timing F1 to **84.8%** and left 16 fully correct spans at the open
+confidence setting. Converting motion to a common 30 fps scale gave **87.0%**
+timing F1 and 15 fully correct spans. The existing raw-motion model remains the
+baseline with **87.4%** timing F1 and 21 fully correct spans.
+
 
 ![The old standalone path and the experimental search-plus-classifier path.](figures/contact_pipeline_architecture.png)
 
@@ -100,10 +106,11 @@ Read [`auto_annotator_progress.md`](auto_annotator_progress.md) if you care abou
 
 Read [`tree_contact_detector_results.md`](tree_contact_detector_results.md) for the experiment itself: region construction, exact feature sets, RF/HGB training, controls, player-side scoring and failure cases.
 
-The next bounded pass should test frame-rate-normalised motion, a small set of
-score/NMS decisions, and separate handling near rally starts. Rescue search is
-deferred. A second learned stage must wait for a label-blind shortlist that
-shows useful extra coverage without a large false-alarm burden.
+The frame-rate concern is now settled for this pilot. The next bounded pass is
+the pre-specified small set of score cut-off and duplicate-removal decisions,
+including separate handling near rally starts. Rescue search is deferred. A
+second learned stage must wait for a label-blind shortlist that shows useful
+extra coverage without a large false-alarm burden.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
 

@@ -17,6 +17,7 @@ It does not restate rally-segmentation results or the overall annotator scorecar
 - [Player-side scoring](#player-side-scoring)
 - [Strict complete-rally evaluation](#strict-complete-rally-evaluation)
 - [Missed-contact audit](#missed-contact-audit)
+- [Frame-rate motion check](#frame-rate-motion-check)
 - [Region v1 versus region v2](#region-v1-versus-region-v2)
 - [Boundary sensitivity](#boundary-sensitivity)
 - [Where it still fails](#where-it-still-fails)
@@ -354,6 +355,46 @@ measured coverage and false-alarm cost.
 If that later shortlist gate passes, the 103 HGB misses found by the
 handcrafted rule support one simple merge before any cleanup tree.
 
+## Frame-rate motion check
+
+Two fixtures run at 25 frames per second (fps), while `sset_21` runs at 30 fps.
+The original motion values measure movement per video frame. This means that
+the same movement in the scene can have a different numeric value at different
+frame rates.
+
+Two focused trials tested whether that difference was hurting the selected
+HGB model:
+
+1. remove shuttle velocity, shuttle speed, shuttle impulse and ankle speed;
+2. express those values on a common 30 fps scale.
+
+The corrected freeze multiplies first differences, such as velocity, by
+`fps / 30`. Shuttle impulse is a second difference, so it uses the square of
+that factor. The dimensionless impulse ratio stays unchanged. All search
+regions, folds, fitting settings, score selection and duplicate removal stay
+the same.
+
+| HGB physical trial | Timing precision | Timing recall | Timing F1 | Serve recall |
+| --- | ---: | ---: | ---: | ---: |
+| **Existing raw motion** | **84.5%** | **90.5%** | **87.4%** | 67.5% |
+| Remove raw motion | 82.7% | 87.1% | 84.8% | 47.9% |
+| Common 30 fps scale | 84.0% | 90.2% | 87.0% | **68.2%** |
+
+The common-scale trial finds two more serves overall, but its pooled timing F1
+is lower. The complete-rally result is also lower at every reported confidence
+setting:
+
+| Minimum timing score | Raw motion, fully correct / kept | Remove motion | Common 30 fps scale |
+| --- | ---: | ---: | ---: |
+| 0.00 | **21 / 291** | 16 / 293 | 15 / 295 |
+| 0.85 | **13 / 123** | 9 / 156 | 10 / 124 |
+| 0.90 | **9 / 51** | 6 / 67 | 6 / 58 |
+
+The existing raw-motion model therefore remains the pilot baseline. The three
+fixtures do not support removing or rescaling these values. This does not prove
+that raw per-frame motion is generally best. The feature convention must be
+retested when the planned larger video set is available.
+
 ## Region v1 versus region v2
 
 The region choice is a simple trade-off: v1 is more selective; v2 keeps more contacts reachable.
@@ -376,7 +417,7 @@ Region v2 keeps more contacts, especially serves, available to the classifier. S
 
 We also refit HGB using eligible court-view rows only, to check whether the extra rows just before court view were somehow driving the result.
 
-| HGB physical search | Timing P | Timing R | Timing F1 | Timing + correct-side recall | Joint event+side F1 | Serve timing + correct-side recall |
+| HGB physical search | Timing precision | Timing recall | Timing F1 | Timing + correct-side recall | Joint event+side F1 | Serve timing + correct-side recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Main region v2 | 84.5% | **90.5%** | 87.4% | **75.7%** | 73.1% | **56.2%** |
 | Eligible court only | **86.3%** | 89.1% | **87.7%** | 74.8% | **73.7%** | 53.4% |
@@ -431,8 +472,9 @@ Use:
 Do not add the tested context block to HGB.
 
 Use this model as the fixed Phase 2 baseline. The strict rally result is too
-weak for deployment by confidence filtering alone. Run only the frame-rate,
-decision-layer and rally-start checks selected by the failure audit above.
+weak for deployment by confidence filtering alone. The frame-rate check keeps
+the existing motion values. Run only the decision-layer and rally-start checks
+selected by the failure audit above.
 Measure a label-blind shortlist before considering the simple merge or a
 cleanup tree.
 

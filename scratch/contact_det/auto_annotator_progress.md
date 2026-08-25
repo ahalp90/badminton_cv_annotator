@@ -95,6 +95,18 @@ most output and leaves only nine fully correct spans.
 At the stricter ±5 timing tolerance, 19 spans are fully correct at a zero
 score cut and seven are fully correct at 0.90.
 
+The frame-rate feature check did not improve the complete-rally result:
+
+| HGB physical trial | Fully correct / kept at 0.00 | Fully correct / kept at 0.85 | Fully correct / kept at 0.90 |
+| --- | ---: | ---: | ---: |
+| **Existing raw motion** | **21 / 291** | **13 / 123** | **9 / 51** |
+| Remove raw motion | 16 / 293 | 9 / 156 | 6 / 67 |
+| Common 30 fps scale | 15 / 295 | 10 / 124 | 6 / 58 |
+
+The common-scale trial slightly raises serve timing recall, from 67.5% to
+68.2%, but it lowers overall timing F1 and loses fully correct rallies. The
+existing raw-motion model remains the baseline for the decision-layer checks.
+
 For an exclusive summary, each span is assigned to the first checkpoint it
 fails in the order shown below:
 
@@ -212,6 +224,7 @@ For the current auto-annotator:
 - use **region v2** as the search region;
 - use **HGB physical + validity** as the simple learned contact model;
 - treat HGB as the Phase 2 baseline, not as a ready complete-rally output;
+- keep the existing raw-motion features for the remaining pilot checks;
 - always report timing and timing+correct-side metrics together;
 - do not treat **87.4% timing F1** as the score for the complete contact+side output;
 - test the cheap contact decision layer and rally-start handling before a separate side model;
