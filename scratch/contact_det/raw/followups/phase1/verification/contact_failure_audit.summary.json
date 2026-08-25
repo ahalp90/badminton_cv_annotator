@@ -1,0 +1,138 @@
+{
+  "by_fixture": {
+    "sset_01": {
+      "exchange_contacts": 1528,
+      "fixture": "sset_01",
+      "fps": 25.0,
+      "ground_truth_contacts": 1641,
+      "matched_contacts": 1514,
+      "missed_contacts": 127,
+      "missed_evidence_available": {
+        "pose": 115,
+        "shuttle": 116,
+        "wrist": 115
+      },
+      "missed_exchanges": 98,
+      "missed_handcrafted_filtered_found": 52,
+      "missed_serves": 29,
+      "missed_with_below_threshold": 116,
+      "missed_with_nearby_duplicate": 10,
+      "missed_with_retained_candidate": 10,
+      "missed_with_seeded_candidate": 116,
+      "primary_tolerance_base30": 10,
+      "primary_tolerance_frames": 8,
+      "retained_events": 1629,
+      "sensitivity": {
+        "handcrafted_filtered_found": 1140,
+        "matched_contacts": 1450,
+        "missed_contacts": 191,
+        "seeded_candidate_coverage": 1630,
+        "tolerance_base30": 5,
+        "tolerance_frames": 4
+      },
+      "serve_contacts": 113
+    },
+    "sset_15": {
+      "exchange_contacts": 720,
+      "fixture": "sset_15",
+      "fps": 25.0,
+      "ground_truth_contacts": 824,
+      "matched_contacts": 750,
+      "missed_contacts": 74,
+      "missed_evidence_available": {
+        "pose": 69,
+        "shuttle": 74,
+        "wrist": 69
+      },
+      "missed_exchanges": 50,
+      "missed_handcrafted_filtered_found": 32,
+      "missed_serves": 24,
+      "missed_with_below_threshold": 74,
+      "missed_with_nearby_duplicate": 17,
+      "missed_with_retained_candidate": 7,
+      "missed_with_seeded_candidate": 74,
+      "primary_tolerance_base30": 10,
+      "primary_tolerance_frames": 8,
+      "retained_events": 957,
+      "sensitivity": {
+        "handcrafted_filtered_found": 605,
+        "matched_contacts": 728,
+        "missed_contacts": 96,
+        "seeded_candidate_coverage": 824,
+        "tolerance_base30": 5,
+        "tolerance_frames": 4
+      },
+      "serve_contacts": 104
+    },
+    "sset_21": {
+      "exchange_contacts": 588,
+      "fixture": "sset_21",
+      "fps": 30.0,
+      "ground_truth_contacts": 663,
+      "matched_contacts": 568,
+      "missed_contacts": 95,
+      "missed_evidence_available": {
+        "pose": 46,
+        "shuttle": 50,
+        "wrist": 46
+      },
+      "missed_exchanges": 53,
+      "missed_handcrafted_filtered_found": 19,
+      "missed_serves": 42,
+      "missed_with_below_threshold": 54,
+      "missed_with_nearby_duplicate": 5,
+      "missed_with_retained_candidate": 2,
+      "missed_with_seeded_candidate": 54,
+      "primary_tolerance_base30": 10,
+      "primary_tolerance_frames": 10,
+      "retained_events": 764,
+      "sensitivity": {
+        "handcrafted_filtered_found": 480,
+        "matched_contacts": 539,
+        "missed_contacts": 124,
+        "seeded_candidate_coverage": 621,
+        "tolerance_base30": 5,
+        "tolerance_frames": 5
+      },
+      "serve_contacts": 75
+    }
+  },
+  "exchange_contacts": 2836,
+  "ground_truth_contacts": 3128,
+  "matched_contacts": 2832,
+  "missed_contact_rows": 296,
+  "missed_contacts": 296,
+  "missed_evidence_available": {
+    "pose": 230,
+    "shuttle": 240,
+    "wrist": 230
+  },
+  "missed_exchanges": 201,
+  "missed_handcrafted_filtered_found": 103,
+  "missed_serve_share": 0.32094594594594594,
+  "missed_serves": 95,
+  "missed_with_below_threshold": 244,
+  "missed_with_nearby_duplicate": 32,
+  "missed_with_retained_candidate": 19,
+  "missed_with_seeded_candidate": 244,
+  "retained_events": 3350,
+  "sensitivity": {
+    "handcrafted_filtered_found": 2225,
+    "matched_contacts": 2717,
+    "missed_contacts": 411,
+    "seeded_candidate_coverage": 3075,
+    "tolerance_base30": 5,
+    "tolerance_frames_by_fixture": {
+      "sset_01": 4,
+      "sset_15": 4,
+      "sset_21": 5
+    }
+  },
+  "serve_contacts": 292,
+  "tolerance_base30": 10,
+  "tolerance_frames_by_fixture": {
+    "sset_01": 8,
+    "sset_15": 8,
+    "sset_21": 10
+  }
+}

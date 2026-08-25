@@ -1,0 +1,55 @@
+{
+  "candidate_file": "tree_contact_candidate_scores.npy.xz",
+  "candidate_sha256": "c068fe0d8dee937c8838909c3bc7a2b3bc2ae76fc701e22189e3f3668757c19c",
+  "decision_codes": {
+    "below_threshold": 0,
+    "nearby_duplicate": 1,
+    "retained": 2
+  },
+  "export_kind": "observational held-out timing scores",
+  "feature_sha256": "4a5efbd6582701a708270a3b273be2d2572bc3753085ec449b7db815dffec722",
+  "fields": [
+    "fixture",
+    "interval_id",
+    "frame",
+    "timing_score",
+    "threshold",
+    "decision"
+  ],
+  "fixture_set": [
+    "sset_01",
+    "sset_15",
+    "sset_21"
+  ],
+  "folds": [
+    {
+      "candidate_count": 54317,
+      "fixture": "sset_01",
+      "nms_radius_frames": 4,
+      "prediction_count": 1629,
+      "threshold": 0.7999999999999999
+    },
+    {
+      "candidate_count": 37359,
+      "fixture": "sset_15",
+      "nms_radius_frames": 4,
+      "prediction_count": 957,
+      "threshold": 0.75
+    },
+    {
+      "candidate_count": 37148,
+      "fixture": "sset_21",
+      "nms_radius_frames": 5,
+      "prediction_count": 764,
+      "threshold": 0.75
+    }
+  ],
+  "nms_radius_base30": 5,
+  "player_side_labels_read": false,
+  "row_count": 128824,
+  "schema": "tree-contact-candidate-scores/1",
+  "source_commit": "ad8da4f",
+  "timing_labels_read": true,
+  "tree_result_sha256": "34898a0ab84496f28520c1de0878381797234f9e309b3a0e3ef7df023d22515a",
+  "variant": "region_v2/histogram_boosting/physics"
+}
