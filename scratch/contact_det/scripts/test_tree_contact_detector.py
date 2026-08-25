@@ -131,7 +131,8 @@ def test_player_geometry_follows_current_frame_sticky_picks() -> None:
     np.testing.assert_allclose(signals["nearest_wrist_dy"], [0.0, 0.0])
 
 
-def _write_verified_fixture(tmp_path: Path) -> Path:
+def _write_verified_fixture(tmp_path: Path, motion_mode: str | None = None) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     families = freezer._feature_family_names()
     dtype = freezer._record_dtype(families)
     rows = np.zeros(3, dtype=dtype)
@@ -168,6 +169,8 @@ def _write_verified_fixture(tmp_path: Path) -> Path:
         ],
     }
     manifest_path = tmp_path / freezer.MANIFEST_FILENAME
+    if motion_mode is not None:
+        manifest["motion_mode"] = motion_mode
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return manifest_path
 
@@ -220,6 +223,79 @@ def test_freeze_verification_rejects_wrong_fixture_fps(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="feature row fps differs"):
         scorer.verify_freeze(manifest_path)
+
+
+def test_freeze_motion_mode_defaults_to_legacy_raw_and_rejects_unknown_values(tmp_path: Path) -> None:
+    manifest_path = _write_verified_fixture(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert scorer._manifest_motion_mode(manifest) == scorer.RAW_MOTION_MODE
+
+    manifest["motion_mode"] = "raw_per_frame"
+    assert scorer._manifest_motion_mode(manifest) == "raw_per_frame"
+    manifest["motion_mode"] = "base30_per_frame"
+    assert scorer._manifest_motion_mode(manifest) == "base30_per_frame"
+    manifest["motion_mode"] = "raw"
+    with pytest.raises(ValueError, match="motion_mode"):
+        scorer._manifest_motion_mode(manifest)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="motion_mode"):
+        scorer.verify_freeze(manifest_path)
+
+
+def test_variant_feature_selection_and_motion_mode_contract(tmp_path: Path) -> None:
+    raw_manifest = scorer.verify_freeze(_write_verified_fixture(tmp_path))
+    assert len(scorer._feature_names(raw_manifest.manifest, "physics")) == 85
+    assert (
+        len(
+            scorer._feature_names(
+                raw_manifest.manifest,
+                "physics",
+                variant=scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+            )
+        )
+        == 55
+    )
+    with pytest.raises(ValueError, match="requires base30"):
+        scorer._feature_names(
+            raw_manifest.manifest,
+            "physics",
+            variant=scorer.PHYSICS_BASE30_MOTION_VARIANT,
+        )
+
+    base30_manifest = scorer.verify_freeze(_write_verified_fixture(tmp_path / "base30", "base30_per_frame"))
+    assert (
+        len(
+            scorer._feature_names(
+                base30_manifest.manifest,
+                "physics",
+                variant=scorer.PHYSICS_BASE30_MOTION_VARIANT,
+            )
+        )
+        == 85
+    )
+    with pytest.raises(ValueError, match="requires raw"):
+        scorer._validate_variant_for_manifest(base30_manifest.manifest, scorer.CANDIDATE_VARIANT)
+    with pytest.raises(ValueError, match="requires raw"):
+        scorer._validate_variant_for_manifest(
+            base30_manifest.manifest,
+            scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+        )
+
+
+def test_trial_feature_selection_leaves_control_column_sets_unchanged(tmp_path: Path) -> None:
+    manifest = scorer.verify_freeze(_write_verified_fixture(tmp_path)).manifest
+
+    for feature_set in scorer.FEATURE_SETS:
+        baseline = scorer._base_feature_names(manifest, feature_set)
+        if feature_set == "physics":
+            trial = scorer._feature_names(
+                manifest,
+                feature_set,
+                variant=scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+            )
+            assert len(baseline) - len(trial) == 30
+        else:
+            assert scorer._base_feature_names(manifest, feature_set) == baseline
 
 
 def test_manifest_intervals_reject_overlaps() -> None:
@@ -345,7 +421,14 @@ def test_candidate_score_manifest_binds_the_freeze_and_tree_result(tmp_path: Pat
         "row_count": len(model_rows),
         "model_row_count": len(model_rows),
         "model_search_surface": "seeded_union",
-        "models": {"histogram_boosting": {"physics": {"folds": folds}}},
+        "models": {
+            "histogram_boosting": {
+                "physics": {
+                    "feature_count": 85,
+                    "folds": folds,
+                }
+            }
+        },
     }
     tree_result_path = tmp_path / "tree_results.json.gz"
     scorer.write_results(tree_result_path, results)
@@ -383,6 +466,45 @@ def test_candidate_score_manifest_binds_the_freeze_and_tree_result(tmp_path: Pat
     scorer.write_results(tree_result_path, {**results, "source_commit": "changed"})
     with pytest.raises(ValueError, match="tree result source_commit"):
         scorer.verify_candidate_scores(candidate_manifest_path, verified, tree_result_path)
+
+
+def test_nonbaseline_result_records_and_verifies_its_variant(tmp_path: Path) -> None:
+    verified = scorer.verify_freeze(_write_verified_fixture(tmp_path))
+    result = {
+        "schema": scorer.RESULTS_SCHEMA,
+        "source_commit": verified.manifest["source_commit"],
+        "feature_sha256": verified.manifest["feature_sha256"],
+        "row_count": len(verified.rows),
+        "model_row_count": 0,
+        "model_search_surface": "seeded_union",
+        "selected_variant": scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+        "models": {
+            "histogram_boosting": {
+                "physics": {
+                    "feature_count": 55,
+                    "folds": [
+                        {
+                            "test_fixture": fixture,
+                            "train_fixtures": [name for name in freezer.FIXTURE_SPECS if name != fixture],
+                            "threshold": 0.5,
+                            "prediction_count": 0,
+                            "prediction_frames": [],
+                        }
+                        for fixture in freezer.FIXTURE_SPECS
+                    ],
+                }
+            }
+        },
+    }
+    result_path = tmp_path / "variant_results.json.gz"
+    scorer.write_results(result_path, result)
+    verified_result = scorer.verify_tree_result(result_path, verified)
+    assert verified_result["selected_variant"] == scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT
+
+    changed = {**result, "selected_variant": scorer.CANDIDATE_VARIANT}
+    scorer.write_results(result_path, changed)
+    with pytest.raises(ValueError, match="must omit"):
+        scorer.verify_tree_result(result_path, verified)
 
 
 def test_seeded_region_mask_selects_each_frame_once() -> None:

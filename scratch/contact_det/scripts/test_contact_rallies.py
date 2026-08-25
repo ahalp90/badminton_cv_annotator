@@ -261,3 +261,111 @@ def test_retained_events_reject_duplicate_identities() -> None:
 
     with pytest.raises(ValueError, match="duplicated"):
         scorer.retained_events_from_scores(rows, {})
+
+
+def _variant_folds(offset: int) -> list[dict[str, object]]:
+    return [
+        {
+            "test_fixture": fixture,
+            "prediction_count": 1,
+            "prediction_frames": [offset + index],
+        }
+        for index, fixture in enumerate(scorer.evidence_freezer.FIXTURE_SPECS)
+    ]
+
+
+def test_prediction_frames_default_to_the_baseline_variant() -> None:
+    result = {
+        "models": {
+            "histogram_boosting": {
+                "physics": {"folds": _variant_folds(100)},
+            }
+        }
+    }
+
+    frames = scorer._prediction_frames_from_result(result)
+
+    assert frames["sset_01"].tolist() == [100]
+
+
+@pytest.mark.parametrize(
+    "variant_name",
+    (
+        scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+        scorer.PHYSICS_BASE30_MOTION_VARIANT,
+    ),
+)
+def test_prediction_frames_follow_the_verified_trial_variant(variant_name: str) -> None:
+    result = {
+        "models": {
+            "histogram_boosting": {
+                "physics": {"folds": _variant_folds(200)},
+            }
+        }
+    }
+
+    frames = scorer._prediction_frames_from_result(
+        result,
+        variant_name,
+    )
+
+    assert frames["sset_01"].tolist() == [200]
+
+
+def test_candidate_variant_comes_from_the_verified_manifest() -> None:
+    verified = SimpleNamespace(
+        manifest={"variant": scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT},
+        tree_result={"selected_variant": scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT},
+    )
+
+    assert scorer._candidate_variant(verified) == scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT
+
+
+def test_candidate_variant_rejects_inconsistent_tree_result() -> None:
+    verified = SimpleNamespace(
+        manifest={"variant": scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT},
+        tree_result={"selected_variant": scorer.PHYSICS_BASE30_MOTION_VARIANT},
+    )
+
+    with pytest.raises(ValueError, match="variant differs"):
+        scorer._candidate_variant(verified)
+
+
+def test_prediction_frames_reject_unknown_variant() -> None:
+    result = {"models": {"histogram_boosting": {"physics": {"folds": _variant_folds(100)}}}}
+
+    with pytest.raises(ValueError, match="not an allowed rally-scoring variant"):
+        scorer._prediction_frames_from_result(result, "region_v2/histogram_boosting/unknown")
+
+
+def test_shipped_attribution_receives_the_selected_variant(monkeypatch: pytest.MonkeyPatch) -> None:
+    import score_contact_player_attribution as attribution_scorer
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(attribution_scorer, "_load_tree_freezes", lambda _arguments: {})
+
+    def record_variants(_data_root: Path, _freezes: object, variants: object) -> dict[tuple[str, int], str]:
+        captured["variants"] = variants
+        return {("sset_01", 12): "Top"}
+
+    monkeypatch.setattr(attribution_scorer, "_shipped_attribution_map", record_variants)
+    arguments = SimpleNamespace(
+        feature_manifest=Path("features.json"),
+        tree_results=Path("tree.json.gz"),
+        region_v1_manifest=Path("region-v1-features.json"),
+        region_v1_results=Path("region-v1-tree.json.gz"),
+        data_root=Path("inputs"),
+    )
+    retained_frames = {"sset_01": np.asarray([12], dtype=np.int32)}
+
+    attribution = scorer._shipped_attribution(
+        arguments,
+        retained_frames,
+        scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+    )
+
+    assert attribution == {("sset_01", 12): "Top"}
+    assert captured["variants"] == {
+        scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT: retained_frames,
+    }

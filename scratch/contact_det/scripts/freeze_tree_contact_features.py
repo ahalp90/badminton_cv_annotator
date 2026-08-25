@@ -36,9 +36,19 @@ FEATURE_SCHEMA = "tree-contact-features/2"
 MANIFEST_SCHEMA = "tree-contact-feature-manifest/2"
 FEATURE_FILENAME = "tree_contact_features.npy.xz"
 MANIFEST_FILENAME = "tree_contact_features_manifest.json"
+MOTION_MODES = ("raw_per_frame", "base30_per_frame")
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
 RELAXED_IMPULSE_MULTIPLE = 1.25
 WRIST_LOCAL_MINIMUM_LIMIT = 3.0
+
+MOTION_LINEAR_SIGNALS = (
+    "shuttle_vx",
+    "shuttle_vy",
+    "shuttle_speed",
+    "ankle_speed_top",
+    "ankle_speed_bot",
+)
+MOTION_QUADRATIC_SIGNALS = ("shuttle_impulse",)
 
 IDENTITY_FIELDS = ("fixture", "interval_id", "frame", "fps")
 REGION_FIELDS = (
@@ -96,6 +106,32 @@ def _scaled_frames(base30: int, fps: float) -> int:
 
 def _finite_or_nan(values: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(values), values, np.nan).astype(np.float32)
+
+
+def _motion_scale_factor(fps: float, motion_mode: str) -> float:
+    if motion_mode == "raw_per_frame":
+        return 1.0
+    if motion_mode == "base30_per_frame":
+        return fps / 30.0
+    raise ValueError(f"unsupported motion mode: {motion_mode!r}")
+
+
+def _scale_motion_signals(
+    signals: Mapping[str, np.ndarray],
+    fps: float,
+    motion_mode: str,
+) -> dict[str, np.ndarray]:
+    """Scale frame-rate-dependent signals while preserving region inputs."""
+    factor = _motion_scale_factor(fps, motion_mode)
+    if motion_mode == "raw_per_frame":
+        return dict(signals)
+
+    scaled = dict(signals)
+    for name in MOTION_LINEAR_SIGNALS:
+        scaled[name] = signals[name] * factor
+    for name in MOTION_QUADRATIC_SIGNALS:
+        scaled[name] = signals[name] * factor**2
+    return scaled
 
 
 def _difference(values: np.ndarray) -> np.ndarray:
@@ -383,7 +419,11 @@ def _record_dtype(feature_families: Mapping[str, Sequence[str]]) -> np.dtype:
     return np.dtype(fields)
 
 
-def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, dict[str, Any]]:
+def _fixture_rows(
+    data_root: Path,
+    fixture: FixtureSpec,
+    motion_mode: str = "raw_per_frame",
+) -> tuple[np.ndarray, dict[str, Any]]:
     from dataset_builder.vision import load_npy_xz
 
     track, pose, court, tracker_intervals, sticky, annotation = _load_inputs(data_root, fixture)
@@ -407,6 +447,7 @@ def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, di
         court.raw_cuts,
         fixture.fps,
     )
+    feature_signals = _scale_motion_signals(signals, fixture.fps, motion_mode)
     union = np.zeros(len(track), dtype=bool)
     for region in regions.values():
         union |= region
@@ -428,17 +469,17 @@ def _fixture_rows(data_root: Path, fixture: FixtureSpec) -> tuple[np.ndarray, di
             for offset_base30 in WINDOW_OFFSETS_BASE30:
                 offset = 0 if offset_base30 == 0 else int(math.copysign(_scaled_frames(abs(offset_base30), fixture.fps), offset_base30))
                 rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_interval(
-                    signals[signal], frames, offset, start, end
+                    feature_signals[signal], frames, offset, start, end
                 )
         for signal in BASE_MISSINGNESS_SIGNALS:
             for offset_base30 in WINDOW_OFFSETS_BASE30:
                 offset = 0 if offset_base30 == 0 else int(math.copysign(_scaled_frames(abs(offset_base30), fixture.fps), offset_base30))
                 rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_interval(
-                    signals[signal], frames, offset, start, end
+                    feature_signals[signal], frames, offset, start, end
                 )
 
         for name in ("shuttle_x", "shuttle_y", "ankle_x_top", "ankle_y_top", "ankle_x_bot", "ankle_y_bot", "bbox_height_top", "bbox_height_bot", "standing_count"):
-            rows[name] = signals[name][frames]
+            rows[name] = feature_signals[name][frames]
         rows["interval_progress"] = (frames - start) / max(1, end - start - 1)
         rows["distance_from_interval_start"] = (frames - start) / fixture.fps
         rows["distance_to_interval_end"] = (end - 1 - frames) / fixture.fps
@@ -476,17 +517,23 @@ def _write_npy_xz(path: Path, values: np.ndarray) -> None:
         np.save(destination, values, allow_pickle=False)
 
 
-def freeze(data_root: Path, output_dir: Path, source_commit: str) -> tuple[Path, Path]:
+def freeze(
+    data_root: Path,
+    output_dir: Path,
+    source_commit: str,
+    motion_mode: str = "raw_per_frame",
+) -> tuple[Path, Path]:
     """Freeze all three fixtures and return feature and manifest paths."""
     if not source_commit.strip():
         raise ValueError("source_commit must be non-empty")
+    _motion_scale_factor(30.0, motion_mode)
     feature_families = _feature_family_names()
     fixture_chunks: list[np.ndarray] = []
     fixture_summaries: list[dict[str, Any]] = []
     input_rows: list[dict[str, Any]] = []
     for name, (video_id, fps) in FIXTURE_SPECS.items():
         fixture = FixtureSpec(name, video_id, fps)
-        rows, summary = _fixture_rows(data_root, fixture)
+        rows, summary = _fixture_rows(data_root, fixture, motion_mode)
         fixture_chunks.append(rows)
         fixture_summaries.append(summary)
         files = []
@@ -537,6 +584,8 @@ def freeze(data_root: Path, output_dir: Path, source_commit: str) -> tuple[Path,
         "fixtures": fixture_summaries,
         "inputs": input_rows,
     }
+    if motion_mode == "base30_per_frame":
+        manifest["motion_mode"] = motion_mode
     manifest_path = output_root / MANIFEST_FILENAME
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return feature_path, manifest_path
@@ -547,12 +596,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
+    parser.add_argument("--motion-mode", choices=MOTION_MODES, default="raw_per_frame")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
-    feature_path, manifest_path = freeze(arguments.data_root, arguments.output_dir, arguments.source_commit)
+    feature_path, manifest_path = freeze(
+        arguments.data_root,
+        arguments.output_dir,
+        arguments.source_commit,
+        arguments.motion_mode,
+    )
     print(f"wrote {feature_path}")
     print(f"wrote {manifest_path}")
     return 0

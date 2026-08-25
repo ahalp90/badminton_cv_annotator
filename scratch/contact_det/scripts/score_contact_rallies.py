@@ -41,11 +41,17 @@ import score_contact_evidence as evidence_scorer
 import score_tree_contact_detector as tree_scorer
 
 RESULTS_SCHEMA = "contact-rally-score/1"
-SELECTED_VARIANT = tree_scorer.CANDIDATE_VARIANT
 PRIMARY_TOLERANCE_BASE30 = 10
 SENSITIVITY_TOLERANCE_BASE30 = 5
 RETAINED_DECISION = tree_scorer.CANDIDATE_RETAINED
 DEFAULT_CONFIDENCE_REQUIREMENTS = tuple(round(value, 2) for value in np.linspace(0.0, 1.0, 21))
+PHYSICS_WITHOUT_RAW_MOTION_VARIANT = tree_scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT
+PHYSICS_BASE30_MOTION_VARIANT = tree_scorer.PHYSICS_BASE30_MOTION_VARIANT
+TRIAL_VARIANT_RESULT_PATHS = {
+    tree_scorer.CANDIDATE_VARIANT: ("histogram_boosting", "physics"),
+    tree_scorer.PHYSICS_WITHOUT_RAW_MOTION_VARIANT: ("histogram_boosting", "physics"),
+    tree_scorer.PHYSICS_BASE30_MOTION_VARIANT: ("histogram_boosting", "physics"),
+}
 
 REASON_NO_EVENTS = "no_events"
 REASON_NO_RALLY = "no_rally"
@@ -479,19 +485,61 @@ def score_strict_rallies(
     }
 
 
-def _prediction_frames_from_result(result: Mapping[str, Any]) -> dict[str, np.ndarray]:
-    """Read the selected retained event frames from the shipped result."""
-    variant = result["models"]["histogram_boosting"]["physics"]
-    folds = variant["folds"]
+def _candidate_variant(verified_candidates: object) -> str:
+    """Return the experiment variant bound to the verified score sidecar."""
+    manifest = getattr(verified_candidates, "manifest", None)
+    if not isinstance(manifest, Mapping):
+        raise TypeError("verified candidate scores do not expose a manifest")
+    manifest_variant = manifest.get("variant")
+    if manifest_variant not in TRIAL_VARIANT_RESULT_PATHS:
+        raise ValueError("verified candidate manifest does not select an allowed variant")
+    tree_result = getattr(verified_candidates, "tree_result", None)
+    if not isinstance(tree_result, Mapping):
+        raise TypeError("verified candidate scores do not expose a tree result")
+    if tree_scorer._result_variant(tree_result) != manifest_variant:
+        raise ValueError("tree result variant differs from the candidate manifest variant")
+    return str(manifest_variant)
+
+
+def _variant_model_result(result: Mapping[str, Any], variant_name: str) -> Mapping[str, Any]:
+    """Select the retained result branch for one verified experiment variant."""
+    result_path = TRIAL_VARIANT_RESULT_PATHS.get(variant_name)
+    if result_path is None:
+        raise ValueError(f"candidate variant is not an allowed rally-scoring variant: {variant_name!r}")
+    model_name, feature_set = result_path
+    try:
+        models = result["models"]
+        model = models[model_name]
+        selected = model[feature_set]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"tree result does not contain candidate variant {variant_name!r}") from error
+    if not isinstance(selected, Mapping):
+        raise TypeError(f"tree result variant {variant_name!r} is malformed")
+    return selected
+
+
+def _prediction_frames_from_result(
+    result: Mapping[str, Any],
+    variant_name: str = tree_scorer.CANDIDATE_VARIANT,
+) -> dict[str, np.ndarray]:
+    """Read retained event frames for one verified model variant."""
+    variant = _variant_model_result(result, variant_name)
+    folds = variant.get("folds")
+    if not isinstance(folds, Sequence) or isinstance(folds, (str, bytes)):
+        raise TypeError(f"tree result variant {variant_name!r} does not contain folds")
     output: dict[str, np.ndarray] = {}
     for fold in folds:
+        if not isinstance(fold, Mapping):
+            raise TypeError(f"tree result variant {variant_name!r} contains a malformed fold")
         fixture = str(fold["test_fixture"])
         frames = np.asarray(fold["prediction_frames"], dtype=np.int32)
         if fold["prediction_count"] != len(frames) or not np.array_equal(frames, np.unique(frames)):
-            raise ValueError(f"{fixture}: retained HGB prediction frames are malformed")
+            raise ValueError(f"{variant_name}/{fixture}: retained prediction frames are malformed")
+        if fixture in output:
+            raise ValueError(f"{variant_name}/{fixture}: retained prediction fixture is duplicated")
         output[fixture] = frames
     if set(output) != set(evidence_freezer.FIXTURE_SPECS):
-        raise ValueError("retained HGB prediction fixture set differs")
+        raise ValueError(f"retained {variant_name} prediction fixture set differs")
     return output
 
 
@@ -548,6 +596,7 @@ def _load_side_labels() -> dict[tuple[str, int], str]:
 def _shipped_attribution(
     arguments: argparse.Namespace,
     retained_frames: Mapping[str, np.ndarray],
+    variant_name: str,
 ) -> dict[tuple[str, int], str | None]:
     """Replay the existing attribution rule at the fixed retained frames."""
     import score_contact_player_attribution as attribution_scorer
@@ -559,7 +608,7 @@ def _shipped_attribution(
         region_v1_results=arguments.region_v1_results,
     )
     freezes = attribution_scorer._load_tree_freezes(freeze_arguments)
-    variants = {SELECTED_VARIANT: dict(retained_frames)}
+    variants = {variant_name: dict(retained_frames)}
     attribution = attribution_scorer._shipped_attribution_map(arguments.data_root, freezes, variants)
     expected = {
         (fixture, int(frame))
@@ -580,11 +629,12 @@ def score(arguments: argparse.Namespace) -> dict[str, Any]:
         verified_features,
         arguments.tree_results,
     )
-    retained_frames = _prediction_frames_from_result(verified_candidates.tree_result)
+    selected_variant = _candidate_variant(verified_candidates)
+    retained_frames = _prediction_frames_from_result(verified_candidates.tree_result, selected_variant)
 
     # Keep this boundary label-blind: events, scores, spans and shipped side
     # predictions are all fixed before either timing or player-side labels load.
-    attribution = _shipped_attribution(arguments, retained_frames)
+    attribution = _shipped_attribution(arguments, retained_frames, selected_variant)
     events_by_fixture = retained_events_from_scores(verified_candidates.rows, attribution)
     spans = fixed_spans_from_evidence(evidence.evidence, events_by_fixture)
     unassigned = unassigned_events(spans, events_by_fixture)
@@ -614,7 +664,7 @@ def score(arguments: argparse.Namespace) -> dict[str, Any]:
     return {
         "schema": RESULTS_SCHEMA,
         "fixture_set": list(evidence_freezer.FIXTURE_SPECS),
-        "selected_variant": SELECTED_VARIANT,
+        "selected_variant": selected_variant,
         "primary_tolerance_base30": PRIMARY_TOLERANCE_BASE30,
         "sensitivity_tolerance_base30": SENSITIVITY_TOLERANCE_BASE30,
         "labels_read_after_predictions_fixed": True,

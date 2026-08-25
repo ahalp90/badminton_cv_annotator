@@ -29,7 +29,9 @@ from freeze_tree_contact_features import (
     FEATURE_SCHEMA,
     IDENTITY_FIELDS,
     MANIFEST_SCHEMA,
+    MOTION_MODES,
     REGION_FIELDS,
+    WINDOW_OFFSETS_BASE30,
     _feature_family_names,
     _write_npy_xz,
 )
@@ -37,6 +39,25 @@ from freeze_tree_contact_features import (
 RESULTS_SCHEMA = "tree-contact-results/3"
 CANDIDATE_SCORES_SCHEMA = "tree-contact-candidate-scores/1"
 CANDIDATE_VARIANT = "region_v2/histogram_boosting/physics"
+PHYSICS_WITHOUT_RAW_MOTION_VARIANT = "region_v2/histogram_boosting/physics_without_raw_motion"
+PHYSICS_BASE30_MOTION_VARIANT = "region_v2/histogram_boosting/physics_base30_motion"
+ALLOWED_VARIANTS = (
+    CANDIDATE_VARIANT,
+    PHYSICS_WITHOUT_RAW_MOTION_VARIANT,
+    PHYSICS_BASE30_MOTION_VARIANT,
+)
+RAW_MOTION_MODE = "raw"
+RAW_PER_FRAME_MOTION_MODE = "raw_per_frame"
+BASE30_PER_FRAME_MOTION_MODE = "base30_per_frame"
+ALLOWED_EXPLICIT_MOTION_MODES = tuple(MOTION_MODES)
+FRAME_RATE_SENSITIVE_SIGNALS = (
+    "shuttle_vx",
+    "shuttle_vy",
+    "shuttle_speed",
+    "shuttle_impulse",
+    "ankle_speed_top",
+    "ankle_speed_bot",
+)
 TOLERANCES_BASE30 = (5, 10, 15)
 POSITIVE_RADIUS_BASE30 = 1
 IGNORE_RADIUS_BASE30 = 4
@@ -148,6 +169,40 @@ def _feature_families(value: object) -> dict[str, list[str]]:
     return parsed
 
 
+def _manifest_motion_mode(manifest: Mapping[str, Any]) -> str:
+    """Return the freeze motion mode, retaining the legacy raw default."""
+    if "motion_mode" not in manifest:
+        return RAW_MOTION_MODE
+    value = manifest["motion_mode"]
+    if not isinstance(value, str) or value not in ALLOWED_EXPLICIT_MOTION_MODES:
+        raise ValueError("feature manifest motion_mode differs")
+    return value
+
+
+def _validate_variant(variant: object) -> str:
+    if not isinstance(variant, str) or variant not in ALLOWED_VARIANTS:
+        raise ValueError(f"unknown tree contact variant: {variant!r}")
+    return variant
+
+
+def _validate_variant_for_manifest(manifest: Mapping[str, Any], variant: object) -> str:
+    selected = _validate_variant(variant)
+    motion_mode = _manifest_motion_mode(manifest)
+    if selected == CANDIDATE_VARIANT and motion_mode not in {
+        RAW_MOTION_MODE,
+        RAW_PER_FRAME_MOTION_MODE,
+    }:
+        raise ValueError("baseline tree contact variant requires raw motion features")
+    if selected == PHYSICS_WITHOUT_RAW_MOTION_VARIANT and motion_mode not in {
+        RAW_MOTION_MODE,
+        RAW_PER_FRAME_MOTION_MODE,
+    }:
+        raise ValueError("no-motion tree contact variant requires raw motion features")
+    if selected == PHYSICS_BASE30_MOTION_VARIANT and motion_mode != BASE30_PER_FRAME_MOTION_MODE:
+        raise ValueError("base30 tree contact variant requires base30_per_frame motion features")
+    return selected
+
+
 def _manifest_intervals(manifest: Mapping[str, Any], field: str) -> dict[str, tuple[tuple[int, int], ...]]:
     summaries = manifest.get("fixtures")
     if not isinstance(summaries, list):
@@ -189,6 +244,7 @@ def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
         raise ValueError("feature row domain differs")
     if manifest.get("model_search_surface") != "seeded region union":
         raise ValueError("model search surface differs")
+    _manifest_motion_mode(manifest)
     if manifest.get("fixture_set") != list(FIXTURE_SPECS):
         raise ValueError("feature fixture set differs")
     filename = _relative_filename(manifest.get("feature_file"), "manifest.feature_file")
@@ -289,9 +345,27 @@ def seeded_region_mask(rows: np.ndarray) -> np.ndarray:
     return selected
 
 
-def verify_tree_result(path: Path, verified: VerifiedFeatures) -> dict[str, Any]:
+def _result_variant(result: Mapping[str, Any]) -> str:
+    if "selected_variant" not in result:
+        return CANDIDATE_VARIANT
+    selected_variant = result["selected_variant"]
+    selected = _validate_variant(selected_variant)
+    if selected == CANDIDATE_VARIANT:
+        raise ValueError("baseline tree result must omit selected_variant")
+    return selected
+
+
+def verify_tree_result(
+    path: Path,
+    verified: VerifiedFeatures,
+    variant: str | None = None,
+) -> dict[str, Any]:
     """Verify the retained result identity and selected HGB fold structure."""
     result = _read_json_object(Path(path))
+    result_variant = _result_variant(result)
+    _validate_variant_for_manifest(verified.manifest, result_variant)
+    if variant is not None and result_variant != _validate_variant(variant):
+        raise ValueError("tree result selected_variant differs")
     expected = {
         "schema": RESULTS_SCHEMA,
         "source_commit": verified.manifest["source_commit"],
@@ -305,9 +379,14 @@ def verify_tree_result(path: Path, verified: VerifiedFeatures) -> dict[str, Any]
             raise ValueError(f"tree result {field} differs")
 
     try:
-        folds = result["models"]["histogram_boosting"]["physics"]["folds"]
+        physics_result = result["models"]["histogram_boosting"]["physics"]
+        folds = physics_result["folds"]
     except (KeyError, TypeError) as error:
         raise ValueError("tree result does not contain the selected HGB physics variant") from error
+    feature_count = physics_result.get("feature_count")
+    expected_feature_count = len(_feature_names(verified.manifest, "physics", variant=result_variant))
+    if isinstance(feature_count, bool) or not isinstance(feature_count, int) or feature_count != expected_feature_count:
+        raise ValueError("tree result selected feature count differs")
     if not isinstance(folds, list) or len(folds) != len(FIXTURE_SPECS):
         raise ValueError("tree result selected folds differ")
     by_fixture: dict[str, Mapping[str, Any]] = {}
@@ -385,7 +464,8 @@ def build_training_mask(
     return selected, labels
 
 
-def _feature_names(manifest: Mapping[str, Any], feature_set: str) -> list[str]:
+def _base_feature_names(manifest: Mapping[str, Any], feature_set: str) -> list[str]:
+    """Return the normal ordered columns for one model feature set."""
     families = _feature_families(manifest["feature_families"])
     names: list[str] = []
     for family in FEATURE_SETS[feature_set]:
@@ -393,6 +473,25 @@ def _feature_names(manifest: Mapping[str, Any], feature_set: str) -> list[str]:
             if name not in names:
                 names.append(name)
     return names
+
+
+def _feature_names(
+    manifest: Mapping[str, Any],
+    feature_set: str,
+    *,
+    variant: str = CANDIDATE_VARIANT,
+) -> list[str]:
+    """Return the columns for the selected HGB physics trial."""
+    selected_variant = _validate_variant_for_manifest(manifest, variant)
+    names = _base_feature_names(manifest, feature_set)
+    if feature_set != "physics" or selected_variant != PHYSICS_WITHOUT_RAW_MOTION_VARIANT:
+        return names
+    dropped = {
+        f"{signal}_t{offset:+d}"
+        for signal in FRAME_RATE_SENSITIVE_SIGNALS
+        for offset in WINDOW_OFFSETS_BASE30
+    }
+    return [name for name in names if name not in dropped]
 
 
 def _matrix(rows: np.ndarray, names: Sequence[str]) -> np.ndarray:
@@ -803,8 +902,10 @@ def _region_ceiling(
 def score(
     verified: VerifiedFeatures,
     *,
+    variant: str = CANDIDATE_VARIANT,
     retain_candidate_scores: bool = False,
 ) -> tuple[dict[str, Any], np.ndarray | None]:
+    selected_variant = _validate_variant_for_manifest(verified.manifest, variant)
     ground_truth = _load_ground_truth()
     model_rows = verified.rows[seeded_region_mask(verified.rows)]
     candidate_chunks: list[np.ndarray] = []
@@ -826,10 +927,20 @@ def score(
             "nms_radius_base30": NMS_RADIUS_BASE30,
         },
     }
+    if selected_variant != CANDIDATE_VARIANT:
+        output["selected_variant"] = selected_variant
     for model_name in ("histogram_boosting", "random_forest"):
         model_output: dict[str, Any] = {}
         for feature_set in FEATURE_SETS:
-            feature_names = _feature_names(verified.manifest, feature_set)
+            is_selected_trial = model_name == "histogram_boosting" and feature_set == "physics"
+            if is_selected_trial:
+                feature_names = _feature_names(
+                    verified.manifest,
+                    feature_set,
+                    variant=selected_variant,
+                )
+            else:
+                feature_names = _base_feature_names(verified.manifest, feature_set)
             predictions: dict[str, np.ndarray] = {}
             folds = []
             for test_fixture in FIXTURE_SPECS:
@@ -903,6 +1014,8 @@ def write_candidate_scores(
     if rows.dtype != CANDIDATE_SCORE_DTYPE:
         raise ValueError("candidate score fields differ")
 
+    selected_variant = _result_variant(results)
+    _validate_variant_for_manifest(verified.manifest, selected_variant)
     candidate_destination.parent.mkdir(parents=True, exist_ok=True)
     _write_npy_xz(candidate_destination, rows)
     folds = results["models"]["histogram_boosting"]["physics"]["folds"]
@@ -927,7 +1040,7 @@ def write_candidate_scores(
         "source_commit": verified.manifest["source_commit"],
         "feature_sha256": verified.manifest["feature_sha256"],
         "tree_result_sha256": _sha256(tree_result_path),
-        "variant": CANDIDATE_VARIANT,
+        "variant": selected_variant,
         "fixture_set": list(FIXTURE_SPECS),
         "candidate_file": candidate_destination.name,
         "candidate_sha256": _sha256(candidate_destination),
@@ -949,6 +1062,7 @@ def verify_candidate_scores(
     manifest_path = Path(manifest_path)
     manifest = _read_json_object(manifest_path)
     tree_result = verify_tree_result(tree_result_path, verified)
+    selected_variant = _result_variant(tree_result)
     expected_metadata = {
         "schema": CANDIDATE_SCORES_SCHEMA,
         "export_kind": "observational held-out timing scores",
@@ -957,7 +1071,7 @@ def verify_candidate_scores(
         "source_commit": verified.manifest["source_commit"],
         "feature_sha256": verified.manifest["feature_sha256"],
         "tree_result_sha256": _sha256(tree_result_path),
-        "variant": CANDIDATE_VARIANT,
+        "variant": selected_variant,
         "fixture_set": list(FIXTURE_SPECS),
         "fields": list(CANDIDATE_SCORE_DTYPE.names or ()),
         "decision_codes": CANDIDATE_DECISIONS,
@@ -1051,6 +1165,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--candidate-output", type=Path)
     parser.add_argument("--candidate-manifest", type=Path)
+    parser.add_argument("--variant", choices=ALLOWED_VARIANTS, default=CANDIDATE_VARIANT)
     arguments = parser.parse_args(argv)
     if (arguments.candidate_output is None) != (arguments.candidate_manifest is None):
         parser.error("--candidate-output and --candidate-manifest must be provided together")
@@ -1061,7 +1176,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
     verified = verify_freeze(arguments.manifest)
     retain_candidate_scores = arguments.candidate_output is not None
-    results, candidate_scores = score(verified, retain_candidate_scores=retain_candidate_scores)
+    results, candidate_scores = score(
+        verified,
+        variant=arguments.variant,
+        retain_candidate_scores=retain_candidate_scores,
+    )
     write_results(arguments.output, results)
     print(f"wrote {arguments.output}")
     if candidate_scores is not None:
