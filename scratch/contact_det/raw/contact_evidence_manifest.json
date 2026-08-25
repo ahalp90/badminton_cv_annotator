@@ -1,0 +1,240 @@
+{
+  "evidence_file": "contact_evidence.json.gz",
+  "evidence_schema": "contact-evidence-freeze/1",
+  "evidence_sha256": "41a0519ca6bf55dc464f9435f64e9ea4cc3a6dca8224a7acf8fd8702fb27cbf8",
+  "fixture_set": [
+    "sset_01",
+    "sset_15",
+    "sset_21"
+  ],
+  "inputs": [
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "a703db1714983332ff8b2f5f305d1ac865843f32f9f7b2574f23da9f21a387a4",
+          "size_bytes": 204528,
+          "stage": "shuttle"
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "0e8a84e0a760e02e4b83c51fa6963d150cf5d64dfc5b28daea3a690ca11713ca",
+          "size_bytes": 60146876,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "c3b6b7c1ce7e6aaafa7a9f94f3df298ef8e8bc38a716c4643db7a5b8f1331d90",
+          "size_bytes": 7466660,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "2e1b65ef4ccb0a532dbf658f9671c84074dd1374d242a96730f22a3b8cb8bf16",
+          "size_bytes": 2160676,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "9364f57c3cbc04cfb726b0c67bae872f2c229f0aea10d48fd6d1573a52eebeac",
+          "size_bytes": 39110804,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "68e0f8e6f737e74113e14558bd844b31c741d6f1e6a5d36770f1d22bb5653b1d",
+          "size_bytes": 14216,
+          "stage": "pose"
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "0e3d9ef8e681d39c15328301350809383b800bd47575491cd2452812f0568833",
+          "size_bytes": 65539,
+          "stage": "court"
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "caef8b4e33321977f4b79971e24eba1ff3c20b2ef47b4598115b4bceb11e3e6f",
+          "size_bytes": 2920,
+          "stage": "court"
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "6693b60b66fc0247e18f2bcceb3badcd5ab14dbeca4d50812177e130c9d618a1",
+          "size_bytes": 840,
+          "stage": "court"
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "b1656fcd60ba354b1003ee6f70e8192395d4f4b479b5f8245e3d98518ae1d52e",
+          "size_bytes": 35201,
+          "stage": "annotation"
+        }
+      ],
+      "fixture": "sset_01"
+    },
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "693500705ddd1a120b70629f861d2d754af2d7de4ece7b1b9f7be059ae8b590c",
+          "size_bytes": 156872,
+          "stage": "shuttle"
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "813597265cd28a8f865a5660908a848684669e20c976db97960c0eb4e4cdb14c",
+          "size_bytes": 62469312,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "ba05a8750fd712f980a3cf4f21f01c276ea80d719b95ebe0d2f64f78f30a193a",
+          "size_bytes": 7906112,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "aa10e06aba177445e1760556f03094bd5efaf2c7a20b13c310edff0f1777e218",
+          "size_bytes": 2228636,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "ae5457cb143d5dbcc85b200696a9622688d24b3cab523a644c14720a21d53606",
+          "size_bytes": 39182356,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "59c8e9c07baea308db057b4eb063d9d21ee6fd1b63a4a43ffe0fea6cfc9be208",
+          "size_bytes": 18604,
+          "stage": "pose"
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "b379f6376516ad4bfe70c360c4a68eae0a2ff3fbe878d8bdb21ac4ecb01b119a",
+          "size_bytes": 99298,
+          "stage": "court"
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "cbae245f62703f927cce441a323ad6fbfc2dd47b04f0ac40ca980eef6a3fb482",
+          "size_bytes": 2624,
+          "stage": "court"
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "1ff72241d37972249f96739c977b46ea30202b89abb6d368e269c9b1c143131f",
+          "size_bytes": 876,
+          "stage": "court"
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "4c4b51b216363444b0117f07e7646054c9ba20fb2f9639b78430103285e8ec04",
+          "size_bytes": 26254,
+          "stage": "annotation"
+        }
+      ],
+      "fixture": "sset_15"
+    },
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "e03eacd418e0634ca5aca229e722443b73a89d3be52183dac3ef0741bb6ef946",
+          "size_bytes": 115376,
+          "stage": "shuttle"
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "d4cb2a4294f68ebdf4cf7d75ff4538ec1dad88070db2de6732e3b7d2e57e64d9",
+          "size_bytes": 44169568,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "f3d04ec1f35443627bfca75e2672a37d70283ca3dadb905b53ae533826fab235",
+          "size_bytes": 5510896,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "623714eb0ac6924758ef92af4db39ab65d628f3b2c382202a6d747e07fb846f8",
+          "size_bytes": 1622536,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "f6d9db8dd3551fc71890486a00df3661e71832cbe428b317134a3efda8fad1b7",
+          "size_bytes": 29077568,
+          "stage": "pose"
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "8cc394624423532091834d565767122586a1844dd2c8844915d5f7ebf8bc8d1d",
+          "size_bytes": 11932,
+          "stage": "pose"
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "9da640d19091b716f886a9e330fd5892e7421285dfaf88a631383c26a082b7a5",
+          "size_bytes": 63972,
+          "stage": "court"
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "0d1427ec5ca951428975b8dfbea5cb1ecda43e7a88a3c7cf9197ac7f2763b409",
+          "size_bytes": 1532,
+          "stage": "court"
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "029850a23ee4c762a8df2abcdc7ea3a575436ae8b4d61bfe2e5fa8cef70ad732",
+          "size_bytes": 656,
+          "stage": "court"
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "b902c8766ee8cff20768c0eea4da4371d7aef8982e0dcf0b4f871522611b9f51",
+          "size_bytes": 21796,
+          "stage": "annotation"
+        }
+      ],
+      "fixture": "sset_21"
+    }
+  ],
+  "labels_read": false,
+  "schema": "contact-evidence-manifest/1",
+  "source_commit": "ad8da4f"
+}

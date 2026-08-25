@@ -15,3 +15,11 @@
 !contact_coverage.png
 !player_side_accuracy.png
 !tree_trial_summary.png
+!auto_annotator_progress.md
+!plot_auto_annotator_progress.py
+!auto_annotator_contact_stack.png
+!auto_annotator_rally_segments.png
+implementation_paths.md
+!raw/
+!raw/**
+raw/region_v2_inputs/stages/pose/
