@@ -19,6 +19,9 @@
 !plot_auto_annotator_progress.py
 !auto_annotator_contact_stack.png
 !auto_annotator_rally_segments.png
+!score_contact_player_attribution.py
+!test_contact_player_attribution.py
+!raw/contact_player_attribution_score.json.gz
 implementation_paths.md
 !raw/
 !raw/**
