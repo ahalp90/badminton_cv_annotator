@@ -264,6 +264,127 @@ def test_temporal_nms_is_per_span_and_keeps_the_strongest_frame() -> None:
     assert set(kept.tolist()) == {1, 3}
 
 
+def test_candidate_scores_preserve_identity_and_current_decision() -> None:
+    rows = np.zeros(
+        6,
+        dtype=[("fixture", "S7"), ("interval_id", "<i2"), ("frame", "<i4")],
+    )
+    rows["fixture"] = b"sset_01"
+    rows["interval_id"] = [0, 0, 0, 0, 1, 1]
+    rows["frame"] = [10, 12, 14, 20, 10, 12]
+    probabilities = np.asarray([0.5, 0.9, 0.8, 0.4, 0.9, 0.9])
+    kept = scorer.temporal_nms(rows["frame"], rows["interval_id"], probabilities, threshold=0.5, radius=3)
+
+    candidates = scorer._candidate_score_rows(rows, probabilities, threshold=0.5, kept=kept)
+
+    assert candidates[["fixture", "interval_id", "frame"]].tolist() == rows.tolist()
+    assert candidates["decision"].tolist() == [
+        scorer.CANDIDATE_NEARBY_DUPLICATE,
+        scorer.CANDIDATE_RETAINED,
+        scorer.CANDIDATE_NEARBY_DUPLICATE,
+        scorer.CANDIDATE_BELOW_THRESHOLD,
+        scorer.CANDIDATE_RETAINED,
+        scorer.CANDIDATE_NEARBY_DUPLICATE,
+    ]
+    assert candidates["timing_score"].tolist() == probabilities.tolist()
+    assert candidates["threshold"].tolist() == [0.5] * len(rows)
+
+
+def test_outer_fold_preserves_the_existing_two_value_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    predictions = np.asarray([10, 20], dtype=np.int32)
+
+    def fake_fold(*_args: object, **_kwargs: object) -> tuple[dict[str, str], np.ndarray, None]:
+        return {"test_fixture": "sset_01"}, predictions, None
+
+    monkeypatch.setattr(scorer, "_outer_fold_with_candidate_scores", fake_fold)
+
+    fold, actual_predictions = scorer._outer_fold(
+        np.empty(0),
+        "sset_01",
+        scorer.GroundTruth({}, {}, 0),
+        (),
+        "histogram_boosting",
+    )
+
+    assert fold == {"test_fixture": "sset_01"}
+    assert actual_predictions is predictions
+
+
+def test_candidate_score_manifest_binds_the_freeze_and_tree_result(tmp_path: Path) -> None:
+    verified = scorer.verify_freeze(_write_verified_fixture(tmp_path))
+    model_rows = verified.rows.copy()
+    model_rows["region_wrist"] = 1
+    verified = scorer.VerifiedFeatures(verified.manifest_path, verified.manifest, model_rows)
+
+    chunks = []
+    folds = []
+    for fixture, row in zip(freezer.FIXTURE_SPECS, model_rows, strict=True):
+        fixture_rows = np.asarray([row], dtype=model_rows.dtype)
+        chunks.append(
+            scorer._candidate_score_rows(
+                fixture_rows,
+                np.asarray([0.8]),
+                threshold=0.5,
+                kept=np.asarray([0], dtype=np.int32),
+            )
+        )
+        folds.append(
+            {
+                "test_fixture": fixture,
+                "train_fixtures": [name for name in freezer.FIXTURE_SPECS if name != fixture],
+                "threshold": 0.5,
+                "prediction_count": 1,
+                "prediction_frames": [int(row["frame"])],
+            }
+        )
+    candidates = np.concatenate(chunks)
+    results = {
+        "schema": scorer.RESULTS_SCHEMA,
+        "source_commit": verified.manifest["source_commit"],
+        "feature_sha256": verified.manifest["feature_sha256"],
+        "row_count": len(model_rows),
+        "model_row_count": len(model_rows),
+        "model_search_surface": "seeded_union",
+        "models": {"histogram_boosting": {"physics": {"folds": folds}}},
+    }
+    tree_result_path = tmp_path / "tree_results.json.gz"
+    scorer.write_results(tree_result_path, results)
+    candidate_path = tmp_path / "candidate_scores.npy.xz"
+    candidate_manifest_path = tmp_path / "candidate_scores_manifest.json"
+    scorer.write_candidate_scores(
+        candidate_path,
+        candidate_manifest_path,
+        candidates,
+        verified,
+        tree_result_path,
+        results,
+    )
+
+    retained = scorer.verify_candidate_scores(candidate_manifest_path, verified, tree_result_path)
+
+    assert np.array_equal(retained.rows, candidates)
+    changed_manifest = json.loads(candidate_manifest_path.read_text(encoding="utf-8"))
+    changed_manifest["folds"][0]["threshold"] = 0.6
+    candidate_manifest_path.write_text(
+        json.dumps(changed_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="candidate fold summary"):
+        scorer.verify_candidate_scores(candidate_manifest_path, verified, tree_result_path)
+
+    scorer.write_candidate_scores(
+        candidate_path,
+        candidate_manifest_path,
+        candidates,
+        verified,
+        tree_result_path,
+        results,
+    )
+    scorer.write_results(tree_result_path, {**results, "source_commit": "changed"})
+    with pytest.raises(ValueError, match="tree result source_commit"):
+        scorer.verify_candidate_scores(candidate_manifest_path, verified, tree_result_path)
+
+
 def test_seeded_region_mask_selects_each_frame_once() -> None:
     families = freezer._feature_family_names()
     rows = np.zeros(4, dtype=freezer._record_dtype(families))

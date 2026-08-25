@@ -31,9 +31,12 @@ from freeze_tree_contact_features import (
     MANIFEST_SCHEMA,
     REGION_FIELDS,
     _feature_family_names,
+    _write_npy_xz,
 )
 
 RESULTS_SCHEMA = "tree-contact-results/3"
+CANDIDATE_SCORES_SCHEMA = "tree-contact-candidate-scores/1"
+CANDIDATE_VARIANT = "region_v2/histogram_boosting/physics"
 TOLERANCES_BASE30 = (5, 10, 15)
 POSITIVE_RADIUS_BASE30 = 1
 IGNORE_RADIUS_BASE30 = 4
@@ -51,6 +54,25 @@ FEATURE_SETS = {
     "context_only": ("context",),
     "missingness_only": ("missingness",),
 }
+
+CANDIDATE_BELOW_THRESHOLD = 0
+CANDIDATE_NEARBY_DUPLICATE = 1
+CANDIDATE_RETAINED = 2
+CANDIDATE_DECISIONS = {
+    "below_threshold": CANDIDATE_BELOW_THRESHOLD,
+    "nearby_duplicate": CANDIDATE_NEARBY_DUPLICATE,
+    "retained": CANDIDATE_RETAINED,
+}
+CANDIDATE_SCORE_DTYPE = np.dtype(
+    [
+        ("fixture", "S7"),
+        ("interval_id", "<i2"),
+        ("frame", "<i4"),
+        ("timing_score", "<f8"),
+        ("threshold", "<f8"),
+        ("decision", "u1"),
+    ]
+)
 
 
 @dataclass(frozen=True)
@@ -71,8 +93,22 @@ class GroundTruth:
     rally_count: int
 
 
+@dataclass(frozen=True)
+class VerifiedCandidateScores:
+    """Held-out scores tied to one verified feature freeze and tree result."""
+
+    manifest_path: Path
+    manifest: dict[str, Any]
+    rows: np.ndarray
+    tree_result: dict[str, Any]
+
+
 def _read_json_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    if path.name.endswith(".gz"):
+        with gzip.open(path, "rt", encoding="utf-8") as source:
+            value = json.load(source)
+    else:
+        value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise TypeError(f"{path}: expected a JSON object")
     return value
@@ -206,11 +242,19 @@ def verify_freeze(manifest_path: Path) -> VerifiedFeatures:
 
 
 def _load_ground_truth() -> GroundTruth:
-    """Load ShuttleSet labels only after feature verification has succeeded."""
-    from annotator.calibration.gt_scoring import load_gt_tables
+    """Load timing labels only after feature verification has succeeded."""
+    import pandas as pd
+
+    from annotator.calibration.fixtures import REPO_ROOT as CALIBRATION_ROOT
+    from annotator.calibration.fixtures import SHARED_FILES, verify_file
     from annotator.calibration.scoring import load_gt_rallies
 
-    master, _homography, _court_info, _resolution = load_gt_tables()
+    master_pin = next(pin for pin in SHARED_FILES if pin.path.name == "shots_master.csv")
+    verify_file(master_pin)
+    master = pd.read_csv(
+        CALIBRATION_ROOT / master_pin.path,
+        usecols=["vid", "set_id", "rally", "frame_num"],
+    )
     frames: dict[str, np.ndarray] = {}
     serves: dict[str, set[int]] = {}
     rally_count = 0
@@ -243,6 +287,56 @@ def seeded_region_mask(rows: np.ndarray) -> np.ndarray:
     for field in REGION_FIELDS:
         selected |= rows[field].astype(bool)
     return selected
+
+
+def verify_tree_result(path: Path, verified: VerifiedFeatures) -> dict[str, Any]:
+    """Verify the retained result identity and selected HGB fold structure."""
+    result = _read_json_object(Path(path))
+    expected = {
+        "schema": RESULTS_SCHEMA,
+        "source_commit": verified.manifest["source_commit"],
+        "feature_sha256": verified.manifest["feature_sha256"],
+        "row_count": len(verified.rows),
+        "model_row_count": int(np.count_nonzero(seeded_region_mask(verified.rows))),
+        "model_search_surface": "seeded_union",
+    }
+    for field, value in expected.items():
+        if result.get(field) != value:
+            raise ValueError(f"tree result {field} differs")
+
+    try:
+        folds = result["models"]["histogram_boosting"]["physics"]["folds"]
+    except (KeyError, TypeError) as error:
+        raise ValueError("tree result does not contain the selected HGB physics variant") from error
+    if not isinstance(folds, list) or len(folds) != len(FIXTURE_SPECS):
+        raise ValueError("tree result selected folds differ")
+    by_fixture: dict[str, Mapping[str, Any]] = {}
+    for fold in folds:
+        if not isinstance(fold, Mapping):
+            raise TypeError("tree result selected fold is malformed")
+        fixture = fold.get("test_fixture")
+        if not isinstance(fixture, str) or fixture not in FIXTURE_SPECS or fixture in by_fixture:
+            raise ValueError("tree result selected fold fixture differs")
+        by_fixture[str(fixture)] = fold
+    if set(by_fixture) != set(FIXTURE_SPECS):
+        raise ValueError("tree result selected fold fixture set differs")
+    for fixture, fold in by_fixture.items():
+        expected_training = [name for name in FIXTURE_SPECS if name != fixture]
+        threshold = fold.get("threshold")
+        frames = fold.get("prediction_frames")
+        if (
+            fold.get("train_fixtures") != expected_training
+            or isinstance(threshold, bool)
+            or not isinstance(threshold, (int, float))
+            or not math.isfinite(float(threshold))
+            or not 0.0 <= float(threshold) <= 1.0
+            or not isinstance(frames, list)
+            or any(isinstance(frame, bool) or not isinstance(frame, int) or frame < 0 for frame in frames)
+            or fold.get("prediction_count") != len(frames)
+            or frames != sorted(set(frames))
+        ):
+            raise ValueError(f"{fixture}: tree result selected fold differs")
+    return result
 
 
 def _nearest_distances(frames: np.ndarray, targets: np.ndarray) -> np.ndarray:
@@ -351,6 +445,29 @@ def temporal_nms(
                 kept.append(int(index))
         accepted.extend(kept)
     return np.asarray(sorted(accepted, key=lambda index: frames[index]), dtype=np.int32)
+
+
+def _candidate_score_rows(
+    rows: np.ndarray,
+    probabilities: np.ndarray,
+    threshold: float,
+    kept: np.ndarray,
+) -> np.ndarray:
+    """Retain aligned held-out scores and the current threshold/NMS decision."""
+    if len(rows) != len(probabilities):
+        raise ValueError("candidate rows and timing scores differ in length")
+    decisions = np.full(len(rows), CANDIDATE_BELOW_THRESHOLD, dtype=np.uint8)
+    decisions[probabilities >= threshold] = CANDIDATE_NEARBY_DUPLICATE
+    decisions[kept] = CANDIDATE_RETAINED
+
+    output = np.empty(len(rows), dtype=CANDIDATE_SCORE_DTYPE)
+    output["fixture"] = rows["fixture"]
+    output["interval_id"] = rows["interval_id"]
+    output["frame"] = rows["frame"]
+    output["timing_score"] = probabilities
+    output["threshold"] = threshold
+    output["decision"] = decisions
+    return output
 
 
 def _greedy_matches(gt_frames: np.ndarray, predictions: np.ndarray, tolerance: int) -> list[tuple[int, int, int]]:
@@ -483,13 +600,15 @@ def _fit_predict(
     return np.flatnonzero(predict_mask), probabilities
 
 
-def _outer_fold(
+def _outer_fold_with_candidate_scores(
     rows: np.ndarray,
     test_fixture: str,
     ground_truth: GroundTruth,
     feature_names: Sequence[str],
     model_name: str,
-) -> tuple[dict[str, Any], np.ndarray]:
+    *,
+    retain_candidate_scores: bool = False,
+) -> tuple[dict[str, Any], np.ndarray, np.ndarray | None]:
     train_fixtures = [fixture for fixture in FIXTURE_SPECS if fixture != test_fixture]
     names = _fixture_names(rows)
     oof_probabilities = np.full(len(rows), np.nan, dtype=np.float64)
@@ -532,6 +651,11 @@ def _outer_fold(
         _scaled_frames(NMS_RADIUS_BASE30, FIXTURE_SPECS[test_fixture][1]),
     )
     predictions = test_rows["frame"][kept].astype(np.int32)
+    candidate_scores = (
+        _candidate_score_rows(test_rows, test_probabilities, threshold, kept)
+        if retain_candidate_scores
+        else None
+    )
     fold = {
         "test_fixture": test_fixture,
         "train_fixtures": train_fixtures,
@@ -549,6 +673,24 @@ def _outer_fold(
             for tolerance in TOLERANCES_BASE30
         },
     }
+    return fold, predictions, candidate_scores
+
+
+def _outer_fold(
+    rows: np.ndarray,
+    test_fixture: str,
+    ground_truth: GroundTruth,
+    feature_names: Sequence[str],
+    model_name: str,
+) -> tuple[dict[str, Any], np.ndarray]:
+    """Run one outer fold while preserving the existing two-value API."""
+    fold, predictions, _candidate_scores = _outer_fold_with_candidate_scores(
+        rows,
+        test_fixture,
+        ground_truth,
+        feature_names,
+        model_name,
+    )
     return fold, predictions
 
 
@@ -658,9 +800,14 @@ def _region_ceiling(
     return output
 
 
-def score(verified: VerifiedFeatures) -> dict[str, Any]:
+def score(
+    verified: VerifiedFeatures,
+    *,
+    retain_candidate_scores: bool = False,
+) -> tuple[dict[str, Any], np.ndarray | None]:
     ground_truth = _load_ground_truth()
     model_rows = verified.rows[seeded_region_mask(verified.rows)]
+    candidate_chunks: list[np.ndarray] = []
     output: dict[str, Any] = {
         "schema": RESULTS_SCHEMA,
         "source_commit": verified.manifest["source_commit"],
@@ -686,15 +833,23 @@ def score(verified: VerifiedFeatures) -> dict[str, Any]:
             predictions: dict[str, np.ndarray] = {}
             folds = []
             for test_fixture in FIXTURE_SPECS:
-                fold, fold_predictions = _outer_fold(
+                capture_fold = (
+                    retain_candidate_scores
+                    and model_name == "histogram_boosting"
+                    and feature_set == "physics"
+                )
+                fold, fold_predictions, fold_candidates = _outer_fold_with_candidate_scores(
                     model_rows,
                     test_fixture,
                     ground_truth,
                     feature_names,
                     model_name,
+                    retain_candidate_scores=capture_fold,
                 )
                 folds.append(fold)
                 predictions[test_fixture] = fold_predictions
+                if fold_candidates is not None:
+                    candidate_chunks.append(fold_candidates)
             metrics = {
                 str(tolerance): _event_counts(ground_truth, predictions, tolerance)
                 for tolerance in TOLERANCES_BASE30
@@ -706,7 +861,15 @@ def score(verified: VerifiedFeatures) -> dict[str, Any]:
             }
             print(f"completed {model_name} / {feature_set}", flush=True)
         output["models"][model_name] = model_output
-    return output
+    candidate_scores = np.concatenate(candidate_chunks) if candidate_chunks else None
+    if retain_candidate_scores:
+        if candidate_scores is None or len(candidate_scores) != len(model_rows):
+            raise AssertionError("selected held-out candidate export is incomplete")
+        candidate_identities = candidate_scores[["fixture", "interval_id", "frame"]]
+        model_identities = model_rows[["fixture", "interval_id", "frame"]]
+        if not np.array_equal(candidate_identities, model_identities):
+            raise AssertionError("selected held-out candidate order differs from the model rows")
+    return output, candidate_scores
 
 
 def write_results(path: Path, payload: Mapping[str, object]) -> None:
@@ -722,19 +885,198 @@ def write_results(path: Path, payload: Mapping[str, object]) -> None:
         destination.write_bytes(encoded)
 
 
+def write_candidate_scores(
+    candidate_path: Path,
+    manifest_path: Path,
+    rows: np.ndarray,
+    verified: VerifiedFeatures,
+    tree_result_path: Path,
+    results: Mapping[str, Any],
+) -> None:
+    """Write one observational held-out score row per selected model candidate."""
+    candidate_destination = Path(candidate_path)
+    manifest_destination = Path(manifest_path)
+    if candidate_destination.parent.resolve() != manifest_destination.parent.resolve():
+        raise ValueError("candidate scores and their manifest must share a directory")
+    if not candidate_destination.name.endswith(".npy.xz") or not manifest_destination.name.endswith(".json"):
+        raise ValueError("candidate scores must use .npy.xz with a JSON manifest")
+    if rows.dtype != CANDIDATE_SCORE_DTYPE:
+        raise ValueError("candidate score fields differ")
+
+    candidate_destination.parent.mkdir(parents=True, exist_ok=True)
+    _write_npy_xz(candidate_destination, rows)
+    folds = results["models"]["histogram_boosting"]["physics"]["folds"]
+    fold_summaries = []
+    for fold in folds:
+        fixture = str(fold["test_fixture"])
+        fixture_rows = rows[np.char.decode(rows["fixture"], "ascii") == fixture]
+        fold_summaries.append(
+            {
+                "fixture": fixture,
+                "threshold": float(fold["threshold"]),
+                "nms_radius_frames": _scaled_frames(NMS_RADIUS_BASE30, FIXTURE_SPECS[fixture][1]),
+                "candidate_count": len(fixture_rows),
+                "prediction_count": int(np.count_nonzero(fixture_rows["decision"] == CANDIDATE_RETAINED)),
+            }
+        )
+    manifest = {
+        "schema": CANDIDATE_SCORES_SCHEMA,
+        "export_kind": "observational held-out timing scores",
+        "timing_labels_read": True,
+        "player_side_labels_read": False,
+        "source_commit": verified.manifest["source_commit"],
+        "feature_sha256": verified.manifest["feature_sha256"],
+        "tree_result_sha256": _sha256(tree_result_path),
+        "variant": CANDIDATE_VARIANT,
+        "fixture_set": list(FIXTURE_SPECS),
+        "candidate_file": candidate_destination.name,
+        "candidate_sha256": _sha256(candidate_destination),
+        "row_count": len(rows),
+        "fields": list(CANDIDATE_SCORE_DTYPE.names or ()),
+        "decision_codes": CANDIDATE_DECISIONS,
+        "nms_radius_base30": NMS_RADIUS_BASE30,
+        "folds": fold_summaries,
+    }
+    manifest_destination.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def verify_candidate_scores(
+    manifest_path: Path,
+    verified: VerifiedFeatures,
+    tree_result_path: Path,
+) -> VerifiedCandidateScores:
+    """Verify the selected held-out score sidecar without reading player-side labels."""
+    manifest_path = Path(manifest_path)
+    manifest = _read_json_object(manifest_path)
+    tree_result = verify_tree_result(tree_result_path, verified)
+    expected_metadata = {
+        "schema": CANDIDATE_SCORES_SCHEMA,
+        "export_kind": "observational held-out timing scores",
+        "timing_labels_read": True,
+        "player_side_labels_read": False,
+        "source_commit": verified.manifest["source_commit"],
+        "feature_sha256": verified.manifest["feature_sha256"],
+        "tree_result_sha256": _sha256(tree_result_path),
+        "variant": CANDIDATE_VARIANT,
+        "fixture_set": list(FIXTURE_SPECS),
+        "fields": list(CANDIDATE_SCORE_DTYPE.names or ()),
+        "decision_codes": CANDIDATE_DECISIONS,
+        "nms_radius_base30": NMS_RADIUS_BASE30,
+    }
+    for field, expected in expected_metadata.items():
+        if manifest.get(field) != expected:
+            raise ValueError(f"candidate score manifest {field} differs")
+
+    filename = _relative_filename(manifest.get("candidate_file"), "candidate_file")
+    candidate_path = manifest_path.parent / filename
+    if manifest.get("candidate_sha256") != _sha256(candidate_path):
+        raise ValueError("candidate score file SHA-256 differs")
+    with lzma.open(candidate_path, "rb") as source:
+        rows = np.load(source, allow_pickle=False)
+    model_rows = verified.rows[seeded_region_mask(verified.rows)]
+    if rows.ndim != 1 or rows.dtype != CANDIDATE_SCORE_DTYPE or len(rows) != len(model_rows):
+        raise ValueError("candidate score table shape or fields differ")
+    if manifest.get("row_count") != len(rows):
+        raise ValueError("candidate score row count differs")
+    if not np.array_equal(
+        rows[["fixture", "interval_id", "frame"]],
+        model_rows[["fixture", "interval_id", "frame"]],
+    ):
+        raise ValueError("candidate score identities differ from the model surface")
+    if (
+        not np.isfinite(rows["timing_score"]).all()
+        or not np.isfinite(rows["threshold"]).all()
+        or np.any((rows["timing_score"] < 0.0) | (rows["timing_score"] > 1.0))
+        or np.any((rows["threshold"] < 0.0) | (rows["threshold"] > 1.0))
+    ):
+        raise ValueError("candidate timing scores or thresholds are invalid")
+    if not np.isin(rows["decision"], list(CANDIDATE_DECISIONS.values())).all():
+        raise ValueError("candidate decisions are invalid")
+
+    fold_summaries = manifest.get("folds")
+    if not isinstance(fold_summaries, list) or len(fold_summaries) != len(FIXTURE_SPECS):
+        raise ValueError("candidate fold summaries differ")
+    names = np.char.decode(rows["fixture"], "ascii")
+    summaries_by_fixture = {
+        str(summary.get("fixture")): summary
+        for summary in fold_summaries
+        if isinstance(summary, Mapping)
+    }
+    if set(summaries_by_fixture) != set(FIXTURE_SPECS):
+        raise ValueError("candidate fold fixture set differs")
+    result_folds = {
+        str(fold["test_fixture"]): fold
+        for fold in tree_result["models"]["histogram_boosting"]["physics"]["folds"]
+    }
+    for fixture, (_video_id, fps) in FIXTURE_SPECS.items():
+        fixture_rows = rows[names == fixture]
+        summary = summaries_by_fixture[fixture]
+        threshold = summary.get("threshold")
+        result_fold = result_folds[fixture]
+        result_threshold = float(result_fold["threshold"])
+        result_frames = np.asarray(result_fold["prediction_frames"], dtype=np.int32)
+        retained_frames = fixture_rows[fixture_rows["decision"] == CANDIDATE_RETAINED]["frame"]
+        radius = _scaled_frames(NMS_RADIUS_BASE30, fps)
+        if (
+            not isinstance(threshold, (int, float))
+            or float(threshold) != result_threshold
+            or summary.get("nms_radius_frames") != radius
+            or summary.get("candidate_count") != len(fixture_rows)
+            or summary.get("prediction_count") != len(retained_frames)
+            or not np.all(fixture_rows["threshold"] == float(threshold))
+            or not np.array_equal(retained_frames, result_frames)
+        ):
+            raise ValueError(f"{fixture}: candidate fold summary differs")
+        kept = temporal_nms(
+            fixture_rows["frame"],
+            fixture_rows["interval_id"],
+            fixture_rows["timing_score"],
+            float(threshold),
+            radius,
+        )
+        expected_decisions = _candidate_score_rows(
+            fixture_rows,
+            fixture_rows["timing_score"],
+            float(threshold),
+            kept,
+        )["decision"]
+        if not np.array_equal(fixture_rows["decision"], expected_decisions):
+            raise ValueError(f"{fixture}: candidate decisions differ from threshold and NMS")
+    return VerifiedCandidateScores(manifest_path, manifest, rows, tree_result)
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    return parser.parse_args(argv)
+    parser.add_argument("--candidate-output", type=Path)
+    parser.add_argument("--candidate-manifest", type=Path)
+    arguments = parser.parse_args(argv)
+    if (arguments.candidate_output is None) != (arguments.candidate_manifest is None):
+        parser.error("--candidate-output and --candidate-manifest must be provided together")
+    return arguments
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
     verified = verify_freeze(arguments.manifest)
-    results = score(verified)
+    retain_candidate_scores = arguments.candidate_output is not None
+    results, candidate_scores = score(verified, retain_candidate_scores=retain_candidate_scores)
     write_results(arguments.output, results)
     print(f"wrote {arguments.output}")
+    if candidate_scores is not None:
+        if arguments.candidate_output is None or arguments.candidate_manifest is None:
+            raise AssertionError("candidate output paths are missing")
+        write_candidate_scores(
+            arguments.candidate_output,
+            arguments.candidate_manifest,
+            candidate_scores,
+            verified,
+            arguments.output,
+            results,
+        )
+        print(f"wrote {arguments.candidate_output}")
+        print(f"wrote {arguments.candidate_manifest}")
     return 0
 
 
