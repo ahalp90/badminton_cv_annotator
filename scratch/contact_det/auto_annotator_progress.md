@@ -21,6 +21,11 @@ It does not explain the RF/HGB feature engineering or training procedure. Those 
 
 The outputs should stay separate.
 
+The decision rows in the table use the original held-out HGB scores. B0 uses
+the original score cut-off and duplicate-removal distance. N+ increases that
+distance to 6 base-30 frames. T− keeps the original distance and lowers the
+score cut-off by one point in the frozen grid.
+
 | Output | Current result | Best result from this work | What changed |
 | --- | ---: | ---: | --- |
 | Rally segmentation | 77.3% clean one-rally F1 with no padding cap | unchanged | RF/HGB not rerun through span finder |
@@ -262,8 +267,10 @@ For the current auto-annotator:
 - treat the selected HGB stream as a pilot, not as a ready complete-rally output;
 - always report timing and timing+correct-side metrics together;
 - do not treat **88.8% timing F1** as the score for the complete contact+side output;
-- build one shortlist without using labels, then measure its extra coverage
-  and false alarms before testing a simple handcrafted merge or cleanup tree;
+- stop the three-fixture second-stage work because the label-blind shortlist
+  recovered 97 contacts, below its predeclared 152-contact gate;
+- treat its 3,383 unmatched rows as shortlist burden, not detector false
+  positives;
 - keep rescue search deferred because the original B0 audit found a region-v2
   candidate near all 13 otherwise-exact one-missing spans;
 - do not claim rally-level server attribution improved until the alternation fit is rerun.

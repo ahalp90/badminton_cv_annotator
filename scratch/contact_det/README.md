@@ -81,6 +81,16 @@ With no timing-score cut, fully correct spans rise from 21 to 27. At a 0.90
 score cut, it keeps 68 spans and 13 are fully correct. The lower-score choices
 recover more serves but produce fewer fully correct rallies.
 
+The label-blind shortlist check also has a clear answer. N+ is the selected
+decision row: the original score cut-off with a 6-base-30-frame
+duplicate-removal distance. The shortlist kept every N+ event and made one
+nearby raw-score alternative selection per event before reading timing labels.
+It then deduplicated those selections. This produced 6,305 candidates, up from
+3,238. At ±10, the shortlist recovered 97 of N+'s 303 misses and raised contact
+coverage from 90.3% to 93.4%. The pass rule required 152 recoveries while
+staying below twice the N+ size. The size passed, but the coverage gain did not.
+Stop this pilot before a merge, refit or cleanup tree.
+
 
 ![The old standalone path and the experimental search-plus-classifier path.](figures/contact_pipeline_architecture.png)
 
@@ -113,10 +123,15 @@ spans, 210 map to one real rally but fail contact timing or event count before
 player side is considered. Only 29 first fail at player side after exact
 timing.
 
-The original B0 missed-contact audit also narrows the next work. It finds a
+The original B0 missed-contact audit narrowed the shortlist question. It finds a
 seeded HGB candidate near 244 of 296 missed contacts. This includes 89 of 95
 missed serves. All 13 predicted spans that are otherwise exact apart from one
 missing contact already have a region-v2 candidate nearby.
+
+The shortlist result shows that nearby candidates are not compact enough to
+support another learned stage on this pilot. Adding 3,067 rows recovered 97
+contacts and left 2,970 more shortlist rows unmatched. These are unmatched
+shortlist candidates, not measured detector false positives.
 
 `sset_21` is the main warning sign: region v2 contains **94.7%** of its serves.
 The original decision rule finds **44.0%**, while the selected wider
@@ -129,12 +144,12 @@ Read [`auto_annotator_progress.md`](auto_annotator_progress.md) if you care abou
 
 Read [`tree_contact_detector_results.md`](tree_contact_detector_results.md) for the experiment itself: region construction, exact feature sets, RF/HGB training, controls, player-side scoring and failure cases.
 
-The frame-rate and decision-layer checks are now settled for this pilot. Keep
-the raw-motion HGB and use the 6-base-30-frame duplicate-removal distance. The
-next bounded pass is a label-blind shortlist: build a small candidate list
-without using labels, then measure its extra coverage and false alarms. Rescue
-search and a second learned stage must wait until that shortlist shows useful
-extra coverage without a large false-alarm burden.
+The frame-rate, decision-layer and shortlist checks are now settled for this
+pilot. Keep the raw-motion HGB and use the 6-base-30-frame duplicate-removal
+distance. The shortlist missed its predeclared coverage gate, so stop before a
+handcrafted merge, refit or cleanup tree. Rescue search also remains deferred.
+The next model work belongs on the planned larger video set, where all fitted
+pilot settings must be chosen again.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
 

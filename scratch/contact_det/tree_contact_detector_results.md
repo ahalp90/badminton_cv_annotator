@@ -447,6 +447,47 @@ This is a three-fixture pilot choice. N+ slightly lowers pooled serve recall
 from 67.5% to 67.1%. On `sset_21`, serve recall falls from 44.0% to 42.7%, so
 the wider duplicate distance does not solve that fixture's serve problem.
 
+## Label-blind shortlist check
+
+The shortlist tested whether the held-out score surface contains enough nearby
+alternatives to justify a second stage. Every identity was fixed before timing
+labels loaded.
+
+For each N+ event, the shortlist kept that event and the strongest row from the
+same fixture and search interval within ±10 base-30 frames. The alternative had
+to lie strictly outside N+'s duplicate-removal distance. It could fall below
+the score cut-off. Equal scores used the earlier frame. The union was deduplicated
+by fixture, interval and frame.
+
+This produced 6,305 candidates from 3,238 N+ events. The list added 3,067 rows,
+or 1.95 times the N+ size in total.
+
+| Measure | N+ | Shortlist |
+| --- | ---: | ---: |
+| Candidates | 3,238 | 6,305 |
+| Matched contacts at ±10 | 2,825 | 2,922 |
+| Contact coverage at ±10 | 90.3% | 93.4% |
+| Unmatched candidates at ±10 | 413 | 3,383 |
+| Serve coverage at ±10 | 67.1% | 73.3% |
+| Matched contacts at ±5 | 2,710 | 2,823 |
+| Contact coverage at ±5 | 86.6% | 90.2% |
+| Unmatched candidates at ±5 | 528 | 3,482 |
+| Serve coverage at ±5 | 55.5% | 65.1% |
+
+At the primary ±10 tolerance, the shortlist recovered 97 of N+'s 303 missed
+contacts. It lost none of N+'s existing matches. The gains were 48 on
+`sset_01`, 32 on `sset_15` and 17 on `sset_21`.
+
+The rule fixed before scoring required at least 152 recovered contacts and a
+list no larger than twice N+. The size passed. The 97-contact gain did not.
+Each recovery cost 31.6 added candidates, and 2,970 of the added rows remained
+unmatched. Those rows measure shortlist burden. They are not detector false
+positives because the shortlist is deliberately overcomplete.
+
+Stop Phase 3 here. Do not test a handcrafted merge, hard-negative refit or
+cleanup tree on these three fixtures. The shortlist does not show enough compact
+headroom to justify them.
+
 ## Region v1 versus region v2
 
 This comparison uses each region's original decision settings. The region
@@ -534,9 +575,8 @@ Do not add the tested context block to HGB.
 
 The raw model's timing F1 is 87.4%. The selected decision layer raises it to
 88.8% without refitting. The strict rally result remains too weak for
-deployment by confidence filtering alone. Build one shortlist without using
-labels, then measure its extra coverage and false alarms before considering
-the simple merge or a cleanup tree.
+deployment by confidence filtering alone. The label-blind shortlist missed its
+coverage gate, so do not add the simple merge or cleanup tree on this pilot.
 
 The event-level player-side table has not been rerun for N+. For the original
 B0 event stream, the **87.4% timing F1** is only the timing score. Its
