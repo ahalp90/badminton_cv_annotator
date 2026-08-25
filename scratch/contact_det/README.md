@@ -91,6 +91,18 @@ coverage from 90.3% to 93.4%. The pass rule required 152 recoveries while
 staying below twice the N+ size. The size passed, but the coverage gain did not.
 Stop this pilot before a merge, refit or cleanup tree.
 
+A smaller serve-only list gives a more useful answer. It looks only in the
+prefix before each detected span's first N+ event and keeps three or four
+candidates in practice. A timing oracle recovers 58 new serve matches and
+raises fully correct rallies from 27 to 29 without losing an existing correct
+rally. This passes the headroom gate.
+
+The tested fixed chooser does not pass. It finds eight new serves, but adds 70
+unmatched events. Fully correct rallies fall from 27 to 16 with no score cut.
+The compact list is therefore worth testing with a properly cross-fitted
+chooser on fresh whole videos. The hand-written rule should not be used or
+tuned on these three fixtures.
+
 
 ![The old standalone path and the experimental search-plus-classifier path.](figures/contact_pipeline_architecture.png)
 
@@ -148,8 +160,10 @@ The frame-rate, decision-layer and shortlist checks are now settled for this
 pilot. Keep the raw-motion HGB and use the 6-base-30-frame duplicate-removal
 distance. The shortlist missed its predeclared coverage gate, so stop before a
 handcrafted merge, refit or cleanup tree. Rescue search also remains deferred.
-The next model work belongs on the planned larger video set, where all fitted
-pilot settings must be chosen again.
+The serve-prefix candidate list is the one bounded second-stage lead worth
+carrying forward, but only with fresh videos or nested cross-fitting. The next
+model work belongs on the planned larger video set, where all fitted pilot
+settings must be chosen again.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
 

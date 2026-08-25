@@ -136,6 +136,21 @@ rallies through the 0.90 confidence setting. Timing confidence still leaves
 fewer than one in five kept spans fully correct. The lower-score alternatives
 recover more serves, but their extra events make more complete rallies fail.
 
+### Serve-prefix candidate check
+
+A compact serve-only candidate list finds a plausible earlier event for 60 of
+N+'s 96 missed serves at ±10. A timing oracle recovers 58 new serve matches from
+those frozen lists. It raises fully correct rallies from 27 to 29 with no
+timing-score cut and loses none of N+'s correct rallies.
+
+The predeclared fixed rule is not useful. It adds 79 events but only eight new
+serve matches. Seventy additions remain unmatched. Fully correct rallies fall
+from 27 to 16 at a zero score requirement and from 13 to 9 at 0.90.
+
+This means the candidate list has headroom, but the hand-written chooser does
+not. Do not add or tune that rule. A learned chooser needs a fresh-video test or
+nested HGB cross-fitting before it can be assessed without leakage.
+
 For the original B0 stream, each span is assigned to the first checkpoint it
 fails in the order shown below:
 
@@ -269,6 +284,10 @@ For the current auto-annotator:
 - do not treat **88.8% timing F1** as the score for the complete contact+side output;
 - stop the three-fixture second-stage work because the label-blind shortlist
   recovered 97 contacts, below its predeclared 152-contact gate;
+- keep the compact serve-prefix list as a fresh-video research lead, because
+  its timing oracle passes the headroom gate;
+- do not use or tune the tested fixed serve rule, because it loses 12 fully
+  correct rallies while gaining one at the zero score requirement;
 - treat its 3,383 unmatched rows as shortlist burden, not detector false
   positives;
 - keep rescue search deferred because the original B0 audit found a region-v2

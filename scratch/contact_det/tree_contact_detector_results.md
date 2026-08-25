@@ -19,6 +19,7 @@ It does not restate rally-segmentation results or the overall annotator scorecar
 - [Missed-contact audit](#missed-contact-audit)
 - [Frame-rate motion check](#frame-rate-motion-check)
 - [Decision-layer check](#decision-layer-check)
+- [Structured serve-prefix check](#structured-serve-prefix-check)
 - [Region v1 versus region v2](#region-v1-versus-region-v2)
 - [Boundary sensitivity](#boundary-sensitivity)
 - [Where it still fails](#where-it-still-fails)
@@ -488,6 +489,65 @@ Stop Phase 3 here. Do not test a handcrafted merge, hard-negative refit or
 cleanup tree on these three fixtures. The shortlist does not show enough compact
 headroom to justify them.
 
+## Structured serve-prefix check
+
+The general shortlist above is too large. A separate serve-only check asked a
+narrower question:
+
+> Can the frames before a detected span's first N+ event supply one missed
+> serve without changing the rest of the rally?
+
+This does not reopen the general merge. Each detected span gets a list of at
+most five frozen candidates. In practice, the 295 anchored spans had three or
+four candidates each. The list contains the three strongest raw HGB peaks in
+the prefix, the best filtered heuristic contact and the original N+ anchor.
+Exact duplicates are merged.
+
+The candidate list, one fixed rule and every Top/Bottom answer were frozen
+before timing labels loaded. The fixed rule adds the best filtered heuristic
+contact when it is earlier than the anchor and outside N+'s duplicate distance.
+A timing oracle then measures the best possible use of the same frozen list. It
+only acts when N+ misses the serve. The oracle is a headroom check, not a model
+that can be deployed.
+
+The compact list does contain useful serve candidates:
+
+- N+ misses 96 of the 292 serves at ±10;
+- 60 of those 96 misses have a frozen prefix candidate within ±10;
+- the counts are 18 on `sset_01`, 12 on `sset_15` and 30 on `sset_21`;
+- the timing oracle recovers 58 new serve matches and loses none;
+- the oracle raises fully correct rallies from 27 to 29 with no timing-score
+  cut, without losing a previously correct rally.
+
+That passes the predeclared headroom gate. It shows that a compact label-blind
+serve chooser is possible in principle.
+
+The fixed heuristic rule fails:
+
+| ±10 result | N+ | Fixed serve rule |
+| --- | ---: | ---: |
+| Predicted contacts | 3,238 | 3,317 |
+| Matched serves | 196 | 204 |
+| Serve recall | 67.1% | 69.9% |
+| Unmatched added events | — | 70 |
+| Fully correct at score 0.00 | 27 / 291 | 16 / 290 |
+| Fully correct at score 0.90 | 13 / 68 | 9 / 49 |
+
+The rule finds eight new serves, or 13.8% of the oracle's 58. It gains one
+fully correct rally and makes 12 previously correct rallies fail at a zero
+score requirement. At 0.90 it loses four and gains none. Accuracy among kept
+rallies falls at both settings.
+
+Do not use or tune this fixed rule. The candidate list has measured headroom,
+but choosing from it remains the problem. A learned chooser would need fresh
+whole-video confirmation or nested HGB cross-fitting. The current stored
+held-out scores cannot train that chooser without leaking information from the
+outer test fixture.
+
+This remains development evidence. The prefix was chosen after aggregate
+inspection of these three fixtures. The result justifies a separately scoped
+fresh-video test. It does not establish generalisation.
+
 ## Region v1 versus region v2
 
 This comparison uses each region's original decision settings. The region
@@ -577,6 +637,10 @@ The raw model's timing F1 is 87.4%. The selected decision layer raises it to
 88.8% without refitting. The strict rally result remains too weak for
 deployment by confidence filtering alone. The label-blind shortlist missed its
 coverage gate, so do not add the simple merge or cleanup tree on this pilot.
+The compact serve-prefix list passes its headroom gate, but the fixed
+heuristic chooser damages complete rallies. Keep the list as a candidate for a
+fresh-video or nested cross-fitted chooser experiment. Do not tune another rule
+on these three fixtures.
 
 The event-level player-side table has not been rerun for N+. For the original
 B0 event stream, the **87.4% timing F1** is only the timing score. Its
@@ -618,6 +682,18 @@ Decision-layer scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_decision_trials.py
+```
+
+Serve-prefix scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_serve_prefix.py
+```
+
+Saved serve-prefix result:
+
+```text
+scratch/contact_det/raw/followups/serve_prefix/contact_serve_prefix_score_a.json.gz
 ```
 
 Missed-contact audit:
