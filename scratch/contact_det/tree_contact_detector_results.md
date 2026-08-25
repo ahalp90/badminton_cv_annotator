@@ -18,6 +18,7 @@ It does not restate rally-segmentation results or the overall annotator scorecar
 - [Strict complete-rally evaluation](#strict-complete-rally-evaluation)
 - [Missed-contact audit](#missed-contact-audit)
 - [Frame-rate motion check](#frame-rate-motion-check)
+- [Decision-layer check](#decision-layer-check)
 - [Region v1 versus region v2](#region-v1-versus-region-v2)
 - [Boundary sensitivity](#boundary-sensitivity)
 - [Where it still fails](#where-it-still-fails)
@@ -168,7 +169,9 @@ Training rows:
 - hard negatives through ±15;
 - easy negatives sampled toward at most 12:1 negatives to positives.
 
-Temporal NMS radius: **5 base-30 frames**.
+The baseline temporal duplicate-removal distance is **5 base-30 frames**. This
+operation is also called non-maximum suppression (NMS): when high-scoring
+candidates are close together, it keeps the strongest one.
 
 Metrics are reported at ±5, ±10 and ±15. The main comparison is ±10.
 
@@ -247,7 +250,9 @@ The event-level result does not tell us how often a whole rally is usable. One
 missed contact, one extra event, or one wrong player side rejects the complete
 output.
 
-The strict evaluator keeps the current 311 predicted rally spans unchanged.
+This section reports the original HGB decision settings, called B0 in the later
+decision-layer check. The strict evaluator keeps the current 311 predicted
+rally spans unchanged.
 These time windows come from the existing upstream rally segmentation. The
 evaluator uses the current region-v2 HGB events and replays the shipped
 Top/Bottom rule at those fixed event frames. Timing and player-side labels load
@@ -341,11 +346,13 @@ best represented by a below-cut-off row, one was removed as a duplicate, and
 one loses the one-to-one match despite a retained event. Eight are serves and
 six are found by the handcrafted rule.
 
-This supports three Phase 2 decisions:
+This supported three Phase 2 decisions:
 
 - test frame-rate-normalised motion features because the fixtures mix 25 and 30 fps
 - test a small decision-layer set, including start-specific score handling
 - keep physical values plus validity as the baseline for focused feature checks
+
+The next two sections report the completed frame-rate and decision checks.
 
 Search outside the region-v2 candidate surface stays deferred. Among those 13
 otherwise-exact spans, no missing contact is outside region v2. A second
@@ -395,9 +402,56 @@ fixtures do not support removing or rescaling these values. This does not prove
 that raw per-frame motion is generally best. The feature convention must be
 retested when the planned larger video set is available.
 
+## Decision-layer check
+
+The decision layer turns held-out HGB scores into contact events. This check
+replayed five choices without refitting the model. Every event stream and
+Top/Bottom answer was fixed before timing or player-side labels loaded.
+
+The set contains one baseline and four one-choice variants:
+
+- **B0:** original per-fold score cut-off and duplicate distance 5;
+- **T−:** the next lower point in the existing score grid;
+- **N−:** original score cut-off and duplicate distance 4;
+- **N+:** original score cut-off and duplicate distance 6;
+- **S−:** the lower score point only inside `region_rally_start`, the existing
+  label-blind window around detected rally starts.
+
+The duplicate distances use base-30 frames. They become 4, 5 and 6 frames for
+N−, B0 and N+ on 30 fps video. On 25 fps video they become 3, 4 and 5 frames.
+
+| Decision row | Pooled predicted events | Timing precision | Timing recall | Timing F1 | Serve recall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| B0 | 3,350 | 84.5% | 90.5% | 87.4% | 67.5% |
+| T− | 3,559 | 81.2% | **92.4%** | 86.4% | **73.6%** |
+| N− | 3,704 | 76.6% | 90.7% | 83.1% | 67.5% |
+| **N+** | **3,238** | **87.2%** | 90.3% | **88.8%** | 67.1% |
+| S− | 3,386 | 84.0% | 90.9% | 87.3% | 70.5% |
+
+The strict full-rally result tells the same story:
+
+| Decision row | Fully correct / kept at 0.00 | At 0.80 | At 0.85 | At 0.90 | At 0.95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| B0 | 21 / 291 | 17 / 216 | 13 / 123 | 9 / 51 | 1 / 11 |
+| T− | 14 / 295 | 10 / 118 | 7 / 72 | 5 / 33 | 0 / 5 |
+| N− | 7 / 291 | 5 / 187 | 4 / 84 | 4 / 31 | 0 / 7 |
+| **N+** | **27 / 291** | **23 / 231** | **19 / 146** | **13 / 68** | **1 / 14** |
+| S− | 20 / 292 | 16 / 194 | 12 / 109 | 8 / 44 | 1 / 8 |
+
+Use N+ for the rest of this pilot. It has the best pooled timing F1 and the
+most fully correct rallies through the 0.90 confidence setting. The lower
+score rows recover more contacts and serves, but their extra events make more
+complete rallies fail.
+
+This is a three-fixture pilot choice. N+ slightly lowers pooled serve recall
+from 67.5% to 67.1%. On `sset_21`, serve recall falls from 44.0% to 42.7%, so
+the wider duplicate distance does not solve that fixture's serve problem.
+
 ## Region v1 versus region v2
 
-The region choice is a simple trade-off: v1 is more selective; v2 keeps more contacts reachable.
+This comparison uses each region's original decision settings. The region
+choice is a simple trade-off: v1 is more selective; v2 keeps more contacts
+reachable.
 
 | HGB physical metric | Region v1 | Region v2 |
 | --- | ---: | ---: |
@@ -415,7 +469,9 @@ Region v2 keeps more contacts, especially serves, available to the classifier. S
 
 ## Boundary sensitivity
 
-We also refit HGB using eligible court-view rows only, to check whether the extra rows just before court view were somehow driving the result.
+This check also uses the original B0 duplicate distance. We refit HGB using
+eligible court-view rows only, to check whether the extra rows just before
+court view were somehow driving the result.
 
 | HGB physical search | Timing precision | Timing recall | Timing F1 | Timing + correct-side recall | Joint event+side F1 | Serve timing + correct-side recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -430,7 +486,7 @@ Those rows help **search coverage**, especially for serves, but HGB scores almos
 
 ### `sset_21`
 
-HGB physical at ±10:
+HGB physical with the original B0 decisions at ±10:
 
 | Fixture | Timing F1 | Timing + correct-side recall | Serve timing recall | Serve timing + correct-side recall |
 | --- | ---: | ---: | ---: | ---: |
@@ -439,6 +495,9 @@ HGB physical at ±10:
 | `sset_21` | **79.6%** | **70.7%** | **44.0%** | **34.7%** |
 
 Region v2 contains **71 / 75 = 94.7%** of `sset_21` serves, while HGB finds **33 / 75 = 44.0%**. Four serves sit outside region v2, but most misses happen after search. With only three fixtures, we cannot tell whether `sset_21` is simply different from the other two or whether the model has fit the other two too closely.
+
+The selected N+ decision layer finds 32 of the 75 serves, or 42.7%. Its pooled
+timing result is stronger, but it does not improve the main fixture warning.
 
 ### Contacts outside region v2
 
@@ -467,18 +526,21 @@ Three other decisions are worth keeping.
 Use:
 
 - **region v2** as the search region;
-- **HGB physical + validity** as the simple learned contact model.
+- **HGB physical + validity** with the existing raw-motion features;
+- **N+**, the 6-base-30-frame duplicate-removal distance, as the pilot decision
+  layer.
 
 Do not add the tested context block to HGB.
 
-Use this model as the fixed Phase 2 baseline. The strict rally result is too
-weak for deployment by confidence filtering alone. The frame-rate check keeps
-the existing motion values. Run only the decision-layer and rally-start checks
-selected by the failure audit above.
-Measure a label-blind shortlist before considering the simple merge or a
-cleanup tree.
+The raw model's timing F1 is 87.4%. The selected decision layer raises it to
+88.8% without refitting. The strict rally result remains too weak for
+deployment by confidence filtering alone. Build one shortlist without using
+labels, then measure its extra coverage and false alarms before considering
+the simple merge or a cleanup tree.
 
-The **87.4% timing F1** is only the timing score. When player side matters, the corresponding HGB results are:
+The event-level player-side table has not been rerun for N+. For the original
+B0 event stream, the **87.4% timing F1** is only the timing score. Its
+corresponding HGB results are:
 
 - **75.7% timing + correct-side recall**
 - **73.1% joint event+side F1**
@@ -510,6 +572,12 @@ Strict rally scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_rallies.py
+```
+
+Decision-layer scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_decision_trials.py
 ```
 
 Missed-contact audit:

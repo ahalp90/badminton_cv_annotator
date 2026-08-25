@@ -30,13 +30,19 @@ The search region is deliberately relaxed. It is not a detector and is not produ
 
 Region v2 searches about **31.9% of the video** and contains a candidate within ±10 of **98.3% of labelled contacts**.
 
-Inside that fixed region, HGB is the best contact-timing model tested:
+Inside that fixed region, HGB is the best timing model in the region-v2 sweep.
+The first three rows use each model's original decision settings:
 
 - current final heuristics: **72.6% contact-timing F1**
 - region-v2 RF: **84.6%**
 - region-v2 HGB: **87.4%**
 
-Player side is scored separately. When the existing Top/Bottom rule is applied to the frozen event streams (saved once, then held unchanged during scoring):
+The selected wider duplicate-removal distance raises the resulting HGB event
+stream to **88.8%** timing F1 without refitting the model.
+
+Player side is scored separately. These event-level side results use the
+models' original decision settings. When the existing Top/Bottom rule is
+applied to the frozen event streams:
 
 - current final heuristics get **70.6%** of all labelled contacts correct in both time and player side;
 - region-v2 HGB gets **75.7%**;
@@ -50,18 +56,30 @@ For serves, the corresponding “right time + correct serving side” result is:
 
 So the useful conclusion is:
 
-> **Use region v2 as the search surface. HGB is the best region-v2 timing model tested. Region v1 still has slightly better timing F1 and joint event+side F1; region v2 keeps more contacts and serves reachable and gives higher timing+side recall.**
+> **Use region v2 as the search surface and HGB as the timing model. Region v1
+> has a small edge when both regions use their original decisions. Region v2
+> keeps more contacts and serves reachable, and its selected wider
+> duplicate-removal rule now has the best measured timing F1.**
 
-The new end-to-end rally check is much stricter than event F1. At the default
-zero score cut, the system keeps 291 predicted spans and only 21 are fully
-correct. A 0.90 timing-score cut keeps 51 spans and nine are fully correct.
-Confidence filtering alone does not yet produce a useful clean rally subset.
+The new end-to-end rally check is much stricter than event F1. With the raw
+model's original decision settings, the system keeps 291 predicted spans and
+only 21 are fully correct. A 0.90 timing-score cut keeps 51 spans and nine are
+fully correct. Confidence filtering alone does not yet produce a useful clean
+rally subset.
 
 The frame-rate check did not improve that result. Removing raw motion values
-reduced timing F1 to **84.8%** and left 16 fully correct spans at the open
-confidence setting. Converting motion to a common 30 fps scale gave **87.0%**
+reduced timing F1 to **84.8%** and left 16 fully correct spans with no
+timing-score cut. Converting motion to a common 30 fps scale gave **87.0%**
 timing F1 and 15 fully correct spans. The existing raw-motion model remains the
 baseline with **87.4%** timing F1 and 21 fully correct spans.
+
+A separate decision-layer check replayed five choices from the held-out HGB
+scores without refitting the model. Increasing the duplicate-removal distance
+from 5 to 6 base-30 frames is the best pilot choice. It keeps 3,238 predicted
+contact events across the three fixtures and raises timing F1 to **88.8%**.
+With no timing-score cut, fully correct spans rise from 21 to 27. At a 0.90
+score cut, it keeps 68 spans and 13 are fully correct. The lower-score choices
+recover more serves but produce fewer fully correct rallies.
 
 
 ![The old standalone path and the experimental search-plus-classifier path.](figures/contact_pipeline_architecture.png)
@@ -84,21 +102,26 @@ For the next classifier, that extra coverage matters more than v1's small precis
 The RF/HGB work does **not** change the rally-span finder. It now measures the
 current HGB events and Top/Bottom answers inside those fixed spans.
 
-Direct Top/Bottom attribution is measured on frozen HGB/RF contact events.
+Direct Top/Bottom attribution is measured on frozen HGB/RF contact events for
+the original event-level table. The selected N+ stream has a strict rally
+score with Top/Bottom answers, but no separate event-level side table yet.
 
 The separate **rally-level alternation fit** has not been rerun on those new events, so we do not yet know whether its final-hitter or server-side scores improve.
 
-The strict result shows what usually blocks complete output. Of 311 predicted
+The original-decision strict result shows what usually blocks complete output. Of 311 predicted
 spans, 210 map to one real rally but fail contact timing or event count before
 player side is considered. Only 29 first fail at player side after exact
 timing.
 
-The missed-contact audit also narrows the next work. It finds a seeded HGB
-candidate near 244 of 296 missed contacts. This includes 89 of 95 missed
-serves. All 13 predicted spans that are otherwise exact apart from one missing
-contact already have a region-v2 candidate nearby.
+The original B0 missed-contact audit also narrows the next work. It finds a
+seeded HGB candidate near 244 of 296 missed contacts. This includes 89 of 95
+missed serves. All 13 predicted spans that are otherwise exact apart from one
+missing contact already have a region-v2 candidate nearby.
 
-`sset_21` is the main warning sign: region v2 contains **94.7%** of its serves, but HGB finds only **44.0%**.
+`sset_21` is the main warning sign: region v2 contains **94.7%** of its serves.
+The original decision rule finds **44.0%**, while the selected wider
+duplicate-removal rule finds **42.7%**. The pooled improvement does not solve
+the weak serve result on this fixture.
 
 ## Where to go next
 
@@ -106,10 +129,11 @@ Read [`auto_annotator_progress.md`](auto_annotator_progress.md) if you care abou
 
 Read [`tree_contact_detector_results.md`](tree_contact_detector_results.md) for the experiment itself: region construction, exact feature sets, RF/HGB training, controls, player-side scoring and failure cases.
 
-The frame-rate concern is now settled for this pilot. The next bounded pass is
-the pre-specified small set of score cut-off and duplicate-removal decisions,
-including separate handling near rally starts. Rescue search is deferred. A
-second learned stage must wait for a label-blind shortlist that shows useful
+The frame-rate and decision-layer checks are now settled for this pilot. Keep
+the raw-motion HGB and use the 6-base-30-frame duplicate-removal distance. The
+next bounded pass is a label-blind shortlist: build a small candidate list
+without using labels, then measure its extra coverage and false alarms. Rescue
+search and a second learned stage must wait until that shortlist shows useful
 extra coverage without a large false-alarm burden.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
