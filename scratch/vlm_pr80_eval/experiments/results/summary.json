@@ -1,0 +1,315 @@
+{
+  "schema": "vlm-cleanup-summary-v1",
+  "source_pr_head": "96e0e289a951d63fbaaa62f26c399a4beb61ae79",
+  "models": {
+    "internvideo3": {
+      "backend": "transformers",
+      "backend_version": "4.57.3",
+      "model_id": "yanziang/InternVideo3-8B-Instruct",
+      "revision": "c4602918b65225650d152db2850fe34e01d21fcd"
+    },
+    "qwen3-vl": {
+      "backend": "vllm",
+      "backend_version": "0.11.0",
+      "model_id": "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
+      "revision": "d9748a51ae66354c4dad665aab2c71f26cf2c8cd"
+    }
+  },
+  "contact_timing_video_only": {
+    "cases": 60,
+    "truth": "ShuttleSet timing within the stated base-30 frame margin",
+    "at_15_frames": {
+      "internvideo3": {
+        "kept": 24,
+        "precision": 0.8333333333333334,
+        "recall": 0.5
+      },
+      "qwen3-vl": {
+        "invalid": 2,
+        "kept": 44,
+        "precision": 0.8863636363636364,
+        "recall": 0.975
+      }
+    }
+  },
+  "two_model_contact_agreement": {
+    "at_10_frames": {
+      "qwen_alone": {
+        "precision": 0.6363636363636364,
+        "recall": 0.9655172413793104
+      },
+      "both_models": {
+        "precision": 0.7272727272727273,
+        "recall": 0.5517241379310345
+      }
+    },
+    "at_15_frames": {
+      "qwen_alone": {
+        "precision": 0.8863636363636364,
+        "recall": 0.975
+      },
+      "both_models": {
+        "precision": 0.8636363636363636,
+        "recall": 0.475
+      }
+    }
+  },
+  "complete_rally_replay": {
+    "backend": "qwen3-vl",
+    "candidate_contacts": 84,
+    "invalid_replies": 4,
+    "rallies": 12,
+    "at_10_frames": {
+      "natural": {
+        "contacts_kept": 84,
+        "exact_contact_count": 4,
+        "structurally_usable": 1
+      },
+      "vlm_yes_preserve_first": {
+        "contacts_kept": 70,
+        "exact_contact_count": 4,
+        "structurally_usable": 1
+      }
+    }
+  },
+  "marked_tracker": {
+    "truth_limit": "Hallucinations are human-labelled; accepted controls are unlabelled tracker paths near ShuttleSet contacts.",
+    "development": {
+      "cases_per_truth_group": 12,
+      "internvideo3": {
+        "hallucinations_rejected": 11,
+        "controls_accepted": 12
+      },
+      "qwen3-vl": {
+        "hallucinations_rejected": 7,
+        "controls_accepted": 12
+      }
+    },
+    "safety": {
+      "cases_per_truth_group": 6,
+      "internvideo3": {
+        "hallucinations_rejected": 5,
+        "controls_accepted": 6
+      }
+    }
+  },
+  "clean_tracker_internvideo3": {
+    "hallucinations_rejected": 18,
+    "hallucinations_total": 18,
+    "controls_accepted": 7,
+    "controls_total": 18
+  },
+  "tracker_prompt_evolution": {
+    "development_cases_per_truth_group": 12,
+    "internvideo3": {
+      "plain_marked": {
+        "hallucinations_rejected": 9,
+        "controls_accepted": 9
+      },
+      "slow_marked": {
+        "hallucinations_rejected": 9,
+        "controls_accepted": 12
+      },
+      "slow_enlarged_marked": {
+        "hallucinations_rejected": 11,
+        "controls_accepted": 12
+      }
+    },
+    "qwen3-vl": {
+      "slow_marked": {
+        "hallucinations_rejected": 7,
+        "controls_accepted": 12
+      },
+      "slow_enlarged_marked": {
+        "hallucinations_rejected": 5,
+        "controls_accepted": 12
+      }
+    }
+  },
+  "broadcast_direct": {
+    "cases": {
+      "cutaway": 2,
+      "live": 6,
+      "replay": 4
+    },
+    "internvideo3": {
+      "invalid": 3,
+      "predicted_live": 9
+    },
+    "qwen3-vl": {
+      "invalid": 0,
+      "predicted_cutaway": 1,
+      "predicted_live": 11
+    }
+  },
+  "broadcast_priors": {
+    "generator": "experiments.analyse_broadcast_priors",
+    "cases": {
+      "cutaway": 2,
+      "live": 176,
+      "replay": 19,
+      "total": 197
+    },
+    "track_visible_fraction_at_0_8": {
+      "keep_precision": 0.9314285714285714,
+      "live_recall": 0.9261363636363636,
+      "nonlive_rejected": 9,
+      "nonlive_total": 21
+    }
+  },
+  "candidate_ceiling": {
+    "complete_rallies_at_10_frames": 56,
+    "meaning": "An oracle can select a candidate near every ShuttleSet contact in 56 rallies."
+  },
+  "multiscale_scene_cleanup": {
+    "fixtures": [
+      "sset_01",
+      "sset_15",
+      "sset_21"
+    ],
+    "broad_pilot": {
+      "suspected_spans": 12,
+      "context_seconds_compared": [
+        90,
+        120
+      ],
+      "frames_per_storyboard": 96,
+      "result": "90 seconds tied or beat 120 seconds; neither model found a safe bypass"
+    },
+    "detail_pilot": {
+      "targets": 19,
+      "frames_per_target": 120,
+      "internvideo3_short_only": {
+        "unsafe_caught": 8,
+        "unsafe_total": 11,
+        "routine_live_retained": 7,
+        "routine_live_total": 8,
+        "safe_live_precision": 0.7
+      },
+      "qwen3_vl_short_only": {
+        "unsafe_caught": 6,
+        "unsafe_total": 11,
+        "routine_live_retained": 8,
+        "routine_live_total": 8,
+        "safe_live_precision": 0.6153846153846154
+      }
+    },
+    "combined_visual_pilot_internvideo3": {
+      "targets": 19,
+      "broad_frames": 80,
+      "target_frames": 120,
+      "unsafe_caught": 2,
+      "unsafe_total": 11,
+      "routine_live_retained": 8,
+      "routine_live_total": 8
+    },
+    "wide_internvideo3_short_only": {
+      "eligible_suspected_spans": 311,
+      "target_segments": 463,
+      "frames_per_target": 120,
+      "strict": {
+        "safe_live_precision": 0.9139072847682119,
+        "routine_live_recall": 0.9169435215946844,
+        "unsafe_recall": 0.8395061728395061,
+        "route_accuracy": 0.8898488120950324
+      },
+      "material_target": {
+        "meaning": "Target errors must cover at least 10 frames after normalising to 30 FPS.",
+        "cases": 347,
+        "routine_live": 300,
+        "unsafe": 47,
+        "safe_live_precision": 0.9139072847682119,
+        "routine_live_recall": 0.92,
+        "unsafe_recall": 0.44680851063829785,
+        "route_accuracy": 0.8559077809798271,
+        "unsafe_missed": 26,
+        "pure_replay_missed": 20
+      },
+      "excluded_small_targets": 116,
+      "unsafe_targets_below_margin": 115,
+      "one_frame_unsafe_targets": 113
+    },
+    "wide_internvideo3_plus_tracker_visibility": {
+      "rule": "Keep only VLM-live targets with track_visible_fraction >= 0.8.",
+      "material_safe_live_precision": 0.9310344827586207,
+      "material_routine_live_recall": 0.9,
+      "material_unsafe_recall": 0.574468085106383,
+      "true_live_kept": 270,
+      "unsafe_rejected": 27,
+      "unsafe_missed": 20
+    },
+    "conservative_replay_prompt_pilot": {
+      "material_targets": 16,
+      "default": {
+        "routine_live_retained": 7,
+        "routine_live_total": 8,
+        "unsafe_caught": 5,
+        "unsafe_total": 8,
+        "safe_live_precision": 0.7
+      },
+      "child": {
+        "routine_live_retained": 8,
+        "routine_live_total": 8,
+        "unsafe_caught": 3,
+        "unsafe_total": 8,
+        "safe_live_precision": 0.6153846153846154
+      }
+    },
+    "direct_replay_pair_internvideo3": {
+      "requested_cases": 48,
+      "available_pairs": 46,
+      "material_unsafe_parent_errors": 24,
+      "routine_live_controls": 22,
+      "reference_frames": 120,
+      "target_frames": 120,
+      "valid_replies": 46,
+      "relation_counts": {
+        "different_action": 46
+      },
+      "changed_parent_decisions": 0
+    },
+    "qwen_replay_pair_stop_gate": {
+      "qwen_max_model_len": 16384,
+      "qwen_120_frame_target": {
+        "visual_tokens": 8640,
+        "total_input_tokens": 9361
+      },
+      "internvideo3_120_frame_target": {
+        "visual_tokens": 8640,
+        "total_input_tokens": 9361
+      },
+      "internvideo3_240_frame_pair": {
+        "visual_tokens": 17280,
+        "total_input_tokens": 18545
+      },
+      "decision": "Do not halve both visual blocks merely to fit Qwen; that would change the evidence without isolating a supported cause."
+    },
+    "ruling": "The VLM scene label can be an advisory signal but is not a safe automatic keep or delete rule."
+  },
+  "audit_addendum": {
+    "contact_trial_design": {
+      "task": "candidate-window validation, not direct contact-time localisation",
+      "case_mix": {
+        "within_5_frames": 20,
+        "between_5_and_15_frames": 20,
+        "beyond_15_frames": 20
+      },
+      "qwen_at_prompt_aligned_10_frames": {
+        "precision": 0.6363636363636364,
+        "recall": 0.9655172413793104
+      },
+      "note": "Precision on this stratified 60-case mix is not a population precision estimate."
+    },
+    "candidate_ceiling_denominator": {
+      "complete_rallies_at_10_frames": 56,
+      "ground_truth_rallies": 292,
+      "fixtures": [
+        "sset_01",
+        "sset_15",
+        "sset_21"
+      ]
+    },
+    "scene_live_view_split_file": "scene_live_view_split.json",
+    "retention_limit": "Later raw attempts, manifests, and row-level scores are not all retained in repository evidence; see sources.md."
+  }
+}

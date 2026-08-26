@@ -1,0 +1,51 @@
+{
+  "schema": "vlm-scene-live-view-split-audit-v1",
+  "status": "post-hoc recovered diagnostic",
+  "model": "InternVideo3",
+  "derivation": "Recovered after the main experiment by joining the full-fixture scene target score to the untouched human broadcast truth. The scorer maps every live-non-standard frame to live before assigning target truth. A target is live only if every covered human-truth frame is live after that mapping; otherwise it requires rejection. The original row-level score used for the join is not retained in the repository, so this file preserves the recovered subgroup counts but does not make the derivation independently reproducible from repository evidence alone.",
+  "human_truth_sha256": {
+    "sset_01_broadcast_timeline_labels.csv.gz": "b65082468aa1635d177028b46367ebc643013892854aa45798b8b96062532bad",
+    "sset_15_broadcast_timeline_labels.csv.gz": "fb68449e3ae0513af5368e3082f7b49d6ad6fbe95598dbe7230dc299c57c022",
+    "sset_21_broadcast_timeline_labels.csv.gz": "06812dbd11f60540920b435bf37db08327d8aac042960749a17fc05a74a9a2c7"
+  },
+  "all_463_targets": {
+    "standard_view_live": {
+      "total": 290,
+      "kept_live": 270,
+      "sent_to_close_check": 20
+    },
+    "unusual_view_live": {
+      "total": 11,
+      "kept_live": 6,
+      "sent_to_close_check": 5
+    },
+    "targets_containing_nonlive": {
+      "total": 162,
+      "rejected": 136,
+      "kept_live": 26
+    }
+  },
+  "material_347_targets": {
+    "standard_view_live": {
+      "total": 290,
+      "kept_live": 270,
+      "sent_to_close_check": 20
+    },
+    "unusual_view_live": {
+      "total": 10,
+      "kept_live": 6,
+      "sent_to_close_check": 4
+    },
+    "targets_containing_nonlive": {
+      "total": 47,
+      "rejected": 21,
+      "kept_live": 26
+    },
+    "excluded_short_targets": {
+      "total": 116,
+      "targets_containing_nonlive": 115,
+      "one_frame_targets_containing_nonlive": 113,
+      "unusual_view_live": 1
+    }
+  }
+}
