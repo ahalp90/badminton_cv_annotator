@@ -19,6 +19,7 @@ The annotation CSVs are MIT (above). The underlying match videos they reference
 remain the copyright of their original broadcasters.
 
 ```
+
 MIT License
 
 Copyright (c) 2022 Wei-Yao Wang
@@ -41,3 +42,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## ShuttleSet22 (MIT annotations; broadcaster video rights)
+
+ShuttleSet22 annotations come from the CoachAI Projects repository by Wei-Yao
+Wang. Source:
+https://github.com/wywyWang/CoachAI-Projects/tree/main/CoachAI-Challenge-IJCAI2023/ShuttleSet22
+
+The repository is MIT licensed. The source match videos remain the copyright
+of their original broadcasters. The project therefore keeps raw videos and
+derived extraction arrays outside Git. See the ShuttleSet22 handoff for their
+storage locations and extraction status.

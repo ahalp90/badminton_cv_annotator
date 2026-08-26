@@ -1,0 +1,419 @@
+schema = "shuttleset22-sources/1"
+upstream_commit = "45517f7d4cb936b03f3eabf939cc7959d39226fe"
+dataset_path = "CoachAI-Challenge-IJCAI2023/ShuttleSet22"
+annotation_sha256 = "2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c"
+expected_fps = "30/1"
+official_channel_id = "UChh-akEbUM8_6ghGVnJd6cQ"
+
+# `overlap_shuttleset_id` uses the separate, pre-existing ShuttleSet ID
+# namespace. It does not refer to another `id` in this ShuttleSet22 manifest.
+[[videos]]
+id = 1
+video = "Ng_Ka_Long_Angus_Lee_Cheuk_Yiu_YONEX_Thailand_Open_2021_QuarterFinals"
+url = "https://www.youtube.com/watch?v=rSK9Qx8LapE"
+youtube_id = "rSK9Qx8LapE"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 23
+
+[[videos]]
+id = 2
+video = "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+url = "https://www.youtube.com/watch?v=OH6dnTXhZy4"
+youtube_id = "OH6dnTXhZy4"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 38
+
+[[videos]]
+id = 3
+video = "Anthony_Sinisuka_Ginting_Lee_Zii_Jia_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+url = "https://www.youtube.com/watch?v=XYY6YXv6Nss"
+youtube_id = "XYY6YXv6Nss"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 39
+
+[[videos]]
+id = 4
+video = "Ng_Ka_Long_Angus_Kidambi_Srikanth_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+url = "https://www.youtube.com/watch?v=yr2JQTdzNjY"
+youtube_id = "yr2JQTdzNjY"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 41
+
+[[videos]]
+id = 5
+video = "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals"
+url = "https://www.youtube.com/watch?v=Mawo3l3Hb9E"
+youtube_id = "Mawo3l3Hb9E"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 42
+
+[[videos]]
+id = 6
+video = "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals"
+url = "https://www.youtube.com/watch?v=vfzkc3lFTdM"
+youtube_id = "vfzkc3lFTdM"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 43
+
+[[videos]]
+id = 7
+video = "Anders_Antonsen_Viktor_Axelsen_HSBC_BWF_WORLD_TOUR_FINALS_2020_Finals"
+url = "https://www.youtube.com/watch?v=j7_cjmJDYNU"
+youtube_id = "j7_cjmJDYNU"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 44
+
+[[videos]]
+id = 8
+video = "Lakshya_SEN_LOH_Kean_Yew_YONEX_SUNRISE_India_Open_2022_ Finals"
+url = "https://www.youtube.com/watch?v=7_O5r9CLOVw"
+youtube_id = "7_O5r9CLOVw"
+source_kind = "download"
+
+[[videos]]
+id = 9
+video = "Kunlavut_VITIDSARN_LEE_Zii_Jia_YONEX_GAINWARD_German_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=44uw3YUvKhc"
+youtube_id = "44uw3YUvKhc"
+source_kind = "download"
+
+[[videos]]
+id = 10
+video = "Akane_YAMAGUCHI_AN_Seyoung_YONEX_All_England_Open_Badminton_Championships_2022_Finals"
+url = "https://www.youtube.com/watch?v=bR80_ydY0Is"
+youtube_id = "bR80_ydY0Is"
+source_kind = "download"
+
+[[videos]]
+id = 11
+video = "Viktor_AXELSEN_Lakshya_SEN_YONEX_All_England_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=qkhmuCNrsNI"
+youtube_id = "qkhmuCNrsNI"
+source_kind = "download"
+
+[[videos]]
+id = 12
+video = "AN_Seyoung_PUSARLA_V._Sindhu_Korea_Open_Badminton_Championships_2022_Semi_Final"
+url = "https://www.youtube.com/watch?v=7twuaoi-NCo"
+youtube_id = "7twuaoi-NCo"
+source_kind = "download"
+
+[[videos]]
+id = 13
+video = "He_Bing_Jiao_Chen_Yu_Fei_GWANGJU_YONEX_Korea_Masters_2022_Final"
+url = "https://www.youtube.com/watch?v=yAhaun3PLJA"
+youtube_id = "yAhaun3PLJA"
+source_kind = "download"
+
+[[videos]]
+id = 14
+video = "LEE_Zii_Jia_Kento_MOMOTA_Tota_Energies_BWF_Thomas_and_Uber_Cup_Finals_2022_Group D_Trim"
+source_kind = "unresolved"
+unresolved_reason = "The official full-session upload vKdkbGNUM84 is not frame-aligned with the trimmed annotations."
+
+[[videos]]
+id = 15
+video = "AN_Se_Young_Akane_YAMAGUCHI_TotalEnergies_BWF_Thomas_and_Uber_Cup_Finals_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=NfrOuB5UTdI"
+youtube_id = "NfrOuB5UTdI"
+source_kind = "download"
+
+[[videos]]
+id = 16
+video = "Viktor_AXELSEN_Anthony_Sinisuka_GINTING_DAIHATSU_INDONESIA_MASTERS_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=Ye8h7LS3k6A"
+youtube_id = "Ye8h7LS3k6A"
+source_kind = "download"
+
+[[videos]]
+id = 17
+video = "CHEN_Yu_Fei_HE_Bing_Jiao_DAIHATSU_Indonesia_Masters_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=EPYWGGEm_uM"
+youtube_id = "EPYWGGEm_uM"
+source_kind = "download"
+
+[[videos]]
+id = 18
+video = "Wang_Zhi_Yi_He_Bing_Jiao_Indonesia_Open_2022_Semi_finals"
+url = "https://www.youtube.com/watch?v=9-Ez3a2XRzk"
+youtube_id = "9-Ez3a2XRzk"
+source_kind = "download"
+
+[[videos]]
+id = 19
+video = "Viktor_AXELSEN_LEE_Zii_Jia_EAST_VENTURES_Indonesia_Open_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=EtNgRzyACDI"
+youtube_id = "EtNgRzyACDI"
+source_kind = "download"
+
+[[videos]]
+id = 20
+video = "Kento_MOMOTA_Kunlavut_VITIDSARN_Malaysia_Open_2022_ Semi_finals"
+url = "https://www.youtube.com/watch?v=A4boA9DUhmA"
+youtube_id = "A4boA9DUhmA"
+source_kind = "download"
+
+[[videos]]
+id = 21
+video = "Viktor_AXELSEN_Jonatan_CHRISTIE_Malaysia_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=-LJAfc98svI"
+youtube_id = "-LJAfc98svI"
+source_kind = "download"
+
+[[videos]]
+id = 22
+video = "Viktor_AXELSEN_Kento_MOMOTA_PETRONAS_Malaysia_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=pQpYiyFMg2c"
+youtube_id = "pQpYiyFMg2c"
+source_kind = "download"
+
+[[videos]]
+id = 23
+video = "Ratchanok_INTANON_CHEN_Yu_Fei_PETRONAS_Malaysia_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=4X0a8QREFoI"
+youtube_id = "4X0a8QREFoI"
+source_kind = "download"
+
+[[videos]]
+id = 24
+video = "Ratchanok_INTANON_WANG_Zhi_Yi_Malaysia_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=4vDZ27e0ws0"
+youtube_id = "4vDZ27e0ws0"
+source_kind = "download"
+
+[[videos]]
+id = 25
+video = "Chico_Aura_DWI_WARDOYO_LU_Guang_Zu_PERODUA_Malaysia_Masters_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=0YHy6RpbNn0"
+youtube_id = "0YHy6RpbNn0"
+source_kind = "download"
+
+[[videos]]
+id = 26
+video = "Chico_Aura_DWI_WARDOYO_NG_Ka_Long_Angus_Malaysia_Masters_2022_Finals"
+url = "https://www.youtube.com/watch?v=owxx0x4yR7M"
+youtube_id = "owxx0x4yR7M"
+source_kind = "download"
+
+[[videos]]
+id = 27
+video = "An_Se_Young_Chen_Yu_Fei_PERODUA_Malaysia_Masters_2022_Finals"
+url = "https://www.youtube.com/watch?v=uBZx_HX311s"
+youtube_id = "uBZx_HX311s"
+source_kind = "download"
+
+[[videos]]
+id = 28
+video = "AN_Se_Young_Gregoria_Mariska_TUNJUNG_Malaysia_Masters_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=6KpzrSmm6SA"
+youtube_id = "6KpzrSmm6SA"
+source_kind = "download"
+
+[[videos]]
+id = 29
+video = "EAST_VENTURES_Indonesia_Open_2022_Zhao_Jun_Peng_PRANNOY_H._S._Semifinals"
+url = "https://www.youtube.com/watch?v=NfCjzOiCTjk"
+youtube_id = "NfCjzOiCTjk"
+source_kind = "download"
+
+[[videos]]
+id = 30
+video = "Kunlavut_VITIDSARN_ZHAO_Jun_ Peng_BWF_World_Championships_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=AumCrKc4L1U"
+youtube_id = "AumCrKc4L1U"
+source_kind = "download"
+
+[[videos]]
+id = 31
+video = "Akane_YAMAGUCHI_AN_Se_Young_BWF_World_Championships_2022_Semi_finals"
+url = "https://www.youtube.com/watch?v=uwI5G78YJ6o"
+youtube_id = "uwI5G78YJ6o"
+source_kind = "download"
+
+[[videos]]
+id = 32
+video = "Viktor_Axelsen_Kunlavut_Vitidsarn_BWF_World_Championships_2022_Finals"
+url = "https://www.youtube.com/watch?v=c700deh2tCs"
+youtube_id = "c700deh2tCs"
+source_kind = "download"
+
+[[videos]]
+id = 33
+video = "Akane_YAMAGUCHI_CHEN_Yu_Fei_BWF_World_Championships_2022_Finals"
+url = "https://www.youtube.com/watch?v=-1XEQDa27eA"
+youtube_id = "-1XEQDa27eA"
+source_kind = "download"
+
+[[videos]]
+id = 34
+video = "Kenta_NISHIMOTO_Anders_ANTONSEN_Japan_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=WLqSMbwxgLQ"
+youtube_id = "WLqSMbwxgLQ"
+source_kind = "download"
+
+[[videos]]
+id = 35
+video = "Akane_YAMAGUCHI_AN_Se_Young_DAIHATSU_YONEX_Japan_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=3TN7h0i7mAQ"
+youtube_id = "3TN7h0i7mAQ"
+source_kind = "download"
+
+[[videos]]
+id = 36
+video = "Akane_YAMAGUCHI_CHEN_Yu_Fei_England_Open_2022_Semi_finals"
+url = "https://www.youtube.com/watch?v=yDpq1BP3o10"
+youtube_id = "yDpq1BP3o10"
+source_kind = "download"
+
+[[videos]]
+id = 37
+video = "Busanan_ONGBAMRUNGPHAN_Supanida_KATETHONG_India_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=eMDV0kIpyTU"
+youtube_id = "eMDV0kIpyTU"
+source_kind = "download"
+
+[[videos]]
+id = 38
+video = "Lakshya_SEN_LEE_Zii_Jia_All_England_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=hCk_QUZdo_0"
+youtube_id = "hCk_QUZdo_0"
+source_kind = "download"
+
+[[videos]]
+id = 39
+video = "Jonatan_CHRISTIE_KIDAMBI_Srikanth_Korea_Open_Badminton_Championships_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=XfOTyOJLPJ4"
+youtube_id = "XfOTyOJLPJ4"
+source_kind = "download"
+
+[[videos]]
+id = 40
+video = "Supanida_KATETHONG_PUSARLA_V._Sindhu_India_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=3u_sWFc9Pmw"
+youtube_id = "3u_sWFc9Pmw"
+source_kind = "download"
+
+[[videos]]
+id = 41
+video = "Busanan_ONGBAMRUNGPHAN_Aakarshi_KASHYAP_YONEX_SUNRISE_India_Open_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=K3pR7B8PbcM"
+youtube_id = "K3pR7B8PbcM"
+source_kind = "download"
+
+[[videos]]
+id = 42
+video = "Lee_Zii_Jia_Li_Shi_Feng_GR_TOYOTA_GAZOO_RACING_Thailand_Open_2022_Finals"
+url = "https://www.youtube.com/watch?v=pp134m934s8"
+youtube_id = "pp134m934s8"
+source_kind = "download"
+
+[[videos]]
+id = 43
+video = "LI_Shi_Feng_Kodai_NARAOKAGR_Thailand_Open_2022_Semi_finals"
+url = "https://www.youtube.com/watch?v=s5ZlsOBrUfY"
+youtube_id = "s5ZlsOBrUfY"
+source_kind = "download"
+
+[[videos]]
+id = 44
+video = "SHI_Yu Qi_LEE_Zii_Jia_Denmark_Open_2022_Final"
+url = "https://www.youtube.com/watch?v=HEbfgwOQgRY"
+youtube_id = "HEbfgwOQgRY"
+source_kind = "download"
+
+[[videos]]
+id = 45
+video = "LEE_Zii_Jia_LIEW_Daren_Thailand_Open_2022_SemiFinals_Trim"
+source_kind = "unresolved"
+unresolved_reason = "The annotation source is a trimmed video. No frame-aligned full source is currently public."
+
+[[videos]]
+id = 46
+video = "Lee_Zii_Jia_Loh_Kean_Yew_Denmark_Open_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=jaRBm3uc3jU"
+youtube_id = "jaRBm3uc3jU"
+source_kind = "download"
+
+[[videos]]
+id = 47
+video = "HE_Bing_Jiao_CHEN_Yu_Fei_Denmark_Open_2022_Final"
+url = "https://www.youtube.com/watch?v=1-9iQsVnrHc"
+youtube_id = "1-9iQsVnrHc"
+source_kind = "download"
+
+[[videos]]
+id = 48
+video = "CHEN_Yu_Fei_Ratchanok_INTANON_Denmark_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=Da1aS0Kjqro"
+youtube_id = "Da1aS0Kjqro"
+source_kind = "download"
+
+[[videos]]
+id = 49
+video = "HE_Bing_Jiao_Carolina_MARIN_French_Open_2022_Final"
+url = "https://www.youtube.com/watch?v=Fen035XwMPw"
+youtube_id = "Fen035XwMPw"
+source_kind = "download"
+
+[[videos]]
+id = 50
+video = "Viktor_AXELSEN_Rasmus_GEMKE_French_Open_2022 _Finals"
+url = "https://www.youtube.com/watch?v=FYQCIkw32jw"
+youtube_id = "FYQCIkw32jw"
+source_kind = "download"
+
+[[videos]]
+id = 51
+video = "Viktor_AXELSEN_Kodai_NARAOKA_YONEX_French_Open_2022_Semifinals"
+url = "https://www.youtube.com/watch?v=CpeAGY7xwtI"
+youtube_id = "CpeAGY7xwtI"
+source_kind = "download"
+
+[[videos]]
+id = 52
+video = "SHI_Yu_Qi_Kodai_NARAOKA_Denmark_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=RMPUSOPcACc"
+youtube_id = "RMPUSOPcACc"
+source_kind = "download"
+
+[[videos]]
+id = 53
+video = "AN_Se_Young_Pornpawee_CHOCHUWONG_Korea_Open_Badminton_Championships_2022_Finals"
+url = "https://www.youtube.com/watch?v=vQ31Nc27jzM"
+youtube_id = "vQ31Nc27jzM"
+source_kind = "download"
+
+[[videos]]
+id = 54
+video = "Carolina_MARIN_Akane_YAMAGUCHI_French_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=QpxcHjF7D3Y"
+youtube_id = "QpxcHjF7D3Y"
+source_kind = "download"
+
+[[videos]]
+id = 55
+video = "Viktor_AXELSEN_ZHAO_Jun_Peng_Indonesia_Open_2022_Final"
+url = "https://www.youtube.com/watch?v=q-wX5sfFXic"
+youtube_id = "q-wX5sfFXic"
+source_kind = "download"
+
+[[videos]]
+id = 56
+video = "Rasmus_GEMKE_LEE_Cheuk_Yiu_French_Open_2022_SemiFinals"
+source_kind = "unresolved"
+unresolved_reason = "The exact 2022 semifinal upload is no longer discoverable. Available search results are other matches."
+
+[[videos]]
+id = 57
+video = "CHEN_Yu_Fei_PUSARLA_V._Sindhu_Thailand_Open_2022_SemiFinals"
+url = "https://www.youtube.com/watch?v=T6evDKhWtgI"
+youtube_id = "T6evDKhWtgI"
+source_kind = "download"
+
+[[videos]]
+id = 58
+video = "Anthony_Sinisuka_Ginting_Rasmus_Gemke_YONEX_Thailand_Open_2021_QuarterFinals"
+url = "https://www.youtube.com/watch?v=NlDrJyQUTSI"
+youtube_id = "NlDrJyQUTSI"
+source_kind = "shuttleset_overlap"
+overlap_shuttleset_id = 24

@@ -201,6 +201,10 @@ The fixed-measurement source arrays are published in the
 See [data attribution](data/ATTRIBUTION.md) and the
 [HPC quickstart](docs/hpc_quickstart.md) for storage guidance.
 
+The completed ShuttleSet22 extraction is described in the
+[ShuttleSet22 handoff](docs/shuttleset22_extraction_handoff.md). Its source
+videos and extracted arrays remain outside Git.
+
 ## Known limitations
 
 - The demonstrated operating range is professional singles footage with a

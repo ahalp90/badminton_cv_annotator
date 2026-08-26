@@ -163,6 +163,20 @@ def test_sharded_pose_uses_configured_interpreter_and_canonical_count(
     assert not list(output_dir.glob(".rtmlib-sharded-*"))
 
 
+def test_pose_executable_preserves_virtual_environment_symlink(tmp_path: Path) -> None:
+    base = tmp_path / "python3.11"
+    base.write_text("#!/bin/sh\n", encoding="utf-8")
+    base.chmod(0o755)
+    venv_python = tmp_path / "venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.symlink_to(base)
+
+    resolved = pose_process_module.resolve_pose_executable(venv_python)
+
+    assert resolved == venv_python.absolute()
+    assert resolved.is_symlink()
+
+
 @pytest.mark.parametrize(
     ("failure", "error_type"),
     [("subprocess", RuntimeError), ("padding", ValueError)],
