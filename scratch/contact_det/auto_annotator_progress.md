@@ -74,7 +74,7 @@ better contact timing
 → abstain on everything else
 ```
 
-Short predicted event lists were cleaner in this pilot, so a learned rally-acceptance stage should use more than the weakest contact score. It should test rally length and span duration as context, not turn them into a hard “reject long rallies” rule.
+Short predicted event lists were cleaner in this pilot, so a learned rally-acceptance stage should use more than the weakest contact score. It should test the number of predicted contacts in the rally and span duration as context, not turn them into a hard “reject long rallies” rule.
 
 We also do not yet have evidence that this will generalise to substantially different broadcast conventions. The pilot is only three videos from one dataset.
 
@@ -343,7 +343,7 @@ The original HGB span records show why minimum score alone is weak:
 
 Do not turn the short-event-list rows into a hard filter. They show that shorter predicted lists are cleaner here, but they do not separate true rally length from fixture and difficulty.
 
-A future rally-acceptance model should test whether rally length and duration help it interpret the contact scores. It should then report both accuracy and retention across short, medium and long rallies.
+A future rally-acceptance model should test whether the number of predicted contacts in the rally and its duration help it interpret the contact scores. It should then report both accuracy and retention across short, medium and long labelled rallies.
 
 ## What should be tested next
 
@@ -356,7 +356,7 @@ On the larger dataset:
 5. test one bounded rescue source for otherwise-exact one-missing rallies;
 6. improve or replace player-side attribution and keep its metrics in the main scoreboard;
 7. rerun the rally-level Top/Bottom sequence fit after the contact stream is fixed;
-8. learn rally acceptance from held-out predictions using contact scores, ambiguity, span quality, player-side confidence, rally length and duration;
+8. learn rally acceptance from held-out predictions using contact scores, ambiguity, span quality, player-side confidence, the number of predicted contacts in the rally and duration;
 9. report acceptance accuracy **and retention** across the full rally-length distribution;
 10. keep serves as a separate error slice;
 11. only revisit a broad second stage if a new candidate list gives much better coverage per added candidate;

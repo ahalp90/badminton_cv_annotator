@@ -35,7 +35,7 @@ import score_contact_player_attribution as attribution_scorer
 import score_contact_rallies as rally_scorer
 import score_tree_contact_detector as tree_scorer
 
-RESULTS_SCHEMA = "contact-serve-prefix-score/1"
+RESULTS_SCHEMA = "contact-serve-prefix-score/2"
 CONSTRUCTION_SCHEMA = "contact-serve-prefix-construction/1"
 SELECTED_TRIAL_ID = "N+"
 NPLUS_RADIUS_BASE30 = 6
@@ -56,6 +56,8 @@ SOURCE_FILTERED_HEURISTIC = "filtered_heuristic"
 SOURCE_ANCHOR = "anchor"
 ABSTENTION_NO_ANCHOR = "no_anchor"
 ABSTENTION_MALFORMED_BOUNDS = "malformed_prefix_bounds"
+OUTPUT_START_DETECTED_SPAN = "detected_span"
+OUTPUT_START_SERVE_PREPEND = "serve_prepend"
 
 
 @dataclass(frozen=True)
@@ -149,6 +151,28 @@ class VerifiedLabelBlindInputs:
     nplus_rows: np.ndarray
     model_rows: np.ndarray
     search_intervals: dict[str, tuple[tuple[int, int], ...]]
+
+
+@dataclass(frozen=True)
+class ServeOutputSpanBounds:
+    """Detected and output bounds for one serve-prefix result."""
+
+    fixture: str
+    span_id: int
+    detected_span_start: int
+    detected_span_end: int
+    serve_prepend_frame: int | None
+    output_span_start: int
+    output_span_end: int
+    output_start_source: str
+
+
+@dataclass(frozen=True)
+class AttachedSpanSet:
+    """Scoring spans and the bounds used to make them."""
+
+    spans: tuple[rally_scorer.FixedSpan, ...]
+    bounds: tuple[ServeOutputSpanBounds, ...]
 
 
 def scaled_nplus_radius(fps: float) -> int:
@@ -752,6 +776,20 @@ def _action_json(action: PrefixAction) -> dict[str, Any]:
     }
 
 
+def _output_span_json(bounds: ServeOutputSpanBounds) -> dict[str, Any]:
+    """Serialise one detected span and its final output bounds."""
+    return {
+        "fixture": bounds.fixture,
+        "span_id": bounds.span_id,
+        "detected_span_start": bounds.detected_span_start,
+        "detected_span_end": bounds.detected_span_end,
+        "serve_prepend_frame": bounds.serve_prepend_frame,
+        "output_span_start": bounds.output_span_start,
+        "output_span_end": bounds.output_span_end,
+        "output_start_source": bounds.output_start_source,
+    }
+
+
 def construction_payload(frozen: FrozenPrefixSet) -> dict[str, Any]:
     """Return a deterministic, label-free construction payload."""
     return {
@@ -923,11 +961,12 @@ def attach_actions_to_spans(
     events_by_fixture: Mapping[str, Sequence[rally_scorer.FixedEvent]],
     prefixes: Sequence[PrefixRecord],
     attribution: Mapping[tuple[str, int], str | None],
-) -> tuple[rally_scorer.FixedSpan, ...]:
-    """Attach selected prefix events without changing the saved span bounds."""
+) -> AttachedSpanSet:
+    """Attach selected prefix events and widen only the final output start."""
     base_spans = rally_scorer.fixed_spans_from_evidence(evidence, events_by_fixture)
     actions = _actions_by_span(prefixes)
     attached: list[rally_scorer.FixedSpan] = []
+    output_bounds: list[ServeOutputSpanBounds] = []
     for span in base_spans:
         action = actions[(span.fixture, span.span_id)]
         events = list(span.events)
@@ -949,16 +988,43 @@ def attach_actions_to_spans(
                     events.append(candidate_event)
             else:
                 raise ValueError(f"{span.fixture}/{span.span_id}: unknown selected action {action.action!r}")
+
+        serve_prepend_frame = (
+            candidate.frame
+            if candidate is not None and candidate.frame < span.start_frame
+            else None
+        )
+        output_span_start = (
+            span.start_frame
+            if serve_prepend_frame is None
+            else serve_prepend_frame
+        )
+        output_start_source = (
+            OUTPUT_START_DETECTED_SPAN
+            if serve_prepend_frame is None
+            else OUTPUT_START_SERVE_PREPEND
+        )
+        bounds = ServeOutputSpanBounds(
+            fixture=span.fixture,
+            span_id=span.span_id,
+            detected_span_start=span.start_frame,
+            detected_span_end=span.end_frame,
+            serve_prepend_frame=serve_prepend_frame,
+            output_span_start=output_span_start,
+            output_span_end=span.end_frame,
+            output_start_source=output_start_source,
+        )
+        output_bounds.append(bounds)
         attached.append(
             rally_scorer.FixedSpan(
                 span.fixture,
                 span.span_id,
-                span.start_frame,
-                span.end_frame,
+                bounds.output_span_start,
+                bounds.output_span_end,
                 tuple(sorted(events, key=lambda event: event.frame)),
             )
         )
-    return tuple(attached)
+    return AttachedSpanSet(tuple(attached), tuple(output_bounds))
 
 
 def candidate_prediction_frames(
@@ -1630,7 +1696,7 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
     nplus_events = rally_scorer.retained_events_from_scores(verified.nplus_rows, attribution)
     fixed_events = apply_actions_to_stream(nplus_events, frozen.prefixes, attribution)
     nplus_spans = rally_scorer.fixed_spans_from_evidence(verified.evidence.evidence, nplus_events)
-    fixed_spans = attach_actions_to_spans(
+    fixed_output = attach_actions_to_spans(
         verified.evidence.evidence,
         nplus_events,
         frozen.prefixes,
@@ -1646,7 +1712,7 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
         verified.evidence.evidence,
     )
     oracle_events = apply_actions_to_stream(nplus_events, oracle_prefixes, attribution)
-    oracle_spans = attach_actions_to_spans(
+    oracle_output = attach_actions_to_spans(
         verified.evidence.evidence,
         nplus_events,
         oracle_prefixes,
@@ -1680,8 +1746,8 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
     }
     spans_by_stream = {
         "nplus": nplus_spans,
-        "fixed": fixed_spans,
-        "oracle": oracle_spans,
+        "fixed": fixed_output.spans,
+        "oracle": oracle_output.spans,
     }
     baseline_predictions = _prediction_frames_from_events(nplus_events)
     event_reports: dict[str, Any] = {}
@@ -1728,8 +1794,25 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
             "actions": {
                 "fixed_insert_count": sum(prefix.fixed_action.action == "insert" for prefix in frozen.prefixes),
                 "fixed_abstention_count": sum(prefix.fixed_action.candidate is None for prefix in frozen.prefixes),
+                "fixed_selected_count": sum(prefix.fixed_action.candidate is not None for prefix in frozen.prefixes),
+                "fixed_pre_span_choice_count": sum(
+                    bounds.serve_prepend_frame is not None
+                    for bounds in fixed_output.bounds
+                ),
                 "oracle_insert_count": sum(prefix.fixed_action.action == "insert" for prefix in oracle_prefixes),
                 "oracle_selected_count": sum(prefix.fixed_action.candidate is not None for prefix in oracle_prefixes),
+                "oracle_pre_span_choice_count": sum(
+                    bounds.serve_prepend_frame is not None
+                    for bounds in oracle_output.bounds
+                ),
+                "fixed_output_spans": [
+                    _output_span_json(bounds)
+                    for bounds in fixed_output.bounds
+                ],
+                "oracle_output_spans": [
+                    _output_span_json(bounds)
+                    for bounds in oracle_output.bounds
+                ],
                 "oracle": [_action_json(prefix.fixed_action) for prefix in oracle_prefixes],
             },
         }

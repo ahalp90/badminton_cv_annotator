@@ -262,7 +262,9 @@ def test_insert_local_dedup_preserves_later_events_and_replaces_only_anchor() ->
     assert replaced[0].predicted_side == "Bot"
 
 
-def test_pre_span_candidate_is_attached_without_widening_saved_bounds() -> None:
+def test_prepend_changes_output_span_without_starting_another_lookback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     evidence = _evidence(_span(0, 20, 50))
     events = {"sset_01": (_fixed_event(30),)}
     candidate = _candidate(10)
@@ -279,21 +281,30 @@ def test_pre_span_candidate_is_attached_without_widening_saved_bounds() -> None:
         scorer.PrefixAction("insert", candidate, 30, "test"),
     )
 
-    spans = scorer.attach_actions_to_spans(
+    def fail_if_prefix_search_restarts(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("serve prepend must not start another prefix search")
+
+    monkeypatch.setattr(scorer, "build_prefix_record", fail_if_prefix_search_restarts)
+    attached = scorer.attach_actions_to_spans(
         evidence,
         events,
         (prefix,),
         {("sset_01", 10): "Top"},
     )
 
-    assert (spans[0].start_frame, spans[0].end_frame) == (20, 50)
-    assert [event.frame for event in spans[0].events] == [10, 30]
+    bounds = attached.bounds[0]
+    assert (bounds.detected_span_start, bounds.detected_span_end) == (20, 50)
+    assert bounds.serve_prepend_frame == 10
+    assert (bounds.output_span_start, bounds.output_span_end) == (10, 50)
+    assert bounds.output_start_source == scorer.OUTPUT_START_SERVE_PREPEND
+    assert (attached.spans[0].start_frame, attached.spans[0].end_frame) == (10, 50)
+    assert [event.frame for event in attached.spans[0].events] == [10, 30]
     updated_events = scorer.apply_actions_to_stream(
         events,
         (prefix,),
         {("sset_01", 10): "Top"},
     )
-    assert scorer.rally_scorer.unassigned_events(spans, updated_events) == ()
+    assert scorer.rally_scorer.unassigned_events(attached.spans, updated_events) == ()
 
 
 def test_timing_oracle_uses_scaled_tolerance_and_score_then_frame_ties() -> None:

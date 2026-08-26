@@ -577,6 +577,16 @@ Of those 96 misses:
 
 The rule finds only **8** of the oracle's **58** recoverable serves and leaves 70 added events unmatched.
 
+### Span-boundary check
+
+The oracle chooses 61 serve candidates. Nineteen are earlier than the original detected-span start. The fixed chooser selects 79 candidates, and none are earlier.
+
+The serves that make two extra rallies fully correct are both already inside their detected spans.
+
+The serve search still runs once from the original detected-span start. For the 19 earlier choices, the saved output span starts at the serve while the original detected bounds stay unchanged.
+
+Scoring those output spans leaves the oracle result at **29 fully correct rallies**.
+
 ### What does it mean?
 
 Keep the **candidate-list idea** as a fresh-data research lead.
@@ -696,13 +706,13 @@ Instead, a rally-level acceptance model should interpret confidence in context.
 Useful held-out features include:
 
 - minimum, median and lower-tail contact scores;
-- number of predicted events;
-- rally length and span duration;
+- number of predicted contacts in the rally;
+- span duration;
 - gaps or ambiguity between nearby candidate scores;
 - how cleanly the predicted span maps to one real rally;
 - player-side confidence and missing side answers.
 
-The output should be evaluated as **correctness versus retention**, with retention reported separately for short, medium and long rallies.
+The output should be evaluated as **correctness versus retention**, with retention reported separately for short, medium and long labelled rallies.
 
 ### Larger dataset
 

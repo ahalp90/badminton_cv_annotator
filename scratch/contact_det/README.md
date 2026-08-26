@@ -11,7 +11,7 @@ If you have been away from this project for a while, start here. The main learne
 - the wider duplicate-removal experiment is more interesting than it first looked: it produced 112 fewer events overall, with **105 fewer unmatched predictions** and seven fewer timing matches;
 - the strict whole-rally records show a larger cleanup opportunity behind that result: on the original HGB output, **21** rallies are fully correct now, while **38** could be fully correct if an ideal cleanup stage only removed extra events;
 - another **13** rallies are otherwise exact apart from one missing contact, so a small rescue path has a separate, smaller job;
-- the weakest HGB score in a rally is not a good enough trust signal by itself. Short predicted event lists were cleaner, so a future confidence model should test rally length and duration as useful context;
+- the weakest HGB score in a rally is not a good enough trust signal by itself. Short predicted event lists were cleaner, so a future confidence model should test the number of predicted contacts in the rally and its duration as useful context;
 - player-side attribution remains a major limit: the frozen broad candidate union can support **144 timing-exact rallies**, but only **42** when the current Top/Bottom answers must also be correct;
 - `sset_21` is still the warning against over-reading pooled numbers, especially for serves;
 - these are three videos from one dataset. We have a more plausible route to a high-precision abstaining annotator, but we have **not** shown near-100% kept-rally precision or cross-broadcast generalisation.
@@ -94,7 +94,7 @@ strong first-stage contact model
 → abstain aggressively when the whole rally is not trustworthy
 ```
 
-Short predicted event lists were cleaner in this pilot. That is a useful clue, not a reason to reject long rallies. A future confidence model should test whether rally length and duration improve its judgement, while reporting how many short and long rallies it keeps.
+Short predicted event lists were cleaner in this pilot. That is a useful clue, not a reason to reject long rallies. A future confidence model should test whether the number of predicted contacts in the rally and its duration improve its judgement, while reporting how many short and long rallies it keeps.
 
 Generalisation is a separate open question. These three fixtures are too small and too similar to show that the system will survive new tournaments, camera layouts, graphics packages or production conventions. The larger programme needs whole-video and, where possible, whole-broadcast-package holdouts.
 
@@ -200,7 +200,7 @@ These are **diagnostics, not acceptance rules**. A maximum-contact cutoff would 
 
 The useful lesson is that short predicted event lists are cleaner, and the same score filter behaves differently across fixtures. A 0.90 filter keeps all six fully correct `sset_01` spans but only two of fourteen fully correct `sset_15` spans. The pilot does not separate the effects of true rally length, duration, fixture and difficulty.
 
-A later acceptance model should combine contact scores with rally length, duration and player-side confidence. It can also use ambiguity between nearby candidates and whether the predicted span maps cleanly to one rally. Report both correctness and retention across short, medium and long rallies.
+A later acceptance model should combine contact scores with the number of predicted contacts in the rally, duration and player-side confidence. It can also use ambiguity between nearby candidates and whether the predicted span maps cleanly to one rally. Report both correctness and retention across short, medium and long labelled rallies.
 
 ## What should be tested on the larger dataset
 
@@ -212,7 +212,7 @@ A sensible order is:
 4. **Test a small event-cleanup stage whose first job is deleting extras.** The 21 → 38 upper-bound result makes this the clearest second-stage opportunity.
 5. **Test one bounded rescue source for otherwise-exact one-missing rallies.** Do not reopen a huge broad shortlist unless it recovers many more real contacts for each added candidate.
 6. **Improve or replace player-side attribution.** Measure it directly on the selected stream because it can dominate the remaining rally gap.
-7. **Learn rally acceptance from held-out predictions.** Use contact scores, ambiguity, span quality, player-side confidence, rally length and duration. Report correctness and retention across short, medium and long rallies.
+7. **Learn rally acceptance from held-out predictions.** Use contact scores, ambiguity, span quality, player-side confidence, the number of predicted contacts in the rally and duration. Report correctness and retention across short, medium and long labelled rallies.
 8. **Keep serves as a separate slice.** Especially check whether the `sset_21` failure pattern repeats.
 9. **Only widen off-region search when it buys otherwise-complete rallies.**
 10. **Hold out entire videos and, where possible, tournaments or broadcast packages.** That is the evidence needed for a generalisation claim.
