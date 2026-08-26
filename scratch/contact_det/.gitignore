@@ -1,0 +1,16 @@
+*
+!.gitignore
+!tree_contact_detector_results.md
+!bst_x_contact_detector_plan.md
+!auto_annotator_progress.md
+!VISUAL_QUICK_GUIDE.md
+!raw/contact_player_attribution_score.json.gz
+!README.md
+!scripts/
+!scripts/**
+!figures/
+!figures/**
+local_agents/
+!raw/
+!raw/**
+raw/region_v2_inputs/stages/pose/

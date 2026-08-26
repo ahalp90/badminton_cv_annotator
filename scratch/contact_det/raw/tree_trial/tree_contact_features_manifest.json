@@ -1,0 +1,392 @@
+{
+  "feature_families": {
+    "context": [
+      "shuttle_x",
+      "shuttle_y",
+      "ankle_x_top",
+      "ankle_y_top",
+      "ankle_x_bot",
+      "ankle_y_bot",
+      "bbox_height_top",
+      "bbox_height_bot",
+      "standing_count",
+      "span_progress",
+      "distance_from_span_start",
+      "distance_to_span_end",
+      "distance_from_scene_start",
+      "region_current_raw",
+      "region_relaxed_impulse",
+      "region_wrist",
+      "region_visibility",
+      "region_rally_start",
+      "region_scene_start"
+    ],
+    "missingness": [
+      "shuttle_visible_t-10",
+      "shuttle_visible_t-5",
+      "shuttle_visible_t+0",
+      "shuttle_visible_t+5",
+      "shuttle_visible_t+10",
+      "pose_valid_top_t-10",
+      "pose_valid_top_t-5",
+      "pose_valid_top_t+0",
+      "pose_valid_top_t+5",
+      "pose_valid_top_t+10",
+      "pose_valid_bot_t-10",
+      "pose_valid_bot_t-5",
+      "pose_valid_bot_t+0",
+      "pose_valid_bot_t+5",
+      "pose_valid_bot_t+10",
+      "wrist_valid_top_t-10",
+      "wrist_valid_top_t-5",
+      "wrist_valid_top_t+0",
+      "wrist_valid_top_t+5",
+      "wrist_valid_top_t+10",
+      "wrist_valid_bot_t-10",
+      "wrist_valid_bot_t-5",
+      "wrist_valid_bot_t+0",
+      "wrist_valid_bot_t+5",
+      "wrist_valid_bot_t+10"
+    ],
+    "physics": [
+      "shuttle_vx_t-10",
+      "shuttle_vx_t-5",
+      "shuttle_vx_t+0",
+      "shuttle_vx_t+5",
+      "shuttle_vx_t+10",
+      "shuttle_vy_t-10",
+      "shuttle_vy_t-5",
+      "shuttle_vy_t+0",
+      "shuttle_vy_t+5",
+      "shuttle_vy_t+10",
+      "shuttle_speed_t-10",
+      "shuttle_speed_t-5",
+      "shuttle_speed_t+0",
+      "shuttle_speed_t+5",
+      "shuttle_speed_t+10",
+      "shuttle_impulse_t-10",
+      "shuttle_impulse_t-5",
+      "shuttle_impulse_t+0",
+      "shuttle_impulse_t+5",
+      "shuttle_impulse_t+10",
+      "shuttle_impulse_ratio_t-10",
+      "shuttle_impulse_ratio_t-5",
+      "shuttle_impulse_ratio_t+0",
+      "shuttle_impulse_ratio_t+5",
+      "shuttle_impulse_ratio_t+10",
+      "wrist_gap_min_t-10",
+      "wrist_gap_min_t-5",
+      "wrist_gap_min_t+0",
+      "wrist_gap_min_t+5",
+      "wrist_gap_min_t+10",
+      "wrist_gap_top_t-10",
+      "wrist_gap_top_t-5",
+      "wrist_gap_top_t+0",
+      "wrist_gap_top_t+5",
+      "wrist_gap_top_t+10",
+      "wrist_gap_bot_t-10",
+      "wrist_gap_bot_t-5",
+      "wrist_gap_bot_t+0",
+      "wrist_gap_bot_t+5",
+      "wrist_gap_bot_t+10",
+      "nearest_wrist_dx_t-10",
+      "nearest_wrist_dx_t-5",
+      "nearest_wrist_dx_t+0",
+      "nearest_wrist_dx_t+5",
+      "nearest_wrist_dx_t+10",
+      "nearest_wrist_dy_t-10",
+      "nearest_wrist_dy_t-5",
+      "nearest_wrist_dy_t+0",
+      "nearest_wrist_dy_t+5",
+      "nearest_wrist_dy_t+10",
+      "ankle_speed_top_t-10",
+      "ankle_speed_top_t-5",
+      "ankle_speed_top_t+0",
+      "ankle_speed_top_t+5",
+      "ankle_speed_top_t+10",
+      "ankle_speed_bot_t-10",
+      "ankle_speed_bot_t-5",
+      "ankle_speed_bot_t+0",
+      "ankle_speed_bot_t+5",
+      "ankle_speed_bot_t+10"
+    ]
+  },
+  "feature_file": "tree_contact_features.npy.xz",
+  "feature_schema": "tree-contact-features/1",
+  "feature_sha256": "3853a6c29d5c9a5cb85f958adf75dc1af39a03adf4c9a2c82716767e0ec0b134",
+  "fixture_set": [
+    "sset_01",
+    "sset_15",
+    "sset_21"
+  ],
+  "fixtures": [
+    {
+      "fixture": "sset_01",
+      "frame_count": 154393,
+      "region_frame_counts": {
+        "region_current_raw": 40525,
+        "region_rally_start": 4251,
+        "region_relaxed_impulse": 49541,
+        "region_scene_start": 2480,
+        "region_visibility": 5263,
+        "region_wrist": 39241
+      },
+      "row_count": 49640,
+      "span_count": 109
+    },
+    {
+      "fixture": "sset_15",
+      "frame_count": 149487,
+      "region_frame_counts": {
+        "region_current_raw": 24589,
+        "region_rally_start": 4775,
+        "region_relaxed_impulse": 31018,
+        "region_scene_start": 2131,
+        "region_visibility": 3030,
+        "region_wrist": 25738
+      },
+      "row_count": 31136,
+      "span_count": 123
+    },
+    {
+      "fixture": "sset_21",
+      "frame_count": 100349,
+      "region_frame_counts": {
+        "region_current_raw": 24480,
+        "region_rally_start": 3570,
+        "region_relaxed_impulse": 31534,
+        "region_scene_start": 1012,
+        "region_visibility": 4150,
+        "region_wrist": 26702
+      },
+      "row_count": 31726,
+      "span_count": 79
+    }
+  ],
+  "identity_fields": [
+    "fixture",
+    "span_id",
+    "frame",
+    "fps"
+  ],
+  "inputs": [
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "a703db1714983332ff8b2f5f305d1ac865843f32f9f7b2574f23da9f21a387a4",
+          "size_bytes": 204528
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "0e8a84e0a760e02e4b83c51fa6963d150cf5d64dfc5b28daea3a690ca11713ca",
+          "size_bytes": 60146876
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "c3b6b7c1ce7e6aaafa7a9f94f3df298ef8e8bc38a716c4643db7a5b8f1331d90",
+          "size_bytes": 7466660
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "2e1b65ef4ccb0a532dbf658f9671c84074dd1374d242a96730f22a3b8cb8bf16",
+          "size_bytes": 2160676
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "9364f57c3cbc04cfb726b0c67bae872f2c229f0aea10d48fd6d1573a52eebeac",
+          "size_bytes": 39110804
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "68e0f8e6f737e74113e14558bd844b31c741d6f1e6a5d36770f1d22bb5653b1d",
+          "size_bytes": 14216
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "0e3d9ef8e681d39c15328301350809383b800bd47575491cd2452812f0568833",
+          "size_bytes": 65539
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "caef8b4e33321977f4b79971e24eba1ff3c20b2ef47b4598115b4bceb11e3e6f",
+          "size_bytes": 2920
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "6693b60b66fc0247e18f2bcceb3badcd5ab14dbeca4d50812177e130c9d618a1",
+          "size_bytes": 840
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "b1656fcd60ba354b1003ee6f70e8192395d4f4b479b5f8245e3d98518ae1d52e",
+          "size_bytes": 35201
+        }
+      ],
+      "fixture": "sset_01"
+    },
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "693500705ddd1a120b70629f861d2d754af2d7de4ece7b1b9f7be059ae8b590c",
+          "size_bytes": 156872
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "813597265cd28a8f865a5660908a848684669e20c976db97960c0eb4e4cdb14c",
+          "size_bytes": 62469312
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "ba05a8750fd712f980a3cf4f21f01c276ea80d719b95ebe0d2f64f78f30a193a",
+          "size_bytes": 7906112
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "aa10e06aba177445e1760556f03094bd5efaf2c7a20b13c310edff0f1777e218",
+          "size_bytes": 2228636
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "ae5457cb143d5dbcc85b200696a9622688d24b3cab523a644c14720a21d53606",
+          "size_bytes": 39182356
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "59c8e9c07baea308db057b4eb063d9d21ee6fd1b63a4a43ffe0fea6cfc9be208",
+          "size_bytes": 18604
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "b379f6376516ad4bfe70c360c4a68eae0a2ff3fbe878d8bdb21ac4ecb01b119a",
+          "size_bytes": 99298
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "cbae245f62703f927cce441a323ad6fbfc2dd47b04f0ac40ca980eef6a3fb482",
+          "size_bytes": 2624
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "1ff72241d37972249f96739c977b46ea30202b89abb6d368e269c9b1c143131f",
+          "size_bytes": 876
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "4c4b51b216363444b0117f07e7646054c9ba20fb2f9639b78430103285e8ec04",
+          "size_bytes": 26254
+        }
+      ],
+      "fixture": "sset_15"
+    },
+    {
+      "files": [
+        {
+          "filename": "shuttle_track.npy.xz",
+          "role": "shuttle_track",
+          "sha256": "e03eacd418e0634ca5aca229e722443b73a89d3be52183dac3ef0741bb6ef946",
+          "size_bytes": 115376
+        },
+        {
+          "filename": "pose_kps.npy.xz",
+          "role": "pose_kps",
+          "sha256": "d4cb2a4294f68ebdf4cf7d75ff4538ec1dad88070db2de6732e3b7d2e57e64d9",
+          "size_bytes": 44169568
+        },
+        {
+          "filename": "pose_bboxes.npy.xz",
+          "role": "pose_bboxes",
+          "sha256": "f3d04ec1f35443627bfca75e2672a37d70283ca3dadb905b53ae533826fab235",
+          "size_bytes": 5510896
+        },
+        {
+          "filename": "pose_scores.npy.xz",
+          "role": "pose_scores",
+          "sha256": "623714eb0ac6924758ef92af4db39ab65d628f3b2c382202a6d747e07fb846f8",
+          "size_bytes": 1622536
+        },
+        {
+          "filename": "pose_kp_scores.npy.xz",
+          "role": "pose_kp_scores",
+          "sha256": "f6d9db8dd3551fc71890486a00df3661e71832cbe428b317134a3efda8fad1b7",
+          "size_bytes": 29077568
+        },
+        {
+          "filename": "pose_ndet.npy.xz",
+          "role": "pose_ndet",
+          "sha256": "8cc394624423532091834d565767122586a1844dd2c8844915d5f7ebf8bc8d1d",
+          "size_bytes": 11932
+        },
+        {
+          "filename": "court_evidence.json.gz",
+          "role": "court_evidence",
+          "sha256": "9da640d19091b716f886a9e330fd5892e7421285dfaf88a631383c26a082b7a5",
+          "size_bytes": 63972
+        },
+        {
+          "filename": "court_keep_vote.npy.xz",
+          "role": "court_keep_vote",
+          "sha256": "0d1427ec5ca951428975b8dfbea5cb1ecda43e7a88a3c7cf9197ac7f2763b409",
+          "size_bytes": 1532
+        },
+        {
+          "filename": "court_present.npy.xz",
+          "role": "court_present",
+          "sha256": "029850a23ee4c762a8df2abcdc7ea3a575436ae8b4d61bfe2e5fa8cef70ad732",
+          "size_bytes": 656
+        },
+        {
+          "filename": "annotator_result.json.gz",
+          "role": "annotation",
+          "sha256": "b902c8766ee8cff20768c0eea4da4371d7aef8982e0dcf0b4f871522611b9f51",
+          "size_bytes": 21796
+        }
+      ],
+      "fixture": "sset_21"
+    }
+  ],
+  "labels_read": false,
+  "region_fields": [
+    "region_current_raw",
+    "region_relaxed_impulse",
+    "region_wrist",
+    "region_visibility",
+    "region_rally_start",
+    "region_scene_start"
+  ],
+  "row_count": 112502,
+  "schema": "tree-contact-feature-manifest/1",
+  "seed_parameters": {
+    "relaxed_impulse_multiple": 1.25,
+    "wrist_local_minimum_limit": 3.0
+  },
+  "source_commit": "ad8da4f",
+  "window_offsets_base30": [
+    -10,
+    -5,
+    0,
+    5,
+    10
+  ]
+}
