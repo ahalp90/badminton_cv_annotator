@@ -14,6 +14,8 @@ answer is correct. A confidence failure abstains on the whole span. It never
 removes one weak event and scores the remainder.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

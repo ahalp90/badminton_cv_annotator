@@ -1,5 +1,7 @@
 """Focused tests for contact player-attribution scoring."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import gzip

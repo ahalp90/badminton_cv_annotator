@@ -1,5 +1,7 @@
 """Pure contract tests for the strict rally evaluator."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import sys

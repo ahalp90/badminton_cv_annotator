@@ -6,6 +6,8 @@ pre-specified score and duplicate-removal choices. Every event stream and
 Top/Bottom answer is fixed before timing or player-side labels load.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

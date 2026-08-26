@@ -6,6 +6,8 @@ asserted before timing labels load. The shortlist is an overcomplete candidate
 set, not a replacement detector event stream.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

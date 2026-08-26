@@ -1,5 +1,7 @@
 """Focused tests for the label-blind contact evidence harness."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import gzip

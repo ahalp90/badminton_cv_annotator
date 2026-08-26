@@ -5,6 +5,8 @@ loads ShuttleSet tables. The separate scorer verifies this freeze before it
 imports ground truth.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

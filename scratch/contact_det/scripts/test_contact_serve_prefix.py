@@ -1,5 +1,7 @@
 """Focused pure-contract tests for the structured serve-prefix freeze."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

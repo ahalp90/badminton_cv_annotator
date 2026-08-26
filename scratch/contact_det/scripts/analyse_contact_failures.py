@@ -6,6 +6,8 @@ identify the contacts that the already-retained HGB rows missed. It never
 changes the retained event stream.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

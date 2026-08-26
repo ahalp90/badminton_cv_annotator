@@ -7,6 +7,8 @@ unchanged strict rally evaluator, so the result measures headroom rather than
 proposing a production selection rule.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

@@ -11,6 +11,8 @@ grid. L- lowers it only for region_serve_lookback rows. SL- lowers it for
 the union of region_rally_start and region_serve_lookback rows.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

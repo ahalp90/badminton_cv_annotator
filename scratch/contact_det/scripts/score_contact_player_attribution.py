@@ -5,6 +5,8 @@ ShuttleSet ``player_side`` column. The only event stream reproduced here is the
 previously reported eligible-court-only HGB sensitivity.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

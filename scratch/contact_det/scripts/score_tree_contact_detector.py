@@ -1,5 +1,7 @@
 """Fit and score tree contact baselines from a verified label-blind freeze."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

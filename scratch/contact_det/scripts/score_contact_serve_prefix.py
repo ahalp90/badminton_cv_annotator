@@ -5,6 +5,8 @@ timing oracle and strict rally score are loaded only after that list, the fixed
 heuristic action, and all Top/Bottom predictions have been frozen.
 """
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
