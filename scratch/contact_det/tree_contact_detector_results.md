@@ -703,7 +703,7 @@ Do **not** solve this by hard-rejecting long rallies. That would create an artif
 
 Instead, a rally-level acceptance model should interpret confidence in context.
 
-Useful held-out features include:
+Candidate inputs to test on held-out predictions include:
 
 - minimum, median and lower-tail contact scores;
 - number of predicted contacts in the rally;
@@ -712,7 +712,7 @@ Useful held-out features include:
 - how cleanly the predicted span maps to one real rally;
 - player-side confidence and missing side answers.
 
-The output should be evaluated as **correctness versus retention**, with retention reported separately for short, medium and long labelled rallies.
+Use the true labelled rally length only when reporting results. Show **correctness versus retention** separately for short, medium and long rallies.
 
 ### Larger dataset
 
@@ -751,8 +751,8 @@ Carry forward the **ideas**:
 - the lesson that deleting extras is a substantial second-stage opportunity;
 - one bounded rescue path for otherwise-exact one-missing rallies;
 - the compact serve-prefix construction as a bounded selector lead;
-- a rally-level acceptance model with length-aware calibration;
-- correctness-versus-retention reporting across the full rally-length range.
+- a rally-level acceptance model that uses the number of predicted contacts in the rally;
+- correctness-versus-retention reporting across true labelled rally lengths.
 
 Choose again on the larger data:
 
