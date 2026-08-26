@@ -5,6 +5,7 @@ from fractions import Fraction
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -256,3 +257,213 @@ def test_extract_source_writes_requested_compressed_outputs(
         pose_shards=8,
     )
     assert calls == {"tracknet": 1, "pose": 1}
+
+
+def test_court_source_publishes_receipt_and_validates_resume(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dataset_builder import vision
+
+    source = shuttleset22.Source(8, "match", shuttleset22.SourceKind.DOWNLOAD, "url")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    video = source_root / source.filename
+    video.write_bytes(b"video")
+    output = tmp_path / "output" / "08 match"
+    output.mkdir(parents=True)
+    for path in pose_artifact_paths(output).as_mapping().values():
+        path.write_bytes(b"pose")
+    metadata = VideoMetadata(
+        video.resolve(),
+        Fraction(30, 1),
+        2,
+        100,
+        50,
+        Fraction(1, 1),
+    )
+    monkeypatch.setattr(shuttleset22, "probe_source", lambda _path: metadata)
+    monkeypatch.setattr(vision, "load_pose_arrays", lambda *_args: object())
+    calls = {"build": 0, "load": 0}
+
+    def fake_build(**kwargs):
+        calls["build"] += 1
+        assert kwargs["parent"] == shuttleset22.COURT_PARENT
+        for filename in (
+            vision.COURT_EVIDENCE_FILENAME,
+            vision.COURT_KEEP_VOTE_FILENAME,
+            vision.COURT_PRESENT_FILENAME,
+        ):
+            (kwargs["output_dir"] / filename).write_bytes(filename.encode())
+        return SimpleNamespace(raw_cuts=((0, 2),))
+
+    def fake_load(*_args, **_kwargs):
+        calls["load"] += 1
+        return SimpleNamespace(raw_cuts=((0, 2),))
+
+    monkeypatch.setattr(vision, "build_detected_court_stage", fake_build)
+    monkeypatch.setattr(vision, "load_court_vision", fake_load)
+    model_identity = {
+        "name": "courtkeynet_weights",
+        "path": "weights.safetensors",
+        "md5": "0" * 32,
+        "size_bytes": 1,
+    }
+    arguments = {
+        "source_root": source_root,
+        "output_root": tmp_path / "output",
+        "detector": object(),
+        "model_identity": model_identity,
+        "device": "cuda",
+        "resize_mode": "pad",
+        "code_id": "a" * 64,
+    }
+
+    assert shuttleset22.court_source(source, **arguments) is True
+    assert shuttleset22.court_source(source, **arguments) is False
+
+    receipt = vision.load_json_gz(output / shuttleset22.COURT_RECEIPT_FILENAME)
+    assert receipt["completed"] is True
+    assert receipt["scene_count"] == 1
+    assert len(receipt["outputs"]) == 3
+    (output / vision.COURT_EVIDENCE_FILENAME).write_bytes(b"tampered")
+    with np.testing.assert_raises_regex(ValueError, "output identities"):
+        shuttleset22.court_source(source, **arguments)
+    assert calls == {"build": 1, "load": 3}
+
+
+def test_court_source_rejects_a_stale_completed_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dataset_builder import vision
+
+    source = shuttleset22.Source(8, "match", shuttleset22.SourceKind.DOWNLOAD, "url")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    video = source_root / source.filename
+    video.write_bytes(b"video")
+    output = tmp_path / "output" / "08 match"
+    output.mkdir(parents=True)
+    for path in pose_artifact_paths(output).as_mapping().values():
+        path.write_bytes(b"pose")
+    metadata = VideoMetadata(
+        video.resolve(),
+        Fraction(30, 1),
+        2,
+        100,
+        50,
+        Fraction(1, 1),
+    )
+    monkeypatch.setattr(shuttleset22, "probe_source", lambda _path: metadata)
+    monkeypatch.setattr(vision, "load_pose_arrays", lambda *_args: object())
+
+    def fake_build(**kwargs):
+        for filename in (
+            vision.COURT_EVIDENCE_FILENAME,
+            vision.COURT_KEEP_VOTE_FILENAME,
+            vision.COURT_PRESENT_FILENAME,
+        ):
+            (kwargs["output_dir"] / filename).write_bytes(filename.encode())
+        return SimpleNamespace(raw_cuts=((0, 2),))
+
+    monkeypatch.setattr(vision, "build_detected_court_stage", fake_build)
+    monkeypatch.setattr(
+        vision,
+        "load_court_vision",
+        lambda *_args, **_kwargs: SimpleNamespace(raw_cuts=((0, 2),)),
+    )
+    arguments = {
+        "source_root": source_root,
+        "output_root": tmp_path / "output",
+        "detector": object(),
+        "model_identity": {
+            "name": "courtkeynet_weights",
+            "path": "weights.safetensors",
+            "md5": "0" * 32,
+            "size_bytes": 1,
+        },
+        "device": "cuda",
+        "resize_mode": "pad",
+        "code_id": "a" * 64,
+    }
+    shuttleset22.court_source(source, **arguments)
+    video.write_bytes(b"changed video")
+
+    with np.testing.assert_raises_regex(ValueError, "inputs"):
+        shuttleset22.court_source(source, **arguments)
+
+
+def test_court_sources_loads_one_detector_and_counts_failures(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    weights = tmp_path / "weights.safetensors"
+    weights.write_bytes(b"weights")
+    sources = (
+        shuttleset22.Source(8, "first", shuttleset22.SourceKind.DOWNLOAD, "url"),
+        shuttleset22.Source(9, "second", shuttleset22.SourceKind.DOWNLOAD, "url"),
+    )
+    detectors: list[object] = []
+
+    def detector_factory(**_kwargs):
+        detector = object()
+        detectors.append(detector)
+        return detector
+
+    calls: list[tuple[int, object]] = []
+
+    def fake_court_source(source, **kwargs):
+        calls.append((source.match_id, kwargs["detector"]))
+        if source.match_id == 9:
+            raise RuntimeError("failed")
+        return True
+
+    monkeypatch.setattr(shuttleset22, "court_source", fake_court_source)
+
+    failures = shuttleset22.court_sources(
+        sources,
+        source_root=tmp_path / "sources",
+        output_root=tmp_path / "output",
+        court_weights=weights,
+        device="cuda",
+        resize_mode="pad",
+        code_id="a" * 64,
+        detector_factory=detector_factory,
+    )
+
+    assert failures == 1
+    assert len(detectors) == 1
+    assert calls == [(8, detectors[0]), (9, detectors[0])]
+
+
+def test_main_routes_the_court_command_without_extraction_arguments(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def fake_court_sources(sources, **kwargs):
+        captured["count"] = len(sources)
+        captured.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(shuttleset22, "court_sources", fake_court_sources)
+
+    result = shuttleset22.main(
+        [
+            "court",
+            "--source-root",
+            str(tmp_path / "sources"),
+            "--output-root",
+            str(tmp_path / "output"),
+            "--code-id",
+            "a" * 64,
+        ]
+    )
+
+    assert result == 0
+    assert captured["count"] == 47
+    assert captured["device"] == "cuda"
+    assert captured["resize_mode"] == "pad"
+    assert captured["code_id"] == "a" * 64
