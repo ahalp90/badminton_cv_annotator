@@ -40,6 +40,10 @@ The first three rows use each model's original decision settings:
 The selected wider duplicate-removal distance raises the resulting HGB event
 stream to **88.8%** timing F1 without refitting the model.
 
+For that selected stream, **75.2%** of labelled contacts are found with the
+correct player side. Its joint event-and-side F1 is **73.9%**. For serves,
+**56.2%** are found with the correct serving side.
+
 Player side is scored separately. These event-level side results use the
 models' original decision settings. When the existing Top/Bottom rule is
 applied to the frozen event streams:
@@ -81,6 +85,12 @@ With no timing-score cut, fully correct spans rise from 21 to 27. At a 0.90
 score cut, it keeps 68 spans and 13 are fully correct. The lower-score choices
 recover more serves but produce fewer fully correct rallies.
 
+Lowering the score only in the existing serve-lookback region does not repair
+that trade-off. It adds five events and two serve timing matches, but no
+correctly sided serves or fully correct rallies. Combining the same change
+with the rally-start threshold gives the same five additions and the same
+result. This closes the simple serve-lookback threshold idea.
+
 The label-blind shortlist check also has a clear answer. N+ is the selected
 decision row: the original score cut-off with a 6-base-30-frame
 duplicate-removal distance. The shortlist kept every N+ event and made one
@@ -90,6 +100,15 @@ It then deduplicated those selections. This produced 6,305 candidates, up from
 coverage from 90.3% to 93.4%. The pass rule required 152 recoveries while
 staying below twice the N+ size. The size passed, but the coverage gain did not.
 Stop this pilot before a merge, refit or cleanup tree.
+
+An exact oracle then tested a different question: whether some subset of the
+same frozen 6,305 candidates could make a complete rally correct. This is an
+upper bound, not a deployable selector. At ±10, fully correct rallies rise
+from 27 to 42 when timing and the shipped Top/Bottom answers must both be
+correct. The +15 gain passes the predeclared headroom gate. A timing-only
+oracle reaches 144, so player-side attribution is the larger remaining limit
+inside this candidate union. The result justifies future selector research on
+fresh data; it does not reopen a handcrafted merge on these fixtures.
 
 A smaller serve-only list gives a more useful answer. It looks only in the
 prefix before each detected span's first N+ event and keeps three or four
@@ -125,8 +144,9 @@ The RF/HGB work does **not** change the rally-span finder. It now measures the
 current HGB events and Top/Bottom answers inside those fixed spans.
 
 Direct Top/Bottom attribution is measured on frozen HGB/RF contact events for
-the original event-level table. The selected N+ stream has a strict rally
-score with Top/Bottom answers, but no separate event-level side table yet.
+the original event-level table and on the selected N+ stream. N+ has **83.4%**
+side accuracy after a timing match, **75.2%** timing-plus-correct-side recall
+and **73.9%** joint event-and-side F1.
 
 The separate **rally-level alternation fit** has not been rerun on those new events, so we do not yet know whether its final-hitter or server-side scores improve.
 
@@ -160,10 +180,11 @@ The frame-rate, decision-layer and shortlist checks are now settled for this
 pilot. Keep the raw-motion HGB and use the 6-base-30-frame duplicate-removal
 distance. The shortlist missed its predeclared coverage gate, so stop before a
 handcrafted merge, refit or cleanup tree. Rescue search also remains deferred.
-The serve-prefix candidate list is the one bounded second-stage lead worth
-carrying forward, but only with fresh videos or nested cross-fitting. The next
-model work belongs on the planned larger video set, where all fitted pilot
-settings must be chosen again.
+The serve-lookback threshold is also closed. The serve-prefix list and broader
+candidate-union ceiling show bounded second-stage headroom, but neither
+provides a validated chooser. Carry that question forward only with fresh
+videos or nested cross-fitting. The next model work belongs on the planned
+larger video set, where all fitted pilot settings must be chosen again.
 
 Read [`bst_x_contact_detector_plan.md`](bst_x_contact_detector_plan.md) only when moving on to the neural detector implementation. That specification is intentionally separate from the experiment reports.
 

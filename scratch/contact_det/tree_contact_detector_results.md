@@ -19,6 +19,8 @@ It does not restate rally-segmentation results or the overall annotator scorecar
 - [Missed-contact audit](#missed-contact-audit)
 - [Frame-rate motion check](#frame-rate-motion-check)
 - [Decision-layer check](#decision-layer-check)
+- [Serve-lookback threshold closure](#serve-lookback-threshold-closure)
+- [Full candidate-union rally ceiling](#full-candidate-union-rally-ceiling)
 - [Structured serve-prefix check](#structured-serve-prefix-check)
 - [Region v1 versus region v2](#region-v1-versus-region-v2)
 - [Boundary sensitivity](#boundary-sensitivity)
@@ -448,6 +450,38 @@ This is a three-fixture pilot choice. N+ slightly lowers pooled serve recall
 from 67.5% to 67.1%. On `sset_21`, serve recall falls from 44.0% to 42.7%, so
 the wider duplicate distance does not solve that fixture's serve problem.
 
+## Serve-lookback threshold closure
+
+The serve-lookback follow-up lowered the score only inside the existing
+`region_serve_lookback` rows. L− applies that change to B0. SL− combines it
+with the existing S− rally-start lowering. This isolates whether the lookback
+region adds useful serve evidence without changing HGB or trying a new rule.
+
+Every event stream and Top/Bottom answer was frozen before timing and side
+labels loaded. The two comparisons add the same five events:
+
+| Decision row | Events | Serve timing matches | Correctly sided serves | Joint event-and-side F1 | Fully correct at 0.00 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| B0 | 3,350 | 197 | 164 | 73.1% | 21 |
+| L− | 3,355 | 199 | 164 | 73.0% | 21 |
+| S− | 3,386 | 206 | 169 | 72.9% | 20 |
+| SL− | 3,391 | 208 | 169 | 72.9% | 20 |
+| **N+** | **3,238** | 196 | 164 | **73.9%** | **27** |
+
+L− and SL− each gain two serve timing matches. Neither gains a correctly
+sided serve or a fully correct rally. The extra events lower joint
+event-and-side F1 slightly. All five additions were already present in the
+serve-prefix candidate lists, and none was the oracle choice for a newly
+recovered serve.
+
+Close this threshold idea. Another threshold point would tune the same
+five-event effect on these fixtures.
+
+This run also supplies the previously missing N+ event-side table at ±10. N+
+has **83.4%** side accuracy on answered timing matches, **75.2%**
+timing-plus-correct-side recall, **73.9%** joint event-and-side F1 and **56.2%**
+serve timing-plus-correct-side recall.
+
 ## Label-blind shortlist check
 
 The shortlist tested whether the held-out score surface contains enough nearby
@@ -488,6 +522,41 @@ positives because the shortlist is deliberately overcomplete.
 Stop Phase 3 here. Do not test a handcrafted merge, hard-negative refit or
 cleanup tree on these three fixtures. The shortlist does not show enough compact
 headroom to justify them.
+
+## Full candidate-union rally ceiling
+
+The shortlist result above measures event coverage. A separate exact oracle
+asks whether some subset of the same frozen union could make a complete rally
+correct. This is a ceiling on the evidence already present, not a deployable
+merge or selector.
+
+Candidate identities, existing half-open span membership and shipped
+Top/Bottom answers were fixed before labels loaded. The union contains 6,305
+distinct candidates. Existing spans contain 6,252 of them. The remaining 53
+stay unassigned and cannot be used by this check.
+
+For each clean one-rally span, the oracle searches candidate subsets exactly.
+One mode requires exact event count and a timing match for every labelled
+contact. The full mode also requires the unchanged production matcher to pair
+every selected event with the correct shipped Top/Bottom answer. Timing-linked
+components are searched separately, then the combined choice is checked again
+with the unchanged full-span evaluator.
+
+| Tolerance | N+ fully correct | Timing-only feasible | Timing + side feasible | Full gain |
+| --- | ---: | ---: | ---: | ---: |
+| ±10 | 27 | 144 | 42 | **+15** |
+| ±5 | 24 | 105 | 37 | **+13** |
+
+At ±10, the 15 full gains split as two on `sset_01`, eight on `sset_15` and
+five on `sset_21`. No fully correct N+ identity is lost. This passes the
+predeclared gate of at least ten new fully correct rallies.
+
+The timing-only ceiling is much higher than the full ceiling: 144 versus 42
+at ±10. This makes shipped player attribution the main evidence limit inside
+the union. It does not prove that a practical selector can reach 42. A selector
+would need fresh whole-video evaluation or nested cross-fitting. The result
+does not reopen the failed handcrafted merge, hard-negative refit or cleanup
+tree on these fixtures.
 
 ## Structured serve-prefix check
 
@@ -637,17 +706,17 @@ The raw model's timing F1 is 87.4%. The selected decision layer raises it to
 88.8% without refitting. The strict rally result remains too weak for
 deployment by confidence filtering alone. The label-blind shortlist missed its
 coverage gate, so do not add the simple merge or cleanup tree on this pilot.
-The compact serve-prefix list passes its headroom gate, but the fixed
-heuristic chooser damages complete rallies. Keep the list as a candidate for a
-fresh-video or nested cross-fitted chooser experiment. Do not tune another rule
-on these three fixtures.
+The serve-lookback threshold adds no correctly sided serves or complete
+rallies, so close it. The compact serve-prefix list and full candidate-union
+ceiling both pass their headroom gates, but neither supplies a validated
+chooser. Carry that evidence into a fresh-video or nested cross-fitted selector
+experiment. Do not tune another rule on these three fixtures.
 
-The event-level player-side table has not been rerun for N+. For the original
-B0 event stream, the **87.4% timing F1** is only the timing score. Its
-corresponding HGB results are:
+For selected N+, the **88.8% timing F1** is only the timing score. Its complete
+event-and-side results are:
 
-- **75.7% timing + correct-side recall**
-- **73.1% joint event+side F1**
+- **75.2% timing + correct-side recall**
+- **73.9% joint event-and-side F1**
 - **56.2% serve timing + correct-side recall**
 
 For the annotator-level result, see [`auto_annotator_progress.md`](auto_annotator_progress.md).
@@ -682,6 +751,32 @@ Decision-layer scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_decision_trials.py
+```
+
+Serve-lookback scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_lookback_trials.py
+```
+
+Saved serve-lookback results:
+
+```text
+scratch/contact_det/raw/followups/lookback_trials/contact_lookback_trials_a.json.gz
+scratch/contact_det/raw/followups/lookback_trials/contact_lookback_trials_b.json.gz
+```
+
+Candidate-union ceiling scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_candidate_union_ceiling.py
+```
+
+Saved candidate-union ceiling results:
+
+```text
+scratch/contact_det/raw/followups/candidate_union_ceiling/contact_candidate_union_ceiling_a.json.gz
+scratch/contact_det/raw/followups/candidate_union_ceiling/contact_candidate_union_ceiling_b.json.gz
 ```
 
 Serve-prefix scorer:

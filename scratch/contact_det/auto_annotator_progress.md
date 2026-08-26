@@ -31,15 +31,15 @@ score cut-off by one point in the frozen grid.
 | Rally segmentation | 77.3% clean one-rally F1 with no padding cap | unchanged | RF/HGB not rerun through span finder |
 | Fully correct kept rally | not previously measured | **27 / 291 at no score cut; 13 / 68 at a 0.90 cut** | wider duplicate removal selected from five fixed decision rows |
 | Contact timing | 72.6% F1 | **88.8% selected region-v2 HGB F1** | raw HGB is unchanged; only its duplicate-removal distance changes |
-| Contact timing + correct player side | 70.6% recall | **75.7% B0 HGB recall** | N+ not separately tabulated at this boundary |
+| Contact timing + correct player side | 70.6% recall | **75.7% B0 HGB recall; selected N+ is 75.2%** | direct N+ side table now measured |
 | Serve timing | 61.0% recall | **73.6% T− recall** | selected N+ reaches 67.1% |
-| Serve timing + correct serving side | 46.2% recall | **56.2% B0 HGB recall** | N+ not separately tabulated at this boundary |
+| Serve timing + correct serving side | 46.2% recall | **56.2% for both B0 and selected N+** | direct N+ side table now measured |
 | Rally-level server side | 64.9% accuracy on answered rallies | unchanged | not rerun on HGB events |
 
-The biggest improvement is contact timing. On B0, the complete contact+side
-output improves over the current final heuristics. The event-level side table
-has not been rerun for N+. The strict N+ rally result does include Top/Bottom
-answers.
+The biggest improvement is contact timing. On B0 and N+, the complete
+contact-and-side output improves over the current final heuristics. N+ trades a
+small amount of correct-side recall for fewer events and a higher joint
+event-and-side F1 than B0.
 
 
 ## Rally identification
@@ -151,6 +151,40 @@ This means the candidate list has headroom, but the hand-written chooser does
 not. Do not add or tune that rule. A learned chooser needs a fresh-video test or
 nested HGB cross-fitting before it can be assessed without leakage.
 
+### Serve-lookback threshold closure
+
+Lowering the score only in the existing serve-lookback region adds the same
+five events whether it is applied to B0 alone or combined with the rally-start
+threshold. In both comparisons, those additions produce two more serve timing
+matches, no more correctly sided serves and no more fully correct rallies.
+Joint event-and-side F1 falls slightly because of the extra predictions.
+
+This result closes the simple lookback threshold idea. Another threshold point
+would tune the same five-event effect on these fixtures.
+
+### Full candidate-union ceiling
+
+An exact oracle tested whether any subset of the frozen 6,305-candidate union
+could make each existing rally span fully correct. The candidate identities,
+span membership and shipped Top/Bottom answers were fixed before labels were
+used. The oracle is an upper bound, not a deployable selector.
+
+| Tolerance | N+ fully correct | Timing-only feasible | Timing + side feasible | Full gain |
+| --- | ---: | ---: | ---: | ---: |
+| ±10 | 27 | 144 | 42 | **+15** |
+| ±5 | 24 | 105 | 37 | **+13** |
+
+At ±10, the full gains are two rallies on `sset_01`, eight on `sset_15` and
+five on `sset_21`. No fully correct N+ rally is lost. This passes the
+predeclared +10 headroom gate. The gap between 144 timing-feasible rallies and
+42 timing-and-side-feasible rallies makes the shipped player-side answers the
+main evidence limit inside this candidate union.
+
+Of the 6,305 candidates, 6,252 lie inside the unchanged half-open spans. The
+other 53 remain unassigned and are excluded from the oracle. The result does
+not reopen the failed handcrafted merge. It supports testing a selector on
+fresh data or with nested cross-fitting.
+
 For the original B0 stream, each span is assigned to the first checkpoint it
 fails in the order shown below:
 
@@ -197,8 +231,9 @@ But HGB raises non-serve timing recall from **81.2% to 92.9%**, so the share of 
 That leaves player-side attribution as the next obvious weak point.
 
 The selected N+ decision layer has **87.2% precision, 90.3% recall and 88.8%
-F1** for timing. Its event-level player-side score has not been tabulated
-separately. The strict rally score above does include its Top/Bottom answers.
+F1** for timing. On its timing matches, **83.4%** of answered Top/Bottom sides
+are correct. It reaches **75.2%** timing-plus-correct-side recall and **73.9%**
+joint event-and-side F1.
 
 ## Serve timing and serving side
 
@@ -227,7 +262,8 @@ The fixture split shows the remaining problem:
 On `sset_21`, the side rule is reasonable once a serve is found; the main problem is that HGB finds only **44.0%** of the serves.
 
 The selected N+ rule finds **67.1%** of serves overall and **42.7%** on
-`sset_21`. The pooled timing improvement does not fix the weakest fixture.
+`sset_21`. Its pooled serve timing-plus-correct-side recall is **56.2%**. The
+pooled timing improvement does not fix the weakest fixture.
 
 ## Rally-level server attribution
 
@@ -264,9 +300,10 @@ The selected N+ HGB stream removes a substantial part of that problem:
 - non-serve timing recall: **81.2% → 92.7%**
 - serve timing recall: **61.0% → 67.1%**
 
-On the original B0 stream, the side rule is right less often on HGB's
-timing-matched contacts: **83.7%** versus **89.0%** for the current final
-heuristics. N+ has not been tabulated separately at this event-level boundary.
+On the selected N+ stream, the side rule is right less often on HGB's answered
+timing matches: **83.4%** versus **89.0%** for the current final heuristics.
+Higher timing recall still raises the share of all contacts found with the
+correct side from **70.6% to 75.2%**.
 
 So contact timing and player-side attribution should keep being measured separately.
 
@@ -284,8 +321,11 @@ For the current auto-annotator:
 - do not treat **88.8% timing F1** as the score for the complete contact+side output;
 - stop the three-fixture second-stage work because the label-blind shortlist
   recovered 97 contacts, below its predeclared 152-contact gate;
-- keep the compact serve-prefix list as a fresh-video research lead, because
-  its timing oracle passes the headroom gate;
+- close the serve-lookback threshold because it adds no correctly sided serve
+  and no fully correct rally;
+- keep the compact serve-prefix list and broader candidate-union ceiling as
+  fresh-data research evidence, because their oracles pass their headroom
+  gates but do not provide a validated selector;
 - do not use or tune the tested fixed serve rule, because it loses 12 fully
   correct rallies while gaining one at the zero score requirement;
 - treat its 3,383 unmatched rows as shortlist burden, not detector false
