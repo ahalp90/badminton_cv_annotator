@@ -1,4 +1,4 @@
-"""Download ShuttleSet22 and run whole-video TrackNet and RTMLib extraction."""
+"""Download ShuttleSet22 and run its independent whole-video extractors."""
 
 from __future__ import annotations
 
@@ -25,6 +25,13 @@ if TYPE_CHECKING:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCES = REPO_ROOT / "configs" / "shuttleset22" / "sources.toml"
 DEFAULT_TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"
+DEFAULT_COURT_WEIGHTS = (
+    REPO_ROOT / "src" / "courtkeynet" / "weights" / "courtkeynet_finetuned.safetensors"
+)
+COURT_RECEIPT_SCHEMA = "shuttleset22-court/0.1"
+COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
+COURT_PARENT = "detected_ckn_opencv_consensus"
+COURT_REF_ERR_PX = 3.5
 YOUTUBE_FORMAT = (
     "bv*[ext=mp4][vcodec^=avc1][fps=30][height<=1080]+ba[ext=m4a]/"
     "b[ext=mp4][vcodec^=avc1][fps=30][height<=1080]"
@@ -373,6 +380,240 @@ def extract_sources(
     return failures
 
 
+def _artifact_record(name: str, path: Path, root: Path) -> dict[str, object]:
+    from dataset_builder.manifest import artifact_integrity
+
+    return dict(artifact_integrity(name, path, relative_to=root).to_dict())
+
+
+def _court_output_items() -> tuple[tuple[str, str], ...]:
+    from dataset_builder.vision import (
+        COURT_EVIDENCE_FILENAME,
+        COURT_KEEP_VOTE_FILENAME,
+        COURT_PRESENT_FILENAME,
+    )
+
+    return (
+        ("court_evidence", COURT_EVIDENCE_FILENAME),
+        ("court_keep_vote", COURT_KEEP_VOTE_FILENAME),
+        ("court_present", COURT_PRESENT_FILENAME),
+    )
+
+
+def _court_output_identities(output: Path) -> list[dict[str, object]]:
+    return [
+        _artifact_record(name, output / filename, output)
+        for name, filename in _court_output_items()
+    ]
+
+
+def _court_receipt_base(
+    source: Source,
+    *,
+    source_root: Path,
+    output: Path,
+    metadata: VideoMetadata,
+    model_identity: dict[str, object],
+    device: str,
+    resize_mode: str,
+    code_id: str,
+) -> dict[str, object]:
+    from dataset_builder.vision import pose_artifact_paths
+
+    video = source_root / source.filename
+    inputs = [_artifact_record("source_video", video, source_root)]
+    inputs.extend(
+        _artifact_record(name, path, output)
+        for name, path in pose_artifact_paths(output).as_mapping().items()
+    )
+    return {
+        "schema": COURT_RECEIPT_SCHEMA,
+        "match_id": source.match_id,
+        "video": source.video,
+        "code_id": code_id,
+        "configuration": {
+            "device": device,
+            "resize_mode": resize_mode,
+            "parent": COURT_PARENT,
+            "ref_err_px": COURT_REF_ERR_PX,
+        },
+        "metadata": {
+            "fps_numerator": metadata.fps.numerator,
+            "fps_denominator": metadata.fps.denominator,
+            "frame_count": metadata.frame_count,
+            "width": metadata.width,
+            "height": metadata.height,
+            "sample_aspect_ratio_numerator": metadata.sample_aspect_ratio.numerator,
+            "sample_aspect_ratio_denominator": metadata.sample_aspect_ratio.denominator,
+        },
+        "model": model_identity,
+        "inputs": inputs,
+    }
+
+
+def _validate_completed_court(
+    source: Source,
+    *,
+    output: Path,
+    metadata: VideoMetadata,
+    expected: dict[str, object],
+) -> None:
+    from dataset_builder.vision import load_court_vision, load_json_gz
+
+    receipt = load_json_gz(output / COURT_RECEIPT_FILENAME)
+    required = {*expected, "completed", "scene_count", "outputs"}
+    if set(receipt) != required:
+        raise ValueError(f"court receipt fields differ from {COURT_RECEIPT_SCHEMA}")
+    for name, value in expected.items():
+        if receipt[name] != value:
+            raise ValueError(f"court receipt {name} does not match current inputs")
+    if receipt["completed"] is not True:
+        raise ValueError("court receipt is not marked completed")
+    court = load_court_vision(
+        output,
+        video_id=str(source.match_id),
+        frame_count=metadata.frame_count,
+        resolution=(float(metadata.width), float(metadata.height)),
+    )
+    if receipt["scene_count"] != len(court.raw_cuts):
+        raise ValueError("court receipt scene count does not match persisted evidence")
+    if receipt["outputs"] != _court_output_identities(output):
+        raise ValueError("court receipt output identities do not match persisted files")
+
+
+def court_source(
+    source: Source,
+    *,
+    source_root: Path,
+    output_root: Path,
+    detector: object,
+    model_identity: dict[str, object],
+    device: str,
+    resize_mode: str,
+    code_id: str,
+) -> bool:
+    """Build or validate the court stage for one previously extracted video."""
+    from dataset_builder.vision import (
+        build_detected_court_stage,
+        load_court_vision,
+        load_pose_arrays,
+        save_json_gz,
+    )
+
+    source_root = Path(source_root)
+    video = source_root / source.filename
+    output = Path(output_root) / f"{source.match_id:02d} {source.video}"
+    output.mkdir(parents=True, exist_ok=True)
+    metadata = probe_source(video)
+    pose = load_pose_arrays(output, metadata.frame_count)
+    expected = _court_receipt_base(
+        source,
+        source_root=source_root,
+        output=output,
+        metadata=metadata,
+        model_identity=model_identity,
+        device=device,
+        resize_mode=resize_mode,
+        code_id=code_id,
+    )
+    receipt_path = output / COURT_RECEIPT_FILENAME
+    if receipt_path.is_file():
+        _validate_completed_court(
+            source,
+            output=output,
+            metadata=metadata,
+            expected=expected,
+        )
+        print(f"{source.match_id:02d}: already extracted")
+        return False
+
+    for _, filename in _court_output_items():
+        (output / filename).unlink(missing_ok=True)
+    built = build_detected_court_stage(
+        video_id=str(source.match_id),
+        metadata=metadata,
+        pose=pose,
+        detector=detector,
+        output_dir=output,
+        parent=COURT_PARENT,
+        ref_err_px=COURT_REF_ERR_PX,
+    )
+    court = load_court_vision(
+        output,
+        video_id=str(source.match_id),
+        frame_count=metadata.frame_count,
+        resolution=(float(metadata.width), float(metadata.height)),
+    )
+    if built.raw_cuts != court.raw_cuts:
+        raise ValueError("reloaded court cuts differ from the completed stage")
+    save_json_gz(
+        receipt_path,
+        {
+            **expected,
+            "completed": True,
+            "scene_count": len(court.raw_cuts),
+            "outputs": _court_output_identities(output),
+        },
+    )
+    return True
+
+
+def court_sources(
+    sources: Sequence[Source],
+    *,
+    source_root: Path,
+    output_root: Path,
+    court_weights: Path,
+    device: str,
+    resize_mode: str,
+    code_id: str,
+    detector_factory: Callable[..., object] | None = None,
+) -> int:
+    """Run only PySceneDetect and CourtKeyNet over existing pose outputs."""
+    from dataset_builder.manifest import artifact_integrity
+
+    if len(code_id) != 64 or any(character not in "0123456789abcdef" for character in code_id):
+        raise ValueError("--code-id must be a lowercase SHA-256 digest")
+    weights = Path(court_weights).resolve(strict=True)
+    model_identity = dict(
+        artifact_integrity(
+            "courtkeynet_weights",
+            weights,
+            relative_to=weights.parent,
+        ).to_dict()
+    )
+    if detector_factory is None:
+        from courtkeynet.wrapper import CourtKeyNetDetector
+
+        detector_factory = CourtKeyNetDetector
+    detector = detector_factory(
+        weights_path=weights,
+        device=device,
+        resize_mode=resize_mode,
+    )
+    failures = 0
+    for source in sources:
+        if source.kind is SourceKind.UNRESOLVED:
+            print(f"{source.match_id:02d}: unavailable: {source.unresolved_reason}")
+            continue
+        try:
+            print(f"{source.match_id:02d}: extracting court", flush=True)
+            court_source(
+                source,
+                source_root=source_root,
+                output_root=output_root,
+                detector=detector,
+                model_identity=model_identity,
+                device=device,
+                resize_mode=resize_mode,
+                code_id=code_id,
+            )
+        except Exception as error:
+            failures += 1
+            print(f"{source.match_id:02d}: FAILED: {error}", file=sys.stderr)
+    return failures
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_SOURCES)
@@ -393,6 +634,15 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--pose-python", type=Path, required=True)
     extract.add_argument("--pose-shards", type=int, default=8)
     extract.add_argument("--ids", type=int, nargs="+")
+
+    court = subparsers.add_parser("court")
+    court.add_argument("--source-root", type=Path, required=True)
+    court.add_argument("--output-root", type=Path, required=True)
+    court.add_argument("--court-weights", type=Path, default=DEFAULT_COURT_WEIGHTS)
+    court.add_argument("--device", default="cuda")
+    court.add_argument("--resize-mode", choices=("pad", "squash"), default="pad")
+    court.add_argument("--code-id", required=True)
+    court.add_argument("--ids", type=int, nargs="+")
     return parser
 
 
@@ -407,6 +657,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 overlap_root=arguments.overlap_root,
                 cookies_from_browser=arguments.cookies_from_browser,
                 youtube_player_client=arguments.youtube_player_client,
+            )
+            > 0
+        )
+    if arguments.command == "court":
+        return int(
+            court_sources(
+                sources,
+                source_root=arguments.source_root,
+                output_root=arguments.output_root,
+                court_weights=arguments.court_weights,
+                device=arguments.device,
+                resize_mode=arguments.resize_mode,
+                code_id=arguments.code_id,
             )
             > 0
         )
