@@ -35,7 +35,7 @@ import score_contact_player_attribution as attribution_scorer
 import score_contact_rallies as rally_scorer
 import score_tree_contact_detector as tree_scorer
 
-RESULTS_SCHEMA = "contact-serve-prefix-score/2"
+RESULTS_SCHEMA = "contact-serve-prefix-score/3"
 CONSTRUCTION_SCHEMA = "contact-serve-prefix-construction/1"
 SELECTED_TRIAL_ID = "N+"
 NPLUS_RADIUS_BASE30 = 6
@@ -960,35 +960,15 @@ def attach_actions_to_spans(
     evidence: Mapping[str, Any],
     events_by_fixture: Mapping[str, Sequence[rally_scorer.FixedEvent]],
     prefixes: Sequence[PrefixRecord],
-    attribution: Mapping[tuple[str, int], str | None],
 ) -> AttachedSpanSet:
-    """Attach selected prefix events and widen only the final output start."""
+    """Build output spans from final events after choosing each output start."""
     base_spans = rally_scorer.fixed_spans_from_evidence(evidence, events_by_fixture)
     actions = _actions_by_span(prefixes)
     attached: list[rally_scorer.FixedSpan] = []
     output_bounds: list[ServeOutputSpanBounds] = []
     for span in base_spans:
         action = actions[(span.fixture, span.span_id)]
-        events = list(span.events)
         candidate = action.candidate
-        if candidate is not None:
-            candidate_event = _candidate_event(candidate, attribution)
-            if action.action == "replace":
-                anchor_indices = [index for index, event in enumerate(events) if event.frame == action.anchor_frame]
-                if len(anchor_indices) != 1:
-                    raise ValueError(f"{span.fixture}/{span.span_id}: local anchor is not in span")
-                events[anchor_indices[0]] = candidate_event
-            elif action.action == "insert":
-                existing = [index for index, event in enumerate(events) if event.frame == candidate.frame]
-                if len(existing) > 1:
-                    raise ValueError(f"{span.fixture}/{span.span_id}: duplicate attached frame")
-                if existing:
-                    events[existing[0]] = candidate_event
-                else:
-                    events.append(candidate_event)
-            else:
-                raise ValueError(f"{span.fixture}/{span.span_id}: unknown selected action {action.action!r}")
-
         serve_prepend_frame = (
             candidate.frame
             if candidate is not None and candidate.frame < span.start_frame
@@ -1015,6 +995,12 @@ def attach_actions_to_spans(
             output_start_source=output_start_source,
         )
         output_bounds.append(bounds)
+        fixture_events = events_by_fixture.get(span.fixture, ())
+        events = tuple(
+            event
+            for event in fixture_events
+            if bounds.output_span_start <= event.frame < bounds.output_span_end
+        )
         attached.append(
             rally_scorer.FixedSpan(
                 span.fixture,
@@ -1698,9 +1684,8 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
     nplus_spans = rally_scorer.fixed_spans_from_evidence(verified.evidence.evidence, nplus_events)
     fixed_output = attach_actions_to_spans(
         verified.evidence.evidence,
-        nplus_events,
+        fixed_events,
         frozen.prefixes,
-        attribution,
     )
 
     # Timing labels are now allowed.  The oracle can only inspect frozen rows.
@@ -1714,9 +1699,8 @@ def score(arguments: argparse.Namespace, *, construction_only: bool | None = Non
     oracle_events = apply_actions_to_stream(nplus_events, oracle_prefixes, attribution)
     oracle_output = attach_actions_to_spans(
         verified.evidence.evidence,
-        nplus_events,
+        oracle_events,
         oracle_prefixes,
-        attribution,
     )
 
     # Player-side labels load last, after the oracle's actions are final.

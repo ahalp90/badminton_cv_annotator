@@ -266,7 +266,7 @@ def test_prepend_changes_output_span_without_starting_another_lookback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     evidence = _evidence(_span(0, 20, 50))
-    events = {"sset_01": (_fixed_event(30),)}
+    events = {"sset_01": (_fixed_event(15), _fixed_event(30))}
     candidate = _candidate(10)
     prefix = scorer.PrefixRecord(
         "sset_01",
@@ -285,11 +285,15 @@ def test_prepend_changes_output_span_without_starting_another_lookback(
         raise AssertionError("serve prepend must not start another prefix search")
 
     monkeypatch.setattr(scorer, "build_prefix_record", fail_if_prefix_search_restarts)
-    attached = scorer.attach_actions_to_spans(
-        evidence,
+    final_events = scorer.apply_actions_to_stream(
         events,
         (prefix,),
         {("sset_01", 10): "Top"},
+    )
+    attached = scorer.attach_actions_to_spans(
+        evidence,
+        final_events,
+        (prefix,),
     )
 
     bounds = attached.bounds[0]
@@ -298,13 +302,8 @@ def test_prepend_changes_output_span_without_starting_another_lookback(
     assert (bounds.output_span_start, bounds.output_span_end) == (10, 50)
     assert bounds.output_start_source == scorer.OUTPUT_START_SERVE_PREPEND
     assert (attached.spans[0].start_frame, attached.spans[0].end_frame) == (10, 50)
-    assert [event.frame for event in attached.spans[0].events] == [10, 30]
-    updated_events = scorer.apply_actions_to_stream(
-        events,
-        (prefix,),
-        {("sset_01", 10): "Top"},
-    )
-    assert scorer.rally_scorer.unassigned_events(attached.spans, updated_events) == ()
+    assert [event.frame for event in attached.spans[0].events] == [10, 15, 30]
+    assert scorer.rally_scorer.unassigned_events(attached.spans, final_events) == ()
 
 
 def test_timing_oracle_uses_scaled_tolerance_and_score_then_frame_ties() -> None:
