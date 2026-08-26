@@ -217,6 +217,47 @@ def selected_side_and_serve_summary(path: Path) -> None:
     plt.close(fig)
 
 
+def cleanup_headroom(path: Path) -> None:
+    """Show the simple repair upper bounds in the original HGB spans."""
+    labels = [
+        "Current output",
+        "Remove extra\nevents perfectly",
+        "Also repair the separate\none-missing rallies",
+    ]
+    values = [21, 38, 51]
+    positions = list(range(len(labels)))
+
+    fig, ax = plt.subplots(figsize=(11.0, 6.1))
+    bars = ax.bar(positions, values)
+    ax.set_xticks(positions, labels)
+    ax.set_ylim(0, 58)
+    ax.set_ylabel("Potential fully correct rallies (count)")
+    ax.set_title(
+        "How much could simple repair improve the rally output?",
+        pad=14,
+    )
+    for bar, value in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value + 1.0,
+            str(value),
+            ha="center",
+            fontsize=10,
+        )
+    fig.subplots_adjust(bottom=0.26)
+    fig.text(
+        0.5,
+        0.045,
+        "Original learned-model rally records using the ±10 timing tolerance. "
+        "The 38 and 51 values are upper bounds, not achieved model results.\n"
+        "The 51 case assumes the separate one-missing rallies receive a correct new event and player side.",
+        ha="center",
+        fontsize=8.8,
+    )
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 def rally_quality(path: Path) -> None:
     labels = ["1 s", "2 s", "3 s", "5 s", "No cap"]
     values = [1.7, 15.6, 45.8, 64.3, 77.3]
@@ -320,6 +361,7 @@ def main() -> None:
     selected_side_and_serve_summary(
         args.output_dir / "followup_side_and_serve_summary.png"
     )
+    cleanup_headroom(args.output_dir / "followup_cleanup_headroom.png")
     rally_quality(args.output_dir / "rally_segmentation_quality.png")
     dense_scorecard(args.output_dir / "dense_scorecard.png")
 

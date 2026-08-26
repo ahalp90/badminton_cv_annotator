@@ -2,21 +2,24 @@
 
 This report answers one practical question:
 
-> **What can the annotator produce correctly now, and what is still blocking useful end-to-end output?**
+> **What can the annotator produce correctly now, and what is still blocking a high-precision end-to-end output?**
 
 For the experiment details, see [`tree_contact_detector_results.md`](tree_contact_detector_results.md). For the short project-level summary, see [`README.md`](README.md).
+
+The main learned contact detector is a tree model called histogram gradient boosting (HGB).
 
 ## Table of contents
 
 - [Current state in one minute](#current-state-in-one-minute)
+- [Are we closer to a near-100%-precision kept-rally set?](#are-we-closer-to-a-near-100-precision-kept-rally-set)
 - [Rally spans](#rally-spans)
 - [Contact timing](#contact-timing)
 - [Player side](#player-side)
 - [Serves](#serves)
 - [Fully correct kept rallies](#fully-correct-kept-rallies)
-- [How much better could the current frozen evidence be?](#how-much-better-could-the-current-frozen-evidence-be)
 - [What is breaking complete rallies](#what-is-breaking-complete-rallies)
-- [What changed because of the follow-up experiments](#what-changed-because-of-the-follow-up-experiments)
+- [How much repair headroom is already present?](#how-much-repair-headroom-is-already-present)
+- [What the follow-up experiments changed](#what-the-follow-up-experiments-changed)
 - [What should be tested next](#what-should-be-tested-next)
 - [Metric reference](#metric-reference)
 - [Data and limits](#data-and-limits)
@@ -28,19 +31,52 @@ For the experiment details, see [`tree_contact_detector_results.md`](tree_contac
 | Rally-span identification | **77.3% F1** with no extra-padding cap | unchanged by the contact-tree work |
 | Contact timing, old final heuristics | **72.6% F1** | old comparison point |
 | Contact timing, original region-v2 HGB decisions | **87.4% F1** | large timing gain |
-| Contact timing, best cheap decision-layer variant | **88.8% F1** | best pilot event stream; uses wider duplicate removal |
+| Contact timing, selected decision rule | **88.8% F1** | best pilot event stream; uses wider duplicate removal |
 | Contact timing + correct player side, selected stream | **75.2% recall** | up from 70.6% for the old heuristics |
-| Joint event-and-side F1, selected stream | **73.9%** | direct selected-stream side result is now available |
+| Joint event-and-side F1, selected stream | **73.9%** | timing gain survives the side check |
 | Serve timing, selected stream | **67.1% recall** | still weak, especially on `sset_21` |
 | Serve timing + correct serving side, selected stream | **56.2% recall** | up from 46.2% for the old heuristics |
-| Fully correct kept rally | **27 / 291** with no timing-score cut; **13 / 68** at a 0.90 cut | complete output is still the bottleneck |
-| Candidate-union full-rally ceiling | **42 fully correct rallies at ±10** | upper bound only; not a deployable selector |
-| Candidate-union timing-only ceiling | **144 timing-exact rallies at ±10** | shows how much player-side attribution limits this frozen union |
-| Rally-level server side | **64.9% accuracy on answered rallies** on the old heuristic stream | not rerun on HGB events |
+| Fully correct kept rally | **27 / 291** with no minimum-score filter; **13 / 68** at 0.90 | end-to-end output is still the bottleneck |
+| Original-HGB deletion-only upper bound | **21 → 38 fully correct** | extra events are a substantial repair opportunity |
+| Original-HGB one-missing structural upper bound | **up to 51 fully correct** | looser ceiling; assumes a correct-side rescue event exists |
+| Frozen candidate-union full-rally ceiling | **42 fully correct at ±10** | stricter oracle over a particular frozen candidate set |
+| Frozen candidate-union timing-only ceiling | **144 timing-exact at ±10** | current player-side evidence is a major limit |
+| Historical rally-level server side | **64.9% accuracy on answered rallies** on the old heuristic stream | not rerun on HGB events |
 
-The main improvement is real: **contact timing is much better**.
+The good news is simple: **contact timing is much better, and the remaining rally failures are becoming diagnosable rather than mysterious.**
 
-The main disappointment is also clear: **better contact timing has not yet produced a large, reliable set of fully correct rallies**.
+The bad news is equally simple: **we still do not have a high-precision kept-rally output.**
+
+## Are we closer to a near-100%-precision kept-rally set?
+
+Yes in terms of knowing what system to build. No in terms of measured output.
+
+The product target is not “get 100% of rallies.” It is “when we keep a rally, be almost certain that it is completely right.” The system can abstain heavily if the retained subset is clean.
+
+The current pilot does not meet that standard. On the selected event stream:
+
+Here, “kept” means a predicted span with contact events and Top/Bottom answers that passes the stated minimum-score filter.
+
+- no minimum-score filter: **27 / 291 = 9.3%** fully correct among kept;
+- 0.85 cut: **19 / 146 = 13.0%**;
+- 0.90 cut: **13 / 68 = 19.1%**.
+
+So a single weakest-contact score is not a usable near-100%-precision gate.
+
+What has improved is the path to one:
+
+```text
+better contact timing
+→ remove obvious extra events
+→ rescue a small one-missing set
+→ improve player side
+→ estimate whole-rally correctness from held-out predictions
+→ abstain on everything else
+```
+
+Short predicted event lists were cleaner in this pilot, so a learned rally-acceptance stage should use more than the weakest contact score. It should test rally length and span duration as context, not turn them into a hard “reject long rallies” rule.
+
+We also do not yet have evidence that this will generalise to substantially different broadcast conventions. The pilot is only three videos from one dataset.
 
 ## Rally spans
 
@@ -52,8 +88,6 @@ Across the three pilot videos there are:
 - **311 predicted spans**;
 - **233 clean one-to-one span matches** when there is no limit on extra padding before the first contact or after the last contact.
 
-The span score asks only whether one predicted span contains one complete labelled rally and no labelled contact from another rally. It does **not** ask whether the predicted contact events inside that span are correct.
-
 | Maximum extra padding beyond first/last labelled contact | Precision | Recall | F1 |
 | --- | ---: | ---: | ---: |
 | 1 second | 1.6% | 1.7% | 1.7% |
@@ -62,7 +96,9 @@ The span score asks only whether one predicted span contains one complete labell
 | 5 seconds | 62.4% | 66.4% | 64.3% |
 | No padding cap | 74.9% | 79.8% | **77.3%** |
 
-So the rally-span finder is not solved, but it is also not what the new contact experiments changed.
+The span finder is not solved, but it is not what the contact-tree experiments changed.
+
+This score only asks whether a predicted span maps cleanly to one labelled rally. It does not score the contacts or player-side answers inside that span.
 
 ## Contact timing
 
@@ -78,25 +114,17 @@ The original region-v2 HGB event stream improves that to:
 - **90.5% recall**;
 - **87.4% F1**.
 
-A later cheap decision-layer test used the same held-out HGB scores and only changed how nearby predictions were collapsed into events. The best pilot choice increased the duplicate-removal distance from 5 to 6 base-30 frames.
-
-That selected event stream has:
+The selected wider-duplicate-removal stream has:
 
 - **87.2% precision**;
 - **90.3% recall**;
 - **88.8% F1**.
 
-This is the best contact-timing result in the pilot.
-
-The 6-base-30-frame distance is **not** a decided constant. It was the best of a small fixed set on these three videos and must be selected again on the larger dataset.
+The selected rule is the best contact-timing result in this pilot. Its duplicate-removal distance is not a production constant; choose it again on larger data.
 
 ## Player side
 
-The contact tree predicts **when** a contact happened. It does not predict Top versus Bottom.
-
-The existing Top/Bottom rule is applied afterwards.
-
-The selected event stream has now been scored directly for player side.
+The contact tree predicts **when** a contact happened. The existing Top/Bottom rule is applied afterwards.
 
 | Event stream | Timing recall | Side accuracy on answered timing matches | Timing + correct-side recall | Joint event-and-side F1 |
 | --- | ---: | ---: | ---: | ---: |
@@ -105,9 +133,9 @@ The selected event stream has now been scored directly for player side.
 | **Selected wider-duplicate-removal stream** | 90.3% | 83.4% | 75.2% | **73.9%** |
 | Region-v2 random forest | 85.2% | 85.8% | 73.1% | 72.6% |
 
-The selected HGB stream still improves the combined timing-and-side output over the old heuristics. It trades a small amount of timing-plus-correct-side recall against the original HGB decisions for fewer events and a slightly higher joint event-and-side F1.
+The selected HGB stream still improves combined timing-and-side output over the old heuristics.
 
-**88.8% timing F1 is still only the timing score.** Keep timing and player-side metrics separate.
+But once timing gets better, side errors become proportionally more important. The candidate-union oracle makes that obvious: **144** rallies are timing-feasible, while only **42** are feasible with the current side answers as well.
 
 ![Selected HGB stream versus old heuristics on combined timing-and-side output.](figures/followup_side_and_serve_summary.png)
 
@@ -115,17 +143,15 @@ The selected HGB stream still improves the combined timing-and-side output over 
 
 A serve here means the first labelled contact in a rally.
 
-For the original HGB decisions:
-
 | Event stream | Serve timing recall | Serving-side accuracy when timing matches | Serve timing + correct-side recall |
 | --- | ---: | ---: | ---: |
 | Old final heuristics | 61.0% | 75.8% | 46.2% |
 | Original region-v2 HGB decisions | **67.5%** | **84.1%** | **56.2%** |
 | Region-v2 random forest | 42.8% | 86.4% | 37.0% |
 
-The selected wider-duplicate-removal stream reaches **67.1% serve timing recall** overall and **56.2% serve timing + correct-side recall**.
+The selected wider-duplicate-removal stream reaches **67.1% serve timing recall** and **56.2% serve timing + correct-side recall**.
 
-The pooled number hides the main problem:
+The pooled number hides the main warning:
 
 | Fixture | Original HGB serve timing recall | Selected wider-duplicate-removal recall |
 | --- | ---: | ---: |
@@ -133,15 +159,11 @@ The pooled number hides the main problem:
 | `sset_15` | 76.9% | not separately highlighted here |
 | `sset_21` | **44.0%** | **42.7%** |
 
-Region v2 contains **71 of 75** serves in `sset_21`, so most of this fixture's serve problem happens after search-region construction.
-
-The larger experiment should keep serves as a separate slice rather than assuming pooled contact F1 will fix them automatically.
+Region v2 contains **71 of 75** serves in `sset_21`, so most of that fixture's serve problem happens after search-region construction.
 
 ## Fully correct kept rallies
 
-This is the metric that most directly matches the desired annotator output.
-
-A kept predicted span counts as fully correct only when:
+A kept predicted span is fully correct only when:
 
 1. it maps to exactly one real rally;
 2. every labelled contact is found;
@@ -151,10 +173,6 @@ A kept predicted span counts as fully correct only when:
 
 A missing side answer rejects the whole rally.
 
-That meaning stays fixed across the follow-up experiments.
-
-The system can reject a whole span using a timing-confidence requirement. The confidence used here is the weakest retained HGB event score in that span.
-
 ### Original HGB event decisions
 
 | Minimum whole-rally timing score | Spans kept | Fully correct | Fully correct among kept |
@@ -162,10 +180,10 @@ The system can reject a whole span using a timing-confidence requirement. The co
 | 0.00 | 291 | 21 | 7.2% |
 | 0.80 | 216 | 17 | 7.9% |
 | 0.85 | 123 | 13 | 10.6% |
-| 0.90 | 51 | 9 | 17.6% |
+| 0.90 | 51 | 9 | **17.6%** |
 | 0.95 | 11 | 1 | 9.1% |
 
-### Wider duplicate-removal decisions
+### Selected wider-duplicate-removal decisions
 
 | Minimum whole-rally timing score | Spans kept | Fully correct | Fully correct among kept |
 | --- | ---: | ---: | ---: |
@@ -175,39 +193,13 @@ The system can reject a whole span using a timing-confidence requirement. The co
 | 0.90 | 68 | 13 | **19.1%** |
 | 0.95 | 14 | 1 | 7.1% |
 
-![Whole-rally confidence versus yield for the original and wider duplicate-removal decisions.](figures/followup_rally_yield_curve.png)
+![Whole-rally confidence versus yield.](figures/followup_rally_yield_curve.png)
 
-The wider duplicate-removal rule is an improvement, but timing confidence by itself is still a weak abstention signal. At the best reported point, fewer than one in five kept spans are fully correct.
-
-That is why the 88.8% contact-timing F1 should not be presented as if the annotator is 88.8% correct end to end.
-
-## How much better could the current frozen evidence be?
-
-The broad candidate-union oracle is deliberately unrealistic. It chooses the best possible subset **after** the candidate list and player-side answers are frozen.
-
-Its purpose is to answer whether more useful rallies are even present in the evidence.
-
-At ±10:
-
-| What is required | Rally count |
-| --- | ---: |
-| Fully correct using the selected event stream | **27** |
-| Some subset finds every contact within ±10 and adds no extras | **144** |
-| Some subset also gives every contact the correct side | **42** |
-
-![Candidate-union rally ceiling.](figures/followup_candidate_union_ceiling.png)
-
-This gives two useful conclusions.
-
-First, **there is meaningful selector headroom**: 42 fully correct rallies are possible with the current frozen side answers, versus 27 selected now.
-
-Second, **player side is the larger evidence limit inside this union**. Timing alone could support 144 rallies.
-
-Do not describe 42 or 144 as achieved annotator performance. They are upper bounds.
+The selected stream is better, but timing confidence by itself is still a weak abstention signal.
 
 ## What is breaking complete rallies
 
-The original HGB event stream gives the clearest diagnostic because the detailed miss audit was run on it.
+The original HGB event stream has the clearest detailed records.
 
 Of the 311 predicted spans:
 
@@ -216,42 +208,75 @@ Of the 311 predicted spans:
 - **21** are fully correct;
 - the remainder have no predicted event or do not cleanly map to one real rally.
 
-Within those 210 timing/event-count failures, missing and extra events both matter.
+The original HGB stream misses **296 contacts** at ±10. Of those:
 
-The contact audit gives the more useful explanation of the misses:
-
-- the original HGB stream misses **296 contacts** at ±10;
-- **244** of those misses already have a seeded HGB candidate nearby;
-- **89 of 95** missed serves have a candidate nearby in the fixed search surface;
+- **244** already have a candidate nearby in the fixed search surface;
+- **89 of 95** missed serves have a candidate nearby;
 - all **13** otherwise-exact one-missing-contact spans have a candidate nearby.
 
-So the useful interpretation is not “the search region failed 296 times.” In most of these cases the system saw a plausible place to score and then did not turn it into the correct final event.
+So the useful interpretation is not “the search region failed 296 times.” In most cases the system saw plausible evidence and then did not turn it into the right final event.
 
-![What the original HGB missed-contact audit found near each miss.](figures/followup_missed_contact_audit.png)
+![Original HGB missed-contact audit.](figures/followup_missed_contact_audit.png)
 
-## What changed because of the follow-up experiments
+## How much repair headroom is already present?
+
+This is the main addition from the span-level follow-up.
+
+The selected wider duplicate-removal rule already hints that cleanup matters. Compared with the original HGB decisions, it produces **112 fewer** events overall:
+
+- the timing-match count falls by **7**;
+- the unmatched-prediction count falls by **105**.
+
+Timing F1 rises from **87.4% to 88.8%**, and fully correct rallies rise from **21 to 27**.
+
+The original HGB strict span records let us ask a simpler upper-bound question.
+
+### Timing only
+
+| Timing question | Predicted spans |
+| --- | ---: |
+| Already have exactly the right event count and all contacts matched | 50 |
+| Could become timing-exact if an ideal selector only removed extra events | 108 |
+| Could also repair one otherwise-exact missing event | up to 121 |
+
+### Complete timing plus player side
+
+| Complete-output question | Predicted spans |
+| --- | ---: |
+| Fully correct now | 21 |
+| Could become fully correct by removing extra events only | 38 |
+| Could also repair the 13 otherwise-exact one-missing spans, if the new event has the correct side | up to 51 |
+
+![Where the original HGB output has cleanup headroom.](figures/followup_cleanup_headroom.png)
+
+These are **oracle upper bounds**, not model results.
+
+The important part is the shape of the opportunity:
+
+- extra-event deletion can potentially repair **17** additional fully correct rallies;
+- one-missing rescue is a separate set of **13** rallies;
+- all 13 one-missing rallies already have a region-v2 candidate nearby;
+- six are also found by the filtered contact stream from the old heuristic detector.
+
+The concrete cases are retained in [`raw/followups/rally_cleanup_targets/contact_followup_rally_targets.csv.gz`](raw/followups/rally_cleanup_targets/contact_followup_rally_targets.csv.gz). Treat that file as an inspection and experiment-target list, not as a training set.
+
+The **up to 51** and **42** results come from different event lists. The 42 asks what is possible inside one frozen candidate set. The 51 is a looser upper bound from the original HGB rally records.
+
+## What the follow-up experiments changed
 
 ### Frame-rate feature check
 
-The pilot mixes 25 fps and 30 fps video, so raw movement-per-frame values were a legitimate concern.
-
-| Motion treatment | Timing F1 | Serve recall | Fully correct / kept with no timing cut |
+| Motion treatment | Timing F1 | Serve recall | Fully correct / kept with no minimum-score filter |
 | --- | ---: | ---: | ---: |
 | Existing raw per-frame motion | **87.4%** | 67.5% | **21 / 291** |
 | Remove frame-rate-sensitive motion | 84.8% | 47.9% | 16 / 293 |
 | Convert motion to a common 30 fps scale | 87.0% | **68.2%** | 15 / 295 |
 
-Raw motion won this pilot. The common-30 version found two more serves overall, but lost pooled timing F1 and complete rallies.
-
-That is suggestive, not definitive. Retest the convention with more videos and more frame-rate diversity.
-
-![Pilot frame-rate motion feature check.](figures/followup_motion_feature_check.png)
+Raw motion won this pilot. Retest it with more frame-rate and broadcast diversity.
 
 ### Cheap event-selection check
 
-Five fixed decision-layer variants were replayed from the same held-out HGB scores.
-
-| Plain-language variant | Predicted events | Timing F1 | Serve recall | Fully correct rallies with no timing cut |
+| Plain-language variant | Predicted events | Timing F1 | Serve recall | Fully correct rallies with no minimum-score filter |
 | --- | ---: | ---: | ---: | ---: |
 | Original score cut-off, duplicate distance 5 | 3,350 | 87.4% | 67.5% | 21 |
 | Lower score cut-off everywhere | 3,559 | 86.4% | **73.6%** | 14 |
@@ -259,94 +284,102 @@ Five fixed decision-layer variants were replayed from the same held-out HGB scor
 | **Wider duplicate distance 6** | **3,238** | **88.8%** | 67.1% | **27** |
 | Lower score cut-off only near rally starts | 3,386 | 87.3% | 70.5% | 20 |
 
-The useful lesson is that **removing a few more nearby duplicate peaks helped more than lowering the score threshold**.
+The useful lesson is plain: **removing a few more nearby duplicate peaks helped more than lowering the score threshold**.
 
-The larger dataset should retune the distance. It should not inherit “6” as a constant.
+### Broad shortlist
 
-![Timing F1 and serve recall for the five cheap decision-layer variants.](figures/followup_decision_layer_tradeoff.png)
+The selected event stream has **3,238** events and matches **2,825** contacts at ±10.
 
-### Broad shortlist and candidate-union ceiling
+The broad shortlist grows to **6,305** candidates and matches **2,922** contacts. It recovers **97 of 303** misses while adding 3,067 candidates; 2,970 of those added rows remain unmatched.
 
-The selected event stream has 3,238 events and matches 2,825 contacts at ±10.
+Before running the shortlist, we decided it needed to recover at least 152 contacts. It recovered 97.
 
-The label-blind shortlist kept all of those events and added one nearby alternative around each anchor where possible. After deduplication:
+Stop this exact shortlist on the pilot.
 
-- candidate count: **3,238 → 6,305**;
-- matched contacts: **2,825 → 2,922**;
-- contact coverage: **90.3% → 93.4%**;
-- recovered misses: **97 of 303**;
-- added candidates: **3,067**;
-- added candidates still unmatched: **2,970**.
+### Frozen candidate-union ceiling
 
-The predeclared recovery requirement was at least **152** recovered contacts while staying below twice the original list size. The shortlist passed the size limit and failed the recovery requirement.
+At ±10:
 
-So stop this exact shortlist as a practical second-stage input on the pilot.
+| What is required | Rally count |
+| --- | ---: |
+| Fully correct using the selected event stream | **27** |
+| Some subset finds every contact and adds no extras | **144** |
+| Some subset also gives every contact the correct side | **42** |
 
-A separate oracle changes the interpretation of **why** it stopped. The frozen union still has theoretical complete-rally headroom: at ±10, fully correct rallies can rise from **27 to 42** if the correct subset is chosen, while timing alone is feasible for **144** rallies.
+This is useful evidence of headroom, not achieved performance.
 
-The tested shortlist and handcrafted chooser failed, but the evidence itself does not lack headroom. **No validated label-blind selector has realised that headroom.**
-
-![The broad shortlist nearly doubles candidate count for a modest contact-coverage gain.](figures/followup_shortlist_tradeoff.png)
-
-### Compact serve-prefix candidate list
-
-The broad shortlist is noisy, so a serve-specific follow-up keeps at most five candidates before each detected span's first selected event.
+### Compact serve-prefix list
 
 Among the selected stream's **96 missed serves**:
 
 - **60** have a frozen prefix candidate within ±10;
-- a timing oracle recovers **58** new serve matches;
-- no existing serve match is lost;
-- fully correct rallies rise **27 → 29** with no timing-score cut.
+- a label-informed upper bound says that a perfect chooser could recover **58** new serve matches;
+- fully correct rallies could rise **27 → 29** under that upper bound.
 
-![The compact serve-prefix list has substantial timing headroom, while the tested chooser uses very little of it.](figures/followup_serve_prefix_headroom.png)
+The fixed hand-written chooser recovers only eight new serves and drops fully correct rallies **27 → 16**.
 
-The fixed hand-written chooser is not useful. It adds **79** events, finds only **8** new serves, leaves **70** added events unmatched, and reduces fully correct rallies from **27 to 16** with no timing-score cut.
+Keep the candidate-list idea. Discard the chooser.
 
-Keep the candidate-list idea for a fresh-data selector experiment. Do not use or tune the tested chooser.
+### Simple serve-lookback threshold
 
-![The serve-prefix oracle shows small rally upside; the fixed chooser actively damages the output.](figures/followup_serve_prefix_rally_effect.png)
+Lowering the threshold only in the existing serve-lookback region adds five events and two serve timing matches.
 
-### Serve-lookback threshold closure
+It adds **no correctly sided serve** and **no fully correct rally**.
 
-Lowering the score only in the existing serve-lookback region adds five events and two serve timing matches.
+Close this exact idea on the pilot.
 
-It adds **no correctly sided serve** and **no fully correct rally**. Joint event-and-side F1 falls slightly because of the extra predictions.
+### Rally acceptance check
 
-Close this exact threshold idea on the pilot.
+The original HGB span records show why minimum score alone is weak:
+
+| Diagnostic slice | Spans | Fully correct | Fully correct within slice |
+| --- | ---: | ---: | ---: |
+| All scorable predicted spans | 291 | 21 | 7.2% |
+| Minimum HGB score at least 0.85 | 123 | 13 | 10.6% |
+| Minimum HGB score at least 0.90 | 51 | 9 | 17.6% |
+| At most 7 predicted events | 126 | 19 | 15.1% |
+| At most 4 predicted events | 67 | 13 | 19.4% |
+| Score at least 0.90 and at most 5 events | 35 | 8 | 22.9% |
+
+Do not turn the short-event-list rows into a hard filter. They show that shorter predicted lists are cleaner here, but they do not separate true rally length from fixture and difficulty.
+
+A future rally-acceptance model should test whether rally length and duration help it interpret the contact scores. It should then report both accuracy and retention across short, medium and long rallies.
 
 ## What should be tested next
 
 On the larger dataset:
 
-- refit the contact model from scratch with whole-video splits;
-- retest raw versus frame-rate-normalised motion;
-- reselect score thresholds and duplicate-removal distance;
-- investigate serves separately if their error pattern persists;
-- keep the selected-stream Top/Bottom table in the main scoreboard;
-- rerun rally-level alternation after the contact stream is fixed;
-- keep the strict whole-rally definition unchanged;
-- test a serve-prefix selector only on fresh whole videos or with nested cross-fitting;
-- only revisit a broad second stage if a new candidate list gives better coverage per candidate;
-- measure player-side improvements alongside timing, because the candidate-union ceiling shows that side evidence can dominate the remaining rally gap;
-- do not spend more pilot effort on the failed fixed serve chooser or the serve-lookback threshold;
-- only widen off-region search if it recovers a useful number of otherwise-complete rallies.
+1. refit the first-stage contact model from scratch with whole-video splits;
+2. retest raw versus frame-rate-normalised motion;
+3. reselect score cut-offs and duplicate-removal distance;
+4. test a small event-cleanup stage whose first job is removing extras;
+5. test one bounded rescue source for otherwise-exact one-missing rallies;
+6. improve or replace player-side attribution and keep its metrics in the main scoreboard;
+7. rerun the rally-level Top/Bottom sequence fit after the contact stream is fixed;
+8. learn rally acceptance from held-out predictions using contact scores, ambiguity, span quality, player-side confidence, rally length and duration;
+9. report acceptance accuracy **and retention** across the full rally-length distribution;
+10. keep serves as a separate error slice;
+11. only revisit a broad second stage if a new candidate list gives much better coverage per added candidate;
+12. only widen off-region search if it repairs a useful number of otherwise-complete rallies;
+13. hold out entire videos and, where possible, tournaments or broadcast packages.
+
+Do not carry any numerical cut from this three-video analysis into the larger fit. Carry the experiment shape.
 
 ## Metric reference
 
 **Contact timing precision / recall / F1:** one-to-one temporal matching between predicted contact events and labelled contact frames.
 
-**Player-side accuracy on timing matches:** among timing-matched contacts for which the side rule answers Top/Bottom, the fraction with the correct labelled player side.
+**Player-side accuracy on timing matches:** among timing-matched contacts for which the side rule answers Top/Bottom, the fraction with the correct labelled side.
 
-**Timing + correct-side recall:** the fraction of all labelled contacts for which both event timing and player side are correct.
+**Timing + correct-side recall:** the fraction of all labelled contacts for which both timing and side are correct.
 
-**Joint event-and-side F1:** a prediction counts as correct only if it matches a labelled contact in time and gives the correct player side.
+**Joint event-and-side F1:** a prediction counts as correct only if it matches in time and gives the correct side.
 
-**Oracle ceiling:** an upper bound obtained by using labels to choose from an already-frozen candidate set. It measures available evidence, not deployable performance.
+**Oracle upper bound:** a deliberately non-deployable result that uses labels after a candidate set or span structure has been fixed. It tells us whether the evidence contains useful headroom.
 
-**Serve timing recall:** contact timing recall restricted to the first labelled contact in each rally.
+**Serve timing recall:** timing recall restricted to the first labelled contact in each rally.
 
-**Fully correct kept rally:** a kept predicted span that maps to one real rally, contains all and only the correct contacts, and gives the correct player side for every contact.
+**Fully correct kept rally:** a kept predicted span that maps to one real rally, contains all and only the correct contacts, and gives the correct side for every contact.
 
 ## Data and limits
 
@@ -365,6 +398,6 @@ Together they contain:
 
 The contact-tree evaluation keeps whole fixtures together.
 
-All three fixtures come from the same dataset. This is a small, low-diversity pilot. Treat differences of a few points as clues about design, not as stable production estimates.
+All three fixtures come from the same dataset. This is a small, low-diversity pilot. Treat differences of a few points as clues about system design, not stable production estimates.
 
-The fitted trees, score cut-offs and duplicate-removal settings all need to be chosen again on the planned larger dataset.
+The fitted trees, score cut-offs, duplicate-removal settings, cleanup rules and acceptance rules all need to be chosen again on the planned larger dataset.
