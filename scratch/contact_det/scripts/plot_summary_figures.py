@@ -175,6 +175,48 @@ def serve_output(path: Path) -> None:
     plt.close(fig)
 
 
+def selected_side_and_serve_summary(path: Path) -> None:
+    """Compare the selected HGB stream with the old heuristic output."""
+    labels = [
+        "Timing + correct-\nside recall",
+        "Serve timing\nrecall",
+        "Serve timing +\ncorrect-side recall",
+    ]
+    old_heuristics = [70.6, 61.0, 46.2]
+    selected_hgb = [75.2, 67.1, 56.2]
+    positions = list(range(len(labels)))
+    width = 0.36
+
+    fig, ax = plt.subplots(figsize=(10.0, 5.9))
+    old_positions = [position - width / 2 for position in positions]
+    selected_positions = [position + width / 2 for position in positions]
+    ax.bar(old_positions, old_heuristics, width, label="Old final heuristics")
+    ax.bar(
+        selected_positions,
+        selected_hgb,
+        width,
+        label="Selected HGB event stream",
+    )
+    ax.set_xticks(positions, labels)
+    ax.set_ylim(0, 90)
+    ax.set_ylabel("Score at ±10 base-30 frames (%)")
+    ax.set_xlabel("Metric")
+    ax.set_title(
+        "The selected HGB stream improves timing-and-side and serve output",
+        pad=14,
+    )
+    ax.legend()
+    for bar_positions, values in (
+        (old_positions, old_heuristics),
+        (selected_positions, selected_hgb),
+    ):
+        for position, value in zip(bar_positions, values):
+            ax.text(position, value + 1.0, f"{value:.1f}", ha="center", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 def rally_quality(path: Path) -> None:
     labels = ["1 s", "2 s", "3 s", "5 s", "No cap"]
     values = [1.7, 15.6, 45.8, 64.3, 77.3]
@@ -275,6 +317,9 @@ def main() -> None:
     region_tradeoff(args.output_dir / "region_v2_search_tradeoff.png")
     contact_output(args.output_dir / "contact_output_recall.png")
     serve_output(args.output_dir / "serve_output_recall.png")
+    selected_side_and_serve_summary(
+        args.output_dir / "followup_side_and_serve_summary.png"
+    )
     rally_quality(args.output_dir / "rally_segmentation_quality.png")
     dense_scorecard(args.output_dir / "dense_scorecard.png")
 

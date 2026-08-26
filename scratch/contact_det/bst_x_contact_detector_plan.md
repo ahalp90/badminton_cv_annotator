@@ -1,8 +1,27 @@
 # BST-X contact detector implementation plan
 
+## Table of contents
+
+- [Recommendation](#recommendation)
+- [Decisions for the first build](#decisions-for-the-first-build)
+- [What exists now](#what-exists-now)
+- [Model design](#model-design)
+- [Contact window preparation](#contact-window-preparation)
+- [Labels and examples](#labels-and-examples)
+- [Search regions and event decoding](#search-regions-and-event-decoding)
+- [Splits and leakage controls](#splits-and-leakage-controls)
+- [Metrics and retained outputs](#metrics-and-retained-outputs)
+- [Implementation stages](#implementation-stages)
+- [Tests](#tests)
+- [Compute and remote use](#compute-and-remote-use)
+- [Failure and stop criteria](#failure-and-stop-criteria)
+- [Expected commits](#expected-commits)
+- [First-run recipe](#first-run-recipe)
+- [Approval checklist](#approval-checklist)
+
 ## Recommendation
 
-Build BST-X as a local, frame-aligned contact scorer over 21 consecutive source frames. Keep the current player, shuttle and court streams. Replace the clip-level readout with a temporal head that emits one contact logit per frame, then use only the centre-frame logit for each stride-1 window.
+For the first inside-region pilot, build BST-X as a local, frame-aligned contact scorer over 21 consecutive source frames. Keep the current player, shuttle and court streams. Replace the clip-level readout with a temporal head that emits one contact logit per frame, then use only the centre-frame logit for each stride-1 window.
 
 The first executable experiment should test whether temporal physical evidence beats histogram boosting inside one shared set of label-blind regions. On region version 2 at ±10, HGB physics reaches 84.5% precision, 90.5% recall and 87.4% F1. An eligible-court-only sensitivity refit reaches 86.3% precision, 89.1% recall and 87.7% F1. The harder acceptance floor remains 89.9% F1 with at least 87.5% precision. A validity-only control must remain clearly below the full model.
 
@@ -21,7 +40,7 @@ Use ShuttleSet for model development. Keep ShuttleSet22 separate for the first c
 | Contact labels | Positive within ±2 base-30 frames; ignore from 3 to 5; negative from 6 onward | This tolerates small annotation error while still training a narrow peak |
 | Main loss | Mean binary cross-entropy on sampled eligible centre labels | The fixed sampler already controls the class mix |
 | Side output | Separate Top/Bottom logit, supervised only on positive centres | Contact confidence and side confidence can abstain independently |
-| Search | Frozen region version 2, then stride-1 centre scoring | The bounded surface fixes serves but still omits 37 `sset_21` non-serves |
+| Search | Frozen region version 2, then stride-1 centre scoring | The bounded surface greatly improves serve coverage but still omits 37 `sset_21` non-serves |
 | Peak selection | Held-out logit threshold, local maxima, then temporal NMS | It preserves the strongest frame for each event |
 | Development split | Whole source videos and fixtures | Neighbouring windows from one rally must not cross splits |
 | External test | ShuttleSet22 held out in full | This tests dataset and match generalisation |

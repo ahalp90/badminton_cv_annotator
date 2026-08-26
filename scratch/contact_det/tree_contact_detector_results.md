@@ -1,93 +1,96 @@
-# Random-forest and histogram-gradient-boosting contact detector experiments
+# Contact detector experiments: what we tested and what we learned
 
-This report contains the technical detail behind the contact-detector results.
+This is the technical report for the contact-detector exploration.
 
-The two learned models are random forest (RF) and histogram gradient boosting
-(HGB).
+It keeps enough detail to reproduce and interpret the work, but the main story is organised around five questions:
 
-It does not restate rally-segmentation results or the overall annotator scorecard. Those belong in [`auto_annotator_progress.md`](auto_annotator_progress.md).
+1. What were we trying to learn?
+2. What did we test?
+3. What happened?
+4. What does that result mean?
+5. What is worth testing again on the larger dataset?
+
+The two tree models are random forest (RF) and histogram gradient boosting (HGB). HGB is the stronger model in this pilot.
+
+For annotator-level output, see [`auto_annotator_progress.md`](auto_annotator_progress.md). For the short version, see [`README.md`](README.md).
 
 ## Table of contents
 
-- [Experiment structure](#experiment-structure)
-- [Search-region experiment](#search-region-experiment)
-- [Exact tree inputs](#exact-tree-inputs)
-- [Training and timing evaluation](#training-and-timing-evaluation)
-- [Timing-only model sweep](#timing-only-model-sweep)
-- [Player-side scoring](#player-side-scoring)
-- [Strict complete-rally evaluation](#strict-complete-rally-evaluation)
-- [Missed-contact audit](#missed-contact-audit)
-- [Frame-rate motion check](#frame-rate-motion-check)
-- [Decision-layer check](#decision-layer-check)
-- [Serve-lookback threshold closure](#serve-lookback-threshold-closure)
-- [Full candidate-union rally ceiling](#full-candidate-union-rally-ceiling)
-- [Structured serve-prefix check](#structured-serve-prefix-check)
-- [Region v1 versus region v2](#region-v1-versus-region-v2)
-- [Boundary sensitivity](#boundary-sensitivity)
-- [Where it still fails](#where-it-still-fails)
-- [Recommendation](#recommendation)
-- [Reproduction](#reproduction)
+- [What the pilot was trying to learn](#what-the-pilot-was-trying-to-learn)
+- [1. Search region: can we avoid searching the whole video?](#1-search-region-can-we-avoid-searching-the-whole-video)
+- [2. Tree model: can simple physical features beat the current heuristics?](#2-tree-model-can-simple-physical-features-beat-the-current-heuristics)
+- [3. Complete rallies: does better contact F1 turn into usable output?](#3-complete-rallies-does-better-contact-f1-turn-into-usable-output)
+- [4. Miss audit: are missed contacts outside the search or being discarded later?](#4-miss-audit-are-missed-contacts-outside-the-search-or-being-discarded-later)
+- [5. Frame-rate motion check](#5-frame-rate-motion-check)
+- [6. Cheap decision-layer check](#6-cheap-decision-layer-check)
+- [7. Selected-stream player-side check](#7-selected-stream-player-side-check)
+- [8. Serve-lookback threshold check](#8-serve-lookback-threshold-check)
+- [9. Broad nearby-alternative shortlist](#9-broad-nearby-alternative-shortlist)
+- [10. Full candidate-union rally ceiling](#10-full-candidate-union-rally-ceiling)
+- [11. Compact serve-prefix candidate check](#11-compact-serve-prefix-candidate-check)
+- [12. The main warning: serves in sset_21](#12-the-main-warning-serves-in-sset_21)
+- [13. What to carry into the larger dataset](#13-what-to-carry-into-the-larger-dataset)
+- [Technical reference](#technical-reference)
+- [Compact reference for old experiment codes](#compact-reference-for-old-experiment-codes)
+- [Reproduction paths](#reproduction-paths)
+- [Pilot limits](#pilot-limits)
 
-## Experiment structure
+## What the pilot was trying to learn
 
-The work has three stages:
+The end goal is not “find every contact at any cost.”
+
+The useful system should return a worthwhile number of rallies that are correct from beginning to end, and abstain when it is not confident enough.
+
+The contact work therefore separates three jobs:
 
 ```text
-deterministic search-region construction
-→ RF/HGB contact scoring
-→ existing Top/Bottom player-side attribution on frozen predicted events
+label-blind search region
+→ learned contact timing score
+→ small decision layer that turns scores into events
+→ existing Top/Bottom player-side attribution
 ```
 
-The current **final** heuristic event list is only a comparison point; HGB does not use it as an input.
+The three-video pilot was meant to choose a sensible design, not final fitted settings.
 
-The current **raw** proposals are one of several inputs used to build the search region.
+The results below should answer whether an idea deserves a larger test. They should not be used to freeze a threshold, a duplicate-removal distance, or a frame-rate convention for production.
 
-## Search-region experiment
+## 1. Search region: can we avoid searching the whole video?
 
-### Why a new region was needed
+### What we were trying to learn
 
-The current raw proposals make too many real contacts unreachable by a later classifier.
+The old raw proposals make too many real contacts unreachable by any later classifier. At ±10 base-30 frames they cover only:
 
-At ±10 base-30 frames they cover only:
+- **83.8% of non-serves**;
+- **66.1% of serves**.
 
-- **83.8% of non-serves**
-- **66.1% of serves**
+The question was whether a broader deterministic region could keep almost every real contact available without scoring almost every frame.
 
-The search-region experiment therefore asks:
+### What we tested
 
-> **How much of the video can we discard while still leaving almost every contact available to the classifier?**
-
-The three evaluation fixtures are the videos identified as `sset_01`,
-`sset_15` and `sset_21`.
-
-### Region-v2 construction
-
-Region v2 is deterministic and label-blind.
-
-It takes temporal neighbourhoods around:
+Region version 2 is label-blind. It combines neighbourhoods around:
 
 - current raw contact proposals;
-- relaxed shuttle impulse / direction-change peaks;
+- relaxed shuttle impulse and direction-change peaks;
 - local shuttle-to-wrist minima;
 - shuttle visibility changes;
 - detected rally starts;
 - scene starts;
-- a 45-base-30-frame look-back immediately before eligible court-view intervals.
+- a 45-base-30-frame look-back before eligible court-view intervals.
 
-The final item exists because some serves happen during the close-up immediately before the broadcast returns to the full court.
+That last piece exists because some serves happen in the close-up immediately before the broadcast returns to the full court.
 
-Ground truth is loaded only after a region has been constructed, to measure coverage.
+Ground-truth contacts are loaded only after the region is built.
 
-### Coverage
+### What happened
 
-Region v2 scores **128,824 candidate centres**, about **31.9% of 404,229 source frames**.
+Region version 2 scores about **31.9% of source frames**.
 
 At ±10:
 
 | Search surface | All contacts | Non-serves | Serves |
 | --- | ---: | ---: | ---: |
 | Court-view intervals only | 97.9% | 98.3% | 93.2% |
-| **Region v2** | **98.3%** | **98.4%** | **97.9%** |
+| **Region version 2** | **98.3%** | **98.4%** | **97.9%** |
 
 Per fixture:
 
@@ -97,19 +100,599 @@ Per fixture:
 | `sset_15` | 100.0% | 100.0% | 100.0% |
 | `sset_21` | 93.7% | 94.7% | 93.8% |
 
-These are **search coverage** numbers, not model recall.
+These are **search coverage** numbers. They say that a candidate exists nearby. They do not say the classifier accepts it.
 
-![Region v2 reduces the search workload while keeping almost every labelled contact reachable.](figures/region_v2_search_tradeoff.png)
+### What the result means
 
-Region v2 is intentionally permissive. An extra candidate frame only gives the classifier more work; a real contact left outside the region cannot be recovered.
+Region version 2 is broad enough to use as the pilot search surface.
 
-## Exact tree inputs
+Its job is to avoid making contacts impossible to recover. It is therefore reasonable for it to be more permissive than a final detector.
 
-The main `physics` feature set contains **85 columns**.
+The `sset_21` non-serve coverage remains a warning for whole-video claims, but most contact-detector misses in the later audit occur **inside** the available candidate surface.
 
-### Physical signals: 60 columns
+### What is worth testing on the larger dataset
 
-Twelve signals sampled at offsets −10, −5, 0, +5 and +10 base-30 frames:
+Keep the design idea and remeasure coverage on the larger, more varied set.
+
+Only build a separate off-court rescue path if misses outside the region actually destroy a useful number of otherwise-complete rallies.
+
+## 2. Tree model: can simple physical features beat the current heuristics?
+
+### What we tested
+
+The main HGB feature set has **85 columns**:
+
+- 60 physical values sampled at five time offsets;
+- 25 validity/missingness flags at the same offsets.
+
+The physical signals include shuttle velocity, speed and impulse, wrist distance, nearest-wrist direction, and player ankle motion.
+
+We also tested:
+
+- the same physical inputs plus 20 context features;
+- context only;
+- missingness only;
+- random forest versions of the main feature sets.
+
+The timing scorer uses leave-one-fixture-out evaluation. Threshold choice happens inside the training side; the held-out fixture does not choose its own cut-off.
+
+### What happened
+
+At ±10, using each model's original decisions:
+
+| Event stream | Precision | Recall | F1 | Non-serve recall | Serve recall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Current final heuristics | 66.9% | 79.3% | 72.6% | 81.2% | 61.0% |
+| **HGB physical + validity** | **84.5%** | **90.5%** | **87.4%** | **92.9%** | **67.5%** |
+| RF physical + validity | 84.1% | 85.2% | 84.6% | 89.6% | 42.8% |
+| HGB + context | 81.7% | 89.8% | 85.5% | 92.5% | 63.4% |
+| RF + context | 83.9% | 86.5% | 85.2% | 90.4% | 47.9% |
+
+Controls:
+
+| Control | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: |
+| HGB context only | 47.0% | 79.6% | 59.1% |
+| RF context only | 37.1% | 82.2% | 51.1% |
+| HGB missingness only | 16.1% | 96.9% | 27.5% |
+| RF missingness only | 16.0% | 96.9% | 27.5% |
+
+### What the result means
+
+HGB with physical values plus validity flags is the useful simple model.
+
+Adding the tested context block did not help HGB. Missingness by itself can get high recall only by predicting far too many events.
+
+There is no strong reason to spend more pilot time tuning random forest.
+
+### Player-side result on the original HGB event stream
+
+The tree predicts contact timing only. The existing Top/Bottom rule is applied afterwards.
+
+At ±10:
+
+| Event stream | Timing recall | Side accuracy on timing matches | Timing + correct-side recall | Joint event+side F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Current final heuristics | 79.3% | **89.0%** | 70.6% | 64.6% |
+| **HGB physical + validity** | **90.5%** | 83.7% | **75.7%** | **73.1%** |
+| RF physical + validity | 85.2% | 85.8% | 73.1% | 72.6% |
+
+The side rule is less accurate on HGB timing matches than on the old heuristic timing matches. We have measured that difference, but not established why it occurs.
+
+The selected wider-duplicate-removal event stream has now been scored directly for player side; that result is reported below.
+
+## 3. Complete rallies: does better contact F1 turn into usable output?
+
+### What we were trying to learn
+
+An event-level F1 score can look good while a rally is unusable.
+
+A single missed contact, extra event, or wrong player side can make the whole rally wrong.
+
+The strict rally score asks the product question directly: **how many predicted rallies can we keep without repairing them?**
+
+### The fixed meaning of a fully correct kept rally
+
+A kept span is fully correct only when:
+
+- it maps to exactly one real rally;
+- every labelled contact is found within the evaluation tolerance;
+- there are no extra predicted contact events;
+- every event has a Top/Bottom answer;
+- every Top/Bottom answer is correct.
+
+A missing side answer rejects the whole rally.
+
+This meaning is fixed across the follow-up experiments.
+
+The main timing tolerance is ±10 base-30 frames. A ±5 result is a sensitivity check.
+
+The whole-rally timing confidence is the **lowest** retained HGB score in that span. Raising the confidence cut rejects the whole span; it does not quietly remove one weak contact.
+
+### What happened with the original HGB decisions
+
+| Minimum whole-rally timing score | Spans kept | Fully correct at ±10 | Fully correct among kept |
+| --- | ---: | ---: | ---: |
+| 0.00 | 291 | 21 | 7.2% |
+| 0.80 | 216 | 17 | 7.9% |
+| 0.85 | 123 | 13 | 10.6% |
+| 0.90 | 51 | 9 | **17.6%** |
+| 0.95 | 11 | 1 | 9.1% |
+
+### What the result means
+
+Confidence filtering alone does not produce a useful clean subset yet.
+
+The 0.90 cut throws away most output and still leaves only nine fully correct spans.
+
+This is why complete-rally yield should stay the primary project score, with contact precision/recall/F1 used to explain why it moved.
+
+![Whole-rally confidence versus yield for the original and wider duplicate-removal decisions.](figures/followup_rally_yield_curve.png)
+
+## 4. Miss audit: are missed contacts outside the search or being discarded later?
+
+### What we were trying to learn
+
+The original HGB event stream misses **296 of 3,128** contacts at ±10.
+
+Before widening search or building another model, we needed to know whether those contacts were:
+
+- never available to HGB;
+- present as lower-scoring candidates;
+- lost when nearby peaks were collapsed;
+- or lost in the one-to-one event match.
+
+### What happened
+
+The 296 misses contain:
+
+- **95 serves**;
+- **201 ordinary exchanges**.
+
+A candidate from the fixed search surface exists near **244 / 296** misses.
+
+For serves, a candidate from the fixed search surface exists near **89 / 95** misses.
+
+The strongest nearby candidate for each missed contact falls into these groups:
+
+| What happened to the strongest nearby candidate | Missed contacts | Missed serves |
+| --- | ---: | ---: |
+| It scored below the HGB cut-off | **207** | **84** |
+| It was removed as a nearby duplicate | 19 | 2 |
+| It was retained but lost the one-to-one match | 18 | 3 |
+| No candidate from the fixed search surface was present in the window | 52 | 6 |
+
+The evidence streams are usually present somewhere near a miss:
+
+- shuttle evidence near **240 / 296** misses;
+- pose evidence near **230 / 296**;
+- wrist evidence near **230 / 296**.
+
+The filtered handcrafted rule finds **103** of the HGB misses.
+
+Most importantly for the strict rally goal, only **13** spans are otherwise exact apart from one missing contact. All 13 have a region-v2 candidate nearby.
+
+![What the original HGB missed-contact audit found near each miss.](figures/followup_missed_contact_audit.png)
+
+### What the result means
+
+The search region is not the first problem to expand.
+
+Most misses already have a plausible candidate in the fixed score surface. That makes decision-layer tests and better candidate ranking more useful than immediately searching much more of the broadcast.
+
+The handcrafted overlap is interesting, but it is not enough by itself to justify a merge. The later shortlist gate had to show that a deployable, label-blind candidate list had enough compact headroom first.
+
+### What is worth testing on the larger dataset
+
+Repeat the same readable miss audit after refitting.
+
+If many near-perfect rallies are then broken by contacts genuinely outside the search region, test one bounded rescue search. Otherwise keep the search simple.
+
+## 5. Frame-rate motion check
+
+### What we were trying to learn
+
+`sset_01` and `sset_15` are 25 fps. `sset_21` is 30 fps.
+
+The original motion features use movement per video frame. The same physical movement can therefore produce a different number at a different frame rate.
+
+The question was whether that convention was hurting HGB.
+
+### What we tested
+
+Three otherwise matched HGB trials:
+
+1. **Existing raw motion** — keep the original per-frame velocity, impulse and ankle-speed values.
+2. **No frame-rate-sensitive motion** — remove those motion columns.
+3. **Common 30 fps motion scale** — convert first differences by `fps / 30` and the shuttle second-difference impulse by the square of that factor.
+
+Search regions, folds, model settings, threshold selection and duplicate-removal rules stay the same.
+
+### What happened
+
+| Motion treatment | Precision | Recall | Timing F1 | Serve recall |
+| --- | ---: | ---: | ---: | ---: |
+| **Existing raw motion** | **84.5%** | **90.5%** | **87.4%** | 67.5% |
+| Remove frame-rate-sensitive motion | 82.7% | 87.1% | 84.8% | 47.9% |
+| Common 30 fps scale | 84.0% | 90.2% | 87.0% | **68.2%** |
+
+Strict rallies:
+
+| Minimum whole-rally timing score | Raw motion | Remove motion | Common 30 fps scale |
+| --- | ---: | ---: | ---: |
+| 0.00 | **21 / 291** | 16 / 293 | 15 / 295 |
+| 0.85 | **13 / 123** | 9 / 156 | 10 / 124 |
+| 0.90 | **9 / 51** | 6 / 67 | 6 / 58 |
+
+![Pilot frame-rate motion feature check.](figures/followup_motion_feature_check.png)
+
+### What the result means
+
+Raw motion beat both alternatives in this pilot.
+
+The common-scale trial found two extra serves overall, but lost pooled timing F1 and complete rallies.
+
+Do **not** turn this into “raw motion is better in general.” There are only three videos and only one 30 fps fixture. The larger dataset should test the convention again.
+
+## 6. Cheap decision-layer check
+
+### What we were trying to learn
+
+The miss audit showed that many real contacts already had nearby scored candidates.
+
+Before refitting the model, we tested whether a very small change in how scores become events could improve whole-rally output.
+
+HGB itself was not refit.
+
+### What we tested
+
+Five fixed variants:
+
+| Plain-language variant | What changed |
+| --- | --- |
+| Original decisions | original score cut-off; duplicate-removal distance 5 |
+| Lower score cut-off everywhere | one lower score point; distance still 5 |
+| Smaller duplicate distance | original score cut-off; distance 4 |
+| Wider duplicate distance | original score cut-off; distance 6 |
+| Lower score cut-off near rally starts only | lower cut-off only in the existing label-blind rally-start region |
+
+Distances are in base-30 frames and are scaled for the source FPS.
+
+### What happened
+
+| Decision variant | Predicted events | Precision | Recall | Timing F1 | Serve recall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original decisions | 3,350 | 84.5% | 90.5% | 87.4% | 67.5% |
+| Lower score cut-off everywhere | 3,559 | 81.2% | **92.4%** | 86.4% | **73.6%** |
+| Smaller duplicate distance | 3,704 | 76.6% | 90.7% | 83.1% | 67.5% |
+| **Wider duplicate distance** | **3,238** | **87.2%** | 90.3% | **88.8%** | 67.1% |
+| Lower score cut-off near rally starts only | 3,386 | 84.0% | 90.9% | 87.3% | 70.5% |
+
+Strict fully-correct rallies:
+
+| Decision variant | No timing cut | 0.80 | 0.85 | 0.90 | 0.95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original decisions | 21 / 291 | 17 / 216 | 13 / 123 | 9 / 51 | 1 / 11 |
+| Lower score cut-off everywhere | 14 / 295 | 10 / 118 | 7 / 72 | 5 / 33 | 0 / 5 |
+| Smaller duplicate distance | 7 / 291 | 5 / 187 | 4 / 84 | 4 / 31 | 0 / 7 |
+| **Wider duplicate distance** | **27 / 291** | **23 / 231** | **19 / 146** | **13 / 68** | **1 / 14** |
+| Lower score cut-off near rally starts only | 20 / 292 | 16 / 194 | 12 / 109 | 8 / 44 | 1 / 8 |
+
+![Timing F1 and serve recall for the five cheap decision-layer variants.](figures/followup_decision_layer_tradeoff.png)
+
+### What the result means
+
+The wider duplicate-removal variant is the best pilot decision layer.
+
+It removes more close-together duplicate peaks, improves precision, leaves recall nearly unchanged, and gives more fully correct rallies.
+
+Lowering the score cut-off finds more contacts and serves, but the extra events are costly at the rally level.
+
+Again: **6 base-30 frames is a tested pilot setting, not a decided constant**.
+
+### What is worth testing on the larger dataset
+
+Reselect the score cut-off and duplicate-removal distance from scratch.
+
+Keep the decision search small and judge it by the strict rally curve first.
+
+Only use separate start handling if the larger error table shows a repeatable serve/start problem.
+
+## 7. Selected-stream player-side check
+
+The direct player-side table has now been run for the selected wider-duplicate-removal event stream.
+
+At ±10:
+
+| Event stream | Timing recall | Side accuracy on answered timing matches | Timing + correct-side recall | Joint event-and-side F1 | Serve timing + correct-side recall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Current final heuristics | 79.3% | **89.0%** | 70.6% | 64.6% | 46.2% |
+| Original HGB decisions | **90.5%** | 83.7% | **75.7%** | 73.1% | **56.2%** |
+| **Selected wider-duplicate-removal stream** | 90.3% | 83.4% | 75.2% | **73.9%** | **56.2%** |
+
+### What the result means
+
+The selected event stream still improves the complete contact-and-side output over the old heuristics.
+
+It trades 0.5 points of timing-plus-correct-side recall against the original HGB decisions for fewer events and a slightly higher joint event-and-side F1.
+
+The separate rally-level alternation fit has still **not** been rerun on the new contact events.
+
+## 8. Serve-lookback threshold check
+
+### What we were trying to learn
+
+Serves remain weak, particularly on `sset_21`.
+
+Before inventing another model, we tested the cheapest possible change: lower the score threshold only in the existing label-blind serve-lookback region. The same change was also tested together with the already-tested rally-start threshold lowering.
+
+### What happened
+
+| Plain-language decision | Events | Serve timing matches | Correctly sided serves | Joint event-and-side F1 | Fully correct with no timing cut |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original decisions | 3,350 | 197 | 164 | 73.1% | 21 |
+| Lower threshold in serve look-back | 3,355 | 199 | 164 | 73.0% | 21 |
+| Lower threshold near rally starts | 3,386 | 206 | 169 | 72.9% | 20 |
+| Lower threshold in both places | 3,391 | 208 | 169 | 72.9% | 20 |
+| **Selected wider-duplicate-removal stream** | **3,238** | 196 | 164 | **73.9%** | **27** |
+
+The serve-lookback change adds five events and two serve timing matches.
+
+It adds:
+
+- **no correctly sided serve**;
+- **no fully correct rally**.
+
+All five added events were already present in the later compact serve-prefix candidate lists, and none was the oracle choice for a newly recovered serve.
+
+### What the result means
+
+Close this exact threshold idea.
+
+Another nearby threshold on these same fixtures would only tune the same five-event effect.
+
+## 9. Broad nearby-alternative shortlist
+
+### What we were trying to learn
+
+A second-stage model only makes sense if the first stage can produce a short list that contains substantially more real contacts than the final event list.
+
+The miss audit was ground-truth-centred, so it could not answer that deployable question by itself.
+
+We therefore built one label-blind shortlist and gave it a pass/fail gate before doing any merge, hard-negative refit or cleanup tree.
+
+### What we tested
+
+Start with the selected wider-duplicate-removal event stream.
+
+For each selected event:
+
+- keep the selected event;
+- look in the same fixture and search interval within ±10 base-30 frames;
+- add the strongest alternative outside the selected event's duplicate-removal distance;
+- allow that alternative to be below the normal score cut-off;
+- deduplicate the combined list.
+
+Labels are used only after the list is frozen.
+
+### What happened
+
+| Measure | Selected event stream | Shortlist |
+| --- | ---: | ---: |
+| Candidates | 3,238 | 6,305 |
+| Matched contacts at ±10 | 2,825 | 2,922 |
+| Contact coverage at ±10 | 90.3% | 93.4% |
+| Unmatched candidates at ±10 | 413 | 3,383 |
+| Serve coverage at ±10 | 67.1% | 73.3% |
+| Contact coverage at ±5 | 86.6% | 90.2% |
+| Serve coverage at ±5 | 55.5% | 65.1% |
+
+At ±10:
+
+- the shortlist recovers **97 of the selected stream's 303 misses**;
+- it adds **3,067** candidates;
+- **2,970** of those added rows remain unmatched;
+- that is about **31.6 added candidates per recovered contact**.
+
+The gate required:
+
+- at least **152** recovered contacts;
+- total shortlist size no more than twice the selected event stream.
+
+The size condition passed. The recovery condition failed.
+
+![The tested shortlist added many candidates for a modest coverage gain.](figures/followup_shortlist_tradeoff.png)
+
+### What the result means
+
+Stop this exact shortlist as a practical second-stage input on the three-video pilot.
+
+Do not spend more pilot time on the proposed handcrafted merge, hard-negative refit or cleanup tree fed by this list.
+
+The fuller conclusion is:
+
+> **The broad shortlist failed its recovery requirement, and the separate serve-prefix chooser also failed. The frozen candidate union still contains theoretical complete-rally headroom, but no validated label-blind selector has realised it.**
+
+The next two sections show that headroom directly.
+
+## 10. Full candidate-union rally ceiling
+
+### What we were trying to learn
+
+The broad shortlist failed because its event-coverage gain was too small for its size.
+
+That still leaves a different question:
+
+> Does the same frozen union contain combinations that could make more whole rallies correct, even if we do not know how to choose them?
+
+### What we tested
+
+An exact non-deployable oracle chooses from the frozen 6,305-candidate union **after**:
+
+- candidate identities are fixed;
+- existing half-open span membership is fixed;
+- the shipped Top/Bottom answer for every candidate is fixed.
+
+Of the 6,305 candidates, **6,252** fall inside the unchanged rally spans. The other 53 remain unassigned and are excluded.
+
+Two ceilings are measured:
+
+1. **timing-only feasible** — some exact event subset can match every labelled contact;
+2. **timing + side feasible** — some exact subset can also make every selected event's fixed Top/Bottom answer correct.
+
+### What happened
+
+| Tolerance | Selected stream fully correct | Timing-only feasible | Timing + side feasible | Full gain |
+| --- | ---: | ---: | ---: | ---: |
+| ±10 | 27 | 144 | 42 | **+15** |
+| ±5 | 24 | 105 | 37 | **+13** |
+
+At ±10, the +15 full gains split as:
+
+- +2 rallies on `sset_01`;
+- +8 on `sset_15`;
+- +5 on `sset_21`.
+
+No fully correct selected-stream rally is lost.
+
+The predeclared gate required at least **10** new fully correct rallies. The ceiling passes it.
+
+![Candidate-union rally ceiling.](figures/followup_candidate_union_ceiling.png)
+
+### What the result means
+
+There is real selector headroom inside the candidate union.
+
+But the oracle is **not a selector** and the 42-rally result is **not achieved performance**.
+
+The timing-only ceiling is much higher than the timing-plus-side ceiling: **144 versus 42** at ±10. That makes the shipped player-side answers the larger remaining evidence limit inside this union.
+
+This does **not** reopen the failed handcrafted merge, hard-negative refit or cleanup tree on these fixtures.
+
+A practical selector must be tested on fresh whole videos or through properly nested cross-fitting.
+
+## 11. Compact serve-prefix candidate check
+
+### What we were trying to learn
+
+The general shortlist is too large.
+
+The serve-specific check asks a narrower question:
+
+> Can the frames before a detected span's first selected event supply one missed serve without changing the rest of the rally?
+
+### What we tested
+
+Each detected span gets at most five frozen candidates:
+
+- the three strongest raw HGB peaks in the prefix;
+- the best filtered heuristic contact;
+- the original selected event as the anchor.
+
+Exact duplicates are merged.
+
+In practice, the 295 anchored spans have three or four candidates each.
+
+The list, one fixed hand-written action, and all Top/Bottom answers are frozen before timing labels are loaded.
+
+### Candidate headroom
+
+The selected stream misses **96 of 292 serves** at ±10.
+
+Of those 96 misses:
+
+- **60** have a frozen prefix candidate within ±10;
+- the counts are 18 on `sset_01`, 12 on `sset_15`, and 30 on `sset_21`;
+- a timing oracle recovers **58** new serve matches;
+- no existing serve match is lost;
+- fully correct rallies rise **27 → 29** with no timing-score cut.
+
+![Compact serve-prefix candidate headroom.](figures/followup_serve_prefix_headroom.png)
+
+The compact list therefore passes its timing-headroom gate.
+
+### Fixed chooser result
+
+The fixed rule adds an earlier filtered-heuristic contact when it satisfies the rule.
+
+| ±10 result | Selected event stream | Fixed serve chooser |
+| --- | ---: | ---: |
+| Predicted contacts | 3,238 | 3,317 |
+| Matched serves | 196 | 204 |
+| Serve recall | 67.1% | 69.9% |
+| Unmatched added events | — | 70 |
+| Fully correct at score 0.00 | 27 / 291 | 16 / 290 |
+| Fully correct at score 0.90 | 13 / 68 | 9 / 49 |
+
+The rule finds only **8** of the oracle's **58** recoverable serves.
+
+With no timing-score cut it gains one fully correct rally but breaks 12 previously correct rallies.
+
+![The fixed serve chooser damages whole-rally output despite the candidate list's oracle headroom.](figures/followup_serve_prefix_rally_effect.png)
+
+### What the result means
+
+Keep the **candidate-list idea** as a fresh-data research lead.
+
+Do **not** use or tune the tested fixed chooser.
+
+The current stored held-out HGB scores cannot be used to train a selector on these same outer test fixtures without leakage.
+
+The compact prefix construction was chosen after inspecting aggregate results from these three fixtures. Treat it as development evidence that justifies a fresh-data test, not as a generalisation result.
+
+## 12. The main warning: serves in `sset_21`
+
+The weakest fixture should stay visible because it is easy for pooled scores to hide it.
+
+With the original HGB decisions:
+
+| Fixture | Timing F1 | Timing + correct-side recall | Serve timing recall | Serve timing + correct-side recall |
+| --- | ---: | ---: | ---: | ---: |
+| `sset_01` | 92.6% | 77.3% | 74.3% | 60.2% |
+| `sset_15` | 84.2% | 76.5% | 76.9% | 67.3% |
+| `sset_21` | **79.6%** | **70.7%** | **44.0%** | **34.7%** |
+
+Region version 2 contains **71 / 75 = 94.7%** of `sset_21` serves.
+
+The original HGB event decisions find **33 / 75**. The wider duplicate-removal decisions find **32 / 75**.
+
+So the serve problem is mostly not “the region never looked there.”
+
+With only three videos, we cannot tell whether `sset_21` represents a general broadcast/serve failure or simply a difficult fixture. The larger dataset is where that question becomes answerable.
+
+## 13. What to carry into the larger dataset
+
+Carry forward the **ideas**:
+
+- region version 2 as the search-surface design;
+- HGB with physical values plus validity flags as the simple baseline;
+- whole-video splitting;
+- the fixed strict definition of a fully correct kept rally;
+- the lesson that decision-layer choices can matter;
+- direct selected-stream player-side scoring;
+- the lesson that candidate-list economy and oracle headroom answer different questions;
+- the compact serve-prefix candidate construction as a bounded selector lead.
+
+Choose again on the larger data:
+
+- the HGB fit;
+- score cut-offs;
+- class and serve weights;
+- frame-rate motion convention;
+- negative sampling;
+- duplicate-removal distance;
+- any start-specific handling;
+- any second-stage selector or player-side model.
+
+Do not carry the fitted pilot tree, the 6-base-30-frame duplicate distance, or the failed hand-written serve chooser forward as production settings.
+
+## Technical reference
+
+### Main feature set
+
+The physical + validity input has **85 columns**.
+
+Physical values sampled at offsets −10, −5, 0, +5 and +10 base-30 frames:
 
 - `shuttle_vx`
 - `shuttle_vy`
@@ -124,9 +707,7 @@ Twelve signals sampled at offsets −10, −5, 0, +5 and +10 base-30 frames:
 - `ankle_speed_top`
 - `ankle_speed_bot`
 
-### Validity / missingness: 25 columns
-
-Five signals at the same five offsets:
+Validity flags at the same offsets:
 
 - `shuttle_visible`
 - `pose_valid_top`
@@ -134,34 +715,15 @@ Five signals at the same five offsets:
 - `wrist_valid_top`
 - `wrist_valid_bot`
 
-### Optional context: 20 columns
+The optional context block has 20 columns. It did not improve HGB in this pilot.
 
-The context block contains centre-frame absolute positions, ankle positions, bbox heights, standing count, interval timing, scene timing and seven region-source flags.
+### Training shape
 
-The four tested feature sets are therefore:
-
-| Feature set | Columns |
-| --- | ---: |
-| `physics` | **85** |
-| `physics_context` | **105** |
-| `context_only` | **20** |
-| `missingness_only` | **25** |
-
-### PySceneDetect
-
-PySceneDetect affects where candidates can occur through scene/court interval construction and the scene-start seed.
-
-Scene timing is also present in the optional context block.
-
-The winning 85-column HGB `physics` model does **not** receive scene timing or region-source flags as explicit inputs.
-
-## Training and timing evaluation
-
-The scorer uses three outer leave-one-fixture-out folds.
+The timing scorer uses three outer leave-one-fixture-out folds.
 
 For each held-out fixture:
 
-- the other two fixtures are the training side;
+- the other two fixtures form the training side;
 - inner out-of-fold predictions choose the probability threshold;
 - the held-out fixture does not choose its threshold.
 
@@ -172,458 +734,11 @@ Training rows:
 - hard negatives through ±15;
 - easy negatives sampled toward at most 12:1 negatives to positives.
 
-The baseline temporal duplicate-removal distance is **5 base-30 frames**. This
-operation is also called non-maximum suppression (NMS): when high-scoring
-candidates are close together, it keeps the strongest one.
+### Region version 1 versus version 2
 
-Metrics are reported at ±5, ±10 and ±15. The main comparison is ±10.
+Using each region's original decisions:
 
-## Heuristic proposal and cleanup
-
-Before the learned models, the existing heuristic path moves from a broad raw proposal stream to a cleaner final event list:
-
-| Timing-only event stream at ±10 | Precision | Recall | F1 |
-| --- | ---: | ---: | ---: |
-| Current raw proposals | 41.7% | **82.2%** | 55.3% |
-| Current final heuristic cleanup | **66.9%** | 79.3% | **72.6%** |
-
-The wrist/proximity cleanup greatly improves precision, but it also removes some real contacts. That is why the new path keeps the search region relaxed and lets the classifier do the cleanup.
-
-## Timing-only model sweep
-
-This table is **timing-only**.
-
-| Event stream at ±10 | Precision | Recall | F1 | Non-serve recall | Serve recall |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Current final heuristics | 66.9% | 79.3% | 72.6% | 81.2% | 61.0% |
-| **HGB physical** | **84.5%** | **90.5%** | **87.4%** | **92.9%** | **67.5%** |
-| RF physical | 84.1% | 85.2% | 84.6% | 89.6% | 42.8% |
-| HGB + context | 81.7% | 89.8% | 85.5% | 92.5% | 63.4% |
-| RF + context | 83.9% | 86.5% | 85.2% | 90.4% | 47.9% |
-
-Controls:
-
-| Timing-only control | Precision | Recall | F1 |
-| --- | ---: | ---: | ---: |
-| HGB context only | 47.0% | 79.6% | 59.1% |
-| RF context only | 37.1% | 82.2% | 51.1% |
-| HGB missingness only | 16.1% | 96.9% | 27.5% |
-| RF missingness only | 16.0% | 96.9% | 27.5% |
-
-The main conclusions from the sweep are:
-
-- HGB is the strongest timing model;
-- context hurts HGB;
-- missingness alone only achieves high recall by producing far too many events;
-- there is no clear reason to spend more time tuning RF.
-
-## Player-side scoring
-
-The tree does not predict player side.
-
-For the existing heuristic, region-v1 and region-v2 event streams, the player-side scorer leaves every prediction frame, threshold and NMS decision unchanged, then applies `attribute_half` at each predicted frame.
-
-The **eligible-court-only HGB** row is the one exception: it is a new full HGB refit on the eligible-court rows, including threshold selection and NMS. That entire event stream is still completed and frozen **before** player-side ground truth is loaded.
-
-Before scoring side, the script checks that the original timing counts are unchanged.
-
-At ±10:
-
-| Event stream | Timing recall | Side accuracy given timing match | Timing + correct-side recall | Joint event+side precision | Joint event+side F1 | Serve timing + correct-side recall |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Current final heuristics | 79.3% | **89.0%** | 70.6% | 59.6% | 64.6% | 46.2% |
-| **HGB physical** | **90.5%** | 83.7% | **75.7%** | 70.7% | **73.1%** | **56.2%** |
-| HGB + context | 89.8% | 81.9% | 73.4% | 66.8% | 69.9% | 46.2% |
-| RF physical | 85.2% | 85.8% | 73.1% | **72.1%** | 72.6% | 37.0% |
-| Eligible-court-only HGB | 89.1% | 84.1% | 74.8% | 72.5% | **73.7%** | 53.4% |
-
-Adding side correctness narrows the gap:
-
-- HGB is still the region-v2 tree model we would use;
-- RF nearly catches HGB once correct player side is required;
-- on timing matches, the side rule is right **83.7%** of the time for HGB and **89.0%** for the current final heuristics. We do not know whether the extra recovered contacts explain that difference.
-
-For serves, the side rule is right on **84.1%** of HGB timing matches versus **75.8%** of current-final timing matches, while serve timing recall rises from **61.0% to 67.5%**.
-
-A simpler check using centre-frame `wrist_gap_top` and `wrist_gap_bot` gives essentially the same HGB side result.
-
-## Strict complete-rally evaluation
-
-The event-level result does not tell us how often a whole rally is usable. One
-missed contact, one extra event, or one wrong player side rejects the complete
-output.
-
-This section reports the original HGB decision settings, called B0 in the later
-decision-layer check. The strict evaluator keeps the current 311 predicted
-rally spans unchanged.
-These time windows come from the existing upstream rally segmentation. The
-evaluator uses the current region-v2 HGB events and replays the shipped
-Top/Bottom rule at those fixed event frames. Timing and player-side labels load
-only after the event scores, score cut-offs, NMS decisions, spans and side
-predictions are fixed.
-
-A kept predicted span is fully correct only when it maps to one real rally,
-finds every contact, adds no extra event, and gives the correct side for every
-contact. The main timing tolerance is ±10 base-30 frames. A ±5 result is kept
-as a sensitivity check.
-
-Timing confidence is the weakest retained HGB score in the span. A score cut
-abstains on the whole span. It never drops one weak event and keeps the rest of
-the rally.
-
-| Minimum timing score | Kept spans | Fully correct at ±10 | Accuracy among kept | Fully correct at ±5 |
-| --- | ---: | ---: | ---: | ---: |
-| 0.00 | 291 | 21 | 7.2% | 19 |
-| 0.80 | 216 | 17 | 7.9% | 15 |
-| 0.85 | 123 | 13 | 10.6% | 11 |
-| 0.90 | 51 | 9 | **17.6%** | 7 |
-| 0.95 | 11 | 1 | 9.1% | 0 |
-
-Confidence filtering does not produce a useful clean subset yet. The 0.90 cut
-keeps only 51 predicted spans and nine are fully correct. The highest observed
-accuracy is still below one in five.
-
-For an exclusive summary, each span is assigned to the first checkpoint it
-fails in the order shown below:
-
-| First failed checkpoint | Predicted spans |
-| --- | ---: |
-| No predicted event | 16 |
-| Events but no real rally | 31 |
-| More than one real rally | 4 |
-| Contact timing or event count | **210** |
-| Player side after exact timing | 29 |
-| Fully correct | 21 |
-
-The 210 timing failures contain 101 spans with both missing and extra events,
-58 with extra events only, and 51 with missing contacts only. A side answer is
-missing in four spans. Three are timing failures and one contains no real
-rally. Thirteen retained HGB events fall outside every current span and are
-reported separately. These priority buckets are derived from overlapping
-rejection flags. They are not causal labels emitted by the scorer.
-
-## Missed-contact audit
-
-The primary ±10 timing score matches 2,832 of 3,128 labelled contacts. The 296
-misses split into 95 serves and 201 ordinary exchanges.
-
-| Contact type | Labelled | Missed | Miss rate | Misses with a seeded candidate nearby |
-| --- | ---: | ---: | ---: | ---: |
-| Serve | 292 | 95 | **32.5%** | 89 |
-| Ordinary exchange | 2,836 | 201 | 7.1% | 155 |
-| **All contacts** | **3,128** | **296** | **9.5%** | **244** |
-
-For each missed contact, the audit inspects every held-out HGB score inside the
-fixed ±10 window. It ranks up to three peaks after applying the current
-within-interval NMS distance, but it does not apply the score cut-off. This is
-an observational, ground-truth-centred table. It does not define a deployable
-shortlist.
-
-The strongest nearby candidate for each miss is:
-
-| Strongest nearby candidate | Missed contacts | Missed serves |
-| --- | ---: | ---: |
-| Below the per-fold probability cut-off | **207** | **84** |
-| Removed as a nearby duplicate | 19 | 2 |
-| Retained, but lost the one-to-one match | 18 | 3 |
-| No seeded candidate in the window | 52 | 6 |
-
-The raw nearby-decision flags overlap. For example, one missed contact may
-have both a retained event and lower-scoring rows in the same window. The table
-above avoids double counting by classifying only the strongest candidate.
-
-Most misses have usable frozen evidence somewhere in the audit window. Shuttle
-evidence is present for 240 of 296 misses. Pose and wrist evidence are each
-present for 230. The evidence check is deliberately simple: it reports whether
-each stream is valid on any frozen row in the window. It does not prove that
-all streams are valid together at the strongest peak.
-
-The filtered handcrafted rule finds 103 of the 296 HGB misses. That overlap
-could support one bounded merge test after the shortlist gate. It is not
-evidence for replacing HGB because the handcrafted stream also has many misses
-and false alarms of its own.
-
-Only 13 spans are otherwise exact apart from one missing contact. All 13
-missing contacts already have a seeded region-v2 candidate nearby. Eleven are
-best represented by a below-cut-off row, one was removed as a duplicate, and
-one loses the one-to-one match despite a retained event. Eight are serves and
-six are found by the handcrafted rule.
-
-This supported three Phase 2 decisions:
-
-- test frame-rate-normalised motion features because the fixtures mix 25 and 30 fps
-- test a small decision-layer set, including start-specific score handling
-- keep physical values plus validity as the baseline for focused feature checks
-
-The next two sections report the completed frame-rate and decision checks.
-
-Search outside the region-v2 candidate surface stays deferred. Among those 13
-otherwise-exact spans, no missing contact is outside region v2. A second
-learned cleanup stage also stays deferred until a label-blind shortlist has
-measured coverage and false-alarm cost.
-
-If that later shortlist gate passes, the 103 HGB misses found by the
-handcrafted rule support one simple merge before any cleanup tree.
-
-## Frame-rate motion check
-
-Two fixtures run at 25 frames per second (fps), while `sset_21` runs at 30 fps.
-The original motion values measure movement per video frame. This means that
-the same movement in the scene can have a different numeric value at different
-frame rates.
-
-Two focused trials tested whether that difference was hurting the selected
-HGB model:
-
-1. remove shuttle velocity, shuttle speed, shuttle impulse and ankle speed;
-2. express those values on a common 30 fps scale.
-
-The corrected freeze multiplies first differences, such as velocity, by
-`fps / 30`. Shuttle impulse is a second difference, so it uses the square of
-that factor. The dimensionless impulse ratio stays unchanged. All search
-regions, folds, fitting settings, score selection and duplicate removal stay
-the same.
-
-| HGB physical trial | Timing precision | Timing recall | Timing F1 | Serve recall |
-| --- | ---: | ---: | ---: | ---: |
-| **Existing raw motion** | **84.5%** | **90.5%** | **87.4%** | 67.5% |
-| Remove raw motion | 82.7% | 87.1% | 84.8% | 47.9% |
-| Common 30 fps scale | 84.0% | 90.2% | 87.0% | **68.2%** |
-
-The common-scale trial finds two more serves overall, but its pooled timing F1
-is lower. The complete-rally result is also lower at every reported confidence
-setting:
-
-| Minimum timing score | Raw motion, fully correct / kept | Remove motion | Common 30 fps scale |
-| --- | ---: | ---: | ---: |
-| 0.00 | **21 / 291** | 16 / 293 | 15 / 295 |
-| 0.85 | **13 / 123** | 9 / 156 | 10 / 124 |
-| 0.90 | **9 / 51** | 6 / 67 | 6 / 58 |
-
-The existing raw-motion model therefore remains the pilot baseline. The three
-fixtures do not support removing or rescaling these values. This does not prove
-that raw per-frame motion is generally best. The feature convention must be
-retested when the planned larger video set is available.
-
-## Decision-layer check
-
-The decision layer turns held-out HGB scores into contact events. This check
-replayed five choices without refitting the model. Every event stream and
-Top/Bottom answer was fixed before timing or player-side labels loaded.
-
-The set contains one baseline and four one-choice variants:
-
-- **B0:** original per-fold score cut-off and duplicate distance 5;
-- **T−:** the next lower point in the existing score grid;
-- **N−:** original score cut-off and duplicate distance 4;
-- **N+:** original score cut-off and duplicate distance 6;
-- **S−:** the lower score point only inside `region_rally_start`, the existing
-  label-blind window around detected rally starts.
-
-The duplicate distances use base-30 frames. They become 4, 5 and 6 frames for
-N−, B0 and N+ on 30 fps video. On 25 fps video they become 3, 4 and 5 frames.
-
-| Decision row | Pooled predicted events | Timing precision | Timing recall | Timing F1 | Serve recall |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| B0 | 3,350 | 84.5% | 90.5% | 87.4% | 67.5% |
-| T− | 3,559 | 81.2% | **92.4%** | 86.4% | **73.6%** |
-| N− | 3,704 | 76.6% | 90.7% | 83.1% | 67.5% |
-| **N+** | **3,238** | **87.2%** | 90.3% | **88.8%** | 67.1% |
-| S− | 3,386 | 84.0% | 90.9% | 87.3% | 70.5% |
-
-The strict full-rally result tells the same story:
-
-| Decision row | Fully correct / kept at 0.00 | At 0.80 | At 0.85 | At 0.90 | At 0.95 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| B0 | 21 / 291 | 17 / 216 | 13 / 123 | 9 / 51 | 1 / 11 |
-| T− | 14 / 295 | 10 / 118 | 7 / 72 | 5 / 33 | 0 / 5 |
-| N− | 7 / 291 | 5 / 187 | 4 / 84 | 4 / 31 | 0 / 7 |
-| **N+** | **27 / 291** | **23 / 231** | **19 / 146** | **13 / 68** | **1 / 14** |
-| S− | 20 / 292 | 16 / 194 | 12 / 109 | 8 / 44 | 1 / 8 |
-
-Use N+ for the rest of this pilot. It has the best pooled timing F1 and the
-most fully correct rallies through the 0.90 confidence setting. The lower
-score rows recover more contacts and serves, but their extra events make more
-complete rallies fail.
-
-This is a three-fixture pilot choice. N+ slightly lowers pooled serve recall
-from 67.5% to 67.1%. On `sset_21`, serve recall falls from 44.0% to 42.7%, so
-the wider duplicate distance does not solve that fixture's serve problem.
-
-## Serve-lookback threshold closure
-
-The serve-lookback follow-up lowered the score only inside the existing
-`region_serve_lookback` rows. L− applies that change to B0. SL− combines it
-with the existing S− rally-start lowering. This isolates whether the lookback
-region adds useful serve evidence without changing HGB or trying a new rule.
-
-Every event stream and Top/Bottom answer was frozen before timing and side
-labels loaded. The two comparisons add the same five events:
-
-| Decision row | Events | Serve timing matches | Correctly sided serves | Joint event-and-side F1 | Fully correct at 0.00 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| B0 | 3,350 | 197 | 164 | 73.1% | 21 |
-| L− | 3,355 | 199 | 164 | 73.0% | 21 |
-| S− | 3,386 | 206 | 169 | 72.9% | 20 |
-| SL− | 3,391 | 208 | 169 | 72.9% | 20 |
-| **N+** | **3,238** | 196 | 164 | **73.9%** | **27** |
-
-L− and SL− each gain two serve timing matches. Neither gains a correctly
-sided serve or a fully correct rally. The extra events lower joint
-event-and-side F1 slightly. All five additions were already present in the
-serve-prefix candidate lists, and none was the oracle choice for a newly
-recovered serve.
-
-Close this threshold idea. Another threshold point would tune the same
-five-event effect on these fixtures.
-
-This run also supplies the previously missing N+ event-side table at ±10. N+
-has **83.4%** side accuracy on answered timing matches, **75.2%**
-timing-plus-correct-side recall, **73.9%** joint event-and-side F1 and **56.2%**
-serve timing-plus-correct-side recall.
-
-## Label-blind shortlist check
-
-The shortlist tested whether the held-out score surface contains enough nearby
-alternatives to justify a second stage. Every identity was fixed before timing
-labels loaded.
-
-For each N+ event, the shortlist kept that event and the strongest row from the
-same fixture and search interval within ±10 base-30 frames. The alternative had
-to lie strictly outside N+'s duplicate-removal distance. It could fall below
-the score cut-off. Equal scores used the earlier frame. The union was deduplicated
-by fixture, interval and frame.
-
-This produced 6,305 candidates from 3,238 N+ events. The list added 3,067 rows,
-or 1.95 times the N+ size in total.
-
-| Measure | N+ | Shortlist |
-| --- | ---: | ---: |
-| Candidates | 3,238 | 6,305 |
-| Matched contacts at ±10 | 2,825 | 2,922 |
-| Contact coverage at ±10 | 90.3% | 93.4% |
-| Unmatched candidates at ±10 | 413 | 3,383 |
-| Serve coverage at ±10 | 67.1% | 73.3% |
-| Matched contacts at ±5 | 2,710 | 2,823 |
-| Contact coverage at ±5 | 86.6% | 90.2% |
-| Unmatched candidates at ±5 | 528 | 3,482 |
-| Serve coverage at ±5 | 55.5% | 65.1% |
-
-At the primary ±10 tolerance, the shortlist recovered 97 of N+'s 303 missed
-contacts. It lost none of N+'s existing matches. The gains were 48 on
-`sset_01`, 32 on `sset_15` and 17 on `sset_21`.
-
-The rule fixed before scoring required at least 152 recovered contacts and a
-list no larger than twice N+. The size passed. The 97-contact gain did not.
-Each recovery cost 31.6 added candidates, and 2,970 of the added rows remained
-unmatched. Those rows measure shortlist burden. They are not detector false
-positives because the shortlist is deliberately overcomplete.
-
-Stop Phase 3 here. Do not test a handcrafted merge, hard-negative refit or
-cleanup tree on these three fixtures. The shortlist does not show enough compact
-headroom to justify them.
-
-## Full candidate-union rally ceiling
-
-The shortlist result above measures event coverage. A separate exact oracle
-asks whether some subset of the same frozen union could make a complete rally
-correct. This is a ceiling on the evidence already present, not a deployable
-merge or selector.
-
-Candidate identities, existing half-open span membership and shipped
-Top/Bottom answers were fixed before labels loaded. The union contains 6,305
-distinct candidates. Existing spans contain 6,252 of them. The remaining 53
-stay unassigned and cannot be used by this check.
-
-For each clean one-rally span, the oracle searches candidate subsets exactly.
-One mode requires exact event count and a timing match for every labelled
-contact. The full mode also requires the unchanged production matcher to pair
-every selected event with the correct shipped Top/Bottom answer. Timing-linked
-components are searched separately, then the combined choice is checked again
-with the unchanged full-span evaluator.
-
-| Tolerance | N+ fully correct | Timing-only feasible | Timing + side feasible | Full gain |
-| --- | ---: | ---: | ---: | ---: |
-| ±10 | 27 | 144 | 42 | **+15** |
-| ±5 | 24 | 105 | 37 | **+13** |
-
-At ±10, the 15 full gains split as two on `sset_01`, eight on `sset_15` and
-five on `sset_21`. No fully correct N+ identity is lost. This passes the
-predeclared gate of at least ten new fully correct rallies.
-
-The timing-only ceiling is much higher than the full ceiling: 144 versus 42
-at ±10. This makes shipped player attribution the main evidence limit inside
-the union. It does not prove that a practical selector can reach 42. A selector
-would need fresh whole-video evaluation or nested cross-fitting. The result
-does not reopen the failed handcrafted merge, hard-negative refit or cleanup
-tree on these fixtures.
-
-## Structured serve-prefix check
-
-The general shortlist above is too large. A separate serve-only check asked a
-narrower question:
-
-> Can the frames before a detected span's first N+ event supply one missed
-> serve without changing the rest of the rally?
-
-This does not reopen the general merge. Each detected span gets a list of at
-most five frozen candidates. In practice, the 295 anchored spans had three or
-four candidates each. The list contains the three strongest raw HGB peaks in
-the prefix, the best filtered heuristic contact and the original N+ anchor.
-Exact duplicates are merged.
-
-The candidate list, one fixed rule and every Top/Bottom answer were frozen
-before timing labels loaded. The fixed rule adds the best filtered heuristic
-contact when it is earlier than the anchor and outside N+'s duplicate distance.
-A timing oracle then measures the best possible use of the same frozen list. It
-only acts when N+ misses the serve. The oracle is a headroom check, not a model
-that can be deployed.
-
-The compact list does contain useful serve candidates:
-
-- N+ misses 96 of the 292 serves at ±10;
-- 60 of those 96 misses have a frozen prefix candidate within ±10;
-- the counts are 18 on `sset_01`, 12 on `sset_15` and 30 on `sset_21`;
-- the timing oracle recovers 58 new serve matches and loses none;
-- the oracle raises fully correct rallies from 27 to 29 with no timing-score
-  cut, without losing a previously correct rally.
-
-That passes the predeclared headroom gate. It shows that a compact label-blind
-serve chooser is possible in principle.
-
-The fixed heuristic rule fails:
-
-| ±10 result | N+ | Fixed serve rule |
-| --- | ---: | ---: |
-| Predicted contacts | 3,238 | 3,317 |
-| Matched serves | 196 | 204 |
-| Serve recall | 67.1% | 69.9% |
-| Unmatched added events | — | 70 |
-| Fully correct at score 0.00 | 27 / 291 | 16 / 290 |
-| Fully correct at score 0.90 | 13 / 68 | 9 / 49 |
-
-The rule finds eight new serves, or 13.8% of the oracle's 58. It gains one
-fully correct rally and makes 12 previously correct rallies fail at a zero
-score requirement. At 0.90 it loses four and gains none. Accuracy among kept
-rallies falls at both settings.
-
-Do not use or tune this fixed rule. The candidate list has measured headroom,
-but choosing from it remains the problem. A learned chooser would need fresh
-whole-video confirmation or nested HGB cross-fitting. The current stored
-held-out scores cannot train that chooser without leaking information from the
-outer test fixture.
-
-This remains development evidence. The prefix was chosen after aggregate
-inspection of these three fixtures. The result justifies a separately scoped
-fresh-video test. It does not establish generalisation.
-
-## Region v1 versus region v2
-
-This comparison uses each region's original decision settings. The region
-choice is a simple trade-off: v1 is more selective; v2 keeps more contacts
-reachable.
-
-| HGB physical metric | Region v1 | Region v2 |
+| HGB physical metric | Region version 1 | Region version 2 |
 | --- | ---: | ---: |
 | Serve search coverage | 91.4% | **97.9%** |
 | Timing precision | **87.5%** | 84.5% |
@@ -633,95 +748,33 @@ reachable.
 | Joint event+side F1 | **74.1%** | 73.1% |
 | Serve timing + correct-side recall | 52.7% | **56.2%** |
 
-Region v1 is slightly more selective.
+Region version 1 is a little more selective. Region version 2 keeps more real contacts, especially serves, available to the classifier. Since the region is a search surface rather than a final detector, use version 2.
 
-Region v2 keeps more contacts, especially serves, available to the classifier. Since the region's job is search-space reduction rather than final event prediction, use v2 as the search surface.
+### Boundary sensitivity
 
-## Boundary sensitivity
+A court-view-only HGB refit reaches 87.7% timing F1 versus 87.4% for the main region-v2 HGB.
 
-This check also uses the original B0 duplicate distance. We refit HGB using
-eligible court-view rows only, to check whether the extra rows just before
-court view were somehow driving the result.
+Only nine of the main HGB's 3,350 detections fall in the extra before-court rows.
 
-| HGB physical search | Timing precision | Timing recall | Timing F1 | Timing + correct-side recall | Joint event+side F1 | Serve timing + correct-side recall |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Main region v2 | 84.5% | **90.5%** | 87.4% | **75.7%** | 73.1% | **56.2%** |
-| Eligible court only | **86.3%** | 89.1% | **87.7%** | 74.8% | **73.7%** | 53.4% |
+The before-court rows mainly help **search coverage**, especially for serves; they are not secretly driving the HGB score.
 
-Only nine of the main HGB's 3,350 detections are in the extra before-court rows.
+## Compact reference for old experiment codes
 
-Those rows help **search coverage**, especially for serves, but HGB scores almost the same without them.
+Keep these only for reading old logs and result filenames.
 
-## Where it still fails
+| Code | Plain-language meaning |
+| --- | --- |
+| `B0` | Original score cut-off and 5-base-30-frame duplicate-removal distance |
+| `T−` | One lower score cut-off everywhere |
+| `N−` | Original score cut-off with duplicate-removal distance 4 |
+| `N+` | Original score cut-off with duplicate-removal distance 6 |
+| `S−` | Lower score cut-off only near label-blind detected rally starts |
+| `L−` | Lower score cut-off only in the existing serve-lookback region |
+| `SL−` | Lower score cut-off in both rally-start and serve-lookback regions |
 
-### `sset_21`
+Use the plain-language names in prose.
 
-HGB physical with the original B0 decisions at ±10:
-
-| Fixture | Timing F1 | Timing + correct-side recall | Serve timing recall | Serve timing + correct-side recall |
-| --- | ---: | ---: | ---: | ---: |
-| `sset_01` | 92.6% | 77.3% | 74.3% | 60.2% |
-| `sset_15` | 84.2% | 76.5% | 76.9% | 67.3% |
-| `sset_21` | **79.6%** | **70.7%** | **44.0%** | **34.7%** |
-
-Region v2 contains **71 / 75 = 94.7%** of `sset_21` serves, while HGB finds **33 / 75 = 44.0%**. Four serves sit outside region v2, but most misses happen after search. With only three fixtures, we cannot tell whether `sset_21` is simply different from the other two or whether the model has fit the other two too closely.
-
-The selected N+ decision layer finds 32 of the 75 serves, or 42.7%. Its pooled
-timing result is stronger, but it does not improve the main fixture warning.
-
-### Contacts outside region v2
-
-The 37 `sset_21` non-serves outside region v2 all have visible shuttle evidence near the labelled contact, but none has sticky player analysis or a player pick and none lies inside a detected rally span.
-
-That is an off-court/live-close-up search problem.
-
-### Very broad shuttle-only check
-
-A deliberately broad shuttle-only check searches **90.6% of the broadcasts** and covers every non-serve plus 291 of 292 serves at ±10.
-
-That shows the shuttle evidence exists, but the search is far too broad to use and often lacks usable player evidence.
-
-## Other useful experiments
-
-Three other decisions are worth keeping.
-
-**Ankle side attribution.** On current-final timing matches, the shipped box/net rule scores **2,207 / 2,480 = 89.0%** correct Top/Bottom answers. Replacing the final half test with ankle height gives **2,208 / 2,481 = 89.0%**. That is effectively no change.
-
-**Pull request 88 (PR88) server rule.** PR88 used shuttle motion before and after a chosen contact to decide whether it looked like a serve or return. When that was unclear, it fell back to the older pull request 82 (PR82) alternation answer. It got the server side right on **170 / 239 = 71.1%** of an older fixed 239-rally development set. This is not directly comparable with the 292-rally evaluation used here. On a later held-out test it tied the older rule overall and got worse on one video, so we did not keep it.
-
-**X3D Small (X3D-S) video model.** Leave it aside for now. RGB may contain useful contact clues that pose and shuttle do not. Revisit it only if the failure cases point to missing visual information.
-
-## Recommendation
-
-Use:
-
-- **region v2** as the search region;
-- **HGB physical + validity** with the existing raw-motion features;
-- **N+**, the 6-base-30-frame duplicate-removal distance, as the pilot decision
-  layer.
-
-Do not add the tested context block to HGB.
-
-The raw model's timing F1 is 87.4%. The selected decision layer raises it to
-88.8% without refitting. The strict rally result remains too weak for
-deployment by confidence filtering alone. The label-blind shortlist missed its
-coverage gate, so do not add the simple merge or cleanup tree on this pilot.
-The serve-lookback threshold adds no correctly sided serves or complete
-rallies, so close it. The compact serve-prefix list and full candidate-union
-ceiling both pass their headroom gates, but neither supplies a validated
-chooser. Carry that evidence into a fresh-video or nested cross-fitted selector
-experiment. Do not tune another rule on these three fixtures.
-
-For selected N+, the **88.8% timing F1** is only the timing score. Its complete
-event-and-side results are:
-
-- **75.2% timing + correct-side recall**
-- **73.9% joint event-and-side F1**
-- **56.2% serve timing + correct-side recall**
-
-For the annotator-level result, see [`auto_annotator_progress.md`](auto_annotator_progress.md).
-
-## Reproduction
+## Reproduction paths
 
 Feature freezer:
 
@@ -747,10 +800,22 @@ Strict rally scorer:
 scratch/contact_det/scripts/score_contact_rallies.py
 ```
 
+Missed-contact audit:
+
+```text
+scratch/contact_det/scripts/analyse_contact_failures.py
+```
+
 Decision-layer scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_decision_trials.py
+```
+
+Broad shortlist scorer:
+
+```text
+scratch/contact_det/scripts/score_contact_shortlist.py
 ```
 
 Serve-lookback scorer:
@@ -759,24 +824,10 @@ Serve-lookback scorer:
 scratch/contact_det/scripts/score_contact_lookback_trials.py
 ```
 
-Saved serve-lookback results:
-
-```text
-scratch/contact_det/raw/followups/lookback_trials/contact_lookback_trials_a.json.gz
-scratch/contact_det/raw/followups/lookback_trials/contact_lookback_trials_b.json.gz
-```
-
 Candidate-union ceiling scorer:
 
 ```text
 scratch/contact_det/scripts/score_contact_candidate_union_ceiling.py
-```
-
-Saved candidate-union ceiling results:
-
-```text
-scratch/contact_det/raw/followups/candidate_union_ceiling/contact_candidate_union_ceiling_a.json.gz
-scratch/contact_det/raw/followups/candidate_union_ceiling/contact_candidate_union_ceiling_b.json.gz
 ```
 
 Serve-prefix scorer:
@@ -785,32 +836,34 @@ Serve-prefix scorer:
 scratch/contact_det/scripts/score_contact_serve_prefix.py
 ```
 
-Saved serve-prefix result:
+Key retained follow-up outputs:
 
 ```text
-scratch/contact_det/raw/followups/serve_prefix/contact_serve_prefix_score_a.json.gz
+scratch/contact_det/raw/followups/phase1/
+scratch/contact_det/raw/followups/phase2/
+scratch/contact_det/raw/followups/phase3/
+scratch/contact_det/raw/followups/lookback_trials/
+scratch/contact_det/raw/followups/candidate_union_ceiling/
+scratch/contact_det/raw/followups/serve_prefix/
 ```
 
-Missed-contact audit:
+## Pilot limits
 
-```text
-scratch/contact_det/scripts/analyse_contact_failures.py
-```
+The three fixtures are:
 
-Summary figures:
+- `sset_01`
+- `sset_15`
+- `sset_21`
 
-```text
-scratch/contact_det/scripts/plot_summary_figures.py
-```
+Together they contain:
 
-Saved region-v2 timing result:
+- **292 rallies**
+- **3,128 contacts**
+- **292 serves**
+- **2,836 non-serves**
 
-```text
-scratch/contact_det/raw/region_v2/tree_contact_results.json.gz
-```
+All three fixtures come from the same dataset. This is a small, low-diversity pilot.
 
-Saved player-side result:
+The results can tell us that an idea looks promising, unpromising, or worth measuring again. They cannot establish a final production threshold, frame-rate convention, duplicate-removal distance, selector quality, or generalisation result.
 
-```text
-scratch/contact_det/raw/contact_player_attribution_score.json.gz
-```
+The compact serve-prefix construction and candidate-union oracle are development evidence. Any learned or tuned selector should be assessed on fresh whole videos or with a properly nested cross-fitting design.
