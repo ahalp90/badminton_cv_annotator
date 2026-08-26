@@ -55,7 +55,8 @@ def test_download_command_uses_pinned_url_and_compressed_mp4_format() -> None:
 
     assert command[-1] == source.url
     assert command[command.index("--format") + 1] == shuttleset22.YOUTUBE_FORMAT
-    assert "vcodec^=avc1" in shuttleset22.YOUTUBE_FORMAT
+    for alternative in shuttleset22.YOUTUBE_FORMAT.split("/"):
+        assert "[vcodec^=avc1]" in alternative
     assert command[command.index("--output") + 1] == "08 match.mp4"
     assert command[command.index("--cookies-from-browser") + 1] == (
         "chrome:/scratch/cmarti56/issue106-youtube-chrome"

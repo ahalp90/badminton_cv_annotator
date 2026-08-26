@@ -5,6 +5,8 @@ annotation_sha256 = "2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f433
 expected_fps = "30/1"
 official_channel_id = "UChh-akEbUM8_6ghGVnJd6cQ"
 
+# `overlap_shuttleset_id` uses the separate, pre-existing ShuttleSet ID
+# namespace. It does not refer to another `id` in this ShuttleSet22 manifest.
 [[videos]]
 id = 1
 video = "Ng_Ka_Long_Angus_Lee_Cheuk_Yiu_YONEX_Thailand_Open_2021_QuarterFinals"

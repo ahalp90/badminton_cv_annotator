@@ -27,7 +27,7 @@ DEFAULT_SOURCES = REPO_ROOT / "configs" / "shuttleset22" / "sources.toml"
 DEFAULT_TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"
 YOUTUBE_FORMAT = (
     "bv*[ext=mp4][vcodec^=avc1][fps=30][height<=1080]+ba[ext=m4a]/"
-    "b[ext=mp4][fps=30][height<=1080]"
+    "b[ext=mp4][vcodec^=avc1][fps=30][height<=1080]"
 )
 EXPECTED_IDS = tuple(range(1, 59))
 

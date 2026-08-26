@@ -10,9 +10,17 @@ prepared whole-video perception inputs for the binary shot-classifier work.
 - Eight records overlap ShuttleSet and are excluded from this extraction set.
 - Three records have no frame-aligned public source: 14, 45, and 56.
 
-Each completed source has a gzip-compressed TrackNet CSV, a
-`shuttle_track.npy.xz` array, and the RTMLib pose arrays. The NPY archives use
-LZMA preset 9 and CSV outputs use gzip compression.
+Each completed source directory contains:
+
+- `*_ball.csv.gz`: TrackNet frame, pixel-coordinate, and visibility output.
+- `shuttle_track.npy.xz`: normalized shuttle `(x, y, visible)` rows.
+- `pose_kps.npy.xz`: RTMLib 17-keypoint coordinates.
+- `pose_kp_scores.npy.xz`: confidence for each keypoint.
+- `pose_bboxes.npy.xz`: detected-person bounding boxes.
+- `pose_scores.npy.xz`: confidence for each person detection.
+- `pose_ndet.npy.xz`: detected-person count for each frame.
+
+The six NPY archives use LZMA preset 9. The TrackNet CSV uses gzip level 9.
 
 ## Data locations
 
@@ -22,15 +30,17 @@ The active Bourbaki workspace is:
 /scratch/cmarti56/issue106-shuttleset22-data/
 ```
 
-Its `sources/` directory holds the downloaded videos and `extracted-simple/`
-holds the 4.8 GB extracted arrays. These paths are host-local scratch storage.
-
-A checksum-verified, resumable backup is being copied to this server:
+Its data directories are:
 
 ```text
-/srv/mergerfs/main_pool/320_cosc594_data/ShuttleSet/shuttleset22_raw_video/
-/srv/mergerfs/main_pool/320_cosc594_data/ShuttleSet/shuttleset22_extracted/
+/scratch/cmarti56/issue106-shuttleset22-data/annotations/
+/scratch/cmarti56/issue106-shuttleset22-data/sources/
+/scratch/cmarti56/issue106-shuttleset22-data/extracted-simple/
 ```
+
+`annotations/` holds the 5.7 MB ShuttleSet22 annotation corpus. `sources/`
+holds the 47 newly downloaded videos. `extracted-simple/` holds the 4.7 GB of
+published outputs in 47 match directories. These are host-local scratch paths.
 
 ## Reuse boundary
 
