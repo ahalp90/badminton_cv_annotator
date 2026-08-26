@@ -7,7 +7,7 @@ import logging
 import math
 from collections.abc import Iterable
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 
 import numpy as np
 import pandas as pd
@@ -303,6 +303,15 @@ class Reconciliation(NamedTuple):
     offset: int
 
 
+class GroundTruthVideo(Protocol):
+    """Video identity and ShuttleSet labels required by ``score_video``."""
+
+    name: str
+    video_id: int
+    fps: float
+    gt_set_dir: Path
+
+
 class RallyRow(NamedTuple):
     """One ground-truth rally's boundary mapping and column-level scores.
 
@@ -383,6 +392,7 @@ class VideoScoring(NamedTuple):
     ball_round_diffs: list[int]
     timing_errs: list[int]
     geometric_verdict_rows: dict[int, object]
+    reconciliation: Reconciliation
 
 
 class RunVideoInputs(NamedTuple):
@@ -481,7 +491,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     return RunVideoInputs((track, bboxes, scores, kps, ndet), keyword, master, courts)
 
 
-def load_set_tables(fixture: Fixture, gt_rallies: list) -> dict[str, pd.DataFrame]:
+def load_set_tables(fixture: GroundTruthVideo, gt_rallies: list) -> dict[str, pd.DataFrame]:
     directory = REPO_ROOT / fixture.gt_set_dir
     tables = {path.stem: pd.read_csv(path) for path in sorted(directory.glob("*.csv"))}
     expected = {rally.set_id for rally in gt_rallies}
@@ -490,7 +500,7 @@ def load_set_tables(fixture: Fixture, gt_rallies: list) -> dict[str, pd.DataFram
     return tables
 
 
-def reconcile_sets(fixture: Fixture, master: pd.DataFrame, gt_rallies: list,
+def reconcile_sets(fixture: GroundTruthVideo, master: pd.DataFrame, gt_rallies: list,
                    set_dfs: dict[str, pd.DataFrame]) -> Reconciliation:
     per_vid = master[master["vid"] == fixture.video_id]
     sm_side = {int(frame): _norm_half(str(side)) for frame, side in zip(per_vid["frame_num"], per_vid["player_side"])}
@@ -548,16 +558,19 @@ def reconcile_sets(fixture: Fixture, master: pd.DataFrame, gt_rallies: list,
     return Reconciliation(winners, exact, dedup, mismatch, flipped_n, boundary_flips, offsets.pop())
 
 
-def _hit_height_gt_map(set_dfs: dict[str, pd.DataFrame]) -> dict[tuple[str, int], list[float]]:
+def _hit_height_gt_map(
+    set_dfs: dict[str, pd.DataFrame],
+) -> dict[tuple[str, int, int], float]:
     result = {}
     for set_id, sdf in set_dfs.items():
         for rally, group in sdf.groupby("rally"):
             ordered = group.sort_values("frame_num").drop_duplicates("frame_num", keep="first")
-            result[(set_id, int(rally))] = [float(value) for value in ordered["hit_height"]]
+            for frame, value in zip(ordered["frame_num"], ordered["hit_height"]):
+                result[(set_id, int(rally), int(frame))] = float(value)
     return result
 
 
-def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame, court_info: dict,
+def score_video(fixture: GroundTruthVideo, result: AnnotatorResult, master: pd.DataFrame, court_info: dict,
                 tolerance: int) -> VideoScoring:
     gt = load_gt_rallies(master, fixture.video_id)
     sets = load_set_tables(fixture, gt)
@@ -598,17 +611,17 @@ def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame,
         if covered:
             timing[2] += len(matches)
             timing[3] += rally.n_strokes
-        gt_heights = heights.get((rally.set_id, rally.rally), [])
         hh_eligible = hh_correct = 0
-        for stroke_index in range(rally.n_strokes):
-            gt_height = gt_heights[stroke_index] if stroke_index < len(gt_heights) else math.nan
+        for frame in rally.stroke_frames:
+            gt_height = heights.get((rally.set_id, rally.rally, frame), math.nan)
             if not math.isnan(gt_height):
                 height[1] += 1
                 hh_eligible += 1
                 if covered:
                     height[3] += 1
         for gt_index, candidate_index in matches:
-            gt_height = gt_heights[gt_index] if gt_index < len(gt_heights) else math.nan
+            gt_frame = rally.stroke_frames[gt_index]
+            gt_height = heights.get((rally.set_id, rally.rally, gt_frame), math.nan)
             detected = result.hit_height_by_frame.get(candidates[candidate_index])
             if not math.isnan(gt_height) and detected is not None and int(gt_height) == detected:
                 height[0] += 1
@@ -675,7 +688,7 @@ def score_video(fixture: Fixture, result: AnnotatorResult, master: pd.DataFrame,
         ColumnAgg(*player), ColumnAgg(*server), ColumnAgg(*height), ColumnAgg(*landing), ColumnAgg(*winner),
         contact_matches, len(result.filtered_contacts), sum(r.n_strokes for r in gt), len(result.contacts),
         len(result.filtered_contacts), result.hit_height_failures, ball_round_diffs, timing_errs,
-        result.geometric_verdict_rows)
+        result.geometric_verdict_rows, recon)
 
 
 def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
