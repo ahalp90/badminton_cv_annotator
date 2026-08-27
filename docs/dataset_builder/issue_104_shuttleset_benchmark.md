@@ -263,6 +263,9 @@ run must record its exact source commit, configuration digest, artifact run,
 rally-record digest, ground-truth digest, and evaluator revision. It should use
 the same matching rules and report any changed populations or exclusions.
 
+The [follow-up gates](issue_104_follow_ups.md) state what must change before a
+cut or unresolved feature is reconsidered.
+
 Compare aggregate, per-video, FPS-stratified, and leave-one-video-out results.
 A changed disposition must not depend on one video or a nonzero reconciliation
 offset. New vision inference is needed only when the later run intentionally
