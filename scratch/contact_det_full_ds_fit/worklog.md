@@ -2,10 +2,11 @@
 
 ## Pick up from here
 
-- Current work: check whether saved candidate frames can explain the missed rally starts
-- Next action: review `missed_contact_check_plan.md`, then add the read-only calculation and focused tests
-- Checked so far: the accepted split, saved inputs, all nine timing results, Top/Bottom replay and complete-rally totals
-- Plan section: `plan.md`, “Record the first 40-video result”
+- Current work: make first-model scores for the 32 training videos without training a video's model on that same video
+- Next action: run group A twice in `tmux`
+- Required check: the two group A score files and result files must match byte for byte before groups B, C and D start
+- Current blocker: none; no full fit has started
+- Plan section: `plan.md`, “Next change: plan how one candidate will be chosen”
 
 ## Things to remember
 
@@ -239,3 +240,21 @@
 - Launch check: run group A twice and require identical saved bytes before starting the other three fits
 - Review: an independent plan audit found three blockers; the final pass confirms that the row counts, input hashes and exact 24-video label boundary are fixed
 - Planned commit: `Set the held-out training score groups`
+
+### Added the training-video scorer — 2026-08-27
+
+- Files: `scripts/score_training_videos.py` and its focused tests
+- Change: each fit receives contact labels and training examples from exactly 24 videos, then scores the separate group of eight videos
+- Fixed boundary: the eight validation videos and the eight videos being scored cannot enter a fit's labels or training examples
+- Saved checks: each group records its model, input hashes, training counts and scores; the final combination must match every expected candidate row in the fixed group order
+- Failure handling: group and combined results say `running` before checks begin, so an old complete result cannot survive a failed rerun
+- Launch audit: a test found that the first version overwrote group D's result while combining; separate path names fix it, and the repeat test now covers the failure
+- Review: an independent second pass found no remaining blocker after that fix and the saved training-setting checks
+- Checks: all 107 experiment tests and all 1,893 project tests pass; the pinned type check reports 0 errors; the new files pass Ruff
+- Commit: `3b6297ca Score training videos without training on them`
+
+### Checked the full-fit launch — 2026-08-27
+
+- Local state: the tracked records are present, but the large feature files remain on the compute copy as intended
+- Run state: no full fit started and no result file was created
+- Next action: run group A twice in `tmux`, require equal score and result bytes, then run groups B, C and D and combine them twice

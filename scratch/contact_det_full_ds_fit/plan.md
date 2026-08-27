@@ -205,6 +205,14 @@ later check for the candidate-choice method.
 This next stage only makes the held-out first-model scores. It does not train
 the candidate-choice method or change the rally-start candidate list.
 
+The scorer and its tests are now committed in `3b6297ca`. It checks the fixed
+input hashes and all feature files before reading contact labels. Each fit then
+receives labels from only its 24 training videos. The combined result must
+match every expected candidate row from all 32 videos.
+
+The full fits have not started. Run group A twice in `tmux` and compare both
+saved files before starting groups B, C and D.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:
