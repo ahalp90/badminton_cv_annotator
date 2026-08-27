@@ -35,6 +35,28 @@ def test_label_loader_uses_only_the_allowed_video_rows(tmp_path: Path) -> None:
     }
 
 
+def test_training_video_order_follows_the_fixed_groups() -> None:
+    videos = tuple(
+        SimpleNamespace(fixture=fixture)
+        for fixture in ("sset_01", "sset_02", "sset_03", "sset_04")
+    )
+    split = SimpleNamespace(training_videos=videos)
+    config = SimpleNamespace(training_groups=("A", "B"))
+    groups = {
+        "sset_01": "A",
+        "sset_02": "B",
+        "sset_03": "A",
+        "sset_04": "B",
+    }
+
+    assert runner._training_names_in_group_order(split, config, groups) == [
+        "sset_01",
+        "sset_03",
+        "sset_02",
+        "sset_04",
+    ]
+
+
 def test_label_hash_is_checked_between_timing_and_side_reads(tmp_path: Path) -> None:
     labels_path = tmp_path / "shots_master.csv"
     labels_path.write_text("original\n", encoding="utf-8")

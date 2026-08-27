@@ -174,6 +174,22 @@ def _checked_groups(
     return group_by_fixture
 
 
+def _training_names_in_group_order(
+    split: DevelopmentSplit,
+    config: RallyStartModelConfig,
+    group_by_fixture: Mapping[str, str],
+) -> list[str]:
+    names = [
+        video.fixture
+        for group in config.training_groups
+        for video in split.training_videos
+        if group_by_fixture.get(video.fixture) == group
+    ]
+    if len(names) != len(split.training_videos) or len(set(names)) != len(names):
+        raise ValueError("training group video order differs")
+    return names
+
+
 def _integer(value: str, label: str) -> int:
     try:
         result = int(value)
@@ -497,7 +513,11 @@ def run_rally_start_model(
         split = load_development_split(split_path)
         verify_accepted_development_split(split)
         group_by_fixture = _checked_groups(group_path, split, config)
-        training_names = [video.fixture for video in split.training_videos]
+        training_names = _training_names_in_group_order(
+            split,
+            config,
+            group_by_fixture,
+        )
         validation_names = [video.fixture for video in split.validation_videos]
         _training_payload, training_videos = _checked_input(
             training_summary_path,
