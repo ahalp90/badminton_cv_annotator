@@ -30,6 +30,7 @@ from dataset_builder.models import (
     StageOutcome,
 )
 from dataset_builder.tracknet_input import TrackNetInputMode
+from scraper._llm_provider import LLMProvider, validate_api_key_environment
 
 
 PHASE_ORDER = (
@@ -108,6 +109,9 @@ class BuilderConfig:
     court_device: str
     court_resize_mode: str
     commentary_enabled: bool
+    commentary_provider: str
+    commentary_triage_model: str
+    commentary_clean_model: str
     commentary_api_key_environment: str
     fixed_sources: FixedSourceConfig | None = None
 
@@ -228,7 +232,17 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
             "pose_shards", "court_device", "court_resize_mode",
         },
     )
-    commentary = _section(payload, "commentary", {"enabled", "api_key_environment"})
+    commentary = _section(
+        payload,
+        "commentary",
+        {
+            "enabled",
+            "provider",
+            "triage_model",
+            "clean_model",
+            "api_key_environment",
+        },
+    )
     fixed_sources = _fixed_source_config(payload.get("fixed_sources"), repo_root)
     terms_payload = _object(search["terms"], "search.terms")
     if not terms_payload:
@@ -303,8 +317,21 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
             vision["court_resize_mode"], {"pad", "squash"}, "vision.court_resize_mode",
         ),
         commentary_enabled=_boolean(commentary["enabled"], "commentary.enabled"),
-        commentary_api_key_environment=_nonempty(
-            commentary["api_key_environment"], "commentary.api_key_environment",
+        commentary_provider=_choice(
+            commentary["provider"],
+            {provider.value for provider in LLMProvider},
+            "commentary.provider",
+        ),
+        commentary_triage_model=_nonblank(
+            commentary["triage_model"], "commentary.triage_model",
+        ),
+        commentary_clean_model=_nonblank(
+            commentary["clean_model"], "commentary.clean_model",
+        ),
+        commentary_api_key_environment=validate_api_key_environment(
+            _nonblank(
+                commentary["api_key_environment"], "commentary.api_key_environment",
+            ),
         ),
         fixed_sources=fixed_sources,
     )
@@ -635,6 +662,12 @@ def _exact_fields(payload: Mapping[str, object], expected: set[str], name: str) 
 def _nonempty(value: object, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _nonblank(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-blank string")
     return value
 
 

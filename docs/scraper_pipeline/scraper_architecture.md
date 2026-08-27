@@ -134,6 +134,22 @@ Cleaning makes one language-model call per chunk. Each call returns cleaned
 text and three alternative phrasings. BERTScore compares cleaned and raw text;
 `clean_pass` records whether the result reaches `CLEAN_BERTSCORE_MIN`.
 
+Gemini is the default commentary provider. Dataset-builder TOML files configure
+`provider`, `triage_model`, `clean_model` and `api_key_environment` under
+`[commentary]`. The key setting is an environment variable name. Manifests and
+record provenance store that name, provider and model, but never the key value.
+
+OpenRouter is optional. Set `provider = "openrouter"`, use explicit OpenRouter
+model IDs and point `api_key_environment` at the environment variable holding
+the OpenRouter key. The standalone triage and cleaning commands expose the same
+three values as `--provider`, `--model` and `--api-key-environment`. OpenRouter
+requires both latter flags when selected.
+
+Both routes validate the existing JSON output shape. OpenRouter and supported
+native Gemini models receive provider-enforced JSON schemas. Native Gemma keeps
+Gemini API JSON mode because Google does not list Gemma for structured output;
+the shared boundary validates its parsed JSON locally.
+
 The optional fine-timestamp pass uses WhisperX against the downloaded audio.
 Without WhisperX or CUDA, coarse timestamps remain unchanged.
 
@@ -191,4 +207,3 @@ This document was checked against the current code on 8 August 2026. The former
 private specification is retained as project history under
 `local_scratch/autograder_architecture/archive/source_docs/20260808/` and is not
 required to understand or run the current scraper.
-

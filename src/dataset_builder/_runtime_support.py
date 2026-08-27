@@ -74,6 +74,7 @@ from dataset_builder.shuttle_quality import (
 )
 from dataset_builder.tracknet_input import TrackNetInput
 from scraper import config as scraper_config
+from scraper._llm_provider import LLMSettings
 from scraper.commentary_pairing import CanonicalPairing
 
 
@@ -196,6 +197,20 @@ class RuntimeSupport:
     def _commentary_secret_values(self) -> tuple[str, ...]:
         value = os.environ.get(self.config.commentary_api_key_environment)
         return () if not value else (value,)
+
+    def _triage_llm_settings(self) -> LLMSettings:
+        return LLMSettings.from_values(
+            self.config.commentary_provider,
+            self.config.commentary_triage_model,
+            self.config.commentary_api_key_environment,
+        )
+
+    def _clean_llm_settings(self) -> LLMSettings:
+        return LLMSettings.from_values(
+            self.config.commentary_provider,
+            self.config.commentary_clean_model,
+            self.config.commentary_api_key_environment,
+        )
 
     def _validate_mutable_roots(self) -> None:
         """Reject mutable run roots that could redirect writes outside the run."""
@@ -608,11 +623,12 @@ class RuntimeSupport:
             transcript_method = str(_load_transcript(transcript_path, video_id)["source"])
         chunks = self.state.chunks.get(video_id, [])
         cleaned = any("text_clean" in chunk for chunk in chunks)
+        cleaning_configuration = self._clean_llm_settings().provenance() if cleaned else {}
         return {
             "transcript": {"method": transcript_method, "configuration": {}},
             "cleaning": {
                 "method": "commentary_cleaning" if cleaned else "unavailable",
-                "configuration": {"model": scraper_config.CLEAN_MODEL} if cleaned else {},
+                "configuration": cleaning_configuration,
             },
             "pairing": {
                 "method": "first_chunk_after_rally",

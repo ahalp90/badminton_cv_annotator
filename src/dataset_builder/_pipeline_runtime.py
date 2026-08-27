@@ -617,6 +617,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         ),)
 
     def _triage_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
+        llm_settings = self._triage_llm_settings()
         output = self._stage_dir("triage") / "candidates.csv"
         inputs = {"candidates": self._stage_dir("search") / "candidates.csv"}
         inputs.update(self._transcript_files())
@@ -639,7 +640,10 @@ class DefaultPipelineRuntime(RuntimeSupport):
             self._sync_transcripts()
             rows = deepcopy(self.state.candidates)
             try:
-                keep_by_id = relevance_triage.run_relevance_triage(rows=rows)
+                keep_by_id = relevance_triage.run_relevance_triage(
+                    rows=rows,
+                    llm_settings=llm_settings,
+                )
             except Exception as error:  # noqa: BLE001 - optional external boundary.
                 _write_candidates_snapshot(output, self.state.candidates)
                 return StageExecution(
@@ -660,11 +664,20 @@ class DefaultPipelineRuntime(RuntimeSupport):
         return (self._plan(
             name="triage",
             dependencies=("transcript",),
-            command=(self._current().path, "-m", "scraper.relevance_triage"),
+            command=(
+                self._current().path,
+                "-m",
+                "scraper.relevance_triage",
+                "--provider",
+                llm_settings.provider.value,
+                "--model",
+                llm_settings.model,
+                "--api-key-environment",
+                llm_settings.api_key_environment,
+            ),
             configuration={
                 "enabled": self.config.commentary_enabled,
-                "api_key_environment": self.config.commentary_api_key_environment,
-                "model": scraper_config.TRIAGE_MODEL,
+                **llm_settings.provenance(),
                 "max_output_tokens": scraper_config.TRIAGE_MAX_TOKENS,
                 "request_timeout_seconds": scraper_config.LLM_REQUEST_TIMEOUT_S,
                 "chunk_window_seconds": scraper_config.CHUNK_WINDOW_S,
@@ -828,6 +841,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         )
 
     def _cleaning_plans(self, _manifest: RunManifest) -> Sequence[StagePlan]:
+        llm_settings = self._clean_llm_settings()
         inputs = self._triage_chunk_files()
         inputs.update({f"video.{key}": value for key, value in self.state.videos.items()})
         statuses_path = self._stage_dir("commentary_cleaning") / COMMENTARY_STATUS_FILENAME
@@ -855,7 +869,10 @@ class DefaultPipelineRuntime(RuntimeSupport):
                     self._commentary_unavailable_reason(),
                 )
             try:
-                cleaned = commentary_cleaning.run_clean(rows=selected_rows)
+                cleaned = commentary_cleaning.run_clean(
+                    rows=selected_rows,
+                    llm_settings=llm_settings,
+                )
                 commentary_cleaning.run_fine(scraper_config.VIDEOS_DIR, rows=selected_rows)
             except Exception as error:  # noqa: BLE001 - optional external boundary.
                 self._mark_failed_commentary(selected_rows)
@@ -878,11 +895,22 @@ class DefaultPipelineRuntime(RuntimeSupport):
         return (self._plan(
             name="commentary_cleaning",
             dependencies=dependencies,
-            command=(self._current().path, "-m", "scraper.commentary_cleaning"),
+            command=(
+                self._current().path,
+                "-m",
+                "scraper.commentary_cleaning",
+                "--provider",
+                llm_settings.provider.value,
+                "--model",
+                llm_settings.model,
+                "--api-key-environment",
+                llm_settings.api_key_environment,
+            ),
             configuration={
                 "enabled": self.config.commentary_enabled,
-                "api_key_environment": self.config.commentary_api_key_environment,
-                "clean_model": scraper_config.CLEAN_MODEL,
+                "provider": llm_settings.provider.value,
+                "clean_model": llm_settings.model,
+                "key_environment": llm_settings.api_key_environment,
                 "fine_model": scraper_config.WHISPERX_FINE_MODEL,
                 "alternative_phrasings": scraper_config.ALT_PHRASINGS_K,
                 "bert_score_minimum": scraper_config.CLEAN_BERTSCORE_MIN,

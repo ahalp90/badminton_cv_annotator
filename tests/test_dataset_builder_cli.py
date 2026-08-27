@@ -41,6 +41,7 @@ from dataset_builder.selection import (
 )
 from dataset_builder.shuttle_quality import summarize_shuttle_quality
 from scraper import commentary_cleaning, download_scraped_videos
+from scraper._llm_provider import LLMSettings
 
 ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
 
@@ -50,6 +51,10 @@ def _write_config(
     *,
     max_videos: int = 2,
     commentary_enabled: bool = True,
+    commentary_provider: str = "gemini",
+    commentary_triage_model: str = "gemini-2.5-flash",
+    commentary_clean_model: str = "gemma-4-31b-it",
+    commentary_api_key_environment: str = "GEMINI_API_KEY",
     pose_shards: int = 1,
     fixed_manifest: Path | None = None,
     fixed_source_root_environment: str = "SHUTTLESET_SOURCE_ROOT",
@@ -106,7 +111,10 @@ court_resize_mode = "pad"
 
 [commentary]
 enabled = {str(commentary_enabled).lower()}
-api_key_environment = "GEMINI_API_KEY"
+provider = {json.dumps(commentary_provider)}
+triage_model = {json.dumps(commentary_triage_model)}
+clean_model = {json.dumps(commentary_clean_model)}
+api_key_environment = {json.dumps(commentary_api_key_environment)}
 {fixed_section}
 ''',
         encoding="utf-8",
@@ -302,12 +310,57 @@ def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Pat
     assert config.search_count == 5
     assert config.tracknet_model == tmp_path / "weights" / "tracknet.pt"
     assert config.inpaint_model is None
+    assert config.commentary_provider == "gemini"
+    assert config.commentary_triage_model == "gemini-2.5-flash"
+    assert config.commentary_clean_model == "gemma-4-31b-it"
+    assert config.commentary_api_key_environment == "GEMINI_API_KEY"
     malformed = config_path.read_text(encoding="utf-8").replace(
         "download_workers = 1", "download_workers = 1\nunknown = true",
     )
     config_path.write_text(malformed, encoding="utf-8")
     with pytest.raises(ValueError, match="run fields differ"):
         cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_configuration_rejects_unknown_commentary_provider(tmp_path: Path) -> None:
+    config_path = _write_config(
+        tmp_path / "trial.toml",
+        commentary_provider="unsupported",
+    )
+
+    with pytest.raises(ValueError, match="commentary.provider must be one of"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"commentary_triage_model": "   "},
+        {"commentary_clean_model": "   "},
+        {"commentary_api_key_environment": "   "},
+    ],
+)
+def test_configuration_rejects_blank_commentary_settings(
+    tmp_path: Path,
+    override: dict[str, str],
+) -> None:
+    config_path = _write_config(tmp_path / "trial.toml", **override)
+
+    with pytest.raises(ValueError, match="must be a non-blank string"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_configuration_rejects_invalid_key_environment_name(tmp_path: Path) -> None:
+    invalid_value = "sk-or-v1-DUMMY"
+    config_path = _write_config(
+        tmp_path / "trial.toml",
+        commentary_api_key_environment=invalid_value,
+    )
+
+    with pytest.raises(ValueError, match="portable environment variable name") as caught:
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+    assert invalid_value not in str(caught.value)
 
 
 def test_configuration_rejects_zero_max_videos(tmp_path: Path) -> None:
@@ -489,6 +542,10 @@ class _ConcreteRuntimeFixture:
         *,
         with_commentary: bool = True,
         commentary_enabled: bool = True,
+        commentary_provider: str = "gemini",
+        commentary_triage_model: str = "gemini-2.5-flash",
+        commentary_clean_model: str = "gemma-4-31b-it",
+        commentary_api_key_environment: str = "GEMINI_API_KEY",
         source_basename: str | None = None,
         stale_source_basename: str | None = None,
         commentary_eligible: bool = True,
@@ -508,6 +565,7 @@ class _ConcreteRuntimeFixture:
         self.commentary_eligible = commentary_eligible
         self.with_rally = with_rally
         self.fixed_sources = fixed_sources
+        self.commentary_api_key_environment = commentary_api_key_environment
         self.tracknet_input_mode = tracknet_input.TrackNetInputMode(tracknet_input_mode)
         self.fixed_source_root = tmp_path / "fixed-sources"
         self.fixed_ground_truth_root = tmp_path / "fixed-annotations"
@@ -515,6 +573,10 @@ class _ConcreteRuntimeFixture:
         self.config_path = _write_config(
             tmp_path / "trial.toml",
             commentary_enabled=commentary_enabled,
+            commentary_provider=commentary_provider,
+            commentary_triage_model=commentary_triage_model,
+            commentary_clean_model=commentary_clean_model,
+            commentary_api_key_environment=commentary_api_key_environment,
             max_videos=1 if fixed_sources else 2,
             fixed_manifest=fixed_manifest,
             fixed_ground_truth_root=(self.fixed_ground_truth_root if fixed_sources else None),
@@ -527,6 +589,8 @@ class _ConcreteRuntimeFixture:
         self.video_dir = self.workspace / "videos"
         self.scraper_config = self.runtime_module.scraper_config
         self.boundary_calls: list[str] = []
+        self.triage_llm_settings: LLMSettings | None = None
+        self.clean_llm_settings: LLMSettings | None = None
         self.candidate = self._candidate()
         self.pose = self._pose()
         self.court = vision.CourtVision(((0, 3),), object())
@@ -652,9 +716,9 @@ annotation_directory = "set/match-one"
         for name, value in paths.items():
             monkeypatch.setattr(self.scraper_config, name, value)
         if self.with_commentary:
-            monkeypatch.setenv("GEMINI_API_KEY", "fixture-secret")
+            monkeypatch.setenv(self.commentary_api_key_environment, "fixture-secret")
         else:
-            monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+            monkeypatch.delenv(self.commentary_api_key_environment, raising=False)
         if self.fixed_sources:
             monkeypatch.setenv("SHUTTLESET_SOURCE_ROOT", str(self.fixed_source_root))
         monkeypatch.setattr(self.runtime_module.search_index, "build_candidates", self.search)
@@ -707,8 +771,14 @@ annotation_directory = "set/match-one"
             "segments": [{"start": 0.0, "end": 1.0, "text": "fixture call"}],
         }), encoding="utf-8")
 
-    def triage(self, *, rows: list[dict[str, object]]) -> dict[str, bool]:
+    def triage(
+        self,
+        *,
+        rows: list[dict[str, object]],
+        llm_settings: LLMSettings,
+    ) -> dict[str, bool]:
         self.boundary_calls.append("triage")
+        self.triage_llm_settings = llm_settings
         rows[0]["keep"] = "True"
         self.scraper_config.write_candidates(rows)
         self.chunk_dir.mkdir(parents=True, exist_ok=True)
@@ -752,8 +822,14 @@ annotation_directory = "set/match-one"
         self.boundary_calls.append("metadata")
         return VideoMetadata(source.resolve(), Fraction(25), 3, 100, 50)
 
-    def clean(self, *, rows: list[dict[str, object]]) -> dict[str, int]:
+    def clean(
+        self,
+        *,
+        rows: list[dict[str, object]],
+        llm_settings: LLMSettings,
+    ) -> dict[str, int]:
         self.boundary_calls.append("commentary_cleaning")
+        self.clean_llm_settings = llm_settings
         assert rows[0]["keep"] == "True"
         path = self.chunk_dir / f"{self.video_id}.json"
         chunks = json.loads(path.read_text(encoding="utf-8"))
@@ -931,6 +1007,22 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
             stages[stage_name].configuration["request_timeout_seconds"]
             == fixture.scraper_config.LLM_REQUEST_TIMEOUT_S
         )
+        assert stages[stage_name].configuration["provider"] == "gemini"
+        assert stages[stage_name].configuration["key_environment"] == "GEMINI_API_KEY"
+    assert stages["triage"].configuration["model"] == "gemini-2.5-flash"
+    assert stages["commentary_cleaning"].configuration["clean_model"] == "gemma-4-31b-it"
+    assert fixture.triage_llm_settings is not None
+    assert fixture.triage_llm_settings.provenance() == {
+        "provider": "gemini",
+        "model": "gemini-2.5-flash",
+        "key_environment": "GEMINI_API_KEY",
+    }
+    assert fixture.clean_llm_settings is not None
+    assert fixture.clean_llm_settings.provenance() == {
+        "provider": "gemini",
+        "model": "gemma-4-31b-it",
+        "key_environment": "GEMINI_API_KEY",
+    }
     assert dict(stages["commentary_cleaning"].counts) == {"cleaned": 1, "videos": 1}
     selected = load_selection(fixture.run_dir / "selected_videos.csv.gz")
     assert selected[0].commentary_status == COMMENTARY_NO_PAIR
@@ -945,6 +1037,57 @@ def test_default_runtime_fixture_executes_and_resumes_every_concrete_stage(
     assert fixture.boundary_calls == first_boundary_calls
     assert [event.name for event in second.events] == fixture.expected_stage_names
     assert [(event.name, event.reason) for event in second.events if not event.reused] == []
+
+
+def test_openrouter_runtime_records_effective_settings_without_key_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(
+        tmp_path,
+        monkeypatch,
+        commentary_provider="openrouter",
+        commentary_triage_model="google/gemma-4-26b-a4b-it:free",
+        commentary_clean_model="google/gemma-4-31b-it:free",
+        commentary_api_key_environment="TEST_OPENROUTER_KEY",
+        with_rally=True,
+    )
+
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+
+    stages = {stage.name: stage for stage in result.manifest.stages}
+    assert stages["triage"].configuration == {
+        "enabled": True,
+        "provider": "openrouter",
+        "model": "google/gemma-4-26b-a4b-it:free",
+        "key_environment": "TEST_OPENROUTER_KEY",
+        "max_output_tokens": fixture.scraper_config.TRIAGE_MAX_TOKENS,
+        "request_timeout_seconds": fixture.scraper_config.LLM_REQUEST_TIMEOUT_S,
+        "chunk_window_seconds": fixture.scraper_config.CHUNK_WINDOW_S,
+        "chunk_overlap_seconds": fixture.scraper_config.CHUNK_OVERLAP_S,
+    }
+    cleaning = stages["commentary_cleaning"].configuration
+    assert cleaning["provider"] == "openrouter"
+    assert cleaning["clean_model"] == "google/gemma-4-31b-it:free"
+    assert cleaning["key_environment"] == "TEST_OPENROUTER_KEY"
+    assert fixture.triage_llm_settings is not None
+    assert fixture.triage_llm_settings.provider.value == "openrouter"
+    assert fixture.clean_llm_settings is not None
+    assert fixture.clean_llm_settings.model == "google/gemma-4-31b-it:free"
+    records = vision.load_json_gz(fixture.run_dir / "rally_records.json.gz")["records"]
+    assert records[0]["commentary"]["provenance"]["cleaning"] == {
+        "method": "commentary_cleaning",
+        "configuration": {
+            "provider": "openrouter",
+            "model": "google/gemma-4-31b-it:free",
+            "key_environment": "TEST_OPENROUTER_KEY",
+        },
+    }
+    assert "fixture-secret" not in json.dumps(result.manifest.to_dict())
 
 
 def test_fixed_runtime_bypasses_acquisition_and_reuses_shared_downstream_stages(
@@ -1958,7 +2101,10 @@ def _install_partial_commentary_timeout(
 ) -> list[str]:
     requests: list[str] = []
 
-    def clean_once(text: str) -> dict[str, object]:
+    def clean_once(
+        text: str,
+        _llm_settings: LLMSettings | None = None,
+    ) -> dict[str, object]:
         requests.append(text)
         if text == "fixture call":
             return {
@@ -1968,7 +2114,11 @@ def _install_partial_commentary_timeout(
             }
         raise TimeoutError("commentary request timed out")
 
-    def partial_timeout_clean(*, rows: list[dict[str, object]]) -> dict[str, int]:
+    def partial_timeout_clean(
+        *,
+        rows: list[dict[str, object]],
+        llm_settings: LLMSettings,
+    ) -> dict[str, int]:
         path = fixture.chunk_dir / f"{fixture.video_id}.json"
         chunks = json.loads(path.read_text(encoding="utf-8"))
         chunks.append({
@@ -1978,7 +2128,7 @@ def _install_partial_commentary_timeout(
             "text": "fixture timeout",
         })
         path.write_text(json.dumps(chunks), encoding="utf-8")
-        return ORIGINAL_RUN_CLEAN(rows=rows)
+        return ORIGINAL_RUN_CLEAN(rows=rows, llm_settings=llm_settings)
 
     monkeypatch.setattr(
         fixture.runtime_module.commentary_cleaning,

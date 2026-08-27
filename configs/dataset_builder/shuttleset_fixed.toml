@@ -33,6 +33,9 @@ court_resize_mode = "pad"
 
 [commentary]
 enabled = false
+provider = "gemini"
+triage_model = "gemini-2.5-flash"
+clean_model = "gemma-4-31b-it"
 api_key_environment = "GEMINI_API_KEY"
 
 [fixed_sources]

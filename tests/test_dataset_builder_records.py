@@ -229,7 +229,14 @@ def _source_reference() -> SourceReference:
 def _provenance() -> dict[str, object]:
     return {
         "transcript": {"method": "captions", "configuration": {"language": "en"}},
-        "cleaning": {"method": "gemini", "configuration": {"model": "clean-model"}},
+        "cleaning": {
+            "method": "commentary_cleaning",
+            "configuration": {
+                "provider": "gemini",
+                "model": "clean-model",
+                "key_environment": "GEMINI_API_KEY",
+            },
+        },
         "pairing": {"method": "first_chunk_after_rally", "configuration": {"window_s": 8}},
     }
 
