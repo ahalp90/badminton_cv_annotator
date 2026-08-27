@@ -7,6 +7,6 @@ stage: build
 status: active
 baseline_sha: 5f6da72a609773e28317e1b4e38f4ff7ece2b519
 observed_branch: contact-det-feasibility
-observed_head: bbbeb086
+observed_head: 6368d507
 dirty_state: dirty
 updated_at: 2026-08-27

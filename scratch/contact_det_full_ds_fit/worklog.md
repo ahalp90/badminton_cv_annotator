@@ -3,7 +3,7 @@
 ## Pick up from here
 
 - Current work: save the same checked contact features for every video in the 40-video list
-- Next action: commit the feature-saving code, then compare its three pilot outputs with the saved pilot rows
+- Next action: record the completed pilot check, then prepare features for all 40 videos using the original per-frame motion values
 - Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
 - Plan section: `plan.md`, “Current change: prepare features for any listed video”
 
@@ -59,4 +59,12 @@
 - Change: saves one checked feature file per video, records the input file hashes, and marks a run as complete only after every requested video finishes
 - Checks: 21 small tests, 37 reused pilot tests and all 1,893 project tests pass; Ruff passes for this directory; whole-project Pyrefly passes
 - Review: a fresh read-only reviewer found three important problems; all three were fixed and the reviewer confirmed the fixes
-- Commit: will be included in `Freeze contact features for any video roster`
+- Commit: `6368d507 Freeze contact features for any video roster`
+
+### Checked the three pilot videos — 2026-08-27
+
+- Files: `feature_preparation_audit.md`, `pilot_feature_check.json`
+- Change: ran the committed feature code on `sset_01`, `sset_15` and `sset_21` before starting the 40-video work
+- Result: all 130,624 rows match the saved pilot exactly
+- Check: the saved and new feature-file hashes were checked before row comparison; the saved records contain no machine paths
+- Commit: pending
