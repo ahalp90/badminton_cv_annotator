@@ -39,6 +39,21 @@ If extra contacts cause most complete-rally errors, try removing extras first. T
 
 Write down no more than 12 full model runs before training begins. Keep XGBoost outside the first comparison.
 
+## First baseline chosen
+
+Use `hgb_reference_raw_more_negatives` as the first contact baseline.
+
+It has the best contact F1 and the most fully correct accepted sections among
+the nine fixed runs. The run uses the reference HGB model, original motion
+values, balanced class weights and up to 24 negative examples per positive
+example.
+
+Missing contacts are the main timing problem. In particular, the model finds
+41.8% of first contacts within five frames at 30 frames per second, compared
+with 89.0% of later contacts. The next small contact test should focus on rally
+starts or on adding one missed contact. The result does not support removing
+extra contacts next.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

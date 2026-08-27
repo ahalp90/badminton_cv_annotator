@@ -2,7 +2,10 @@
 
 ## Where the work is now
 
-The scope, video split, feature calculations and nine model runs are fixed. Both feature sets and all nine model runs are complete. Timing results are saved and checked. The current task is to replay the player-side rule and score whole validation rallies before choosing a model.
+The scope, video split, feature calculations and nine model runs are fixed. The
+timing, player-side and complete-rally results are saved and checked. The
+reference raw-motion HGB run with more negative examples is the first baseline.
+The next task is a small follow-up aimed at missed rally starts.
 
 The old three-video experiment stays unchanged. All new code and results live in this directory.
 
@@ -90,7 +93,7 @@ A repeated run must produce the same identities, scores and chosen settings. The
 
 `Score fixed contact train and validation splits`
 
-## Current change: score complete rallies
+## Completed change: score complete rallies
 
 After contact frames are fixed, apply the existing Top/Bottom player rule again at those frames. Load the player-side labels only after the predicted sides are fixed.
 
@@ -104,17 +107,25 @@ The report will show:
 - how many rallies remain as the required confidence rises
 - the main reasons that rallies fail
 
-The new code must reproduce the saved three-video result before using the larger data. The planned commit is:
+The new code reproduced the saved three-video result before it was used on the larger data. The commit is:
 
-`Add full-dataset rally scoring`
+`Score whole rallies after fixing the predictions`
 
-## Record the first 40-video result
+## Completed change: record the first 40-video result
 
-Save the compact result files, plots and plain-language report. Repeat the important totals from the saved per-video predictions to catch reporting mistakes.
+Save the compact result and plain-language report. Repeat the important totals
+from the saved per-video predictions to catch reporting mistakes.
 
-Independent reviewers will check the numbers and the proposed next experiment. The planned commit is:
+A fresh read-only reviewer and a separate local recount checked the numbers and
+the proposed direction. The commit is:
 
 `Record the full-dataset contact baseline`
+
+The local recount supports the saved totals. The leading run reaches 0.8625
+contact F1 at five frames and 99 fully correct sections out of 609 accepted at
+ten frames. Missing contacts are much more common than extra contacts. Ninety-four
+single-rally sections are exactly one contact short with every predicted time
+and player side otherwise correct.
 
 ## Checks before long runs
 

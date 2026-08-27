@@ -2,10 +2,10 @@
 
 ## Pick up from here
 
-- Current work: verify the completed nine-run comparison and add player-side and whole-rally scoring
-- Next action: run the strict result checker on the compute machine, then save player-side predictions before opening rally labels
-- Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
-- Plan section: `plan.md`, “Current change: score complete rallies”
+- Current work: record the checked nine-run baseline and choose the next small contact test
+- Next action: outline the rally-start follow-up and audit it before any long run
+- Checked so far: the accepted split, saved inputs, all nine timing results, Top/Bottom replay and complete-rally totals
+- Plan section: `plan.md`, “Record the first 40-video result”
 
 ## Things to remember
 
@@ -140,4 +140,20 @@
 - Saved results: reports contact timing, player-side answers at three timing limits, whole-rally accuracy, per-video totals and failure counts for all nine runs
 - Review: a fresh read-only review found an out-of-range frame gap, a label-file change gap and a missing order test; the follow-up confirms all three are closed
 - Checks: all 85 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
+- Full result: all nine runs scored across eight validation videos, 5,696 contacts and 668 labelled rallies
+- Commit: `6ef171d0 Score whole rallies after fixing the predictions`
+
+### Checked the first full-data baseline — 2026-08-27
+
+- Files: `baseline_summary.json`, `baseline_report.md`, `decisions.md`, `plan.md`, this worklog
+- Leading run: reference raw-motion HGB with balanced class weights and up to 24 negative examples per positive
+- Timing result: 0.8924 precision, 0.8344 recall and 0.8625 F1 at five frames after adjustment to 30 frames per second
+- Complete-rally result: 99 fully correct sections out of 609 accepted at the main ten-frame limit
+- Error check: among 465 failed sections that line up with one rally, 266 have missing contacts without extras, 42 have extras without missing contacts, 65 have both, and 92 have complete timing but a wrong player side
+- Narrow follow-up case: 94 sections are exactly one contact short with every predicted time and side otherwise correct
+- Start contact result: 41.8% recall at five frames, compared with 89.0% for later contacts
+- Review: a fresh read-only reviewer recalculated the headline totals and agreed with the chosen run
+- Score boundary: the old score checks 677 detected sections rather than one row per labelled rally; the report states the exact counts and confirms that the chosen run remains best when only one-rally sections are compared
+- Count wording: two one-contact rallies have no predictions; they raise the purely numerical one-short count from 94 to 96, but they are not counted as otherwise-good rallies
+- Decision: keep the leading HGB run as the baseline; do not try removing extra contacts next
 - Commit: pending

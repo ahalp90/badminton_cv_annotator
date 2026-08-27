@@ -1,9 +1,12 @@
 # Resume
 
-- Current work and status: the 40-video feature job is running; the nine model runs are written down before validation scoring
-- Next action: check the finished feature files, then add the fixed 32/8 scorer
+- Current work and status: the nine-run baseline is complete and checked; `hgb_reference_raw_more_negatives` is the leading first contact model
+- Next action: write down and audit one small follow-up for missed rally starts before running it
 - Active reviewer: none
-- Branch: `contact-det-feasibility`; last commit `a4c8ec3b Record the pilot feature check`
-- Last useful check: 21 small tests, 37 reused pilot tests and all 1,893 project tests pass; Ruff passes for this directory; whole-project Pyrefly passes
-- Blockers: none
-- Important files: `baseline_runs.md`, `baseline_runs.json`, `feature_preparation_audit.md`, `worklog.md`
+- Branch: `contact-det-feasibility`; last code commit `6ef171d0 Score whole rallies after fixing the predictions`
+- Last useful check: the compact summary matches the saved nine-run result; a fresh read-only reviewer independently confirmed the main totals and model choice
+- Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
+- Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
+- Scoring note: the old whole-rally score checks 677 detected sections rather than one row per labelled rally; `baseline_report.md` explains the counts
+- Blockers: none for local work
+- Important files: `baseline_report.md`, `baseline_summary.json`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
