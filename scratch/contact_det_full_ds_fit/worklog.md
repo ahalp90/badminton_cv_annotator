@@ -111,4 +111,21 @@
 - Review: the first pass found excessive memory use, no check that both feature sets came from the same input files, unchecked invalid scores and incomplete result checks; all four are fixed
 - Follow-up review: confirmed that the final small code move is correct and covered by tests
 - Checks: all 66 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
+- Full-file check: the experiment machine accepted all nine saved runs and all 1,496,146 raw feature rows
+- Commit: `002f9a17 Check the finished contact runs before rally scoring`
+
+### Rechecked the old whole-rally result — 2026-08-27
+
+- Change: reran the existing three-video whole-rally scorer from its saved inputs before adapting it to the eight validation videos
+- Result: the new output and the saved compressed result are byte-for-byte equal
+- Next step: keep the same rally-matching functions and replace only the parts that assume three videos
+
+### Added player-side prediction saving for the validation videos — 2026-08-27
+
+- Files: `scripts/save_validation_rally_predictions.py` and focused tests
+- Change: checks the saved track, pose, court and annotation files before reading them; applies the existing Top/Bottom rule once at each distinct predicted contact; and saves every run's frames, scores, sides and rally ranges
+- Label handling: checks the label file hash as bytes through the earlier result checker but does not parse a contact or player-side row
+- Memory: handles one validation video's large vision arrays at a time and releases them before loading the next video
+- Review: a fresh read-only review found three issues; the final pass confirms all three are closed
+- Checks: all 74 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
 - Commit: pending
