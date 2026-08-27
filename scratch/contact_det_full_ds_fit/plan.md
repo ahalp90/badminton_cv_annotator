@@ -127,6 +127,20 @@ ten frames. Missing contacts are much more common than extra contacts. Ninety-fo
 single-rally sections are exactly one contact short with every predicted time
 and player side otherwise correct.
 
+## Next change: check where contacts are missed
+
+Before another model run, check whether the chosen HGB model has saved
+candidate frames near its missed contacts. Separate first contacts from later
+contacts. Repeat the check for the 94 otherwise-good sections that are exactly
+one contact short.
+
+Keep this read-only. Do not train a model, tune a cut-off or change the saved
+events. The fixed counts and stop rules are in `missed_contact_check_plan.md`.
+
+The planned implementation commit is:
+
+`Check where the baseline misses contacts`
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:

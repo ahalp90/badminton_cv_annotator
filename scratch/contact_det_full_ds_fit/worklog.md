@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: record the checked nine-run baseline and choose the next small contact test
-- Next action: outline the rally-start follow-up and audit it before any long run
+- Current work: check whether saved candidate frames can explain the missed rally starts
+- Next action: review `missed_contact_check_plan.md`, then add the read-only calculation and focused tests
 - Checked so far: the accepted split, saved inputs, all nine timing results, Top/Bottom replay and complete-rally totals
 - Plan section: `plan.md`, “Record the first 40-video result”
 
@@ -156,4 +156,14 @@
 - Score boundary: the old score checks 677 detected sections rather than one row per labelled rally; the report states the exact counts and confirms that the chosen run remains best when only one-rally sections are compared
 - Count wording: two one-contact rallies have no predictions; they raise the purely numerical one-short count from 94 to 96, but they are not counted as otherwise-good rallies
 - Decision: keep the leading HGB run as the baseline; do not try removing extra contacts next
-- Commit: pending
+- Commit: `8e43e9ac Record the full-dataset contact baseline`
+
+### Set the limit for the missed-contact check — 2026-08-27
+
+- File: `missed_contact_check_plan.md`
+- Input: the chosen HGB run and its unchanged validation scores
+- Counts: first and later contacts at five and ten frames, plus the 94 otherwise-good sections that are one contact short
+- Excluded: training, cut-off changes, contact changes, player-side changes, production code and ShuttleSet22 labels
+- Purpose: decide whether a small rally-start selection test has candidate frames to work with
+- Plan review: the saved score file has 283,363 unique video/frame rows and all 5,326 kept frames match the saved predictions; the four explanations now have a fixed order and keep their raw nearby-row counts
+- Implementation commit: `Check where the baseline misses contacts`
