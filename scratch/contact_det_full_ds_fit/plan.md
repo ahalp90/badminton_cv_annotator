@@ -146,7 +146,7 @@ work with. At ten frames, 284 of 364 missed first contacts have a saved
 candidate nearby. All 94 otherwise-correct one-short sections have a nearby
 candidate, and 81 are missing the first contact.
 
-## Next change: test a small rally-start candidate list
+## Completed change: test a small rally-start candidate list
 
 Build a short list without reading contact labels. Include candidates just
 before each detected section as well as candidates inside its start. Fix the
@@ -178,6 +178,24 @@ another.
 The planned implementation commit is:
 
 `Build the rally-start candidate list`
+
+The fixed list passes all four limits. It covers 56 of the 81 target first
+contacts at ten frames and adds 21.96 earlier entries per covered contact.
+Thirty contacts are covered only because the list includes frames before the
+detected section starts.
+
+The list is kept for the next stage. Its 1,230 earlier entries have not been
+added to the baseline.
+
+## Next change: plan how one candidate will be chosen
+
+Do not reuse the pilot's failed hand-written rule. Write a separate plan for a
+small trained choice method.
+
+Before that method can train, make first-model scores for its training videos
+with models that did not train on those videos. Keep the rally-start candidate
+construction unchanged. Set the held-out video split and stop rules before
+training or reading the new results.
 
 ## Checks before long runs
 

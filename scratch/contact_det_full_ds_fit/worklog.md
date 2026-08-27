@@ -211,4 +211,18 @@
 - Fixed distance: requires exactly six frames at 30 fps and uses the baseline frame-rate adjustment
 - Checks: 104 tests in this experiment pass; Ruff passes for the changed files; whole-project Pyrefly reports zero errors
 - Review: an independent code read found three blockers; the follow-up confirms the section assignment, input checks and exact distance are fixed
-- Planned commit: `Build the rally-start candidate list`
+- Commit: `9ceb1823 Build the rally-start candidate list`
+
+### Ran the rally-start candidate check — 2026-08-27
+
+- Files: `rally_start_candidate_summary.json`, `rally_start_candidate_report.md`, this worklog and the other living plan files
+- Saved list: 615 section lists, each with one fixed contact and two earlier candidates; 1,845 entries in total
+- Main result: covers 56 of the 81 target first contacts at ten frames and 45 at five frames
+- Earlier section boundary: 30 of the 56 contacts at ten frames are covered only by candidates before the detected section
+- Cost: 1,230 earlier entries, or 21.96 per covered target contact
+- Limits: all four fixed size and coverage checks pass
+- Repeatability: a second full run produced the same compressed-file hashes
+- Independent recount: found the same 81 targets, 56 covered contacts, 30 covered only before the section, 1,845 entries and 1,230 earlier entries
+- Review: an independent result audit checked the input hashes, output contents and arithmetic and found no blocker
+- Decision: keep the candidate list; plan a separate trained choice method using first-model scores made without training on the same video
+- Planned commit: `Record the rally-start candidate result`

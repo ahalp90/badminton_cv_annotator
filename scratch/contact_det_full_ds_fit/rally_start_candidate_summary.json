@@ -1,0 +1,49 @@
+{
+  "construction_file": "rally_start_candidates.json.gz",
+  "construction_sha256": "d60e7cb5eaa2e5bb01333f587662bf5ad96a546e22e6d89145f36efebdcf5f55",
+  "result_file": "rally_start_candidate_check.json.gz",
+  "result_sha256": "118774d5f5eb24aa819f1d6398c3d6c7b5b8cabf0027628e4a3d85d2320e1fd9",
+  "source_commit": "9ceb1823",
+  "run_id": "hgb_reference_raw_more_negatives",
+  "counts": {
+    "detected_sections": 677,
+    "candidate_lists": 615,
+    "sections_without_kept_contact": 62,
+    "candidate_entries": 1845,
+    "fixed_contact_entries": 615,
+    "earlier_candidate_entries": 1230,
+    "maximum_candidates_in_one_section": 3
+  },
+  "target_first_contacts": {
+    "at_5_frames": {
+      "target_contacts": 81,
+      "covered_contacts": 45,
+      "covered_only_by_candidates_before_section": 26
+    },
+    "at_10_frames": {
+      "target_contacts": 81,
+      "covered_contacts": 56,
+      "covered_only_by_candidates_before_section": 30,
+      "added_candidates_per_covered_contact": 21.964285714285715
+    }
+  },
+  "other_missed_first_contacts": {
+    "at_5_frames": {
+      "missed_first_contacts": 389,
+      "assigned_to_one_detected_section": 290,
+      "covered_first_contacts": 142
+    },
+    "at_10_frames": {
+      "missed_first_contacts": 364,
+      "assigned_to_one_detected_section": 267,
+      "covered_first_contacts": 175
+    }
+  },
+  "limit_checks": {
+    "maximum_candidates_per_section": true,
+    "maximum_total_candidates": true,
+    "minimum_covered_target_contacts": true,
+    "maximum_added_per_covered_contact": true,
+    "all_limits_pass": true
+  }
+}

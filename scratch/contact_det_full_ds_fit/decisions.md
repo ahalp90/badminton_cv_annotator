@@ -78,6 +78,21 @@ entries for each covered first contact.
 These limits were fixed and independently checked before the candidate list
 was built or the saved missed-contact detail was opened.
 
+## Rally-start candidate result
+
+Keep the fixed list. It covers 56 of the 81 target first contacts at ten
+frames. It adds 21.96 earlier entries per covered contact, so all four limits
+pass.
+
+Do not add all candidate entries to the contact stream. Do not reuse the
+pilot's hand-written choice rule. The matching and non-matching candidate
+scores overlap too much to support a simple largest-score rule.
+
+Plan a small trained choice method next. Each training video's first-model
+scores must come from a model that did not train on that video. Keep the
+candidate construction fixed and evaluate the choice method on held-out
+videos.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation
