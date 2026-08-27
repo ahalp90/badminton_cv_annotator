@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: the rally-start contact selection plan is fixed; its validation candidates still need the same label-free player-side fields already saved for training
-- Next action: save and check the enriched validation candidate input before opening human labels
+- Current work and status: the label-free validation input saver is implemented, tested and independently reviewed
+- Next action: commit it, run it on the eight validation videos and repeat the saved build before opening human labels
 - Active reviewer: none
 - Branch: `contact-det-feasibility`; latest commit `c9ea1418 Record the rally-start training inputs`
-- Last useful check: all 116 experiment tests and all 1,893 project tests pass; the pinned type check reports 0 errors; the new files pass Ruff
+- Last useful check: all 121 experiment tests and all 1,893 project tests pass; the pinned type check reports 0 errors; the new files pass Ruff
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts

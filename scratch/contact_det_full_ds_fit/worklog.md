@@ -32,6 +32,9 @@
 - Finding: the frozen validation list has frames and scores but no player-side answer for unkept candidates
 - Decision: replay the existing Top/Bot rule before labels and save one checked validation input
 - Limit: the new step cannot change a candidate, train a model or read a label row
+- Files: `scripts/save_validation_rally_start_inputs.py` and its focused tests
+- Checks: 121 experiment tests and all 1,893 project tests pass; changed files pass Ruff; the pinned type check reports 0 errors
+- Review: an independent read found no code blocker and asked for one real hash-failure test; that test now stops before video inputs load and leaves a clear `running` result
 - Planned commit: `Save the validation rally-start inputs`
 
 ## Current files
