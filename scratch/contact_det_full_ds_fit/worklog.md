@@ -2,17 +2,17 @@
 
 ## Pick up from here
 
-- Current work: make first-model scores for the 32 training videos without training a video's model on that same video
-- Next action: run group A twice in `tmux`
-- Required check: the two group A score files and result files must match byte for byte before groups B, C and D start
-- Current blocker: none; no full fit has started
+- Current work: save the detected sections, contacts, candidate lists and predicted player sides needed for rally-start training
+- Next action: implement and test `training_rally_start_input_plan.md`
+- Required check: reproduce all 1,845 validation entries before preparing the 32 training videos
+- Current blocker: none
 - Plan section: `plan.md`, “Next change: plan how one candidate will be chosen”
 
 ## Things to remember
 
 - The older handover ends at commit `6732d15`. Later pilot work continues through `5f6da72`.
 - The repository's other work-tracking file describes unrelated work. This directory holds the state for the full-data contact experiment.
-- The ShuttleSet22 overlap list and prepared input location still need to be recorded before the final test.
+- The ShuttleSet22 overlap list and prepared input location still need to be checked before the final test.
 - The second code-reading task ran longer than planned. It was stopped and returned useful findings that it checked against the source.
 - The exact list of no more than 12 full model runs must be committed before model training starts.
 - Reports must use simple words and normal speech. They must not invent labels for ordinary ideas.
@@ -258,3 +258,22 @@
 - Local state: the tracked records are present, but the large feature files remain on the compute copy as intended
 - Run state: no full fit started and no result file was created
 - Next action: run group A twice in `tmux`, require equal score and result bytes, then run groups B, C and D and combine them twice
+
+### Scored all training videos with held-out models — 2026-08-28
+
+- Files: four group results, one combined score file, `training_video_score_summary.json` and `training_video_score_report.md`
+- Rows: 1,193,927 score rows and 26,459 kept contacts across all 32 training videos
+- Separation: each group of eight videos was scored by a model trained on the other 24 videos; validation videos were absent from every fit
+- Repeat check: group A and the final combination produced identical files on their second runs
+- Independent check: all input hashes, group lists, row identities, score bounds and kept-contact decisions passed
+- Commit: `9b9bbbfe Record the training-video contact scores`
+
+### Planned the rally-start training inputs — 2026-08-28
+
+- File: `training_rally_start_input_plan.md`
+- Need: the held-out score rows do not contain detected-section boundaries or predicted player sides
+- Source: use the saved label-free video-pipeline result and its already checked shuttle, pose and court inputs
+- Candidate rule: reproduce the frozen validation list exactly, then use the same first-kept-contact plus two-earlier-candidates rule for the 32 training videos
+- Saved progress: one checked file per video, followed by one combined file in fixed group order
+- Boundary: do not open human contact, rally or player-side label rows and do not train a choice method
+- Review: the first read found missing checks for the training row shape, model separation and detected-section source; the revised plan covers all three

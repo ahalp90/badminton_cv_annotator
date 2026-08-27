@@ -107,6 +107,18 @@ Player overlap between groups is accepted. The agreed safeguard is whole-video
 separation. A player-separated split is not practical for the heavily repeated
 25 fps player set, so report these as video-held-out scores.
 
+## Training-video score result
+
+Keep the combined score file. It contains 1,193,927 rows from all 32 training
+videos. Each video was scored by the model trained on the other three groups.
+The four group results and final combination passed their repeat and input
+checks.
+
+Before training the rally-start choice method, save the existing detected
+sections and predicted player sides for these same videos. Build the unchanged
+short candidate list from the held-out scores. Keep this preparation separate
+from human labels and model fitting.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

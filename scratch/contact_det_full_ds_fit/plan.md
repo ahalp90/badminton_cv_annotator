@@ -210,8 +210,15 @@ input hashes and all feature files before reading contact labels. Each fit then
 receives labels from only its 24 training videos. The combined result must
 match every expected candidate row from all 32 videos.
 
-The full fits have not started. Run group A twice in `tmux` and compare both
-saved files before starting groups B, C and D.
+All four fits are complete. Group A and the final combination were each run
+twice and produced identical files. The combined file has 1,193,927 score rows
+for all 32 training videos. An independent check confirmed the fixed groups,
+training separation, input hashes and kept-contact decisions.
+
+The next stage saves the detected sections, kept contacts, short rally-start
+candidate lists and predicted player sides needed for training. It does not
+open human label rows or train the candidate choice method. The exact inputs
+and checks are in `training_rally_start_input_plan.md`.
 
 ## Checks before long runs
 
