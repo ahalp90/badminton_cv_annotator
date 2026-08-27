@@ -151,6 +151,15 @@ loss, correct-addition and recovery checks in
 `rally_start_selection_plan.md`. The eight validation videos are one final
 check of the fixed choice.
 
+## Validation rally-start input result
+
+Keep the completed label-free validation input. It reproduces all 615 fixed
+candidate lists and all 1,845 entries. Its two full saves match byte for byte.
+
+The existing player-side rule answers 629 of the 1,230 earlier candidates and
+has no answer for 601. Keep every row for scoring, but do not let the model
+select a candidate without a player-side answer.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

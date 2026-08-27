@@ -249,6 +249,10 @@ will reproduce the frozen list, replay the existing Top/Bot rule for every
 candidate and save the same fields already available for the 32 training
 videos.
 
+That preparation is complete. The two full saves are equal byte for byte. The
+result keeps all 615 fixed lists and 1,845 entries. The player-side rule has an
+answer for 629 of the 1,230 earlier candidates and no answer for 601.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:

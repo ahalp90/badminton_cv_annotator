@@ -2,9 +2,9 @@
 
 ## Pick up from here
 
-- Current work: save the missing label-free validation candidate sides
-- Next action: add and test the small validation input saver, then return to the training-label join
-- Required check: reproduce all 1,845 frozen entries and the saved kept-contact sides without opening labels
+- Current work: finish the fixed candidate-model code review
+- Next action: commit the model code, then run its six training choices
+- Required check: save validation candidate scores before the validation label loaders can run
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
 
@@ -36,6 +36,16 @@
 - Checks: 121 experiment tests and all 1,893 project tests pass; changed files pass Ruff; the pinned type check reports 0 errors
 - Review: an independent read found no code blocker and asked for one real hash-failure test; that test now stops before video inputs load and leaves a clear `running` result
 - Planned commit: `Save the validation rally-start inputs`
+
+### Saved the validation rally-start inputs — 2026-08-28
+
+- Result: eight videos, 615 section lists, 1,845 entries and 1,230 earlier candidates
+- Player side: 629 earlier candidates have an answer and 601 have no answer
+- Label boundary: every saved label flag is false; no human label row was opened by the saver
+- Repeat: the two full saves are equal byte for byte
+- Privacy: the saved file contains no machine path or server detail
+- Raw result: ignored by Git under `raw/validation_rally_start_inputs/`
+- Planned commit: `Record the validation rally-start inputs`
 
 ## Current files
 
