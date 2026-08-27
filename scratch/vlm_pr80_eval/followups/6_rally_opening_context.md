@@ -1,104 +1,104 @@
-# Follow-up 6: dense rally-opening context
+# Follow-up 6: does a longer rally opening help Intern identify the server?
 
-## Bottom line
+**Result:** No improvement was found in the 12 reviewed cases. The plain 22-second input scored 8/12. Adding a timing hint reduced that to 7/12. Supplying every source frame instead of every second frame changed no answer and cost much more.
 
-Test whether InternVideo3 can identify the server more reliably when it sees the
-whole broadcast transition into a rally opening. Compare all native frames with
-every second native frame. Separately test whether plain-language automatic
-navigation cues help.
+The useful output from this work is the reusable 311-span rally-opening data join, not a better model prompt.
 
-This is a new result. It does not change the completed Follow-up 2 or Follow-up
-4 records.
+## Contents
 
-## Why this test exists
+- [What we wanted to know](#what-we-wanted-to-know)
+- [The reusable data preparation](#the-reusable-data-preparation)
+- [What we tested on the model](#what-we-tested-on-the-model)
+- [What happened](#what-happened)
+- [What this means](#what-this-means)
+- [Conditions for a worthwhile context experiment](#conditions-for-a-worthwhile-context-experiment)
+- [Limits](#limits)
+- [Technical record](#technical-record)
 
-Follow-up 2 gave the model 120 consecutive frames near a proposed rally start.
-That was about four seconds. The view could begin after preparation or omit the
-relationship between an unusual camera view and the normal court view.
+## What we wanted to know
 
-The current annotator already proposes rally spans and accepted contacts.
-PySceneDetect already records broadcast shot changes. Combining those two
-automatic sources gives a deployable way to find openings that may begin in a
-non-standard view.
+The earlier rally-start clips were usually about four seconds long. They could miss the build-up to the serve or the transition from a close-up back to the full court.
 
-## Persistent join
+We therefore built longer continuous openings using only automatic pipeline information and asked whether the extra context helped Intern name the server.
 
-Build one reusable inference manifest for all 311 retained automatic spans.
-Keep its scoring truth in a separate file.
+We also tested two smaller interface questions:
 
-For each automatic span:
+- does adding a plain-language timing hint help?
+- does using every source frame help more than using every second frame?
 
-1. Inspect its first three accepted contacts, or every contact when fewer than
-   three exist.
-2. Find shot changes from two seconds before the first contact through the last
-   inspected contact.
-3. When at least one shot change qualifies, take the complete region from five
-   seconds before the earlier evidence through five seconds after the later
-   evidence.
-4. Retain spans that do not qualify with an explicit reason.
+## The reusable data preparation
 
-The route uses no ground truth. The later crosswalk retains unmatched labelled
-rallies instead of forcing them onto an automatic span.
+All 311 current automatic rally spans were processed.
 
-## Visual range check
+For each span, the builder looked at the first few accepted contact guesses and nearby broadcast shot changes. When a suitable shot change existed, it kept a real continuous evidence region around it. Spans that could not be prepared were retained with a reason rather than silently dropped.
 
-Before inference, inspect median and long selected windows from every fixture
-as local PNG sequences. Select these examples from the inference manifest only.
+The result was:
 
-Use the range check to answer two questions:
+| Automatic preparation result | Count |
+|---|---:|
+| Suitable shot change near early contacts | 253 |
+| Contacts present but no suitable nearby shot change | 57 |
+| No accepted contacts | 1 |
+| **Total** | **311** |
 
-- Does the window contain the non-standard view, the return to court and enough
-  early play to relate the views?
-- Is native density practical, or is every second native frame the sensible
-  upper setting?
+Human labels were not used to decide which automatic spans received an opening window. A separate mapping table connects labelled rallies to those spans for later scoring.
 
-## Frozen comparison
+That separation is worth keeping for future experiments.
 
-Use the routed one-to-one cases that already have independent human visibility
-review. This produces 12 cases across all three fixtures. The selection is
-truth-filtered, although no labels enter the model prompt or clip.
+## What we tested on the model
 
-Give every case one continuous 22-second clip. This duration contains every
-routed window. Add real adjacent broadcast footage to make shorter cases the
-same length; do not pad with repeated frames.
+Twelve reviewed cases were used for the small comparison. The server truth was balanced: six top-side and six bottom-side.
 
-Run three arms with the same pinned InternVideo3 model:
+We tested three versions of the same 22-second opening:
 
-- **Clean half-native:** every second native frame and no automatic timing
-  observations.
-- **Cued half-native:** the same video frames plus one plain-language sentence
-  giving the shot-change time and a broad range covering the first few possible
-  contacts.
-- **Cued native:** all native frames with the same cue.
+| Version | Frames supplied | Extra information |
+|---|---|---|
+| Plain longer input | Every second source frame | None |
+| Longer input + timing hint | Every second source frame | Approximate shot-change/contact region |
+| Timing hint + every frame | Every source frame | Same timing hint |
 
-The cue states that possible contacts may be returns or later shots. It does
-not include the heuristic server prediction. The prompt also warns that the
-close-up player is not necessarily the server.
+The model only had to answer top, bottom, or unclear, with a short explanation.
 
-Ask only for `top`, `bottom` or `unclear`, plus one short evidence sentence.
-Score server attribution only.
+## What happened
 
-## Evidence gates
+![Longer rally-opening comparison](../figures/rally_opening.png)
 
-- Use exactly the same 12 case identities in all arms.
-- Require the expected complete frame grid: 275 or 330 frames at half-native;
-  550 or 660 frames at native density.
-- Require zero generation errors and zero parser errors.
-- Validate every attempt against the frozen case, prompt and clip hashes before
-  scoring.
-- Report paired gains and regressions. Do not rely only on the three totals.
+| Version | Correct server answers |
+|---|---:|
+| Plain longer input | **8/12** |
+| Longer input + timing hint | 7/12 |
+| Timing hint + every frame | 7/12 |
 
-Treat a one-case movement as descriptive noise in this 12-case subset. A
-practical prompt or density change needs at least two net additional correct
-answers without hiding failures behind abstention.
+The timing hint changed one answer: a previously correct answer became wrong. No wrong answer became correct.
 
-## Interpretation boundary
+Using every source frame instead of every second frame changed **none of the 12 answers**. It roughly doubled the visual input and increased total inference time for the two timing-hint runs from about 171 seconds to 397 seconds.
 
-The clean-versus-cued pair isolates the navigation sentence at half-native
-density. The half-versus-native pair isolates frame density with the cue held
-constant.
+The plain 22-second version also ended on the same 8/12 total as the earlier short-clip test for these 12 cases. Individual answers changed—two cases improved and two regressed—so the equal total is not evidence that clip length has no effect. It simply did not produce a net gain here.
 
-Comparison with Follow-up 2 is descriptive because this trial changes the clip
-length, framing, task and prompt together. A strong result would justify a new
-wider evaluation and a prospective reassessment of the operational choice. It
-would not rewrite the historical Follow-up 2 finding.
+## What this means
+
+The 311-span opening-window preparation and its separate label mapping remain useful infrastructure because they make future context experiments easier to run without leaking human answers into input selection.
+
+For this 22-second representation, every second source frame is the more efficient default supported by this test.
+
+The tested timing hint has no demonstrated benefit, and every-frame versions of the same representation add inference cost without changing the observed answers.
+
+Most importantly, the 12-case result does not support widening this model experiment because it did not improve server identification.
+
+## Conditions for a worthwhile context experiment
+
+A useful future study needs a specific account of the evidence that a longer opening is expected to reveal. “More video may help” is too weak a hypothesis.
+
+A stronger experiment would test a representation that links the pre-serve close-up, the return to full court, and the first exchange, with a matched comparison that isolates that change.
+
+## Limits
+
+This is only a 12-case diagnostic and is not an estimate of accuracy across the 253 prepared spans. Fixture representation is uneven, and only Intern was tested.
+
+## Technical record
+
+The compact result is
+[`6_rally_opening_context.json.gz`](evidence/6_rally_opening_context.json.gz).
+The 311-span preparation manifest, separate label mapping, 12-case scoring
+truth, raw replies, and code are indexed in
+[`technical_index.md`](technical_index.md).

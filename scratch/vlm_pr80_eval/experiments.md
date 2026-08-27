@@ -315,7 +315,7 @@ A retry caused only by an invalid reply is not counted as a new experiment.
 ## Evidence
 
 - [`README.md`](README.md) — short overall explanation
-- [`results.md`](results.md) — retained measurements and limits
+- [`RESULTS_FIRST_EXPERIMENTS.md`](RESULTS_FIRST_EXPERIMENTS.md) — retained measurements and limits
 - [`experiments/results/summary.json`](experiments/results/summary.json) — machine-readable counts
 - [`evaluation.md`](evaluation.md) — detailed diagnosis of PR 80
 - [`prompts.md`](prompts.md) — prompt history and exact builders

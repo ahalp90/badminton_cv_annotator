@@ -1,4 +1,7 @@
-# Results
+# Results from the first VLM cleanup experiments
+
+> This report covers the initial PR 80 investigation. See [README.md](README.md)
+> for the complete record, including the six later follow-up experiments.
 
 ## Bottom line
 
@@ -96,7 +99,7 @@ Intern's long view found all nine non-live targets in the routing pilot, but it 
 Adding the long-view result as text to the local prompt did not help. Adding automatic pipeline facts also did not help. Showing the long-range and local frames together made Intern much worse at flagging non-live footage for further checking.
 
 
-![Bar chart comparing the best local scene input with the broader-context variant](figures/context_vs_local.png)
+![Bar chart comparing the best local scene input with the broader-context variant](figures/context_vs_local_first_experiments.png)
 
 *On the 19-segment Intern pilot, adding 80 sparse frames from about 90 seconds of context sharply reduced non-live detection. The local 120-frame view was better.*
 
@@ -124,7 +127,7 @@ The comparison paths are **not** human-confirmed correct tracks. They mainly che
 Across development and held-out cases, the best marked view rejected **16 of 18 known bad paths** and accepted all 18 comparison paths.
 
 
-![Bar chart showing the effect of making shuttle-track evidence easier to see](figures/tracker_prompt_evolution.png)
+![Bar chart showing the effect of making shuttle-track evidence easier to see](figures/tracker_prompt_evolution_first_experiments.png)
 
 *Intern improved as the shuttle-track evidence became easier to inspect. Slowing and enlarging the marked region preserved acceptance of the comparison paths while increasing rejection of known bad tracks.*
 

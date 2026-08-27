@@ -78,8 +78,8 @@ The first automatic comparison should treat the VLM as one signal:
 4. Freeze the simple final rule on the development videos before the held-out
    video is read.
 
-The later contact-model comparison and stop rules are in
-`contact_model_followup.md`.
+The possible later contact-model comparison and stop rules are in
+[`possible_further_followup.md`](../possible_further_followup.md).
 
 ## Existing evidence is useful but limited
 

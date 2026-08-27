@@ -126,16 +126,16 @@ fallible conclusions. It does not add an internal live or replay label.
 
 ## Evidence references
 
-- [`build_multiscale_trials.py`](../experiments/build_multiscale_trials.py)
+- [`build_multiscale_trials.py`](../../experiments/build_multiscale_trials.py)
   defines the whole-span automatic priors used in the completed facts arm
-- [`build_detail_from_context.py`](../experiments/build_detail_from_context.py)
+- [`build_detail_from_context.py`](../../experiments/build_detail_from_context.py)
   shows how those priors were copied into each inspected segment
-- [`signals.md`](../experiments/signals.md) records the available automatic
+- [`signals.md`](../../experiments/signals.md) records the available automatic
   signals, their measured strengths and the `filtered_contacts` limitation
-- [`sset_01` replay and serve measurement](../../../docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_replay_and_serve_behaviour_20260805/report.md)
+- [`sset_01` replay and serve measurement](../../../../docs/scraper_pipeline/broadcast_nonstandard_camera_id/data/sset_01_replay_and_serve_behaviour_20260805/report.md)
   records the replay-mask component results and the 61 adjudicated source
   relations
-- [Follow-up 1 scene comparison](results/1_scene_comparison.md) records the
+- [Follow-up 1 scene comparison](../1_scene_comparison.md) records the
   paired Qwen and Intern scene results
 
 ## Follow-up 2 remains the clean gate

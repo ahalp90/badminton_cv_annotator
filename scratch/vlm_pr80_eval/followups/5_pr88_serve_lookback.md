@@ -1,71 +1,89 @@
-# Follow-up 5: reconcile the clean serve result with PR 88
+# Follow-up 5: what does PR 88’s deterministic serve rule justify?
 
-## Bottom line
+**Result:** PR 88 has enough development evidence to justify an unchanged test on unseen rallies. The current evidence does not justify a PR 88/VLM hybrid.
 
-**Status: complete.** PR 88 recomputes exactly, but the retained evidence does
-not justify a VLM hybrid. No hybrid experiment was run. See
-[`results/5_pr88_serve_lookback.md`](results/5_pr88_serve_lookback.md).
+## Contents
 
-The frozen plan was to inspect PR 88 only after Follow-ups 3 and 4 were
-complete, then test at most one simple serve-lookback hybrid justified by its
-retained evidence.
+- [What we wanted to know](#what-we-wanted-to-know)
+- [What PR 88 does, in plain language](#what-pr-88-does-in-plain-language)
+- [What we checked](#what-we-checked)
+- [What happened on the development set](#what-happened-on-the-development-set)
+- [Why the VLM overlap does not justify a hybrid](#why-the-vlm-overlap-does-not-justify-a-hybrid)
+- [What this means](#what-this-means)
+- [Limits](#limits)
+- [Technical record](#technical-record)
 
-This is a separate follow-up. It may change the recommended future route, but
-it does not rewrite the clean experiments that came before it.
+## What we wanted to know
 
-## Preserve the boundary
+PR 88 introduced a deterministic way to reconsider which player served by looking at shuttle motion around the first accepted contacts.
 
-Before reading PR 88, freeze:
+The question here was not “can we invent a hybrid?” It was whether the existing PR 88 evidence gave us a clear, justified reason to combine the rule with a VLM now.
 
-- the Follow-up 3 precision-first rule and held-out result;
-- the Follow-up 4 evidence comparison;
-- any paired model confirmation triggered by Follow-up 4;
-- the chosen clean configuration and its end-to-end result.
+It did not.
 
-Do not use PR 88 to retune those results after seeing its mechanisms or scores.
+## What PR 88 does, in plain language
 
-## Audit PR 88 first
+The current pipeline can mistake an early shuttle movement for the first real contact. That can lead to the wrong server or the wrong first visible stroke.
 
-Record what the serve-lookback work actually tested:
+PR 88 looks through the early accepted contacts until it finds one followed by credible shuttle movement away from the player credited with that contact. It then looks at the shuttle path just before the contact:
 
-- its intended failure case;
-- the automatic evidence available at inference time;
-- the labelled data and scoring rule;
-- the implementation paths;
-- the retained manifests, outputs and row-level evidence;
-- its limits and any claims that cannot be reproduced from the repository.
+- movement toward that player looks more like a return, so the other player is proposed as the server;
+- movement consistent with a serve keeps the selected player as server;
+- poor or unusable motion evidence falls back to the previous PR 82 answer.
 
-Do not infer a mechanism or benefit that the pull request does not establish.
+The rule also rejects obviously bad tracking paths before using them.
 
-## Choose at most one hybrid
+## What we checked
 
-Compare PR 88 with the frozen clean route. Select one addition only when the
-retained evidence gives a concrete reason that it could address a remaining
-error.
+The retained PR 88 package was recomputed from its stored inputs. The development set contains 239 rallies across three fixtures.
 
-The hybrid must:
+The recomputation matched the retained outputs, confirming that the deterministic calculation is reproducible from the stored evidence.
 
-- use automatic evidence available in the real pipeline;
-- make one small, explainable change;
-- keep the frozen clean configuration unchanged as the baseline;
-- avoid a new parameter or prompt sweep;
-- avoid human labels during inference.
+That check does **not** make the result an unseen validation. The rule was assembled while looking at this development population.
 
-If PR 88 contains no justified addition, record that finding and do not invent
-an experiment to fill the slot.
+## What happened on the development set
 
-## Score and decide
+![PR 88 development result](../figures/pr88_development.png)
 
-Use the same relevant scoring fields as the frozen clean result. Keep local VLM
-scores separate from end-to-end rally results.
+| Measure | PR 82 | PR 88 | Change |
+|---|---:|---:|---:|
+| Server correct | 163/239 | **170/239** | +7 |
+| First visible stroke correct | 125/239 | **132/239** | +7 |
+| Both correct | 96/239 | **117/239** | +21 |
+| Server answers repaired | — | 20 | — |
+| Server answers damaged | — | 13 | — |
 
-Report:
+This is encouraging enough to justify a clean next test. It is not enough to claim that PR 88 generalises.
 
-- what changed in the hybrid;
-- which cases changed;
-- whether server, serve state or contact timing improved;
-- whether any new unsupported exact claims appeared;
-- whether complete rally annotations improved;
-- whether the evidence supports keeping the hybrid.
+## Why the VLM overlap does not justify a hybrid
 
-Freeze this report as the end of the planned VLM follow-up series.
+Only 14 of the 32 reviewed VLM cases also appear in PR 88’s 239-rally development population.
+
+On those 14 selected cases, Intern identified 10 servers correctly and PR 88 identified eight. That sample is too small and too selective to establish when either method is more trustworthy than the other.
+
+A useful hybrid would need a representative set where both methods are evaluated on the same cases, plus a rule—chosen without looking at the final test labels—for deciding which method to trust.
+
+We do not have that evidence yet.
+
+Follow-up 4 also showed that simply feeding a fallible pipeline proposal to Intern can make its server answer worse. That does not prove a PR 88 proposal would behave the same way, but it removes the easy assumption that “give both answers to the VLM” is a safe next step.
+
+## What this means
+
+At branch close, the justified next test was straightforward: **an unchanged PR 88 evaluation on rallies that were not used to develop it.**
+
+The informative result includes server identification, first visible stroke, both together, direct PR 88 decisions versus fallback decisions, and repairs/damages relative to PR 82, with fixture or broadcast convention shown separately as well as overall.
+
+A strong unseen result would justify a later decision about adoption or a new integration study. A VLM hybrid is a separate question and is not part of the validation step.
+
+## Limits
+
+The retained result is development-only. The small 14-case VLM overlap is not a representative benchmark, and no new VLM inference or unseen PR 88 evaluation was run in this follow-up.
+
+The package also does not rerun upstream tracking, pose, contact detection, or rally segmentation; it verifies the retained deterministic calculation from stored inputs.
+
+## Technical record
+
+The compact result is
+[`5_pr88_serve_lookback.json.gz`](evidence/5_pr88_serve_lookback.json.gz). The
+PR 88 report, rule implementation, recomputation tool, detailed results, and
+exact audit boundaries are indexed in [`technical_index.md`](technical_index.md).

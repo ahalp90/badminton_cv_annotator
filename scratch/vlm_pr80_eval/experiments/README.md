@@ -40,8 +40,10 @@ in [`../prompts.md`](../prompts.md).
 - `analyse_detail_routes.py`: compares detail arms and simple two-model rules.
 - `backends/`: the exact pinned PR 80 adapters made local to this experiment.
 - `signals.md`: useful annotator fields for routing and prompts.
-- `next_experiment.md`: the multiscale protocol and its current status.
-- `contact_model_followup.md`: the later contact-model and VLM comparison.
+- `long_context_experiments.md`: the completed long-context experiments and
+  their decisions.
+- [`../possible_further_followup.md`](../possible_further_followup.md): a
+  possible later contact-model and VLM comparison.
 - `results/summary.json`: compact results from the completed bounded trials.
 
 ## Requirements
@@ -144,11 +146,8 @@ a time and record the empty GPU state when they finish.
 
 Run chunky jobs inside `tmux` on a shared machine.
 
-For the multiscale work, each job must write `status.json` and a final `DONE`
-or `FAILED` marker. The main session must not repeatedly poll the remote host.
-Use one blocking `tmux wait-for` watcher, preferably owned by a cheap Luna
-agent, or make one delayed marker check near the expected finish time. See
-[`next_experiment.md`](next_experiment.md#remote-runs-without-repeated-polling).
+For the multiscale work, each job writes `status.json` and a final `DONE` or
+`FAILED` marker.
 
 ## Score the result
 
@@ -204,13 +203,15 @@ python -m experiments.replay_pair_trials score \
 Keep every path under a new run directory. The public wrapper refuses to mix a
 retry with an existing output.
 
-## Current result and next step
+## Historical result
 
-The completed bounded measurements are summarised in `../results.md` and
+The completed bounded measurements are summarised in
+`../RESULTS_FIRST_EXPERIMENTS.md` and
 `results/summary.json`. Do not rerun them merely to recreate old logs. The
 multiscale work is complete. Its broad, fact-bearing, combined-visual, and
 two-model paths all lost to InternVideo3's 120-frame short-only arm. The
 463-target wide run then found only 44.7% of material unsafe targets. Stronger
 replay wording and the direct replay pair also failed. The scene rule is not a
-safe automatic keep rule. The next meaningful comparison follows the frozen
-contact-detector output in `contact_model_followup.md`.
+safe automatic keep rule. A possible later comparison using frozen
+contact-detector output is preserved in
+[`../possible_further_followup.md`](../possible_further_followup.md).
