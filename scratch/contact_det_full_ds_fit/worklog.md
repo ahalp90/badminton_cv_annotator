@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: finish the fixed candidate-model code review
-- Next action: commit the model code, then run its six training choices
+- Current work: run the fixed candidate-model comparison
+- Next action: commit the reviewed model code, sync it and launch the six training choices
 - Required check: save validation candidate scores before the validation label loaders can run
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
@@ -46,6 +46,17 @@
 - Privacy: the saved file contains no machine path or server detail
 - Raw result: ignored by Git under `raw/validation_rally_start_inputs/`
 - Planned commit: `Record the validation rally-start inputs`
+
+### Added the fixed candidate-model runner — 2026-08-28
+
+- Menu: logistic regression and shallow histogram gradient boosting, each at cut-offs 0.5, 0.7 and 0.9
+- Separation: each A–D group is scored by a candidate model trained on the other three groups; the exact first contact model training set is also checked for every video
+- Label order: read training timing, check the label-file hash, read training player side, and check the hash again
+- Validation boundary: save all validation candidate scores before either validation label loader can run
+- Contact change: keep every baseline contact and add at most one earlier contact to a section
+- Saved checks: write every held-out score and training answer; rebuild the contact streams twice; recount the action totals from the saved rows
+- Review: the first read found a combined label read and an unstated cut-off tie; both are fixed, and the second read found no blocker
+- Planned commit: `Train the rally-start contact model`
 
 ## Current files
 

@@ -190,8 +190,9 @@ addition.
 
 Among choices that pass, use the one with the most fully correct sections.
 Break ties with fewer added contacts, then higher correct-addition rate, then
-logistic regression. If none pass, record that result and stop this rally-start
-follow-up.
+logistic regression, then the higher selection cut-off. The last rule makes an
+otherwise equal choice more cautious. If none pass, record that result and
+stop this rally-start follow-up.
 
 ## One validation check
 
