@@ -14,9 +14,9 @@ column parses True:
      kept chunk to snap the coarse start/end to word-level boundaries. GPU only
      (D23); a no-op with a log line when WhisperX or CUDA is absent.
 
-The real Gemini call is reached only outside the test venv (google-genai is not
-installed there); tests fake it via monkeypatch. The WhisperX and torch imports
-are function-local for the same reason: importing this module must never fail.
+The real provider call is reached only outside the test venv; tests fake it via
+monkeypatch. The optional SDK, WhisperX, and torch imports stay function-local
+so importing this module must never fail.
 
 Descended from the proof-of-concept relevance-triage skeleton. The LLM
 retry/backoff wrapper and Gemini call shape are ported from there.
@@ -24,13 +24,22 @@ retry/backoff wrapper and Gemini call shape are ported from there.
 import argparse
 import json
 import logging
-import os
 import subprocess
 import tempfile
 import time
 from pathlib import Path
 
-from ._llm_errors import DailyRequestQuotaError, daily_request_quota_exhausted
+from ._llm_errors import (
+    DailyRequestQuotaError,
+    daily_request_quota_exhausted,
+    provider_error_is_retryable,
+)
+from ._llm_provider import (
+    LLMProvider,
+    LLMSettings,
+    generate_structured_json,
+    resolve_cli_settings,
+)
 from .config import (
     ALT_PHRASINGS_K,
     API_KEY_ENV,
@@ -39,6 +48,7 @@ from .config import (
     CLEAN_MODEL,
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
+    LLM_PROVIDER,
     LLM_REQUEST_TIMEOUT_S,
     TRIAGE_MAX_TOKENS,
     VIDEO_EXTENSIONS,
@@ -70,55 +80,63 @@ CLEAN_SYSTEM_PROMPT = (
 
 
 class CleanError(RuntimeError):
-    """Raised when an LLM clean call fails after all retries."""
+    """Raised when an LLM clean call is rejected or exhausts its retries."""
 
 
-def _clean_once(text: str) -> dict:
-    """Single Gemini clean+paraphrase call for one chunk. Never runs in tests.
+CLEAN_RESPONSE_SCHEMA: dict[str, object] = {
+    'type': 'object',
+    'properties': {
+        'text_clean': {'type': 'string'},
+        'alt_phrasings': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'minItems': ALT_PHRASINGS_K,
+            'maxItems': ALT_PHRASINGS_K,
+        },
+    },
+    'required': ['text_clean', 'alt_phrasings'],
+    'additionalProperties': False,
+}
 
-    Builds the same request as the proof-of-concept triage: model, contents, and
-    a config carrying the system instruction, token cap and a JSON response mime
-    type. The client reads the key from ``os.environ[API_KEY_ENV]``; we confirm
-    the env var is set by name only and never read or log its value.
+
+def default_llm_settings() -> LLMSettings:
+    """Return the unchanged Gemini cleaning defaults."""
+    return LLMSettings.from_values(LLM_PROVIDER, CLEAN_MODEL, API_KEY_ENV)
+
+
+def _clean_once(text: str, llm_settings: LLMSettings | None = None) -> dict:
+    """Make one structured clean+paraphrase call for one chunk.
+
+    The provider boundary receives the existing prompt and a JSON schema that
+    matches the existing clean result. It reads the configured key without
+    logging or persisting it.
 
     :param text: raw commentary text of one chunk.
     :return: dict with 'text_clean' (str) and 'alt_phrasings' (list of str).
     """
-    request_params = {
-        'model': CLEAN_MODEL,
-        'contents': text,
-        'config': {
-            'system_instruction': CLEAN_SYSTEM_PROMPT,
-            'max_output_tokens': TRIAGE_MAX_TOKENS,
-            'response_mime_type': 'application/json',
-        },
-    }
-
-    from google import genai
-    from google.genai import types
-
-    if API_KEY_ENV not in os.environ:
-        raise RuntimeError(f'{API_KEY_ENV} is not set')
-    client = genai.Client(http_options=types.HttpOptions(
-        timeout=LLM_REQUEST_TIMEOUT_S * 1000,
-    ))
-    response = client.models.generate_content(**request_params)
-    parsed = json.loads(response.text)
+    parsed = generate_structured_json(
+        default_llm_settings() if llm_settings is None else llm_settings,
+        CLEAN_SYSTEM_PROMPT,
+        text,
+        CLEAN_RESPONSE_SCHEMA,
+        'commentary_cleaning',
+        TRIAGE_MAX_TOKENS,
+        LLM_REQUEST_TIMEOUT_S,
+    )
+    if not isinstance(parsed, dict):
+        raise TypeError('clean response is not a JSON object')
     return {
         'text_clean': parsed['text_clean'],
         'alt_phrasings': parsed['alt_phrasings'],
     }
 
 
-def call_clean_llm(text: str) -> dict:
+def call_clean_llm(text: str, llm_settings: LLMSettings | None = None) -> dict:
     """Call the clean LLM for one chunk with retry and exponential backoff.
 
-    Ported from the proof-of-concept wrapper: catch broadly (the real SDK raises typed
-    errors on rate limits and transient faults), back off ``LLM_BACKOFF_BASE_S``
-    doubled per attempt, and raise ``CleanError`` after ``LLM_MAX_RETRIES`` so
-    the coordinator can mark the optional stage unavailable. An exhausted daily
-    request quota raises ``DailyRequestQuotaError`` immediately because it
-    cannot recover during this run.
+    Transient and native Gemini failures back off and retry. Provider failures
+    classified as non-retryable stop immediately. An exhausted native Gemini
+    daily quota raises ``DailyRequestQuotaError`` immediately.
 
     :param text: raw commentary text of one chunk.
     :return: dict with 'text_clean' and 'alt_phrasings'.
@@ -126,13 +144,17 @@ def call_clean_llm(text: str) -> dict:
     last_error: Exception | None = None
     for attempt in range(LLM_MAX_RETRIES):
         try:
-            return _clean_once(text)
+            if llm_settings is None:
+                return _clean_once(text)
+            return _clean_once(text, llm_settings)
         except Exception as error:  # noqa: BLE001 - real code catches SDK errors
             last_error = error
             if daily_request_quota_exhausted(error):
                 raise DailyRequestQuotaError(
                     "clean call stopped because the daily request quota is exhausted"
                 ) from error
+            if not provider_error_is_retryable(error):
+                raise CleanError(f'clean call rejected by the provider: {error}') from error
             if attempt == LLM_MAX_RETRIES - 1:
                 break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
@@ -182,7 +204,11 @@ def _score_chunks(chunks: list[dict]) -> dict[int, float]:
     return {index: float(score) for index, score in enumerate(f1_scores)}
 
 
-def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, int]:
+def run_clean(
+    rows: list[dict] | None = None,
+    force: bool = False,
+    llm_settings: LLMSettings | None = None,
+) -> dict[str, int]:
     """Run the clean+paraphrase pass over every kept video's chunk sidecar.
 
     Kept videos are those whose ``keep`` column parses ``== 'True'`` (parse, never
@@ -221,7 +247,11 @@ def run_clean(rows: list[dict] | None = None, force: bool = False) -> dict[str, 
                     continue
                 if 'text_clean' in chunk and not force:
                     continue
-                result = call_clean_llm(chunk['text'])
+                result = (
+                    call_clean_llm(chunk['text'])
+                    if llm_settings is None
+                    else call_clean_llm(chunk['text'], llm_settings)
+                )
                 chunk['text_clean'] = result['text_clean']
                 chunk['alt_phrasings'] = result['alt_phrasings']
                 chunk['_score_pending'] = True
@@ -459,6 +489,13 @@ def main() -> None:
                         help='Re-clean chunks that already carry text_clean')
     parser.add_argument('--video-dir', type=Path,
                         help='Dir of <video_id>.<ext> videos for the fine pass')
+    parser.add_argument(
+        '--provider',
+        choices=[provider.value for provider in LLMProvider],
+        default=LLM_PROVIDER,
+    )
+    parser.add_argument('--model')
+    parser.add_argument('--api-key-environment')
     args = parser.parse_args()
 
     run_clean_pass = not args.fine_only
@@ -466,7 +503,17 @@ def main() -> None:
 
     if run_clean_pass:
         print('=== Commentary clean pass ===')
-        run_clean(force=args.force)
+        try:
+            settings = resolve_cli_settings(
+                args.provider,
+                args.model,
+                args.api_key_environment,
+                gemini_model=CLEAN_MODEL,
+                gemini_api_key_environment=API_KEY_ENV,
+            )
+        except ValueError as error:
+            parser.error(str(error))
+        run_clean(force=args.force, llm_settings=settings)
 
     if run_fine_pass:
         if args.video_dir is None:

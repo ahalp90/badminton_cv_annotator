@@ -17,10 +17,19 @@ quota error instead terminates the batch immediately, before another request.
 """
 import argparse
 import json
-import os
 import time
 
-from ._llm_errors import DailyRequestQuotaError, daily_request_quota_exhausted
+from ._llm_errors import (
+    DailyRequestQuotaError,
+    daily_request_quota_exhausted,
+    provider_error_is_retryable,
+)
+from ._llm_provider import (
+    LLMProvider,
+    LLMSettings,
+    generate_structured_json,
+    resolve_cli_settings,
+)
 from .config import (
     API_KEY_ENV,
     CHUNK_OVERLAP_S,
@@ -31,6 +40,7 @@ from .config import (
     DENSITY_MIN_PER_MIN,
     LLM_BACKOFF_BASE_S,
     LLM_MAX_RETRIES,
+    LLM_PROVIDER,
     LLM_REQUEST_TIMEOUT_S,
     SHORT_VIDEO_MIN_S,
     TRIAGE_BLOCK_MIN_FAILURES,
@@ -44,7 +54,27 @@ from .config import (
 
 
 class TriageError(RuntimeError):
-    """Raised when an LLM triage call fails after all retries."""
+    """Raised when an LLM triage call is rejected or exhausts its retries."""
+
+
+TRIAGE_RESPONSE_SCHEMA: dict[str, object] = {
+    'type': 'array',
+    'items': {
+        'type': 'object',
+        'properties': {
+            'start': {'type': 'number'},
+            'end': {'type': 'number'},
+            'text': {'type': 'string'},
+        },
+        'required': ['start', 'end', 'text'],
+        'additionalProperties': False,
+    },
+}
+
+
+def default_llm_settings() -> LLMSettings:
+    """Return the unchanged Gemini triage defaults."""
+    return LLMSettings.from_values(LLM_PROVIDER, TRIAGE_MODEL, API_KEY_ENV)
 
 
 def load_transcript(video_id: str) -> dict | None:
@@ -116,47 +146,40 @@ def build_triage_prompt(window: dict) -> tuple[str, str]:
     return system_prompt, user_prompt
 
 
-def _call_once(system_prompt: str, user_prompt: str) -> list[dict]:
+def _call_once(
+    system_prompt: str,
+    user_prompt: str,
+    llm_settings: LLMSettings | None = None,
+) -> list[dict]:
     """Send one triage window to the LLM and parse its JSON reply.
 
-    genai.Client() reads the key from os.environ[API_KEY_ENV]; we only confirm the
-    var is set, by name, and never read or log its value. A JSON parse failure
-    raises so call_triage_llm's retry wrapper backs off and retries.
+    The provider boundary reads the configured key without logging it. A JSON
+    parse failure raises so call_triage_llm's retry wrapper can classify it.
 
     :param system_prompt: system instruction pinning the filter behaviour.
     :param user_prompt: the window's transcript segments.
     :return: the parsed list of {start, end, text} chunk dicts.
     """
-    # Function-local import: google-genai only installs on the machine that runs
-    # the real triage. The test/CI venv does not carry it, and a module-level
-    # import would break relevance triage there.
-    from google import genai
-    from google.genai import types
-
-    if API_KEY_ENV not in os.environ:
-        raise RuntimeError(f'{API_KEY_ENV} is not set')
-    client = genai.Client(http_options=types.HttpOptions(
-        timeout=LLM_REQUEST_TIMEOUT_S * 1000,
-    ))
-    response = client.models.generate_content(
-        model=TRIAGE_MODEL,
-        contents=user_prompt,
-        config={
-            'system_instruction': system_prompt,
-            'max_output_tokens': TRIAGE_MAX_TOKENS,
-            'response_mime_type': 'application/json',
-        },
+    parsed = generate_structured_json(
+        default_llm_settings() if llm_settings is None else llm_settings,
+        system_prompt,
+        user_prompt,
+        TRIAGE_RESPONSE_SCHEMA,
+        'commentary_relevance_chunks',
+        TRIAGE_MAX_TOKENS,
+        LLM_REQUEST_TIMEOUT_S,
     )
-    return json.loads(response.text)
+    if not isinstance(parsed, list):
+        raise TypeError('triage response is not a JSON list')
+    return parsed
 
 
-def call_triage_llm(window: dict) -> list[dict]:
+def call_triage_llm(window: dict, llm_settings: LLMSettings | None = None) -> list[dict]:
     """Call the triage LLM for one window with retry and exponential backoff.
 
-    Real SDK calls hit rate limits and transient errors, and a malformed reply
-    fails to parse; all retry unless the provider reports an exhausted daily
-    quota. Raises ``TriageError`` after retry exhaustion or
-    ``DailyRequestQuotaError`` when the whole batch must stop requesting.
+    Transient and native Gemini failures retry. Provider failures classified as
+    non-retryable stop immediately. An exhausted native Gemini daily quota also
+    stops immediately through ``DailyRequestQuotaError``.
 
     :param window: a window dict with a segments list.
     :return: the returned chunk dicts for the window.
@@ -165,13 +188,17 @@ def call_triage_llm(window: dict) -> list[dict]:
     last_error: Exception | None = None
     for attempt in range(LLM_MAX_RETRIES):
         try:
-            return _call_once(system_prompt, user_prompt)
+            if llm_settings is None:
+                return _call_once(system_prompt, user_prompt)
+            return _call_once(system_prompt, user_prompt, llm_settings)
         except Exception as error:  # noqa: BLE001 - retry SDK + JSON-parse errors alike
             last_error = error
             if daily_request_quota_exhausted(error):
                 raise DailyRequestQuotaError(
                     "triage call stopped because the daily request quota is exhausted"
                 ) from error
+            if not provider_error_is_retryable(error):
+                raise TriageError(f'triage call rejected by the provider: {error}') from error
             if attempt == LLM_MAX_RETRIES - 1:
                 break  # no backoff after the final attempt; raise straight away
             backoff = LLM_BACKOFF_BASE_S * (2 ** attempt)
@@ -201,7 +228,11 @@ def _keep_decision(n_chunks: int, duration_s: str) -> bool:
     return absolute_safe or density_per_min >= DENSITY_MIN_PER_MIN
 
 
-def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | None:
+def triage_video(
+    video_id: str,
+    duration_s: str,
+    llm_settings: LLMSettings | None = None,
+) -> tuple[bool, list[dict]] | None:
     """Triage one video: window it, call the LLM per window, aggregate chunks.
 
     :param video_id: yt-dlp id.
@@ -215,7 +246,12 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
         return None
     chunks: list[dict] = []
     for window in chunk_windows(transcript['segments']):
-        for item in call_triage_llm(window):
+        items = (
+            call_triage_llm(window)
+            if llm_settings is None
+            else call_triage_llm(window, llm_settings)
+        )
+        for item in items:
             chunks.append({
                 'chunk_id': f'{video_id}_c{len(chunks)}',
                 'start': item['start'],
@@ -226,7 +262,10 @@ def triage_video(video_id: str, duration_s: str) -> tuple[bool, list[dict]] | No
     return keep, chunks
 
 
-def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
+def run_relevance_triage(
+    rows: list[dict] | None = None,
+    llm_settings: LLMSettings | None = None,
+) -> dict[str, bool]:
     """Triage every video with a transcript; write chunk sidecars and keep flags.
 
     Ordinary exhausted calls remain per-video failures; the run blocks when all
@@ -251,7 +290,11 @@ def run_relevance_triage(rows: list[dict] | None = None) -> dict[str, bool]:
             continue  # no acquired transcript; nothing to triage
         videos_with_transcript += 1
         try:
-            outcome = triage_video(video_id, row.get('duration_s', ''))
+            outcome = (
+                triage_video(video_id, row.get('duration_s', ''))
+                if llm_settings is None
+                else triage_video(video_id, row.get('duration_s', ''), llm_settings)
+            )
         except TriageError as error:
             failed += 1
             retry_list.append(video_id)
@@ -301,11 +344,29 @@ def _write_keep_back(rows: list[dict], keep_by_id: dict[str, bool]) -> None:
 
 
 def main() -> None:
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description='Relevance triage: LLM relevance triage into chunks/<video_id>.json '
                     'and the keep column.',
-    ).parse_args()
-    run_relevance_triage()
+    )
+    parser.add_argument(
+        '--provider',
+        choices=[provider.value for provider in LLMProvider],
+        default=LLM_PROVIDER,
+    )
+    parser.add_argument('--model')
+    parser.add_argument('--api-key-environment')
+    args = parser.parse_args()
+    try:
+        settings = resolve_cli_settings(
+            args.provider,
+            args.model,
+            args.api_key_environment,
+            gemini_model=TRIAGE_MODEL,
+            gemini_api_key_environment=API_KEY_ENV,
+        )
+    except ValueError as error:
+        parser.error(str(error))
+    run_relevance_triage(llm_settings=settings)
 
 
 if __name__ == '__main__':
