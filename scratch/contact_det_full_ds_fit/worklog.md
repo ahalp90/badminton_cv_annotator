@@ -2,10 +2,10 @@
 
 ## Pick up from here
 
-- Current work: add and test the 40-video list and the 32/8 split
-- Next action: commit the split, then prepare the same contact features for every video in the saved list
+- Current work: save the same checked contact features for every video in the 40-video list
+- Next action: commit the feature-saving code, then compare its three pilot outputs with the saved pilot rows
 - Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
-- Plan section: `plan.md`, “Current change: add the video list and split checks”
+- Plan section: `plan.md`, “Current change: prepare features for any listed video”
 
 ## Things to remember
 
@@ -19,7 +19,7 @@
 ## Current files
 
 - `scratch/contact_det/`: finished three-video pilot; unchanged by this work
-- `scratch/contact_det_full_ds_fit/`: agreed plan, code map, 40-video list, code that reads the split, and small tests
+- `scratch/contact_det_full_ds_fit/`: agreed plan, code map, 40-video list, feature-saving code and small tests
 
 ## Work completed
 
@@ -51,4 +51,12 @@
 - Check: 13 small tests pass; Ruff passes for this directory; whole-project Pyrefly passes
 - Whole-project checks: Ruff reports 863 existing problems outside this directory. The first full test run passed 1,892 tests and failed one unrelated test because the shell could not find a command named `python`. With the project environment added to the shell path, all 1,893 tests pass and 29 are skipped.
 - Review: two fresh read-only reviewers found no blocking problem; their code and wording suggestions were applied
-- Commit: included in `Add the full-dataset contact split`
+- Commit: `bbbeb086 Add the full-dataset contact split`
+
+### Added feature-saving code for any listed video — 2026-08-27
+
+- Files: `scripts/freeze_contact_features.py`, its tests, this plan and the Git rule that keeps large feature files out of commits
+- Change: saves one checked feature file per video, records the input file hashes, and marks a run as complete only after every requested video finishes
+- Checks: 21 small tests, 37 reused pilot tests and all 1,893 project tests pass; Ruff passes for this directory; whole-project Pyrefly passes
+- Review: a fresh read-only reviewer found three important problems; all three were fixed and the reviewer confirmed the fixes
+- Commit: will be included in `Freeze contact features for any video roster`

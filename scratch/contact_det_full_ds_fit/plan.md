@@ -2,7 +2,7 @@
 
 ## Where the work is now
 
-The scope, video split and safeguards are agreed. The current task is to add and test the saved 40-video list.
+The scope, video split and safeguards are agreed. The saved 40-video list is checked and committed. The current task is to prepare the same contact features for each listed video.
 
 The old three-video experiment stays unchanged. All new code and results live in this directory.
 
@@ -28,7 +28,7 @@ The fixed three-video assumptions are in the code around these functions. That c
 
 The source details are in `current_system_map.md`.
 
-## Current change: add the video list and split checks
+## Completed change: add the video list and split checks
 
 Add one JSON file with all 40 eligible videos. Each row records the video ID, frame rate, resolution, match details and whether the video is for training or validation.
 
@@ -44,9 +44,9 @@ Small tests cover these failure cases. The planned commit is:
 
 `Add the full-dataset contact split`
 
-## Next change: prepare features for any listed video
+## Current change: prepare features for any listed video
 
-Use the tested pilot feature function once per video from the new list. Do not change its calculations.
+Use the tested pilot feature function once per video from the new list. Do not change its calculations. Save a separate checked file for each video so a stopped run leaves clear progress.
 
 The saved files will record:
 
@@ -55,7 +55,7 @@ The saved files will record:
 - frame rate and row intervals for each video
 - the size and hash of each input file, without its machine path
 
-Before preparing all 40 videos, run the new code on the three pilot videos. Its feature rows must be exactly equal to the saved pilot rows.
+Before preparing all 40 videos, run the new code on the three pilot videos. Its feature rows must be exactly equal to the saved pilot rows. Check both the saved file hashes and the rows read back from the files.
 
 Large feature files stay out of Git. The planned commit is:
 
