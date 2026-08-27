@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: save the same checked contact features for every video in the 40-video list
-- Next action: record the completed pilot check, then prepare features for all 40 videos using the original per-frame motion values
+- Current work: prepare the checked contact features for all 40 videos and fix the first model comparison before validation scores exist
+- Next action: check the finished feature files, then add the fixed 32/8 scorer
 - Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
 - Plan section: `plan.md`, “Current change: prepare features for any listed video”
 
@@ -67,4 +67,12 @@
 - Change: ran the committed feature code on `sset_01`, `sset_15` and `sset_21` before starting the 40-video work
 - Result: all 130,624 rows match the saved pilot exactly
 - Check: the saved and new feature-file hashes were checked before row comparison; the saved records contain no machine paths
+- Commit: `a4c8ec3b Record the pilot feature check`
+
+### Fixed the first model comparison — 2026-08-27
+
+- Files: `baseline_runs.md`, `baseline_runs.json`
+- Change: fixed nine full model runs, 19 score cut-offs and three distances for merging nearby duplicate predictions before any validation score was read
+- Limit: HGB and RF only; two motion choices; two class-weight choices; two small HGB changes; one change to the number of negative examples
+- Status: the 40-video feature job is running; model fitting has not started
 - Commit: pending
