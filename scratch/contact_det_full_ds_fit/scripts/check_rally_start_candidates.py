@@ -59,7 +59,8 @@ def _mapping(value: object, label: str) -> Mapping[str, Any]:
 def _json_bytes(value: Mapping[str, object]) -> bytes:
     """Return the fixed compact JSON form used for the construction check."""
     return (
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
     ).encode("utf-8")
 
 
@@ -67,9 +68,12 @@ def _write_gzip_bytes(path: Path, value: bytes) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(f"{destination.name}.partial")
-    with temporary.open("wb") as raw, gzip.GzipFile(
-        filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=0
-    ) as zipped:
+    with (
+        temporary.open("wb") as raw,
+        gzip.GzipFile(
+            filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=0
+        ) as zipped,
+    ):
         zipped.write(value)
     os.replace(temporary, destination)
 
@@ -102,7 +106,9 @@ def _load_search_intervals(
         record = by_fixture.get(video.fixture)
         if record is None:
             raise ValueError(f"{video.fixture}: raw feature record is missing")
-        summary = _mapping(record.get("feature_summary"), f"{video.fixture}: feature summary")
+        summary = _mapping(
+            record.get("feature_summary"), f"{video.fixture}: feature summary"
+        )
         raw_intervals = summary.get("search_intervals")
         if not isinstance(raw_intervals, list):
             raise TypeError(f"{video.fixture}: search intervals must be a list")
@@ -188,7 +194,9 @@ def load_candidate_inputs(
         raw_feature_record_path,
         shots_master_path,
     )
-    matching_runs = [saved_run for saved_run in verified.runs if saved_run.run_id == run_id]
+    matching_runs = [
+        saved_run for saved_run in verified.runs if saved_run.run_id == run_id
+    ]
     if len(matching_runs) != 1:
         raise ValueError("saved prediction chosen run differs")
     saved_run = matching_runs[0]
@@ -198,7 +206,8 @@ def load_candidate_inputs(
         run_result.get("schema") != RESULT_SCHEMA
         or run_result.get("status") != "complete"
         or run_result.get("run_id") != run_id
-        or run_result.get("contact_label_sha256") != verified.payload["contact_label_sha256"]
+        or run_result.get("contact_label_sha256")
+        != verified.payload["contact_label_sha256"]
         or run_result.get("split_sha256") != verified.payload["split_sha256"]
         or run_result.get("validation_videos")
         != [video.fixture for video in verified.split.validation_videos]
@@ -211,7 +220,9 @@ def load_candidate_inputs(
     score_rows = missed_checker._load_score_rows(score_path, run_result)
     missed_checker._check_score_identities(score_rows, verified, saved_run)
     intervals = _load_search_intervals(raw_feature_record_path, verified, score_rows)
-    return CandidateInputs(summary, run_result, score_rows, verified, saved_run, intervals)
+    return CandidateInputs(
+        summary, run_result, score_rows, verified, saved_run, intervals
+    )
 
 
 def _candidate(
@@ -226,13 +237,100 @@ def _candidate(
     }
 
 
+def build_video_candidate_lists(
+    fixture: str,
+    fps: float,
+    video_rows: np.ndarray,
+    kept_frames: Sequence[int],
+    spans: Sequence[Mapping[str, int]],
+    intervals: Sequence[tuple[int, int]],
+    duplicate_distance_at_30_fps: int,
+) -> tuple[list[dict[str, object]], int]:
+    """Build the fixed candidate lists for one video's detected sections."""
+    if duplicate_distance_at_30_fps != DUPLICATE_DISTANCE_AT_30_FPS:
+        raise ValueError("selected duplicate distance must be six frames at 30 fps")
+    distance = _scaled_frames(duplicate_distance_at_30_fps, fps)
+    candidate_lists: list[dict[str, object]] = []
+    sections_without_kept_contact = 0
+    previous_end: int | None = None
+
+    for span in spans:
+        span_id = int(span["span_id"])
+        span_start = int(span["start_frame"])
+        span_end = int(span["end_frame"])
+        section_frames = [
+            frame for frame in kept_frames if span_start <= frame < span_end
+        ]
+        if not section_frames:
+            sections_without_kept_contact += 1
+            previous_end = span_end
+            continue
+
+        fixed_frame = section_frames[0]
+        fixed_rows = video_rows[video_rows["frame"] == fixed_frame]
+        if len(fixed_rows) != 1 or not bool(fixed_rows[0]["kept"]):
+            raise ValueError(f"{fixture}/{span_id}: fixed contact score row differs")
+        fixed_row = fixed_rows[0]
+        interval_id = int(fixed_row["interval_id"])
+        interval_start, interval_end = intervals[interval_id]
+        prefix_start = interval_start
+        if previous_end is not None and interval_start <= previous_end < interval_end:
+            prefix_start = max(prefix_start, previous_end)
+
+        possible = video_rows[
+            (video_rows["interval_id"] == interval_id)
+            & (video_rows["frame"] >= prefix_start)
+            & (video_rows["frame"] < fixed_frame)
+        ]
+        ordered = sorted(
+            possible,
+            key=lambda row: (-float(row["contact_score"]), int(row["frame"])),
+        )
+        earlier_rows: list[np.void] = []
+        for row in ordered:
+            frame = int(row["frame"])
+            chosen_frames = [
+                fixed_frame,
+                *(int(chosen["frame"]) for chosen in earlier_rows),
+            ]
+            if all(
+                abs(frame - chosen_frame) > distance for chosen_frame in chosen_frames
+            ):
+                earlier_rows.append(row)
+            if len(earlier_rows) == MAX_CANDIDATES_PER_SECTION - 1:
+                break
+
+        candidates = [
+            _candidate(fixed_row, is_fixed_contact=True),
+            *(_candidate(row, is_fixed_contact=False) for row in earlier_rows),
+        ]
+        candidate_lists.append(
+            {
+                "fixture": fixture,
+                "span_id": span_id,
+                "section_start_frame": span_start,
+                "section_end_frame": span_end,
+                "interval_id": interval_id,
+                "prefix_start_frame": prefix_start,
+                "fixed_contact_frame": fixed_frame,
+                "duplicate_distance_frames": distance,
+                "candidates": candidates,
+            }
+        )
+        previous_end = span_end
+
+    return candidate_lists, sections_without_kept_contact
+
+
 def build_candidate_construction(
     inputs: CandidateInputs,
     source_commit: str,
 ) -> dict[str, object]:
     """Build the fixed candidate lists without saved contact-label detail."""
     score_names = np.char.decode(inputs.score_rows["fixture"], "ascii")
-    raw_duplicate_distance = inputs.run_result.get("selected_duplicate_distance_at_30_fps")
+    raw_duplicate_distance = inputs.run_result.get(
+        "selected_duplicate_distance_at_30_fps"
+    )
     if (
         type(raw_duplicate_distance) is not int
         or raw_duplicate_distance != DUPLICATE_DISTANCE_AT_30_FPS
@@ -249,73 +347,22 @@ def build_candidate_construction(
         events = inputs.saved_run.events_by_fixture[fixture]
         spans = inputs.verified_predictions.spans_by_fixture[fixture]
         intervals = inputs.intervals_by_fixture[fixture]
-        distance = _scaled_frames(duplicate_at_30, video.fps)
-        previous_end: int | None = None
-        video_list_count = 0
-        video_candidate_count = 0
-        video_added_count = 0
-        for span in spans:
-            span_id = int(span["span_id"])
-            span_start = int(span["start_frame"])
-            span_end = int(span["end_frame"])
-            section_events = [event for event in events if span_start <= event.frame < span_end]
-            if not section_events:
-                sections_without_kept_contact += 1
-                previous_end = span_end
-                continue
-            fixed_frame = section_events[0].frame
-            fixed_rows = video_rows[video_rows["frame"] == fixed_frame]
-            if len(fixed_rows) != 1 or not bool(fixed_rows[0]["kept"]):
-                raise ValueError(f"{fixture}/{span_id}: fixed contact score row differs")
-            fixed_row = fixed_rows[0]
-            interval_id = int(fixed_row["interval_id"])
-            interval_start, interval_end = intervals[interval_id]
-            prefix_start = interval_start
-            if previous_end is not None and interval_start <= previous_end < interval_end:
-                prefix_start = max(prefix_start, previous_end)
-
-            possible = video_rows[
-                (video_rows["interval_id"] == interval_id)
-                & (video_rows["frame"] >= prefix_start)
-                & (video_rows["frame"] < fixed_frame)
-            ]
-            ordered = sorted(
-                possible,
-                key=lambda row: (-float(row["contact_score"]), int(row["frame"])),
-            )
-            earlier_rows: list[np.void] = []
-            for row in ordered:
-                frame = int(row["frame"])
-                chosen_frames = [fixed_frame, *(int(chosen["frame"]) for chosen in earlier_rows)]
-                if all(abs(frame - chosen_frame) > distance for chosen_frame in chosen_frames):
-                    earlier_rows.append(row)
-                if len(earlier_rows) == MAX_CANDIDATES_PER_SECTION - 1:
-                    break
-
-            candidates = [
-                _candidate(fixed_row, is_fixed_contact=True),
-                *(_candidate(row, is_fixed_contact=False) for row in earlier_rows),
-            ]
-            candidate_lists.append(
-                {
-                    "fixture": fixture,
-                    "span_id": span_id,
-                    "section_start_frame": span_start,
-                    "section_end_frame": span_end,
-                    "interval_id": interval_id,
-                    "prefix_start_frame": prefix_start,
-                    "fixed_contact_frame": fixed_frame,
-                    "duplicate_distance_frames": distance,
-                    "candidates": candidates,
-                }
-            )
-            video_list_count += 1
-            video_candidate_count += len(candidates)
-            video_added_count += len(earlier_rows)
-            previous_end = span_end
+        video_lists, skipped = build_video_candidate_lists(
+            fixture,
+            video.fps,
+            video_rows,
+            [event.frame for event in events],
+            spans,
+            intervals,
+            duplicate_at_30,
+        )
+        candidate_lists.extend(video_lists)
+        sections_without_kept_contact += skipped
+        video_candidate_count = sum(len(row["candidates"]) for row in video_lists)
+        video_added_count = sum(len(row["candidates"]) - 1 for row in video_lists)
         video_counts[fixture] = {
             "detected_sections": len(spans),
-            "candidate_lists": video_list_count,
+            "candidate_lists": len(video_lists),
             "candidate_entries": video_candidate_count,
             "earlier_candidate_entries": video_added_count,
         }
@@ -338,7 +385,8 @@ def build_candidate_construction(
         },
         "counts": {
             "detected_sections": sum(
-                len(spans) for spans in inputs.verified_predictions.spans_by_fixture.values()
+                len(spans)
+                for spans in inputs.verified_predictions.spans_by_fixture.values()
             ),
             "candidate_lists": len(candidate_lists),
             "sections_without_kept_contact": sections_without_kept_contact,
@@ -406,7 +454,8 @@ def load_missed_contact_result(
         or saved_inputs.get("run_result_sha256") != _sha256(run_result_path)
         or saved_inputs.get("score_sha256") != _sha256(score_path)
         or saved_inputs.get("split_sha256") != _sha256(split_path)
-        or saved_inputs.get("raw_feature_record_sha256") != _sha256(raw_feature_record_path)
+        or saved_inputs.get("raw_feature_record_sha256")
+        != _sha256(raw_feature_record_path)
         or saved_inputs.get("contact_label_sha256") != _sha256(shots_master_path)
     ):
         raise ValueError("missed-contact result differs from the fixed inputs")
@@ -484,8 +533,12 @@ def _coverage_at_tolerance(
                 other_distances.append(float(distance))
         if matches:
             covered += 1
-            has_before = any(int(candidate["frame"]) < section_start for candidate in matches)
-            has_inside = any(int(candidate["frame"]) >= section_start for candidate in matches)
+            has_before = any(
+                int(candidate["frame"]) < section_start for candidate in matches
+            )
+            has_inside = any(
+                int(candidate["frame"]) >= section_start for candidate in matches
+            )
             before_start += has_before
             only_before_start += has_before and not has_inside
     return {
@@ -496,7 +549,9 @@ def _coverage_at_tolerance(
         "covered_with_a_candidate_before_section": before_start,
         "covered_only_by_candidates_before_section": only_before_start,
         "matching_candidate_scores": _number_summary(matching_scores),
-        "matching_candidate_absolute_frame_distances": _number_summary(matching_distances),
+        "matching_candidate_absolute_frame_distances": _number_summary(
+            matching_distances
+        ),
         "other_candidate_scores": _number_summary(other_scores),
         "other_candidate_absolute_frame_distances": _number_summary(other_distances),
     }
@@ -519,13 +574,17 @@ def _all_missed_first_coverage(
         )
     first = [detail for detail in details if detail.get("contact_type") == "first"]
     assigned = [
-        (detail, section_by_rally.get((str(detail["fixture"]), str(detail["rally_id"]))))
+        (
+            detail,
+            section_by_rally.get((str(detail["fixture"]), str(detail["rally_id"]))),
+        )
         for detail in first
     ]
     covered = sum(
         section is not None
         and any(
-            abs(candidate_frame - int(detail["frame"])) <= int(detail["tolerance_frames"])
+            abs(candidate_frame - int(detail["frame"]))
+            <= int(detail["tolerance_frames"])
             for candidate_frame in candidates_by_section.get(section, ())
         )
         for detail, section in assigned
@@ -566,7 +625,9 @@ def _section_by_rally(
         fixture = str(span["fixture"])
         identity = (fixture, rally_id)
         if identity in output:
-            raise ValueError("a labelled rally is assigned to more than one detected section")
+            raise ValueError(
+                "a labelled rally is assigned to more than one detected section"
+            )
         output[identity] = (fixture, int(span["span_id"]))
     return output
 
@@ -605,7 +666,8 @@ def measure_candidate_construction(
         raise ValueError("target section identities are repeated")
 
     fps_by_fixture = {
-        video.fixture: video.fps for video in inputs.verified_predictions.split.validation_videos
+        video.fixture: video.fps
+        for video in inputs.verified_predictions.split.validation_videos
     }
     target_coverage = {
         str(tolerance): _coverage_at_tolerance(
@@ -687,7 +749,11 @@ def check_rally_start_candidates(
     """Freeze the candidate list, then open and measure saved label detail."""
     _write_json(
         output_path,
-        {"schema": RESULT_SCHEMA_NAME, "status": "running", "source_commit": source_commit},
+        {
+            "schema": RESULT_SCHEMA_NAME,
+            "status": "running",
+            "source_commit": source_commit,
+        },
     )
     if missed_checker.SOURCE_COMMIT.fullmatch(source_commit) is None:
         raise ValueError("source commit must be a short or full Git commit")
