@@ -190,3 +190,14 @@ predictions across all 40 development videos.
 - Use only non-overlapping ShuttleSet22 videos for the final test
 - Keep new work in `scratch/contact_det_full_ds_fit/`
 - Make small local commits and keep machine access details out of Git
+
+## Final contact fit result
+
+Keep the reference raw-motion HGB model with balanced class weights and up to
+24 negative rows per positive row. Held-out scores from all 40 development
+videos keep the score cut-off at 0.9 and the nearby-contact distance at six
+frames at 30 frames per second.
+
+The final model is trained on all 40 development videos. Use this saved model
+without changing its features or settings for the non-overlapping
+ShuttleSet22 test.

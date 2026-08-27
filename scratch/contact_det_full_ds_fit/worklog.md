@@ -2,17 +2,17 @@
 
 ## Pick up from here
 
-- Current work: fit and check the final contact model on all 40 videos
-- Next action: commit the reviewed fitting code, run it on the compute machine and check the saved model
-- Required check: each group must train on the other 32 videos and save raw scores before the final settings are chosen
+- Current work: fix and review the ShuttleSet22 test rules before reading its labels
+- Next action: commit the final-fit report, then add the exact 47-video test list and test plan
+- Required check: save all ShuttleSet22 model scores and player-side predictions before any test label row is read
 - Current blocker: none
-- Plan section: `plan.md`, “Current change: choose one earlier contact”
+- Plan section: `plan.md`, “Final training and ShuttleSet22 test”
 
 ## Things to remember
 
 - The older handover ends at commit `6732d15`. Later pilot work continues through `5f6da72`.
 - The repository's other work-tracking file describes unrelated work. This directory holds the state for the full-data contact experiment.
-- The ShuttleSet22 overlap list and prepared input location still need to be checked before the final test.
+- The ShuttleSet22 source list has 47 prepared non-overlapping videos. Eight known overlaps and three unresolved sources are absent.
 - The second code-reading task ran longer than planned. It was stopped and returned useful findings that it checked against the source.
 - The exact list of no more than 12 full model runs must be committed before model training starts.
 - Reports must use simple words and normal speech. They must not invent labels for ordinary ideas.
@@ -103,6 +103,16 @@
 - Review: a fresh read-only review found no blocker
 - Checks: 145 experiment tests and all 1,893 project tests pass; Ruff passes for this directory; the pinned type check reports 0 errors
 - Planned commit: `Fit the final contact model`
+
+### Fitted and checked the final contact model — 2026-08-28
+
+- Setting: score cut-off 0.9 and nearby-contact distance six at 30 frames per second
+- Training: all 40 development videos, 1,313,803 selected rows and 94,530 positive rows
+- Model check: the saved model reproduced all 80 fixed probabilities after loading
+- Result check: an independent read found no blocker and reproduced the input, count, model and hash checks
+- Held-out result: 0.9050 precision, 0.8658 recall and 0.8849 F1 at five frames across all 40 videos
+- Saved files: model and full result remain outside Git under `raw/final_contact_model/`
+- Planned commit: `Record the final contact fit`
 
 ## Current files
 

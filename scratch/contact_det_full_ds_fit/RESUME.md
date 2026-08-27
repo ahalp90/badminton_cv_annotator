@@ -1,9 +1,9 @@
 # Resume
 
-- Current work and status: all held-out scores are complete and the reviewed all-40 fitting code is ready to commit
-- Next action: commit the fitting code, run it on the compute machine and check the saved model before ShuttleSet22
-- Active reviewer: none; the final plan review found no blocker
-- Branch: `contact-det-feasibility`; latest planned commit is `Fit the final contact model`
+- Current work and status: the final model is fitted and independently checked; the ShuttleSet22 test plan is next
+- Next action: commit the final-fit report, then fix and review the exact 47-video ShuttleSet22 test before opening its labels
+- Active reviewer: none; the final model result review found no blocker
+- Branch: `contact-det-feasibility`; latest planned commit is `Record the final contact fit`
 - Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
@@ -17,4 +17,5 @@
 - Validation boundary: no candidate score file was written for validation and no validation label row was read
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
-- Important files: `final_contact_fit_plan.md`, `final_video_score_groups.json`, `final_contact_score_inputs.json`, `rally_start_model_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
+- Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
+- Important files: `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `final_video_score_groups.json`, `final_contact_score_inputs.json`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
