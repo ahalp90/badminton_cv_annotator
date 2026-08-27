@@ -129,6 +129,12 @@
     }
   ],
   "chosen_run_id": "hgb_reference_raw_more_negatives",
+  "chosen_run_files": {
+    "run_result_file": "baseline_result.json",
+    "run_result_sha256": "bf8e8ef93cb8c8dcd31c47073effa06aa3e67b12d935b2cf2a77e0f33012b024",
+    "score_file": "validation_contact_scores.npy.xz",
+    "score_sha256": "7d67a121c9f3f27493a8009f274ec8b91939d6e93124df807e0ee7ab5cfee44d"
+  },
   "chosen_run_contact_counts": {
     "first_contacts_matched_at_5_frames": 279,
     "first_contacts": 668,

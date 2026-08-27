@@ -29,7 +29,7 @@ in this order so each contact is counted once:
 1. a kept prediction is nearby, but the one-to-one timing match used it for a
    different labelled contact;
 2. no kept prediction is nearby, but another nearby score reaches the cut-off
-   and was removed near a stronger prediction;
+   and was removed near a kept prediction;
 3. candidate frames are nearby, but every score is below the chosen cut-off;
    or
 4. no saved candidate frame is nearby.

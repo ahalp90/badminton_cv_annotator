@@ -167,3 +167,14 @@
 - Purpose: decide whether a small rally-start selection test has candidate frames to work with
 - Plan review: the saved score file has 283,363 unique video/frame rows and all 5,326 kept frames match the saved predictions; the four explanations now have a fixed order and keep their raw nearby-row counts
 - Implementation commit: `Check where the baseline misses contacts`
+
+### Added the missed-contact check — 2026-08-27
+
+- Files: `scripts/check_missed_contacts.py`, its focused tests and two chosen-run hashes in `baseline_summary.json`
+- Change: checks every saved input before reading contact-label rows, then explains each missed first or later contact at five and ten frames
+- One-short check: reconstructs the 94 otherwise-good sections and records whether the nearby candidate is inside or outside the detected section
+- Saved detail: joins by video and frame, keeps nearby row counts, and records both signed frame offset and absolute frame distance
+- Review: a fresh read-only review found two blockers; the chosen run and score files are now bound by tracked hashes, and every nearby kept prediction is proved to have matched another label
+- Checks: 96 focused tests pass; experiment Ruff and whole-project Pyrefly pass; the real saved inputs complete a path-free smoke run
+- Whole-project checks: all 1,893 tests pass and 29 are skipped; Ruff reports the same 863 existing findings outside this experiment
+- Commit: pending
