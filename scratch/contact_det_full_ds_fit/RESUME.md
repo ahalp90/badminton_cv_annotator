@@ -1,9 +1,9 @@
 # Resume
 
-- Current work and status: the final model is fitted and independently checked; the ShuttleSet22 test plan is next
-- Next action: commit the final-fit report, then fix and review the exact 47-video ShuttleSet22 test before opening its labels
+- Current work and status: the final model is fitted and independently checked; `HANDOVER.md` records the complete state and ShuttleSet22 fork
+- Next action: ask the user whether to rerun ShuttleSet22 with InpaintNet, use the prepared no-inpaint tracks, or prepare both before labels
 - Active reviewer: none; the final model result review found no blocker
-- Branch: `contact-det-feasibility`; latest planned commit is `Record the final contact fit`
+- Branch: `contact-det-feasibility`; latest planned commit is `Write the contact experiment handover`
 - Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
@@ -18,4 +18,5 @@
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
-- Important files: `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `final_video_score_groups.json`, `final_contact_score_inputs.json`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
+- ShuttleSet22 fork: its 47 prepared tracks used stride-8 TrackNet without InpaintNet, while the original 40-video run used InpaintNet and saved sidecars
+- Important files: `HANDOVER.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
