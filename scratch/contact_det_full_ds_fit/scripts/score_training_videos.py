@@ -327,14 +327,25 @@ def choose_training_rows_for_videos(
     contact_labels: ContactLabels,
     config: BaselineConfig,
     run: BaselineRun,
+    *,
+    expected_video_count: int = 24,
 ) -> TrainingSelection:
     """Choose training examples from only the named videos."""
     expected_names = [video.fixture for video in videos]
     label_names = set(contact_labels.frames)
-    if len(expected_names) != 24 or len(set(expected_names)) != 24:
-        raise ValueError("each fit must have 24 distinct training videos")
+    if expected_video_count <= 0:
+        raise ValueError("expected training video count must be positive")
+    if (
+        len(expected_names) != expected_video_count
+        or len(set(expected_names)) != expected_video_count
+    ):
+        raise ValueError(
+            f"each fit must have {expected_video_count} distinct training videos"
+        )
     if label_names != set(expected_names):
-        raise ValueError("contact labels must contain exactly the 24 training videos")
+        raise ValueError(
+            "contact labels must contain exactly the expected training videos"
+        )
     if set(contact_labels.first_contacts) != label_names or set(contact_labels.rally_counts) != (
         label_names
     ):

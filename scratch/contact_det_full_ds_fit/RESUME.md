@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: the failed rally-start addition is recorded; the final all-40 contact fit plan is under review
-- Next action: commit the fixed five-group plan, then add the scorer for A, B, C, D and V
+- Current work and status: the five-group scorer is implemented and checked; the held-out scoring runs are next
+- Next action: run group A twice, require equal files, then run B, C, D and V and combine them twice
 - Active reviewer: none; the final plan review found no blocker
-- Branch: `contact-det-feasibility`; latest commit `0948c8ee Record the rally-start contact result`
-- Last useful check: 18 focused model tests pass; the full saved row build has 5,242 training candidates and 1,230 validation candidates
+- Branch: `contact-det-feasibility`; latest planned commit is `Score every development video`
+- Last useful check: 144 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts

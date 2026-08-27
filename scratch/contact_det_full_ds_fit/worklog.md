@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: fix the final all-40 contact fit before implementation
-- Next action: commit the five-group plan and implement raw held-out scoring
+- Current work: score the five held-out video groups for the final settings
+- Next action: run group A twice, then run B, C, D and V and combine them twice
 - Required check: each group must train on the other 32 videos and save raw scores before the final settings are chosen
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
@@ -80,6 +80,17 @@
 - Final model: fit HGB once on all 40 after the pair is fixed, save it outside Git and check it after loading
 - Review: the first read asked for exact raw row order, source binding and a fixed model reload sample; the follow-up found no blocker
 - Planned commit: `Plan the final contact fit`
+
+### Added the final held-out scorer — 2026-08-28
+
+- Files: `scripts/score_final_contact_groups.py`, its focused tests and one parameter added to the old training-row helper
+- Separation: every fit accepts labels and training rows from exactly 32 videos, then scores the separate group of eight
+- Group V check: its raw identities and probabilities must exactly repeat the chosen baseline's saved validation scores
+- Final choice: combine A, B, C, D and V without old kept-contact flags, save the raw scores, then read all 40 labels and check the fixed 57 setting pairs
+- Saved checks: require the fixed input hashes, exact row order, one source group per row, complete training counts, one source commit and repeatable files
+- Review: a fresh read-only review found no blocker
+- Checks: 144 experiment tests and all 1,893 project tests pass; Ruff passes for this directory; the pinned type check reports 0 errors
+- Planned commit: `Score every development video`
 
 ## Current files
 
