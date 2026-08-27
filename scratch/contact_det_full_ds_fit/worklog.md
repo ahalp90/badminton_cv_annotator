@@ -2,10 +2,10 @@
 
 ## Pick up from here
 
-- Current work: prepare the checked contact features for all 40 videos and fix the first model comparison before validation scores exist
-- Next action: check the finished feature files, then add the fixed 32/8 scorer
+- Current work: finish the common-30 feature files and run the fixed 32/8 model comparison
+- Next action: commit the checked training code, then run one repeatability check before the nine planned runs
 - Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
-- Plan section: `plan.md`, “Current change: prepare features for any listed video”
+- Plan section: `plan.md`, “Current change: train and compare HGB and RF”
 
 ## Things to remember
 
@@ -74,5 +74,14 @@
 - Files: `baseline_runs.md`, `baseline_runs.json`
 - Change: fixed nine full model runs, 19 score cut-offs and three distances for merging nearby duplicate predictions before any validation score was read
 - Limit: HGB and RF only; two motion choices; two class-weight choices; two small HGB changes; one change to the number of negative examples
-- Status: the 40-video feature job is running; model fitting has not started
+- Status: the raw-motion feature run finished all 40 videos with 1,496,146 rows; the common-30 run is now preparing the matching files; model fitting has not started
+- Commit: `c11f2062 Fix the first contact model runs`
+
+### Added the fixed training and validation code — 2026-08-27
+
+- Files: `scripts/baseline_config.py`, `scripts/feature_dataset.py`, `scripts/score_contact_baseline.py` and focused tests
+- Change: checks the exact nine-run file, checks all 40 feature files before reading contact labels, trains on the 32 training videos only, and chooses the score cut-off and nearby-contact distance on the eight validation videos
+- Saved result: keeps every validation score with its video, interval and frame; records the selected contacts, input hashes, model settings and per-video results without machine paths
+- Checks: all 50 tests in this directory pass; Ruff passes for this directory; whole-project Pyrefly passes
+- Review: a fresh read-only review found three repeatability problems; the code now marks a rerun as running before checks begin, rejects any change to the fixed nine runs, and checks that the written tie order matches the calculation
 - Commit: pending

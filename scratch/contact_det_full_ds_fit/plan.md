@@ -2,7 +2,7 @@
 
 ## Where the work is now
 
-The scope, video split and safeguards are agreed. The saved 40-video list is checked and committed. The current task is to prepare the same contact features for each listed video.
+The scope, video split, feature calculations and nine model runs are fixed. The raw-motion features are complete for all 40 videos. The common-30 feature run is in progress. The current code trains on 32 videos and checks the result on the eight fixed validation videos.
 
 The old three-video experiment stays unchanged. All new code and results live in this directory.
 
@@ -44,7 +44,7 @@ Small tests cover these failure cases. The planned commit is:
 
 `Add the full-dataset contact split`
 
-## Current change: prepare features for any listed video
+## Completed change: prepare features for any listed video
 
 Use the tested pilot feature function once per video from the new list. Do not change its calculations. Save a separate checked file for each video so a stopped run leaves clear progress.
 
@@ -63,7 +63,7 @@ Large feature files stay out of Git. The planned commit is:
 
 The approved commit wording uses “freeze”. Here, that means saving the feature rows and enough checks to show which inputs produced them.
 
-## Then: train and compare HGB and RF
+## Current change: train and compare HGB and RF
 
 Before training begins, write down no more than 12 full model runs. The list may use:
 
