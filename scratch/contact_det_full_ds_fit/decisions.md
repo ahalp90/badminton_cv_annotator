@@ -119,6 +119,20 @@ sections and predicted player sides for these same videos. Build the unchanged
 short candidate list from the held-out scores. Keep this preparation separate
 from human labels and model fitting.
 
+## Rally-start training input result
+
+Keep the 32-video input file. It contains 2,621 section lists and 5,242 earlier
+candidates. The candidate rule exactly reproduces the frozen validation list.
+
+The existing player-side rule has no answer for 2,449 earlier candidates. The
+next model check must therefore report both timing recovery and fully correct
+rallies. A timing match with no player-side answer is not a fully correct
+rally.
+
+Write and review the candidate selection plan before joining human labels. Use
+only these held-out first-model scores for training. Keep the model list small
+and leave the eight validation videos for the fixed comparison.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

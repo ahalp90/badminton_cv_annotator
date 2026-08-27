@@ -220,6 +220,16 @@ candidate lists and predicted player sides needed for training. It does not
 open human label rows or train the candidate choice method. The exact inputs
 and checks are in `training_rally_start_input_plan.md`.
 
+That stage is complete. The saved result has 2,621 section lists and 5,242
+earlier candidates across all 32 training videos. It reproduces the frozen
+validation rule, passed a three-video replay and produced the same combined
+bytes on a full repeat.
+
+The existing player-side rule has no answer for 2,449 earlier candidates. The
+next candidate selection plan must treat that as a limit on fully correct
+rallies. No human label rows or model fitting begin until that plan is fixed
+and reviewed.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:

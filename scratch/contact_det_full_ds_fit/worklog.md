@@ -277,3 +277,23 @@
 - Saved progress: one checked file per video, followed by one combined file in fixed group order
 - Boundary: do not open human contact, rally or player-side label rows and do not train a choice method
 - Review: the first read found missing checks for the training row shape, model separation and detected-section source; the revised plan covers all three
+
+### Added the rally-start training input saver — 2026-08-28
+
+- Files: `scripts/save_training_rally_start_inputs.py`, its focused tests and the shared one-video candidate-list function
+- Change: checks the four held-out score groups, reproduces the frozen validation list, replays player sides and saves one restartable file per training video
+- Label boundary: human contact and player-side files are checked only by filename and hash; no label row is parsed
+- Restart rule: an interrupted video remains marked `running`; a complete child is reused only after its inputs and saved contents pass again
+- Review: a fresh code audit found two integrity gaps; the final code compares combined scores with every group score and replaces stale complete markers before stage checks
+- Checks: 116 experiment tests and all 1,893 project tests pass; the pinned type check has 0 errors; changed files pass Ruff
+- Commit: `40109b57 Save rally-start inputs for training videos`
+
+### Saved all rally-start training inputs — 2026-08-28
+
+- Smoke replay: `sset_01`, `sset_02` and `sset_03` completed before the full run
+- Full result: 32 videos, 2,850 detected sections, 2,621 candidate lists, 7,863 entries and 26,459 kept contacts
+- Earlier candidates: 5,242 total; 2,419 before the section and 2,823 inside it
+- Player-side limit: 2,449 earlier candidates have no answer from the existing rule
+- Repeat check: the two combined files match byte for byte with SHA-256 `49236a091efde5ee9fcc6ac52616a716a276c992abe833c46830e30c5ec7e784`
+- Independent check: all 1,193,927 score identities match the 40 raw feature files and the four group files in fixed A–D order
+- Next action: write and audit the candidate selection plan before opening human labels
