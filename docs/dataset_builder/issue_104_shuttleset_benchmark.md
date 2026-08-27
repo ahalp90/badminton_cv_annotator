@@ -30,7 +30,7 @@ fields as deferred until that comparison.
 | `shots_master.csv` | SHA-256 `569dc74bbbb5d015a1e0be93b2c9a0885603eb320555028f11b9d259c79ee79f` |
 | `homography.csv` | SHA-256 `b10f9f14a56ed499ded1805337e1d30d80aa0b3a72b6821dd76694c6a45b8035` |
 | Issue #104 evaluator base | `f7571e60e439230346e4ed3449d56dd3929e7eb6` |
-| Detailed external result | SHA-256 `45be6824bd7bfe6db20d465d031e489801e6e066cb1a83eb84c8c024839ad645` |
+| Corrected detailed external result | SHA-256 `817ac014e6505ef252306184da18cce38d97a2b7488340a9dacd902ac0bd8fe3` |
 
 The task 2.5 configuration selects 40 fixed ShuttleSet videos. It uses
 TrackNet stride 8, the large-video path, eight pose shards, CourtKeyNet pad
@@ -48,7 +48,7 @@ source of the results.
 The detailed report remains outside Git. The tracked
 [`issue_104_per_video.json.gz`](data/issue_104_per_video.json.gz) contains the
 exact per-video counts and summaries for all 40 videos. Its SHA-256 is
-`98b431cbbb3098cfe022d416823002fbbb97dbc3447902aa317498bda3ec25db`.
+`56228f8877755dbdcf0242c6d488f2364aa3d637fb11466ca23a37216eece51a`.
 
 ## Matching and populations
 
@@ -63,16 +63,22 @@ exact per-video counts and summaries for all 40 videos. Its SHA-256 is
   frame. Error is Euclidean distance in normalized doubles-court coordinates.
 - Each accepted production court scene is compared with ShuttleSet's static
   four-corner quad at the 1280 by 720 reference resolution.
-- A landing prediction is paired through its covered rally span. Landing frames
-  are not independently matched.
+- A landing or attribution prediction is paired only through one unique,
+  unmerged covered rally span. Landing frames are not independently matched.
 
 The corpus contains 40 videos, 4,442,098 frames, 44.695 hours, 3,359
 ground-truth rallies, 33,267 authoritative master contacts, and 3,527 predicted
-rallies. The detailed set tables contain 33,486 contact rows. There are 161
-reconciled duplicate rally labels and 20 mismatched rallies across five videos.
-Twenty-eight detailed contact rows have no exact master `player_side` row, so
-player attribution is unusable there. Shuttle coordinate scoring remains valid
-for those rows.
+rallies. The detailed set tables contain 33,486 contact rows. Exact video, set,
+rally, ball-round, and frame joining retains the 33,267 master rows and excludes
+219 unmatched rows from coordinate scoring. The source tables contain 1,314
+flaw-marked rows, including 1,170 aligned and 144 unmatched rows. They also have
+163 duplicate-frame groups with 191 extra rows. These strata are reported rather
+than receiving a side through another contact at the same frame.
+
+There are 161 reconciled duplicate rally labels and 20 mismatched rallies across
+five videos. Seventy-two ground-truth rallies map through 36 merged predicted
+spans. Those 72 rallies remain in boundary and contact reporting but are
+excluded from one-prediction-per-rally outcome metrics.
 
 ## Production benchmark
 
@@ -85,7 +91,7 @@ for those rows.
 | Missed rallies | 311 / 3,359, 9.26% |
 | Merged predicted spans | 36 |
 | Spurious predicted spans | 523 |
-| Strict contact precision | 18,023 / 40,962, 43.99% |
+| Strict contact precision | 18,023 / 40,962, 44.00% |
 | Strict contact recall | 18,023 / 33,267, 54.18% |
 | Strict contact F1 | 48.56% |
 
@@ -114,28 +120,36 @@ fixture.
 | Output | Correct or eligible population | Result |
 |---|---:|---:|
 | Court corners | 15,096 / 15,096 corners | median 4.34 px, p90 9.52 px |
-| Shuttle at GT contacts | 27,502 / 33,486 rows | median 0.459, p90 1.031 |
-| Striker position at GT contacts | 30,586 / 33,486 rows | median 0.078, p90 0.132 |
-| Opponent position at GT contacts | 30,582 / 33,486 rows | median 0.061, p90 0.105 |
-| Landing coordinates | 1,162 / 3,280 GT-available rallies | median 0.076, p90 0.702 |
-| Exact shot count | 298 / 3,359 rallies | 8.87% |
-| Final striker attribution | 1,016 / 3,359 rallies | 30.25% |
-| Server attribution | 1,140 / 3,359 rallies | 33.94% |
+| Shuttle at GT contacts | 27,453 / 33,267 rows | median 0.459, p90 1.031 |
+| Striker position at GT contacts | 30,539 / 33,267 rows | median 0.078, p90 0.132 |
+| Opponent position at GT contacts | 30,535 / 33,267 rows | median 0.061, p90 0.105 |
+| Landing coordinates | 1,122 / 3,208 GT-available unmerged rallies | median 0.074, p90 0.603 |
+| Exact shot count | 298 / 3,287 unmerged-mapping rallies | 9.07% |
+| Final striker attribution | 982 / 3,287 unmerged-mapping rallies | 29.88% |
+| Server attribution | 1,103 / 3,287 unmerged-mapping rallies | 33.56% |
 | Hit height | 7,659 / 33,265 labels | 23.02% |
-| Landing half | 929 / 3,280 labels | 28.32% |
-| Winner | 1,004 / 3,159 labels | 31.78% |
+| Landing half | 910 / 3,208 eligible unmerged rallies | 28.37% |
+| Winner | 974 / 3,092 eligible unmerged rallies | 31.50% |
 
-Coordinate exclusions are explicit. Shuttle scoring excludes 4,303 rows with
-missing ground truth and 1,681 with no eligible prediction. Striker scoring
-excludes 1,069 ground-truth or attribution cases and 1,831 missing predictions.
-Opponent scoring excludes 1,072 ground-truth or attribution cases and 1,832
-missing predictions. Landing scoring excludes 79 rallies without a ground-truth
-coordinate and 2,118 with no paired prediction.
+Coordinate exclusions are explicit after the 219 unmatched detailed rows are
+removed. Shuttle scoring excludes 4,140 rows with missing ground truth and
+1,674 with no eligible prediction. Striker scoring excludes 903 missing
+ground-truth cases and 1,825 missing predictions. Opponent scoring excludes 906
+missing ground-truth cases and 1,826 missing predictions. Landing scoring
+excludes 72 merged mappings, 79 remaining rallies without a ground-truth
+coordinate, and 2,086 with no paired prediction.
 
 Leaving out any video keeps the shuttle median between 0.454 and 0.464, the
 striker median between 0.077 and 0.080, the opponent median between 0.060 and
 0.063, and the court median between 4.27 and 4.39 px. The strong court and
 player results, and the weak shuttle result, are not single-video effects.
+
+![Production outputs against ShuttleSet ground truth](figures/issue_104_production_truth_benchmark.png)
+
+This scorecard connects the production benchmark to the later feature
+decisions. High feature coverage cannot compensate for weak rally, contact,
+shot-count, or attribution inputs. Here, split means one ground-truth rally's
+contacts cross multiple predicted spans.
 
 ## Feature evaluation and provisional decisions
 
@@ -151,6 +165,75 @@ Leave-one-video-out medians are stable. Posture MAD stays between 1.022 and
 between 0.0595 and 0.0605. This proves broad population support, but it does not
 repair weak rally, contact, or attribution inputs.
 
+### Feature figures
+
+![Trial feature coverage by corpus](figures/issue_104_feature_coverage.png)
+
+![Trial feature distributions](figures/issue_104_feature_distributions.png)
+
+![Per-video trial feature medians](figures/issue_104_feature_per_video.png)
+
+The figures are generated by
+[`issue_104_feature_figures.py`](../../scripts/plots/issue_104_feature_figures.py)
+from the two detailed result artifacts identified in this report. ShuttleSet22
+uses human contact intervals, so the comparison shows coverage, scale, and
+fixture stability rather than feature accuracy.
+
+### ShuttleSet22 feature comparison
+
+The comparison uses the 47 non-overlap ShuttleSet22 matches completed by issue
+#106 and the court artifacts completed by issue #120. It does not include the
+eight ShuttleSet overlaps or the three records without a frame-aligned public
+source. No vision inference was rerun.
+
+The host-local Carmack dataset directories are:
+
+- annotations: `/scratch/cmarti56/issue106-shuttleset22-data/annotations`;
+- source videos: `/scratch/cmarti56/issue106-shuttleset22-data/sources`;
+- consumed shuttle, pose, and court artifacts:
+  `/scratch/cmarti56/issue106-shuttleset22-data/extracted-simple`;
+- detailed issue #104 result:
+  `/scratch/cmarti56/issue104-shuttleset-benchmark/results/shuttleset22-features-final.json.gz`.
+
+These directories remain outside Git. The tracked
+[`issue_104_shuttleset22_per_video.json.gz`](data/issue_104_shuttleset22_per_video.json.gz)
+contains the compact aggregate and per-video evidence. Its SHA-256 is
+`2de1b5de6f14a18a614132530ac804c23fbb3cb918c60bd68167a3b3d73f5950`.
+The detailed external result SHA-256 is
+`de721a040c34f1f79cdbdf1a39a40b44fcfcc8076a1e709bc3008f42b98a3510`.
+
+The exact ShuttleSet22 identities are issue #106 handoff commit
+`ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9`, issue #120 court commit
+`0c873762d85719f65d6898b22ea2fc6b6327066a`, upstream annotation commit
+`45517f7d4cb936b03f3eabf939cc7959d39226fe`, source-manifest SHA-256
+`746225f6b9bb1b257052224648c39e813792a75a7eb8711443688ca93fad7463`,
+annotation-tree SHA-256
+`55f832221646229b8b65dea31e24e8d02e0876fd6d0799cb0f6eff12583e1485`,
+and consumed-artifact identity SHA-256
+`dffe2cc2afc75f78eb89b30236477eb732f92a824b22ee3a01a4f893a673864e`.
+
+ShuttleSet22 contributes 6,175,283 frames and 43,159 human contact rows.
+Row validation identifies 684 flaw-marked rows and zero out-of-range frames.
+To preserve shot sequence, attribution parity, and adjacent-contact intervals,
+the evaluator excludes all 4,937 rows in the 542 rallies containing those
+unusable rows. One separate non-monotonic rally contributes four excluded rows.
+This leaves 38,218 contacts in 3,422 complete rallies. Human contact frames
+define each comparison rally from its first contact through its final contact
+inclusive.
+
+| Feature | Eligible population | Median | Leave-one-video-out median range |
+|---|---:|---:|---:|
+| Shots per rally | 3,422 / 3,422 | 9.0 | 9.0 to 9.0 |
+| Posture MAD | 6,312 / 6,844 | 0.857 | 0.851 to 0.863 |
+| Recovery distance | 35,078 / 38,218 | 0.122 | 0.121 to 0.122 |
+| Movement inefficiency | 63,368 / 69,592 | 0.0603 | 0.0596 to 0.0609 |
+
+This comparison supports broad feature coverage and rules out a result driven
+by one match. It does not benchmark production rally or contact detection on
+ShuttleSet22 because issue #103 outputs do not exist for these videos. Its
+human-defined intervals therefore do not overturn the Run 1 cuts caused by
+weak predicted rally, contact, or attribution inputs.
+
 | Trial field | Run 1 decision | Reason |
 |---|---|---|
 | Rally frame and second timestamps, with FPS | **Keep** | Exact conversion, complete population, and required row identity. Reliability follows the reported rally boundary quality. |
@@ -159,7 +242,7 @@ repair weak rally, contact, or attribution inputs.
 | Player sex metadata for posture interpretation | **Unresolved** | The frozen source has no authoritative field. Names or tournament folders must not be guessed. |
 | Away-from-centre recovery | **Cut** | Although coverage is 93.15%, the contact and server attribution inputs are too weak for trustworthy player-specific windows. |
 | Serve speed proxy | **Unresolved** | Return, static, and viewport endpoint policy is incomplete. Exact-frame shuttle error is also too large to support a keep decision. |
-| Shots per rally | **Cut** | Only 298 of 3,359 ground-truth rallies have the exact predicted count. |
+| Shots per rally | **Cut** | Only 298 of 3,287 unmerged-mapping ground-truth rallies have the exact predicted count. |
 | Movement inefficiency | **Cut** | Coverage is high, but missing and spurious contacts change interval boundaries. The result would silently measure the wrong intervals. |
 | Raw degradation slope | **Unresolved** | Upstream retained-feature set and player identity are not complete enough for a meaningful progression. |
 | Tanh-normalized degradation | **Unresolved** | Issue #22 does not define the temperature. |

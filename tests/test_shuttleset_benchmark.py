@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
 import annotator.calibration.shuttleset_benchmark as benchmark
-from annotator.calibration.gt_scoring import _hit_height_gt_map
+from annotator.calibration.gt_scoring import RallyRow, _hit_height_gt_map
 from annotator.calibration.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
     _aggregate_feature_outputs,
@@ -14,6 +15,8 @@ from annotator.calibration.shuttleset_benchmark import (
     _contact_ground_truth,
     _coordinate_rows_summary,
     _landing_coordinate_output,
+    _merged_outcome_rows,
+    _rally_output_rows,
     projection_to_annotator_result,
 )
 from annotator.point_winner import Half, Verdict, VerdictSource
@@ -179,10 +182,18 @@ def test_coordinate_summary_reports_unusable_annotation_cases() -> None:
             "prediction_available": True,
             "error": None,
         },
+        {
+            "mapping_eligible": False,
+            "ground_truth_available": True,
+            "prediction_available": True,
+            "error": 0.1,
+        },
     ]
 
     assert _coordinate_rows_summary(rows) == {
-        "population": 3,
+        "population": 4,
+        "mapping_eligible": 3,
+        "excluded_merged_mapping": 1,
         "ground_truth_available": 2,
         "prediction_available": 1,
         "eligible": 1,
@@ -195,7 +206,7 @@ def test_coordinate_summary_reports_unusable_annotation_cases() -> None:
     output = _landing_coordinate_output(rows, include_rows=False)
     assert output["units"] == "normalized doubles-court Euclidean distance"
     assert output["matching"] == (
-        "GT rally paired through one covered predicted span; "
+        "GT rally paired through one unique, unmerged covered predicted span; "
         "landing frames are not matched"
     )
 
@@ -251,18 +262,103 @@ def test_feature_aggregation_preserves_exact_coordinate_populations() -> None:
     assert corners["summary"]["median_error"] == 2.5
 
 
-def test_contact_ground_truth_joins_side_by_exact_video_and_frame() -> None:
+def test_contact_ground_truth_joins_complete_contact_key() -> None:
     tables = {
-        "set1": pd.DataFrame({"frame_num": [10, 20], "rally": [1, 1]})
+        "set1": pd.DataFrame(
+            {
+                "frame_num": [10, 10, 20],
+                "rally": [1, 1, 1],
+                "ball_round": [1, 2, 3],
+                "player": ["A", "B", "A"],
+                "flaw": [None, 1, None],
+            }
+        )
     }
     master = pd.DataFrame(
         {
             "vid": [1, 1, 2],
-            "frame_num": [10, 30, 20],
-            "player_side": ["Top", "Bottom", "Bottom"],
+            "set_id": ["set1", "set1", "set1"],
+            "rally": [1, 1, 1],
+            "ball_round": [1, 3, 3],
+            "frame_num": [10, 20, 20],
+            "player_side": ["Top", "Bottom", "Top"],
         }
     )
 
-    contacts = _contact_ground_truth(tables, master, 1)
+    contacts, population = _contact_ground_truth(tables, master, 1)
 
-    assert contacts["player_side"].tolist() == ["Top", None]
+    assert contacts["ball_round"].tolist() == [1, 3]
+    assert contacts["player_side"].tolist() == ["Top", "Bottom"]
+    assert population == {
+        "source_rows": 3,
+        "master_aligned_rows": 2,
+        "unmatched_rows": 1,
+        "flaw_marked_rows": 1,
+        "flaw_marked_aligned_rows": 0,
+        "flaw_marked_unmatched_rows": 1,
+        "duplicate_frame_groups": 1,
+        "duplicate_frame_extra_rows": 1,
+    }
+
+
+def _rally_row(gt_index: int, mapped_span: int | None, *, covered: bool) -> RallyRow:
+    return RallyRow(
+        gt_index=gt_index,
+        set_id="set1",
+        rally=gt_index + 1,
+        n_gt_strokes=1,
+        classification="covered" if covered else "missed",
+        mapped_span=mapped_span,
+        ball_round_gt=1,
+        ball_round_pred=1 if covered else None,
+        ball_round_correct=covered,
+        timing_matched_n=int(covered),
+        timing_mean_abs_err=0.0 if covered else None,
+        player_gt="Top",
+        player_pred="Top" if covered else None,
+        player_correct=covered,
+        server_gt="Top",
+        server_pred="Top" if covered else None,
+        server_correct=covered,
+        hit_height_eligible_n=0,
+        hit_height_correct_n=0,
+        getpoint_eligible=True,
+        getpoint_gt="Top",
+        getpoint_pred="Top" if covered else None,
+        getpoint_correct=covered,
+        landing_eligible=True,
+        landing_gt="Bot",
+        landing_pred="Bot" if covered else None,
+        landing_correct=covered,
+    )
+
+
+def test_merged_span_outcomes_are_marked_unusable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scoring = SimpleNamespace(
+        rows=[
+            _rally_row(0, 0, covered=True),
+            _rally_row(1, 0, covered=True),
+            _rally_row(2, None, covered=False),
+        ]
+    )
+
+    assert _merged_outcome_rows(scoring) == {0, 1}
+    rows = _rally_output_rows(scoring)
+    assert [row["outcome_mapping_eligible"] for row in rows] == [False, False, True]
+    assert rows[0]["ball_round_pred"] is None
+    assert rows[1]["ball_round_correct"] is None
+    assert rows[0]["player_pred"] is None
+    assert rows[1]["landing_correct"] is None
+    assert rows[2]["player_correct"] is False
+    monkeypatch.setattr(benchmark, "flatten_metrics", lambda _scoring: {})
+    metrics = benchmark._benchmark_metrics(scoring)
+    assert metrics["outcome_mapping_excluded_merged_rallies"] == 2
+    assert metrics["ball_round_primary_total"] == 1
+    assert metrics["ball_round_primary_correct"] == 0
+    assert metrics["ball_round_covered_total"] == 0
+    assert metrics["player_primary_total"] == 1
+    assert metrics["player_primary_correct"] == 0
+    assert metrics["player_covered_total"] == 0
+    assert metrics["landing_primary_total"] == 1
