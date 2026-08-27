@@ -1,0 +1,99 @@
+{
+  "schema": "final-contact-score-inputs/1",
+  "expected_video_count": 40,
+  "expected_candidate_score_row_count": 1477290,
+  "candidate_row_condition": "At least one listed unsigned-byte field equals 1",
+  "candidate_row_fields": [
+    "region_current_raw",
+    "region_relaxed_impulse",
+    "region_wrist",
+    "region_visibility",
+    "region_rally_start",
+    "region_scene_start",
+    "region_serve_lookback"
+  ],
+  "expected_score_rows_by_video": {
+    "sset_01": 54317,
+    "sset_02": 33641,
+    "sset_03": 28260,
+    "sset_04": 36629,
+    "sset_05": 41225,
+    "sset_06": 54547,
+    "sset_07": 26193,
+    "sset_08": 23745,
+    "sset_11": 37324,
+    "sset_13": 39318,
+    "sset_14": 41090,
+    "sset_15": 37359,
+    "sset_16": 24609,
+    "sset_17": 42105,
+    "sset_18": 25681,
+    "sset_19": 43981,
+    "sset_20": 27634,
+    "sset_21": 37148,
+    "sset_22": 30738,
+    "sset_23": 31542,
+    "sset_24": 42177,
+    "sset_25": 23979,
+    "sset_26": 30935,
+    "sset_28": 35046,
+    "sset_29": 37784,
+    "sset_30": 55319,
+    "sset_31": 30324,
+    "sset_32": 63333,
+    "sset_33": 30549,
+    "sset_34": 24710,
+    "sset_35": 34481,
+    "sset_36": 33716,
+    "sset_37": 31977,
+    "sset_38": 43743,
+    "sset_39": 42011,
+    "sset_40": 33134,
+    "sset_41": 52839,
+    "sset_42": 30883,
+    "sset_43": 28413,
+    "sset_44": 54851
+  },
+  "files": [
+    {
+      "role": "final score groups",
+      "filename": "final_video_score_groups.json",
+      "sha256": "49febe8d940939337c5112112e280bcb0e082eac097750d001ff55641c4ec638"
+    },
+    {
+      "role": "development split",
+      "filename": "shuttleset_development_split.json",
+      "sha256": "2f977647136508257107c26a0ab0695571cd008e525fdc32eaf48fa422a46b33"
+    },
+    {
+      "role": "baseline settings",
+      "filename": "baseline_runs.json",
+      "sha256": "635b0e50fceff25cae5186d0b66e48cb7bda6d81e996b8719332b4b27a3e739e"
+    },
+    {
+      "role": "raw feature record",
+      "filename": "contact_features_record.json",
+      "sha256": "5775395ab9b1a4ba3b3cdf6938b038f96ae42b8a46bb614780579f385975509c"
+    },
+    {
+      "role": "baseline summary",
+      "filename": "baseline_summary.json",
+      "sha256": "3d003035283cab95e5ee6bcb67d1f4a3177a129cc9b47f9af63a2da25c1ce88f"
+    },
+    {
+      "role": "chosen baseline result",
+      "filename": "baseline_result.json",
+      "sha256": "bf8e8ef93cb8c8dcd31c47073effa06aa3e67b12d935b2cf2a77e0f33012b024"
+    },
+    {
+      "role": "contact labels",
+      "filename": "shots_master.csv",
+      "sha256": "b2cb299d2ac29d6ddee034fb73c21251a988e6dcfefb5c71eaaee1f267e02ef3"
+    },
+    {
+      "role": "chosen validation scores",
+      "filename": "validation_contact_scores.npy.xz",
+      "sha256": "7d67a121c9f3f27493a8009f274ec8b91939d6e93124df807e0ee7ab5cfee44d"
+    }
+  ]
+}

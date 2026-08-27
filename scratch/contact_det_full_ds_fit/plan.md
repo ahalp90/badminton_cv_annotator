@@ -301,6 +301,11 @@ Any later trained model that removes contacts, adds contacts or decides whether 
 
 Choose the model design with the 32/8 result. Then make out-of-fold predictions across all 40 ShuttleSet videos and use them to choose the final score cut-off and duplicate-removal distance.
 
+The exact work is fixed in `final_contact_fit_plan.md`. Use A, B, C, D and the
+former validation videos as group V. Rerun all five groups with the other 32
+videos used for training. Save raw scores before choosing from the original 57
+cut-off and nearby-contact pairs.
+
 Fit the chosen model once on all 40 videos. Test the finished setup once on the non-overlapping ShuttleSet22 videos.
 
 ## Review help

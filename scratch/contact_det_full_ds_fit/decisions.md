@@ -29,6 +29,16 @@ Use those predictions to choose the final score cut-off and the distance used to
 
 This gives cut-offs based on unseen-video scores without using ShuttleSet22 labels.
 
+Use five groups of eight: the existing A, B, C and D groups plus group V with
+the eight former validation videos. Rerun every group with exactly the other
+32 videos used for training. The old A–D files used 24 training videos and are
+not part of the final setting choice.
+
+Save all raw scores before choosing the final pair. Use only the 19 cut-offs,
+three nearby-contact distances and tie order already fixed in
+`baseline_runs.json`. The all-40 result is part of model fitting, not an
+independent test.
+
 ## Rules for any later learned step
 
 A later model that removes extra contacts, adds missing contacts or decides which rallies to keep must use out-of-fold predictions from the first contact model.

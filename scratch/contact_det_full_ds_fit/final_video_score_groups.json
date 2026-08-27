@@ -1,0 +1,70 @@
+{
+  "schema": "final-contact-video-score-groups/1",
+  "groups": [
+    {
+      "group": "A",
+      "videos": [
+        "sset_01",
+        "sset_05",
+        "sset_11",
+        "sset_19",
+        "sset_21",
+        "sset_29",
+        "sset_32",
+        "sset_41"
+      ]
+    },
+    {
+      "group": "B",
+      "videos": [
+        "sset_02",
+        "sset_06",
+        "sset_13",
+        "sset_15",
+        "sset_26",
+        "sset_33",
+        "sset_34",
+        "sset_38"
+      ]
+    },
+    {
+      "group": "C",
+      "videos": [
+        "sset_03",
+        "sset_07",
+        "sset_16",
+        "sset_17",
+        "sset_28",
+        "sset_35",
+        "sset_36",
+        "sset_42"
+      ]
+    },
+    {
+      "group": "D",
+      "videos": [
+        "sset_04",
+        "sset_08",
+        "sset_14",
+        "sset_20",
+        "sset_23",
+        "sset_37",
+        "sset_43",
+        "sset_44"
+      ]
+    },
+    {
+      "group": "V",
+      "videos": [
+        "sset_18",
+        "sset_22",
+        "sset_24",
+        "sset_25",
+        "sset_30",
+        "sset_31",
+        "sset_39",
+        "sset_40"
+      ]
+    }
+  ]
+}

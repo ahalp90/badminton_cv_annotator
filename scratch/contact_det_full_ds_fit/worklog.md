@@ -2,9 +2,9 @@
 
 ## Pick up from here
 
-- Current work: record the stopped candidate-model result
-- Next action: make held-out first-model predictions across all 40 development videos
-- Required check: keep the failed candidate addition out of the final model
+- Current work: fix the final all-40 contact fit before implementation
+- Next action: commit the five-group plan and implement raw held-out scoring
+- Required check: each group must train on the other 32 videos and save raw scores before the final settings are chosen
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
 
@@ -69,6 +69,17 @@
 - Launch fixes: two setup checks stopped safely before labels; small reviewed commits fixed the saved group order and valid search windows inside long sections
 - Raw result: ignored by Git under `raw/rally_start_model/`
 - Planned commit: `Record the rally-start contact result`
+
+### Fixed the final contact fit — 2026-08-28
+
+- Groups: keep A, B, C and D, then add the eight former validation videos as group V
+- Separation: train each fit on the other 32 videos and score the held-out eight
+- Fresh scores: rerun A–D because the old files came from 24-video fits; do not mix them into the final result
+- Setting choice: use all 40 held-out score rows and only the original 19 cut-offs, three nearby-contact distances and fixed tie order
+- Label meaning: all-40 labels may choose the final settings, so this is model fitting rather than an independent test
+- Final model: fit HGB once on all 40 after the pair is fixed, save it outside Git and check it after loading
+- Review: the first read asked for exact raw row order, source binding and a fixed model reload sample; the follow-up found no blocker
+- Planned commit: `Plan the final contact fit`
 
 ## Current files
 
