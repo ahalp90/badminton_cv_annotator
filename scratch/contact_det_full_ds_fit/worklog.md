@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: score the five held-out video groups for the final settings
-- Next action: run group A twice, then run B, C, D and V and combine them twice
+- Current work: fit and check the final contact model on all 40 videos
+- Next action: commit the reviewed fitting code, run it on the compute machine and check the saved model
 - Required check: each group must train on the other 32 videos and save raw scores before the final settings are chosen
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
@@ -91,6 +91,18 @@
 - Review: a fresh read-only review found no blocker
 - Checks: 144 experiment tests and all 1,893 project tests pass; Ruff passes for this directory; the pinned type check reports 0 errors
 - Planned commit: `Score every development video`
+
+### Added the final all-40 model fit — 2026-08-28
+
+- File: `scripts/fit_final_contact_model.py` and its focused save-and-reload test
+- Input check: binds the fit to the complete five-group result, raw score file, final kept-contact file, fixed inputs and both source commits
+- Setting check: recounts all 57 fixed pairs from the raw scores before accepting the chosen cut-off and nearby-contact distance
+- Training: uses the unchanged model and training-row rules on exactly all 40 development videos
+- Reload check: saves the model outside Git, loads it again and requires equal probabilities for the first and last candidate row from every video
+- Saved record: keeps the 80 row identities and probabilities, per-video feature hashes, training counts and library versions without machine paths
+- Review: a fresh read-only review found no blocker
+- Checks: 145 experiment tests and all 1,893 project tests pass; Ruff passes for this directory; the pinned type check reports 0 errors
+- Planned commit: `Fit the final contact model`
 
 ## Current files
 

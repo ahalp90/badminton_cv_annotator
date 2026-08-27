@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: the five-group scorer is implemented and checked; the held-out scoring runs are next
-- Next action: run group A twice, require equal files, then run B, C, D and V and combine them twice
+- Current work and status: all held-out scores are complete and the reviewed all-40 fitting code is ready to commit
+- Next action: commit the fitting code, run it on the compute machine and check the saved model before ShuttleSet22
 - Active reviewer: none; the final plan review found no blocker
-- Branch: `contact-det-feasibility`; latest planned commit is `Score every development video`
-- Last useful check: 144 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
+- Branch: `contact-det-feasibility`; latest planned commit is `Fit the final contact model`
+- Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts
@@ -16,4 +16,5 @@
 - Rally-start model result: all six choices failed the 80% correct-action rule; shallow HGB at 0.9 reached 51.7%, gained 30 fully correct sections and lost none
 - Validation boundary: no candidate score file was written for validation and no validation label row was read
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
+- Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Important files: `final_contact_fit_plan.md`, `final_video_score_groups.json`, `final_contact_score_inputs.json`, `rally_start_model_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`

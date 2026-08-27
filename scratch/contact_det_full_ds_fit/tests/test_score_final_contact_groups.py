@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from scratch.contact_det.scripts.freeze_tree_contact_features import REGION_FIELDS
+from scratch.contact_det_full_ds_fit.scripts import fit_final_contact_model as fitter
 from scratch.contact_det_full_ds_fit.scripts import score_final_contact_groups as scorer
 from scratch.contact_det_full_ds_fit.scripts.baseline_config import load_baseline_config
 from scratch.contact_det_full_ds_fit.scripts.experiment_config import (
@@ -76,7 +77,16 @@ def _fake_features(feature_record: Path) -> VerifiedFeatureDataset:
         rows[REGION_FIELDS[0]][row_start:row_end] = 1
     return VerifiedFeatureDataset(
         feature_record,
-        {"source_commit": "deadbee"},
+        {
+            "source_commit": "deadbee",
+            "videos": [
+                {
+                    "video": {"name": video.fixture},
+                    "feature_sha256": f"{video.video_id:064x}",
+                }
+                for video in split.videos
+            ],
+        },
         split,
         rows,
         video_ranges,
@@ -380,3 +390,63 @@ def test_failed_combine_records_when_labels_were_read(
     )
     assert payload["status"] == "failed"
     assert payload["labels_read"] is True
+
+
+def test_final_model_uses_all_videos_and_reloads_with_the_same_scores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files, features = _temporary_inputs(tmp_path)
+    monkeypatch.setattr(scorer, "EXPECTED_SCORE_ROW_COUNT", 160)
+    monkeypatch.setattr(fitter, "EXPECTED_SCORE_ROW_COUNT", 160)
+    feature_loader = lambda *_args: features
+    label_loader = lambda _path, videos: _fake_labels(tuple(videos))
+    model_factory = lambda _run, _seed: _FixedModel()
+    group_dirs = {name: tmp_path / f"group_{name}" for name in scorer.GROUP_NAMES}
+    for name, output_dir in group_dirs.items():
+        scorer.score_group(
+            files,
+            name,
+            output_dir,
+            "deadbee",
+            feature_loader=feature_loader,
+            label_loader=label_loader,
+            model_factory=model_factory,
+        )
+    combined_dir = tmp_path / "combined"
+    combined_result = scorer.combine_groups(
+        files,
+        group_dirs,
+        combined_dir,
+        "deadbee",
+        feature_loader=feature_loader,
+        label_loader=label_loader,
+    )
+
+    result_path = fitter.fit_final_model(
+        fitter.FinalFitFiles(
+            files,
+            combined_result,
+            combined_dir / scorer.COMBINED_RAW_SCORE_FILE,
+            combined_dir / scorer.FINAL_SCORE_FILE,
+        ),
+        tmp_path / "final_model",
+        "deadbee",
+        "cafebabe",
+        feature_loader=feature_loader,
+        label_loader=label_loader,
+        model_factory=model_factory,
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert result["status"] == "complete"
+    assert result["labels_read"] is True
+    assert result["score_source_commit"] == "deadbee"
+    assert result["fit_source_commit"] == "cafebabe"
+    assert len(result["training_selection"]["videos"]) == 40
+    assert len(result["model_check_rows"]) == 80
+    assert len(result["feature_file_sha256_by_video"]) == 40
+    for index in range(0, 80, 2):
+        assert result["model_check_rows"][index]["frame"] == 10
+        assert result["model_check_rows"][index + 1]["frame"] == 100
+    assert (tmp_path / "final_model" / fitter.MODEL_FILE).is_file()
