@@ -82,6 +82,7 @@
 - Files: `scripts/baseline_config.py`, `scripts/feature_dataset.py`, `scripts/score_contact_baseline.py` and focused tests
 - Change: checks the exact nine-run file, checks all 40 feature files before reading contact labels, trains on the 32 training videos only, and chooses the score cut-off and nearby-contact distance on the eight validation videos
 - Saved result: keeps every validation score with its video, interval and frame; records the selected contacts, input hashes, model settings and per-video results without machine paths
-- Checks: all 50 tests in this directory pass; Ruff passes for this directory; whole-project Pyrefly passes
+- Checks: all 51 tests in this directory pass; Ruff passes for this directory; whole-project Pyrefly passes
 - Review: a fresh read-only review found three repeatability problems; the code now marks a rerun as running before checks begin, rejects any change to the fixed nine runs, and checks that the written tie order matches the calculation
-- Commit: pending
+- Launch check: the compute environment keeps the repository source outside its normal Python search path; the command-line code now adds that checked source folder before loading features
+- Commit: `4042c413 Score fixed contact train and validation splits`; the launch fix follows in a small separate commit

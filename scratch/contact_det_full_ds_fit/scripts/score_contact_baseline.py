@@ -8,6 +8,7 @@ import json
 import lzma
 import os
 import re
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +49,7 @@ SCORE_DTYPE = np.dtype(
         ("kept", "?"),
     ]
 )
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass(frozen=True)
@@ -503,6 +505,9 @@ def run_baseline(
         raise ValueError("source commit must be a short or full Git commit")
     if RUN_ID.fullmatch(run_id) is None:
         raise ValueError("run ID must contain only lower-case letters, numbers and underscores")
+    source_root = str(REPO_ROOT / "src")
+    if source_root not in sys.path:
+        sys.path.insert(0, source_root)
     config_file = Path(config_path)
     split_file = Path(split_path)
     feature_record_file = Path(feature_record_path)

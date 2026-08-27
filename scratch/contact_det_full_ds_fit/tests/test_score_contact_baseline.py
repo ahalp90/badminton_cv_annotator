@@ -237,3 +237,28 @@ def test_complete_result_contains_portable_inputs_and_saved_scores(
     assert len(scores) == 16
     assert int(scores["kept"].sum()) == 8
     assert str(tmp_path) not in result_text
+
+
+def test_run_adds_the_repository_source_folder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(baseline.sys, "path", [entry for entry in baseline.sys.path if entry != str(baseline.REPO_ROOT / "src")])
+    monkeypatch.setattr(
+        baseline,
+        "load_verified_feature_dataset",
+        lambda *_args: (_ for _ in ()).throw(ValueError("stop after import setup")),
+    )
+
+    with pytest.raises(ValueError, match="stop after import setup"):
+        run_baseline(
+            CONFIG_PATH,
+            "hgb_reference_raw_balanced",
+            tmp_path / "features.json",
+            SPLIT_PATH,
+            tmp_path / "shots_master.csv",
+            tmp_path / "results",
+            "deadbee",
+        )
+
+    assert baseline.sys.path[0] == str(baseline.REPO_ROOT / "src")
