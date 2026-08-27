@@ -2,7 +2,7 @@
 
 ## Where the work is now
 
-The scope, video split, feature calculations and nine model runs are fixed. The raw-motion features are complete for all 40 videos. The common-30 feature run is in progress. The current code trains on 32 videos and checks the result on the eight fixed validation videos.
+The scope, video split, feature calculations and nine model runs are fixed. Both feature sets and all nine model runs are complete. Timing results are saved and checked. The current task is to replay the player-side rule and score whole validation rallies before choosing a model.
 
 The old three-video experiment stays unchanged. All new code and results live in this directory.
 
@@ -63,7 +63,7 @@ Large feature files stay out of Git. The planned commit is:
 
 The approved commit wording uses “freeze”. Here, that means saving the feature rows and enough checks to show which inputs produced them.
 
-## Current change: train and compare HGB and RF
+## Completed change: train and compare HGB and RF
 
 Before training begins, write down no more than 12 full model runs. The list may use:
 
@@ -90,7 +90,7 @@ A repeated run must produce the same identities, scores and chosen settings. The
 
 `Score fixed contact train and validation splits`
 
-## Then: score complete rallies
+## Current change: score complete rallies
 
 After contact frames are fixed, apply the existing Top/Bottom player rule again at those frames. Load the player-side labels only after the predicted sides are fixed.
 

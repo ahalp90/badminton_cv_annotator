@@ -2,10 +2,10 @@
 
 ## Pick up from here
 
-- Current work: finish the common-30 feature files and run the fixed 32/8 model comparison
-- Next action: commit the checked training code, then run one repeatability check before the nine planned runs
+- Current work: verify the completed nine-run comparison and add player-side and whole-rally scoring
+- Next action: run the strict result checker on the compute machine, then save player-side predictions before opening rally labels
 - Checked so far: the accepted split, saved ShuttleSet metadata, pilot feature code, label-loading order, Top/Bottom replay and complete-rally scoring
-- Plan section: `plan.md`, “Current change: train and compare HGB and RF”
+- Plan section: `plan.md`, “Current change: score complete rallies”
 
 ## Things to remember
 
@@ -93,4 +93,22 @@
 - Change: runs the exact nine comparisons in order, chooses the matching raw or common-30 feature record, and saves progress after each result
 - Failure handling: clears every old child result before opening the menu, records setup or per-run failure without copying path-bearing error text, and accepts a child result only when its version, run ID, source commit and complete status match
 - Review: a fresh read-only review found four gaps and one remaining corner after the first fixes; the follow-up review confirms that all are closed
+- Commit: `681d630b Run the fixed contact menu in order`
+
+### Ran the nine fixed comparisons — 2026-08-27
+
+- Feature files: both motion choices finished all 40 videos; each has 1,496,146 saved rows
+- Repeatability: the reference raw HGB run produced byte-for-byte equal score and result files twice
+- Result: all nine planned runs completed; timing F1 at ±5 frames after scaling to 30 frames per second ranges from 0.8498 to 0.8625
+- Leading timing result: reference raw HGB with more negatives, with 0.8924 precision, 0.8344 recall and 0.8625 F1
+- Decision: no model has been chosen; player-side and whole-rally results come next
+
+### Added strict checks for the completed menu — 2026-08-27
+
+- Files: `scripts/baseline_results.py` and focused tests
+- Change: checks every menu, result, feature and score hash; checks the fixed split and model settings; recomputes kept contacts from the saved scores; and confirms every saved prediction frame
+- Label handling: hashes the contact-label file as bytes but does not parse its rows or import label-reading code
+- Review: the first pass found excessive memory use, no check that both feature sets came from the same input files, unchecked invalid scores and incomplete result checks; all four are fixed
+- Follow-up review: confirmed that the final small code move is correct and covered by tests
+- Checks: all 66 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
 - Commit: pending
