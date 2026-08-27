@@ -1,105 +1,165 @@
-# Full-dataset contact experiment plan
+# Full-data contact experiment plan
 
-## Completed stage: ORIENT
+## Where the work is now
 
-Objective: confirm the experiment contract, validation split, OUT-list and first implementation batches.
+The scope, video split and safeguards are agreed. The current task is to add and test the saved 40-video list.
 
-Entry facts:
+The old three-video experiment stays unchanged. All new code and results live in this directory.
 
-- The three-video pilot is complete through its Phase 3 stop rule.
-- The branch is clean at `5f6da72` before this campaign scaffolding.
-- The 40-video extraction is complete and mapped in the existing local-only data map.
-- The pilot freezer and scorer hard-code three fixtures and leave-one-fixture-out scoring.
+## Work completed
 
-Outcome: the user confirmed `contract.md`, the recommended validation split and the planned local commit approach on 2026-08-27.
+### Agree what will be tested
 
-## Current stage: MAP
+The user accepted:
 
-Objective: trace the pilot freezer, manifest, ground-truth loader, model split, retained-score and downstream rally contracts.
+- 32 training videos and eight fixed validation videos
+- HGB and RF as the first models
+- no more than 12 full model runs in the first comparison
+- out-of-fold predictions for any later learned step
+- removing extra contacts before trying to add missing contacts, when the errors support that order
+- out-of-fold predictions across all 40 videos to choose the final cut-offs
+- one final test on non-overlapping ShuttleSet22 videos
 
-Outputs:
+### Inspect the three-video code
 
-- a source-backed current-system map;
-- explicit reusable and replaced boundaries;
-- the silent-failure cases each implementation batch must test.
+The inspection found that the feature calculations and rally scoring functions already work one video at a time.
 
-Exit gate: B1–B4 can be executed without rediscovering their data flow, invariants or tests.
+The fixed three-video assumptions are in the code around these functions. That code chooses the video list, loads labels, trains the models, checks result files and applies the Top/Bottom player rule again.
 
-## Planned stages
+The source details are in `current_system_map.md`.
 
-1. **MAP:** trace the pilot input, manifest, ground-truth, split, scoring and downstream rally contracts. In progress.
-2. **PLAN:** turn the map into executable batches and add focused contract tests.
-3. **BUILD:** generalise the scripts, freeze full-corpus features and run the fixed baselines.
-4. **VERIFY:** run focused local gates, project gates and independent diff/result review.
-5. **CLOSE:** retain portable results and leave the exact ShuttleSet22 next action.
+## Current change: add the video list and split checks
 
-## Initial batches and commit messages
+Add one JSON file with all 40 eligible videos. Each row records the video ID, frame rate, resolution, match details and whether the video is for training or validation.
 
-### B0 — portable experiment record
+Add Python code that:
 
-- Files: the campaign records in this directory.
-- Change: record the agreed scope, split, OUT-list and resume point.
-- Gate: manual check for machine paths, hostnames and access details.
-- Proposed commit: `Set up the full-dataset contact experiment`
+- rejects repeated video IDs or names
+- rejects excluded videos in the split
+- checks the expected 32/8 counts
+- checks every value against the saved ShuttleSet tables
+- keeps all machine paths and access details out of the file
 
-### B1 — roster and split contract
+Small tests cover these failure cases. The planned commit is:
 
-- Files: new experiment modules and tests in this directory.
-- Change: load a portable video roster and enforce disjoint train, validation and test identities.
-- Gate: focused unit tests plus lint and types.
-- Proposed commit: `Add the full-dataset contact split`
+`Add the full-dataset contact split`
 
-### B2 — arbitrary-video feature freeze
+## Next change: prepare features for any listed video
 
-- Files: new experiment freezer and tests in this directory.
-- Change: adapt the pilot's per-video feature construction to a manifest-defined roster without changing its feature equations.
-- Gate: pilot-fixture equivalence, focused tests, lint and types.
-- Proposed commit: `Freeze contact features for any video roster`
+Use the tested pilot feature function once per video from the new list. Do not change its calculations.
 
-### B3 — fixed train/validation scorer
+The saved files will record:
 
-- Files: new experiment scorer and tests in this directory.
-- Change: fit HGB and RF on the training videos, select decisions on the fixed validation videos and retain per-video scores.
-- Gate: synthetic split tests, deterministic repeat, focused tests, lint and types.
-- Proposed commit: `Score fixed contact train and validation splits`
+- the source commit
+- the hash of the video-list file
+- frame rate and row intervals for each video
+- the size and hash of each input file, without its machine path
 
-### B4 — strict rally evaluation
+Before preparing all 40 videos, run the new code on the three pilot videos. Its feature rows must be exactly equal to the saved pilot rows.
 
-- Files: new experiment evaluation modules and tests in this directory.
-- Change: report timing, side and fully-correct retained-rally results for the validation stream.
-- Gate: pilot-record reproduction, focused tests, lint and types.
-- Proposed commit: `Add full-dataset rally scoring`
+Large feature files stay out of Git. The planned commit is:
 
-### B5 — baseline run and report
+`Freeze contact features for any video roster`
 
-- Files: portable manifests, compact result artefacts, figures and report in this directory.
-- Change: record the 32/8 HGB and RF baseline and the evidence-backed next experiment.
-- Gate: repeated result verification, independent result audit and Git disclosure check.
-- Proposed commit: `Record the full-dataset contact baseline`
+The approved commit wording uses “freeze”. Here, that means saving the feature rows and enough checks to show which inputs produced them.
 
-Later experiment commits will be planned only after the baseline errors justify them.
+## Then: train and compare HGB and RF
 
-## Review roster
+Before training begins, write down no more than 12 full model runs. The list may use:
 
-- Primary integration and experiment judgement: root agent.
-- Mechanical pilot-to-full-data map: Luna xhigh, read-only; completed and subject to primary audit.
-- Per-batch review: fresh bounded reviewer declared before each launch.
-- Result-level adversarial review: DeepSeek V4 Flash and agy Opus, read-only, after a complete baseline exists.
+- the original motion values or motion scaled to 30 frames per second
+- the existing HGB and RF settings from the pilot
+- at most two small, pre-set changes to the HGB settings
+- no class weighting or balanced class weighting
+- a small fixed list of duplicate-removal distances
+- the pilot rule for choosing negative examples or one alternative
 
-## Audit check-ins
+The list is not the full combination of every choice. It will not grow after validation results are read without a recorded reason and user approval.
 
-### A1 — before the first full-corpus freeze
+For each full model run:
 
-Check the roster, split, path portability, label-blind boundary and pilot-feature equivalence. The full freeze does not start until this review is clear.
+1. Check all saved feature rows before loading contact labels.
+2. Build training examples from the 32 training videos only.
+3. Train the model on those 32 videos.
+4. Score every candidate frame in the eight validation videos.
+5. Choose the score cut-off and the distance used to merge nearby duplicate contact predictions from the validation videos.
+6. Save every validation score and its video, interval and frame identity.
+7. Report combined and per-video timing results.
 
-### A2 — before the first HGB/RF baseline launch
+A repeated run must produce the same identities, scores and chosen settings. The planned commit is:
 
-Check split isolation, ground-truth loading order, negative sampling, threshold selection, deterministic seeds and result-manifest binding. The baseline does not start until this review is clear.
+`Score fixed contact train and validation splits`
 
-### A3 — after baseline scoring
+## Then: score complete rallies
 
-Independently recompute the main timing and strict-rally totals from retained per-video predictions. Reviewers then challenge the interpretation and proposed next experiment. No follow-up model run starts from an unaudited baseline.
+After contact frames are fixed, apply the existing Top/Bottom player rule again at those frames. Load the player-side labels only after the predicted sides are fixed.
 
-### A4 — before the ShuttleSet22 test
+Reuse the pilot functions that assign events to rally ranges that include the start frame and stop before the end frame. Reuse the function that checks whether a whole rally is correct.
 
-Check the frozen settings, the overlap exclusions, the final 40-video refit record and the rule that test labels only score the result. The test runs once after this check-in.
+The report will show:
+
+- contact timing
+- player-side accuracy
+- complete rally accuracy
+- how many rallies remain as the required confidence rises
+- the main reasons that rallies fail
+
+The new code must reproduce the saved three-video result before using the larger data. The planned commit is:
+
+`Add full-dataset rally scoring`
+
+## Record the first 40-video result
+
+Save the compact result files, plots and plain-language report. Repeat the important totals from the saved per-video predictions to catch reporting mistakes.
+
+Independent reviewers will check the numbers and the proposed next experiment. The planned commit is:
+
+`Record the full-dataset contact baseline`
+
+## Checks before long runs
+
+Before preparing all 40 videos, check:
+
+- the accepted video split
+- the absence of machine paths
+- the rule that feature preparation does not read contact labels
+- exact equality with the pilot feature rows
+
+Before training HGB or RF, check:
+
+- training and validation separation
+- the order in which labels load
+- negative sampling
+- score cut-off and duplicate-removal selection
+- random seeds
+- links between feature files and result files
+
+After the first result, independently recalculate the main contact and rally totals from the saved predictions.
+
+Before the ShuttleSet22 test, check:
+
+- the fixed model design
+- the videos removed because they overlap
+- the record of training on all 40 videos
+- the rule that ShuttleSet22 labels only score the result
+
+## Possible later work
+
+Later experiments are chosen only after the first complete-rally errors are checked.
+
+If extra contacts remain the main cause of bad rallies, first test a model that removes likely extras. Test a limited way to add missing contacts only when otherwise-good rallies are often one contact short.
+
+Any later trained model that removes contacts, adds contacts or decides whether to keep a rally must use predictions from the first contact model. Each training video must be predicted by a first contact model that did not train on that video.
+
+## Final training and ShuttleSet22 test
+
+Choose the model design with the 32/8 result. Then make out-of-fold predictions across all 40 ShuttleSet videos and use them to choose the final score cut-off and duplicate-removal distance.
+
+Fit the chosen model once on all 40 videos. Test the finished setup once on the non-overlapping ShuttleSet22 videos.
+
+## Review help
+
+- The main agent owns code integration and experiment judgement.
+- Luna handles small repeatable checks and reads code without making changes.
+- A fresh reviewer checks each code change before its commit.
+- DeepSeek V4 Flash and agy Opus review the complete first result before another experiment starts.

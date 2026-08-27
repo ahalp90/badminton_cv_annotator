@@ -1,9 +1,9 @@
 # Resume
 
-- Stage and status: `map / active`
-- Next action: Complete the current-system map and turn it into executable B1–B4 gates.
-- Active packets or workers: `none`
-- Integration tree: `contact-det-feasibility` at `5f6da72`; campaign scaffolding is uncommitted.
-- Last verified gate: The user confirmed the Stage 4 contract and eight-video validation split.
-- Blockers: `none`
-- Critical paths: `plan.md`, `worklog.md`, the pilot freezer and scorer named in the MAP record
+- Current work and status: the checked 40-video split is ready for its approved commit
+- Next action: prepare the same contact features for every video in the saved list
+- Active reviewer: none
+- Branch: `contact-det-feasibility`; the split belongs in `Add the full-dataset contact split`
+- Last useful check: 13 small tests and all 1,893 project tests pass; Ruff passes for this directory; whole-project Pyrefly passes
+- Blockers: none
+- Important files: `plan.md`, `worklog.md`, `shuttleset_development_split.json`, `scripts/experiment_config.py`
