@@ -93,6 +93,20 @@ scores must come from a model that did not train on that video. Keep the
 candidate construction fixed and evaluate the choice method on held-out
 videos.
 
+## Training-video score groups
+
+Split the 32 current training videos into four fixed groups of eight. Each
+group has four 25 fps and four 30 fps videos. The seven women's matches are
+spread 2, 2, 2 and 1 across the groups.
+
+For each group, train the chosen HGB on the other 24 current training videos
+and score the held-out eight. The fixed validation videos train none of these
+four models.
+
+Player overlap between groups is accepted. The agreed safeguard is whole-video
+separation. A player-separated split is not practical for the heavily repeated
+25 fps player set, so report these as video-held-out scores.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

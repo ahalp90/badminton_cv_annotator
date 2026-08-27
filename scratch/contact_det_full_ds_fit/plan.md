@@ -193,9 +193,17 @@ Do not reuse the pilot's failed hand-written rule. Write a separate plan for a
 small trained choice method.
 
 Before that method can train, make first-model scores for its training videos
-with models that did not train on those videos. Keep the rally-start candidate
-construction unchanged. Set the held-out video split and stop rules before
-training or reading the new results.
+with models that did not train on those videos. The fixed groups and run rules
+are in `training_video_score_groups.json` and
+`training_video_score_plan.md`.
+
+Use four groups of eight current training videos. For each group, train the
+chosen HGB on the other 24 training videos and score the eight held-out videos.
+The existing eight validation videos train none of these models and remain the
+later check for the candidate-choice method.
+
+This next stage only makes the held-out first-model scores. It does not train
+the candidate-choice method or change the rally-start candidate list.
 
 ## Checks before long runs
 

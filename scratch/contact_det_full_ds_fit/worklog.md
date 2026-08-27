@@ -225,4 +225,17 @@
 - Independent recount: found the same 81 targets, 56 covered contacts, 30 covered only before the section, 1,845 entries and 1,230 earlier entries
 - Review: an independent result audit checked the input hashes, output contents and arithmetic and found no blocker
 - Decision: keep the candidate list; plan a separate trained choice method using first-model scores made without training on the same video
-- Planned commit: `Record the rally-start candidate result`
+- Commit: `fe17bd19 Record the rally-start candidate result`
+
+### Set the training-video score groups — 2026-08-27
+
+- Files: `training_video_score_groups.json`, `training_video_score_inputs.json` and `training_video_score_plan.md`
+- Split: four groups of eight current training videos; each has four videos at each frame rate and the seven women's matches are spread 2, 2, 2 and 1
+- Fits: exactly four chosen-HGB fits; each trains on the other 24 training videos and scores its held-out eight
+- Validation boundary: the existing eight validation videos train none of the four models
+- Fixed settings: chosen HGB, raw motion, balanced weights, up to 24 negatives per positive, seed 20260824, cut-off 0.9 and duplicate distance six
+- Expected output: 1,193,927 score rows selected by the same seven search flags as the baseline
+- Input record: tracked hashes pin the groups, split, settings, raw feature record, baseline summary/result and contact labels before fitting
+- Launch check: run group A twice and require identical saved bytes before starting the other three fits
+- Review: an independent plan audit found three blockers; the final pass confirms that the row counts, input hashes and exact 24-video label boundary are fixed
+- Planned commit: `Set the held-out training score groups`
