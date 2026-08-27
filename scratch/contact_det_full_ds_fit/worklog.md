@@ -128,4 +128,16 @@
 - Memory: handles one validation video's large vision arrays at a time and releases them before loading the next video
 - Review: a fresh read-only review found three issues; the final pass confirms all three are closed
 - Checks: all 74 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
+- Full run: completed all eight validation videos and all nine model runs; the saved contact counts agree with the earlier timing results and the file contains no machine paths
+- Local copy: its SHA-256 hash matches the file on the experiment machine
+- Commit: `ccdbbf73 Save player sides before opening rally labels`
+
+### Added validation whole-rally scoring — 2026-08-27
+
+- Files: `scripts/score_validation_rallies.py` and focused tests
+- Change: fully checks the saved predictions first, reads contact timing without the player-side column, then reads and checks the player-side column separately
+- Reused code: keeps the old one-to-one contact matching, half-open rally ranges, whole-rally check and confidence results
+- Saved results: reports contact timing, player-side answers at three timing limits, whole-rally accuracy, per-video totals and failure counts for all nine runs
+- Review: a fresh read-only review found an out-of-range frame gap, a label-file change gap and a missing order test; the follow-up confirms all three are closed
+- Checks: all 85 tests in this directory pass; Ruff and the pinned Pyrefly check pass for this directory
 - Commit: pending
