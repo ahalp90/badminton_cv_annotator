@@ -200,4 +200,15 @@
 - Label order: fix and reproduce the list before opening the saved missed-contact detail
 - Excluded: the pilot's failed hand-written choice rule, model training, contact changes and ShuttleSet22 labels
 - Review: an independent read found four clarity and counting problems; the follow-up confirms that all four are fixed
-- Planned commit: `Set the rally-start candidate limits`
+- Commit: `5d52dc10 Set the rally-start candidate limits`
+
+### Added the rally-start candidate check — 2026-08-27
+
+- Files: `scripts/check_rally_start_candidates.py` and its focused tests
+- Change: builds the fixed list twice, saves equal candidate bytes, then opens the already checked missed-contact detail and measures the four limits
+- Input checks: binds the model run, scores, predictions, complete-rally result, missed-contact result, split, feature record and contact-label file by hash
+- Section handling: each broad missed-first-contact count uses the detected section assigned to that labelled rally; candidates cannot cross between sections
+- Fixed distance: requires exactly six frames at 30 fps and uses the baseline frame-rate adjustment
+- Checks: 104 tests in this experiment pass; Ruff passes for the changed files; whole-project Pyrefly reports zero errors
+- Review: an independent code read found three blockers; the follow-up confirms the section assignment, input checks and exact distance are fixed
+- Planned commit: `Build the rally-start candidate list`

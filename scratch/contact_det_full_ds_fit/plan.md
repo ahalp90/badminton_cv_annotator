@@ -169,6 +169,16 @@ covered contact.
 The next implementation only builds and measures this list. It does not choose
 or add a contact.
 
+The implementation now checks every saved input, builds the list twice and
+saves identical candidate bytes before it opens the missed-contact detail. It
+also assigns the wider missed-first-contact count through the detected section
+for that labelled rally, so one section cannot borrow a nearby candidate from
+another.
+
+The planned implementation commit is:
+
+`Build the rally-start candidate list`
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:
