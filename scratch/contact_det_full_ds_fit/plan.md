@@ -127,7 +127,7 @@ ten frames. Missing contacts are much more common than extra contacts. Ninety-fo
 single-rally sections are exactly one contact short with every predicted time
 and player side otherwise correct.
 
-## Next change: check where contacts are missed
+## Completed change: check where contacts are missed
 
 Before another model run, check whether the chosen HGB model has saved
 candidate frames near its missed contacts. Separate first contacts from later
@@ -140,6 +140,25 @@ events. The fixed counts and stop rules are in `missed_contact_check_plan.md`.
 The planned implementation commit is:
 
 `Check where the baseline misses contacts`
+
+The result confirms that missed rally starts usually have candidate frames to
+work with. At ten frames, 284 of 364 missed first contacts have a saved
+candidate nearby. All 94 otherwise-correct one-short sections have a nearby
+candidate, and 81 are missing the first contact.
+
+## Next change: test a small rally-start candidate list
+
+Build a short list without reading contact labels. Include candidates just
+before each detected section as well as candidates inside its start. Fix the
+maximum list size and required contact coverage before scoring it.
+
+This is a candidate-list check, not a trained second model. Stop if it adds too
+many frames for the first contacts it makes available. Do not repeat the broad
+pilot list or its failed hand-written chooser.
+
+No code or scoring starts until a separate reviewed plan gives exact values for
+the maximum candidates per section, maximum total candidates, minimum
+first-contact coverage and maximum added candidates per newly covered contact.
 
 ## Checks before long runs
 

@@ -177,4 +177,16 @@
 - Review: a fresh read-only review found two blockers; the chosen run and score files are now bound by tracked hashes, and every nearby kept prediction is proved to have matched another label
 - Checks: 96 focused tests pass; experiment Ruff and whole-project Pyrefly pass; the real saved inputs complete a path-free smoke run
 - Whole-project checks: all 1,893 tests pass and 29 are skipped; Ruff reports the same 863 existing findings outside this experiment
+- Commit: `e1c5eaa4 Check where the baseline misses contacts`
+
+### Ran the missed-contact check — 2026-08-27
+
+- Files: `missed_contact_summary.json`, `missed_contact_report.md`, `decisions.md`, `plan.md`, this worklog
+- Saved result: `raw/missed_contact_check.json.gz`; complete, path-free and produced from commit `e1c5eaa4`
+- First contacts at ten frames: 284 of 364 misses have a saved candidate nearby; 264 are below the 0.9 cut-off
+- Later contacts at ten frames: 379 of 542 misses have no saved candidate nearby
+- One-short sections: all 94 have a nearby candidate; 81 are missing the first contact and 13 a later contact
+- Section boundary: 39 of the 81 missing-first sections have candidate frames only before the detected section starts
+- Decision: test a small rally-start candidate list built without labels; do not lower the cut-off everywhere or remove extra contacts next
+- Stop before code: set and review exact list-size, coverage and added-candidate limits first
 - Commit: pending

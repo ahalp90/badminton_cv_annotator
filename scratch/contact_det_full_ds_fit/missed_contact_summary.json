@@ -1,0 +1,65 @@
+{
+  "result_file": "missed_contact_check.json.gz",
+  "result_sha256": "dc54c9abf215f8f7975cc1e6e530e6a18d02d0adb7dbf7030f5dba10fd35c51e",
+  "source_commit": "e1c5eaa4",
+  "run_id": "hgb_reference_raw_more_negatives",
+  "selected_score_cutoff": 0.9,
+  "missed_contacts_at_5_frames": {
+    "first_contacts": {
+      "missed": 389,
+      "kept_prediction_nearby": 4,
+      "score_reached_cutoff_but_frame_was_removed": 11,
+      "candidate_scores_below_cutoff": 290,
+      "no_saved_candidate_nearby": 84
+    },
+    "later_contacts": {
+      "missed": 554,
+      "kept_prediction_nearby": 20,
+      "score_reached_cutoff_but_frame_was_removed": 12,
+      "candidate_scores_below_cutoff": 143,
+      "no_saved_candidate_nearby": 379
+    }
+  },
+  "missed_contacts_at_10_frames": {
+    "first_contacts": {
+      "missed": 364,
+      "kept_prediction_nearby": 16,
+      "score_reached_cutoff_but_frame_was_removed": 4,
+      "candidate_scores_below_cutoff": 264,
+      "no_saved_candidate_nearby": 80
+    },
+    "later_contacts": {
+      "missed": 542,
+      "kept_prediction_nearby": 42,
+      "score_reached_cutoff_but_frame_was_removed": 24,
+      "candidate_scores_below_cutoff": 97,
+      "no_saved_candidate_nearby": 379
+    }
+  },
+  "otherwise_correct_one_short_sections_at_10_frames": {
+    "section_count": 94,
+    "missing_first_contact": {
+      "section_count": 81,
+      "kept_prediction_nearby": 2,
+      "kept_prediction_outside_detected_section": 2,
+      "score_reached_cutoff_but_frame_was_removed": 3,
+      "candidate_scores_below_cutoff": 74,
+      "no_saved_candidate_nearby": 0,
+      "candidate_inside_detected_section": 42,
+      "candidate_only_outside_detected_section": 39,
+      "best_candidate_is_before_section_when_only_outside": 39,
+      "median_best_candidate_score": 0.4967489478370971
+    },
+    "missing_later_contact": {
+      "section_count": 13,
+      "kept_prediction_nearby": 2,
+      "kept_prediction_outside_detected_section": 0,
+      "score_reached_cutoff_but_frame_was_removed": 0,
+      "candidate_scores_below_cutoff": 11,
+      "no_saved_candidate_nearby": 0,
+      "candidate_inside_detected_section": 13,
+      "candidate_only_outside_detected_section": 0,
+      "median_best_candidate_score": 0.860043243228384
+    }
+  }
+}

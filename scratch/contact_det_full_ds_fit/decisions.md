@@ -54,6 +54,17 @@ with 89.0% of later contacts. The next small contact test should focus on rally
 starts or on adding one missed contact. The result does not support removing
 extra contacts next.
 
+The saved-score check narrows that next step. At ten frames, 284 of 364 missed
+first contacts have a saved candidate nearby, usually below the 0.9 cut-off.
+All 94 otherwise-correct one-short sections have a nearby candidate, and 81
+are missing the first contact. Test a small rally-start candidate list next.
+Include a limited number of frames before the detected section because 39 of
+those 81 sections have candidates only before the section starts.
+
+Do not lower the cut-off for every contact. Most missed later contacts have no
+saved candidate nearby, so a broad cut-off change would add predictions without
+addressing that problem.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation
