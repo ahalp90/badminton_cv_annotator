@@ -189,4 +189,15 @@
 - Section boundary: 39 of the 81 missing-first sections have candidate frames only before the detected section starts
 - Decision: test a small rally-start candidate list built without labels; do not lower the cut-off everywhere or remove extra contacts next
 - Stop before code: set and review exact list-size, coverage and added-candidate limits first
-- Commit: pending
+- Commit: `4dc2a037 Record the missed-contact result`
+
+### Set the rally-start candidate limits — 2026-08-27
+
+- File: `rally_start_candidate_plan.md`
+- List: the first kept contact and at most two earlier HGB score rows for each detected section
+- Size limits: at most three candidates per section and 1,845 across validation
+- Result limits: cover at least 50 of the 81 target first contacts and add no more than 25 entries per covered contact
+- Label order: fix and reproduce the list before opening the saved missed-contact detail
+- Excluded: the pilot's failed hand-written choice rule, model training, contact changes and ShuttleSet22 labels
+- Review: an independent read found four clarity and counting problems; the follow-up confirms that all four are fixed
+- Planned commit: `Set the rally-start candidate limits`

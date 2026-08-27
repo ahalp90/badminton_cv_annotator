@@ -65,6 +65,19 @@ Do not lower the cut-off for every contact. Most missed later contacts have no
 saved candidate nearby, so a broad cut-off change would add predictions without
 addressing that problem.
 
+## Rally-start candidate limits
+
+Use the first kept contact in each detected section and no more than two
+earlier HGB score rows. The list must contain no more than three entries for
+one section or 1,845 entries across validation.
+
+Continue only if the list covers at least 50 of the 81 otherwise-correct
+sections missing their first contact. It must also add no more than 25 list
+entries for each covered first contact.
+
+These limits were fixed and independently checked before the candidate list
+was built or the saved missed-contact detail was opened.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

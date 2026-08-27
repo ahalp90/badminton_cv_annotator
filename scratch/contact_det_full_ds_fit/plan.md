@@ -160,6 +160,15 @@ No code or scoring starts until a separate reviewed plan gives exact values for
 the maximum candidates per section, maximum total candidates, minimum
 first-contact coverage and maximum added candidates per newly covered contact.
 
+Those values are now fixed in `rally_start_candidate_plan.md`. Each section
+may have its first kept contact and at most two earlier score rows. Across the
+validation result, the list must contain no more than 1,845 entries, cover at
+least 50 of the 81 target first contacts, and add no more than 25 entries per
+covered contact.
+
+The next implementation only builds and measures this list. It does not choose
+or add a contact.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:
