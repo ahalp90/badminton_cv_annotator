@@ -142,6 +142,7 @@ DENSITY_MIN_PER_MIN = 0.15  # longs judged on chunks per minute
 
 # The exact flash ID and low-cost fast tier were selected on 2026-07-05.
 # Gemini flash uses GEMINI_API_KEY; gemini-2.5-flash was the known-stable ID.
+LLM_PROVIDER = 'gemini'
 TRIAGE_MODEL = 'gemini-2.5-flash'
 # The documented floor across the candidate seats, kept at the min for fair comparison:
 # gemma-4-31b-it :free (OpenRouter) 32,768 < qwen3-32b on Groq 40,960 (hard error above it)

@@ -130,6 +130,21 @@ def test_triage_client_has_a_bounded_request_timeout(monkeypatch):
     assert client_kwargs['http_options'].timeout == captured['timeout']
 
 
+def test_openrouter_cli_requires_explicit_model_and_key_environment(monkeypatch, capsys):
+    monkeypatch.setattr(sys, 'argv', ['relevance_triage', '--provider', 'openrouter'])
+    monkeypatch.setattr(
+        relevance_triage,
+        'run_relevance_triage',
+        lambda **_kwargs: pytest.fail('triage must not run with incomplete OpenRouter settings'),
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        relevance_triage.main()
+
+    assert caught.value.code == 2
+    assert 'requires explicit --model and --api-key-environment' in capsys.readouterr().err
+
+
 def test_call_triage_llm_retries_then_succeeds(monkeypatch):
     assert config.LLM_MAX_RETRIES >= 3  # the fixture below fails twice before succeeding
     calls = {'n': 0}

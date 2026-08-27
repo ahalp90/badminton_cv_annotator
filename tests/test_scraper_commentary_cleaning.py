@@ -110,6 +110,21 @@ def test_clean_client_has_a_bounded_request_timeout(monkeypatch):
     assert client_kwargs['http_options'].timeout == captured['timeout']
 
 
+def test_openrouter_cli_requires_explicit_model_and_key_environment(monkeypatch, capsys):
+    monkeypatch.setattr(sys, 'argv', ['commentary_cleaning', '--provider', 'openrouter', '--clean-only'])
+    monkeypatch.setattr(
+        commentary_cleaning,
+        'run_clean',
+        lambda **_kwargs: pytest.fail('cleaning must not run with incomplete OpenRouter settings'),
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        commentary_cleaning.main()
+
+    assert caught.value.code == 2
+    assert 'requires explicit --model and --api-key-environment' in capsys.readouterr().err
+
+
 def test_run_clean_extends_in_place_and_keeps_k_phrasings(tmp_path, monkeypatch):
     """A kept video's chunks gain text_clean + K phrasings; original fields survive."""
     monkeypatch.setattr(commentary_cleaning, 'CHUNKS_DIR', tmp_path)
