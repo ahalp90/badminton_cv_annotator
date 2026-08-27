@@ -234,23 +234,27 @@ ShuttleSet22 because issue #103 outputs do not exist for these videos. Its
 human-defined intervals therefore do not overturn the Run 1 cuts caused by
 weak predicted rally, contact, or attribution inputs.
 
-| Trial field | Run 1 decision | Reason |
-|---|---|---|
-| Rally frame and second timestamps, with FPS | **Keep** | Exact conversion, complete population, and required row identity. Reliability follows the reported rally boundary quality. |
-| Rally duration from final contact plus offset | **Unresolved** | Issue #22 does not define the end offset. Zero eligible values were emitted rather than inventing it. |
-| Posture variability MAD | **Keep** | Formula is complete, coverage is 99.57%, player coordinates are accurate enough, and leave-one-video-out results are stable. There is no independent posture ground truth, so issue #18 must label it as derived rather than validated biomechanics. |
-| Player sex metadata for posture interpretation | **Unresolved** | The frozen source has no authoritative field. Names or tournament folders must not be guessed. |
-| Away-from-centre recovery | **Cut** | Although coverage is 93.15%, the contact and server attribution inputs are too weak for trustworthy player-specific windows. |
-| Serve speed proxy | **Unresolved** | Return, static, and viewport endpoint policy is incomplete. Exact-frame shuttle error is also too large to support a keep decision. |
-| Shots per rally | **Cut** | Only 298 of 3,287 unmerged-mapping ground-truth rallies have the exact predicted count. |
-| Movement inefficiency | **Cut** | Coverage is high, but missing and spurious contacts change interval boundaries. The result would silently measure the wrong intervals. |
-| Raw degradation slope | **Unresolved** | Upstream retained-feature set and player identity are not complete enough for a meaningful progression. |
-| Tanh-normalized degradation | **Unresolved** | Issue #22 does not define the temperature. |
-| Commentary sentiment, concept, timing, and player link | **Unresolved** | Issue #103 disabled commentary, so there is no valid population. |
-| ShuttleSet contact type, round, and set fields | **Keep** | They are direct human-source fields. They must remain source-scoped rather than presented as annotator predictions. |
-| Linear interpolation and `interpolation_type` provenance | **Keep** | Internal gaps are bounded by observations inside one court scene. The provenance is explicit and broadly exercised. |
-| Backward extrapolation | **Unresolved** | Issue #22 does not define a safe scene or match-start policy. No extrapolated values were emitted. |
-| Raw shuttle, pose, bbox, and court primitives | **Keep in a separate bundle** | The existing compressed inputs are feasible: 72,272,724 bytes shuttle, 3,523,620,168 bytes pose, and 2,859,648 bytes court. Keep visibility, guard, and interpolation provenance. Do not describe raw shuttle positions as accurate. |
+The evidence class separates direct comparison with human labels from verified
+calculation and from conclusions limited by upstream inputs. It is not a
+subjective confidence score.
+
+| Trial field | Run 1 decision | Evidence class | Reason |
+|---|---|---|---|
+| Rally frame and second timestamps, with FPS | **Keep** | Computation verified | Exact conversion, complete population, and required row identity. Reliability follows the reported rally boundary quality. |
+| Rally duration from final contact plus offset | **Unresolved** | Definition unresolved | Issue #22 does not define the end offset. Zero eligible values were emitted rather than inventing it. |
+| Posture variability MAD | **Keep** | Computation verified | Formula is complete, coverage is 99.57%, player coordinates are accurate enough, and leave-one-video-out results are stable. There is no independent posture ground truth, so issue #18 must label it as derived rather than validated biomechanics. |
+| Player sex metadata for posture interpretation | **Unresolved** | Source unresolved | The frozen source has no authoritative field. Names or tournament folders must not be guessed. |
+| Away-from-centre recovery | **Cut** | Input-constrained | Although coverage is 93.15%, the contact and server attribution inputs are too weak for trustworthy player-specific windows. |
+| Serve speed proxy | **Unresolved** | Definition and input constrained | Return, static, and viewport endpoint policy is incomplete. Exact-frame shuttle error is also too large to support a keep decision. |
+| Shots per rally | **Cut** | Ground-truth benchmarked | Only 298 of 3,287 unmerged-mapping ground-truth rallies have the exact predicted count. |
+| Movement inefficiency | **Cut** | Input-constrained | Its formula and coverage are verified, but production intervals use predicted contacts. Missing and spurious contacts can change those boundaries, so the values are not independently validated shot-interval measurements. |
+| Raw degradation slope | **Unresolved** | Input-constrained | Upstream retained-feature set and player identity are not complete enough for a meaningful progression. |
+| Tanh-normalized degradation | **Unresolved** | Definition unresolved | Issue #22 does not define the temperature. |
+| Commentary sentiment, concept, timing, and player link | **Unresolved** | Source unavailable | Issue #103 disabled commentary, so there is no valid population. |
+| ShuttleSet contact type, round, and set fields | **Keep** | Source-backed | They are direct human-source fields. They must remain source-scoped rather than presented as annotator predictions. |
+| Linear interpolation and `interpolation_type` provenance | **Keep** | Computation verified | Internal gaps are bounded by observations inside one court scene. The provenance is explicit and broadly exercised. |
+| Backward extrapolation | **Unresolved** | Definition unresolved | Issue #22 does not define a safe scene or match-start policy. No extrapolated values were emitted. |
+| Raw shuttle, pose, bbox, and court primitives | **Keep in a separate bundle** | Artifact and input benchmarked | The existing compressed inputs are feasible: 72,272,724 bytes shuttle, 3,523,620,168 bytes pose, and 2,859,648 bytes court. Keep visibility, guard, and interpolation provenance. Do not describe raw shuttle positions as accurate. |
 
 ## Comparison contract for later runs
 
