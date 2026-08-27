@@ -249,7 +249,9 @@ def build_candidate_rows(
             assert isinstance(duplicate_distance, int)
             if (
                 span_id <= previous_span_id
-                or prefix_start > section_start
+                or prefix_start < 0
+                or prefix_start >= fixed_frame
+                or section_start < 0
                 or section_end <= section_start
                 or not section_start <= fixed_frame < section_end
                 or duplicate_distance < 0

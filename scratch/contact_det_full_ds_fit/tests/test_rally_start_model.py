@@ -108,6 +108,19 @@ def test_candidate_rows_use_only_the_nine_fixed_inputs() -> None:
     assert rows[1].features[-1] == 1.0
 
 
+def test_candidate_search_window_may_start_inside_a_long_section() -> None:
+    video = _saved_video()
+    video["spans"][0]["start_frame"] = 100
+    candidate_list = video["candidate_lists"][0]
+    candidate_list["section_start_frame"] = 100
+    candidate_list["prefix_start_frame"] = 110
+
+    rows = model.build_candidate_rows([video], default_group="V")
+
+    assert [row.frame for row in rows] == [120, 130]
+    assert rows[0].features[3] == 20.0
+
+
 def test_training_answer_requires_timing_and_player_side() -> None:
     video = _saved_video()
     rows = model.build_candidate_rows([video], default_group="V")
