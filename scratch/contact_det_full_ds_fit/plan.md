@@ -243,6 +243,12 @@ exact player-side join, prevents a labelled rally from being counted twice,
 avoids the old replacement helper and gives exact denominators for its
 percentage checks.
 
+The frozen validation list does not save player-side answers for unkept
+candidates. Add one small label-free preparation step before model fitting. It
+will reproduce the frozen list, replay the existing Top/Bot rule for every
+candidate and save the same fields already available for the 32 training
+videos.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:

@@ -1,7 +1,7 @@
 # Resume
 
-- Current work and status: the rally-start contact selection plan is fixed and independently checked; no human labels have been opened for this stage
-- Next action: implement and test the fixed training-label join and six-choice model comparison
+- Current work and status: the rally-start contact selection plan is fixed; its validation candidates still need the same label-free player-side fields already saved for training
+- Next action: save and check the enriched validation candidate input before opening human labels
 - Active reviewer: none
 - Branch: `contact-det-feasibility`; latest commit `c9ea1418 Record the rally-start training inputs`
 - Last useful check: all 116 experiment tests and all 1,893 project tests pass; the pinned type check reports 0 errors; the new files pass Ruff
@@ -12,5 +12,5 @@
 - Scoring note: the old whole-rally score checks 677 detected sections rather than one row per labelled rally; `baseline_report.md` explains the counts
 - Training-score result: 1,193,927 rows across all 32 training videos; each video was scored by a model trained on the other 24 videos in its fixed group split
 - Rally-start input result: 2,621 section lists, 7,863 entries and 5,242 earlier candidates; 2,449 earlier candidates have no player-side answer
-- Selection plan: logistic regression and shallow HGB, each at cut-offs 0.5, 0.7 and 0.9; add at most one correctly timed and correctly sided contact
+- Selection plan: first save the missing validation candidate sides, then compare logistic regression and shallow HGB at cut-offs 0.5, 0.7 and 0.9
 - Important files: `rally_start_selection_plan.md`, `training_rally_start_input_report.md`, `training_rally_start_input_summary.json`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`

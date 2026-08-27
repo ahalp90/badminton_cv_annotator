@@ -15,6 +15,22 @@ Use the completed 32-video rally-start input and the frozen validation input.
 The candidate lists, first contact model, 0.9 contact score cut-off and
 six-frame nearby-contact distance stay unchanged in this experiment.
 
+The frozen validation candidate file does not contain player-side answers for
+its unkept candidates. Before model fitting or label reading, save one checked
+validation input that adds those answers:
+
+- reproduce all 1,845 frozen candidate entries without changing them;
+- replay the existing Top/Bot rule at every distinct kept or candidate frame;
+- require the replay identities to equal those distinct video and frame pairs,
+  with no missing or extra answer;
+- require the kept-contact answers to match the saved validation rally file;
+- save the section bounds, kept contacts and enriched candidate lists twice
+  and require equal bytes; and
+- save input names and hashes without machine paths or access details.
+
+This is input preparation only. It does not read labels, train a model or
+change a contact.
+
 Before reading a human label row:
 
 1. Check the split, model, score, section, candidate and player-side input
@@ -222,6 +238,7 @@ a timing-only match as a fully correct rally.
 The planned commits are:
 
 - `Plan the rally-start contact choice`
+- `Save the validation rally-start inputs`
 - `Train the rally-start contact model`
 - `Record the rally-start contact result`
 

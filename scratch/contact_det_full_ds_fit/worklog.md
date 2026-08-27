@@ -2,9 +2,9 @@
 
 ## Pick up from here
 
-- Current work: implement the fixed rally-start contact selection plan
-- Next action: add and test the training-label join, fixed model menu and held-out candidate scoring
-- Required check: keep validation labels unavailable until the six training results have been scored and one choice is fixed
+- Current work: save the missing label-free validation candidate sides
+- Next action: add and test the small validation input saver, then return to the training-label join
+- Required check: reproduce all 1,845 frozen entries and the saved kept-contact sides without opening labels
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
 
@@ -26,6 +26,13 @@
 - Player side: a candidate must match both the first-contact time and labelled side to be a positive training answer
 - Review: the first independent read found five contract gaps; all five are fixed before labels or model code are opened
 - Planned commit: `Plan the rally-start contact choice`
+
+### Added the missing validation input step — 2026-08-28
+
+- Finding: the frozen validation list has frames and scores but no player-side answer for unkept candidates
+- Decision: replay the existing Top/Bot rule before labels and save one checked validation input
+- Limit: the new step cannot change a candidate, train a model or read a label row
+- Planned commit: `Save the validation rally-start inputs`
 
 ## Current files
 
