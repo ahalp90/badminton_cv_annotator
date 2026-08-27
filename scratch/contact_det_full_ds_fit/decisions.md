@@ -133,6 +133,24 @@ Write and review the candidate selection plan before joining human labels. Use
 only these held-out first-model scores for training. Keep the model list small
 and leave the eight validation videos for the fixed comparison.
 
+## Rally-start contact selection plan
+
+Use one fixed comparison with logistic regression and shallow histogram
+gradient boosting. Each model has one fixed setting and selection cut-offs of
+0.5, 0.7 and 0.9. Choose among the six results using held-out predictions from
+the 32 training videos before opening validation labels.
+
+Train a correct-addition answer only when the candidate matches the labelled
+first-contact time and player side. A candidate with no predicted side cannot
+be selected. Keep every baseline contact and add at most one earlier contact.
+Do not reuse the pilot helper that can replace the fixed contact.
+
+Use the existing A, B, C and D groups for held-out candidate-model scores.
+Continue to validation only when the training result meets the fixed gain,
+loss, correct-addition and recovery checks in
+`rally_start_selection_plan.md`. The eight validation videos are one final
+check of the fixed choice.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

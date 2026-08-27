@@ -187,7 +187,7 @@ detected section starts.
 The list is kept for the next stage. Its 1,230 earlier entries have not been
 added to the baseline.
 
-## Next change: plan how one candidate will be chosen
+## Current change: choose one earlier contact
 
 Do not reuse the pilot's failed hand-written rule. Write a separate plan for a
 small trained choice method.
@@ -225,10 +225,23 @@ earlier candidates across all 32 training videos. It reproduces the frozen
 validation rule, passed a three-video replay and produced the same combined
 bytes on a full repeat.
 
-The existing player-side rule has no answer for 2,449 earlier candidates. The
-next candidate selection plan must treat that as a limit on fully correct
-rallies. No human label rows or model fitting begin until that plan is fixed
-and reviewed.
+The candidate selection plan is now fixed in
+`rally_start_selection_plan.md`. It uses two small models and three fixed
+selection cut-offs. It learns from held-out candidate scores on the 32
+training videos and uses the eight validation videos once after the choice is
+fixed.
+
+The existing player-side rule has no answer for 2,449 earlier candidates. A
+useful training answer must match both the first-contact time and its player
+side. The plan keeps timing-only matches in the report but does not count them
+as complete-rally gains.
+
+The model may add one earlier contact or add nothing. It cannot remove or
+replace an existing contact. An independent read found five gaps in the first
+draft. The final plan separates training and validation label loads, names the
+exact player-side join, prevents a labelled rally from being counted twice,
+avoids the old replacement helper and gives exact denominators for its
+percentage checks.
 
 ## Checks before long runs
 

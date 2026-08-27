@@ -2,11 +2,11 @@
 
 ## Pick up from here
 
-- Current work: save the detected sections, contacts, candidate lists and predicted player sides needed for rally-start training
-- Next action: implement and test `training_rally_start_input_plan.md`
-- Required check: reproduce all 1,845 validation entries before preparing the 32 training videos
+- Current work: implement the fixed rally-start contact selection plan
+- Next action: add and test the training-label join, fixed model menu and held-out candidate scoring
+- Required check: keep validation labels unavailable until the six training results have been scored and one choice is fixed
 - Current blocker: none
-- Plan section: `plan.md`, “Next change: plan how one candidate will be chosen”
+- Plan section: `plan.md`, “Current change: choose one earlier contact”
 
 ## Things to remember
 
@@ -16,6 +16,16 @@
 - The second code-reading task ran longer than planned. It was stopped and returned useful findings that it checked against the source.
 - The exact list of no more than 12 full model runs must be committed before model training starts.
 - Reports must use simple words and normal speech. They must not invent labels for ordinary ideas.
+
+### Fixed the rally-start contact selection plan — 2026-08-28
+
+- File: `rally_start_selection_plan.md`
+- Change: fixed the training answer, nine saved model inputs, two models, three cut-offs, four held-out training runs and one validation check
+- Model boundary: every training video has both first-model and candidate-model predictions from models that did not train on that video
+- Contact change: add one earlier contact or add nothing; never remove or replace a baseline contact
+- Player side: a candidate must match both the first-contact time and labelled side to be a positive training answer
+- Review: the first independent read found five contract gaps; all five are fixed before labels or model code are opened
+- Planned commit: `Plan the rally-start contact choice`
 
 ## Current files
 
