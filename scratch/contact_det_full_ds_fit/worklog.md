@@ -2,9 +2,9 @@
 
 ## Pick up from here
 
-- Current work: run the fixed candidate-model comparison
-- Next action: commit the reviewed model code, sync it and launch the six training choices
-- Required check: save validation candidate scores before the validation label loaders can run
+- Current work: record the stopped candidate-model result
+- Next action: make held-out first-model predictions across all 40 development videos
+- Required check: keep the failed candidate addition out of the final model
 - Current blocker: none
 - Plan section: `plan.md`, “Current change: choose one earlier contact”
 
@@ -57,6 +57,18 @@
 - Saved checks: write every held-out score and training answer; rebuild the contact streams twice; recount the action totals from the saved rows
 - Review: the first read found a combined label read and an unstated cut-off tie; both are fixed, and the second read found no blocker
 - Planned commit: `Train the rally-start contact model`
+
+### Ran the fixed candidate-model comparison — 2026-08-28
+
+- Outcome: all six choices stopped at the training rules; validation was not run
+- Main failure: the correct-action rate ranged from 18.2% to 51.7%, below the fixed 80% minimum
+- Safest result: shallow HGB at 0.9 gained 30 fully correct sections and lost none, but only 76 of its 147 actions were correct
+- Label boundary: no validation candidate score file was written and no validation label was read
+- Repeat: both the result file and held-out training score file match byte for byte across two runs
+- Review: an independent recount reproduced all six gates from the 5,242 saved candidate rows and found no blocker
+- Launch fixes: two setup checks stopped safely before labels; small reviewed commits fixed the saved group order and valid search windows inside long sections
+- Raw result: ignored by Git under `raw/rally_start_model/`
+- Planned commit: `Record the rally-start contact result`
 
 ## Current files
 

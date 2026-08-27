@@ -253,6 +253,15 @@ That preparation is complete. The two full saves are equal byte for byte. The
 result keeps all 615 fixed lists and 1,845 entries. The player-side rule has an
 answer for 629 of the 1,230 earlier candidates and no answer for 601.
 
+The fixed model comparison is also complete. None of its six choices passed
+the training rules. Shallow HGB at 0.9 was the only choice that gained fully
+correct sections without losing one, but only 76 of its 147 actions were
+correct. Its 51.7% correct-action rate is below the fixed 80% minimum.
+
+Stop this addition follow-up without opening validation labels. Keep the
+original first contact model and continue to held-out first-model predictions
+across all 40 development videos for the final settings.
+
 ## Checks before long runs
 
 Before preparing all 40 videos, check:

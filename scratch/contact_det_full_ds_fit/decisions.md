@@ -160,6 +160,19 @@ The existing player-side rule answers 629 of the 1,230 earlier candidates and
 has no answer for 601. Keep every row for scoring, but do not let the model
 select a candidate without a player-side answer.
 
+## Rally-start contact model result
+
+Do not add the rally-start candidate model. All six fixed choices failed the
+training rules, so none went to validation.
+
+Shallow HGB at 0.9 was the safest result. It gained 30 fully correct sections
+without losing one, but only 76 of its 147 actions were correct. The fixed
+minimum was 80%, while this result reached 51.7%.
+
+Keep the original first contact model for the final fit. Do not tune another
+candidate-model cut-off from these results. Continue with held-out first-model
+predictions across all 40 development videos.
+
 ## Other accepted points
 
 - Use 32 videos for training and eight for validation

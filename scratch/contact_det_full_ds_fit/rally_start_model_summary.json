@@ -1,0 +1,95 @@
+{
+  "schema": "rally-start-contact-model-summary/1",
+  "status": "complete",
+  "source_commit": "7a6d5d94",
+  "outcome": "stopped_at_training_gate",
+  "result_file": "rally_start_model_result.json.gz",
+  "result_sha256": "22b7e648797b7b9cdafee664a5caa38a7a88bb8d7266044bf8558061583e1bcf",
+  "training_score_file": "training_candidate_scores.json.gz",
+  "training_score_sha256": "3e9aaffa8467d46cd9c147cffb2ba307ded0e4448ae422586df7eacf9ba5a35d",
+  "training_candidate_count": 5242,
+  "included_training_candidate_count": 5166,
+  "recoverable_section_count": 271,
+  "choices": [
+    {
+      "model_id": "logistic_regression",
+      "cutoff": 0.5,
+      "selected_actions": 1134,
+      "correct_actions": 206,
+      "correct_action_rate": 0.18165784832451498,
+      "recovered_sections": 206,
+      "recovery_rate": 0.7601476014760148,
+      "new_fully_correct_sections": 74,
+      "lost_fully_correct_sections": 118,
+      "passed": false
+    },
+    {
+      "model_id": "logistic_regression",
+      "cutoff": 0.7,
+      "selected_actions": 647,
+      "correct_actions": 186,
+      "correct_action_rate": 0.2874806800618238,
+      "recovered_sections": 186,
+      "recovery_rate": 0.6863468634686347,
+      "new_fully_correct_sections": 66,
+      "lost_fully_correct_sections": 40,
+      "passed": false
+    },
+    {
+      "model_id": "logistic_regression",
+      "cutoff": 0.9,
+      "selected_actions": 195,
+      "correct_actions": 83,
+      "correct_action_rate": 0.4256410256410256,
+      "recovered_sections": 83,
+      "recovery_rate": 0.3062730627306273,
+      "new_fully_correct_sections": 35,
+      "lost_fully_correct_sections": 4,
+      "passed": false
+    },
+    {
+      "model_id": "shallow_hgb",
+      "cutoff": 0.5,
+      "selected_actions": 748,
+      "correct_actions": 199,
+      "correct_action_rate": 0.2660427807486631,
+      "recovered_sections": 199,
+      "recovery_rate": 0.7343173431734318,
+      "new_fully_correct_sections": 68,
+      "lost_fully_correct_sections": 44,
+      "passed": false
+    },
+    {
+      "model_id": "shallow_hgb",
+      "cutoff": 0.7,
+      "selected_actions": 484,
+      "correct_actions": 177,
+      "correct_action_rate": 0.365702479338843,
+      "recovered_sections": 177,
+      "recovery_rate": 0.6531365313653137,
+      "new_fully_correct_sections": 59,
+      "lost_fully_correct_sections": 17,
+      "passed": false
+    },
+    {
+      "model_id": "shallow_hgb",
+      "cutoff": 0.9,
+      "selected_actions": 147,
+      "correct_actions": 76,
+      "correct_action_rate": 0.5170068027210885,
+      "recovered_sections": 76,
+      "recovery_rate": 0.28044280442804426,
+      "new_fully_correct_sections": 30,
+      "lost_fully_correct_sections": 0,
+      "passed": false
+    }
+  ],
+  "checks": {
+    "choice_count": 6,
+    "passing_choice_count": 0,
+    "validation_candidate_scores_written": false,
+    "validation_labels_read": false,
+    "repeat_matches_byte_for_byte": true,
+    "machine_path_count": 0
+  }
+}
