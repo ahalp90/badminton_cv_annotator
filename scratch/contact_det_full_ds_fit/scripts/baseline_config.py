@@ -24,6 +24,17 @@ EXPECTED_SELECTION_ORDER = (
     "larger duplicate distance",
     "higher score cutoff",
 )
+FIXED_RUN_IDS = (
+    "hgb_reference_raw_balanced",
+    "hgb_reference_common30_balanced",
+    "rf_reference_raw_balanced",
+    "rf_reference_common30_balanced",
+    "hgb_reference_raw_no_weight",
+    "rf_reference_raw_no_weight",
+    "hgb_15_leaves_raw_balanced",
+    "hgb_learning_rate_004_raw_balanced",
+    "hgb_reference_raw_more_negatives",
+)
 MODEL_SETTINGS_FIELDS = {
     "histogram_gradient_boosting": frozenset(
         {"kind", "learning_rate", "max_iter", "max_leaf_nodes", "min_samples_leaf", "l2_regularization"}
@@ -384,6 +395,8 @@ def load_baseline_config(path: Path) -> BaselineConfig:
     run_ids = tuple(run.run_id for run in runs)
     if len(set(run_ids)) != len(run_ids):
         raise ValueError("run IDs must be unique")
+    if run_ids != FIXED_RUN_IDS:
+        raise ValueError("run IDs differ from the fixed comparison")
     if hashlib.sha256(config_path.read_bytes()).hexdigest() != FIXED_MENU_SHA256:
         raise ValueError("run menu differs from the fixed comparison")
 
