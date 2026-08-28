@@ -2,11 +2,11 @@
 
 ## Pick up from here
 
-- Current work: the final contact model and all 47 ShuttleSet22 inpaint inputs are complete and checked
-- Next action: write and review `shuttleset22_test_plan.md` without opening test labels
-- Required check: save all model scores and player-side predictions before any test label row is read
-- Current blocker: none
-- Plan section: **Remaining ShuttleSet22 test plan** in `HANDOVER.md`
+- Current work: the scorer is implemented and the exact 47-video prediction file is frozen
+- Next action: get the annotation root, then do the one-time label read and fixed score
+- Required check: the scorer must accept the frozen prediction hash before annotation access starts
+- Current blocker: the annotation root has not been supplied
+- Plan: `shuttleset22_test_plan.md`
 
 ## Things to remember
 
@@ -495,3 +495,18 @@
 - The final combined file was written at 2026-08-28 17:35:02 AEST
 - No ShuttleSet22 contact label has been opened
 - Next action: implement and check the scorer, then ask for the label root before the one-time label read
+
+### Added and checked the ShuttleSet22 scorer — 2026-08-28
+
+- File: `scripts/score_shuttleset22_test.py` and its focused tests
+- Boundary: the scorer requires the exact frozen combined hash, complete run state and every saved child hash before annotation access can start
+- Label rule: reproduces the preserved whole-rally cleaning and per-contact Top/Bot rule, including unknown human sides
+- Result: reports timing at one, two, five and ten frames, first and later recall, player-side coverage, detected-section outcomes, unassigned contacts and the descriptive confidence curve
+- Time check: records the first label-access time and requires the combined prediction file to predate it
+- Review: a Luna xhigh contract read found the missing time check and confidence denominators; both are fixed and tested
+- External audit: three read-only DeepSeek attempts ended during file inspection without returning a report
+- Checks: 16 focused tests and 182 experiment tests pass; all 1,893 project tests pass with 29 skips; changed files pass Ruff; pinned Pyrefly reports 0 errors
+- Whole-project Ruff still reports the same 863 existing findings outside this work
+- Commit: `4835442 Add the ShuttleSet22 scorer`
+- Label boundary: no ShuttleSet22 contact label has been opened
+- Next action: ask for the annotation root, then run the scorer once

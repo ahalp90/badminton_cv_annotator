@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: all 47 label-free ShuttleSet22 predictions are frozen and freshly reloaded with validator commit `32d7087`
-- Next action: implement and check the scoring program without reading labels, then ask for the label root before the one-time label read
+- Current work and status: the exact 47-video predictions are frozen and the label scorer is implemented at `4835442`
+- Next action: get the annotation root, then run the one-time fixed score
 - Active reviewer: none
-- Branch: `contact-det-feasibility`; predictor commit is `59f840f`
-- Last useful check: 163 experiment tests and all 1,893 project tests pass; changed files pass Ruff; pinned Pyrefly reports 0 errors
+- Branch: `contact-det-feasibility`; scorer commit is `4835442`
+- Last useful check: 182 experiment tests and all 1,893 project tests pass; changed files pass Ruff; pinned Pyrefly reports 0 errors
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts
@@ -26,5 +26,7 @@
 - Frozen prediction result: 47 videos, 3,982 spans and 39,994 contacts; 72 contacts have no player-side answer
 - Combined prediction SHA-256: `6199ab99fe2746f83b7f90cc2e2c02301acbd5f90dcf02c989af65ca6be5bd04`
 - Final reload: exit 0; run state is complete with 47 unique videos; the combined SHA-256 stayed unchanged
-- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation, predictor implementation, prediction or validation
+- Scorer: validates the exact combined hash and all child hashes before annotation access, then saves timing, player-side, whole-rally and confidence results
+- Scorer review: a Luna xhigh contract read found two gaps that are fixed; three DeepSeek attempts ended without a final audit report
+- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation, prediction, validation or scorer implementation
 - Important files: `HANDOVER.md`, `shuttleset22_test_plan.md`, `shuttleset22_inpaint_plan.md`, `contract.md`, `worklog.md`
