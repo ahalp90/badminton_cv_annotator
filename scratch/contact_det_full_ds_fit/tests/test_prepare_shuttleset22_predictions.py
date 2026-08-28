@@ -2,20 +2,39 @@ from __future__ import annotations
 
 import ast
 import gzip
+import hashlib
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from scratch.contact_det.scripts.freeze_contact_evidence import FixtureSpec
+from scratch.contact_det_full_ds_fit.scripts import (
+    prepare_shuttleset22_predictions as prediction_program,
+)
+from scratch.contact_det_full_ds_fit.scripts.inpaint_shuttleset22_tracks import (
+    RECEIPT_FILENAME,
+    output_paths,
+)
 from scratch.contact_det_full_ds_fit.scripts.prepare_shuttleset22_predictions import (
+    ANNOTATION_FILENAMES,
+    COURT_FILENAMES,
     EXPECTED_OVERLAPS,
     EXPECTED_UNRESOLVED_IDS,
+    POSE_FILENAMES,
+    PREDICTION_OUTPUT_FILENAMES,
     VIDEO_IDS,
+    ArtifactMetadata,
+    CheckedVideo,
     ModelBundle,
+    SourceSpec,
     _gzip_json_bytes,
+    _input_records,
     _score_candidates,
     _span_id,
+    _validate_input_records,
+    _validate_output_hashes,
+    _write_verified_bytes,
     fill_mask_from_sidecar,
     parse_args,
     source_specs_from_payload,
@@ -37,6 +56,28 @@ def _source_manifest_payload() -> dict[str, object]:
             row["source_kind"] = "download"
         videos.append(row)
     return {"schema": "shuttleset22-sources/1", "videos": videos}
+
+
+def _checked_video(tmp_path: Path) -> CheckedVideo:
+    directory = tmp_path / "08 video_08"
+    directory.mkdir()
+    paths = [
+        directory / RECEIPT_FILENAME,
+        directory / "shuttle_track_inpainted.npy.xz",
+        directory / "shuttle_guard_codes_inpainted.npy.xz",
+        directory / "court_receipt.json.gz",
+    ]
+    paths.extend(directory / filename for filename in POSE_FILENAMES + COURT_FILENAMES)
+    paths.append(output_paths(directory, directory.name).sidecar_path)
+    for index, path in enumerate(paths):
+        path.write_bytes(f"input {index}".encode())
+
+    return CheckedVideo(
+        SourceSpec(8, "video_08"),
+        tmp_path / "08 video_08.mp4",
+        directory,
+        ArtifactMetadata(100, 1920, 1080, "receipt", "shuttle", "code", "model"),
+    )
 
 
 def test_source_manifest_returns_the_fixed_downloads() -> None:
@@ -141,6 +182,48 @@ def test_gzip_prediction_bytes_are_deterministic() -> None:
 
     assert first == second
     assert gzip.decompress(first).endswith(b"\n")
+
+
+def test_saved_input_records_must_match_live_files(tmp_path: Path) -> None:
+    video = _checked_video(tmp_path)
+    recorded = _input_records(video)
+
+    _validate_input_records(video, recorded)
+
+    (video.directory / "pose_kps.npy.xz").write_bytes(b"changed")
+    with pytest.raises(ValueError, match="saved input files differ"):
+        _validate_input_records(video, recorded)
+
+
+def test_saved_output_hash_list_must_be_complete(tmp_path: Path) -> None:
+    root = tmp_path / "ss22_08"
+    output_hashes: dict[str, str] = {}
+    for name in PREDICTION_OUTPUT_FILENAMES:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = name.encode()
+        path.write_bytes(payload)
+        output_hashes[name] = hashlib.sha256(payload).hexdigest()
+
+    _validate_output_hashes(root, output_hashes)
+
+    output_hashes.pop(f"annotation/{ANNOTATION_FILENAMES[-1]}")
+    with pytest.raises(ValueError, match="output list differs"):
+        _validate_output_hashes(root, output_hashes)
+
+
+def test_combined_bytes_must_reload_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "combined_predictions.json.gz"
+
+    def write_changed_bytes(destination: Path, _payload: bytes) -> None:
+        Path(destination).write_bytes(b"changed")
+
+    monkeypatch.setattr(prediction_program, "_write_bytes", write_changed_bytes)
+
+    with pytest.raises(ValueError, match="differs after reload"):
+        _write_verified_bytes(path, b"expected")
 
 
 def test_prediction_program_has_no_label_reader_import() -> None:

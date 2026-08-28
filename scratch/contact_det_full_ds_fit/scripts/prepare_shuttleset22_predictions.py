@@ -121,6 +121,11 @@ ANNOTATION_FILENAMES = (
     "definitive_exclusion_mask.npy.xz",
     "shuttle_quality.json.gz",
 )
+PREDICTION_OUTPUT_FILENAMES = (
+    "contact_features.npy.xz",
+    "candidate_scores.npy.xz",
+    "predictions.json.gz",
+) + tuple(f"annotation/{name}" for name in ANNOTATION_FILENAMES)
 
 
 @dataclass(frozen=True)
@@ -208,6 +213,13 @@ def _write_bytes(path: Path, payload: bytes) -> None:
     temporary = destination.with_name(f".{destination.name}.partial")
     temporary.write_bytes(payload)
     os.replace(temporary, destination)
+
+
+def _write_verified_bytes(path: Path, payload: bytes) -> None:
+    """Write bytes atomically and require the saved file to reload exactly."""
+    _write_bytes(path, payload)
+    if Path(path).read_bytes() != payload:
+        raise ValueError(f"saved file differs after reload: {Path(path).name}")
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
@@ -645,6 +657,23 @@ def _input_records(video: CheckedVideo) -> list[dict[str, object]]:
     ]
 
 
+def _validate_input_records(video: CheckedVideo, raw_records: object) -> None:
+    recorded = list(_sequence(raw_records, "prediction input files"))
+    if recorded != _input_records(video):
+        raise ValueError(f"video {video.source.video_id}: saved input files differ")
+
+
+def _validate_output_hashes(root: Path, raw_hashes: object) -> None:
+    output_hashes = _mapping(raw_hashes, "prediction output hashes")
+    if set(output_hashes) != set(PREDICTION_OUTPUT_FILENAMES):
+        raise ValueError("saved prediction output list differs")
+    for raw_name, raw_digest in output_hashes.items():
+        digest = _string(raw_digest, f"{raw_name} SHA-256")
+        path = root / raw_name
+        if not path.is_file() or sha256(path) != digest:
+            raise ValueError(f"saved prediction output differs: {raw_name}")
+
+
 def process_video(
     video: CheckedVideo,
     output_root: Path,
@@ -905,14 +934,8 @@ def validate_prediction_directory(
         raise ValueError(
             f"video {video.source.video_id}: saved prediction identity differs"
         )
-    output_hashes = _mapping(result.get("output_hashes"), "prediction output hashes")
-    for raw_name, raw_digest in output_hashes.items():
-        digest = _string(raw_digest, f"{raw_name} SHA-256")
-        path = root / raw_name
-        if not path.is_file() or sha256(path) != digest:
-            raise ValueError(
-                f"video {video.source.video_id}: saved output differs: {raw_name}"
-            )
+    _validate_input_records(video, result.get("input_files"))
+    _validate_output_hashes(root, result.get("output_hashes"))
 
     fixture = FixtureSpec(
         str(video.source.video_id), video.source.video_id, EXPECTED_FPS
@@ -1136,7 +1159,7 @@ def prepare_predictions(
     if first != second:
         raise ValueError("repeated combined prediction bytes differ")
     combined_path = Path(output_root) / "combined_predictions.json.gz"
-    _write_bytes(combined_path, first)
+    _write_verified_bytes(combined_path, first)
     combined_hash = sha256(combined_path)
     _write_run_state(Path(output_root) / "run_state.json", completed_ids, combined_hash)
     return combined_path
