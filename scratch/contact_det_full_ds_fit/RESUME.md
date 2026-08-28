@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: the final contact model and all 47 ShuttleSet22 inpaint inputs are complete and checked
-- Next action: write and check `shuttleset22_test_plan.md` without opening ShuttleSet22 contact labels
-- Active reviewer: none; the final model result review found no blocker
-- Branch: `contact-det-feasibility`; last runtime commit is `e6a16084`
-- Last useful check: the full reload checked all 47 inpaint outputs; 1,893 project tests and the pinned type check pass
+- Current work and status: the label-free ShuttleSet22 predictor is implemented and locally checked; the real-input run has not started
+- Next action: run video 8 as a real-input smoke check, then freeze all 47 predictions before opening ShuttleSet22 contact labels
+- Active reviewer: none
+- Branch: `contact-det-feasibility`; predictor commit is `59f840f`
+- Last useful check: 163 experiment tests and all 1,893 project tests pass; changed files pass Ruff; pinned Pyrefly reports 0 errors
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts
@@ -20,5 +20,6 @@
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
 - ShuttleSet22 inpaint result: all 47 videos, 6,175,283 frames and 2,916,960 selected fill frames; the aggregate receipt hash is recorded in `HANDOVER.md`
 - Inpaint output note: one row in video 51 is one pixel below the frame; this matches the original unclipped InpaintNet conversion and no other row is outside the frame
-- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation or validation
-- Important files: `HANDOVER.md`, `shuttleset22_inpaint_plan.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
+- Prediction setup: `shuttleset22_test_plan.md` fixes the input and scoring contract; `scripts/prepare_shuttleset22_predictions.py` has no label path or label-reader import
+- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation, predictor implementation or validation
+- Important files: `HANDOVER.md`, `shuttleset22_test_plan.md`, `shuttleset22_inpaint_plan.md`, `contract.md`, `worklog.md`

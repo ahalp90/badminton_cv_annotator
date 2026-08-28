@@ -450,3 +450,14 @@
 - Local checks: 9 focused runner tests pass; all 1,893 project tests pass and 29 skip; the pinned type check finds 0 errors
 - Ruff: the changed runner files pass; the whole repository still has the same 863 existing findings outside this work
 - Next action: write and check `shuttleset22_test_plan.md`, then prepare all contact predictions before opening labels
+
+### Added the label-free ShuttleSet22 predictor — 2026-08-28
+
+- Files: `shuttleset22_test_plan.md`, `scripts/prepare_shuttleset22_predictions.py` and its focused tests
+- Boundary: the predictor has no label path or label-reader import; it freezes all features, probabilities, kept contacts and player-side answers before scoring exists
+- Fixed setup: exact 47-video input set, prepared and inpaint identities, final model, 85 model fields, 0.9 cut-off and six-frame nearby-contact distance
+- Saved state: one atomic directory per video, deterministic combined predictions and a restartable run-state file
+- Checks: 163 experiment tests and all 1,893 project tests pass; changed files pass Ruff; pinned Pyrefly reports 0 errors
+- Commits: `b4d01a2 Plan the ShuttleSet22 test` and `59f840f Prepare the ShuttleSet22 predictions`
+- Label boundary: no ShuttleSet22 contact label has been opened
+- Next action: run video 8 as a real-input smoke check, then freeze all 47 predictions
