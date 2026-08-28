@@ -38,7 +38,10 @@ from scratch.contact_det_full_ds_fit.scripts.score_shuttleset22_test import (
     HumanRally,
     VerifiedPredictions,
     _rally_category,
+    _tree_digest,
+    annotation_corpus_sha256,
     load_annotation_rallies,
+    load_clean_labels,
     player_side_metrics,
     score_shuttleset22_test,
     timing_metrics,
@@ -246,7 +249,6 @@ def test_failed_prediction_check_keeps_labels_unopened(
             tmp_path / "predictions",
             tmp_path / "sources.toml",
             tmp_path / "annotations",
-            tmp_path / "annotation.json",
             tmp_path / "clean.json.gz",
             output,
             "abcdef0",
@@ -285,7 +287,6 @@ def test_wrapper_records_label_access_and_completes(
 
     def load_labels(
         _annotation_root: Path,
-        _annotation_manifest: Path,
         _sources: object,
         _frame_counts: object,
         output: Path,
@@ -297,7 +298,6 @@ def test_wrapper_records_label_access_and_completes(
         tmp_path,
         source_manifest,
         tmp_path / "annotations",
-        tmp_path / "annotation.json",
         clean_output,
         tmp_path / "result.json",
         "abcdef0",
@@ -341,7 +341,6 @@ def test_failure_after_label_access_keeps_the_true_boundary_state(
             tmp_path,
             tmp_path / "sources.toml",
             tmp_path / "annotations",
-            tmp_path / "annotation.json",
             tmp_path / "clean.json.gz",
             output,
             "abcdef0",
@@ -389,6 +388,53 @@ def test_annotation_cleaning_rejects_whole_bad_rallies_and_orders_rows(
         "excluded_non_monotonic_rallies": 1,
         "excluded_non_monotonic_rally_rows": 2,
     }
+
+
+def test_clean_loader_authenticates_all_58_but_reads_only_fixed_videos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    annotation_root = tmp_path / "ShuttleSet22"
+    set_root = annotation_root / "set"
+    set_root.mkdir(parents=True)
+    match_rows = ["id,video"]
+    for video_id in range(1, 59):
+        video_name = f"video_{video_id:02d}"
+        match_rows.append(f"{video_id},{video_name}")
+        directory = set_root / video_name
+        directory.mkdir()
+        table = directory / "set1.csv"
+        if video_id == 8:
+            table.write_text(
+                "rally,frame_num,flaw,ball_round,player_location_y,opponent_location_y,type\n"
+                "1,10,,1,200,800,serve\n",
+                encoding="utf-8",
+            )
+        else:
+            table.write_text("not,a,label\n", encoding="utf-8")
+    (set_root / "match.csv").write_text("\n".join(match_rows) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        scorer, "ANNOTATION_CORPUS_SHA256", annotation_corpus_sha256(annotation_root)
+    )
+    monkeypatch.setattr(scorer, "ANNOTATION_TREE_SHA256", _tree_digest(annotation_root))
+    monkeypatch.setattr(scorer, "VIDEO_IDS", (8,))
+    monkeypatch.setattr(scorer, "EXPECTED_SOURCE_ROWS", 1)
+    monkeypatch.setattr(scorer, "EXPECTED_USABLE_ROWS", 1)
+    monkeypatch.setattr(scorer, "EXPECTED_USABLE_RALLIES", 1)
+    clean_output = tmp_path / "clean.json.gz"
+
+    labels = load_clean_labels(
+        annotation_root,
+        (SourceSpec(8, "video_08"),),
+        {8: 100},
+        clean_output,
+    )
+
+    assert labels.rallies_by_fixture["8"][0].stroke_frames == (10,)
+    with gzip.open(clean_output, "rt", encoding="utf-8") as source:
+        saved = json.load(source)
+    assert saved["video_ids"] == [8]
+    assert [video["video_id"] for video in saved["videos"]] == [8]
 
 
 @pytest.mark.parametrize(

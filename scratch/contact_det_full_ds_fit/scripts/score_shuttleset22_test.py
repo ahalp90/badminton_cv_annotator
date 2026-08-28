@@ -57,7 +57,7 @@ CLEAN_LABEL_SCHEMA = "shuttleset22-clean-contact-labels/1"
 COMBINED_PREDICTIONS_SHA256 = (
     "6199ab99fe2746f83b7f90cc2e2c02301acbd5f90dcf02c989af65ca6be5bd04"
 )
-ANNOTATION_MANIFEST_SHA256 = (
+ANNOTATION_CORPUS_SHA256 = (
     "2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c"
 )
 ANNOTATION_TREE_SHA256 = (
@@ -126,7 +126,7 @@ POPULATION_FIELDS = {
 
 TableReader = Callable[..., Any]
 LabelLoader = Callable[
-    [Path, Path, Sequence[SourceSpec], Mapping[int, int], Path], "CleanLabels"
+    [Path, Sequence[SourceSpec], Mapping[int, int], Path], "CleanLabels"
 ]
 
 
@@ -159,7 +159,7 @@ class CleanLabels:
 
     rallies_by_fixture: Mapping[str, tuple[HumanRally, ...]]
     population_by_fixture: Mapping[str, Mapping[str, int]]
-    annotation_manifest_sha256: str
+    annotation_corpus_sha256: str
     annotation_tree_sha256: str
 
 
@@ -208,6 +208,29 @@ def _tree_digest(root: Path) -> str:
         digest.update(b"\0")
         digest.update(_sha256(path).encode())
         digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def annotation_corpus_sha256(annotation_root: Path) -> str:
+    """Hash the official match table and every set table using the pinned rule."""
+    root = Path(annotation_root).resolve(strict=True)
+    set_root = root / "set"
+    paths = (set_root / "match.csv", *sorted(set_root.glob("*/set*.csv")))
+    if not paths[0].is_file() or len(paths) == 1:
+        raise FileNotFoundError("ShuttleSet22 annotation tables are incomplete")
+    if any(path.is_symlink() or not path.is_file() for path in paths):
+        raise FileNotFoundError(
+            "ShuttleSet22 annotations must be regular non-symlink files"
+        )
+
+    digest = hashlib.sha256()
+    for path in paths:
+        relative = path.relative_to(root).as_posix().encode()
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
     return digest.hexdigest()
 
 
@@ -572,7 +595,7 @@ def _clean_label_payload(
         "schema": CLEAN_LABEL_SCHEMA,
         "status": "complete",
         "video_ids": list(VIDEO_IDS),
-        "annotation_manifest_sha256": labels.annotation_manifest_sha256,
+        "annotation_corpus_sha256": labels.annotation_corpus_sha256,
         "annotation_tree_sha256": labels.annotation_tree_sha256,
         "population": _sum_population(labels.population_by_fixture),
         "videos": videos,
@@ -581,7 +604,6 @@ def _clean_label_payload(
 
 def load_clean_labels(
     annotation_root: Path,
-    annotation_manifest: Path,
     sources: Sequence[SourceSpec],
     frame_counts: Mapping[int, int],
     clean_output: Path,
@@ -589,17 +611,30 @@ def load_clean_labels(
     table_reader: TableReader | None = None,
 ) -> CleanLabels:
     """Check label identities, clean every table, then save the clean rows."""
-    manifest_hash = _sha256(annotation_manifest)
-    if manifest_hash != ANNOTATION_MANIFEST_SHA256:
-        raise ValueError("annotation manifest SHA-256 differs")
+    corpus_hash = annotation_corpus_sha256(annotation_root)
+    if corpus_hash != ANNOTATION_CORPUS_SHA256:
+        raise ValueError("official annotation corpus SHA-256 differs")
     tree_hash = _tree_digest(annotation_root)
     if tree_hash != ANNOTATION_TREE_SHA256:
         raise ValueError("annotation tree SHA-256 differs")
-    expected_names = [source.video_name for source in sources]
     set_root = Path(annotation_root) / "set"
+    if table_reader is None:
+        import pandas as pd
+
+        table_reader = pd.read_csv
+    match_table = table_reader(set_root / "match.csv", usecols=["id", "video"])
+    if set(match_table.columns) != {"id", "video"} or len(match_table) != 58:
+        raise ValueError("official ShuttleSet22 match table differs")
+    match_ids = [int(value) for value in match_table["id"]]
+    match_names = [str(value) for value in match_table["video"]]
+    if match_ids != list(range(1, 59)) or len(set(match_names)) != 58:
+        raise ValueError("official ShuttleSet22 match identities differ")
     actual_names = sorted(path.name for path in set_root.iterdir() if path.is_dir())
-    if actual_names != sorted(expected_names):
-        raise ValueError("annotation video directory set differs")
+    if actual_names != sorted(match_names):
+        raise ValueError("official ShuttleSet22 annotation directories differ")
+    official_names = dict(zip(match_ids, match_names, strict=True))
+    if any(official_names[source.video_id] != source.video_name for source in sources):
+        raise ValueError("fixed test videos differ from the official annotations")
 
     rallies_by_fixture: dict[str, tuple[HumanRally, ...]] = {}
     population_by_fixture: dict[str, Mapping[str, int]] = {}
@@ -615,7 +650,7 @@ def load_clean_labels(
     labels = CleanLabels(
         rallies_by_fixture,
         population_by_fixture,
-        manifest_hash,
+        corpus_hash,
         tree_hash,
     )
     payload = _clean_label_payload(labels, sources)
@@ -1068,7 +1103,6 @@ def score_shuttleset22_test(
     prediction_root: Path,
     source_manifest: Path,
     annotation_root: Path,
-    annotation_manifest: Path,
     clean_label_output: Path,
     output_path: Path,
     source_commit: str,
@@ -1105,7 +1139,6 @@ def score_shuttleset22_test(
         if label_loader is None:
             labels = load_clean_labels(
                 annotation_root,
-                annotation_manifest,
                 verified.sources,
                 frame_counts,
                 clean_label_output,
@@ -1113,7 +1146,6 @@ def score_shuttleset22_test(
         else:
             labels = label_loader(
                 Path(annotation_root),
-                Path(annotation_manifest),
                 verified.sources,
                 frame_counts,
                 Path(clean_label_output),
@@ -1134,8 +1166,7 @@ def score_shuttleset22_test(
                 "combined_prediction_mtime_ns": prediction_mtime_ns,
                 "source_manifest_file": Path(source_manifest).name,
                 "source_manifest_sha256": _sha256(source_manifest),
-                "annotation_manifest_file": Path(annotation_manifest).name,
-                "annotation_manifest_sha256": labels.annotation_manifest_sha256,
+                "annotation_corpus_sha256": labels.annotation_corpus_sha256,
                 "annotation_tree_sha256": labels.annotation_tree_sha256,
                 "clean_label_file": Path(clean_label_output).name,
                 "clean_label_sha256": _sha256(clean_label_output),
@@ -1161,7 +1192,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prediction-root", type=Path, required=True)
     parser.add_argument("--source-manifest", type=Path, required=True)
     parser.add_argument("--annotation-root", type=Path, required=True)
-    parser.add_argument("--annotation-manifest", type=Path, required=True)
     parser.add_argument("--clean-label-output", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
@@ -1174,7 +1204,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.prediction_root,
         args.source_manifest,
         args.annotation_root,
-        args.annotation_manifest,
         args.clean_label_output,
         args.output,
         args.source_commit,

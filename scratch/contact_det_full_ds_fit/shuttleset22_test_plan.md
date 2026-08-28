@@ -81,7 +81,7 @@ Require these SHA-256 identities:
   `55f832221646229b8b65dea31e24e8d02e0876fd6d0799cb0f6eff12583e1485`
 - prepared artifact identity:
   `dffe2cc2afc75f78eb89b30236477eb732f92a824b22ee3a01a4f893a673864e`
-- official annotation manifest:
+- official annotation corpus:
   `2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c`
 - completed inpaint run record:
   `ee5c55ec1ab0833e4bf0525dcabcf5b9eab5fde7c01dc08c47ab362ca447b160`
@@ -328,9 +328,9 @@ no label import.
 After that check passes:
 
 1. require the source manifest identity again;
-2. require the annotation manifest and annotation-tree hashes;
-3. require exactly one label directory for each fixed video and none of the
-   eight overlap IDs;
+2. require the official 58-match annotation-corpus and annotation-tree hashes;
+3. require the official match ID and directory map, then select exactly the 47
+   fixed videos; do not read the eight overlap or three unresolved directories;
 4. read every `set*.csv` table for a video;
 5. add the set filename stem as `set_id`;
 6. group rows by `set_id` and `rally`;
