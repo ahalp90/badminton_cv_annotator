@@ -2,11 +2,11 @@
 
 ## Pick up from here
 
-- Current work: the checked GPU runner is ready and video 8 is complete
-- Next action: launch the remaining 46 videos in `tmux` and check the saved run state after the ETA
-- Required check: write and review the chosen 47-video test plan, then save all model scores and player-side predictions before any test label row is read
+- Current work: the final contact model and all 47 ShuttleSet22 inpaint inputs are complete and checked
+- Next action: write and review `shuttleset22_test_plan.md` without opening test labels
+- Required check: save all model scores and player-side predictions before any test label row is read
 - Current blocker: none
-- Plan section: `shuttleset22_inpaint_plan.md`
+- Plan section: **Remaining ShuttleSet22 test plan** in `HANDOVER.md`
 
 ## Things to remember
 
@@ -437,3 +437,16 @@
 - Loader check: the normal shuttle loader accepts those values and normalises them in the same way as other coordinates
 - Decision: keep strict frame bounds for the saved TrackNet input and allow the original coordinate range when reloading InpaintNet output
 - Final gate: count every outside-frame output row, then rerun the receipt, hash, track, sidecar and guard checks for all 47 videos
+
+### Finished and checked the ShuttleSet22 inpaint run — 2026-08-28
+
+- Completed set: all 47 fixed videos and 6,175,283 frames
+- Inpaint selection: 2,916,960 frames; visible coordinates rose from 2,411,365 to 5,322,221
+- Final reload: checked every saved hash, CSV, track, sidecar and fill count, then regenerated and exactly compared every shuttle guard output
+- Coordinate range: one row in video 51 is one pixel below the picture at `(1909, 1080)`; the original InpaintNet code leaves output unclipped and the normal shuttle loader accepts it
+- Outside-frame recount: one affected row in one video; all other output rows are inside the picture
+- Label boundary: no ShuttleSet22 contact label was opened
+- Runtime commit: `e6a16084 Allow original InpaintNet output range`
+- Local checks: 9 focused runner tests pass; all 1,893 project tests pass and 29 skip; the pinned type check finds 0 errors
+- Ruff: the changed runner files pass; the whole repository still has the same 863 existing findings outside this work
+- Next action: write and check `shuttleset22_test_plan.md`, then prepare all contact predictions before opening labels

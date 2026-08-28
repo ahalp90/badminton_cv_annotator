@@ -2,23 +2,22 @@
 
 ## Start here
 
-The final contact model is fitted and checked. The remaining work is the
-independent ShuttleSet22 test.
+The final contact model and the ShuttleSet22 shuttle inputs are complete and
+checked. The remaining work is the independent ShuttleSet22 contact test.
 
-The shuttle-input decision is settled. Run the normal InpaintNet coordinate
-step from the saved stride-8 TrackNet CSVs for the 47 non-overlapping videos.
-Save the new files in the writable sibling-file mirror and derive fresh shuttle
-guard codes. `shuttleset22_inpaint_plan.md` is the fixed run plan.
+Start by writing `shuttleset22_test_plan.md`. Then prepare and save all 47
+videos' contact predictions before opening any ShuttleSet22 contact label.
+The fixed steps are under **Remaining ShuttleSet22 test plan** below.
 
 ## Resume
 
-- Stage: prepare the independent ShuttleSet22 inputs
-- Exact next action: run the checked InpaintNet command for the remaining videos
+- Stage: plan the independent ShuttleSet22 contact test
+- Exact next action: write and check `shuttleset22_test_plan.md` without opening test labels
 - Branch: `contact-det-feasibility`
-- Last experiment commit: `30698e96` (`Record the final contact fit`)
+- Last runtime commit: `e6a16084` (`Allow original InpaintNet output range`)
 - Current blocker: none
 - Active worker or audit: none
-- Last verified gate: final model audit found no blocker
+- Last verified gate: all 47 inpaint outputs passed their full reload checks
 - Large outputs: ignored under `scratch/contact_det_full_ds_fit/raw/`
 - Unrelated local state: an old untracked `scratch/contact_det/scripts/__pycache__/`; leave it alone
 
@@ -43,10 +42,8 @@ below only when their stage needs them.
 - The Serena/Pyrefly MCP was not visible in the previous session
 
 The user's earlier approval covers local edits, local commits and remote
-experiment work for the agreed test. A choice that changes the test input
-needs the user's answer first. The original contract expected saved annotation
-outputs to be reused. ShuttleSet22 has none, so the chosen test plan must also
-record the user's approval to run that stage from the fixed inputs.
+experiment work for the agreed test. A choice that changes the fixed test
+input, model, cut-off or nearby-contact distance needs the user's answer first.
 
 ## What the experiment set out to do
 
@@ -230,22 +227,19 @@ The preparation records have these fixed identities:
 - prepared-artifact identity SHA-256: `dffe2cc2afc75f78eb89b30236477eb732f92a824b22ee3a01a4f893a673864e`
 - official annotation SHA-256: `2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c`
 
-The previous session searched all readable user scratch trees for inpaint
-sidecars and saved shuttle guard arrays. It found them only for the original
-ShuttleSet run and three pilot copies. None belongs to a non-overlapping
-ShuttleSet22 video. All 47 ShuttleSet22 ball CSVs use binary visibility only:
-3,763,918 rows have zero and 2,411,365 have one.
+Before the current run, the search for existing inpaint sidecars and saved
+shuttle guard arrays found none for a non-overlapping ShuttleSet22 video. The
+47 prepared TrackNet CSVs use binary visibility only: 3,763,918 rows have zero
+and 2,411,365 have one.
 
 The preserved ShuttleSet22 extractor uses stride-8 TrackNet, large-video mode
 and `enable_inpainting=False`. A later extraction report used stride 8 with
 inpainting enabled, but that report covers one failed attempt to recover an
 overlapping video. It produced no usable extract.
 
-The guard array is separate from the inpaint fill record. The current code
-derives guard codes from repeated coordinate patterns in the finished shuttle
-track. A no-inpaint test should therefore use an empty fill mask and derive
-normal guard codes from each saved track. It should not use an empty guard
-array.
+The guard array is separate from the inpaint fill record. The completed run
+derives guard codes from repeated coordinate patterns in each finished shuttle
+track.
 
 The prepared 47-video set also has no annotation-stage output. Any test path
 must produce the annotation result and exclusion mask needed by the existing
@@ -253,52 +247,54 @@ contact feature calculation.
 
 Machine locations and access details are intentionally absent here.
 
-## ShuttleSet22 input decision
+## ShuttleSet22 inpaint run
 
 The user chose the saved-coordinate InpaintNet path on 2026-08-28. The full
 original-video GPU check found at most one-pixel changes on exactly
 reconstructable inputs. The fabricated guard count stayed unchanged. Four
 extra frames were marked degraded. The user accepted that difference.
 
-The three choices below are kept as the record of the decision. Choice 1 is
-implemented without rerunning TrackNet because the saved CSV contains every
-coordinate InpaintNet receives.
+The finished run used the normal non-overlapping 16-frame path on GPU. It read
+the saved stride-8 TrackNet coordinates, used every visible coordinate in each
+window and applied the normal 54-pixel gap rule. It kept one InpaintNet model
+loaded and processed 16 windows in each GPU batch.
 
-### Choice 1: match the original shuttle processing
+The run completed all 47 intended videos:
 
-Run the ShuttleSet22 shuttle stage again with the same stride-8 TrackNet and
-InpaintNet setup used for the 40 development videos. Save the inpaint
-sidecars, derived guard codes and full input records. Reuse the existing pose
-and court results.
+- 6,175,283 frames
+- 2,916,960 frames selected for InpaintNet filling
+- 2,411,365 visible coordinates before filling
+- 5,322,221 visible coordinates after filling
+- 47 complete per-video receipts
 
-This gives the cleanest comparison because the dataset changes while the
-shuttle processing stays as close as possible. It costs another full shuttle
-run and needs a written check that model weights and settings match the
-original run.
+The result keeps the prepared pose and court files unchanged through links. It
+adds an inpainted CSV, normalised track, fill sidecar, shuttle guard codes,
+guard details and a receipt beside them in a writable mirror. The mirror's
+folder name is `shuttleset22-inpainted-extract`. Its machine path stays outside
+Git.
 
-### Choice 2: use the prepared tracks as they are
+The final reload ran the complete validator again. It checked every input and
+output hash, reloaded every CSV and track, checked every fill count, regenerated
+every shuttle guard result and compared those results exactly. It finished with
+`all requested videos are already complete`.
 
-Use the existing stride-8 tracks with no inpaint fills. Supply an empty
-inpaint fill mask. Derive and save the normal guard codes and diagnostics from
-each finished track before running the annotation stage.
+One output row is one pixel below the picture: video 51 has coordinate
+`(1909, 1080)`. The original TrackNetV3 path does not clip InpaintNet output to
+the frame, and the normal shuttle loader accepts and normalises such a value.
+The validator now keeps strict bounds for the saved TrackNet inputs but accepts
+the original InpaintNet output range. No other output row is outside the frame.
 
-This is faster and tests the prepared ShuttleSet22 data honestly. Its result
-combines dataset change with a shuttle-processing change, so it cannot isolate
-how well the contact model transfers between datasets.
+The checked run records are:
 
-### Choice 3: prepare both before reading labels
+- aggregate receipt SHA-256: `ee5c55ec1ab0833e4bf0525dcabcf5b9eab5fde7c01dc08c47ab362ca447b160`
+- deployed runner SHA-256: `2e4fe812168ef2a7abadbd8594cc3ba9bf92f0b2f4677edfbc80466fa018e1b1`
+- tracked runner: `scripts/inpaint_shuttleset22_tracks.py`
+- run plan: `shuttleset22_inpaint_plan.md`
 
-Make and save both label-free prediction sets, then open the ShuttleSet22
-labels once and score both. This would show how much the inpainting choice
-changes the result without tuning either path from test labels.
+## Remaining ShuttleSet22 test plan
 
-This is outside the original single-test plan. It needs explicit user approval
-and a revised plan before any run starts.
-
-## Test plan before the inpainting discovery
-
-The following plan was ready in outline. Preserve it after the user chooses
-the shuttle input. Only the input-preparation part should change.
+The test design below was fixed before the input problem was found. Its
+shuttle step is now complete. Keep every model and scoring choice unchanged.
 
 ### 1. Freeze the test contract
 
@@ -316,15 +312,13 @@ Suggested commits are:
 - `Prepare the ShuttleSet22 predictions`
 - `Record the ShuttleSet22 result`
 
-If the user chooses new shuttle extraction, add one earlier commit with wording
-agreed after that choice.
-
 ### 2. Prepare predictions without labels
 
 For every test video:
 
-1. Check the source manifest and prepared file identities.
-2. Load and validate the shuttle track, pose arrays and court evidence.
+1. Check the source manifest and completed inpaint receipt identities.
+2. Load and validate the inpainted shuttle track, fill sidecar, guard arrays,
+   pose arrays and court evidence.
 3. Run the standard annotation stage with the chosen inpainting inputs.
 4. Save the annotation result and exclusion masks outside Git.
 5. Build the unchanged raw-per-frame contact features with `_fixture_rows`.
@@ -432,17 +426,27 @@ At commit `31fbd55a`, before the final fit ran:
 The final remote fit then completed and passed its saved reload checks. The
 independent result audit found no blocker.
 
-Documentation-only changes after that point have not changed runtime code.
+The ShuttleSet22 inpaint run later passed these checks:
+
+- all 47 base CSVs and saved tracks matched exactly before inference
+- the InpaintNet checkpoint, model code and guard code matched the fixed hashes
+- video 8 passed a full write, reload and input-identity check before the long run
+- all 47 per-video receipts and outputs passed the final full reload
+- the changed runner tests passed: 9 tests, exit 0
+- Ruff passed for the changed runner and test files, exit 0
+- the full project tests passed: 1,893 passed and 29 skipped, exit 0
+- the pinned Pyrefly check found 0 errors and 25 suppressed messages, exit 0
+- whole-project Ruff reported the same 863 existing findings outside this work,
+  exit 1
 
 ## Stop conditions
 
 Stop and ask the user when:
 
-- the chosen ShuttleSet22 input path is still unclear
 - a prepared video or expected hash is missing or different
 - a test video overlaps the development data
 - label code can run before the combined predictions are complete
-- reproducing the original input needs different model weights or settings
+- the completed inpaint receipt or any per-video output fails its saved check
 - the test requires a production-code change
 - a saved model does not load under the recorded library versions
 - any completed result contains fewer or more than the fixed 47 videos

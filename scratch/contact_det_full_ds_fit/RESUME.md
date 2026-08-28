@@ -1,10 +1,10 @@
 # Resume
 
-- Current work and status: the checked GPU runner is ready and ShuttleSet22 video 8 is complete
-- Next action: launch the remaining 46 videos in `tmux`, then check the saved run state after the ETA
+- Current work and status: the final contact model and all 47 ShuttleSet22 inpaint inputs are complete and checked
+- Next action: write and check `shuttleset22_test_plan.md` without opening ShuttleSet22 contact labels
 - Active reviewer: none; the final model result review found no blocker
-- Branch: `contact-det-feasibility`; latest planned commit is `Write the contact experiment handover`
-- Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
+- Branch: `contact-det-feasibility`; last runtime commit is `e6a16084`
+- Last useful check: the full reload checked all 47 inpaint outputs; 1,893 project tests and the pinned type check pass
 - Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts
@@ -18,6 +18,7 @@
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
-- ShuttleSet22 input decision: run the normal non-overlapping 16-frame InpaintNet step from the saved TrackNet coordinates, save sibling outputs in a writable mirror, and derive fresh guard codes
-- ShuttleSet22 first-video check: video 8 completed 128,400 frames in 2.9 seconds; every output reloaded and matched its saved hashes and derived guard result
-- Important files: `HANDOVER.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
+- ShuttleSet22 inpaint result: all 47 videos, 6,175,283 frames and 2,916,960 selected fill frames; the aggregate receipt hash is recorded in `HANDOVER.md`
+- Inpaint output note: one row in video 51 is one pixel below the frame; this matches the original unclipped InpaintNet conversion and no other row is outside the frame
+- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation or validation
+- Important files: `HANDOVER.md`, `shuttleset22_inpaint_plan.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`
