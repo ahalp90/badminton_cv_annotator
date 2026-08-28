@@ -75,6 +75,64 @@
     "several_labelled_rallies": 70,
     "unassigned_contacts": 44
   },
+  "rally_section_recount": {
+    "rule": "A correct rally section contains every labelled contact from one rally and no labelled contact from another rally.",
+    "frame_rate": 30,
+    "predicted_sections": 3982,
+    "labelled_rallies": 3422,
+    "correct_rally_sections": 2515,
+    "false_positive_sections": 1467,
+    "missed_or_unclean_rallies": 907,
+    "precision": 0.6315921647413361,
+    "recall": 0.7349503214494447,
+    "f1": 0.6793625067531064,
+    "section_counts": {
+      "one_complete_rally": 2515,
+      "one_partial_rally": 454,
+      "no_labelled_rally": 943,
+      "several_labelled_rallies": 70
+    },
+    "rally_counts": {
+      "clean_one_to_one": 2515,
+      "complete_but_merged": 182,
+      "partial_or_split": 457,
+      "missed": 268
+    },
+    "clean_section_context_frames": {
+      "before_first_labelled_contact": {
+        "minimum": 0,
+        "p10": 1,
+        "median": 30,
+        "p90": 273,
+        "maximum": 1557
+      },
+      "after_last_labelled_contact": {
+        "minimum": 4,
+        "p10": 46,
+        "median": 88,
+        "p90": 149,
+        "maximum": 3158
+      }
+    },
+    "whole_rally_contact_score": {
+      "5": {
+        "old_scorer_fully_correct": 493,
+        "clean_span_and_fully_correct": 483,
+        "contact_tolerance_crossed_section_edge": 10,
+        "share_of_one_rally_sections": 0.1660491748063321,
+        "share_of_all_predicted_sections": 0.12380713209442491,
+        "clean_span_share_of_all_predicted_sections": 0.12129583124058262
+      },
+      "10": {
+        "old_scorer_fully_correct": 537,
+        "clean_span_and_fully_correct": 524,
+        "contact_tolerance_crossed_section_edge": 13,
+        "share_of_one_rally_sections": 0.18086897945436173,
+        "share_of_all_predicted_sections": 0.13485685585133098,
+        "clean_span_share_of_all_predicted_sections": 0.131592164741336
+      }
+    }
+  },
   "whole_rallies": {
     "5": {
       "mapped_sections": 2969,

@@ -1,6 +1,6 @@
 # Final model and ShuttleSet22 test
 
-This report covers the final model and its test on 47 ShuttleSet22 videos. None of those videos were used to build the model.
+This report covers a histogram gradient boosting (HGB) contact detector and its test on 47 ShuttleSet22 videos. None of those videos were used to build the detector.
 
 ## Table of contents
 
@@ -13,7 +13,9 @@ This report covers the final model and its test on 47 ShuttleSet22 videos. None 
 - [What changed on the new videos](#what-changed-on-the-new-videos)
 - [First contacts remain the weak point](#first-contacts-remain-the-weak-point)
 - [Player side](#player-side)
-- [Whole sections](#whole-sections)
+- [How well the rally sections worked](#how-well-the-rally-sections-worked)
+- [How much room the sections left](#how-much-room-the-sections-left)
+- [How often the full output was right](#how-often-the-full-output-was-right)
 - [Why high contact scores did not find clean rallies](#why-high-contact-scores-did-not-find-clean-rallies)
 - [Did it work on different kinds of video?](#did-it-work-on-different-kinds-of-video)
 - [Are whole rallies near 100% right?](#are-whole-rallies-near-100-right)
@@ -22,19 +24,24 @@ This report covers the final model and its test on 47 ShuttleSet22 videos. None 
 
 ## Bottom line
 
-On the 47 test videos, the detector reached **80.62% precision, 84.37% recall and 82.45% F1** within five frames.
+| Question | Result |
+| --- | --- |
+| Did it find single contacts? | **80.62% precision, 84.37% recall and 82.45% F1** within five frames |
+| Did it choose the right player? | **92.02%** of matched contacts where both sides had an answer |
+| Did it find one clean section for a rally? | **63.16% precision and 73.50% recall** |
+| Was the whole output right? | **483 of all 3,982 sections, or 12.13%** |
 
-Player side was correct for **92.02%** of five-frame timing matches where both the human label and detector gave an answer.
+A clean section holds every labelled contact from one rally and no contact from another rally. The 483 full outputs also got every contact and player side right.
 
-Whole rallies were much harder. At five frames, **493 of 2,969 one-rally sections were fully correct**, or **16.60%**. At ten frames, 537 were fully correct, or 18.09%.
+The old report showed 16.60%. That was 493 passes among the 2,969 sections that touched one rally. It left out the 1,013 sections that touched no rally or several rallies. It also let the five-frame contact allowance reach just past a section edge.
 
 The detector still finds useful contact candidates in new videos. It is not ready to annotate whole rallies on its own.
 
-The test did not change the model. It also did not change the features, the 0.9 score cut-off or the six-frame rule for joining nearby predictions.
+Nothing was tuned after the test labels were opened.
 
 ## What the final test was trying to learn
 
-The development work had already chosen a simple HGB contact detector. The final test asked three questions:
+The development work had already chosen the HGB contact detector. The final test asked three questions:
 
 1. Did it still find contacts at about the right time in new videos?
 2. Did it still choose the right player?
@@ -100,7 +107,7 @@ The model kept contact scores of 0.9 or more. It joined predictions that fell wi
 | 5 frames | 32,243 | **80.62%** | **84.37%** | **82.45%** | **53.92%** | **87.36%** |
 | 10 frames | 32,603 | 81.52% | 85.31% | 83.37% | 58.07% | 87.99% |
 
-At the five-frame check, predictions were 0.49 frames early on average. Half were no more than one frame away from the label. The middle signed error was zero.
+At the five-frame check, predictions were 0.49 frames early on average. Half were no more than one frame away from the label. The median error was zero.
 
 The score rises sharply when the allowed gap grows from one frame to five. The model often finds the right moment, but not the exact labelled frame.
 
@@ -108,7 +115,7 @@ The score rises sharply when the allowed gap grows from one frame to five. The m
 
 ## What changed on the new videos
 
-For the 40-video development score, each video was scored by a model that had trained on the other 32 videos.
+The 40 development videos were split into five groups of eight. Each video was scored by a model trained on the other four groups, or 32 videos.
 
 | Five-frame measure | Fair test across 40 development videos | 47-video ShuttleSet22 test | Change |
 | --- | ---: | ---: | ---: |
@@ -153,19 +160,54 @@ At ten frames, player-side accuracy was 91.80%.
 
 The player rule reached 92.02% accuracy on these matched contacts. One wrong player still makes the whole section wrong.
 
-## Whole sections
+## How well the rally sections worked
 
-The 3,982 video sections lined up with the labels as follows:
+A clean rally section contains every labelled contact from one rally. It contains no labelled contact from another rally.
 
-- 2,969 contained exactly one labelled rally;
-- 943 contained no labelled rally; and
-- 70 contained several labelled rallies.
+The section finder produced 3,982 sections:
 
-The table puts each of the 2,969 one-rally sections into one group:
+- 2,515 held one complete rally and no part of another rally
+- 454 held only part of one rally
+- 943 held no labelled contact
+- 70 held contacts from several rallies
+
+This gives **63.16% precision**: 2,515 clean matches from 3,982 predicted sections.
+
+The 2,515 clean matches covered 2,515 of the 3,422 labelled rallies. This gives **73.50% recall**. Rally-section F1 was **67.94%**.
+
+![The section finder reached 63.2% precision and 73.5% recall.](figures/13_rally_section_precision_recall.png)
+
+![All 3,982 predicted sections, split by what they contained.](figures/12_rally_section_outcomes.png)
+
+This is a section-finding score. It does not say whether the contact detector found every contact inside the section.
+
+ShuttleSet22 labels contact frames. It does not mark the exact visual start and end of each rally. A clean match therefore means that all contact labels are inside one section. It does not mean that the clip edges are ideal.
+
+## How much room the sections left
+
+The section finder did not add a fixed buffer before and after a rally.
+
+It used 90 frames of rest, or three seconds at 30 fps, to decide that one active part of the video had ended. This was a rule for finding a break. It was not three seconds of padding at each edge.
+
+Among the 2,515 clean sections:
+
+- the median start was 30 frames, or 1.0 second, before the first labelled contact
+- the median end was 88 frames, or 2.9 seconds, after the last labelled contact
+- one quarter began within five frames of the first contact
+- the middle 80% began between 1 and 273 frames before the first contact
+- the middle 80% ended between 46 and 149 frames after the last contact
+
+The end usually had useful room after the last contact. The start was much less steady. A fixed clip buffer would need to be added in a later output step if every saved clip needs the same amount of room.
+
+![The time between each section edge and the nearest labelled contact varied widely.](figures/14_rally_section_context.png)
+
+## How often the full output was right
+
+The old whole-rally score first kept the 2,969 sections that touched exactly one labelled rally. It then put each section into one of these groups:
 
 | Outcome | Sections | Share of one-rally sections |
 | --- | ---: | ---: |
-| Fully correct | 493 | 16.60% |
+| Passed the old contact-and-side check | 493 | 16.60% |
 | Missing contacts only | 1,147 | 38.63% |
 | Extra contacts only | 243 | 8.18% |
 | Missing and extra contacts | 306 | 10.31% |
@@ -177,6 +219,21 @@ There were also 44 predicted contacts outside every saved detected section.
 
 Missing contacts caused the most failures. Wrong timing and wrong players also caused many failures.
 
+The 16.60% in the table is a score among the 2,969 one-rally sections. It does not count the 943 no-rally sections or the 70 multi-rally sections as failed outputs.
+
+Counting the old 493 passes against all 3,982 sections gives 12.38%. That still lets the five-frame contact allowance reach past a section edge. Ten sections did this. Requiring one clean section leaves **483 of 3,982, or 12.13%**.
+
+The scores count different things:
+
+| Score | What counted |
+| --- | --- |
+| Contact timing | All 39,994 predicted contacts and all 38,218 usable labels |
+| Player side | The 32,188 timing matches where both sides had an answer |
+| Old section check | The 2,969 sections that touched one rally |
+| Clean full output | All 3,982 predicted sections |
+
+The 44 contacts outside every section still counted as unmatched contact predictions. They could not enter a section score.
+
 ![Missing contacts cause the most ShuttleSet22 failures, but they are not the only problem.](figures/06_external_error_mix.png)
 
 ## Why high contact scores did not find clean rallies
@@ -187,10 +244,10 @@ At a 0.95 minimum contact score:
 
 - 1,754 sections remained
 - 1,344 of those sections matched one labelled rally and had enough human player labels to be scored
-- 245 of the 1,344 scored sections were fully correct
-- the share fully correct rose only to 18.23%
+- 245 of the 1,344 scored sections passed the old contact-and-side check
+- the share that passed rose only to 18.23%
 
-The higher cut-off removes more than half the sections. The share of fully correct rallies rises by less than two points.
+The higher cut-off removes more than half the sections. The share that passed the old check rises by less than two points.
 
 A high contact score only says that one predicted contact looks likely. It does not tell us whether the video section starts and ends in the right place. It cannot see a contact that the detector missed. It also does not rule out extra contacts or a wrong player.
 
@@ -218,9 +275,10 @@ The contact detector is useful as one part of a larger system. The whole system 
 
 At the main five-frame check:
 
-- **80.62% of predicted contacts** matched a label;
-- the player choice was right for **92.02%** of timing matches where both sides had an answer; and
-- **16.60% of one-rally sections** were fully correct.
+- **80.62% of predicted contacts** matched a label
+- the player choice was right for **92.02%** of timing matches where both sides had an answer
+- **16.60% of one-rally sections** passed the old contact-and-side check
+- **12.13% of all predicted sections** were clean and fully correct
 
 Each percentage counts a different group of events. They cannot be multiplied into one score. They simply show how accuracy falls as the task grows from one contact to a whole rally.
 
@@ -230,7 +288,7 @@ This work did not train a model to reject doubtful rallies. So we do not know wh
 
 ## What remains worth testing
 
-The RF and HGB comparison itself is finished.
+The random forest (RF) and HGB comparison itself is finished.
 
 The next work should improve:
 
@@ -254,6 +312,6 @@ The project scorer and a separate recount agreed on the result:
 - a separate recount did not use the project scorer; and
 - that recount found the same timing and player results for the whole test and for every video.
 
-[`shuttleset22_test_summary.json`](shuttleset22_test_summary.json) holds the short saved result. [`shuttleset_development_split.json`](shuttleset_development_split.json) lists the development videos.
+[`shuttleset22_test_summary.json`](shuttleset22_test_summary.json) holds the short saved result and the new section recount. [`scripts/summarise_shuttleset22_sections.py`](scripts/summarise_shuttleset22_sections.py) rebuilds the recount from the saved predictions, clean labels and full test result. [`shuttleset_development_split.json`](shuttleset_development_split.json) lists the development videos.
 
-The old plans are unchanged under [`archive/`](archive/). The larger result files stay outside Git in the ignored `raw/` folder.
+The old plans are unchanged under [`archive/`](archive/). The larger result files stay outside Git in the ignored `raw/` folder. The full raw evidence is also kept in the GitHub release for this branch: [RF/HGB contact study raw evidence](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/contact-det-rf-hgb-series-v1).

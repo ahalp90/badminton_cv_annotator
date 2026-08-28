@@ -6,6 +6,7 @@ This page describes the contact detector and points to its code and saved result
 
 - [The system in one picture](#the-system-in-one-picture)
 - [What goes into the detector](#what-goes-into-the-detector)
+- [How rally sections are found](#how-rally-sections-are-found)
 - [How a contact becomes an event](#how-a-contact-becomes-an-event)
 - [How complete sections are judged](#how-complete-sections-are-judged)
 - [Which videos were used at each step](#which-videos-were-used-at-each-step)
@@ -66,6 +67,18 @@ The model uses 85 fields for each candidate frame. Some hold measured values. Ot
 
 The measured values include shuttle speed, changes in direction, impulse, distance to the nearest wrist and player ankle motion.
 
+## How rally sections are found
+
+The section finder looks for long periods when the shuttle is at rest or cannot be tracked.
+
+At 30 fps, a rest must last at least 90 frames, or three seconds, to split two active parts of a video. A section begins at the start of an active part that contains a strong burst of shuttle speed. It ends when the next long rest begins.
+
+The three-second rule finds a break between rallies. It does not add three seconds before and after each section.
+
+The saved sections therefore have different amounts of room around the labelled contacts. Among the 2,515 clean ShuttleSet22 sections, the median was 1.0 second before the first contact and 2.9 seconds after the last contact. One quarter began within five frames of the first contact.
+
+ShuttleSet22 has contact labels rather than exact rally-edge labels. The test can say whether all rally contacts are inside one section. It cannot say whether the visual clip edges are ideal.
+
 ## How a contact becomes an event
 
 HGB gives every candidate frame a score from 0 to 1. A higher score means that the frame looks more like a contact.
@@ -108,6 +121,12 @@ A detected section is fully correct only when:
 
 A section cannot be fully correct if it joins several real rallies. Sections that match no labelled rally are not part of this one-rally score.
 
+That last rule made the old 16.60% whole-rally result look better than an all-output score. It counted 493 correct sections among the 2,969 sections that touched one rally. It left out 943 sections with no labelled rally and 70 with parts of several rallies.
+
+The later recount uses every predicted section. It found 2,515 clean rally sections from 3,982 predictions. Rally-section precision was 63.16%. Those sections covered 2,515 of 3,422 labelled rallies, so recall was 73.50%.
+
+Only 483 of all 3,982 sections were both clean and fully correct for contacts and player side. That is 12.13%.
+
 ## Which videos were used at each step
 
 | Step | Videos | What it was for | How labels were kept separate |
@@ -129,9 +148,9 @@ Eight ShuttleSet22 matches also appear in the development data, so the test left
 | Nearby-contact merge | Reduces duplicate events | It cannot recover a missing event |
 | First-contact handling | Often finds a possible contact near the missed first contact | The best tested choice was right only 51.7% of the time |
 | Player side | 92.02% accuracy on answered five-frame timing matches | One wrong side spoils a whole section |
-| Detected sections | Give the annotator a stretch of video to work on | Many match no real rally or join several rallies |
+| Detected sections | Found 73.50% of labelled rallies | Only 63.16% of predicted sections held one whole rally and no part of another |
 | Contact score | Ranks single contacts | A high score does not tell us that the whole rally is right |
-| Check of the whole section | Tests the complete output that the project needs | Only 16.60% of ShuttleSet22 one-rally sections are fully correct at five frames |
+| Check of the whole section | Tests the complete output that the project needs | Only 12.13% of all ShuttleSet22 sections are clean and fully correct at five frames |
 
 ## Code map
 
@@ -145,6 +164,7 @@ Eight ShuttleSet22 matches also appear in the development data, so the test left
 | Rally-start inputs and the model that stopped | `scripts/save_training_rally_start_inputs.py`, `scripts/save_validation_rally_start_inputs.py`, `scripts/rally_start_model.py`, `scripts/run_rally_start_model.py` |
 | Fair scores across all 40 videos and final fit | `scripts/score_final_contact_groups.py`, `scripts/fit_final_contact_model.py` |
 | ShuttleSet22 preparation and scoring | `scripts/inpaint_shuttleset22_tracks.py`, `scripts/prepare_shuttleset22_predictions.py`, `scripts/score_shuttleset22_test.py` |
+| ShuttleSet22 rally-section recount | `scripts/summarise_shuttleset22_sections.py` |
 | Report figures | `scripts/plot_report_figures.py` |
 
 Each experiment script has tests under `tests/`. The final group-scoring tests also cover the model-fitting code.
@@ -167,7 +187,7 @@ Each experiment script has tests under `tests/`. The final group-scoring tests a
 | `rally_start_model_summary.json` | All six results and why the work stopped there |
 | `final_video_score_groups.json` | The five groups used to score all 40 videos without training on them |
 | `final_contact_score_inputs.json` | The all-40 scoring files and their hashes |
-| `shuttleset22_test_summary.json` | The final ShuttleSet22 result and the separate recount |
+| `shuttleset22_test_summary.json` | The final ShuttleSet22 result, the separate contact recount and the later rally-section recount |
 
 ## Files kept out of Git
 
@@ -181,9 +201,9 @@ The ignored `raw/` folder holds the larger files behind these results:
 - the fitted HGB model and reload record; and
 - run logs and files from repeat checks.
 
-The folder contains 201 files and is about 216 MB.
+The folder now contains 581 files and is about 363 MiB. It includes the full ShuttleSet22 prediction files and detailed test result recovered from the remote run.
 
-Some files are frame-by-frame features made from broadcaster videos. [`../../data/ATTRIBUTION.md`](../../data/ATTRIBUTION.md) says these arrays stay outside Git because the videos remain copyrighted. A public release should leave those arrays out unless permission to release them is confirmed. The model, result files and logs can be packed separately with a file list and checksum.
+The full raw folder is kept in the [RF/HGB contact study raw evidence release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/contact-det-rf-hgb-series-v1). The release has a file list and checksum. It leaves out local paths, remote setup details and `HANDOVER.md`.
 
 ## Old plans and worklog
 

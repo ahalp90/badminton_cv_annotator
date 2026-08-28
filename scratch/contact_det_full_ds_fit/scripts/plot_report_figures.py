@@ -283,6 +283,14 @@ def external_metrics(shuttleset: JsonObject, tolerance: str = "5") -> JsonObject
     return require_mapping(timing[tolerance], f"timing.{tolerance}")
 
 
+def rally_section_metrics(shuttleset: JsonObject) -> JsonObject:
+    """Return the post-test recount of detected rally sections."""
+    return require_mapping(
+        shuttleset["rally_section_recount"],
+        "shuttleset22_test_summary.rally_section_recount",
+    )
+
+
 def plot_contact_metrics(baseline: JsonObject, final_setting: JsonObject, shuttleset: JsonObject) -> None:
     """Compare contact metrics at the three main evidence stages."""
     chosen_id = str(baseline["chosen_run_id"])
@@ -393,7 +401,7 @@ def plot_external_error_mix(shuttleset: JsonObject) -> None:
         require_mapping(shuttleset["section_mapping"], "section_mapping")["one_labelled_rally"], "one-rally sections"
     )
     outcome_labels = [
-        "Fully correct",
+        "Passed old contact + side check",
         "Missing contacts only",
         "Extra contacts only",
         "Missing and extra contacts",
@@ -410,7 +418,7 @@ def plot_external_error_mix(shuttleset: JsonObject) -> None:
     axis.invert_yaxis()
     axis.set_xlim(0, max(outcome_counts) * 1.22)
     axis.set_xlabel("One-rally sections")
-    axis.set_title("On new videos, missing contacts caused the most whole-rally errors")
+    axis.set_title("Among one-rally sections, missing contacts caused most failures")
     axis.grid(axis="x")
     add_footnote(
         figure,
@@ -604,31 +612,132 @@ def plot_contact_cutoff_tradeoff(final_setting: JsonObject) -> None:
 
 
 def plot_standalone_gap(shuttleset: JsonObject) -> None:
-    """Put the external contact, side and whole-rally results beside the goal."""
+    """Put the external contact and whole-rally results beside the goal."""
     timing = external_metrics(shuttleset)
     side = require_mapping(require_mapping(shuttleset["player_side"], "player_side")["5"], "player_side.5")
-    whole_rallies = require_mapping(require_mapping(shuttleset["whole_rallies"], "whole_rallies")["5"], "whole_rallies.5")
-    labels = ["Contact timing\nprecision", "Right player\nafter timing match", "Whole rally\nfully correct"]
+    section_metrics = rally_section_metrics(shuttleset)
+    whole_score = require_mapping(
+        require_mapping(section_metrics["whole_rally_contact_score"], "whole_rally_contact_score")["5"],
+        "whole_rally_contact_score.5",
+    )
+    labels = [
+        "Contact timing\nprecision",
+        "Right player\nafter timing match",
+        "Passed old check among\none-rally sections",
+        "Clean and fully correct\namong all sections",
+    ]
     values = [
         number(timing["precision"], "precision"),
         number(side["accuracy_when_both_answered"], "side accuracy"),
-        number(whole_rallies["fully_correct_accuracy_when_assessable"], "whole-rally accuracy"),
+        number(whole_score["share_of_one_rally_sections"], "one-rally share"),
+        number(whole_score["clean_span_share_of_all_predicted_sections"], "all-section share"),
     ]
-    figure, axis = plt.subplots(figsize=(14, 8.5))
-    bars = axis.bar(labels, values, color=[BLUE, PURPLE, ORANGE], width=0.58)
+    figure, axis = plt.subplots(figsize=(16, 8.5))
+    bars = axis.bar(labels, values, color=[BLUE, PURPLE, ORANGE, SKY], width=0.58)
     label_vertical_bars(axis, bars, values)
     axis.axhline(1.0, color=GREY, linestyle="--", linewidth=2)
-    axis.text(2.45, 1.005, "near-100% goal", ha="right", va="bottom", color=GREY, fontsize=11)
+    axis.text(3.45, 1.005, "near-100% goal", ha="right", va="bottom", color=GREY, fontsize=11)
     axis.set_ylim(0, 1.08)
     axis.set_ylabel("Share correct")
-    axis.set_title("Single contacts are useful; whole rallies are far from 100% right")
+    axis.set_title("Single contacts are useful; complete rally outputs are still rare")
     axis.grid(axis="y")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. The test uses 39,994 predicted contacts. The player result uses 32,188 "
-        "time-matched contacts where both sides had an answer. The whole-rally result uses 2,969 one-rally sections.",
+        "Source: shuttleset22_test_summary.json. Denominators from left: 39,994 predicted contacts; 32,188 matched "
+        "contacts with two side answers; 2,969 one-rally sections; all 3,982 predicted sections. The last bar also "
+        "requires one complete rally and no part of another.",
     )
     save_figure(figure, "11_standalone_gap.png")
+
+
+def plot_rally_section_outcomes(shuttleset: JsonObject) -> None:
+    """Show what all predicted sections contained."""
+    section_metrics = rally_section_metrics(shuttleset)
+    counts = require_mapping(section_metrics["section_counts"], "section_counts")
+    labels = ["One whole rally only", "Part of one rally", "No labelled rally", "Parts of several rallies"]
+    values = [
+        integer(counts["one_complete_rally"], "one complete rally"),
+        integer(counts["one_partial_rally"], "one partial rally"),
+        integer(counts["no_labelled_rally"], "no labelled rally"),
+        integer(counts["several_labelled_rallies"], "several labelled rallies"),
+    ]
+    figure, axis = plt.subplots(figsize=(14, 8.5))
+    bars = axis.barh(labels, values, color=[BLUE, SKY, ORANGE, PURPLE])
+    label_horizontal_bars(axis, bars, [float(value) for value in values], percentages=False)
+    axis.invert_yaxis()
+    axis.set_xlim(0, max(values) * 1.2)
+    axis.set_xlabel("Predicted sections")
+    axis.set_title("2,515 of 3,982 sections held one complete rally and no other rally")
+    axis.grid(axis="x")
+    add_footnote(
+        figure,
+        "Source: shuttleset22_test_summary.json. A rally is complete here when every labelled contact is inside the "
+        "section. ShuttleSet22 does not label the true visual start and end of each rally.",
+    )
+    save_figure(figure, "12_rally_section_outcomes.png")
+
+
+def plot_rally_section_precision_recall(shuttleset: JsonObject) -> None:
+    """Show the one-to-one rally-section precision, recall and F1."""
+    section_metrics = rally_section_metrics(shuttleset)
+    labels = ["Precision", "Recall", "F1"]
+    values = [
+        number(section_metrics["precision"], "section precision"),
+        number(section_metrics["recall"], "section recall"),
+        number(section_metrics["f1"], "section F1"),
+    ]
+    figure, axis = plt.subplots(figsize=(12, 8.5))
+    bars = axis.bar(labels, values, color=[BLUE, ORANGE, PURPLE], width=0.58)
+    label_vertical_bars(axis, bars, values)
+    axis.set_ylim(0, 1.02)
+    axis.set_ylabel("Share of rally sections")
+    axis.set_title("Rally-section precision was 63.2%; recall was 73.5%")
+    axis.grid(axis="y")
+    add_footnote(
+        figure,
+        "Source: shuttleset22_test_summary.json. Precision is 2,515 clean matches from 3,982 predicted sections. "
+        "Recall is the same 2,515 matches from 3,422 labelled rallies.",
+    )
+    save_figure(figure, "13_rally_section_precision_recall.png")
+
+
+def plot_rally_section_context(shuttleset: JsonObject) -> None:
+    """Show the variable context around contacts in clean rally sections."""
+    section_metrics = rally_section_metrics(shuttleset)
+    frame_rate = number(section_metrics["frame_rate"], "frame rate")
+    context = require_mapping(section_metrics["clean_section_context_frames"], "clean_section_context_frames")
+    start = require_mapping(context["before_first_labelled_contact"], "before_first_labelled_contact")
+    end = require_mapping(context["after_last_labelled_contact"], "after_last_labelled_contact")
+    labels = ["Before first contact", "After last contact"]
+    medians = [number(start["median"], "start median"), number(end["median"], "end median")]
+    p10 = [number(start["p10"], "start p10"), number(end["p10"], "end p10")]
+    p90 = [number(start["p90"], "start p90"), number(end["p90"], "end p90")]
+    median_seconds = [value / frame_rate for value in medians]
+    lower = [(median - low) / frame_rate for median, low in zip(medians, p10, strict=True)]
+    upper = [(high - median) / frame_rate for median, high in zip(medians, p90, strict=True)]
+
+    figure, axis = plt.subplots(figsize=(14, 6.5))
+    positions = [0, 1]
+    axis.errorbar(
+        median_seconds, positions, xerr=[lower, upper], fmt="o", markersize=12, linewidth=3, capsize=7, color=BLUE
+    )
+    for position, value in zip(positions, median_seconds, strict=True):
+        axis.annotate(
+            f"median {value:.1f} s", (value, position), xytext=(10, 10), textcoords="offset points", fontsize=12,
+            weight="bold",
+        )
+    axis.set_yticks(positions, labels)
+    axis.invert_yaxis()
+    axis.set_xlim(0, max(p90) / frame_rate * 1.08)
+    axis.set_xlabel("Seconds between the section edge and the nearest labelled contact")
+    axis.set_title("Space around each rally varied; the end usually had more room")
+    axis.grid(axis="x")
+    add_footnote(
+        figure,
+        "Source: shuttleset22_test_summary.json. Dots are medians across 2,515 clean one-rally sections. Lines show "
+        "the middle 80% (10th to 90th percentile). These are contact labels, not true rally-boundary labels.",
+    )
+    save_figure(figure, "14_rally_section_context.png")
 
 
 def main() -> None:
@@ -655,6 +764,9 @@ def main() -> None:
     plot_whole_section_confidence(baseline, shuttleset)
     plot_contact_cutoff_tradeoff(final_setting)
     plot_standalone_gap(shuttleset)
+    plot_rally_section_outcomes(shuttleset)
+    plot_rally_section_precision_recall(shuttleset)
+    plot_rally_section_context(shuttleset)
 
     # shuttleset22_test_summary.json confirms that per-video values were independently checked, but does not store them.
     # A per-video plot is therefore omitted: rebuilding it would require an untracked external result file.

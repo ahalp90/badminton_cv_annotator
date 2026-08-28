@@ -4,19 +4,21 @@ These pictures show what the RF and HGB tests tried, what happened and what stil
 
 ## Table of contents
 
-- [The six-picture story](#the-six-picture-story)
+- [The eight-picture story](#the-eight-picture-story)
 - [1. The study went from 3 videos to 47 new videos](#1-the-study-went-from-3-videos-to-47-new-videos)
 - [2. HGB came first in the nine model runs](#2-hgb-came-first-in-the-nine-model-runs)
 - [3. Precision fell on the new videos](#3-precision-fell-on-the-new-videos)
 - [4. First contacts stayed much harder](#4-first-contacts-stayed-much-harder)
-- [5. Most wrong sections were missing contacts](#5-most-wrong-sections-were-missing-contacts)
-- [6. Single contacts are useful, but few whole rallies are right](#6-single-contacts-are-useful-but-few-whole-rallies-are-right)
+- [5. Most predicted sections held one whole rally](#5-most-predicted-sections-held-one-whole-rally)
+- [6. Rally-section precision was 63.2%](#6-rally-section-precision-was-632)
+- [7. The end usually had more room than the start](#7-the-end-usually-had-more-room-than-the-start)
+- [8. Single contacts are useful, but few full outputs are right](#8-single-contacts-are-useful-but-few-full-outputs-are-right)
 - [Extra plots](#extra-plots)
 - [The result in one paragraph](#the-result-in-one-paragraph)
 
-## The six-picture story
+## The eight-picture story
 
-The first six pictures show the main result.
+These eight pictures show the main result.
 
 ## 1. The study went from 3 videos to 47 new videos
 
@@ -48,25 +50,50 @@ First-contact recall rose from 41.77% on the original validation set to 53.92% o
 
 First-contact recall stayed well below later-contact recall in all three tests. The detector still needs a separate way to handle rally starts.
 
-## 5. Most wrong sections were missing contacts
+## 5. Most predicted sections held one whole rally
+
+![What all 3,982 predicted sections contained.](figures/12_rally_section_outcomes.png)
+
+The detector made 3,982 sections. Of those, 2,515 held every labelled contact from one rally and no contact from another rally.
+
+The other sections held part of one rally, parts of several rallies, or no labelled rally.
+
+## 6. Rally-section precision was 63.2%
+
+![Rally-section precision, recall and F1.](figures/13_rally_section_precision_recall.png)
+
+The 2,515 clean matches give **63.16% precision** from all 3,982 predicted sections. They give **73.50% recall** from all 3,422 labelled rallies.
+
+This check only asks whether the section holds one whole rally. It does not ask whether every predicted contact is right.
+
+## 7. The end usually had more room than the start
+
+![The time between each section edge and the nearest labelled contact.](figures/14_rally_section_context.png)
+
+There was no fixed buffer before and after each rally. The three-second rule found a long rest between rallies. It did not add three seconds to both ends.
+
+The median clean section began 1.0 second before the first labelled contact. It ended 2.9 seconds after the last. Starts varied much more than ends.
+
+## 8. Single contacts are useful, but few full outputs are right
 
 ![What happened in the 2,969 ShuttleSet22 sections that match one labelled rally.](figures/06_external_error_mix.png)
 
-Only **493 of 2,969 one-rally sections** were fully correct at five frames.
+Only **493 of 2,969 one-rally sections** passed the old contact-and-side check at five frames. That check did not require every label to sit inside the section.
 
 Missing contacts caused the most failures. Extra contacts, wrong timing and wrong player side also broke many sections.
 
-## 6. Single contacts are useful, but few whole rallies are right
-
 ![The gap between contact timing, player-side answers and fully correct sections.](figures/11_standalone_gap.png)
 
-These three percentages use different groups of results:
+These percentages use different groups of results:
 
-- **80.62% contact precision** across all ShuttleSet22 predictions;
-- **92.02% player-side accuracy** after a timing match and two answered sides; and
-- **16.60% fully correct sections** among sections that map to one labelled rally.
+- **80.62% contact precision** across all ShuttleSet22 predictions
+- **92.02% player-side accuracy** after a timing match and two answered sides
+- **16.60% passed the old check** among sections that touched one labelled rally
+- **12.13% clean and fully correct** among all predicted sections
 
-They count different things, so they cannot be combined into one score. The result gets worse as the test grows from one contact to a whole rally.
+The last figure is the fairest full-output result. It counts every predicted section. It also checks that the section holds one whole rally and no part of another.
+
+The 16.60% figure left out 943 sections with no labelled rally and 70 sections with parts of several rallies. This did not change the contact precision or recall. Those scores used all contacts.
 
 The tests did not find any group of whole rallies with near-100% precision.
 
@@ -104,4 +131,4 @@ Among the settings tested, 0.9 gave almost the highest precision. A higher minim
 
 ## The result in one paragraph
 
-HGB is a useful simple contact detector. It still finds contacts on ShuttleSet22, but it makes more false predictions there. The small model for adding missed first contacts was not safe enough. Next, sections need to start and end in the right place. The system also needs a safer way to find first contacts, remove extra contacts and flag an unsure player choice. A final model could then decide whether to keep or reject each whole rally.
+HGB is a useful simple contact detector. It still finds contacts on ShuttleSet22, but it makes more false predictions there. The section finder gets about two-thirds of its outputs right and finds about three-quarters of the labelled rallies. Only 12.13% of all outputs have a clean section plus every contact and player side right. The next work needs safer rally starts, fewer extra contacts and a way to reject doubtful full outputs.

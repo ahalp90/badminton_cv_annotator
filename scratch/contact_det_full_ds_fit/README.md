@@ -8,7 +8,8 @@ This folder records the 40-video development study and the final model's test on
 - [The five-minute route](#the-five-minute-route)
 - [What the work was trying to learn](#what-the-work-was-trying-to-learn)
 - [The main results](#the-main-results)
-- [What a fully correct section means](#what-a-fully-correct-section-means)
+- [How well the rally sections worked](#how-well-the-rally-sections-worked)
+- [How often the full output was right](#how-often-the-full-output-was-right)
 - [Are we closer to an annotator that is almost always right?](#are-we-closer-to-an-annotator-that-is-almost-always-right)
 - [What remains useful](#what-remains-useful)
 - [Where everything lives](#where-everything-lives)
@@ -21,7 +22,9 @@ Histogram gradient boosting, or HGB, was the best of the simple contact models. 
 
 The final model then ran once on 47 ShuttleSet22 videos that were not used in development. It reached **80.62% precision, 84.37% recall and 82.45% F1** within five frames. It chose the right player for **92.02%** of matched contacts where both sides had an answer.
 
-These scores tell us how well the model finds single contacts. Whole rallies are much harder. Only **493 of 2,969 one-rally sections, or 16.60%,** were fully correct from start to finish at five frames.
+These scores tell us how well the model finds single contacts. The section finder had **63.16% precision and 73.50% recall**. It found one clean section for 2,515 of the 3,422 labelled rallies.
+
+The full output was much less reliable. Only **483 of all 3,982 sections, or 12.13%,** held one complete rally and also got every contact and player side right.
 
 The main problems are clear now:
 
@@ -71,24 +74,46 @@ Between the 40-video development result and the test on new videos, precision fe
 
 ![On the new videos, recall changes little while precision falls.](figures/03_contact_precision_recall_f1.png)
 
-## What a fully correct section means
+## How well the rally sections worked
+
+A section counts as a clean rally match when it contains every labelled contact from one rally and no labelled contact from another rally.
+
+The section finder produced 3,982 sections. Of those, 2,515 were clean matches. This gives:
+
+- **63.16% precision:** 2,515 clean matches from 3,982 predicted sections
+- **73.50% recall:** 2,515 clean matches from 3,422 labelled rallies
+- **67.94% F1:** one score that balances precision and recall
+
+![The section finder reached 63.2% precision and 73.5% recall.](figures/13_rally_section_precision_recall.png)
+
+The other 1,467 predicted sections were wrong for this check. Some held only part of a rally. Some held parts of several rallies. Most of the rest held no labelled contact.
+
+![All 3,982 predicted sections, split by what they contained.](figures/12_rally_section_outcomes.png)
+
+ShuttleSet22 labels contact frames. It does not label the exact visual start and end of a rally. The section score can therefore check whether every contact is inside. It cannot tell us whether the clip begins or ends at the ideal moment.
+
+There was no fixed buffer before and after each rally. The section finder used 90 frames of rest, or three seconds at 30 fps, to recognise a break. Those three seconds were a break rule, not added padding.
+
+For the 2,515 clean sections, the median start was 30 frames before the first labelled contact. The median end was 88 frames after the last. That is about 1.0 second before and 2.9 seconds after. The amount varied widely, especially at the start.
+
+![The room before and after labelled contacts varied between sections.](figures/14_rally_section_context.png)
+
+## How often the full output was right
 
 The annotator first proposes a section of video. A section counts as fully correct only when:
 
-- it maps to exactly one labelled rally;
+- it contains one complete labelled rally and no part of another rally;
 - every contact is present within the stated timing tolerance;
 - no extra contact is present; and
 - every contact has the correct Top or Bottom player answer.
 
 This test is stricter than contact F1. One missing contact, extra contact or wrong side makes the whole section fail.
 
-On the ShuttleSet22 test, the annotator found 3,982 sections. They fell into three groups:
+The first report counted only the 2,969 sections that touched one labelled rally. **493 passed its contact-and-side check, or 16.60%.** That old check did not require every label to sit inside the section.
 
-- 2,969 sections matched one labelled rally
-- 943 sections matched no labelled rally
-- 70 sections contained several labelled rallies
+That left 943 no-rally sections and 70 multi-rally sections out of the denominator. The contact timing and player-side scores did not have this problem. They used all contact predictions and labels.
 
-Among the 2,969 one-rally sections, **493 were fully correct at five frames** and **537 were fully correct at ten frames**.
+When all 3,982 predicted sections are counted, the old 493 gives **12.38%**. A stricter recount also required every labelled contact to sit inside the section. Ten of the 493 missed that rule by no more than the five-frame timing allowance. The strict result was therefore **483 of 3,982, or 12.13%**.
 
 ## Are we closer to an annotator that is almost always right?
 
@@ -96,7 +121,7 @@ The answer is **we know more, but the full annotator is still far from the goal*
 
 The contact detector is useful. The next step needs to check whether the section starts and ends in the right place. It also needs to look for a missed first contact, extra contacts and a doubtful player choice.
 
-A high contact score does not tell us that the whole section is right. On the ShuttleSet22 test, a cut-off of 0.95 kept 1,754 sections instead of 3,982 at 0.90. Of those sections, 1,344 matched one labelled rally and had enough player labels to be scored. Only **18.23%** were fully right. At the 0.90 cut-off, **16.60% of 2,969** scored sections were fully right.
+A high contact score does not tell us that the whole section is right. On the ShuttleSet22 test, a cut-off of 0.95 kept 1,754 sections instead of 3,982 at 0.90. Of those sections, 1,344 matched one labelled rally and had enough player labels to be scored. Only **18.23%** passed the old contact-and-side check. This is still a score among sections that had already passed the one-rally check.
 
 No test found a group of whole rallies with near-100% precision. We also do not know how the method works across different broadcast styles. The ShuttleSet22 result combines all 47 videos, so it does not show a score for each broadcast style.
 
@@ -135,7 +160,7 @@ The next test should train a model that keeps or rejects each rally. It could lo
 | Generated figures | [`figures/`](figures/) |
 | Figure-building code | [`scripts/plot_report_figures.py`](scripts/plot_report_figures.py) |
 | Machine-readable results | JSON files in this folder |
-| Larger saved files | local `raw/`, to be packaged separately |
+| Larger saved files | local `raw/` and the GitHub release linked in the test report |
 | Completed plans and working record | [`archive/`](archive/) |
 
 `HANDOVER.md` is local-only. It is ignored by this folder's `.gitignore` and is not part of the report pack or release.
