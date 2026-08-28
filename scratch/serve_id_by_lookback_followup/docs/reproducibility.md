@@ -119,7 +119,7 @@ MPLCONFIGDIR=/tmp/badminton-matplotlib \
 The decision flow is rendered from Mermaid source:
 
 ```bash
-/home/ariel/.venvs/skill-utils/bin/mermaidx \
+mermaidx \
   -i figures/preferred_server_rule.mmd \
   -o figures/preferred_server_rule.svg
 ```

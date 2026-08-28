@@ -11,14 +11,17 @@ Use it when you need to answer one of these questions:
 - Which historical prompts are preserved only as text?
 - Which current prompts can be regenerated from code?
 
-For conclusions, start with [`README.md`](README.md). For measurements, use [`results.md`](results.md). For the trial sequence, use [`experiments.md`](experiments.md).
+For conclusions, start with [`README.md`](README.md). For measurements from the
+first experiments, use
+[`RESULTS_FIRST_EXPERIMENTS.md`](RESULTS_FIRST_EXPERIMENTS.md). For the trial
+sequence, use [`experiments.md`](experiments.md).
 
 This catalogue lists only meaningful prompt changes. A retry with the same prompt is not a new entry.
 
 The current reusable builders are:
 
-- [`experiments/prompts.py`](../experiments/prompts.py) for the first bounded trials;
-- [`experiments/multiscale_prompts.py`](../experiments/multiscale_prompts.py) for the cut-aware and close-view trials.
+- [`experiments/prompts.py`](experiments/prompts.py) for the first bounded trials;
+- [`experiments/multiscale_prompts.py`](experiments/multiscale_prompts.py) for the cut-aware and close-view trials.
 
 Each saved attempt contains the exact filled prompt and its hash. Some older prompts no longer have a public builder. Their full text is kept here instead.
 
@@ -44,16 +47,16 @@ Each saved attempt contains the exact filled prompt and its hash. Some older pro
 |---|---|---|
 | PR 80 whole timeline | Long Intern run and short Qwen boundary run | [Exact immutable code](https://github.com/ahalp90/badminton_cv_annotator/blob/96e0e289a951d63fbaaa62f26c399a4beb61ae79/src/annotator/vlm_scene_benchmark/prompts.py#L21-L70) |
 | Short scene checks | Warm-up and known camera cut | Historical full text below |
-| Contact timing and actor | Balanced 60-case trial and rally replay | [`_EVENT_PROMPT`](../experiments/prompts.py) |
-| Pipeline-prior contact | Same clips with annotator observations appended | [`_format_event_priors()`](../experiments/prompts.py) |
-| Tracker validity | Plain, slow, enlarged, and clean-then-marked views | [`_TRACK_PROMPT`](../experiments/prompts.py) |
+| Contact timing and actor | Balanced 60-case trial and rally replay | [`_EVENT_PROMPT`](experiments/prompts.py) |
+| Pipeline-prior contact | Same clips with annotator observations appended | [`_format_event_priors()`](experiments/prompts.py) |
+| Tracker validity | Plain, slow, enlarged, and clean-then-marked views | [`_TRACK_PROMPT`](experiments/prompts.py) |
 | Direct broadcast | First 12-case scene trial | Historical full text below |
-| Sequence broadcast | Second 12-case scene trial | [`_BROADCAST_PROMPT`](../experiments/prompts.py) |
-| Cut-aware broad context | Paired 90- and 120-second storyboards | [`build_broad_prompt()`](../experiments/multiscale_prompts.py) |
-| Dense local scene view | 120 consecutive target frames; video-only and fact-bearing arms | [`build_detail_prompt()`](../experiments/multiscale_prompts.py) |
-| Long-range and local frames together | 80 sparse context frames plus 120 consecutive local frames | [`build_combined_prompt()`](../experiments/combined_visual_trials.py) |
-| Stronger replay warning | Same 120 close frames with a conservative live rule | [`_CONSERVATIVE_REPLAY_VETO_PROMPT`](../experiments/multiscale_prompts.py) |
-| Direct replay pair | 120 earlier frames followed by 120 target frames | [`build_replay_pair_prompt()`](../experiments/replay_pair_trials.py) |
+| Sequence broadcast | Second 12-case scene trial | [`_BROADCAST_PROMPT`](experiments/prompts.py) |
+| Cut-aware broad context | Paired 90- and 120-second storyboards | [`build_broad_prompt()`](experiments/multiscale_prompts.py) |
+| Dense local scene view | 120 consecutive target frames; video-only and fact-bearing arms | [`build_detail_prompt()`](experiments/multiscale_prompts.py) |
+| Long-range and local frames together | 80 sparse context frames plus 120 consecutive local frames | [`build_combined_prompt()`](experiments/combined_visual_trials.py) |
+| Stronger replay warning | Same 120 close frames with a conservative live rule | [`_CONSERVATIVE_REPLAY_VETO_PROMPT`](experiments/multiscale_prompts.py) |
+| Direct replay pair | 120 earlier frames followed by 120 target frames | [`build_replay_pair_prompt()`](experiments/replay_pair_trials.py) |
 
 ## 1. PR 80 whole timeline
 
@@ -286,7 +289,7 @@ For every segment, the model returned:
   frames
 
 The exact case-specific text is produced by
-[`build_broad_prompt()`](../experiments/multiscale_prompts.py). The prompt required
+[`build_broad_prompt()`](experiments/multiscale_prompts.py). The prompt required
 one bare JSON object and rejected missing, extra, or duplicate segment IDs.
 
 One clarification mattered. The first wording did not clearly separate the
@@ -335,7 +338,7 @@ additions: the first section gives broadcast order, and the second section is
 the target that must decide the answer.
 
 The exact filled prompt is produced by
-[`build_combined_prompt()`](../experiments/combined_visual_trials.py). This layout
+[`build_combined_prompt()`](experiments/combined_visual_trials.py). This layout
 also hurt Intern's recall for targets containing non-live footage, so it is kept as a reproducible failed
 test rather than a recommended prompt.
 
@@ -349,7 +352,7 @@ the lack of a replay logo was not positive live evidence.
 
 When active badminton could be replay but local broadcast order was missing,
 the model had to return `unclear`. The exact request and output contract are in
-[`_CONSERVATIVE_REPLAY_VETO_PROMPT`](../experiments/multiscale_prompts.py).
+[`_CONSERVATIVE_REPLAY_VETO_PROMPT`](experiments/multiscale_prompts.py).
 
 This wording made the model worse at flagging targets containing non-live footage for further checking and reduced the precision of its live calls on the fixed
 19-case pilot. It was not run on the wide set.
@@ -373,7 +376,7 @@ The only allowed output was:
 
 The value could instead be `different_action`, `no_comparable_action`, or
 `unclear`. The exact case-specific prompt is produced by
-[`build_replay_pair_prompt()`](../experiments/replay_pair_trials.py).
+[`build_replay_pair_prompt()`](experiments/replay_pair_trials.py).
 
 Intern returned `different_action` on all 46 pairs. This was a visual decision
 failure, not an output-format failure: every reply parsed and every call used

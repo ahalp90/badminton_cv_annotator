@@ -13,7 +13,7 @@ MPLCONFIGDIR=/tmp/badminton-matplotlib \
 Render the Mermaid decision flow with:
 
 ```bash
-/home/ariel/.venvs/skill-utils/bin/mermaidx \
+mermaidx \
   -i figures/preferred_server_rule.mmd \
   -o figures/preferred_server_rule.svg
 ```

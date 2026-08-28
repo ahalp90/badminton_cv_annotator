@@ -1,8 +1,8 @@
 # Serve identification by shuttle lookback
 
 The investigation found a server-identification rule worth testing on unseen
-rallies. It did not find a broad, safe way to recover the exact visible start
-of every rally.
+rallies. It did not find a broad, dependable way to recover the exact visible
+start of every rally.
 
 The preferred rule gets 170 of 239 server sides right on the development set.
 PR #82 gets 163 right. The new rule repairs 20 PR #82 mistakes and introduces
@@ -54,7 +54,7 @@ using these 239 development rallies for any more tuning.
 
 Keep the narrow high-shot timing correction as a separate timing hypothesis.
 Do not add the proposed curved-path rescue to the server rule. The supplied
-material does not reproduce a safe server-side gain from that proposal.
+material does not reproduce a dependable server-side gain from that proposal.
 
 If exact start timing still needs a large improvement, add a new observation.
 Local racket or hitting-arm motion is a more promising next input than another

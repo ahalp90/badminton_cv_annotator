@@ -8,7 +8,7 @@ evidence and results.
 
 ## Resume state
 
-- Repository: `/home/ariel/Documents/COSC594/badminton_cv_annotator`
+- Repository: the repository root
 - Branch: `investigation/serve-id-by-lookback-followup`
 - Tip when this launch was written: `24ac3a4`
 - Population: the same 239 one-to-one rallies from `sset_01`, `sset_15`, and

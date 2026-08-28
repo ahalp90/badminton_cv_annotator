@@ -1,4 +1,4 @@
-# Multiscale experiment: protocol and record
+# Long-context experiments
 
 ## Status
 
@@ -362,12 +362,11 @@ Use only existing annotations; do not add scene labels. Report what can and
 cannot be scored. If the complete-rally gain does not survive, leave the VLM
 out of the cleanup path.
 
-## Bounded self-directed iteration
+## Recorded stopping rules
 
-The investigation may choose its next short trial from the table below. Each
-cycle must state one hypothesis, change one factor, compare with its parent run,
-and keep the change only when the recorded metric improves. Use the same frozen
-pilot cases until a design earns a wider run.
+Each short trial stated one hypothesis, changed one factor, compared with its
+parent run, and kept the change only when the recorded metric improved. The
+same frozen pilot cases were used until a design earned a wider run.
 
 Check each change on `sset_01`, `sset_15`, and `sset_21` separately. Keep it
 when the target error count improves across the fixtures without hiding a clear
@@ -384,43 +383,13 @@ regression in one inside an aggregate gain.
 | The models disagree | Select by development evidence; do not require agreement |
 | Candidate scores improve but complete rallies do not | Stop that line of VLM work |
 
-Stop a line after two sensible changes fail to beat its recorded parent. A new
-line needs a new, evidence-led hypothesis. This keeps the search adaptive
-without turning it into prompt guessing.
-
-The investigation can continue without a user check-in while a trial stays
-inside the campaign contract. Run length alone is not a reason to pause.
-Pause for a production source change, a new manual label, public Git action,
-or another material change of scope.
-
-## Remote runs without repeated polling
-
-Run each GPU job in `tmux` with an immutable run directory. The job should
-write its log and `status.json`, then finish with a `DONE` or `FAILED` marker.
-
-For unattended work, give one cheap Luna agent a single blocking
-`tmux wait-for` connection. That agent reports only completion, failure, or timeout.
-The main reasoning session should not repeatedly query the remote machine. If a
-blocking wait is unavailable, estimate the runtime and make one delayed marker
-check. Any later check should use a longer, irregular delay.
-
-Always release the model and GPU process when a run ends, including after a
-failure.
-
-## Records to keep while running
-
-Keep a compaction-safe campaign worklog outside the tracked experiment folder.
-Its latest checkpoint must state the active run, last verified result, and next
-action. Store heavy clips and raw replies under the ignored
-`local_scratch/campaigns/` tree.
-
-After each useful gate, copy a small public-safe result into this folder. The
-final report should explain what changed, why it changed, and why the next
-choice followed from the evidence.
+The experiment stopped a line after two sensible changes failed to beat its
+recorded parent. A new line required a new, evidence-led hypothesis. This kept
+the search adaptive without turning it into prompt guessing.
 
 ## Later contact cleanup
 
-Once the binary contact model has frozen candidate scores, continue with
-[`contact_model_followup.md`](contact_model_followup.md). That experiment adds
+A possible later contact-model evaluation is preserved in
+[`possible_further_followup.md`](../possible_further_followup.md). It adds
 contact score, tracker risk, and complete-rally selection to the best surviving
 multiscale scene design.

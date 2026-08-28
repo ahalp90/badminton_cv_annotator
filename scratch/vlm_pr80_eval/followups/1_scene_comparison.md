@@ -1,53 +1,70 @@
-# Follow-up 1: fill the missing Qwen scene benchmark
+# Follow-up 1: can Qwen or Intern safely filter short scene clips?
 
-## Bottom line
+**Result:** Neither model is safe enough to make the final live/replay decision automatically. Intern is the better starting point for later experiments because its mistakes were less damaging on the difficult cases.
 
-Run Qwen on the exact same full short-scene benchmark already run with Intern.
+## Contents
 
-This fills the biggest missing apples-to-apples comparison. It does **not** make the final model choice by itself.
+- [What we wanted to know](#what-we-wanted-to-know)
+- [What we tested](#what-we-tested)
+- [What happened](#what-happened)
+- [What this means](#what-this-means)
+- [What the current evidence does not support](#what-the-current-evidence-does-not-support)
+- [Limits](#limits)
+- [Technical record](#technical-record)
 
-## Run
+## What we wanted to know
 
-Run Qwen's existing 120-frame local scene prompt on the same 463 clips.
+The earlier work had tested Intern on 463 short scene clips, but Qwen had only seen a smaller subset. That was not a fair comparison.
 
-Keep fixed:
+We therefore ran both models on the same cases and asked a practical question: can either model keep genuine live rally footage while sending replay, cutaway, and other non-live footage for checking?
 
-- clip selection;
-- 120 consecutive frames;
-- prompt;
-- human truth;
-- scoring.
+## What we tested
 
-Use the frozen Intern result for comparison.
+Both models saw the same 463 clips with the same prompt and scoring rules. The main comparison used 347 clips after excluding 116 extremely short boundary cases where a one-frame annotation difference could dominate the result.
 
-On the 347 meaningful cases, report separately:
+Those 347 clips included:
 
-- standard-view live: kept / total;
-- unusual-view live: kept / total;
-- targets containing non-live footage: flagged for further checking / total;
-- pure replay: flagged for further checking / total.
+- 290 ordinary full-court live clips;
+- 10 live clips from unusual camera views;
+- 47 clips containing replay, cutaway, or other non-live footage.
 
-Do not merge the two live groups into one headline number.
+## What happened
 
-## Compare
+![Qwen and Intern on short scene clips](../figures/scene_routing.png)
 
-Inspect representative mistakes from both models.
+| What we wanted the model to do | Qwen | Intern |
+|---|---:|---:|
+| Keep ordinary live clips | **288/290** | 270/290 |
+| Keep unusual-view live clips | 0/10 | **6/10** |
+| Send clips containing non-live footage for checking | 15/47 | **21/47** |
+| Send pure replay clips for checking | 1/25 | **5/25** |
+| Correct decision overall | **303/347** | 297/347 |
 
-Use the completed contact and tracker results as supporting context, but keep every claim task-specific.
+Qwen had the slightly better overall score because it almost never rejected ordinary full-court live footage.
 
-Answer:
+That average hides the errors we care about most. Qwen rejected every meaningful unusual-view live clip, and both models accepted most pure replays as live. Intern was still poor at replay detection, but it was less poor and was also better at preserving unusual live views.
 
-- Where is Qwen clearly better?
-- Where is Intern clearly better?
-- Which errors look dangerous for later annotator work?
-- Is there a provisional model preference?
+## What this means
 
-Do not turn this into a general model personality claim.
+Neither model works as a final-authority short-scene filter.
 
-## Decision
+A four-second local clip often does not contain enough broadcast history to tell replay from current play. A replay can look almost identical to a live rally when both use the same full-court camera angle.
 
-Freeze the Qwen scene result.
+Intern is the better starting model if a later VLM experiment uses one of these two models. That is a relative choice based on the error pattern, not a claim that Intern solves scene classification.
 
-Record a **provisional preference only**.
+This experiment also showed why one overall accuracy number is not enough. Separate results for ordinary live footage, unusual live views, and replay/non-live footage are necessary to see the important failure modes.
 
-The final model choice happens in Follow-up 2, after both models are tested on rally-start serve reconstruction.
+## What the current evidence does not support
+
+A nearby rewrite of the same short local replay prompt is unlikely to add useful evidence. A meaningful new experiment would need genuinely different information, such as broadcast sequence history or another independently checkable signal that distinguishes a replay from the live action it repeats.
+
+## Limits
+
+The benchmark comes from three fully labelled fixtures, and the unusual-view group contains only 10 meaningful cases. The result applies to short local clips and this interface; it does not tell us what the models would do with a representation that included broader broadcast history.
+
+## Technical record
+
+The compact result is
+[`1_scene_comparison.json.gz`](evidence/1_scene_comparison.json.gz). Row-level
+scores, the exact input manifest, and the full evidence map are listed in
+[`technical_index.md`](technical_index.md).
