@@ -461,3 +461,37 @@
 - Commits: `b4d01a2 Plan the ShuttleSet22 test` and `59f840f Prepare the ShuttleSet22 predictions`
 - Label boundary: no ShuttleSet22 contact label has been opened
 - Next action: run video 8 as a real-input smoke check, then freeze all 47 predictions
+
+### Real-input smoke run stopped on stale saved records — 2026-08-28
+
+- The predictor stopped before processing video 8 because the run environment has old copies of the final-fit and final-setting result JSON files
+- The model file and recorded Python package versions match the fixed setup
+- The local copies of both result files match the fixed hashes
+- No ShuttleSet22 contact label was opened
+- The two stale copies were replaced with the checked local files and their hashes now match
+- Video 8 then completed and saved a restartable result
+- Next action: run the remaining 46 videos in `tmux`, then reproduce the combined 47-video file byte for byte
+
+### Tightened the prediction reload checks — 2026-08-28
+
+- A read-only DeepSeek audit confirmed the label boundary and fixed detector settings
+- The audit's claimed field-order risk was not present because inference selects columns by the ordered field list saved with the pinned model
+- Change: a resumed video now compares its saved input records with the live files and requires the complete output-hash list
+- Change: the combined file is read back byte for byte before the run is marked complete
+- Review: a Luna xhigh read-only diff check found no problem
+- Checks: 12 focused tests and 166 experiment tests pass; changed-file Ruff passes; pinned Pyrefly reports 0 errors; the full suite passes with 1,893 tests and 29 skips
+- Whole-project Ruff still reports the same 863 existing findings outside this work
+- Commit: `32d7087 Tighten the prediction reload checks`
+- Next action: deploy this validator after the active long run, then freshly reload all 47 saved videos
+
+### Froze all 47 ShuttleSet22 predictions — 2026-08-28
+
+- The full label-free run finished with exit 0 and saved all 47 videos
+- The tightened validator then freshly reloaded every video and rebuilt the combined file with exit 0
+- The run state is complete with 47 unique videos and the combined file hash is `6199ab99fe2746f83b7f90cc2e2c02301acbd5f90dcf02c989af65ca6be5bd04`
+- Independent recount: 3,982 detected spans, 39,994 contacts and 72 contacts without a player-side answer
+- Saved contact scores range from 0.9000015372251916 to 0.9980202583145943
+- Video 22 logged the normal unavailable state for its optional fabrication guard because the derived margin was below the accepted minimum; its saved guard inputs and prediction outputs still passed the fixed checks
+- The final combined file was written at 2026-08-28 17:35:02 AEST
+- No ShuttleSet22 contact label has been opened
+- Next action: implement and check the scorer, then ask for the label root before the one-time label read
