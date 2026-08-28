@@ -2,10 +2,10 @@
 
 ## Pick up from here
 
-- Current work: the scorer is implemented and the exact 47-video prediction file is frozen
-- Next action: get the annotation root, then do the one-time label read and fixed score
-- Required check: the scorer must accept the frozen prediction hash before annotation access starts
-- Current blocker: the annotation root has not been supplied
+- Current work: the fixed 47-video ShuttleSet22 score is complete
+- Next action: finish the repository checks and commit the tracked result record
+- Required check: the independent recount must reproduce the saved timing and player-side totals
+- Current blocker: none
 - Plan: `shuttleset22_test_plan.md`
 
 ## Things to remember
@@ -510,3 +510,38 @@
 - Commit: `4835442 Add the ShuttleSet22 scorer`
 - Label boundary: no ShuttleSet22 contact label has been opened
 - Next action: ask for the annotation root, then run the scorer once
+
+### Validated the full ShuttleSet22 annotation set — 2026-08-28
+
+- Finding: the official annotation corpus contains all 58 match IDs
+- Test set: 47 matches have separate downloadable, frame-aligned videos and do not overlap the base ShuttleSet development data
+- Exclusions: eight matches overlap base ShuttleSet; IDs 14, 45 and 56 have unresolved frame-aligned public video sources
+- Validation: authenticate the complete official corpus and match map, then parse labels only for the fixed 47 test matches
+- Checksum: the scorer now reproduces the pinned historical annotation-corpus hash directly
+- Review: a Luna xhigh read found no mismatch with the historical checksum or fixed 47/8/3 source split
+- Commit: `4fd6c7a Validate the full ShuttleSet22 labels`
+
+### Recorded the 58-to-47 dataset accounting — 2026-08-28
+
+- Files: `shuttleset22_test_plan.md` and `decisions.md`
+- Record: the plan explains the 47 downloadable matches, eight overlaps and three unresolved sources
+- Unresolved sources: the plan preserves the three source-search findings without treating them as explanations from the dataset authors
+- Privacy: the tracked note contains public provenance and no machine path or remote-working detail
+- Commit: `1605a32 Explain the 47-video test set`
+
+### Ran the fixed ShuttleSet22 test — 2026-08-28
+
+- Boundary: the scorer accepted the frozen predictions before it started label access
+- Identity: the source manifest, official 58-match annotation corpus and complete annotation tree matched their pinned hashes
+- Labels: 43,159 source rows became 38,218 usable contacts in 3,422 rallies
+- Predictions: 39,994 contacts across 3,982 detected sections
+- Five-frame timing: 80.62% precision, 84.37% recall and 82.45% F1
+- Five-frame player side: 92.02% accuracy when both sides are answered
+- Whole rallies: 493 of 2,969 one-rally sections are fully correct at five frames; 537 are fully correct at ten frames
+- Setting boundary: the result does not change the model, features, 0.9 score cut-off or six-frame nearby-contact distance
+- Independent recount: a standalone standard-library implementation reproduced every per-video and aggregate timing and player-side field at all four tolerances with zero mismatches
+- External audit: a fourth read-only DeepSeek pass independently reproduced the hashes and headline figures, then hung before returning a final report; it is not counted as a passed audit
+- Saved record: `shuttleset22_test_report.md` and `shuttleset22_test_summary.json`; raw labels and detailed results stay outside Git
+- Final tests: the required command exits 1 only because `python` is absent from the shell `PATH`; it passes all 1,893 tests with 29 skipped when the project virtual-environment bin is added to `PATH`
+- Final types: pinned Pyrefly exits 0 with no errors and 21 suppressed messages
+- Final lint: whole-project Ruff exits 1 on the same 863 existing findings outside this work

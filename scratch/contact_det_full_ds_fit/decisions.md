@@ -230,3 +230,19 @@ frames at 30 frames per second.
 The final model is trained on all 40 development videos. Use this saved model
 without changing its features or settings for the non-overlapping
 ShuttleSet22 test.
+
+## Final ShuttleSet22 result
+
+Keep the fixed test result without tuning from it. At five frames, the final
+detector reaches 80.62% precision, 84.37% recall and 82.45% F1 across the 47
+non-overlapping ShuttleSet22 videos. Player side is 92.02% accurate where both
+the label and detector give an answer.
+
+Whole-rally accuracy is 16.60% at five frames and 18.09% at ten frames among
+the 2,969 detected sections that map to exactly one labelled rally. The lower
+whole-rally result is part of the final finding. Do not use it to change the
+model, features, score cut-off or nearby-contact distance.
+
+The path-free result is in `shuttleset22_test_summary.json`. The readable
+account is in `shuttleset22_test_report.md`. Keep the raw detailed result and
+cleaned labels outside Git.

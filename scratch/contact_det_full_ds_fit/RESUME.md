@@ -1,11 +1,11 @@
 # Resume
 
-- Current work and status: the exact 47-video predictions are frozen and the label scorer is implemented at `4835442`
-- Next action: get the annotation root, then run the one-time fixed score
+- Current work and status: the fixed 47-video ShuttleSet22 score is complete and recorded in `shuttleset22_test_report.md`
+- Next action: run the final repository checks and commit the tracked result files
 - Active reviewer: none
-- Branch: `contact-det-feasibility`; scorer commit is `4835442`
-- Last useful check: 182 experiment tests and all 1,893 project tests pass; changed files pass Ruff; pinned Pyrefly reports 0 errors
-- Important result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
+- Branch: `contact-det-feasibility`; the scorer ran from source commit `1605a32`
+- Last useful check: all 1,893 project tests pass with 29 skipped; pinned Pyrefly reports 0 errors; whole-project Ruff still reports 863 existing findings
+- Development result: 0.8625 timing F1 at five frames; 99 fully correct sections out of 609 accepted at ten frames
 - Important error: first-contact recall is 41.8%, later-contact recall is 89.0%, and 94 otherwise-good single-rally sections are one contact short
 - Missed-contact result: all 94 one-short sections have a nearby candidate; 81 are missing the first contact and 39 of those have candidates only before the detected section starts
 - Candidate-list result: 56 of the 81 target first contacts are covered at ten frames; 30 only by frames before the detected section; 1,230 earlier entries give 21.96 per covered contact
@@ -18,7 +18,7 @@
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
-- ShuttleSet22 inpaint result: all 47 videos, 6,175,283 frames and 2,916,960 selected fill frames; the aggregate receipt hash is recorded in `HANDOVER.md`
+- ShuttleSet22 inpaint result: all 47 videos, 6,175,283 frames and 2,916,960 selected fill frames; the fixed identity is recorded in `shuttleset22_test_plan.md`
 - Inpaint output note: one row in video 51 is one pixel below the frame; this matches the original unclipped InpaintNet conversion and no other row is outside the frame
 - Prediction setup: `shuttleset22_test_plan.md` fixes the input and scoring contract; `scripts/prepare_shuttleset22_predictions.py` has no label path or label-reader import
 - Smoke-run check: video 8 completed after the model, saved results, Python package versions and all 47 input identities passed their fixed checks
@@ -27,6 +27,11 @@
 - Combined prediction SHA-256: `6199ab99fe2746f83b7f90cc2e2c02301acbd5f90dcf02c989af65ca6be5bd04`
 - Final reload: exit 0; run state is complete with 47 unique videos; the combined SHA-256 stayed unchanged
 - Scorer: validates the exact combined hash and all child hashes before annotation access, then saves timing, player-side, whole-rally and confidence results
-- Scorer review: a Luna xhigh contract read found two gaps that are fixed; three DeepSeek attempts ended without a final audit report
-- Label boundary: no ShuttleSet22 contact label was opened during inpaint preparation, prediction, validation or scorer implementation
-- Important files: `HANDOVER.md`, `shuttleset22_test_plan.md`, `shuttleset22_inpaint_plan.md`, `contract.md`, `worklog.md`
+- Scorer review: a Luna xhigh contract read found two gaps that are fixed; four DeepSeek attempts ended without a final audit report
+- Dataset accounting: the official corpus has 58 matches; 47 are the fixed test set, eight overlap base ShuttleSet and three have unresolved frame-aligned video sources
+- ShuttleSet22 timing result at five frames: 80.62% precision, 84.37% recall and 82.45% F1 across 38,218 labels and 39,994 predictions
+- ShuttleSet22 player-side result at five frames: 92.02% accuracy across 32,188 timing matches where both sides are answered
+- ShuttleSet22 whole-rally result: 493 of 2,969 one-rally sections are fully correct at five frames; 537 are fully correct at ten frames
+- Result recount: a standalone standard-library check reproduced every per-video and aggregate timing and player-side field with zero mismatches
+- Label boundary: labels were read once after the frozen predictions passed; no model or setting was changed from the test result
+- Important files: `shuttleset22_test_report.md`, `shuttleset22_test_summary.json`, `shuttleset22_test_plan.md`, `decisions.md`, `worklog.md`
