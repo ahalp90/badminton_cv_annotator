@@ -1,100 +1,259 @@
-# ShuttleSet22 contact test result
+# Final model and ShuttleSet22 test
+
+This report covers the final model and its test on 47 ShuttleSet22 videos. None of those videos were used to build the model.
+
+## Table of contents
+
+- [Bottom line](#bottom-line)
+- [What the final test was trying to learn](#what-the-final-test-was-trying-to-learn)
+- [How the labels were kept out of the predictions](#how-the-labels-were-kept-out-of-the-predictions)
+- [Which ShuttleSet22 videos were used](#which-shuttleset22-videos-were-used)
+- [The final model](#the-final-model)
+- [Contact timing](#contact-timing)
+- [What changed on the new videos](#what-changed-on-the-new-videos)
+- [First contacts remain the weak point](#first-contacts-remain-the-weak-point)
+- [Player side](#player-side)
+- [Whole sections](#whole-sections)
+- [Why high contact scores did not find clean rallies](#why-high-contact-scores-did-not-find-clean-rallies)
+- [Did it work on different kinds of video?](#did-it-work-on-different-kinds-of-video)
+- [Are whole rallies near 100% right?](#are-whole-rallies-near-100-right)
+- [What remains worth testing](#what-remains-worth-testing)
+- [Checks and saved results](#checks-and-saved-results)
 
 ## Bottom line
 
-The fixed detector reached 82.45% contact-timing F1 within five frames on the
-47-video ShuttleSet22 test. Player side was correct for 92.02% of timing
-matches where both the human label and detector gave an answer.
+On the 47 test videos, the detector reached **80.62% precision, 84.37% recall and 82.45% F1** within five frames.
 
-Whole-rally accuracy was much lower. At five frames, 493 of 2,969 sections
-with one mapped rally were fully correct, or 16.60%. At ten frames, 537 were
-fully correct, or 18.09%.
+Player side was correct for **92.02%** of five-frame timing matches where both the human label and detector gave an answer.
 
-This is the final test of the already chosen detector. The result does not
-change the model, features, 0.9 score cut-off or six-frame nearby-contact
-distance.
+Whole rallies were much harder. At five frames, **493 of 2,969 one-rally sections were fully correct**, or **16.60%**. At ten frames, 537 were fully correct, or 18.09%.
 
-## Data used
+The detector still finds useful contact candidates in new videos. It is not ready to annotate whole rallies on its own.
 
-The official annotation corpus contains 58 matches. The test uses the 47
-downloadable, non-overlapping videos. Eight official matches overlap the base
-ShuttleSet development data, while three have unresolved frame-aligned public
-video sources. `shuttleset22_test_plan.md` records the exact IDs, source
-findings and checksum rule.
+The test did not change the model. It also did not change the features, the 0.9 score cut-off or the six-frame rule for joining nearby predictions.
 
-The scorer authenticated the complete 58-match annotation corpus before it
-selected the fixed 47 test matches. The cleaned test labels contain:
+## What the final test was trying to learn
 
-- 43,159 source contact rows
-- 38,218 usable contact rows
-- 3,422 usable rallies
+The development work had already chosen a simple HGB contact detector. The final test asked three questions:
 
-The frozen predictions contain 3,982 detected sections and 39,994 contacts.
-Seventy-two predicted contacts have no player-side answer.
+1. Did it still find contacts at about the right time in new videos?
+2. Did it still choose the right player?
+3. Did those contact results add up to whole rallies that were right from start to finish?
+
+This was the first broad test beyond the 40 ShuttleSet videos used in development.
+
+## How the labels were kept out of the predictions
+
+The development data had already set the model and all event rules.
+
+The prediction program could not access the ShuttleSet22 labels or the code that reads them. It wrote all 47 prediction files before the scoring program opened any labels.
+
+The combined prediction file had a SHA-256 hash before any label was read. The scorer checked that hash and all 47 smaller files first.
+
+Only then did the scorer read the labels. Nothing in the model or its settings changed after that point.
+
+## Which ShuttleSet22 videos were used
+
+The official labels cover 58 matches.
+
+The 58 official matches fell into three groups:
+
+- 47 had downloadable videos that lined up with the official frame numbers and were not used in development. The test used these 47
+- eight also appear in the base ShuttleSet development videos, so the test left them out
+- three did not have public videos that we could line up with the official frame numbers, so the test left them out
+
+The 47 test videos contain:
+
+- 43,159 source contact rows;
+- 38,218 usable contact rows; and
+- 3,422 usable labelled rallies.
+
+The model found 39,994 contacts in 3,982 video sections. It could not choose a player for 72 of those contacts.
+
+## The final model
+
+The final model uses the HGB setup chosen during development:
+
+- original per-frame motion values;
+- measured values plus flags that say whether the needed data was present;
+- 85 input fields;
+- balanced class weights;
+- up to 24 non-contact rows for each real contact row;
+- 31 leaves;
+- learning rate 0.06;
+- 180 boosting rounds;
+- at least 40 training rows per leaf; and
+- L2 regularisation of 1.0.
+
+Real contacts are rare in the training rows. Balanced class weights stop the many non-contact rows from dominating training. L2 regularisation limits how strongly each tree can change the score.
+
+It trained on 1,313,803 rows from all 40 development videos. Of those rows, 94,530 marked real contacts.
+
+The model kept contact scores of 0.9 or more. It joined predictions that fell within six frames of each other on a 30 fps clock.
 
 ## Contact timing
 
-| Tolerance | Matched | Precision | Recall | F1 | First-contact recall | Later-contact recall |
-|---:|---:|---:|---:|---:|---:|---:|
+| Tolerance | Matched contacts | Precision | Recall | F1 | First-contact recall | Later-contact recall |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 1 frame | 20,138 | 50.35% | 52.69% | 51.50% | 25.66% | 55.35% |
 | 2 frames | 27,713 | 69.29% | 72.51% | 70.87% | 39.22% | 75.79% |
-| 5 frames | 32,243 | 80.62% | 84.37% | 82.45% | 53.92% | 87.36% |
+| 5 frames | 32,243 | **80.62%** | **84.37%** | **82.45%** | **53.92%** | **87.36%** |
 | 10 frames | 32,603 | 81.52% | 85.31% | 83.37% | 58.07% | 87.99% |
 
-At five frames, matched predictions are 0.49 frames early on average. Their
-median signed error is zero and their median absolute error is one frame.
+At the five-frame check, predictions were 0.49 frames early on average. Half were no more than one frame away from the label. The middle signed error was zero.
 
-The five-frame F1 is 6.04 percentage points below the 88.49% held-out
-development result. Most of that change comes from precision, which falls
-from 90.50% to 80.62%. Recall falls from 86.58% to 84.37%.
+The score rises sharply when the allowed gap grows from one frame to five. The model often finds the right moment, but not the exact labelled frame.
+
+![Timing improves quickly as the allowed frame difference widens from one to five frames.](figures/08_timing_tolerance.png)
+
+## What changed on the new videos
+
+For the 40-video development score, each video was scored by a model that had trained on the other 32 videos.
+
+| Five-frame measure | Fair test across 40 development videos | 47-video ShuttleSet22 test | Change |
+| --- | ---: | ---: | ---: |
+| Precision | 90.50% | 80.62% | −9.88 points |
+| Recall | 86.58% | 84.37% | −2.21 points |
+| F1 | 88.49% | 82.45% | −6.04 points |
+| First-contact recall | 49.39% | 53.92% | +4.53 points |
+| Later-contact recall | 90.75% | 87.36% | −3.39 points |
+
+Precision fell by almost ten points on the new videos. In plain terms, more predicted contacts had no matching label.
+
+Recall fell by only two points. The model found a slightly larger share of first contacts, but it still found far fewer first contacts than later contacts.
+
+![The detector keeps much of its recall on ShuttleSet22 but loses nearly ten precision points.](figures/03_contact_precision_recall_f1.png)
+
+## First contacts remain the weak point
+
+At five frames, the ShuttleSet22 test found about **54% of first contacts** and **87% of later contacts**.
+
+The same gap appears at each step:
+
+| Stage | First-contact recall | Later-contact recall |
+| --- | ---: | ---: |
+| Chosen eight-video validation run | 41.77% | 88.98% |
+| Fair scores across all 40 development videos | 49.39% | 90.75% |
+| 47-video ShuttleSet22 test | 53.92% | 87.36% |
+
+The weak first-contact result is not just a quirk of the first eight videos. It is still there across the larger test.
+
+![First-contact recall stays far below later-contact recall.](figures/04_first_vs_later_recall.png)
 
 ## Player side
 
-At five frames, 32,242 of the 32,243 timing-matched labels have a human-side
-answer. The detector answers 32,188 of those and gets 29,620 correct. This is
-92.02% accuracy with 99.83% prediction coverage.
+At five frames, 32,243 predicted contacts matched a label. Almost every matched label included a known Top or Bottom player.
 
-At ten frames, player-side accuracy is 91.80%. The detector answers 32,547 of
-32,602 known human sides.
+The detector answered 32,188 of those contacts and got 29,620 right. That gives:
 
-## Whole rallies and detected sections
+- **92.02% player-side accuracy** where both sides were answered; and
+- **99.83% answer coverage** among timing matches with a known human side.
 
-The 3,982 detected sections map to labels as follows:
+At ten frames, player-side accuracy was 91.80%.
 
-- 2,969 contain exactly one labelled rally
-- 943 contain no labelled rally
-- 70 contain several labelled rallies
+The player rule reached 92.02% accuracy on these matched contacts. One wrong player still makes the whole section wrong.
 
-At five frames, the 2,969 one-rally sections have these exclusive outcomes:
+## Whole sections
 
-| Outcome | Sections |
-|---|---:|
-| Fully correct | 493 |
-| Missing contacts only | 1,147 |
-| Extra contacts only | 243 |
-| Missing and extra contacts | 306 |
-| Equal contact count but wrong timing | 335 |
-| Wrong predicted side | 437 |
-| Predicted side unanswered | 8 |
-| Human side unassessable | 0 |
+The 3,982 video sections lined up with the labels as follows:
 
-There are 44 predicted contacts outside every saved detected section.
+- 2,969 contained exactly one labelled rally;
+- 943 contained no labelled rally; and
+- 70 contained several labelled rallies.
 
-The confidence curve is descriptive only. Requirements from 0.0 through 0.9
-retain the same sections because the fixed detector already keeps only scores
-of at least 0.9. Raising the requirement to 0.95 retains 1,754 sections. It
-raises fully correct accuracy among assessable retained sections from 16.68%
-to 18.23%, but leaves only 245 fully correct sections. This does not justify
-changing the fixed cut-off after the test.
+The table puts each of the 2,969 one-rally sections into one group:
 
-## Integrity checks
+| Outcome | Sections | Share of one-rally sections |
+| --- | ---: | ---: |
+| Fully correct | 493 | 16.60% |
+| Missing contacts only | 1,147 | 38.63% |
+| Extra contacts only | 243 | 8.18% |
+| Missing and extra contacts | 306 | 10.31% |
+| Equal contact count but wrong timing | 335 | 11.28% |
+| Wrong predicted side | 437 | 14.72% |
+| Predicted side unanswered | 8 | 0.27% |
 
-The combined prediction file was saved before label access and kept its fixed
-SHA-256 identity. The source manifest, official annotation corpus and complete
-annotation tree also matched their pinned identities. The raw result and
-cleaned labels stay outside Git; `shuttleset22_test_summary.json` is the
-path-free tracked record.
+There were also 44 predicted contacts outside every saved detected section.
 
-An independent standard-library recount used only the frozen prediction and
-cleaned-label files. It did not import the scorer. The recount reproduced the
-saved population, timing and player-side totals at all four tolerances.
+Missing contacts caused the most failures. Wrong timing and wrong players also caused many failures.
+
+![Missing contacts cause the most ShuttleSet22 failures, but they are not the only problem.](figures/06_external_error_mix.png)
+
+## Why high contact scores did not find clean rallies
+
+The detector already keeps only contacts with scores of 0.9 or more. Setting a lower minimum does not change the output.
+
+At a 0.95 minimum contact score:
+
+- 1,754 sections remained
+- 1,344 of those sections matched one labelled rally and had enough human player labels to be scored
+- 245 of the 1,344 scored sections were fully correct
+- the share fully correct rose only to 18.23%
+
+The higher cut-off removes more than half the sections. The share of fully correct rallies rises by less than two points.
+
+A high contact score only says that one predicted contact looks likely. It does not tell us whether the video section starts and ends in the right place. It cannot see a contact that the detector missed. It also does not rule out extra contacts or a wrong player.
+
+![A higher contact score removes many sections without finding a group of whole rallies that is almost always right.](figures/09_confidence_vs_yield.png)
+
+## Did it work on different kinds of video?
+
+The model reached 82.45% F1 on 47 new videos, so it did not simply fail outside development.
+
+Precision still fell from 90.50% to 80.62%. The model made more false contact predictions in the new dataset. We cannot assume that it will behave the same way in another group of videos.
+
+The test combines all 47 videos. It does not show how well the model worked with each camera layout, set of on-screen graphics, tournament or broadcast style.
+
+So the result tells us three things:
+
+- the model can find useful contacts in new videos;
+- it makes more false contact predictions there; and
+- we still do not know how well it works across different broadcast styles.
+
+## Are whole rallies near 100% right?
+
+No.
+
+The contact detector is useful as one part of a larger system. The whole system is nowhere near 100% precision.
+
+At the main five-frame check:
+
+- **80.62% of predicted contacts** matched a label;
+- the player choice was right for **92.02%** of timing matches where both sides had an answer; and
+- **16.60% of one-rally sections** were fully correct.
+
+Each percentage counts a different group of events. They cannot be multiplied into one score. They simply show how accuracy falls as the task grows from one contact to a whole rally.
+
+This work did not train a model to reject doubtful rallies. So we do not know whether the system can keep a small group of nearly perfect rallies.
+
+![The detector finds useful single contacts, but few whole rallies are right.](figures/11_standalone_gap.png)
+
+## What remains worth testing
+
+The RF and HGB comparison itself is finished.
+
+The next work should improve:
+
+- sections that start and end at the right time;
+- a smaller and safer first-contact source;
+- removal of extra contacts after section starts and ends improve;
+- a way to say when the player choice is unsure; and
+- a model that keeps or rejects a whole rally, tested on videos it did not train on.
+
+That model would need two main numbers: how many rallies it keeps, and how many of those are fully right. Near-perfect accuracy means little if the model keeps almost nothing.
+
+The model could train on predictions from the 40 development videos. Each prediction would come from a contact model that had not trained on that video. The finished model could then run once on the 47 test videos. It could look for bad section edges, a missing first contact, an extra contact or an unsure player choice.
+
+## Checks and saved results
+
+The project scorer and a separate recount agreed on the result:
+
+- the prediction file had the same SHA-256 hash before and after scoring;
+- all 47 child outputs were present and unique;
+- the official annotation files and cleaned labels had the expected hashes;
+- a separate recount did not use the project scorer; and
+- that recount found the same timing and player results for the whole test and for every video.
+
+[`shuttleset22_test_summary.json`](shuttleset22_test_summary.json) holds the short saved result. [`shuttleset_development_split.json`](shuttleset_development_split.json) lists the development videos.
+
+The old plans are unchanged under [`archive/`](archive/). The larger result files stay outside Git in the ignored `raw/` folder.

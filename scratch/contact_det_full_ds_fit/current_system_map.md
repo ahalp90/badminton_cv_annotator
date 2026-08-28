@@ -1,124 +1,192 @@
-# How the three-video code becomes a 40-video experiment
+# How the contact detector works
 
-## Main finding
+This page describes the contact detector and points to its code and saved results.
 
-The pilot already has reusable feature calculations and rally-scoring functions. The new work mainly replaces the parts that assume there are exactly three videos.
+## Table of contents
 
-The pilot files stay unchanged. New code in this directory supplies the 40-video list and the fixed training and validation split.
+- [The system in one picture](#the-system-in-one-picture)
+- [What goes into the detector](#what-goes-into-the-detector)
+- [How a contact becomes an event](#how-a-contact-becomes-an-event)
+- [How complete sections are judged](#how-complete-sections-are-judged)
+- [Which videos were used at each step](#which-videos-were-used-at-each-step)
+- [What each part can and cannot do](#what-each-part-can-and-cannot-do)
+- [Code map](#code-map)
+- [Results saved as JSON](#results-saved-as-json)
+- [Files kept out of Git](#files-kept-out-of-git)
+- [Old plans and worklog](#old-plans-and-worklog)
 
-## What the pilot does now
-
-```text
-three fixed videos
-    -> calculate and save candidate-frame features
-    -> check the saved feature file
-    -> load 292 rally labels and 3,128 contact labels
-    -> train on two videos and test on the third
-    -> choose a score cut-off from the two training videos
-    -> save HGB and RF contact predictions
-    -> replay the Top/Bottom player rule at predicted frames
-    -> assign contacts to rally ranges
-    -> score complete rallies
-```
-
-## What the larger experiment will do
+## The system in one picture
 
 ```text
-40 listed videos with a fixed 32/8 split
-    -> calculate and save the same features for each video
-    -> check every saved row before loading labels
-    -> train HGB and RF on 32 training videos
-    -> choose the model and settings on eight validation videos
-    -> save every validation score and whether each candidate frame is kept as a contact
-    -> replay the Top/Bottom player rule at fixed contact frames
-    -> score complete validation rallies
-    -> make out-of-fold predictions across all 40 videos
-    -> choose the final score cut-off and duplicate-removal distance
-    -> train the chosen model on all 40 videos
-    -> test once on non-overlapping ShuttleSet22 videos
+shuttle track + player poses + rally sections
+                    │
+                    ▼
+       possible contact frames chosen without labels
+                    │
+                    ▼
+        85 physical and validity features
+                    │
+                    ▼
+          HGB contact probability score
+                    │
+                    ▼
+         keep scores of at least 0.9
+                    │
+                    ▼
+     merge predictions within six base-30 frames
+                    │
+                    ▼
+            Top or Bottom player side
+                    │
+                    ▼
+          contacts inside detected sections
+                    │
+                    ▼
+        contact timing + player side
+        + is the whole section right?
 ```
 
-An out-of-fold prediction is made by a model that did not train on the video being predicted.
+“Base-30 frames” means that the frame count uses a 30 fps clock. The code changes that count to fit the real frame rate of each video.
 
-## Code that can be reused
+## What goes into the detector
 
-### Candidate-frame features
+The contact detector does not work directly from RGB frames.
 
-`scratch/contact_det/scripts/freeze_tree_contact_features.py` already has a function named `_fixture_rows` that processes one supplied video. Reuse this function and its feature names, NumPy row format and compressed-file writer.
+It uses data made by earlier parts of the annotator:
 
-`scratch/contact_det/scripts/freeze_contact_evidence.py` already knows how to load one video's shuttle, pose, court and annotation files. It also records rally ranges that include the start frame and stop before the end frame.
+- shuttle coordinates and visibility;
+- player pose points;
+- player-side estimates;
+- court-view and rally-section information; and
+- saved candidate frames where a contact is plausible.
 
-All 40 eligible ShuttleSet videos are 1920 by 1080. The new video list still records width and height so the assumption is checked.
+This experiment did not make those inputs. Errors in the shuttle track, pose, court view or section edges can cause wrong contact results. This study did not test those earlier steps on their own.
 
-### Contact model and timing score
+The model uses 85 fields for each candidate frame. Some hold measured values. Others say whether the needed tracking or pose data was present.
 
-The pilot code already has reusable functions for:
+The measured values include shuttle speed, changes in direction, impulse, distance to the nearest wrist and player ankle motion.
 
-- choosing the model input columns
-- building a NumPy input table
-- measuring distance to the nearest labelled contact
-- creating the reference HGB and RF models
-- removing nearby duplicate predictions
-- matching predictions to labels one-to-one
-- writing repeatable compressed results
+## How a contact becomes an event
 
-New code is needed to check a 40-video feature file, load labels for named videos, build training examples from training videos only, and train with one fixed 32/8 split.
+HGB gives every candidate frame a score from 0 to 1. A higher score means that the frame looks more like a contact.
 
-### Complete rally score
+The final setup keeps scores of 0.9 or more. It then joins nearby frames into one contact. “Nearby” means six frames on a 30 fps clock.
 
-`score_contact_rallies.py` already has reusable data records and functions for:
+The merge step matters because one real contact can create several high-scoring nearby frames. Keeping them all would create extra events.
 
-- reading retained contact events
-- assigning contacts to rally ranges that include the start frame and stop before the end frame
-- finding events outside every rally range
-- checking one predicted rally against one labelled rally
-- showing how accuracy changes as more rallies are kept
+The chosen model uses:
 
-New code is needed to load timing and player-side labels for the larger video list. It must also replay the existing Top/Bottom rule without relying on the old three-video list.
+- HGB rather than RF;
+- original per-frame motion values;
+- balanced class weights;
+- up to 24 non-contact training rows for each real contact row; and
+- the model details recorded in `baseline_runs.json`.
 
-## Three-video assumptions that must be replaced
+Real contacts are rare in the training data. Balanced class weights stop the many non-contact rows from dominating training.
 
-- The video list contains only `sset_01`, `sset_15` and `sset_21`.
-- Saved feature checks require exactly those three names and frame rates.
-- Label loading requires exactly 292 rallies and 3,128 contacts.
-- Each video becomes a test video while the other two become training videos.
-- Saved results require one trained model for each of the three videos.
-- The Top/Bottom check compares two saved versions of the pilot features for the same three inputs.
-- Complete rally scoring loads rally ranges and labels only from the three-video comparison files.
+A contact row marks a real contact. A non-contact row is a candidate frame that is not a contact. The model saw up to 24 non-contact rows for each contact row. This gave it more examples of frames it should reject.
 
-## Order that keeps labels out of feature preparation
+## How complete sections are judged
 
-The saved annotation ranges and possible contact-frame inputs are predictions from the existing video code. They are not ShuttleSet contact labels.
+Each predicted contact can match only one labelled contact. Each label can also match only once.
 
-The new code must keep this order:
+The main contact result reports matches within five frames on the 30 fps clock. The reports also show results for one, two and ten frames.
 
-1. Check the video list and split.
-2. Check every feature row and input-file identity.
-3. Set which videos will train the model and which videos it will predict.
-4. Load contact timing labels for those named videos.
-5. Set the predicted contact frames and Top/Bottom answers.
-6. Load player-side labels and score the rallies.
+A **detected section** is a stretch of video found by the existing annotator.
 
-Validation labels may choose the model and its settings. ShuttleSet22 labels only score the finished setup.
+The old development scorer called the 609 sections it kept **accepted sections**. The saved result does not say why it removed the other 68.
 
-Any later trained model must use predictions from the first contact model. Each training video must be predicted by a first contact model that did not train on that video.
+For the ShuttleSet22 cut-off check, a section is scored only if it remains after the filter, matches one labelled rally and has enough human player labels.
 
-## Mistakes the tests must catch
+A detected section is fully correct only when:
 
-- repeated video IDs or names
-- a video placed in more than one split
-- missing or unexpected videos in the feature file
-- different frame rates in the video list, saved file and feature rows
-- feature rows outside ranges that include the start frame and stop before the end frame
-- contact labels loading before feature checks finish
-- negative examples drawn from validation videos
-- score cut-offs chosen from training scores instead of validation scores
-- saved scores missing the video, range or frame number they belong to
-- Top/Bottom replay missing a retained contact
-- training on all 40 videos changing a setting that was already fixed
-- a later model reading predictions from a first contact model that trained on the same video
-- ShuttleSet22 labels being used to choose settings
+- it maps to exactly one labelled rally;
+- every labelled contact has one timing match;
+- there are no extra predicted contacts;
+- every predicted contact has a player-side answer; and
+- every player-side answer is correct.
 
-## Independent code checks
+A section cannot be fully correct if it joins several real rallies. Sections that match no labelled rally are not part of this one-rally score.
 
-One read-only Luna pass followed the pilot feature and contact-model code. A second pass followed Top/Bottom scoring, whole-rally scoring and failure reports. The main agent checked the important split, label order and Top/Bottom findings directly in the named functions.
+## Which videos were used at each step
+
+| Step | Videos | What it was for | How labels were kept separate |
+| --- | ---: | --- | --- |
+| Pilot replay | 3 | Check that the larger feature build matched the earlier work | Labels were read only after the features had been saved |
+| Main model comparison | 32 train + 8 validation | Choose the RF/HGB design | Validation videos never trained their own model |
+| Rally-start training check | 32 | Test six ways to choose an earlier contact | The first model had not trained on the video it scored |
+| Final cut-off and join rule | 40 in five groups | Choose the 0.9 cut-off and six-frame distance | Each video was scored by a model trained on the other 32 |
+| Final model fit | 40 | Train the chosen HGB model once | All settings had already been chosen |
+| ShuttleSet22 test | 47 | See how the final model worked on new videos | All predictions were saved before any test labels were read |
+
+Eight ShuttleSet22 matches also appear in the development data, so the test left them out. The test also left out three matches whose public videos could not be lined up with the official frame numbers.
+
+## What each part can and cannot do
+
+| Part | Useful part | Where it falls short |
+| --- | --- | --- |
+| HGB contact score | Finds useful contact candidates in new videos | Precision falls to 80.62% on ShuttleSet22 |
+| Nearby-contact merge | Reduces duplicate events | It cannot recover a missing event |
+| First-contact handling | Often finds a possible contact near the missed first contact | The best tested choice was right only 51.7% of the time |
+| Player side | 92.02% accuracy on answered five-frame timing matches | One wrong side spoils a whole section |
+| Detected sections | Give the annotator a stretch of video to work on | Many match no real rally or join several rallies |
+| Contact score | Ranks single contacts | A high score does not tell us that the whole rally is right |
+| Check of the whole section | Tests the complete output that the project needs | Only 16.60% of ShuttleSet22 one-rally sections are fully correct at five frames |
+
+## Code map
+
+| Area | Main files |
+| --- | --- |
+| Shared experiment rules and split | `scripts/experiment_config.py`, `scripts/baseline_config.py` |
+| Feature freeze and loading | `scripts/freeze_contact_features.py`, `scripts/feature_dataset.py` |
+| Nine-run comparison | `scripts/run_baseline_menu.py`, `scripts/score_contact_baseline.py`, `scripts/baseline_results.py` |
+| Missed-contact and rally-start checks | `scripts/check_missed_contacts.py`, `scripts/check_rally_start_candidates.py` |
+| Held-out training scores | `scripts/score_training_videos.py` |
+| Rally-start inputs and the model that stopped | `scripts/save_training_rally_start_inputs.py`, `scripts/save_validation_rally_start_inputs.py`, `scripts/rally_start_model.py`, `scripts/run_rally_start_model.py` |
+| Fair scores across all 40 videos and final fit | `scripts/score_final_contact_groups.py`, `scripts/fit_final_contact_model.py` |
+| ShuttleSet22 preparation and scoring | `scripts/inpaint_shuttleset22_tracks.py`, `scripts/prepare_shuttleset22_predictions.py`, `scripts/score_shuttleset22_test.py` |
+| Report figures | `scripts/plot_report_figures.py` |
+
+Each experiment script has tests under `tests/`. The final group-scoring tests also cover the model-fitting code.
+
+## Results saved as JSON
+
+| File | What it records |
+| --- | --- |
+| `shuttleset_development_split.json` | The 40 development videos and the 32/8 split |
+| `baseline_runs.json` | The nine model runs and the event settings they could use |
+| `baseline_summary.json` | Eight-video comparison and chosen-run error counts |
+| `missed_contact_summary.json` | First/later miss diagnosis and one-short sections |
+| `rally_start_candidate_summary.json` | Candidate-list size and target coverage |
+| `training_video_score_groups.json` | Four groups used so each training video was scored by a model trained on other videos |
+| `training_video_score_inputs.json` | The training-score input files and their hashes |
+| `training_video_score_summary.json` | Scores across all 32 training videos, with each video kept out of its model |
+| `training_rally_start_input_summary.json` | Training candidate lists made without reading labels |
+| `validation_rally_start_input_summary.json` | Validation candidate lists made without reading labels |
+| `rally_start_model_runs.json` | The six tested ways to choose an earlier contact |
+| `rally_start_model_summary.json` | All six results and why the work stopped there |
+| `final_video_score_groups.json` | The five groups used to score all 40 videos without training on them |
+| `final_contact_score_inputs.json` | The all-40 scoring files and their hashes |
+| `shuttleset22_test_summary.json` | The final ShuttleSet22 result and the separate recount |
+
+## Files kept out of Git
+
+The ignored `raw/` folder holds the larger files behind these results:
+
+- saved feature arrays;
+- all nine model-run results and score arrays;
+- validation predictions and detailed rally scoring;
+- missed-contact and rally-start candidate details;
+- training and final score arrays made without training on the video being scored;
+- the fitted HGB model and reload record; and
+- run logs and files from repeat checks.
+
+The folder contains 201 files and is about 216 MB.
+
+Some files are frame-by-frame features made from broadcaster videos. [`../../data/ATTRIBUTION.md`](../../data/ATTRIBUTION.md) says these arrays stay outside Git because the videos remain copyrighted. A public release should leave those arrays out unless permission to release them is confirmed. The model, result files and logs can be packed separately with a file list and checksum.
+
+## Old plans and worklog
+
+The original plans, reports from each step, decisions and full worklog are under [`archive/`](archive/).
+
+Those files show the work in the order it happened. Their “next step” sections are old. The reports in the main folder give the finished result.

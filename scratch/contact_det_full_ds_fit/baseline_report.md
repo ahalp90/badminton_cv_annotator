@@ -1,132 +1,275 @@
-# Full-data contact baseline
+# Development experiments: the full RF and HGB story
+
+This report covers the work on 40 development videos. It starts with nine RF and HGB runs. It then looks at missed contacts and rally starts. It ends with the rules used by the final model.
+
+RF means random forest. HGB means histogram gradient boosting. Both models use decision trees. HGB worked better here. F1 is one score that combines precision and recall.
+
+## Table of contents
+
+- [Bottom line](#bottom-line)
+- [What the experiments were trying to learn](#what-the-experiments-were-trying-to-learn)
+- [How each video was kept out of its model](#how-each-video-was-kept-out-of-its-model)
+- [The experiment path](#the-experiment-path)
+- [The nine RF and HGB runs](#the-nine-rf-and-hgb-runs)
+- [Why the chosen HGB run won](#why-the-chosen-hgb-run-won)
+- [Why good contact F1 was not enough](#why-good-contact-f1-was-not-enough)
+- [What was going wrong](#what-was-going-wrong)
+- [The missed-contact check](#the-missed-contact-check)
+- [The rally-start candidate list](#the-rally-start-candidate-list)
+- [The small rally-start model](#the-small-rally-start-model)
+- [The final rules across all 40 videos](#the-final-rules-across-all-40-videos)
+- [What this means](#what-this-means)
+- [Useful work after this series](#useful-work-after-this-series)
+- [Saved results](#saved-results)
 
 ## Bottom line
 
-The best of the nine fixed runs is the reference HGB model using the original
-motion values, balanced class weights and up to 24 negative examples per
-positive example.
+The chosen development model is HGB. It uses the original per-frame motion values and balanced class weights. It trains on up to 24 non-contact rows for each real contact row.
 
-On the eight validation videos, it reaches 0.8924 precision, 0.8344 recall and
-0.8625 F1 for contact timing within five frames at 30 frames per second. It
-produces 99 fully correct video sections out of 609 accepted sections at the
-main ten-frame limit. That is 16.3% of the accepted sections and 14.8% of all
-668 labelled rallies.
+On the original eight validation videos, it reached:
 
-The next contact experiment should target missed contacts, especially the first
-contact of a rally. The result does not support removing extra contacts next.
+- **89.24% precision**;
+- **83.44% recall**;
+- **86.25% F1**; and
+- **99 fully correct sections among 609 accepted sections** when the whole section was checked within ten frames.
 
-## The nine fixed runs
+The model found later contacts well, but often missed the first contact in a rally. At five frames, it found **41.77% of first contacts** and **88.98% of later contacts**.
 
-Contact timing uses a five-frame limit after adjustment to 30 frames per
-second. Player-side accuracy is among timing matches where the Top/Bottom rule
-gave an answer. The last two columns use the agreed complete-rally check at ten
-frames.
+A later test found useful frames near missed first contacts. A small model then tried to choose which contact to add. At best, it chose the right contact in only **51.7%** of cases. The test required **80%**.
 
-| Model run | Precision | Recall | F1 | Player side | Fully correct / accepted | Correct share |
-|---|---:|---:|---:|---:|---:|---:|
-| HGB, original motion, balanced, 12 negatives | 0.8889 | 0.8330 | 0.8601 | 0.9041 | 96 / 614 | 15.6% |
-| HGB, motion adjusted to 30 fps, balanced, 12 negatives | 0.8891 | 0.8330 | 0.8601 | 0.8995 | 90 / 609 | 14.8% |
-| RF, original motion, balanced, 12 negatives | 0.8844 | 0.8232 | 0.8527 | 0.9203 | 91 / 606 | 15.0% |
-| RF, motion adjusted to 30 fps, balanced, 12 negatives | 0.8692 | 0.8329 | 0.8506 | 0.9151 | 85 / 612 | 13.9% |
-| HGB, original motion, no class weights, 12 negatives | 0.8866 | 0.8374 | 0.8613 | 0.9005 | 97 / 606 | 16.0% |
-| RF, original motion, no class weights, 12 negatives | 0.8801 | 0.8264 | 0.8524 | 0.9042 | 68 / 620 | 11.0% |
-| HGB with 15 leaves, original motion, balanced, 12 negatives | 0.8829 | 0.8192 | 0.8498 | 0.8976 | 78 / 616 | 12.7% |
-| HGB with learning rate 0.04, original motion, balanced, 12 negatives | 0.8891 | 0.8330 | 0.8601 | 0.8995 | 91 / 615 | 14.8% |
-| HGB, original motion, balanced, 24 negatives | **0.8924** | 0.8344 | **0.8625** | 0.9028 | **99 / 609** | **16.3%** |
+The HGB contact model stayed unchanged. Next, each of the 40 videos was scored by a model trained on the other 32. This test kept contacts scoring at least **0.9**. It also joined predictions that were no more than **six frames** apart on a 30 fps clock.
 
-All nine runs chose six frames at 30 frames per second as the distance for
-merging nearby predictions. The chosen HGB run uses a score cut-off of 0.9.
+## What the experiments were trying to learn
 
-The HGB run without class weights has slightly higher recall, at 0.8374, and
-comes close on complete rallies. The raw balanced RF run has the highest
-player-side accuracy, at 0.9203. The chosen run still gives the best contact F1
-and the most fully correct sections. Those are the two results the experiment
-was set up to favour.
+The three-video pilot showed that tree models could improve contact timing. The larger work had five jobs:
 
-## What breaks the leading run
+1. compare nine RF and HGB setups;
+2. choose one model without using the final test;
+3. find out whether missed contacts or extra contacts caused more sections to fail;
+4. test one narrow way to recover missed first contacts; and
+5. choose the final event rules from videos that each model had not trained on.
 
-Of the 564 detected sections that line up with exactly one labelled rally, 99
-are fully correct and 465 fail.
+The planned annotator may reject a rally when its contact or section checks show a problem. A small set of correct rallies would still be useful. This means the whole rally matters more than the score of one contact.
 
-The 465 failures divide as follows at the ten-frame limit:
+## How each video was kept out of its model
 
-- 266 have one or more missing contacts and no extra contact;
-- 42 have one or more extra contacts and no missing contact;
-- 65 have both missing and extra contacts; and
-- 92 have every contact time but at least one wrong player side.
+The study used 40 ShuttleSet videos. It split them into 32 training videos and eight validation videos.
 
-The first three counts describe contact timing. Some of those sections also
-have a player-side error.
+The eight validation videos were `sset_18`, `sset_22`, `sset_24`, `sset_25`, `sset_30`, `sset_31`, `sset_39` and `sset_40`. The split includes unseen players and a mix of women's and men's matches.
 
-The useful narrow case is already large: 94 sections are exactly one contact
-short, have at least one predicted contact, and every contact that was found
-has the right time and player side. Two more one-contact rallies have no
-prediction at all. Including those empty sections would make the count 96, but
-they are not otherwise-good rallies. Only ten sections have exactly one extra
-contact while every labelled contact and player side is otherwise right.
+The nine model setups were written down before the test ran. The test also had 19 possible score cut-offs and three possible distances for joining nearby predictions.
 
-The contact totals point to the same problem. Within five frames, the chosen
-run finds 279 of 668 first contacts, or 41.8%. It finds 4,474 of 5,028 later
-contacts, or 89.0%. At ten frames, those figures rise only to 45.5% and 89.2%.
+Later, five models made predictions for all 40 videos. Each model trained on 32 videos and scored the other eight. No model scored a video it had trained on.
 
-Missing contacts therefore matter much more than extra contacts. Rally starts
-are the clearest place to look first. A small test of start-specific contact
-handling is better supported than a model that removes contacts.
+None of these choices used ShuttleSet22 labels.
 
-## What the complete-rally number means
+## The experiment path
 
-The existing scorer checks the detected rally sections made by the annotator.
-It does not start with one row for each of the 668 labelled rallies.
+![The work moved from nine model runs to the first-contact test and then the final HGB model.](figures/01_experiment_route.png)
 
-There are 677 detected sections in these videos:
+| Step | What it asked | Result |
+| --- | --- | --- |
+| Feature replay | Did the larger feature build reproduce the pilot rows? | Yes. All 130,624 pilot rows matched exactly |
+| Nine-run comparison | Which RF/HGB setup worked best? | HGB with original motion and more non-contact examples |
+| Error check | Were extra contacts or missed contacts the larger problem? | Missed contacts, especially the first contact |
+| Candidate list | Was a useful first contact nearby? | Often, but the list still held too many wrong choices |
+| Small addition model | Could it safely add one earlier contact? | No choice was right at least 80% of the time |
+| Fair check across all 40 videos | Did the 0.9 cut-off and six-frame rule still work? | Yes |
+| Final fit | Could the chosen HGB model train on all 40 videos? | Yes. Reloading the saved model gave the exact same check scores |
 
-- 564 line up with exactly one labelled rally;
-- six contain contacts from more than one labelled rally; those six sections
-  cover 104 labelled rallies; and
-- 107 do not line up with a labelled rally.
+## The nine RF and HGB runs
 
-For the chosen run, the scorer accepts 609 sections. Of those, 557 line up with
-one rally, six contain more than one rally, and 46 contain no labelled rally.
-Only a section that lines up with one rally can be fully correct. This is why
-the report says “accepted sections” even though the saved result uses the field
-name `rallies_kept`.
+For the contact scores, predictions can be up to five frames from the label after scaling to 30 fps. The last column checks complete sections within ten frames. It shows the number that were fully right, followed by the number kept by the development scorer.
 
-This is the same complete-rally score used by the pilot, so it is valid for the
-planned comparison. The chosen run is also best when only accepted sections
-that match one rally are counted: 99 of 557, or 17.8%. The scoring boundary
-therefore does not change the model choice.
+| Model run | Precision | Recall | F1 | Player side | Fully correct / kept by scorer |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| HGB, original motion, balanced, 12 non-contacts | 88.89% | 83.30% | 86.01% | 90.41% | 96 / 614 |
+| HGB, motion adjusted to 30 fps, balanced, 12 non-contacts | 88.91% | 83.30% | 86.01% | 89.95% | 90 / 609 |
+| RF, original motion, balanced, 12 non-contacts | 88.44% | 82.32% | 85.27% | **92.03%** | 91 / 606 |
+| RF, motion adjusted to 30 fps, balanced, 12 non-contacts | 86.92% | 83.29% | 85.06% | 91.51% | 85 / 612 |
+| HGB, original motion, no class weights, 12 non-contacts | 88.66% | **83.74%** | 86.13% | 90.05% | 97 / 606 |
+| RF, original motion, no class weights, 12 non-contacts | 88.01% | 82.64% | 85.24% | 90.42% | 68 / 620 |
+| HGB, 15 leaves, original motion, balanced, 12 non-contacts | 88.29% | 81.92% | 84.98% | 89.76% | 78 / 616 |
+| HGB, slower learning, original motion, balanced, 12 non-contacts | 88.91% | 83.30% | 86.01% | 89.95% | 91 / 615 |
+| **HGB, original motion, balanced, 24 non-contacts** | **89.24%** | 83.44% | **86.25%** | 90.28% | **99 / 609** |
 
-It does show a separate limit in the fixed rally sections. The six sections
-that combine several rallies contain 104 labelled rallies, which the current
-score cannot check separately. Contact detection alone cannot make those
-sections fully correct.
+![The nine runs are close on contact F1, while the chosen HGB run also has the most fully correct sections.](figures/02_nine_run_model_comparison.png)
 
-## Raising the confidence requirement
+All nine runs joined predictions that were no more than six frames apart. The chosen HGB run kept contacts scoring 0.9 or more.
 
-The chosen contact cut-off is already 0.9, so the whole-rally result does not
-change as the minimum contact score rises from 0.0 to 0.9.
+## Why the chosen HGB run won
 
-At 0.95, the system accepts 322 sections and gets 55 fully correct. Accuracy
-rises from 16.3% to 17.1%, while the number accepted almost halves. The saved
-contact score is therefore a poor way to reject bad whole rallies on its own.
+The chosen run had the highest contact F1. It also had the most fully correct sections among those kept by the development scorer. The plan named these two measures before the test ran.
 
-## Decision from this result
+Other models had single strengths. The RF model with original motion and balanced weights had the best player-side accuracy. The HGB model without class weights had slightly higher recall. Neither gave the same overall result.
 
-Use `hgb_reference_raw_more_negatives` as the first contact baseline.
+The nine F1 scores are within about 1.3 percentage points. The difference between the model families is small. Of these nine setups, the chosen HGB was the best simple starting model.
 
-Do not run deletion-first cleanup now. Extra contacts are not the main failure.
-The next small test should ask whether a rally-start rule or a limited way to
-add one missed contact improves otherwise-correct rallies. Any trained second
-model must use first-model predictions made without training on the same video.
+## Why good contact F1 was not enough
 
-The chosen model design is not yet the final fitted model. After later design
-choices are fixed, predictions made without training on the same video will set
-the final score cut-off and duplicate distance across all 40 videos. The model
-will then be trained on all 40 and tested once on the non-overlapping
-ShuttleSet22 videos.
+The chosen run produced 677 detected video sections. Of these, 564 matched exactly one labelled rally. Six contained contacts from several labelled rallies. 107 did not match a labelled rally.
 
-## Saved evidence
+The old development scorer kept 609 sections and called them “accepted sections”. Of these, 557 matched one labelled rally. It removed 68 sections, including seven that matched one labelled rally. The saved result does not say why it removed each section.
 
-The full checked result is `raw/validation_rally_result.json.gz`, with SHA-256
-`e07ae3dfe2fa2b93714fa9f66c352b0d386355bf5b6d4eaca15a686cf0f0ac5b`.
-The compact figures are in `baseline_summary.json`.
+The error mix below uses all 564 detected sections that matched one labelled rally. Only 99 were fully correct. This is why the total is seven higher than the 557 accepted one-rally sections.
+
+A fully correct section has every contact, no extra contacts, and the right player side for every event. A section that joins several real rallies cannot pass this check.
+
+Raising the minimum contact score did little:
+
+| Minimum score | Sections kept | Fully correct | Fully correct among kept |
+| ---: | ---: | ---: | ---: |
+| 0.90 or lower | 609 | 99 | 16.3% |
+| 0.95 | 322 | 55 | 17.1% |
+
+The model already keeps only contacts scoring at least 0.9. Raising that minimum almost halves the output. The share of sections that are fully right rises by less than one percentage point.
+
+![A higher contact score keeps fewer sections without making many more of them right.](figures/09_confidence_vs_yield.png)
+
+## What was going wrong
+
+The 564 detected one-rally sections contained 99 fully correct sections and 465 failures.
+
+| What happened | Sections |
+| --- | ---: |
+| Fully correct | 99 |
+| Missing contacts, with no extra contact | 266 |
+| Extra contacts, with no missing contact | 42 |
+| Both missing and extra contacts | 65 |
+| Contact times correct, but player side wrong | 92 |
+
+![Missing contacts dominate the development failure mix.](figures/05_development_error_mix.png)
+
+There were 94 sections that were exactly one contact short. Every found contact in these sections had the right timing and player side. Of the 94 sections, 81 were missing the first contact.
+
+Only ten sections had exactly one extra contact while everything else was right. This supported testing added first contacts before testing the removal of extra contacts.
+
+## The missed-contact check
+
+At five frames, the chosen model missed 389 first contacts and 554 later contacts.
+
+Here, “first contact” means the first labelled contact in each official rally. A bad predicted start or end does not change which labelled contact counts as first.
+
+The pattern was different:
+
+- **290 of the 389 missed first contacts** had a saved candidate nearby that scored below the 0.9 cut-off;
+- **143 of the 554 missed later contacts** had such a candidate; and
+- 379 later contacts had no saved candidate nearby.
+
+All 94 otherwise-good one-short sections had a nearby saved candidate at the ten-frame check. For the 81 sections missing the first contact, 39 candidates were available only before the detected section began.
+
+The saved candidates often included the needed frame. They did not show that a model could choose that frame safely.
+
+![First contacts remain much harder than later contacts at every development stage.](figures/04_first_vs_later_recall.png)
+
+## The rally-start candidate list
+
+The candidate list kept the first contact already found in each section. It added no more than two earlier choices.
+
+Across the eight validation videos it contained:
+
+- 615 section lists;
+- 1,845 total entries;
+- 615 existing first contacts; and
+- 1,230 earlier candidates.
+
+At ten frames, the list covered **56 of the 81** target first contacts. Thirty were covered only by candidates before the detected section.
+
+For each target contact it covered, the list added **21.96 earlier choices** on average. This was within the limit set before the result was opened, so the small model test went ahead.
+
+## The small rally-start model
+
+The next test used contact scores from the 32 training videos. Each score came from a model that had not trained on that video. It compared logistic regression and shallow HGB at three score cut-offs each.
+
+There were 5,242 earlier training candidates and 271 sections where a correct addition was possible.
+
+| Choice | Contacts added | Right additions | Share right | New fully correct sections | Fully correct sections lost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Logistic regression, 0.5 | 1,134 | 206 | 18.2% | 74 | 118 |
+| Logistic regression, 0.7 | 647 | 186 | 28.7% | 66 | 40 |
+| Logistic regression, 0.9 | 195 | 83 | 42.6% | 35 | 4 |
+| Shallow HGB, 0.5 | 748 | 199 | 26.6% | 68 | 44 |
+| Shallow HGB, 0.7 | 484 | 177 | 36.6% | 59 | 17 |
+| Shallow HGB, 0.9 | 147 | 76 | **51.7%** | 30 | **0** |
+
+The test required at least 80% of the added contacts to be right. Every choice fell short.
+
+The shallow HGB choice at 0.9 kept every already-correct section right. It still added the wrong contact almost half the time. That is not suitable for an annotator aiming for very high precision.
+
+The model stopped at this point. It did not score the validation candidates or read their labels.
+
+![The missed first contact was often nearby, but none of the six model choices was right often enough to continue.](figures/07_rally_start_followup.png)
+
+## The final rules across all 40 videos
+
+After the rally-start test stopped, the unchanged HGB contact model made predictions for all 40 development videos. Each prediction came from a model that had not trained on that video.
+
+Each of five models trained on 32 videos and scored the other eight. The combined file contained 1,477,290 candidate scores.
+
+The all-40 test tried the same 57 pairs of minimum scores and join distances. The final rules stayed at:
+
+- contact score cut-off: **0.9**;
+- nearby-contact distance: **six frames at 30 fps**.
+
+At five frames, the result across all 40 videos was:
+
+| Measure | Result |
+| --- | ---: |
+| Labelled contacts | 33,267 |
+| Predicted contacts | 31,824 |
+| Matched contacts | 28,801 |
+| Precision | **90.50%** |
+| Recall | **86.58%** |
+| F1 | **88.49%** |
+| First-contact recall | **49.39%** |
+| Later-contact recall | **90.75%** |
+
+The final model trained on 1,313,803 rows from all 40 videos. It used 85 input fields. Loading the saved model again gave the exact same 80 check scores.
+
+Higher cut-offs raise precision, lower recall and produce fewer contacts. The chosen 0.9 cut-off is already near the high-precision end of the tested range.
+
+![Contact precision, recall and number of predictions across the tested cut-offs.](figures/10_contact_cutoff_tradeoff.png)
+
+## What this means
+
+The HGB contact detector is useful and gives the same result when rerun.
+
+The full annotator still has important problems. Contact F1 alone hides them:
+
+- it often misses first contacts;
+- some detected sections do not describe one rally;
+- some sections miss contacts or add extras; and
+- player-side errors spoil timing that would otherwise be useful.
+
+The rally-start test also tells us what did not work. A nearby frame by itself is not enough. A future model needs to check the section edges, missing and extra contacts, and the player choice. It may also need to act in far fewer cases.
+
+## Useful work after this series
+
+More tuning of the same RF and HGB menu is unlikely to be the best use of time.
+
+The next useful questions are:
+
+- can sections start and end at the right time before contacts are cleaned up?
+- can a new first-contact source give a much smaller and cleaner candidate list?
+- can extra contacts be removed once the section starts and ends are better?
+- can the system tell when its player choice is doubtful? and
+- can a model keep only a small group of whole rallies that are almost always right on new videos?
+
+A model that keeps or rejects each whole rally is the clearest first test. It could check the section edges, missing and extra contacts, and the player choice. Its report would show how many rallies it keeps and how many of those are right. Both numbers matter because a model can look very accurate by keeping almost nothing.
+
+A later model must not train on scores from a contact model that saw the same video. The final report can show separate results for short and long rallies. The model cannot use the true rally length as an input because the annotator will not know it.
+
+## Saved results
+
+| Record | What it contains |
+| --- | --- |
+| [`baseline_runs.json`](baseline_runs.json) | The nine model setups and the tested event rules |
+| [`baseline_summary.json`](baseline_summary.json) | The short eight-video result and error counts |
+| [`missed_contact_summary.json`](missed_contact_summary.json) | Missed first/later contact diagnosis |
+| [`rally_start_candidate_summary.json`](rally_start_candidate_summary.json) | Candidate-list coverage and size |
+| [`rally_start_model_summary.json`](rally_start_model_summary.json) | All six small-model results and why the test stopped |
+| [`final_contact_score_inputs.json`](final_contact_score_inputs.json) | The all-40 input files and their hashes |
+| [`final_video_score_groups.json`](final_video_score_groups.json) | The five groups used to score all 40 videos without training on them |
+| [`archive/`](archive/) | The original plans, stage reports and full worklog |
+
+The larger score arrays, detailed results and final model live under the ignored `raw/` folder.
