@@ -2,8 +2,8 @@
 
 ## Pick up from here
 
-- Current work: prepare the approved post-hoc GPU InpaintNet run for all 47 ShuttleSet22 videos
-- Next action: implement and check the restartable runner, then time video 8 before the `tmux` launch
+- Current work: the checked GPU runner is ready and video 8 is complete
+- Next action: launch the remaining 46 videos in `tmux` and check the saved run state after the ETA
 - Required check: write and review the chosen 47-video test plan, then save all model scores and player-side predictions before any test label row is read
 - Current blocker: none
 - Plan section: `shuttleset22_inpaint_plan.md`
@@ -27,6 +27,19 @@
 - Restart: finish one video in a temporary directory, then rename it into place
 - Label boundary: do not open ShuttleSet22 contact labels
 - Planned commit: `Plan the ShuttleSet22 inpaint run`
+
+### Added and checked the ShuttleSet22 inpaint runner — 2026-08-28
+
+- Files: `scripts/inpaint_shuttleset22_tracks.py` and its focused tests
+- Input check: all 47 base CSVs have contiguous frames, binary visibility and saved tracks that match at 1920 by 1080
+- Model path: one GPU model stays loaded; every video uses non-overlapping 16-frame windows and batch size 16
+- Save path: each complete mirror directory contains linked prepared files plus the new CSV, track, sidecar, guard files and receipt
+- Restart: a complete video is reloaded and hash-checked; an unfinished video remains separate and stops a restart
+- First video: video 8 completed 128,400 frames in 2.9 seconds and passed every semantic reload and hash check
+- Focused checks: seven tests pass; Ruff passes for both new files; the pinned whole-project type check reports zero errors
+- Whole tests: 1,892 passed and 29 skipped; one environment failure could not find `python` on `PATH` and passes when the project virtual environment bin is supplied
+- Whole Ruff: exits 1 on 863 existing findings outside the new files
+- Planned commit: `Add the ShuttleSet22 inpaint runner`
 
 ### Recorded the ShuttleSet22 fork — 2026-08-28
 

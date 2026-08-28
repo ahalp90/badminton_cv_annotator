@@ -1,7 +1,7 @@
 # Resume
 
-- Current work and status: the user chose post-hoc GPU InpaintNet for all 47 ShuttleSet22 videos; the fixed run is being prepared
-- Next action: implement and check `shuttleset22_inpaint_plan.md`, then launch the checked run in `tmux`
+- Current work and status: the checked GPU runner is ready and ShuttleSet22 video 8 is complete
+- Next action: launch the remaining 46 videos in `tmux`, then check the saved run state after the ETA
 - Active reviewer: none; the final model result review found no blocker
 - Branch: `contact-det-feasibility`; latest planned commit is `Write the contact experiment handover`
 - Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
@@ -19,4 +19,5 @@
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
 - ShuttleSet22 input decision: run the normal non-overlapping 16-frame InpaintNet step from the saved TrackNet coordinates, save sibling outputs in a writable mirror, and derive fresh guard codes
+- ShuttleSet22 first-video check: video 8 completed 128,400 frames in 2.9 seconds; every output reloaded and matched its saved hashes and derived guard result
 - Important files: `HANDOVER.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`

@@ -5,22 +5,18 @@
 The final contact model is fitted and checked. The remaining work is the
 independent ShuttleSet22 test.
 
-That test is paused at one decision. The original 40 ShuttleSet videos used
-stride-8 TrackNet followed by InpaintNet. The 47 prepared, non-overlapping
-ShuttleSet22 videos used stride-8 TrackNet without InpaintNet. Testing the
-prepared files would therefore measure a change in both dataset and shuttle
-processing.
-
-Do not choose a path on the user's behalf. Present the choices in
-“Current decision” and continue after the user decides.
+The shuttle-input decision is settled. Run the normal InpaintNet coordinate
+step from the saved stride-8 TrackNet CSVs for the 47 non-overlapping videos.
+Save the new files in the writable sibling-file mirror and derive fresh shuttle
+guard codes. `shuttleset22_inpaint_plan.md` is the fixed run plan.
 
 ## Resume
 
-- Stage: plan the independent ShuttleSet22 test
-- Exact next action: settle how ShuttleSet22 shuttle tracks will be prepared
+- Stage: prepare the independent ShuttleSet22 inputs
+- Exact next action: run the checked InpaintNet command for the remaining videos
 - Branch: `contact-det-feasibility`
 - Last experiment commit: `30698e96` (`Record the final contact fit`)
-- Current blocker: the ShuttleSet22 inpainting choice
+- Current blocker: none
 - Active worker or audit: none
 - Last verified gate: final model audit found no blocker
 - Large outputs: ignored under `scratch/contact_det_full_ds_fit/raw/`
@@ -257,10 +253,16 @@ contact feature calculation.
 
 Machine locations and access details are intentionally absent here.
 
-## Current decision
+## ShuttleSet22 input decision
 
-The user needs to choose how the 47 ShuttleSet22 shuttle tracks enter the
-test. No ShuttleSet22 contact result has been calculated yet.
+The user chose the saved-coordinate InpaintNet path on 2026-08-28. The full
+original-video GPU check found at most one-pixel changes on exactly
+reconstructable inputs. The fabricated guard count stayed unchanged. Four
+extra frames were marked degraded. The user accepted that difference.
+
+The three choices below are kept as the record of the decision. Choice 1 is
+implemented without rerunning TrackNet because the saved CSV contains every
+coordinate InpaintNet receives.
 
 ### Choice 1: match the original shuttle processing
 

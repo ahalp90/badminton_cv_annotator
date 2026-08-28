@@ -30,7 +30,8 @@ stay outside the run.
 - Use non-overlapping 16-frame windows.
 - Use every saved visible TrackNet coordinate in the window as context.
 - Build the normal inpaint mask with a height cut-off of 5% of 1080 pixels.
-- Replace only selected frames. Keep every other saved coordinate unchanged.
+- Replace only selected frames in the model output. Then apply the normal
+  coordinate threshold and integer conversion to the complete output.
 - Use GPU inference with batch size 16. Keep one model loaded for the complete
   run.
 - Derive the existing shuttle guard codes from each final inpainted track.
@@ -108,4 +109,3 @@ Stop before the remaining videos when:
 
 - `Plan the ShuttleSet22 inpaint run`
 - `Add the ShuttleSet22 inpaint runner`
-
