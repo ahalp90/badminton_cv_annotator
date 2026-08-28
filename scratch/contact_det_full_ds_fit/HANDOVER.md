@@ -17,9 +17,10 @@ The fixed steps are under **Remaining ShuttleSet22 test plan** below.
 - Last runtime commit: `e6a16084` (`Allow original InpaintNet output range`)
 - Current blocker: none
 - Active worker or audit: none
-- Last verified gate: all 47 inpaint outputs passed their full reload checks
+- Last verified gate: saved commit pointers and file hashes resolve
+- Last test run: 154 experiment tests and the full project suite pass
+- Shuttle input gate: all 47 inpaint outputs passed their full reload checks
 - Large outputs: ignored under `scratch/contact_det_full_ds_fit/raw/`
-- Unrelated local state: an old untracked `scratch/contact_det/scripts/__pycache__/`; leave it alone
 
 Before doing work, read this file, the repository `AGENTS.md`,
 `.github/AGENTS.md` and `.codex/context.md`. Open the detailed experiment files
@@ -44,6 +45,33 @@ below only when their stage needs them.
 The user's earlier approval covers local edits, local commits and remote
 experiment work for the agreed test. A choice that changes the fixed test
 input, model, cut-off or nearby-contact distance needs the user's answer first.
+
+## Saved commit pointers
+
+The experiment history was cleaned on 2026-08-28. Every saved commit pointer
+now resolves within this branch. The check covered every commit snapshot,
+patch and message, plus the current tracked and ignored files.
+
+Current result pointers include:
+
+- training rally-start input code: `40109b57`
+- validation rally-start input code: `17c127b1`
+- rally-start model code: `7a6d5d94`
+- final development-video scoring code: `c30f0d01`
+- final model-fitting code: `31fbd55a`
+
+Keep these pointers usable:
+
+- Save a commit ID only after that commit exists and resolves locally
+- Do not put a commit's own ID inside a file added by that commit
+- Once results store commit IDs, prefer a new correction commit over another
+  history rewrite
+- Before rewriting history, list commit IDs in both tracked and ignored files
+- Update every saved pointer as part of the same rewrite
+- After changing a saved JSON file, recalculate its SHA-256 and update every
+  file that records that SHA-256
+- Search every commit snapshot, patch and message for retired IDs before
+  removing the recovery copy
 
 ## What the experiment set out to do
 
@@ -172,10 +200,14 @@ The final files remain outside Git:
 Their identities are:
 
 - model SHA-256: `ef7b66042ce2ed594572424ddd2c13f23092afcc8b259bccc8758af8cc11a8dc`
-- fit-result SHA-256: `77d8ee023b53a68309055770a62757368eaa1ed22ba86deb584f924fdecae76e`
-- final-setting result SHA-256: `82e6272ab4aa1ebc8c3c1a4fb2a45692dd74cdd05871501b9ea918ed80929e30`
+- fit-result SHA-256: `5428bb69be41aea034fe56f5b812594404d1ac458392681f853b74a26600b4ed`
+- final-setting result SHA-256: `9c21575c457742bf71dea6a9105ba91234f1b0038ee70bc3f9d885c56ce8ac83`
 - combined held-out score SHA-256: `d464d396af9ff451878f40ead57d46d2dbde3a61ebfbe70adee14519334707d9`
 - final kept-contact file SHA-256: `947b87f3341edbb2a8a5f60bfacfd023f9a0ef45df507d38dbad6820b4f3471e`
+
+The two result JSON hashes changed when their saved commit pointers and child
+file hashes were corrected. The model, scores and reported metrics did not
+change.
 
 The saved model reproduced the same probabilities for the first and last
 candidate row from every development video after it was loaded again. An
@@ -246,6 +278,10 @@ must produce the annotation result and exclusion mask needed by the existing
 contact feature calculation.
 
 Machine locations and access details are intentionally absent here.
+
+If a fresh session cannot locate the prepared mirror, ask the user before
+implementation. Ask again before the label-reading stage if the label root is
+not already available. Do not guess or save either location in Git.
 
 ## ShuttleSet22 inpaint run
 
@@ -411,8 +447,9 @@ Useful existing functions are:
 
 The old ShuttleSet22 feature comparison contains useful input and label
 validation code. It is not part of the current checkout. Locate its preserved
-source only when implementing the test. Reuse its checks rather than copying
-its unrelated feature calculations.
+source only if it is easy to find while implementing the test. It is an
+optional reference, not a requirement. The rules in this handover are enough
+to implement the test without it.
 
 ## Checks already passed
 
@@ -438,6 +475,16 @@ The ShuttleSet22 inpaint run later passed these checks:
 - the pinned Pyrefly check found 0 errors and 25 suppressed messages, exit 0
 - whole-project Ruff reported the same 863 existing findings outside this work,
   exit 1
+
+The later history and pointer cleanup passed these checks:
+
+- all structured source pointers resolve to the expected commit
+- retired commit IDs appear in no commit snapshot, patch, message, tracked file
+  or ignored result file
+- experiment tests passed: 154 tests, exit 0
+- full project tests passed: 1,893 passed and 29 skipped, exit 0
+- the pinned Pyrefly check found 0 errors and 21 suppressed messages, exit 0
+- whole-project Ruff reported the same 863 existing findings, exit 1
 
 ## Stop conditions
 

@@ -54,7 +54,7 @@ chosen baseline:
 The saved model has SHA-256
 `ef7b66042ce2ed594572424ddd2c13f23092afcc8b259bccc8758af8cc11a8dc`.
 The saved fit result has SHA-256
-`77d8ee023b53a68309055770a62757368eaa1ed22ba86deb584f924fdecae76e`.
+`5428bb69be41aea034fe56f5b812594404d1ac458392681f853b74a26600b4ed`.
 Both files stay outside Git.
 
 The fitting environment used Python 3.11.13, NumPy 2.2.6, scikit-learn 1.6.1
