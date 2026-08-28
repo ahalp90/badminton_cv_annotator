@@ -203,6 +203,23 @@ whose earlier inputs could be reconstructed exactly. The fabricated guard
 count stayed unchanged. Four extra frames were rejected as degraded. The user
 accepted this difference on 2026-08-28.
 
+## ShuttleSet22 test-set accounting
+
+Treat the official ShuttleSet22 annotations as a 58-match corpus. The final
+contact test uses 47 of those matches because they have separate downloadable,
+frame-aligned videos and do not overlap the base ShuttleSet development data.
+
+Eight official matches overlap base ShuttleSet videos: ShuttleSet22 IDs 1–7
+and 58. Three more official matches, IDs 14, 45 and 56, have unresolved
+frame-aligned public video sources. These 11 matches still have annotations;
+they are excluded because of overlap or video availability.
+
+Keep the historical source manifest as the authority for the 47/8/3 split.
+Authenticate the complete official annotation corpus with its pinned checksum
+before scoring. After that check, read label tables only for the fixed 47 test
+matches. This preserves the full-corpus provenance without bringing overlap or
+unresolved matches into the result.
+
 ## Final contact fit result
 
 Keep the reference raw-motion HGB model with balanced class weights and up to

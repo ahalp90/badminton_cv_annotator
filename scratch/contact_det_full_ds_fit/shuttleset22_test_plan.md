@@ -69,6 +69,39 @@ IDs 14, 45 and 56 have no frame-aligned source and remain excluded.
 Stop if the source manifest, prepared inputs, prediction files or label tree
 contain a different set of test IDs.
 
+### Why the official 58 matches become 47 test videos
+
+The official ShuttleSet22 annotation set contains all 58 match IDs. The fixed
+source manifest accounts for every one of them:
+
+- 47 have a separate downloadable video that was prepared for this test;
+- eight reuse videos already present in the base ShuttleSet dataset; and
+- IDs 14, 45 and 56 have no resolved frame-aligned public video source.
+
+The three unresolved IDs still have official annotations. Their exclusion is
+about video availability, not missing labels. The source manifest records the
+reason found during source preparation:
+
+- ID 14: the public full-session video is not frame-aligned with the trimmed
+  annotations;
+- ID 45: the annotations use a trimmed video, with no frame-aligned full source
+  found publicly; and
+- ID 56: the exact 2022 semifinal video could no longer be found, while the
+  available search results were different matches.
+
+These are source-search findings, not independently verified explanations from
+the dataset authors. Keep their manifest status as `unresolved`.
+
+The eight overlaps are excluded to keep the final test separate from the
+development dataset. This leaves the 47 downloadable, non-overlapping videos
+listed above.
+
+The source manifest is the durable record of this accounting. It must contain
+58 ordered entries and classify them as exactly 47 `download`, eight
+`shuttleset_overlap` and three `unresolved` entries. The scorer authenticates
+the complete 58-match annotation corpus, checks the official match ID and
+directory map, then reads `set*.csv` tables only for the fixed 47 test IDs.
+
 ## Fixed identities
 
 Require these SHA-256 identities:
@@ -94,10 +127,23 @@ the repository history and has the required source-manifest hash. Materialise
 that exact blob outside Git for the run rather than reconstructing a new
 manifest from directory names.
 
+The official annotation provenance is the public
+[`CoachAI-Challenge-IJCAI2023/ShuttleSet22`](https://github.com/wywyWang/CoachAI-Projects/tree/45517f7d4cb936b03f3eabf939cc7959d39226fe/CoachAI-Challenge-IJCAI2023/ShuttleSet22)
+tree at upstream commit
+`45517f7d4cb936b03f3eabf939cc7959d39226fe`. The pinned corpus and tree hashes
+above authenticate that snapshot.
+
 The label-free program checks the source manifest, prepared artifacts and
 inpaint records. It receives no annotation-tree or official-annotation path.
 The scoring program checks the two annotation identities only after it has
 accepted the completed combined prediction file.
+
+The official annotation-corpus identity is calculated from
+`set/match.csv`, followed by every sorted `set/*/set*.csv` path. For each file,
+hash its annotation-root-relative POSIX path and file bytes. Prefix both with
+their lengths as unsigned eight-byte big-endian integers. This is the pinned
+historical ShuttleSet22 checksum rule; do not replace it with a generic tree
+hash.
 
 ### Final detector
 
