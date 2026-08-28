@@ -2,11 +2,11 @@
 
 ## Pick up from here
 
-- Current work: wait for the user's ShuttleSet22 input choice; `HANDOVER.md` records the full state
-- Next action: choose between matching the original InpaintNet processing, using the prepared no-inpaint tracks, or preparing both before labels
+- Current work: prepare the approved post-hoc GPU InpaintNet run for all 47 ShuttleSet22 videos
+- Next action: implement and check the restartable runner, then time video 8 before the `tmux` launch
 - Required check: write and review the chosen 47-video test plan, then save all model scores and player-side predictions before any test label row is read
-- Current blocker: the user has not yet chosen how ShuttleSet22 shuttle tracks should be prepared
-- Plan section: `plan.md`, “Final training and ShuttleSet22 test”
+- Current blocker: none
+- Plan section: `shuttleset22_inpaint_plan.md`
 
 ## Things to remember
 
@@ -16,6 +16,17 @@
 - The second code-reading task ran longer than planned. It was stopped and returned useful findings that it checked against the source.
 - The exact list of no more than 12 full model runs must be committed before model training starts.
 - Reports must use simple words and normal speech. They must not invent labels for ordinary ideas.
+
+### Fixed the ShuttleSet22 inpaint run — 2026-08-28
+
+- Decision: run the normal InpaintNet coordinate step from every saved no-inpaint TrackNet CSV
+- Videos: the fixed 47 non-overlapping ShuttleSet22 IDs
+- GPU check: exact-input frames differed by no more than one pixel on a complete original video
+- Guard check: the fabricated count stayed unchanged and four extra frames became degraded
+- Storage: keep the prepared extract read-only and write a sibling-file mirror in experiment scratch
+- Restart: finish one video in a temporary directory, then rename it into place
+- Label boundary: do not open ShuttleSet22 contact labels
+- Planned commit: `Plan the ShuttleSet22 inpaint run`
 
 ### Recorded the ShuttleSet22 fork — 2026-08-28
 

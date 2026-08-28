@@ -1,7 +1,7 @@
 # Resume
 
-- Current work and status: the final model is fitted and independently checked; `HANDOVER.md` records the complete state and ShuttleSet22 fork
-- Next action: ask the user whether to rerun ShuttleSet22 with InpaintNet, use the prepared no-inpaint tracks, or prepare both before labels
+- Current work and status: the user chose post-hoc GPU InpaintNet for all 47 ShuttleSet22 videos; the fixed run is being prepared
+- Next action: implement and check `shuttleset22_inpaint_plan.md`, then launch the checked run in `tmux`
 - Active reviewer: none; the final model result review found no blocker
 - Branch: `contact-det-feasibility`; latest planned commit is `Write the contact experiment handover`
 - Last useful check: 145 experiment tests and all 1,893 project tests pass; Ruff and the pinned type check pass
@@ -18,5 +18,5 @@
 - Final-fit plan: rerun A–D with V included in training, score V from A–D, choose only from the original 57 setting pairs, then fit HGB once on all 40
 - Final held-out result: group V exactly repeats the earlier validation scores; the repeated combined files match; the fixed choice remains cut-off 0.9 and nearby-contact distance six
 - Final model result: all 40 videos, 1,313,803 training rows, 94,530 positive rows and an exact 80-row reload check; independent review found no blocker
-- ShuttleSet22 fork: its 47 prepared tracks used stride-8 TrackNet without InpaintNet, while the original 40-video run used InpaintNet and saved sidecars
+- ShuttleSet22 input decision: run the normal non-overlapping 16-frame InpaintNet step from the saved TrackNet coordinates, save sibling outputs in a writable mirror, and derive fresh guard codes
 - Important files: `HANDOVER.md`, `final_contact_fit_plan.md`, `final_contact_fit_report.md`, `contract.md`, `decisions.md`, `plan.md`, `worklog.md`

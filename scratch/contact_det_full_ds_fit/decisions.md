@@ -191,6 +191,18 @@ predictions across all 40 development videos.
 - Keep new work in `scratch/contact_det_full_ds_fit/`
 - Make small local commits and keep machine access details out of Git
 
+## ShuttleSet22 inpaint input
+
+Run InpaintNet on the saved no-inpaint TrackNet coordinates for all 47 test
+videos. Use the normal non-overlapping 16-frame path on GPU. Save the original
+prepared files unchanged and put the new CSV, track, sidecar and guard files in
+a writable sibling-file mirror.
+
+The full original-video trial found only one-pixel GPU differences on frames
+whose earlier inputs could be reconstructed exactly. The fabricated guard
+count stayed unchanged. Four extra frames were rejected as degraded. The user
+accepted this difference on 2026-08-28.
+
 ## Final contact fit result
 
 Keep the reference raw-motion HGB model with balanced class weights and up to
