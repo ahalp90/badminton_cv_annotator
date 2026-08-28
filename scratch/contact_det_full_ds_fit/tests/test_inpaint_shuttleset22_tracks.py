@@ -70,6 +70,30 @@ def test_read_tracknet_csv_rejects_nonzero_invisible_coordinate(tmp_path: Path) 
         read_tracknet_csv(path)
 
 
+def test_read_tracknet_csv_allows_original_inpaint_output_outside_frame(tmp_path: Path) -> None:
+    path = tmp_path / "inpainted_ball.csv.gz"
+    with gzip.open(path, "wt", encoding="utf-8", newline="") as output_file:
+        writer = csv.writer(output_file)
+        writer.writerow(("Frame", "Visibility", "X", "Y"))
+        writer.writerow((0, 1, 1920, 1081))
+
+    arrays = read_tracknet_csv(path, coordinates_must_be_in_frame=False)
+
+    assert arrays["X"].tolist() == [1920]
+    assert arrays["Y"].tolist() == [1081]
+
+
+def test_read_tracknet_csv_keeps_input_coordinates_inside_frame(tmp_path: Path) -> None:
+    path = tmp_path / "base_ball.csv.gz"
+    with gzip.open(path, "wt", encoding="utf-8", newline="") as output_file:
+        writer = csv.writer(output_file)
+        writer.writerow(("Frame", "Visibility", "X", "Y"))
+        writer.writerow((0, 1, 1920, 1081))
+
+    with pytest.raises(ValueError, match="x coordinates are outside the frame"):
+        read_tracknet_csv(path)
+
+
 def test_discover_videos_requires_every_fixed_directory(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Expected one prepared directory"):
         discover_videos(tmp_path, tmp_path)

@@ -428,3 +428,12 @@
 - Repeat check: the two combined files match byte for byte with SHA-256 `49236a091efde5ee9fcc6ac52616a716a276c992abe833c46830e30c5ec7e784`
 - Independent check: all 1,193,927 score identities match the 40 raw feature files and the four group files in fixed A–D order
 - Next action: write and audit the candidate selection plan before opening human labels
+
+### Set the ShuttleSet22 output reload rule — 2026-08-28
+
+- Full run: all 47 intended videos completed before the tmux session exited
+- First reload: stopped at video 51 because its inpainted CSV has a Y coordinate outside the 1080-pixel frame
+- Source check: the original TrackNetV3 code converts InpaintNet output straight to pixels without clipping it to the frame
+- Loader check: the normal shuttle loader accepts those values and normalises them in the same way as other coordinates
+- Decision: keep strict frame bounds for the saved TrackNet input and allow the original coordinate range when reloading InpaintNet output
+- Final gate: count every outside-frame output row, then rerun the receipt, hash, track, sidecar and guard checks for all 47 videos

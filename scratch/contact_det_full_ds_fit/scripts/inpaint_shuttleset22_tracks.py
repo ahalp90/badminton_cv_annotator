@@ -141,7 +141,11 @@ def output_paths(directory: Path, video_name: str) -> OutputPaths:
     )
 
 
-def read_tracknet_csv(path: Path) -> dict[str, np.ndarray]:
+def read_tracknet_csv(
+    path: Path,
+    *,
+    coordinates_must_be_in_frame: bool = True,
+) -> dict[str, np.ndarray]:
     columns = {name: [] for name in ("Frame", "X", "Y", "Visibility")}
     with gzip.open(path, "rt", encoding="utf-8", newline="") as input_file:
         reader = csv.DictReader(input_file)
@@ -160,10 +164,11 @@ def read_tracknet_csv(path: Path) -> dict[str, np.ndarray]:
     invisible = arrays["Visibility"] == 0
     if np.any(arrays["X"][invisible] != 0) or np.any(arrays["Y"][invisible] != 0):
         raise ValueError(f"Invisible TrackNet rows have non-zero coordinates in {path.name}")
-    if np.any(arrays["X"] < 0) or np.any(arrays["X"] >= FRAME_WIDTH):
-        raise ValueError(f"TrackNet x coordinates are outside the frame in {path.name}")
-    if np.any(arrays["Y"] < 0) or np.any(arrays["Y"] >= FRAME_HEIGHT):
-        raise ValueError(f"TrackNet y coordinates are outside the frame in {path.name}")
+    if coordinates_must_be_in_frame:
+        if np.any(arrays["X"] < 0) or np.any(arrays["X"] >= FRAME_WIDTH):
+            raise ValueError(f"TrackNet x coordinates are outside the frame in {path.name}")
+        if np.any(arrays["Y"] < 0) or np.any(arrays["Y"] >= FRAME_HEIGHT):
+            raise ValueError(f"TrackNet y coordinates are outside the frame in {path.name}")
     return arrays
 
 
@@ -459,7 +464,7 @@ def validate_completed(video: VideoInput, output_root: Path, repo_src: Path) -> 
         if not path.is_file() or sha256(path) != expected_hash:
             raise ValueError(f"Completed output hash differs for video {video.video_id}: {name}")
 
-    arrays = read_tracknet_csv(paths.csv_path)
+    arrays = read_tracknet_csv(paths.csv_path, coordinates_must_be_in_frame=False)
     validate_base_track(arrays, paths.track_path)
     if receipt.get("frame_count") != len(arrays["Frame"]):
         raise ValueError(f"Completed frame count differs for video {video.video_id}")
