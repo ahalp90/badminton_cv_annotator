@@ -4,11 +4,14 @@ This folder checks whether small choices after frame scoring can improve complet
 
 The scripts read the existing baseline records from `scratch/contact_det_full_ds_fit/`. They do not copy the large feature arrays.
 
+For a short visual account of the result, start with [the nine-image visual guide](visual_guide.md). Matching PNG and SVG figures live under `figures/`.
+
 ## Contents
 
 - [Current state](#current-state)
 - [Data rule](#data-rule)
 - [Commands](#commands)
+- [Visual guide](#visual-guide)
 
 ## Current state
 
@@ -136,4 +139,13 @@ Run the combined best-case check and learned delete chooser:
   -m scratch.contact_det_followup.scripts.audit_combined_best_case
 ~/.venvs/badminton-cicd/bin/python \
   -m scratch.contact_det_followup.scripts.score_delete_model
+```
+
+## Visual guide
+
+Rebuild the visual guide from the saved result records:
+
+```bash
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.plot_visual_guide
 ```
