@@ -6,6 +6,8 @@ import pytest
 
 from scratch.contact_det_followup.scripts.prediction_io import (
     DEFAULT_PREDICTIONS,
+    REPO_ROOT,
+    load_development_predictions,
     load_frozen_test_predictions,
     read_json,
 )
@@ -40,3 +42,24 @@ def test_prediction_loader_rejects_another_video_set(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="fixed 47-video test set"):
         load_frozen_test_predictions(path)
+
+
+def test_development_loader_covers_all_five_groups() -> None:
+    predictions = load_development_predictions()
+
+    assert len(predictions.videos) == 40
+    assert set(predictions.group_by_fixture.values()) == {"A", "B", "C", "D", "V"}
+    assert set(predictions.events_by_fixture) == {video.fixture for video in predictions.videos}
+
+
+def test_development_loader_checks_model_training_videos(tmp_path) -> None:
+    payload = read_json(
+        REPO_ROOT
+        / "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz"
+    )
+    payload["videos"][0]["model_training_videos"].append("sset_01")
+    path = tmp_path / "training_predictions.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model training videos differ"):
+        load_development_predictions(training_path=path)
