@@ -30,6 +30,12 @@ Five leave-one-group sensitivity checks also chose 0.85 with the existing six-fr
 
 The lower cut-off raised first-contact recall from 49.4% to 53.5%. Contact F1 fell slightly from 88.49% to 88.38%. The compact raw scores do not contain player sides for most alternative frames, so this sweep measures complete timing only. It does not count fully correct contact-and-side outputs.
 
+The first-contact best-case check uses the 32 A-D development videos. It leaves the eight V videos aside for the final model check. Labels may choose keep, add, or replace for this ceiling only.
+
+The current predictions have 745 sections with complete contact timing. The best allowed timing choice raises this to 1,063. It repairs 318 sections, spread across all four video groups. Adding an earlier event can repair 259 sections. Replacing the current first event can repair another 59.
+
+The old timing-and-current-side target finds only 74 repairs. Choosing contact timing first and then applying the whole-rally side vote finds 300. This clears the planned 40-section signal, so the next step is a small label-free action model.
+
 ## Data rule
 
 Prediction commands run without labels. Scoring commands load the saved clean labels after predictions exist.
@@ -74,4 +80,11 @@ Run the 57-setting timing sweep:
 ```bash
 ~/.venvs/badminton-cicd/bin/python \
   -m scratch.contact_det_followup.scripts.score_setting_sweep
+```
+
+Run the first-contact best-case check:
+
+```bash
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.score_start_best_case
 ```
