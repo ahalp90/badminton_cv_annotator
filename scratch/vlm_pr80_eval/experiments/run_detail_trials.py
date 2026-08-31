@@ -11,6 +11,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from .backends import BACKEND_KEYS, QWEN_BACKEND_KEYS
 from .detail_schema import (
     DetailArm,
     DetailCase,
@@ -164,7 +165,7 @@ def run_detail_trials(
     if len(frame_counts) != 1:
         raise ValueError(f"detail arms use different frame counts: {sorted(frame_counts)}")
     expected_frames = frame_counts.pop()
-    max_model_len = qwen_max_model_len if backend_name == "qwen3-vl" else None
+    max_model_len = qwen_max_model_len if backend_name in QWEN_BACKEND_KEYS else None
     backend = _load_backend(
         backend_name,
         expected_input_frames=expected_frames,
@@ -280,7 +281,7 @@ def _parse_arm_paths(raw_paths: Sequence[str]) -> dict[DetailArm, Path]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=("qwen3-vl", "internvideo3"), required=True)
+    parser.add_argument("--backend", choices=BACKEND_KEYS, required=True)
     parser.add_argument(
         "--arm",
         action="append",

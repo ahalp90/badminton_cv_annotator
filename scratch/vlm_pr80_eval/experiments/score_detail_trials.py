@@ -11,6 +11,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from .backends import BACKEND_KEYS
 from .detail_schema import (
     DetailArm,
     DetailCase,
@@ -580,7 +581,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--truth", type=Path, required=True)
     parser.add_argument("--attempts", type=Path, required=True)
-    parser.add_argument("--backend", choices=("qwen3-vl", "internvideo3"), required=True)
+    parser.add_argument("--backend", choices=BACKEND_KEYS, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument(
         "--prompt-mode",

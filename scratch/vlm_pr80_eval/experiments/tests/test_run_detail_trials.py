@@ -249,9 +249,11 @@ def test_runner_rejects_conservative_prompt_for_other_or_multiple_arms(
         )
 
 
+@pytest.mark.parametrize("backend_name", ["qwen3-vl", "qwen3-8"])
 def test_runner_passes_qwen_length_and_rejects_incomplete_arm_paths(
     tmp_path: Path,
     monkeypatch,
+    backend_name: str,
 ) -> None:
     paths = _write_manifests(tmp_path)
     captured = SimpleNamespace(max_model_len=None)
@@ -262,7 +264,7 @@ def test_runner_passes_qwen_length_and_rejects_incomplete_arm_paths(
 
     monkeypatch.setattr(runner, "_load_backend", load_backend)
     runner.run_detail_trials(
-        "qwen3-vl",
+        backend_name,
         {arm.value: path for arm, path in paths.items()},
         tmp_path / "qwen-attempts",
         limit=1,

@@ -107,6 +107,18 @@ case "$BACKEND" in
       --env VLLM_NO_USAGE_STATS=1
     )
     ;;
+  qwen3-8)
+    : "${VLM_QWEN38_IMAGE:?set VLM_QWEN38_IMAGE}"
+    : "${VLM_QWEN38_PYTHON:?set VLM_QWEN38_PYTHON}"
+    image=$VLM_QWEN38_IMAGE
+    python_path=$VLM_QWEN38_PYTHON
+    container_args+=(
+      --env FLASHINFER_WORKSPACE_BASE="$CACHE_ROOT/flashinfer"
+      --env VLLM_CACHE_ROOT="$CACHE_ROOT/vllm"
+      --env VLLM_CONFIG_ROOT="$CACHE_ROOT/vllm-config"
+      --env VLLM_NO_USAGE_STATS=1
+    )
+    ;;
   internvideo3)
     : "${VLM_INTERN_IMAGE:?set VLM_INTERN_IMAGE}"
     : "${VLM_INTERN_PYTHON:?set VLM_INTERN_PYTHON}"

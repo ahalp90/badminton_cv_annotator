@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+BACKEND_KEYS = ("internvideo3", "qwen3-vl", "qwen3-8")
+QWEN_BACKEND_KEYS = frozenset({"qwen3-vl", "qwen3-8"})
+
 
 @dataclass(frozen=True)
 class ModelIdentity:
@@ -103,10 +106,21 @@ def load_backend(
             expected_input_frames=expected_input_frames,
             max_model_len=max_model_len,
         )
+    if name == "qwen3-8":
+        from .qwen3_8 import Qwen38Backend
+
+        if max_model_len is None:
+            raise ValueError("Qwen3.8 requires an explicit maximum model length")
+        return Qwen38Backend(
+            expected_input_frames=expected_input_frames,
+            max_model_len=max_model_len,
+        )
     raise ValueError(f"unknown VLM backend {name!r}")
 
 
 __all__ = [
+    "BACKEND_KEYS",
+    "QWEN_BACKEND_KEYS",
     "BackendSpec",
     "GenerationEvidence",
     "ModelIdentity",

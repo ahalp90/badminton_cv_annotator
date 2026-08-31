@@ -19,7 +19,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from .backends import load_backend
+from .backends import BACKEND_KEYS, QWEN_BACKEND_KEYS, load_backend
 
 MANIFEST_SCHEMA = "vlm-rally-start-manifest-v1"
 TRUTH_SCHEMA = "vlm-rally-start-truth-v1"
@@ -715,7 +715,7 @@ def run_trials(
         cases = cases[:limit]
     if not cases:
         raise ValueError("no rally-start cases selected")
-    max_model_len = QWEN_MAX_MODEL_LEN if backend_name == "qwen3-vl" else None
+    max_model_len = QWEN_MAX_MODEL_LEN if backend_name in QWEN_BACKEND_KEYS else None
     backend = load_backend(
         backend_name,
         expected_input_frames=EXPECTED_FRAMES,
@@ -1070,7 +1070,7 @@ def _parse_attempt_roots(values: Sequence[str]) -> dict[str, Path]:
     parsed = {}
     for value in values:
         backend_name, separator, raw_path = value.partition("=")
-        if not separator or backend_name not in {"internvideo3", "qwen3-vl"}:
+        if not separator or backend_name not in BACKEND_KEYS:
             raise ValueError("--attempt must be BACKEND=PATH for a supported backend")
         if backend_name in parsed:
             raise ValueError(f"duplicate attempt root for {backend_name}")
@@ -1088,7 +1088,7 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--out", type=Path, required=True)
 
     run = subparsers.add_parser("run", help="run one VLM backend")
-    run.add_argument("--backend", choices=("internvideo3", "qwen3-vl"), required=True)
+    run.add_argument("--backend", choices=BACKEND_KEYS, required=True)
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True)
     run.add_argument("--limit", type=int)
