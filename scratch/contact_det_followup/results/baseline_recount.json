@@ -1,0 +1,26 @@
+{
+  "command": "python -m scratch.contact_det_followup.scripts.recount_baseline",
+  "inputs": {
+    "labels": "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-result/clean_labels.json.gz",
+    "predictions": "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-predictions/combined_predictions.json.gz"
+  },
+  "metrics": {
+    "answered_player_sides": 32188,
+    "correct_player_sides": 29620,
+    "labelled_contacts": 38218,
+    "matched_contacts": 32243,
+    "old_fully_correct_sections": 493,
+    "player_side_accuracy": 0.9202187150490866,
+    "predicted_contacts": 39994,
+    "predicted_sections": 3982,
+    "strict_fully_correct_precision": 0.12129583124058262,
+    "strict_fully_correct_sections": 483,
+    "timing_f1": 0.8245026338669258,
+    "timing_precision": 0.8061959293894084,
+    "timing_recall": 0.8436600554712439
+  },
+  "prediction_source_commit": "ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9",
+  "repository_commit": "75284318ce7a3c58bf5a3b42daebef701194a1bc",
+  "run_id": "baseline-recount",
+  "schema": "contact-detector-followup-baseline/1"
+}
