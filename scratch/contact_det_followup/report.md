@@ -1,110 +1,173 @@
-# Contact detector follow-up result
+# What we learned from the contact-detector follow-up
 
-## Bottom line
+## The short answer
 
-The whole-rally player-side vote is the one clear low-cost gain. It raises fully correct outputs on the frozen 47-video test from 483 to 901 at ±5 frames. At ±10, it raises the count from 524 to 995. It breaks no previously correct section at either tolerance.
+The whole-rally player-side rule is the only clear improvement from this series. It almost doubled the number of fully correct outputs on the frozen 47-video test. At the main ±5-frame tolerance, the count rose from **483 to 901 of 3,982 sections**. The rule repaired 418 sections and broke none.
 
-The remaining checks found useful clues but no safe follow-up rule. A cautious first-contact model repaired six sections on the untouched V videos. The cut-off sweep added 13 timing-complete development sections at ±5 and 25 at ±10. The learned delete chooser lost 46 net sections at ±5 and 55 at ±10. The keep-or-review model also missed its precision target by a wide margin.
+The saved candidate frames contain many better answers. The tested models cannot choose those answers safely. The keep-or-review model also missed its precision target by a wide margin.
 
-The current scores still contain missed answers. Labels can find many of them in a small search. The label-free models cannot choose those answers reliably enough. Further work would need better evidence or a new contact model.
+The system is not close to a standalone, near-100%-precision auto-annotator.
 
-## Main results
+![The whole-rally side rule almost doubles fully correct test sections, but most sections remain wrong.](figures/01_complete_rallies.png)
 
-The tables use base-30 frames. The ±5 result is the primary result. The ±10 column shows how the same fixed choice behaves with a wider timing allowance.
+## What the experiments were trying to learn
 
-A-D means the 32 videos used to develop the small follow-up models. V means the eight videos held aside for one final first-contact check.
+The contact detector scores possible hit frames. Later code turns those scores into a list of contacts, assigns a player side, and groups the contacts into rally sections.
 
-| Check | ±5 frames | ±10 frames | Result |
-| --- | ---: | ---: | --- |
-| Frozen baseline, fully correct outputs | 483 / 3,982 (12.13%) | 524 / 3,982 (13.16%) | Reference |
-| Whole-rally side vote | 901 / 3,982 (22.63%) | 995 / 3,982 (24.99%) | Keep |
-| Pooled first-contact choice, A-D | 750 / 2,850 (26.32%) | 850 / 2,850 (29.82%) | Validate once |
-| Safe first-contact model, untouched V | 183 / 677 (27.03%) | 192 / 677 (28.36%) | Stop after validation |
-| Best learned delete setting, A-D | 680 / 2,850 (23.86%) | 767 / 2,850 (26.91%) | Stop |
+The earlier test found useful individual contacts. Complete rally outputs were rarely right. This follow-up asked whether the remaining errors could be fixed cheaply with information the annotator already has:
 
-The first-contact rows start from 726 A-D sections and 177 V sections at ±5. At ±10, they start from 822 A-D sections and 186 V sections.
+1. Would the player labels improve if the whole rally had to alternate between the two court halves?
+2. Were nearby events from opposite sides creating duplicate contacts?
+3. Would a different score cut-off or merge distance make more complete contact lists?
+4. Could a small model recover a missed first contact?
+5. Could another small model remove one bad contact from a rally?
+6. Could a model recognise the few rallies that were safe to accept without review?
 
-## What each check found
+The experiments did not change the contact vision model. They looked only for gains already present in the saved predictions.
 
-### Whole-rally player sides
+## What counted as correct
 
-The side vote chooses the better-supported alternating Top/Bottom pattern for each full contact list. Development labels set one fixed vote-gap rule. The frozen test labels only score that rule.
+A section was fully correct only when it contained one complete labelled rally, with every contact at the right time and assigned to the right court half.
 
-| Tolerance | Baseline | Revised | Repaired | Broken | Net |
+The main result allows a timing error of five frames on a 30 fps clock. The report repeats each calculation at ±10 frames for context. The ±5 result remains the main measure.
+
+Some experiments let the labels choose the best possible edit. These **best-case checks** measure how many useful answers exist among the saved candidates. They do not describe a rule that can run on a new video. The report identifies every result from a model that chose without labels.
+
+## What happened
+
+| Experiment | Main result | What it tells us |
+| --- | --- | --- |
+| Choose sides across the rally | 418 repairs and 0 breaks on the frozen test at ±5 | Use it when complete rallies are the goal |
+| Remove close opposite-side duplicates | No qualifying pair in development or test predictions | There was nothing for this rule to fix |
+| Change the contact cut-off | 139 repairs and 126 breaks on development timing at ±5 | Too much churn for a net gain of 13 |
+| Repair the first contact | 6 repairs and 0 breaks on eight untouched videos | A real but small lead |
+| Learn when to delete a contact | 42 repairs and 88 breaks on development at ±5 | The model made the output worse |
+| Accept only likely-correct rallies | 40.87% precision at 16.14% coverage | The model could not find a clean automatic subset |
+
+“Coverage” means the share of predicted sections the model accepts. Rejecting most sections can raise precision. The accepted remainder still has to be dependable.
+
+## The baseline errors were not one problem
+
+Among the 2,969 baseline sections that mapped to one labelled rally, missed contacts were the largest error group. Wrong player sides were the next clear repair target. Timing errors and extra contacts also mattered.
+
+The older error audit counted 493 sections as fully correct. In ten cases, the timing allowance reached past a section edge. The stricter recount excluded those cases. Its baseline is 483 sections.
+
+![Most baseline failures contain a missed contact. Wrong player sides are the largest clean repair target.](figures/02_baseline_errors.png)
+
+One confidence score cannot describe all these errors. A contact can look convincing even when the rally misses an earlier hit. The rally may also contain an extra event, start in the wrong place, or assign the wrong player.
+
+## 1. Choosing player sides across the whole rally worked
+
+Badminton contacts normally alternate between the two court halves. The baseline assigned Top or Bottom to each contact separately. The follow-up compared the two possible alternating patterns for the complete contact list and kept the better-supported one.
+
+The minimum vote gap was chosen on 40 development videos. Each of those videos had contact predictions from a model that did not train on it. The fixed rule was then scored once on the separate 47-video test.
+
+| Tolerance | Baseline | With the rally-wide vote | Repaired | Broken |
+| --- | ---: | ---: | ---: | ---: |
+| ±5 frames | 483 / 3,982 (12.13%) | 901 / 3,982 (22.63%) | 418 | 0 |
+| ±10 frames | 524 / 3,982 (13.16%) | 995 / 3,982 (24.99%) | 471 | 0 |
+
+At ±5, the rule found 418 of the 434 strict repairs available from the two alternating patterns. The rule missed only 16 possible repairs.
+
+Accuracy on individual matched-contact side labels fell from 92.02% to 91.13%. Contact-and-side F1 fell from 75.74% to 75.07%. The alternating sequence improves the complete rally, but some individual side labels get worse.
+
+Use the rally-wide vote for complete-rally output. Keep the old assignments when each contact must stand on its own.
+
+## 2. The simple contact-list changes did not help enough
+
+The duplicate audit looked for adjacent events from opposite sides within two frames. It found none in the saved development predictions. It also found none in the frozen test predictions. The proposed cleanup rule had nothing to remove.
+
+The setting sweep tried 57 combinations of contact cut-off and merge distance. The best development setting lowered the cut-off from 0.90 to 0.85 and kept the six-frame merge distance.
+
+| Tolerance | Baseline timing-complete sections | Revised | Repaired | Broken | Net |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ±5 | 483 | 901 | 418 | 0 | +418 |
-| ±10 | 524 | 995 | 471 | 0 | +471 |
+| ±5 frames | 940 | 953 | 139 | 126 | +13 |
+| ±10 frames | 1,045 | 1,070 | 167 | 142 | +25 |
 
-The rule changes 2,100 of 3,982 test sections. It captures 418 of the 434 side-pattern repairs available in the ±5 label-guided ceiling.
+The lower cut-off found more first contacts, but it also added false contacts. At ±5, first-contact recall rose from 49.39% to 53.47% while contact F1 fell from 88.49% to 88.38%.
 
-The rule favours a complete alternating rally over individual side answers. At ±5, matched-contact side accuracy falls from 92.02% to 91.13%. Contact-and-side F1 falls from 75.74% to 75.07%. The strict full-rally count still rises by 418.
+The setting sweep measured contact timing only. Most alternative frames in the compact saved data do not have player-side labels. No complete-rally gain was measured.
 
-### Nearby duplicates and global settings
+The test data lacks the raw per-frame scores needed for a cheap 0.85 rescore. The 0.85 cut-off has not been checked on the frozen test.
 
-The duplicate audit found no adjacent opposite-side events within two frames. That leaves nothing for the proposed cleanup rule to remove.
+The global cut-off should remain 0.90 for the main ±5 measure. The +25 development result becomes worth one fresh test if ±10 becomes the release tolerance. That test needs the full raw scores.
 
-The 57-setting development sweep favours a contact cut-off of 0.85 with the existing six-frame merge distance. At ±5, timing-complete sections rise from 940 to 953. The setting repairs 139 sections and breaks 126, for a net gain of 13. This stays below the planned 25-section signal.
+## 3. Better first contacts exist, but the model found few of them
 
-At ±10, timing-complete sections rise from 1,045 to 1,070. The setting repairs 167 sections and breaks 142, for a net gain of 25. This meets the working signal exactly. First-contact recall rises from 53.91% to 58.47%, while contact F1 changes from 89.48% to 89.46%.
+The first-contact check used the 32 development videos in groups A–D. The eight videos in group V stayed untouched until the final model choice.
 
-The saved alternative frames lack player sides, so this sweep measures timing only. The frozen test pack also lacks the raw per-frame test scores needed for a cheap 0.85 rescore. The ±10 result remains a small development lead if the wider tolerance becomes the release measure.
+Labels chose whether to keep the current start, add an earlier candidate, or replace the first event. The best-case timing check repaired 318 sections. Applying the rally-wide side vote afterwards made 300 sections fully correct.
 
-### First contact
+The candidate lists already contain many correct first contacts.
 
-The ±5 label-guided timing ceiling raises complete A-D sections from 745 to 1,063. It finds 318 possible repairs. Timing followed by the rally-wide side vote finds 300 strict repairs.
+The label-free model recovered only a small part of that opportunity. On A–D, the cautious pooled choice repaired 24 sections and broke none. A stricter group-held-out estimate repaired seven. The fixed model then changed 15 sections on the untouched V videos. It repaired six and broke none.
 
-The cautious label-free model uses a small gradient-boosted tree model with a 0.9 choice cut-off. Its held-out A-D predictions make 62 changes. The pooled A-D comparison repairs 24 strict sections at ±5 and 28 at ±10, with no breaks.
+![The saved candidates contain many repairs, but the tested models recover only a small share.](figures/03_candidates_and_choosers.png)
 
-The pooled comparison uses all A-D labels to choose the model setting. A stricter nested check chooses the setting without each outer group's labels. That check repairs seven sections at ±5 and eight at ±10, with no breaks.
+The six clean repairs on V show that the features carry some useful signal. Six repairs are too few to justify another layer in the current pipeline. A better contact model or first-contact candidate source is more promising than another threshold for this chooser.
 
-The fixed model then makes 15 changes on the untouched V group. It repairs six sections at both tolerances and breaks none. Contact-and-side F1 rises from 81.33% to 81.41% at ±5. It rises from 81.87% to 81.96% at ±10.
+## 4. The whole-rally edit search found room, but the delete model was unsafe
 
-The safe model captures less than one third of the ±5 ceiling. The first-contact line stops after the V check.
+The combined best-case check allowed three things: one small start edit, one deletion, and either alternating side pattern. Labels chose the best allowed output for each A–D section.
 
-### Whole-rally event choices
+At ±5, this raised fully correct sections from 726 to 1,198. The 472 possible repairs included 90 sections that needed a deletion and another 15 that only needed the other side pattern. At ±10, the combined ceiling rose from 822 to 1,356.
 
-The combined ceiling allows one early add or replacement, one deletion, and either alternating player-side pattern. Labels choose the best allowed result for each rally. This is a measure of room to improve.
+The saved search space contains better answers. The annotator cannot yet recognise them.
 
-| Ceiling | ±5 frames | ±10 frames |
-| --- | ---: | ---: |
-| Baseline A-D sections | 726 | 822 |
-| Start edit only | 1,050 | 1,186 |
-| Delete only | 831 | 945 |
-| Combined | 1,198 | 1,356 |
+The learned delete model selected 497 deletions at its best descriptive setting. At ±5, it repaired 42 sections and broke 88. The net loss was 46 sections. At ±10, it repaired 49 and broke 104. The net loss was 55.
 
-A deletion is needed for 90 repairs at ±5 and 106 at ±10. Another 15 and 17 repairs come from choosing the other side pattern without editing the event list. The combined search repairs 472 sections at ±5 and 534 at ±10. These gains occur when labels select the action and side pattern.
+Each group also faced a safety check based only on the other groups. None passed, so every group kept its original output.
 
-The learned delete chooser uses only evidence available while the annotator runs. Its best descriptive setting selects 497 deletions.
+The delete model makes the output worse. It cannot tell a harmful extra contact from a real one.
 
-| Tolerance | Repaired | Broken | Net |
-| --- | ---: | ---: | ---: |
-| ±5 | 42 | 88 | −46 |
-| ±10 | 49 | 104 | −55 |
+## 5. The keep-or-review model could not find a clean subset
 
-No setting passes the planned gate of at least 30 net repairs with at most one break per five repairs. The nested held-out check therefore keeps every group unchanged. The whole-rally chooser stops.
+The most direct route to a low-recall, high-precision annotator is to let the model abstain. It can accept only the rallies it thinks are fully correct and send everything else to review.
 
-### Keep or review
+The model was trained and scored with group-held-out predictions from the 32 A–D videos. Its target was at least 90% precision while accepting at least 10% of sections.
 
-The keep-or-review model estimates whether a whole predicted rally is correct. It uses group-held-out scores from the 32 A-D videos.
+![The keep-or-review model remains far below the 90% precision target at every tested coverage.](figures/04_keep_review_curve.png)
 
-The nearest tested threshold above 10% coverage accepts 460 of 2,850 sections, or 16.14%. Precision is 40.87% at ±5 and 45.87% at ±10. The target was 90% precision at 10% coverage.
+At the nearest tested point above 10% coverage, it accepted 460 of 2,850 sections:
 
-The next threshold accepts only 5.26% of sections. Its precision reaches 45.33% at ±5 and 50.00% at ±10. This line stops.
+- 40.87% were fully correct at ±5
+- 45.87% were fully correct at ±10
 
-## How to read these results
+Raising the threshold did not solve the problem. At 5.26% coverage, precision reached 45.33% at ±5 and 50.00% at ±10. At the strictest non-empty point, the model kept only eight sections and got four right.
 
-The frozen baseline and side-vote result use 47 test videos. Development choices cannot use those labels. The first-contact validation uses eight V videos after the choice was fixed on A-D.
+The current features do not support a near-perfect automatic subset. Retuning the same keep-or-review model is unlikely to fix that.
 
-Label-guided ceilings may use labels to choose an action for each rally. They show how many answers exist in the saved candidates. They do not describe a rule that can run on a new video.
+## Are we closer to a standalone, near-100%-precision annotator?
 
-Label-free model results use only saved scores, events, pose, shuttle, and section facts when making a choice. Labels provide training targets on development groups and score held-out predictions.
+We are closer on the number of correct rallies, not on trustworthy auto-acceptance.
 
-The section split and extension audit stayed in reserve. The main whole-rally chooser already failed its safety gate. A section pass would answer a separate rally-boundary question and would add a new branch of work.
+The rally-wide side rule moves complete-output precision from 12.13% to 22.63% at ±5. The strict complete-rally check still marks 3,081 of 3,982 predicted sections wrong.
 
-## Recommendation
+The keep-or-review model tested trustworthy auto-acceptance. Even when it accepted only eight sections, its precision was 50%.
 
-Use the whole-rally side vote when a fully correct alternating rally is the product goal. Keep its matched-contact side and F1 trade-off visible in any release note.
+The results mean that:
 
-Keep the cautious first-contact result as evidence for future model work. Its six-section V gain is real but small.
+- the annotator can produce more correct complete rallies than before;
+- it cannot yet recognise which of its complete rallies are safe to trust;
+- low gross recall does not rescue the current approach; and
+- the missing ingredient is better evidence, not another cut-off on the same scores.
 
-Stop the remaining post-scoring experiments here. Keep the 0.85 cut-off as a small follow-up lead if ±10 becomes the release measure. Better contact or side evidence is more likely to help than another small chooser over the same saved inputs.
+## What can we say about different broadcasts?
+
+The side vote was fixed before the 47 test videos were scored, so the gain is not a development-set artefact. The rule also uses a stable feature of badminton—the players normally alternate contacts—which makes it a sensible candidate for broader testing.
+
+The test set was not reported by camera layout, tournament, on-screen graphics, or broadcast style.
+
+Contact precision also fell when the model moved from development videos to this test set. We do not know whether the full annotator stays calibrated under a new broadcast convention. We also do not know whether its confidence scores remain reliable.
+
+A claim about generalisation needs a test that holds out whole broadcast families, not just individual videos. It also needs a precision-versus-coverage curve for each held-out family. The [next-steps note](next_steps.md) describes that experiment.
+
+## What is worth carrying forward
+
+Use the whole-rally side vote when complete alternating rallies are the desired output. Keep the small fall in local side accuracy visible in any integration note.
+
+Keep the first-contact result as evidence for future model work. The candidate lists contain useful missed starts, but the current chooser is too weak.
+
+Revisit the 0.85 cut-off only if ±10 becomes the release measure and the raw test scores can be regenerated.
+
+Spend new effort on stronger upstream evidence and a genuine broadcast-shift test. The duplicate cleanup, learned delete rule, and current keep-or-review model have answered their questions.
