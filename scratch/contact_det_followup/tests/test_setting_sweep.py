@@ -42,6 +42,28 @@ def test_timing_complete_ignores_side_but_requires_exact_matching() -> None:
     }
 
 
+def test_timing_complete_uses_requested_base30_tolerance() -> None:
+    labels = HumanLabels(
+        rallies={"sset_01": (RallyReference("sset_01", 0, "1:1", (10, 20)),)},
+        target_sides={("sset_01", 10): "Top", ("sset_01", 20): "Bot"},
+    )
+    span = FixedSpan(
+        "sset_01",
+        1,
+        0,
+        30,
+        (
+            FixedEvent("sset_01", 11, 0.9, None),
+            FixedEvent("sset_01", 26, 0.9, None),
+        ),
+    )
+
+    assert timing_complete_ids((span,), labels, {"sset_01": 30.0}, 5) == frozenset()
+    assert timing_complete_ids((span,), labels, {"sset_01": 30.0}, 10) == {
+        ("sset_01", 1)
+    }
+
+
 def test_span_assignment_uses_half_open_bounds_and_counts_unassigned() -> None:
     templates = (
         FixedSpan("sset_01", 1, 10, 20, ()),

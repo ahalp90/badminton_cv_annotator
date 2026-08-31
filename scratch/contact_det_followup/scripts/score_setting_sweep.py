@@ -21,9 +21,7 @@ from scratch.contact_det_followup.scripts.prediction_io import (
     load_development_predictions,
     read_json,
 )
-from scratch.contact_det_full_ds_fit.scripts.baseline_config import (
-    load_baseline_config,
-)
+from scratch.contact_det_full_ds_fit.scripts.baseline_config import load_baseline_config
 from scratch.contact_det_full_ds_fit.scripts.experiment_config import (
     VideoSpec,
     load_development_split,
@@ -58,6 +56,8 @@ LABEL_PATH = REPO_ROOT / "training/data/shuttleset/annotations/shots_master.csv"
 OUTPUT_PATH = REPO_ROOT / "scratch/contact_det_followup/results/setting_sweep.json"
 GROUP_NAMES = ("A", "B", "C", "D", "V")
 BASELINE_SETTING = (0.9, 6)
+TOLERANCES_AT_30_FPS = (5, 10)
+PRIMARY_TOLERANCE_AT_30_FPS = 5
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,17 @@ class SettingEvaluation:
     timing_complete_ids: frozenset[tuple[str, int]]
     timing_complete_by_group: Mapping[str, int]
     contact_by_group: Mapping[str, Mapping[str, int | float | None]]
+    unassigned_by_group: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class _PreparedSetting:
+    """One setting's predictions and span assignment, shared by tolerances."""
+
+    score_cutoff: float
+    duplicate_distance_at_30_fps: int
+    predictions: Mapping[str, np.ndarray]
+    spans: tuple[FixedSpan, ...]
     unassigned_by_group: Mapping[str, int]
 
 
@@ -148,6 +159,7 @@ def timing_complete_ids(
     spans: Sequence[FixedSpan],
     labels: HumanLabels,
     fps_by_fixture: Mapping[str, float],
+    tolerance_at_30_fps: int = PRIMARY_TOLERANCE_AT_30_FPS,
 ) -> frozenset[tuple[str, int]]:
     """Return sections with exact one-rally timing, without judging player side."""
     complete: set[tuple[str, int]] = set()
@@ -157,7 +169,7 @@ def timing_complete_ids(
             span,
             labels.rallies[span.fixture],
             labels.target_sides,
-            scale_base30_frames(5, fps_by_fixture[span.fixture]),
+            scale_base30_frames(tolerance_at_30_fps, fps_by_fixture[span.fixture]),
             confidence_requirement=0.0,
         )
         timing_complete = (
@@ -254,17 +266,14 @@ def _verify_source_record(source: Mapping[str, object], scores: np.ndarray) -> N
         raise ValueError("Raw score source record differs")
 
 
-def _evaluate_setting(
+def _prepare_setting(
     scores: np.ndarray,
     videos: Sequence[VideoSpec],
-    videos_by_group: Mapping[str, Sequence[VideoSpec]],
     group_by_fixture: Mapping[str, str],
     span_templates: Sequence[FixedSpan],
-    labels: HumanLabels,
-    fps_by_fixture: Mapping[str, float],
     score_cutoff: float,
     duplicate_distance_at_30_fps: int,
-) -> SettingEvaluation:
+) -> _PreparedSetting:
     predictions, kept = predictions_for_settings(
         scores,
         videos,
@@ -277,17 +286,6 @@ def _evaluate_setting(
         len(frames) for frames in predictions.values()
     ):
         raise ValueError("Kept event count differs from setting predictions")
-    complete_ids = timing_complete_ids(spans, labels, fps_by_fixture)
-    timing_by_group = Counter(group_by_fixture[fixture] for fixture, _span_id in complete_ids)
-    contact_by_group = {
-        group: contact_counts(
-            labels.contact_labels,
-            predictions,
-            group_videos,
-            tolerance_at_30_fps=5,
-        )
-        for group, group_videos in videos_by_group.items()
-    }
     assigned_by_group = Counter(
         group_by_fixture[span.fixture]
         for span in spans
@@ -302,13 +300,78 @@ def _evaluate_setting(
     }
     if sum(unassigned_by_group.values()) != unassigned_count:
         raise ValueError("Unassigned event group counts differ")
-    return SettingEvaluation(
+    return _PreparedSetting(
         score_cutoff=score_cutoff,
         duplicate_distance_at_30_fps=duplicate_distance_at_30_fps,
+        predictions=predictions,
+        spans=spans,
+        unassigned_by_group=unassigned_by_group,
+    )
+
+
+def _evaluate_prepared_setting(
+    prepared: _PreparedSetting,
+    videos_by_group: Mapping[str, Sequence[VideoSpec]],
+    group_by_fixture: Mapping[str, str],
+    labels: HumanLabels,
+    fps_by_fixture: Mapping[str, float],
+    tolerance_at_30_fps: int,
+) -> SettingEvaluation:
+    """Score one prepared setting at one timing tolerance."""
+    complete_ids = timing_complete_ids(
+        prepared.spans,
+        labels,
+        fps_by_fixture,
+        tolerance_at_30_fps,
+    )
+    timing_by_group = Counter(group_by_fixture[fixture] for fixture, _span_id in complete_ids)
+    contact_by_group = {
+        group: contact_counts(
+            labels.contact_labels,
+            prepared.predictions,
+            group_videos,
+            tolerance_at_30_fps=tolerance_at_30_fps,
+        )
+        for group, group_videos in videos_by_group.items()
+    }
+    return SettingEvaluation(
+        score_cutoff=prepared.score_cutoff,
+        duplicate_distance_at_30_fps=prepared.duplicate_distance_at_30_fps,
         timing_complete_ids=complete_ids,
         timing_complete_by_group={group: timing_by_group[group] for group in GROUP_NAMES},
         contact_by_group=contact_by_group,
-        unassigned_by_group=unassigned_by_group,
+        unassigned_by_group=prepared.unassigned_by_group,
+    )
+
+
+def _evaluate_setting(
+    scores: np.ndarray,
+    videos: Sequence[VideoSpec],
+    videos_by_group: Mapping[str, Sequence[VideoSpec]],
+    group_by_fixture: Mapping[str, str],
+    span_templates: Sequence[FixedSpan],
+    labels: HumanLabels,
+    fps_by_fixture: Mapping[str, float],
+    score_cutoff: float,
+    duplicate_distance_at_30_fps: int,
+    tolerance_at_30_fps: int = PRIMARY_TOLERANCE_AT_30_FPS,
+) -> SettingEvaluation:
+    """Prepare and score one setting, retaining the legacy helper interface."""
+    prepared = _prepare_setting(
+        scores,
+        videos,
+        group_by_fixture,
+        span_templates,
+        score_cutoff,
+        duplicate_distance_at_30_fps,
+    )
+    return _evaluate_prepared_setting(
+        prepared,
+        videos_by_group,
+        group_by_fixture,
+        labels,
+        fps_by_fixture,
+        tolerance_at_30_fps,
     )
 
 
@@ -331,42 +394,12 @@ def _setting_summary(evaluation: SettingEvaluation) -> dict[str, object]:
     }
 
 
-def run_sweep() -> dict[str, object]:
-    """Score all settings and run a leave-one-group sensitivity check."""
-    split = load_development_split(DEVELOPMENT_SPLIT)
-    score_groups = load_final_score_groups(GROUP_PATH, split)
-    group_by_fixture = {
-        video.fixture: group
-        for group, score_group in score_groups.items()
-        for video in score_group.scored_videos
-    }
-    videos_by_group = {
-        group: score_group.scored_videos for group, score_group in score_groups.items()
-    }
-    scores = _read_raw_scores(SCORE_PATH)
-    source = read_json(SCORE_RESULT_PATH)
-    _verify_source_record(source, scores)
-    _verify_score_groups(scores, group_by_fixture)
-    config = load_baseline_config(CONFIG_PATH)
-    predictions = load_development_predictions()
-    labels = load_human_labels(LABEL_PATH, split.videos)
-    fps_by_fixture = {video.fixture: video.fps for video in split.videos}
-
-    evaluations = [
-        _evaluate_setting(
-            scores,
-            split.videos,
-            videos_by_group,
-            group_by_fixture,
-            predictions.spans,
-            labels,
-            fps_by_fixture,
-            cutoff,
-            distance,
-        )
-        for cutoff in config.score_cutoffs
-        for distance in config.duplicate_distances_at_30_fps
-    ]
+def _run_sweep_at_tolerance(
+    evaluations: Sequence[SettingEvaluation],
+    videos_by_group: Mapping[str, Sequence[VideoSpec]],
+    tolerance_at_30_fps: int,
+) -> dict[str, object]:
+    """Score the fixed setting menu and sensitivity folds at one tolerance."""
     if len(evaluations) != 57:
         raise ValueError("Setting menu does not contain 57 choices")
     by_setting = {
@@ -424,28 +457,7 @@ def run_sweep() -> dict[str, object]:
     global_net = len(global_repairs) - len(global_breaks)
     decision = "continue" if global_net >= 25 else "stop"
     return {
-        "schema": "contact-detector-setting-sweep/1",
-        "status": "complete",
-        "run_id": "timing-complete-57-setting-sweep",
-        "repository_commit": _repository_commit(),
-        "result_type": "Timing-only descriptive development sweep on group-excluded predictions",
-        "labels_used": "40-video development labels, for scoring and setting choice",
-        "side_limitation": (
-            "The compact raw scores do not store player sides for most alternative frames. "
-            "Timing-complete sections are not fully correct contact-and-side outputs."
-        ),
-        "selection_limit": (
-            "The leave-one-group checks are sensitivity checks, not outer held-out tests. "
-            "Models scoring the other groups may have trained on the omitted group."
-        ),
-        "inputs": {
-            "raw_scores": str(SCORE_PATH.relative_to(REPO_ROOT)),
-            "source_record_schema": source["schema"],
-            "raw_score_source_commit": source["source_commit"],
-            "fixed_spans": [str(path.relative_to(REPO_ROOT)) for path in predictions.paths],
-            "settings": str(CONFIG_PATH.relative_to(REPO_ROOT)),
-            "groups": str(GROUP_PATH.relative_to(REPO_ROOT)),
-        },
+        "tolerance_at_30_fps": tolerance_at_30_fps,
         "setting_count": len(evaluations),
         "baseline": _setting_summary(baseline),
         "global_descriptive_best": {
@@ -471,6 +483,89 @@ def run_sweep() -> dict[str, object]:
             if decision == "continue"
             else "Even the descriptive best does not clear the 25-section timing signal."
         ),
+    }
+
+
+def run_sweep() -> dict[str, object]:
+    """Score the fixed setting menu at both reporting tolerances."""
+    split = load_development_split(DEVELOPMENT_SPLIT)
+    score_groups = load_final_score_groups(GROUP_PATH, split)
+    group_by_fixture = {
+        video.fixture: group
+        for group, score_group in score_groups.items()
+        for video in score_group.scored_videos
+    }
+    videos_by_group = {
+        group: score_group.scored_videos for group, score_group in score_groups.items()
+    }
+    scores = _read_raw_scores(SCORE_PATH)
+    source = read_json(SCORE_RESULT_PATH)
+    _verify_source_record(source, scores)
+    _verify_score_groups(scores, group_by_fixture)
+    config = load_baseline_config(CONFIG_PATH)
+    predictions = load_development_predictions()
+    labels = load_human_labels(LABEL_PATH, split.videos)
+    fps_by_fixture = {video.fixture: video.fps for video in split.videos}
+
+    evaluations_by_tolerance: dict[str, list[SettingEvaluation]] = {
+        str(tolerance): [] for tolerance in TOLERANCES_AT_30_FPS
+    }
+    for cutoff in config.score_cutoffs:
+        for distance in config.duplicate_distances_at_30_fps:
+            prepared = _prepare_setting(
+                scores,
+                split.videos,
+                group_by_fixture,
+                predictions.spans,
+                cutoff,
+                distance,
+            )
+            for tolerance in TOLERANCES_AT_30_FPS:
+                evaluations_by_tolerance[str(tolerance)].append(
+                    _evaluate_prepared_setting(
+                        prepared,
+                        videos_by_group,
+                        group_by_fixture,
+                        labels,
+                        fps_by_fixture,
+                        tolerance,
+                    )
+                )
+    results_by_tolerance = {
+        str(tolerance): _run_sweep_at_tolerance(
+            evaluations_by_tolerance[str(tolerance)],
+            videos_by_group,
+            tolerance,
+        )
+        for tolerance in TOLERANCES_AT_30_FPS
+    }
+    primary = results_by_tolerance[str(PRIMARY_TOLERANCE_AT_30_FPS)]
+    return {
+        "schema": "contact-detector-setting-sweep/2",
+        "status": "complete",
+        "run_id": "timing-complete-57-setting-sweep",
+        "repository_commit": _repository_commit(),
+        "result_type": "Timing-only descriptive development sweep on group-excluded predictions",
+        "labels_used": "40-video development labels, for scoring and setting choice",
+        "side_limitation": (
+            "The compact raw scores do not store player sides for most alternative frames. "
+            "Timing-complete sections are not fully correct contact-and-side outputs."
+        ),
+        "selection_limit": (
+            "The leave-one-group checks are sensitivity checks, not outer held-out tests. "
+            "Models scoring the other groups may have trained on the omitted group."
+        ),
+        "inputs": {
+            "raw_scores": str(SCORE_PATH.relative_to(REPO_ROOT)),
+            "source_record_schema": source["schema"],
+            "raw_score_source_commit": source["source_commit"],
+            "fixed_spans": [str(path.relative_to(REPO_ROOT)) for path in predictions.paths],
+            "settings": str(CONFIG_PATH.relative_to(REPO_ROOT)),
+            "groups": str(GROUP_PATH.relative_to(REPO_ROOT)),
+        },
+        "primary_tolerance_at_30_fps": PRIMARY_TOLERANCE_AT_30_FPS,
+        **primary,
+        "results_by_tolerance_at_30_fps": results_by_tolerance,
     }
 
 

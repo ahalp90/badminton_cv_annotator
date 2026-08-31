@@ -46,32 +46,39 @@ def recount() -> dict[str, Any]:
     """Load the saved rows once and return the headline counts."""
     predictions = load_frozen_test_predictions()
     saved_labels = load_saved_test_labels()
-    if set(predictions.events_by_fixture) != set(saved_labels.labels.rallies_by_fixture):
+    if set(predictions.events_by_fixture) != set(
+        saved_labels.labels.rallies_by_fixture
+    ):
         raise ValueError("Prediction and label fixtures differ")
     result = score_streams(
         saved_labels.labels,
         predictions.spans,
         predictions.events_by_fixture,
     )
-    timing = result["contact_timing"]["5"]["total"]
-    player_side = result["player_side"]["5"]["total"]
-    old_correct = fully_correct_ids(result)
-    strict_correct = old_correct & clean_section_ids(predictions, saved_labels)
-    metrics = {
-        "predicted_contacts": int(timing["predicted_contacts"]),
-        "labelled_contacts": int(timing["labelled_contacts"]),
-        "matched_contacts": int(timing["matched_contacts"]),
-        "timing_precision": float(timing["precision"]),
-        "timing_recall": float(timing["recall"]),
-        "timing_f1": float(timing["f1"]),
-        "correct_player_sides": int(player_side["correct_player_sides"]),
-        "answered_player_sides": int(player_side["predicted_side_answers"]),
-        "player_side_accuracy": float(player_side["accuracy_when_both_answered"]),
-        "predicted_sections": len(predictions.spans),
-        "old_fully_correct_sections": len(old_correct),
-        "strict_fully_correct_sections": len(strict_correct),
-        "strict_fully_correct_precision": len(strict_correct) / len(predictions.spans),
-    }
+    strict_ids = clean_section_ids(predictions, saved_labels)
+    metrics_by_tolerance: dict[str, dict[str, int | float]] = {}
+    for tolerance in (5, 10):
+        timing = result["contact_timing"][str(tolerance)]["total"]
+        player_side = result["player_side"][str(tolerance)]["total"]
+        old_correct = fully_correct_ids(result, tolerance=tolerance)
+        strict_correct = old_correct & strict_ids
+        metrics_by_tolerance[str(tolerance)] = {
+            "predicted_contacts": int(timing["predicted_contacts"]),
+            "labelled_contacts": int(timing["labelled_contacts"]),
+            "matched_contacts": int(timing["matched_contacts"]),
+            "timing_precision": float(timing["precision"]),
+            "timing_recall": float(timing["recall"]),
+            "timing_f1": float(timing["f1"]),
+            "correct_player_sides": int(player_side["correct_player_sides"]),
+            "answered_player_sides": int(player_side["predicted_side_answers"]),
+            "player_side_accuracy": float(player_side["accuracy_when_both_answered"]),
+            "predicted_sections": len(predictions.spans),
+            "old_fully_correct_sections": len(old_correct),
+            "strict_fully_correct_sections": len(strict_correct),
+            "strict_fully_correct_precision": len(strict_correct)
+            / len(predictions.spans),
+        }
+    metrics = metrics_by_tolerance["5"]
     differences = {
         name: (metrics[name], expected)
         for name, expected in EXPECTED.items()
@@ -90,6 +97,7 @@ def recount() -> dict[str, Any]:
             "labels": str(saved_labels.path.relative_to(REPO_ROOT)),
         },
         "metrics": metrics,
+        "metrics_by_tolerance_at_30_fps": metrics_by_tolerance,
     }
 
 
@@ -97,7 +105,9 @@ def main() -> None:
     """Write the compact baseline recount."""
     payload = recount()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    OUTPUT_PATH.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(payload["metrics"], indent=2, sort_keys=True))
 
 
