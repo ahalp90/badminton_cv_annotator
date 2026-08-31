@@ -35,7 +35,10 @@ from scratch.contact_det_full_ds_fit.scripts.score_contact_baseline import (
 )
 
 LABEL_PATH = REPO_ROOT / "training/data/shuttleset/annotations/shots_master.csv"
-DECISION_PATH = REPO_ROOT / "scratch/contact_det_followup/results/simple_side_decisions_development.json.gz"
+DECISION_PATH = (
+    REPO_ROOT
+    / "scratch/contact_det_followup/results/simple_side_decisions_development.json.gz"
+)
 OUTPUT_PATH = REPO_ROOT / "scratch/contact_det_followup/results/side_development.json"
 CONFIG_PATH = REPO_ROOT / "scratch/contact_det_followup/configs/side_rule.json"
 
@@ -91,6 +94,8 @@ def _timed_side_counts(
     events_by_fixture: Mapping[str, Sequence[FixedEvent]],
     labels: HumanLabels,
     fps_by_fixture: Mapping[str, float],
+    *,
+    tolerance_at_30_fps: int = 5,
 ) -> dict[str, int | float]:
     labelled = predicted = matched = answered = correct = 0
     first_contacts = matched_first = correct_first_side = 0
@@ -104,7 +109,7 @@ def _timed_side_counts(
         matches = _match_contacts(
             label_frames,
             predicted_frames,
-            scale_base30_frames(5, fps_by_fixture[fixture]),
+            scale_base30_frames(tolerance_at_30_fps, fps_by_fixture[fixture]),
         )
         first_frames = {rally.frames[0] for rally in fixture_rallies}
         labelled += len(label_frames)
@@ -119,7 +124,9 @@ def _timed_side_counts(
             if event.predicted_side is None:
                 continue
             answered += 1
-            side_correct = event.predicted_side == labels.target_sides[(fixture, label_frame)]
+            side_correct = (
+                event.predicted_side == labels.target_sides[(fixture, label_frame)]
+            )
             correct += side_correct
             if label_frame in first_frames:
                 correct_first_side += side_correct
@@ -251,7 +258,9 @@ def main() -> None:
         "selected_minimum_vote_gap": selected["minimum_vote_gap"],
         "selected": selected,
     }
-    OUTPUT_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    OUTPUT_PATH.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     config = {
         "schema": "contact-detector-side-rule/1",
         "rule": "simple_alternation_vote",
@@ -268,7 +277,9 @@ def main() -> None:
         },
     }
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    CONFIG_PATH.write_text(
+        json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(
         json.dumps(
             {

@@ -36,6 +36,14 @@ The current predictions have 745 sections with complete contact timing. The best
 
 The old timing-and-current-side target finds only 74 repairs. Choosing contact timing first and then applying the whole-rally side vote finds 300. This clears the planned 40-section signal, so the next step is a small label-free action model.
 
+The action model compares logistic regression with a shallow HGB. The pooled A-D choice uses the cautious HGB at 0.9. It adds 24 fully correct sections and breaks none. It makes 62 changes across A-D.
+
+A stricter nested check chooses each group's setting without that group's labels. Only one of the four inner comparisons clears the same 20-section gate. The resulting outer changes repair seven sections and break none.
+
+The same fixed choice makes 15 changes on the untouched V group. It repairs six fully correct sections and breaks none. Contact-and-side F1 rises from 81.33% to 81.41%.
+
+A looser cut-off adds 99 net sections on the pooled A-D scores, but it breaks 38 correct sections. The cautious result captures less than one third of the 300-section best case. The first-contact line stops after the V check.
+
 ## Data rule
 
 Prediction commands run without labels. Scoring commands load the saved clean labels after predictions exist.
@@ -87,4 +95,15 @@ Run the first-contact best-case check:
 ```bash
 ~/.venvs/badminton-cicd/bin/python \
   -m scratch.contact_det_followup.scripts.score_start_best_case
+```
+
+Run the action-model comparison, freeze the V predictions, and score them:
+
+```bash
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.score_start_model
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.write_start_validation_predictions
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.score_start_validation
 ```
