@@ -4,6 +4,9 @@ import pytest
 
 from annotator.point_winner import Half
 from scratch.contact_det.scripts.score_contact_rallies import FixedEvent, FixedSpan
+from scratch.contact_det_followup.scripts.audit_opposite_side_duplicates import (
+    count_opposite_side_pairs,
+)
 from scratch.contact_det_followup.scripts.score_side_audit import (
     validate_decision_record,
 )
@@ -55,3 +58,21 @@ def test_final_scorer_rejects_decisions_from_another_vote_gap() -> None:
 
     with pytest.raises(ValueError, match="chosen rule"):
         validate_decision_record(decision, config, "baseline", 10)
+
+
+def test_duplicate_audit_counts_only_close_opposite_sides() -> None:
+    events_by_fixture = {
+        "1": _span(["Top", "Bot"]).events,
+        "2": (
+            FixedEvent("2", 10, 0.9, "Top"),
+            FixedEvent("2", 12, 0.9, "Top"),
+            FixedEvent("2", 14, 0.9, None),
+            FixedEvent("2", 17, 0.9, "Bot"),
+        ),
+    }
+
+    assert count_opposite_side_pairs(events_by_fixture) == {
+        "pair_count": 1,
+        "pair_count_by_frame_gap": {"0": 0, "1": 1, "2": 0},
+        "affected_videos": 1,
+    }

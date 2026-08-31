@@ -22,6 +22,14 @@ On the frozen 47-video test set, fully correct sections rose from 483 to 901. It
 
 The result has a trade-off. Test-set side accuracy across individual matched contacts fell from 92.0% to 91.1%. Contact-and-side F1 fell from 75.7% to 75.1%. The vote is useful when the whole alternating rally is the output that matters.
 
+The opposite-side duplicate check found no adjacent events within two frames in either saved post-merge prediction set. A cleanup rule would have no pair to change in the current outputs, so this line stops at the count.
+
+The 57-setting sweep found a small timing gain from lowering the contact cut-off from 0.9 to 0.85. Timing-complete sections rose from 940 to 953 across the 40 development videos. The change repaired 139 sections and broke 126, for a net gain of 13. This is below the planned 25-section signal, so the global setting change stops here.
+
+Five leave-one-group sensitivity checks also chose 0.85 with the existing six-frame merge distance. These are not clean outer held-out tests. The saved model for one of the other groups may have trained on the omitted group. The stop decision uses the more generous descriptive result above: even the setting chosen on all 40 videos adds only 13 net sections.
+
+The lower cut-off raised first-contact recall from 49.4% to 53.5%. Contact F1 fell slightly from 88.49% to 88.38%. The compact raw scores do not contain player sides for most alternative frames, so this sweep measures complete timing only. It does not count fully correct contact-and-side outputs.
+
 ## Data rule
 
 Prediction commands run without labels. Scoring commands load the saved clean labels after predictions exist.
@@ -52,4 +60,18 @@ The development scorer writes the chosen vote gap. Use it to rebuild and score t
   -m scratch.contact_det_followup.scripts.write_side_predictions
 ~/.venvs/badminton-cicd/bin/python \
   -m scratch.contact_det_followup.scripts.score_side_audit
+```
+
+Run the opposite-side duplicate count:
+
+```bash
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.audit_opposite_side_duplicates
+```
+
+Run the 57-setting timing sweep:
+
+```bash
+~/.venvs/badminton-cicd/bin/python \
+  -m scratch.contact_det_followup.scripts.score_setting_sweep
 ```
