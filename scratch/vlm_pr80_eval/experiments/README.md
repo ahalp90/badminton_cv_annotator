@@ -117,6 +117,21 @@ input hashes and writes truth separately from inference inputs.
 The launchers have no host-specific defaults. Supply the paths for the current
 GPU machine:
 
+For Qwen3.8, create its pinned vLLM runtime once inside `tmux`:
+
+```bash
+scratch/vlm_pr80_eval/experiments/setup_qwen3_8_remote.sh /path/to/vlm-runtime
+source /path/to/vlm-runtime/control/qwen3.8-runtime.env
+```
+
+Set `VLM_WORK_ROOT`, `VLM_SOURCE_ROOT`, and `VLM_HF_CACHE`, then pass
+`qwen3-8` to `run_detail_remote.sh` or `rally_start_remote.sh`. The setup
+record contains the immutable container source, converted image checksum,
+requirements checksum, model ID, and model revision.
+
+The historical Qwen3-VL launchers use their separately pinned vLLM 0.11.0
+runtime:
+
 ```bash
 export VLM_QWEN_IMAGE=/path/to/qwen.sif
 export VLM_QWEN_ENV_ROOT=/path/to/qwen-python-environment
@@ -143,6 +158,9 @@ Both launchers:
 
 The multiscale launchers have no time cap. They still run one recorded job at
 a time and record the empty GPU state when they finish.
+
+Qwen3.8 rally-start runs also have no time cap. The model is dense and the
+older sparse-model limit is not a valid failure boundary for it.
 
 Run chunky jobs inside `tmux` on a shared machine.
 

@@ -116,6 +116,7 @@ case "$BACKEND" in
       --env VLLM_CONFIG_ROOT="$CACHE_ROOT/vllm-config"
       --env VLLM_NO_USAGE_STATS=1
     )
+    timeout_args=()
     ;;
   internvideo3)
     : "${VLM_INTERN_IMAGE:?set VLM_INTERN_IMAGE}"
@@ -130,10 +131,14 @@ case "$BACKEND" in
     ;;
 esac
 
+if [[ $BACKEND != qwen3-8 ]]; then
+  timeout_args=(timeout --kill-after=30s 25m)
+fi
+
 environment_root=$(dirname -- "$(dirname -- "$python_path")")
 container_args+=(--bind "$environment_root:$environment_root:ro")
 
-timeout --kill-after=30s 25m apptainer exec \
+"${timeout_args[@]}" apptainer exec \
   "${container_args[@]}" \
   "$image" \
   "$python_path" -u -m experiments.rally_start_trials run \
