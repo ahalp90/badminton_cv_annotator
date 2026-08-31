@@ -7,9 +7,16 @@ roadmap.
 
 For the fastest orientation, open **[VISUAL_ORIENTATION.md](VISUAL_ORIENTATION.md)** first.
 
+A later trial ran Qwen3.8 on the two strongest retained comparisons without
+rewriting this historical record. See
+**[QWEN3_8_COMPARISON.md](QWEN3_8_COMPARISON.md)** for the result: the model is
+worth keeping as an experiment backend, but the evidence does not support
+production integration.
+
 ## Contents
 
 - [What this branch established](#what-this-branch-established)
+- [Later Qwen3.8 trial](QWEN3_8_COMPARISON.md)
 - [Six follow-up reports](#six-follow-up-reports)
 - [Earlier investigation record](#earlier-investigation-record)
 - [Technical and reproducibility material](#technical-and-reproducibility-material)

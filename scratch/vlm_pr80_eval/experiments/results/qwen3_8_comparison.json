@@ -1,0 +1,120 @@
+{
+  "decision": {
+    "production_integration": false,
+    "recommendation": "keep_as_experimental_alternative",
+    "reason": "Qwen3.8 exposed a new visible-contact timing signal and balanced the short-scene trade-off, but it trailed InternVideo3 on server attribution, rejected every unusual-view live case, and could not reliably decide when contact timing was visible.",
+    "useful_next_test": "Test visible-contact timing behind an independent visibility gate with matched marker counterfactuals."
+  },
+  "model": {
+    "backend": "vllm",
+    "backend_version": "0.17.0",
+    "model_id": "Qwen/Qwen3.8-27B-FP8",
+    "model_revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+    "thinking_enabled": false
+  },
+  "rally_start": {
+    "attempts": {
+      "generation_errors": 0,
+      "parse_complete": true,
+      "parser_errors": 0,
+      "sampled_frames_per_case": 120,
+      "total": 32
+    },
+    "comparison": {
+      "internvideo3": {
+        "abstentions": 0,
+        "false_exact_frames_on_nonvisible_cases": 13,
+        "nonvisible_cases": 13,
+        "serve_state_correct": 19,
+        "serve_state_total": 32,
+        "server_correct": 23,
+        "server_total": 32,
+        "visible_contact_total": 19,
+        "visible_contact_within_project_tolerance": 1
+      },
+      "qwen3_8": {
+        "abstentions": 0,
+        "false_exact_frames_on_nonvisible_cases": 11,
+        "nonvisible_cases": 13,
+        "serve_state_correct": 17,
+        "serve_state_total": 32,
+        "server_correct": 20,
+        "server_total": 32,
+        "visible_contact_total": 19,
+        "visible_contact_within_project_tolerance": 11
+      },
+      "qwen3_vl": {
+        "abstentions": 0,
+        "false_exact_frames_on_nonvisible_cases": 13,
+        "nonvisible_cases": 13,
+        "serve_state_correct": 19,
+        "serve_state_total": 32,
+        "server_correct": 14,
+        "server_total": 32,
+        "visible_contact_total": 19,
+        "visible_contact_within_project_tolerance": 1
+      }
+    },
+    "manifest_sha256": "399f8545cdf3cd193c51a070e7e871cec905bbc77aa44a7c33234606c0beffc4",
+    "prompt_sha256": "4088923a22a7cccb5014a8892e1e33fb470d8d0a5d0c7064f5ba2732a4ebae7d",
+    "truth_sha256": "722677d0332ba4b015a9aa11cae1ed5f0e61c071b0ec236cce0f5a3f265754a9"
+  },
+  "runtime": {
+    "container_source": "docker://vllm/vllm-openai@sha256:14ea8b431aaaf75eb873c46c8ebfbad2b4b0790d30c66126d789d8cb9bd0aab9",
+    "converted_image_sha256": "72afb9dc802cd6a5d2808eeba68dac660d9faf75a4ebbea49b4c9f05029e9f1f",
+    "requirements_sha256": "7e9df187a7df866486f7eed65a12a44a792253a3febdb89039b82f0bffe04638"
+  },
+  "scene_short_only": {
+    "attempts": {
+      "generation_errors": 0,
+      "parse_complete": true,
+      "parser_errors": 0,
+      "total": 463
+    },
+    "comparison": {
+      "internvideo3": {
+        "material_route_correct": 297,
+        "material_total": 347,
+        "pure_replay_sent_to_check": 5,
+        "pure_replay_total": 25,
+        "standard_view_live_kept": 270,
+        "standard_view_live_total": 290,
+        "targets_containing_nonlive_sent_to_check": 21,
+        "targets_containing_nonlive_total": 47,
+        "unusual_view_live_kept": 6,
+        "unusual_view_live_total": 10
+      },
+      "qwen3_8": {
+        "material_route_correct": 300,
+        "material_total": 347,
+        "pure_replay_sent_to_check": 4,
+        "pure_replay_total": 25,
+        "standard_view_live_kept": 278,
+        "standard_view_live_total": 290,
+        "targets_containing_nonlive_sent_to_check": 22,
+        "targets_containing_nonlive_total": 47,
+        "unusual_view_live_kept": 0,
+        "unusual_view_live_total": 10
+      },
+      "qwen3_vl": {
+        "material_route_correct": 303,
+        "material_total": 347,
+        "pure_replay_sent_to_check": 1,
+        "pure_replay_total": 25,
+        "standard_view_live_kept": 288,
+        "standard_view_live_total": 290,
+        "targets_containing_nonlive_sent_to_check": 15,
+        "targets_containing_nonlive_total": 47,
+        "unusual_view_live_kept": 0,
+        "unusual_view_live_total": 10
+      }
+    },
+    "manifest_sha256": "dc11d79588d68a169cba253291e746ddf995e8ba742d0499fc8a5fb346f91661",
+    "material_cases": 347,
+    "prompt_sha256": "88865596cd0e44bc68abf769be52a223853415164d870d7f9ca278ec4c07c5d5",
+    "total_cases": 463,
+    "truth_sha256": "114a00d87e1c66345f11937205830716bace2de41880a83bfd40bd5e29c2fc78"
+  },
+  "schema": "vlm-qwen3.8-comparison-v1",
+  "status": "complete"
+}
