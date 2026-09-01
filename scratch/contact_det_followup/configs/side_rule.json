@@ -1,0 +1,12 @@
+{
+  "chosen_on": "40 development videos with each contact model held out by group",
+  "development_result": {
+    "broken_sections": 1,
+    "net_sections": 425,
+    "repaired_sections": 426,
+    "revised_fully_correct": 903
+  },
+  "minimum_vote_gap": 1,
+  "rule": "simple_alternation_vote",
+  "schema": "contact-detector-side-rule/1"
+}

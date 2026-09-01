@@ -1,0 +1,64 @@
+flowchart TB
+    subgraph TRAINING["Before prediction"]
+        direction LR
+        SHUTTLESET["40 ShuttleSet videos<br/>and their labels"] --> DEVELOP["First, develop HGB<br/>Then, develop the<br/>follow-up methods"]
+    end
+
+    subgraph RUNTIME["What happens when the annotator runs"]
+        direction TB
+        %% The main path below runs on a video without human labels.
+        VIDEO["Video frames"] --> VISION["Track the shuttle and players<br/>detect the court"]
+        VISION --> OLD["Original heuristic pass"]
+        VISION --> CANDIDATES["Build a broad list of<br/>possible contact frames"]
+        OLD -->|"rough contact hints"| CANDIDATES
+        CANDIDATES --> HGB["HGB contact model<br/>score each possible frame from 0 to 1"]
+
+        HGB --> CUTOFF["Baseline: keep scores<br/>of 0.90 or more"]
+        CUTOFF --> COPIES["Keep the strongest nearby frame<br/>within 6 frames at 30 fps"]
+        HGB -.-> SETTINGS["§2 Alternative settings<br/>try other cut-offs and<br/>nearby-frame distances"]
+        COPIES --> SIDE["Wrist-and-net heuristic<br/>guess Top, Bottom or unknown"]
+        SETTINGS -.-> SIDE
+        SIDE -.-> DUPLICATES["§2 Audit only<br/>look for close contacts<br/>assigned to opposite sides"]
+
+        OLD -->|"rally sections"| SECTIONS
+        SIDE --> SECTIONS
+        SECTIONS["Put the kept contacts<br/>inside each detected section"] --> ALTERNATE["§1 Whole-rally side rule<br/>choose an alternating sequence"]
+        SECTIONS -.-> FIRST["§3 Separate experiment<br/>add or replace the first contact"]
+        SECTIONS -.-> DELETE["§4 Separate experiment<br/>delete at most one contact"]
+        FIRST -.-> ALTERNATE
+        DELETE -.-> ALTERNATE
+
+        ALTERNATE --> OUTPUT["Predicted rallies<br/>contact times and player sides"]
+        OUTPUT -.-> REVIEW["§5 Separate experiment<br/>accept the rally or send it for review"]
+    end
+
+    ORACLE["Analysis only<br/>ShuttleSet labels try<br/>every allowed edit"]
+
+    subgraph CHECKS["How labels are used after predictions exist"]
+        direction LR
+        SS22["Labels for 47 held-out<br/>ShuttleSet22 videos"] --> SCORE["Score the fixed baseline<br/>and §1 side rule only"]
+    end
+
+    DEVELOP -.->|"model and settings"| RUNTIME
+    OUTPUT -->|"predictions"| SCORE
+    FIRST -.-> ORACLE
+    DELETE -.-> ORACLE
+
+    classDef input fill:#b8d4c8,stroke:#5a7a9a,color:#1a1a1a
+    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
+    classDef heuristic fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef model fill:#9070a0,stroke:#6a4070,color:#ffffff
+    classDef output fill:#5a7a9a,stroke:#3a5070,color:#ffffff
+    classDef experiment fill:#f5ead0,stroke:#8a6a30,color:#1a1a1a,stroke-dasharray:5 5
+    classDef labels fill:#f0c8a0,stroke:#8a6a30,color:#1a1a1a,stroke-dasharray:5 5
+
+    class VIDEO,VISION,CANDIDATES,SECTIONS,SHUTTLESET,SS22 input
+    class OLD,CUTOFF,COPIES,SIDE,ALTERNATE heuristic
+    class HGB model
+    class OUTPUT output
+    class SETTINGS,DUPLICATES,FIRST,DELETE,REVIEW experiment
+    class DEVELOP,SCORE,ORACLE labels
+
+    style RUNTIME fill:#ffffff,stroke:#5a7a9a,color:#1a1a1a
+    style TRAINING fill:#ffffff,stroke:#8a6a30,color:#1a1a1a
+    style CHECKS fill:#ffffff,stroke:#8a6a30,color:#1a1a1a

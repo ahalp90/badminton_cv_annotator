@@ -1,0 +1,46 @@
+{
+  "decision": "stop",
+  "decision_reason": "No qualifying pairs exist in either saved prediction set.",
+  "development": {
+    "affected_videos": 0,
+    "pair_count": 0,
+    "pair_count_by_frame_gap": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    }
+  },
+  "frozen_test": {
+    "affected_videos": 0,
+    "pair_count": 0,
+    "pair_count_by_frame_gap": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    }
+  },
+  "inputs": {
+    "development": [
+      {
+        "path": "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz",
+        "schema": "contact-rally-start-training-inputs/1",
+        "source_commit": "f08621a8"
+      },
+      {
+        "path": "scratch/contact_det_full_ds_fit/raw/validation_rally_start_inputs/rally_start_validation_inputs.json.gz",
+        "schema": "contact-rally-start-validation-inputs/1",
+        "source_commit": "90bdcda2"
+      }
+    ],
+    "frozen_test": {
+      "path": "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-predictions/combined_predictions.json.gz",
+      "schema": "shuttleset22-contact-predictions-combined/1",
+      "source_commit": "ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9"
+    }
+  },
+  "labels_read": false,
+  "repository_commit": "504725ff64ddd454091fd629c2908cdd61f14c2c",
+  "rule": "Adjacent events have different known player sides and are zero to two frames apart.",
+  "run_id": "opposite-side-pairs-within-two-frames",
+  "schema": "contact-detector-opposite-side-duplicate-audit/1"
+}

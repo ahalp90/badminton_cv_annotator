@@ -1,0 +1,69 @@
+{
+  "schema": "contact-training-video-score-groups/1",
+  "purpose": "Score each training video with an HGB model that did not train on that video",
+  "source_split_file": "shuttleset_development_split.json",
+  "fixed_validation_videos": [
+    "sset_18",
+    "sset_22",
+    "sset_24",
+    "sset_25",
+    "sset_30",
+    "sset_31",
+    "sset_39",
+    "sset_40"
+  ],
+  "groups": [
+    {
+      "group": "A",
+      "videos": [
+        {"fixture": "sset_01", "video_id": 1, "fps": 25, "women_match": false, "tournament": "Fuzhou Open 2019"},
+        {"fixture": "sset_05", "video_id": 5, "fps": 25, "women_match": false, "tournament": "Fuzhou Open 2018"},
+        {"fixture": "sset_11", "video_id": 11, "fps": 25, "women_match": false, "tournament": "Indonesia Open 2019"},
+        {"fixture": "sset_19", "video_id": 19, "fps": 25, "women_match": false, "tournament": "Malaysia Masters 2020"},
+        {"fixture": "sset_21", "video_id": 21, "fps": 30, "women_match": true, "tournament": "YONEX THAILAND OPEN 2021"},
+        {"fixture": "sset_29", "video_id": 29, "fps": 30, "women_match": true, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_32", "video_id": 32, "fps": 30, "women_match": false, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_41", "video_id": 41, "fps": 30, "women_match": false, "tournament": "HSBC BWF WORLD TOUR FINALS 2020"}
+      ]
+    },
+    {
+      "group": "B",
+      "videos": [
+        {"fixture": "sset_02", "video_id": 2, "fps": 25, "women_match": false, "tournament": "World Tour Finals"},
+        {"fixture": "sset_06", "video_id": 6, "fps": 25, "women_match": false, "tournament": "Denmark Open 2018"},
+        {"fixture": "sset_13", "video_id": 13, "fps": 25, "women_match": false, "tournament": "Malaysia Masters 2020"},
+        {"fixture": "sset_15", "video_id": 15, "fps": 25, "women_match": false, "tournament": "Indonesia Masters 2020"},
+        {"fixture": "sset_26", "video_id": 26, "fps": 30, "women_match": false, "tournament": "YONEX THAILAND OPEN 2021"},
+        {"fixture": "sset_33", "video_id": 33, "fps": 30, "women_match": false, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_34", "video_id": 34, "fps": 30, "women_match": true, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_38", "video_id": 38, "fps": 30, "women_match": true, "tournament": "HSBC BWF WORLD TOUR FINALS 2020"}
+      ]
+    },
+    {
+      "group": "C",
+      "videos": [
+        {"fixture": "sset_03", "video_id": 3, "fps": 25, "women_match": false, "tournament": "KOREA OPEN 2019"},
+        {"fixture": "sset_07", "video_id": 7, "fps": 25, "women_match": false, "tournament": "Malaysia Open 2018"},
+        {"fixture": "sset_16", "video_id": 16, "fps": 25, "women_match": false, "tournament": "Indonesia Masters 2020"},
+        {"fixture": "sset_17", "video_id": 17, "fps": 25, "women_match": false, "tournament": "Malaysia Masters 2020"},
+        {"fixture": "sset_28", "video_id": 28, "fps": 30, "women_match": false, "tournament": "YONEX THAILAND OPEN 2021"},
+        {"fixture": "sset_35", "video_id": 35, "fps": 30, "women_match": true, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_36", "video_id": 36, "fps": 30, "women_match": false, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_42", "video_id": 42, "fps": 30, "women_match": true, "tournament": "HSBC BWF WORLD TOUR FINALS 2020"}
+      ]
+    },
+    {
+      "group": "D",
+      "videos": [
+        {"fixture": "sset_04", "video_id": 4, "fps": 25, "women_match": false, "tournament": "Denmark Open 2019"},
+        {"fixture": "sset_08", "video_id": 8, "fps": 25, "women_match": false, "tournament": "Fuzhou Open 2019"},
+        {"fixture": "sset_14", "video_id": 14, "fps": 25, "women_match": false, "tournament": "Indonesia Masters 2020"},
+        {"fixture": "sset_20", "video_id": 20, "fps": 25, "women_match": false, "tournament": "Malaysia Masters 2020"},
+        {"fixture": "sset_23", "video_id": 23, "fps": 30, "women_match": false, "tournament": "YONEX THAILAND OPEN 2021"},
+        {"fixture": "sset_37", "video_id": 37, "fps": 30, "women_match": false, "tournament": "TOYOTA THAILAND OPEN 2021"},
+        {"fixture": "sset_43", "video_id": 43, "fps": 30, "women_match": true, "tournament": "HSBC BWF WORLD TOUR FINALS 2020"},
+        {"fixture": "sset_44", "video_id": 44, "fps": 30, "women_match": false, "tournament": "HSBC BWF WORLD TOUR FINALS 2020"}
+      ]
+    }
+  ]
+}

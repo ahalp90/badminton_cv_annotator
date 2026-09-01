@@ -1,0 +1,306 @@
+{
+  "action_counts": {
+    "add": 15,
+    "replace": 0
+  },
+  "baseline_fully_correct": 177,
+  "broken_identities": [],
+  "broken_sections": 0,
+  "by_tolerance_at_30_fps": {
+    "10": {
+      "baseline_fully_correct": 186,
+      "broken_identities": [],
+      "broken_sections": 0,
+      "contact_and_side_f1": {
+        "baseline": 0.8187261839956451,
+        "change": 0.0008478984692393832,
+        "revised": 0.8195740824648845
+      },
+      "net_sections": 6,
+      "per_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 0,
+          "repaired_sections": 0
+        }
+      ],
+      "repaired_identities": [
+        [
+          "sset_18",
+          24
+        ],
+        [
+          "sset_25",
+          20
+        ],
+        [
+          "sset_31",
+          11
+        ],
+        [
+          "sset_39",
+          13
+        ],
+        [
+          "sset_39",
+          33
+        ],
+        [
+          "sset_39",
+          99
+        ]
+      ],
+      "repaired_sections": 6,
+      "revised_fully_correct": 192
+    },
+    "5": {
+      "baseline_fully_correct": 177,
+      "broken_identities": [],
+      "broken_sections": 0,
+      "contact_and_side_f1": {
+        "baseline": 0.8132825258573761,
+        "change": 0.0008543114783737815,
+        "revised": 0.8141368373357499
+      },
+      "net_sections": 6,
+      "per_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 0,
+          "repaired_sections": 0
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 0,
+          "repaired_sections": 0
+        }
+      ],
+      "repaired_identities": [
+        [
+          "sset_18",
+          24
+        ],
+        [
+          "sset_25",
+          20
+        ],
+        [
+          "sset_31",
+          11
+        ],
+        [
+          "sset_39",
+          13
+        ],
+        [
+          "sset_39",
+          33
+        ],
+        [
+          "sset_39",
+          99
+        ]
+      ],
+      "repaired_sections": 6,
+      "revised_fully_correct": 183
+    }
+  },
+  "contact_and_side_f1": {
+    "baseline": 0.8132825258573761,
+    "change": 0.0008543114783737815,
+    "revised": 0.8141368373357499
+  },
+  "cutoff": 0.9,
+  "feature_names": [
+    "candidate_contact_score",
+    "fixed_contact_score",
+    "frames_before_fixed_at_30_fps",
+    "candidate_from_section_start_at_30_fps",
+    "section_length_at_30_fps",
+    "candidate_already_kept",
+    "candidate_side_known",
+    "fixed_side_known",
+    "candidate_and_fixed_side_match",
+    "action_is_replace"
+  ],
+  "model_id": "shallow_hgb",
+  "net_sections": 6,
+  "number_changed": 15,
+  "per_video": [
+    {
+      "broken_sections": 0,
+      "fixture": "sset_18",
+      "net_sections": 1,
+      "repaired_sections": 1
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_22",
+      "net_sections": 0,
+      "repaired_sections": 0
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_24",
+      "net_sections": 0,
+      "repaired_sections": 0
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_25",
+      "net_sections": 1,
+      "repaired_sections": 1
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_30",
+      "net_sections": 0,
+      "repaired_sections": 0
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_31",
+      "net_sections": 1,
+      "repaired_sections": 1
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_39",
+      "net_sections": 3,
+      "repaired_sections": 3
+    },
+    {
+      "broken_sections": 0,
+      "fixture": "sset_40",
+      "net_sections": 0,
+      "repaired_sections": 0
+    }
+  ],
+  "repaired_identities": [
+    [
+      "sset_18",
+      24
+    ],
+    [
+      "sset_25",
+      20
+    ],
+    [
+      "sset_31",
+      11
+    ],
+    [
+      "sset_39",
+      13
+    ],
+    [
+      "sset_39",
+      33
+    ],
+    [
+      "sset_39",
+      99
+    ]
+  ],
+  "repaired_sections": 6,
+  "revised_fully_correct": 183,
+  "schema": "contact-detector-start-action-validation/1",
+  "source_prediction_record": {
+    "path": "scratch/contact_det_followup/results/start_model_validation_predictions.json",
+    "sha256": "28680ce6b839afbc9bc9de3ae4a1dee622bda623fb2f4249012428dec6c67faf"
+  },
+  "status": "complete",
+  "validated_candidate_video_count": 8,
+  "validation_labels_read": true,
+  "validation_videos": [
+    "sset_18",
+    "sset_22",
+    "sset_24",
+    "sset_25",
+    "sset_30",
+    "sset_31",
+    "sset_39",
+    "sset_40"
+  ]
+}

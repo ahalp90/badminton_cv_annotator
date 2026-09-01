@@ -1,0 +1,58 @@
+{
+  "command": "python -m scratch.contact_det_followup.scripts.recount_baseline",
+  "inputs": {
+    "labels": "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-result/clean_labels.json.gz",
+    "predictions": "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-predictions/combined_predictions.json.gz"
+  },
+  "metrics": {
+    "answered_player_sides": 32188,
+    "correct_player_sides": 29620,
+    "labelled_contacts": 38218,
+    "matched_contacts": 32243,
+    "old_fully_correct_sections": 493,
+    "player_side_accuracy": 0.9202187150490866,
+    "predicted_contacts": 39994,
+    "predicted_sections": 3982,
+    "strict_fully_correct_precision": 0.12129583124058262,
+    "strict_fully_correct_sections": 483,
+    "timing_f1": 0.8245026338669258,
+    "timing_precision": 0.8061959293894084,
+    "timing_recall": 0.8436600554712439
+  },
+  "metrics_by_tolerance_at_30_fps": {
+    "10": {
+      "answered_player_sides": 32547,
+      "correct_player_sides": 29877,
+      "labelled_contacts": 38218,
+      "matched_contacts": 32603,
+      "old_fully_correct_sections": 537,
+      "player_side_accuracy": 0.9179647893815098,
+      "predicted_contacts": 39994,
+      "predicted_sections": 3982,
+      "strict_fully_correct_precision": 0.131592164741336,
+      "strict_fully_correct_sections": 524,
+      "timing_f1": 0.8337083823454201,
+      "timing_precision": 0.8151972795919388,
+      "timing_recall": 0.8530797006646083
+    },
+    "5": {
+      "answered_player_sides": 32188,
+      "correct_player_sides": 29620,
+      "labelled_contacts": 38218,
+      "matched_contacts": 32243,
+      "old_fully_correct_sections": 493,
+      "player_side_accuracy": 0.9202187150490866,
+      "predicted_contacts": 39994,
+      "predicted_sections": 3982,
+      "strict_fully_correct_precision": 0.12129583124058262,
+      "strict_fully_correct_sections": 483,
+      "timing_f1": 0.8245026338669258,
+      "timing_precision": 0.8061959293894084,
+      "timing_recall": 0.8436600554712439
+    }
+  },
+  "prediction_source_commit": "ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9",
+  "repository_commit": "f6e0a584d26f1804dac977542edf56b0cf3bead8",
+  "run_id": "baseline-recount",
+  "schema": "contact-detector-followup-baseline/1"
+}

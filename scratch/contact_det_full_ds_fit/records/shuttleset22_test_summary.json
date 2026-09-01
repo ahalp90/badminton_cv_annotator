@@ -1,0 +1,159 @@
+{
+  "schema": "shuttleset22-contact-test-summary/1",
+  "result_file": "result.json",
+  "result_sha256": "fbf34c8606fff67bb800aad22f706f34f2335a54fac3d90114eb7c2a91d917ca",
+  "source_commit": "1605a32",
+  "prediction_source_commit": "ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9",
+  "video_count": 47,
+  "prediction": {
+    "combined_sha256": "6199ab99fe2746f83b7f90cc2e2c02301acbd5f90dcf02c989af65ca6be5bd04",
+    "detected_sections": 3982,
+    "contacts": 39994,
+    "contacts_without_player_side": 72
+  },
+  "labels": {
+    "annotation_corpus_sha256": "2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c",
+    "annotation_tree_sha256": "55f832221646229b8b65dea31e24e8d02e0876fd6d0799cb0f6eff12583e1485",
+    "clean_label_sha256": "742ede2832b5616abdfc80228d469d5b7b7483a3e4a372c48c86290e99ab9784",
+    "source_contact_rows": 43159,
+    "usable_contact_rows": 38218,
+    "usable_rallies": 3422
+  },
+  "timing": {
+    "1": {
+      "matched_contacts": 20138,
+      "precision": 0.5035255288293244,
+      "recall": 0.5269244858443666,
+      "f1": 0.5149593412775534,
+      "first_contact_recall": 0.2565751022793688,
+      "later_contact_recall": 0.5535118979193011
+    },
+    "2": {
+      "matched_contacts": 27713,
+      "precision": 0.6929289393409012,
+      "recall": 0.7251295201214087,
+      "f1": 0.7086636321792054,
+      "first_contact_recall": 0.39216832261835183,
+      "later_contact_recall": 0.7578744683296931
+    },
+    "5": {
+      "matched_contacts": 32243,
+      "precision": 0.8061959293894084,
+      "recall": 0.8436600554712439,
+      "f1": 0.8245026338669258,
+      "first_contact_recall": 0.5391583869082408,
+      "later_contact_recall": 0.8736061616277733
+    },
+    "10": {
+      "matched_contacts": 32603,
+      "precision": 0.8151972795919388,
+      "recall": 0.8530797006646083,
+      "f1": 0.8337083823454201,
+      "first_contact_recall": 0.5806545879602572,
+      "later_contact_recall": 0.8798712495689159
+    }
+  },
+  "player_side": {
+    "5": {
+      "timing_matched_labels": 32243,
+      "known_human_sides": 32242,
+      "predicted_side_answers": 32188,
+      "correct_player_sides": 29620,
+      "accuracy_when_both_answered": 0.9202187150490866
+    },
+    "10": {
+      "timing_matched_labels": 32603,
+      "known_human_sides": 32602,
+      "predicted_side_answers": 32547,
+      "correct_player_sides": 29877,
+      "accuracy_when_both_answered": 0.9179647893815098
+    }
+  },
+  "section_mapping": {
+    "no_labelled_rally": 943,
+    "one_labelled_rally": 2969,
+    "several_labelled_rallies": 70,
+    "unassigned_contacts": 44
+  },
+  "rally_section_recount": {
+    "rule": "A correct rally section contains every labelled contact from one rally and no labelled contact from another rally.",
+    "frame_rate": 30,
+    "predicted_sections": 3982,
+    "labelled_rallies": 3422,
+    "correct_rally_sections": 2515,
+    "false_positive_sections": 1467,
+    "missed_or_unclean_rallies": 907,
+    "precision": 0.6315921647413361,
+    "recall": 0.7349503214494447,
+    "f1": 0.6793625067531064,
+    "section_counts": {
+      "one_complete_rally": 2515,
+      "one_partial_rally": 454,
+      "no_labelled_rally": 943,
+      "several_labelled_rallies": 70
+    },
+    "rally_counts": {
+      "clean_one_to_one": 2515,
+      "complete_but_merged": 182,
+      "partial_or_split": 457,
+      "missed": 268
+    },
+    "clean_section_context_frames": {
+      "before_first_labelled_contact": {
+        "minimum": 0,
+        "p10": 1,
+        "median": 30,
+        "p90": 273,
+        "maximum": 1557
+      },
+      "after_last_labelled_contact": {
+        "minimum": 4,
+        "p10": 46,
+        "median": 88,
+        "p90": 149,
+        "maximum": 3158
+      }
+    },
+    "whole_rally_contact_score": {
+      "5": {
+        "old_scorer_fully_correct": 493,
+        "clean_span_and_fully_correct": 483,
+        "contact_tolerance_crossed_section_edge": 10,
+        "share_of_one_rally_sections": 0.1660491748063321,
+        "share_of_all_predicted_sections": 0.12380713209442491,
+        "clean_span_share_of_all_predicted_sections": 0.12129583124058262
+      },
+      "10": {
+        "old_scorer_fully_correct": 537,
+        "clean_span_and_fully_correct": 524,
+        "contact_tolerance_crossed_section_edge": 13,
+        "share_of_one_rally_sections": 0.18086897945436173,
+        "share_of_all_predicted_sections": 0.13485685585133098,
+        "clean_span_share_of_all_predicted_sections": 0.131592164741336
+      }
+    }
+  },
+  "whole_rallies": {
+    "5": {
+      "mapped_sections": 2969,
+      "fully_correct_sections": 493,
+      "fully_correct_accuracy_when_assessable": 0.1660491748063321
+    },
+    "10": {
+      "mapped_sections": 2969,
+      "fully_correct_sections": 537,
+      "fully_correct_accuracy_when_assessable": 0.18086897945436173
+    }
+  },
+  "independent_recount": {
+    "implementation": "standalone standard library",
+    "project_scorer_imported": false,
+    "video_order_matches": true,
+    "prediction_counts_match": true,
+    "population_matches": true,
+    "timing_matches_at_all_tolerances": true,
+    "player_side_matches_at_all_tolerances": true,
+    "per_video_fields_match": true,
+    "mismatches": 0
+  }
+}

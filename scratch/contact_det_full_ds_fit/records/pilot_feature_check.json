@@ -1,0 +1,15 @@
+{
+  "exact_match": true,
+  "new_run_record": "contact_features_record.json",
+  "new_run_record_sha256": "5514310fd9cd1f0a6759bba0a0ed4cbc5463ef6759a7ef9ddfa1a4ae0905154a",
+  "row_count": 130624,
+  "saved_pilot_feature": "tree_contact_features.npy.xz",
+  "saved_pilot_feature_sha256": "4a5efbd6582701a708270a3b273be2d2572bc3753085ec449b7db815dffec722",
+  "saved_pilot_record": "tree_contact_features_manifest.json",
+  "schema": "full-dataset-contact-features-pilot-check/1",
+  "video_names": [
+    "sset_01",
+    "sset_15",
+    "sset_21"
+  ]
+}

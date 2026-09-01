@@ -1,0 +1,67 @@
+{
+  "schema": "contact-training-video-score-summary/1",
+  "status": "complete",
+  "source_commit": "3b6297ca",
+  "input_list_sha256": "d225fc19494593e30dc8e5e03fa1798acadf4d70ff3d34f4e97ab8a24a6a6510",
+  "model": "hgb_reference_raw_more_negatives",
+  "score_cutoff": 0.9,
+  "duplicate_distance_at_30_fps": 6,
+  "training_video_count": 32,
+  "group_count": 4,
+  "score_row_count": 1193927,
+  "kept_contact_count": 26459,
+  "groups": [
+    {
+      "group": "A",
+      "training_video_count": 24,
+      "scored_video_count": 8,
+      "training_row_count": 738652,
+      "positive_training_row_count": 53399,
+      "score_row_count": 367951,
+      "kept_contact_count": 8470,
+      "result_sha256": "6a52b5e3aa66472d5d53e1734fb343df6598df3742967d224ff3f7b8f4f26c86",
+      "score_sha256": "9d77c17b115c2ddbbe9366fc4a1de6a612edeb1417f6b686b33b46e8f403400e"
+    },
+    {
+      "group": "B",
+      "training_video_count": 24,
+      "scored_video_count": 8,
+      "training_row_count": 800193,
+      "positive_training_row_count": 60337,
+      "score_row_count": 294802,
+      "kept_contact_count": 6430,
+      "result_sha256": "3aed6e429c9c9723f06c470b16ae3adca28998081dbbcc07ad1ad1df85b76101",
+      "score_sha256": "b936899f576b9988db8fa9e3b865b037e932faccc87b18847da7ce8e0880a25c"
+    },
+    {
+      "group": "C",
+      "training_video_count": 24,
+      "scored_video_count": 8,
+      "training_row_count": 838570,
+      "positive_training_row_count": 61773,
+      "score_row_count": 255293,
+      "kept_contact_count": 5710,
+      "result_sha256": "9360d72205cb2036524b567dcf074ff4452ab6aaf583b9d2b50586ecc3a7c236",
+      "score_sha256": "e5d387b933529296809d622f84eda680c3e6f709a58f110fac303fcf70e464c1"
+    },
+    {
+      "group": "D",
+      "training_video_count": 24,
+      "scored_video_count": 8,
+      "training_row_count": 819001,
+      "positive_training_row_count": 61044,
+      "score_row_count": 275881,
+      "kept_contact_count": 5849,
+      "result_sha256": "3c9e551260b14a5a40b0ffc2a592833045ee3f5ff19c86925c3bc3b5c0330165",
+      "score_sha256": "a3c45d9e1cc705a0235acaf744ef35706c8736865c8bd69f4467f360c0dcf7fe"
+    }
+  ],
+  "combined_result_sha256": "1b28e796aa8732a42ef4aec2dba9f5175af7e786dc2903726767d70385311fa8",
+  "combined_score_sha256": "cfb32a139081105c48fbcc80d8fcd57fabdbe6b3f9a8fc53a47d8e5374147605",
+  "repeat_checks": {
+    "group_a_result_bytes_equal": true,
+    "group_a_score_bytes_equal": true,
+    "combined_result_bytes_equal": true,
+    "combined_score_bytes_equal": true
+  }
+}

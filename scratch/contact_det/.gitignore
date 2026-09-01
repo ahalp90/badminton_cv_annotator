@@ -8,6 +8,7 @@
 !README.md
 !scripts/
 !scripts/**
+scripts/**/__pycache__/
 !figures/
 !figures/**
 local_agents/

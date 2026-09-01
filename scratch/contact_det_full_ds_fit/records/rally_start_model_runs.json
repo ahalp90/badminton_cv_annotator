@@ -1,0 +1,74 @@
+{
+  "schema": "rally-start-contact-model-runs/1",
+  "random_seed": 20260824,
+  "feature_names": [
+    "candidate_contact_score",
+    "fixed_contact_score",
+    "frames_before_fixed_at_30_fps",
+    "candidate_from_section_start_at_30_fps",
+    "section_length_at_30_fps",
+    "candidate_already_kept",
+    "candidate_side_known",
+    "fixed_side_known",
+    "candidate_and_fixed_side_match"
+  ],
+  "models": [
+    {
+      "model_id": "logistic_regression",
+      "kind": "logistic_regression",
+      "settings": {
+        "C": 1.0,
+        "class_weight": "balanced",
+        "max_iter": 1000,
+        "solver": "lbfgs",
+        "standardise_numeric_inputs": true
+      }
+    },
+    {
+      "model_id": "shallow_hgb",
+      "kind": "histogram_gradient_boosting",
+      "settings": {
+        "class_weight": "balanced",
+        "early_stopping": false,
+        "l2_regularization": 1.0,
+        "learning_rate": 0.05,
+        "max_iter": 100,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 20,
+        "random_state": 20260824
+      }
+    }
+  ],
+  "selection_cutoffs": [
+    0.5,
+    0.7,
+    0.9
+  ],
+  "training_groups": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "training_gate": {
+    "minimum_new_fully_correct_sections": 10,
+    "maximum_lost_fully_correct_sections": 0,
+    "minimum_correct_addition_rate": 0.8,
+    "minimum_recovery_rate": 0.2
+  },
+  "validation_gate": {
+    "minimum_new_fully_correct_sections": 5,
+    "maximum_lost_fully_correct_sections": 0,
+    "minimum_correct_addition_rate": 0.8,
+    "minimum_recovery_rate": 0.2,
+    "minimum_contact_f1_change_at_10_frames": 0.0,
+    "allow_per_video_fully_correct_loss": false
+  },
+  "choice_order": [
+    "more fully correct sections",
+    "fewer added contacts",
+    "higher correct addition rate",
+    "logistic regression",
+    "higher selection cut-off"
+  ]
+}

@@ -1,0 +1,12136 @@
+{
+  "baseline_contact_and_side": {
+    "contact_and_side_f1": 0.8053249707925967,
+    "correct_first_contact_sides": 1462,
+    "correct_sides": 26194,
+    "first_contact_recall": 0.4864543018755582,
+    "first_contacts": 3359,
+    "labelled_contacts": 33267,
+    "matched_first_contacts": 1634,
+    "predicted_contacts": 31785,
+    "server_side_accuracy_when_start_matched": 0.8947368421052632,
+    "side_accuracy": 0.9119520941405842,
+    "side_answers": 28723,
+    "timing_matches": 28781
+  },
+  "baseline_fully_correct": 478,
+  "choices": [
+    {
+      "broken_identities": [
+        [
+          "sset_38",
+          102
+        ]
+      ],
+      "broken_sections": 1,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 90,
+          "repaired_sections": 90
+        },
+        {
+          "broken_sections": 1,
+          "group": "B",
+          "net_sections": 88,
+          "repaired_sections": 89
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 64,
+          "repaired_sections": 64
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 101,
+          "repaired_sections": 101
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 82,
+          "repaired_sections": 82
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 26,
+          "repaired_sections": 26
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 18,
+          "repaired_sections": 18
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 18,
+          "repaired_sections": 18
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 1,
+          "fixture": "sset_38",
+          "net_sections": 12,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 19,
+          "repaired_sections": 19
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 16,
+          "repaired_sections": 16
+        }
+      ],
+      "contacts_changed": 4448,
+      "minimum_vote_gap": 1,
+      "net_sections": 425,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          93
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          12
+        ],
+        [
+          "sset_02",
+          22
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          34
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          45
+        ],
+        [
+          "sset_02",
+          52
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          22
+        ],
+        [
+          "sset_03",
+          25
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          29
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          50
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          9
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          14
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          45
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          73
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          95
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          10
+        ],
+        [
+          "sset_06",
+          18
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          39
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          49
+        ],
+        [
+          "sset_06",
+          54
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          86
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          97
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          7
+        ],
+        [
+          "sset_07",
+          10
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          45
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          2
+        ],
+        [
+          "sset_08",
+          7
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          13
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          26
+        ],
+        [
+          "sset_08",
+          27
+        ],
+        [
+          "sset_08",
+          28
+        ],
+        [
+          "sset_08",
+          30
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          44
+        ],
+        [
+          "sset_08",
+          45
+        ],
+        [
+          "sset_08",
+          53
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          3
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          14
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          46
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          56
+        ],
+        [
+          "sset_13",
+          58
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          63
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          29
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          37
+        ],
+        [
+          "sset_14",
+          38
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          57
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_14",
+          103
+        ],
+        [
+          "sset_14",
+          104
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          45
+        ],
+        [
+          "sset_15",
+          49
+        ],
+        [
+          "sset_15",
+          51
+        ],
+        [
+          "sset_15",
+          52
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          67
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          79
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          90
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          22
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          9
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          19
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          35
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          49
+        ],
+        [
+          "sset_19",
+          53
+        ],
+        [
+          "sset_19",
+          64
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          96
+        ],
+        [
+          "sset_19",
+          100
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_19",
+          111
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          5
+        ],
+        [
+          "sset_20",
+          8
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          46
+        ],
+        [
+          "sset_20",
+          47
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          57
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          8
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_21",
+          31
+        ],
+        [
+          "sset_21",
+          46
+        ],
+        [
+          "sset_21",
+          73
+        ],
+        [
+          "sset_22",
+          26
+        ],
+        [
+          "sset_22",
+          36
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          13
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          32
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_23",
+          64
+        ],
+        [
+          "sset_23",
+          67
+        ],
+        [
+          "sset_24",
+          1
+        ],
+        [
+          "sset_24",
+          48
+        ],
+        [
+          "sset_24",
+          54
+        ],
+        [
+          "sset_24",
+          57
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          2
+        ],
+        [
+          "sset_25",
+          5
+        ],
+        [
+          "sset_25",
+          7
+        ],
+        [
+          "sset_25",
+          15
+        ],
+        [
+          "sset_25",
+          16
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          31
+        ],
+        [
+          "sset_25",
+          33
+        ],
+        [
+          "sset_25",
+          43
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          43
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          28
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          32
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          37
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          17
+        ],
+        [
+          "sset_30",
+          23
+        ],
+        [
+          "sset_30",
+          28
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          78
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_30",
+          115
+        ],
+        [
+          "sset_31",
+          2
+        ],
+        [
+          "sset_31",
+          4
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          6
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          17
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          31
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          39
+        ],
+        [
+          "sset_31",
+          40
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          48
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_31",
+          63
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          30
+        ],
+        [
+          "sset_32",
+          37
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          49
+        ],
+        [
+          "sset_32",
+          73
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          80
+        ],
+        [
+          "sset_32",
+          87
+        ],
+        [
+          "sset_32",
+          91
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          125
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          68
+        ],
+        [
+          "sset_33",
+          70
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          6
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          56
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          28
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          19
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          35
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          42
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          13
+        ],
+        [
+          "sset_38",
+          14
+        ],
+        [
+          "sset_38",
+          27
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          43
+        ],
+        [
+          "sset_38",
+          51
+        ],
+        [
+          "sset_38",
+          64
+        ],
+        [
+          "sset_38",
+          74
+        ],
+        [
+          "sset_38",
+          75
+        ],
+        [
+          "sset_38",
+          81
+        ],
+        [
+          "sset_38",
+          94
+        ],
+        [
+          "sset_38",
+          101
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          38
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          60
+        ],
+        [
+          "sset_39",
+          62
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_39",
+          93
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          2
+        ],
+        [
+          "sset_40",
+          3
+        ],
+        [
+          "sset_40",
+          4
+        ],
+        [
+          "sset_40",
+          8
+        ],
+        [
+          "sset_40",
+          10
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          36
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          50
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          71
+        ],
+        [
+          "sset_40",
+          72
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_40",
+          76
+        ],
+        [
+          "sset_40",
+          78
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          13
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          25
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          40
+        ],
+        [
+          "sset_41",
+          48
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          60
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          21
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          51
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          3
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          35
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          54
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          8
+        ],
+        [
+          "sset_44",
+          10
+        ],
+        [
+          "sset_44",
+          13
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          39
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          46
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          56
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          76
+        ],
+        [
+          "sset_44",
+          88
+        ],
+        [
+          "sset_44",
+          89
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 426,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.8183606960585378,
+        "correct_first_contact_sides": 1412,
+        "correct_sides": 26618,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8641370869033048,
+        "side_accuracy": 0.925972309190844,
+        "side_answers": 28746,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 903,
+      "sections_changed": 1798
+    },
+    {
+      "broken_identities": [
+        [
+          "sset_38",
+          102
+        ]
+      ],
+      "broken_sections": 1,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 88,
+          "repaired_sections": 88
+        },
+        {
+          "broken_sections": 1,
+          "group": "B",
+          "net_sections": 86,
+          "repaired_sections": 87
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 61,
+          "repaired_sections": 61
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 96,
+          "repaired_sections": 96
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 77,
+          "repaired_sections": 77
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 25,
+          "repaired_sections": 25
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 18,
+          "repaired_sections": 18
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 18,
+          "repaired_sections": 18
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 1,
+          "fixture": "sset_38",
+          "net_sections": 11,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 14,
+          "repaired_sections": 14
+        }
+      ],
+      "contacts_changed": 3970,
+      "minimum_vote_gap": 2,
+      "net_sections": 408,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          93
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          12
+        ],
+        [
+          "sset_02",
+          22
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          34
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          45
+        ],
+        [
+          "sset_02",
+          52
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          22
+        ],
+        [
+          "sset_03",
+          25
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          29
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          50
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          9
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          14
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          45
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          73
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          95
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          10
+        ],
+        [
+          "sset_06",
+          18
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          39
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          49
+        ],
+        [
+          "sset_06",
+          54
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          86
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          97
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          10
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          2
+        ],
+        [
+          "sset_08",
+          7
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          13
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          26
+        ],
+        [
+          "sset_08",
+          30
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          44
+        ],
+        [
+          "sset_08",
+          45
+        ],
+        [
+          "sset_08",
+          53
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          3
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          14
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          46
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          56
+        ],
+        [
+          "sset_13",
+          58
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          63
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          29
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          37
+        ],
+        [
+          "sset_14",
+          38
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          57
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_14",
+          103
+        ],
+        [
+          "sset_14",
+          104
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          45
+        ],
+        [
+          "sset_15",
+          49
+        ],
+        [
+          "sset_15",
+          51
+        ],
+        [
+          "sset_15",
+          52
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          67
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          79
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          22
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          9
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          19
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          35
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          49
+        ],
+        [
+          "sset_19",
+          53
+        ],
+        [
+          "sset_19",
+          64
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          96
+        ],
+        [
+          "sset_19",
+          100
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          5
+        ],
+        [
+          "sset_20",
+          8
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          46
+        ],
+        [
+          "sset_20",
+          47
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          57
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          8
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_21",
+          31
+        ],
+        [
+          "sset_21",
+          46
+        ],
+        [
+          "sset_21",
+          73
+        ],
+        [
+          "sset_22",
+          26
+        ],
+        [
+          "sset_22",
+          36
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          13
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          32
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_23",
+          64
+        ],
+        [
+          "sset_23",
+          67
+        ],
+        [
+          "sset_24",
+          48
+        ],
+        [
+          "sset_24",
+          54
+        ],
+        [
+          "sset_24",
+          57
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          5
+        ],
+        [
+          "sset_25",
+          7
+        ],
+        [
+          "sset_25",
+          15
+        ],
+        [
+          "sset_25",
+          16
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          33
+        ],
+        [
+          "sset_25",
+          43
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          43
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          28
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          32
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          37
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          17
+        ],
+        [
+          "sset_30",
+          23
+        ],
+        [
+          "sset_30",
+          28
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          78
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_30",
+          115
+        ],
+        [
+          "sset_31",
+          2
+        ],
+        [
+          "sset_31",
+          4
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          6
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          17
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          31
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          39
+        ],
+        [
+          "sset_31",
+          40
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          48
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_31",
+          63
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          30
+        ],
+        [
+          "sset_32",
+          37
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          49
+        ],
+        [
+          "sset_32",
+          73
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          80
+        ],
+        [
+          "sset_32",
+          87
+        ],
+        [
+          "sset_32",
+          91
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          125
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          68
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          6
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          56
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          28
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          19
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          35
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          42
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          13
+        ],
+        [
+          "sset_38",
+          14
+        ],
+        [
+          "sset_38",
+          27
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          43
+        ],
+        [
+          "sset_38",
+          51
+        ],
+        [
+          "sset_38",
+          64
+        ],
+        [
+          "sset_38",
+          74
+        ],
+        [
+          "sset_38",
+          75
+        ],
+        [
+          "sset_38",
+          81
+        ],
+        [
+          "sset_38",
+          94
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          38
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          60
+        ],
+        [
+          "sset_39",
+          62
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_39",
+          93
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          2
+        ],
+        [
+          "sset_40",
+          4
+        ],
+        [
+          "sset_40",
+          8
+        ],
+        [
+          "sset_40",
+          10
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          36
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          50
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          71
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_40",
+          76
+        ],
+        [
+          "sset_40",
+          78
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          25
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          40
+        ],
+        [
+          "sset_41",
+          48
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          60
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          21
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          51
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          3
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          35
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          10
+        ],
+        [
+          "sset_44",
+          13
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          39
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          46
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          56
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          76
+        ],
+        [
+          "sset_44",
+          89
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 409,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.823126114493021,
+        "correct_first_contact_sides": 1431,
+        "correct_sides": 26773,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8757649938800489,
+        "side_accuracy": 0.931429167826329,
+        "side_answers": 28744,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 886,
+      "sections_changed": 1618
+    },
+    {
+      "broken_identities": [
+        [
+          "sset_38",
+          102
+        ]
+      ],
+      "broken_sections": 1,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 79,
+          "repaired_sections": 79
+        },
+        {
+          "broken_sections": 1,
+          "group": "B",
+          "net_sections": 76,
+          "repaired_sections": 77
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 57,
+          "repaired_sections": 57
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 87,
+          "repaired_sections": 87
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 62,
+          "repaired_sections": 62
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 14,
+          "repaired_sections": 14
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 21,
+          "repaired_sections": 21
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 14,
+          "repaired_sections": 14
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 1,
+          "fixture": "sset_38",
+          "net_sections": 7,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 12,
+          "repaired_sections": 12
+        }
+      ],
+      "contacts_changed": 3509,
+      "minimum_vote_gap": 3,
+      "net_sections": 361,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          12
+        ],
+        [
+          "sset_02",
+          22
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          45
+        ],
+        [
+          "sset_02",
+          52
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          22
+        ],
+        [
+          "sset_03",
+          25
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          50
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          9
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          45
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          73
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          95
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          10
+        ],
+        [
+          "sset_06",
+          18
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          49
+        ],
+        [
+          "sset_06",
+          54
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          86
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          97
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          2
+        ],
+        [
+          "sset_08",
+          7
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          13
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          26
+        ],
+        [
+          "sset_08",
+          30
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          44
+        ],
+        [
+          "sset_08",
+          45
+        ],
+        [
+          "sset_08",
+          53
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          3
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          46
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          56
+        ],
+        [
+          "sset_13",
+          58
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          63
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          29
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          37
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          57
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          49
+        ],
+        [
+          "sset_15",
+          51
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          67
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          79
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          22
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          35
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          64
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          96
+        ],
+        [
+          "sset_19",
+          100
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          8
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          46
+        ],
+        [
+          "sset_20",
+          47
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          57
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          8
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_21",
+          31
+        ],
+        [
+          "sset_21",
+          46
+        ],
+        [
+          "sset_22",
+          26
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          13
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          32
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_23",
+          67
+        ],
+        [
+          "sset_24",
+          57
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          5
+        ],
+        [
+          "sset_25",
+          7
+        ],
+        [
+          "sset_25",
+          15
+        ],
+        [
+          "sset_25",
+          16
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          33
+        ],
+        [
+          "sset_25",
+          43
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          28
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          32
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          17
+        ],
+        [
+          "sset_30",
+          28
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          78
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_31",
+          4
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          6
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          39
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_31",
+          63
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          30
+        ],
+        [
+          "sset_32",
+          37
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          73
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          80
+        ],
+        [
+          "sset_32",
+          87
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          125
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          68
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          6
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          56
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          19
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          35
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          42
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          27
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          51
+        ],
+        [
+          "sset_38",
+          64
+        ],
+        [
+          "sset_38",
+          74
+        ],
+        [
+          "sset_38",
+          81
+        ],
+        [
+          "sset_38",
+          94
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          38
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          60
+        ],
+        [
+          "sset_39",
+          62
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          2
+        ],
+        [
+          "sset_40",
+          10
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          50
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          71
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_40",
+          78
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          25
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          40
+        ],
+        [
+          "sset_41",
+          48
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          21
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          51
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          3
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          10
+        ],
+        [
+          "sset_44",
+          13
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          46
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          56
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          76
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 362,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.8247863247863247,
+        "correct_first_contact_sides": 1436,
+        "correct_sides": 26827,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8788249694002448,
+        "side_accuracy": 0.9333402915492468,
+        "side_answers": 28743,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 839,
+      "sections_changed": 1423
+    },
+    {
+      "broken_identities": [
+        [
+          "sset_38",
+          102
+        ]
+      ],
+      "broken_sections": 1,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 71,
+          "repaired_sections": 71
+        },
+        {
+          "broken_sections": 1,
+          "group": "B",
+          "net_sections": 68,
+          "repaired_sections": 69
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 51,
+          "repaired_sections": 51
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 79,
+          "repaired_sections": 79
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 51,
+          "repaired_sections": 51
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 16,
+          "repaired_sections": 16
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 18,
+          "repaired_sections": 18
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 14,
+          "repaired_sections": 14
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 1,
+          "fixture": "sset_38",
+          "net_sections": 5,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 14,
+          "repaired_sections": 14
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 9,
+          "repaired_sections": 9
+        }
+      ],
+      "contacts_changed": 3121,
+      "minimum_vote_gap": 4,
+      "net_sections": 320,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          12
+        ],
+        [
+          "sset_02",
+          22
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          45
+        ],
+        [
+          "sset_02",
+          52
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          25
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          50
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          9
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          45
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          73
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          10
+        ],
+        [
+          "sset_06",
+          18
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          54
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          86
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          97
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          2
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          13
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          26
+        ],
+        [
+          "sset_08",
+          30
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          45
+        ],
+        [
+          "sset_08",
+          53
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          3
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          58
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          63
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          37
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          49
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          22
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          35
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          46
+        ],
+        [
+          "sset_20",
+          47
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          57
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          8
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_21",
+          31
+        ],
+        [
+          "sset_22",
+          26
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          13
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          32
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_23",
+          67
+        ],
+        [
+          "sset_24",
+          57
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          7
+        ],
+        [
+          "sset_25",
+          16
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          33
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_31",
+          4
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          6
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          39
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_31",
+          63
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          30
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          73
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          80
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          125
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          68
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          19
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          35
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          42
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          27
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          64
+        ],
+        [
+          "sset_38",
+          81
+        ],
+        [
+          "sset_38",
+          94
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          60
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          10
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          50
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          25
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          40
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          21
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          3
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          46
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          76
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 321,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.8259853655537108,
+        "correct_first_contact_sides": 1436,
+        "correct_sides": 26866,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8788249694002448,
+        "side_accuracy": 0.9347296639064783,
+        "side_answers": 28742,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 798,
+      "sections_changed": 1275
+    },
+    {
+      "broken_identities": [],
+      "broken_sections": 0,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 67,
+          "repaired_sections": 67
+        },
+        {
+          "broken_sections": 0,
+          "group": "B",
+          "net_sections": 63,
+          "repaired_sections": 63
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 51,
+          "repaired_sections": 51
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 72,
+          "repaired_sections": 72
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 43,
+          "repaired_sections": 43
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 15,
+          "repaired_sections": 15
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 11,
+          "repaired_sections": 11
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 13,
+          "repaired_sections": 13
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_38",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 14,
+          "repaired_sections": 14
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 9,
+          "repaired_sections": 9
+        }
+      ],
+      "contacts_changed": 2721,
+      "minimum_vote_gap": 5,
+      "net_sections": 296,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          12
+        ],
+        [
+          "sset_02",
+          22
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          52
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          25
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          50
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          9
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          45
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          18
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          54
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          86
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          97
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          2
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          30
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          53
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          3
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          63
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          49
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          46
+        ],
+        [
+          "sset_20",
+          47
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          57
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          8
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          13
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_23",
+          67
+        ],
+        [
+          "sset_24",
+          57
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          39
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          73
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          80
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          125
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          19
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          35
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          27
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          64
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          60
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          10
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          50
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          25
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          40
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          21
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          46
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          76
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 296,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.8273996187665252,
+        "correct_first_contact_sides": 1441,
+        "correct_sides": 26912,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8818849449204407,
+        "side_accuracy": 0.9363626874499843,
+        "side_answers": 28741,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 774,
+      "sections_changed": 1130
+    },
+    {
+      "broken_identities": [],
+      "broken_sections": 0,
+      "by_group": [
+        {
+          "broken_sections": 0,
+          "group": "A",
+          "net_sections": 61,
+          "repaired_sections": 61
+        },
+        {
+          "broken_sections": 0,
+          "group": "B",
+          "net_sections": 51,
+          "repaired_sections": 51
+        },
+        {
+          "broken_sections": 0,
+          "group": "C",
+          "net_sections": 48,
+          "repaired_sections": 48
+        },
+        {
+          "broken_sections": 0,
+          "group": "D",
+          "net_sections": 58,
+          "repaired_sections": 58
+        },
+        {
+          "broken_sections": 0,
+          "group": "V",
+          "net_sections": 38,
+          "repaired_sections": 38
+        }
+      ],
+      "by_video": [
+        {
+          "broken_sections": 0,
+          "fixture": "sset_01",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_02",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_03",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_04",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_05",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_06",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_07",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_08",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_11",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_13",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_14",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_15",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_16",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_17",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_18",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_19",
+          "net_sections": 17,
+          "repaired_sections": 17
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_20",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_21",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_22",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_23",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_24",
+          "net_sections": 1,
+          "repaired_sections": 1
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_25",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_26",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_28",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_29",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_30",
+          "net_sections": 5,
+          "repaired_sections": 5
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_31",
+          "net_sections": 9,
+          "repaired_sections": 9
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_32",
+          "net_sections": 10,
+          "repaired_sections": 10
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_33",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_34",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_35",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_36",
+          "net_sections": 3,
+          "repaired_sections": 3
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_37",
+          "net_sections": 6,
+          "repaired_sections": 6
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_38",
+          "net_sections": 2,
+          "repaired_sections": 2
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_39",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_40",
+          "net_sections": 8,
+          "repaired_sections": 8
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_41",
+          "net_sections": 12,
+          "repaired_sections": 12
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_42",
+          "net_sections": 4,
+          "repaired_sections": 4
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_43",
+          "net_sections": 7,
+          "repaired_sections": 7
+        },
+        {
+          "broken_sections": 0,
+          "fixture": "sset_44",
+          "net_sections": 7,
+          "repaired_sections": 7
+        }
+      ],
+      "contacts_changed": 2395,
+      "minimum_vote_gap": 6,
+      "net_sections": 256,
+      "repaired_identities": [
+        [
+          "sset_01",
+          12
+        ],
+        [
+          "sset_01",
+          20
+        ],
+        [
+          "sset_01",
+          49
+        ],
+        [
+          "sset_01",
+          89
+        ],
+        [
+          "sset_01",
+          98
+        ],
+        [
+          "sset_02",
+          0
+        ],
+        [
+          "sset_02",
+          2
+        ],
+        [
+          "sset_02",
+          26
+        ],
+        [
+          "sset_02",
+          28
+        ],
+        [
+          "sset_02",
+          32
+        ],
+        [
+          "sset_02",
+          39
+        ],
+        [
+          "sset_02",
+          43
+        ],
+        [
+          "sset_02",
+          54
+        ],
+        [
+          "sset_02",
+          59
+        ],
+        [
+          "sset_02",
+          61
+        ],
+        [
+          "sset_02",
+          62
+        ],
+        [
+          "sset_02",
+          71
+        ],
+        [
+          "sset_03",
+          2
+        ],
+        [
+          "sset_03",
+          12
+        ],
+        [
+          "sset_03",
+          13
+        ],
+        [
+          "sset_03",
+          20
+        ],
+        [
+          "sset_03",
+          28
+        ],
+        [
+          "sset_03",
+          37
+        ],
+        [
+          "sset_03",
+          46
+        ],
+        [
+          "sset_03",
+          56
+        ],
+        [
+          "sset_03",
+          64
+        ],
+        [
+          "sset_04",
+          1
+        ],
+        [
+          "sset_04",
+          11
+        ],
+        [
+          "sset_04",
+          28
+        ],
+        [
+          "sset_04",
+          43
+        ],
+        [
+          "sset_04",
+          58
+        ],
+        [
+          "sset_04",
+          60
+        ],
+        [
+          "sset_05",
+          7
+        ],
+        [
+          "sset_05",
+          17
+        ],
+        [
+          "sset_05",
+          32
+        ],
+        [
+          "sset_05",
+          47
+        ],
+        [
+          "sset_05",
+          62
+        ],
+        [
+          "sset_05",
+          67
+        ],
+        [
+          "sset_05",
+          77
+        ],
+        [
+          "sset_05",
+          82
+        ],
+        [
+          "sset_05",
+          97
+        ],
+        [
+          "sset_06",
+          25
+        ],
+        [
+          "sset_06",
+          47
+        ],
+        [
+          "sset_06",
+          62
+        ],
+        [
+          "sset_06",
+          85
+        ],
+        [
+          "sset_06",
+          87
+        ],
+        [
+          "sset_06",
+          94
+        ],
+        [
+          "sset_06",
+          95
+        ],
+        [
+          "sset_06",
+          101
+        ],
+        [
+          "sset_07",
+          15
+        ],
+        [
+          "sset_07",
+          20
+        ],
+        [
+          "sset_07",
+          29
+        ],
+        [
+          "sset_07",
+          31
+        ],
+        [
+          "sset_07",
+          32
+        ],
+        [
+          "sset_07",
+          34
+        ],
+        [
+          "sset_07",
+          36
+        ],
+        [
+          "sset_07",
+          38
+        ],
+        [
+          "sset_07",
+          48
+        ],
+        [
+          "sset_07",
+          51
+        ],
+        [
+          "sset_08",
+          11
+        ],
+        [
+          "sset_08",
+          21
+        ],
+        [
+          "sset_08",
+          36
+        ],
+        [
+          "sset_08",
+          39
+        ],
+        [
+          "sset_08",
+          55
+        ],
+        [
+          "sset_11",
+          25
+        ],
+        [
+          "sset_13",
+          8
+        ],
+        [
+          "sset_13",
+          10
+        ],
+        [
+          "sset_13",
+          12
+        ],
+        [
+          "sset_13",
+          34
+        ],
+        [
+          "sset_13",
+          36
+        ],
+        [
+          "sset_13",
+          37
+        ],
+        [
+          "sset_13",
+          40
+        ],
+        [
+          "sset_13",
+          55
+        ],
+        [
+          "sset_13",
+          61
+        ],
+        [
+          "sset_13",
+          71
+        ],
+        [
+          "sset_14",
+          0
+        ],
+        [
+          "sset_14",
+          4
+        ],
+        [
+          "sset_14",
+          11
+        ],
+        [
+          "sset_14",
+          27
+        ],
+        [
+          "sset_14",
+          32
+        ],
+        [
+          "sset_14",
+          33
+        ],
+        [
+          "sset_14",
+          36
+        ],
+        [
+          "sset_14",
+          43
+        ],
+        [
+          "sset_14",
+          79
+        ],
+        [
+          "sset_14",
+          93
+        ],
+        [
+          "sset_15",
+          19
+        ],
+        [
+          "sset_15",
+          59
+        ],
+        [
+          "sset_15",
+          70
+        ],
+        [
+          "sset_15",
+          72
+        ],
+        [
+          "sset_15",
+          90
+        ],
+        [
+          "sset_16",
+          30
+        ],
+        [
+          "sset_17",
+          19
+        ],
+        [
+          "sset_17",
+          36
+        ],
+        [
+          "sset_17",
+          39
+        ],
+        [
+          "sset_17",
+          69
+        ],
+        [
+          "sset_17",
+          94
+        ],
+        [
+          "sset_18",
+          23
+        ],
+        [
+          "sset_18",
+          30
+        ],
+        [
+          "sset_18",
+          33
+        ],
+        [
+          "sset_19",
+          5
+        ],
+        [
+          "sset_19",
+          12
+        ],
+        [
+          "sset_19",
+          21
+        ],
+        [
+          "sset_19",
+          27
+        ],
+        [
+          "sset_19",
+          29
+        ],
+        [
+          "sset_19",
+          37
+        ],
+        [
+          "sset_19",
+          40
+        ],
+        [
+          "sset_19",
+          44
+        ],
+        [
+          "sset_19",
+          45
+        ],
+        [
+          "sset_19",
+          47
+        ],
+        [
+          "sset_19",
+          67
+        ],
+        [
+          "sset_19",
+          74
+        ],
+        [
+          "sset_19",
+          79
+        ],
+        [
+          "sset_19",
+          80
+        ],
+        [
+          "sset_19",
+          81
+        ],
+        [
+          "sset_19",
+          92
+        ],
+        [
+          "sset_19",
+          107
+        ],
+        [
+          "sset_20",
+          2
+        ],
+        [
+          "sset_20",
+          17
+        ],
+        [
+          "sset_20",
+          24
+        ],
+        [
+          "sset_20",
+          32
+        ],
+        [
+          "sset_20",
+          34
+        ],
+        [
+          "sset_20",
+          38
+        ],
+        [
+          "sset_20",
+          55
+        ],
+        [
+          "sset_20",
+          59
+        ],
+        [
+          "sset_20",
+          62
+        ],
+        [
+          "sset_20",
+          70
+        ],
+        [
+          "sset_21",
+          19
+        ],
+        [
+          "sset_21",
+          24
+        ],
+        [
+          "sset_22",
+          40
+        ],
+        [
+          "sset_22",
+          69
+        ],
+        [
+          "sset_23",
+          8
+        ],
+        [
+          "sset_23",
+          10
+        ],
+        [
+          "sset_23",
+          30
+        ],
+        [
+          "sset_23",
+          31
+        ],
+        [
+          "sset_23",
+          35
+        ],
+        [
+          "sset_23",
+          58
+        ],
+        [
+          "sset_23",
+          60
+        ],
+        [
+          "sset_24",
+          71
+        ],
+        [
+          "sset_25",
+          18
+        ],
+        [
+          "sset_25",
+          47
+        ],
+        [
+          "sset_26",
+          10
+        ],
+        [
+          "sset_26",
+          45
+        ],
+        [
+          "sset_26",
+          58
+        ],
+        [
+          "sset_26",
+          60
+        ],
+        [
+          "sset_28",
+          3
+        ],
+        [
+          "sset_28",
+          4
+        ],
+        [
+          "sset_28",
+          17
+        ],
+        [
+          "sset_28",
+          30
+        ],
+        [
+          "sset_28",
+          34
+        ],
+        [
+          "sset_28",
+          45
+        ],
+        [
+          "sset_28",
+          60
+        ],
+        [
+          "sset_28",
+          63
+        ],
+        [
+          "sset_28",
+          70
+        ],
+        [
+          "sset_29",
+          4
+        ],
+        [
+          "sset_29",
+          20
+        ],
+        [
+          "sset_29",
+          51
+        ],
+        [
+          "sset_29",
+          57
+        ],
+        [
+          "sset_29",
+          67
+        ],
+        [
+          "sset_30",
+          5
+        ],
+        [
+          "sset_30",
+          29
+        ],
+        [
+          "sset_30",
+          33
+        ],
+        [
+          "sset_30",
+          88
+        ],
+        [
+          "sset_30",
+          100
+        ],
+        [
+          "sset_31",
+          5
+        ],
+        [
+          "sset_31",
+          15
+        ],
+        [
+          "sset_31",
+          20
+        ],
+        [
+          "sset_31",
+          34
+        ],
+        [
+          "sset_31",
+          42
+        ],
+        [
+          "sset_31",
+          45
+        ],
+        [
+          "sset_31",
+          46
+        ],
+        [
+          "sset_31",
+          49
+        ],
+        [
+          "sset_31",
+          52
+        ],
+        [
+          "sset_32",
+          10
+        ],
+        [
+          "sset_32",
+          12
+        ],
+        [
+          "sset_32",
+          18
+        ],
+        [
+          "sset_32",
+          28
+        ],
+        [
+          "sset_32",
+          46
+        ],
+        [
+          "sset_32",
+          47
+        ],
+        [
+          "sset_32",
+          74
+        ],
+        [
+          "sset_32",
+          95
+        ],
+        [
+          "sset_32",
+          121
+        ],
+        [
+          "sset_32",
+          143
+        ],
+        [
+          "sset_33",
+          5
+        ],
+        [
+          "sset_33",
+          7
+        ],
+        [
+          "sset_33",
+          14
+        ],
+        [
+          "sset_33",
+          52
+        ],
+        [
+          "sset_33",
+          67
+        ],
+        [
+          "sset_33",
+          72
+        ],
+        [
+          "sset_34",
+          9
+        ],
+        [
+          "sset_34",
+          34
+        ],
+        [
+          "sset_34",
+          38
+        ],
+        [
+          "sset_34",
+          43
+        ],
+        [
+          "sset_35",
+          4
+        ],
+        [
+          "sset_35",
+          5
+        ],
+        [
+          "sset_35",
+          13
+        ],
+        [
+          "sset_35",
+          18
+        ],
+        [
+          "sset_35",
+          24
+        ],
+        [
+          "sset_35",
+          34
+        ],
+        [
+          "sset_35",
+          67
+        ],
+        [
+          "sset_36",
+          2
+        ],
+        [
+          "sset_36",
+          16
+        ],
+        [
+          "sset_36",
+          58
+        ],
+        [
+          "sset_37",
+          3
+        ],
+        [
+          "sset_37",
+          16
+        ],
+        [
+          "sset_37",
+          20
+        ],
+        [
+          "sset_37",
+          23
+        ],
+        [
+          "sset_37",
+          36
+        ],
+        [
+          "sset_37",
+          68
+        ],
+        [
+          "sset_38",
+          36
+        ],
+        [
+          "sset_38",
+          112
+        ],
+        [
+          "sset_39",
+          24
+        ],
+        [
+          "sset_39",
+          47
+        ],
+        [
+          "sset_39",
+          50
+        ],
+        [
+          "sset_39",
+          66
+        ],
+        [
+          "sset_39",
+          69
+        ],
+        [
+          "sset_39",
+          72
+        ],
+        [
+          "sset_39",
+          73
+        ],
+        [
+          "sset_39",
+          84
+        ],
+        [
+          "sset_40",
+          1
+        ],
+        [
+          "sset_40",
+          14
+        ],
+        [
+          "sset_40",
+          26
+        ],
+        [
+          "sset_40",
+          29
+        ],
+        [
+          "sset_40",
+          39
+        ],
+        [
+          "sset_40",
+          57
+        ],
+        [
+          "sset_40",
+          61
+        ],
+        [
+          "sset_40",
+          75
+        ],
+        [
+          "sset_41",
+          3
+        ],
+        [
+          "sset_41",
+          19
+        ],
+        [
+          "sset_41",
+          27
+        ],
+        [
+          "sset_41",
+          52
+        ],
+        [
+          "sset_41",
+          61
+        ],
+        [
+          "sset_41",
+          68
+        ],
+        [
+          "sset_41",
+          75
+        ],
+        [
+          "sset_41",
+          77
+        ],
+        [
+          "sset_41",
+          89
+        ],
+        [
+          "sset_41",
+          104
+        ],
+        [
+          "sset_41",
+          113
+        ],
+        [
+          "sset_41",
+          121
+        ],
+        [
+          "sset_42",
+          42
+        ],
+        [
+          "sset_42",
+          56
+        ],
+        [
+          "sset_42",
+          59
+        ],
+        [
+          "sset_42",
+          66
+        ],
+        [
+          "sset_43",
+          11
+        ],
+        [
+          "sset_43",
+          18
+        ],
+        [
+          "sset_43",
+          28
+        ],
+        [
+          "sset_43",
+          42
+        ],
+        [
+          "sset_43",
+          45
+        ],
+        [
+          "sset_43",
+          51
+        ],
+        [
+          "sset_43",
+          55
+        ],
+        [
+          "sset_44",
+          3
+        ],
+        [
+          "sset_44",
+          34
+        ],
+        [
+          "sset_44",
+          41
+        ],
+        [
+          "sset_44",
+          54
+        ],
+        [
+          "sset_44",
+          69
+        ],
+        [
+          "sset_44",
+          92
+        ],
+        [
+          "sset_44",
+          98
+        ]
+      ],
+      "repaired_sections": 256,
+      "revised_contact_and_side": {
+        "contact_and_side_f1": 0.8264772797146898,
+        "correct_first_contact_sides": 1442,
+        "correct_sides": 26882,
+        "first_contact_recall": 0.4864543018755582,
+        "first_contacts": 3359,
+        "labelled_contacts": 33267,
+        "matched_first_contacts": 1634,
+        "predicted_contacts": 31785,
+        "server_side_accuracy_when_start_matched": 0.8824969400244798,
+        "side_accuracy": 0.9353514265831594,
+        "side_answers": 28740,
+        "timing_matches": 28781
+      },
+      "revised_fully_correct": 734,
+      "sections_changed": 980
+    }
+  ],
+  "labels_used": "40-video development labels, for scoring only",
+  "repository_commit": "420b8fd4789f680111f42e76d62c01cc2d7eba09",
+  "result_type": "Fixed label-free rule on out-of-fold development predictions",
+  "run_id": "simple-alternation-vote-development",
+  "schema": "contact-detector-development-side-result/1",
+  "sections": 3527,
+  "selected": {
+    "broken_identities": [
+      [
+        "sset_38",
+        102
+      ]
+    ],
+    "broken_sections": 1,
+    "by_group": [
+      {
+        "broken_sections": 0,
+        "group": "A",
+        "net_sections": 90,
+        "repaired_sections": 90
+      },
+      {
+        "broken_sections": 1,
+        "group": "B",
+        "net_sections": 88,
+        "repaired_sections": 89
+      },
+      {
+        "broken_sections": 0,
+        "group": "C",
+        "net_sections": 64,
+        "repaired_sections": 64
+      },
+      {
+        "broken_sections": 0,
+        "group": "D",
+        "net_sections": 101,
+        "repaired_sections": 101
+      },
+      {
+        "broken_sections": 0,
+        "group": "V",
+        "net_sections": 82,
+        "repaired_sections": 82
+      }
+    ],
+    "by_video": [
+      {
+        "broken_sections": 0,
+        "fixture": "sset_01",
+        "net_sections": 6,
+        "repaired_sections": 6
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_02",
+        "net_sections": 17,
+        "repaired_sections": 17
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_03",
+        "net_sections": 13,
+        "repaired_sections": 13
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_04",
+        "net_sections": 9,
+        "repaired_sections": 9
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_05",
+        "net_sections": 11,
+        "repaired_sections": 11
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_06",
+        "net_sections": 15,
+        "repaired_sections": 15
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_07",
+        "net_sections": 13,
+        "repaired_sections": 13
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_08",
+        "net_sections": 15,
+        "repaired_sections": 15
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_11",
+        "net_sections": 1,
+        "repaired_sections": 1
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_13",
+        "net_sections": 16,
+        "repaired_sections": 16
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_14",
+        "net_sections": 16,
+        "repaired_sections": 16
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_15",
+        "net_sections": 11,
+        "repaired_sections": 11
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_16",
+        "net_sections": 1,
+        "repaired_sections": 1
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_17",
+        "net_sections": 6,
+        "repaired_sections": 6
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_18",
+        "net_sections": 4,
+        "repaired_sections": 4
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_19",
+        "net_sections": 26,
+        "repaired_sections": 26
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_20",
+        "net_sections": 15,
+        "repaired_sections": 15
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_21",
+        "net_sections": 6,
+        "repaired_sections": 6
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_22",
+        "net_sections": 4,
+        "repaired_sections": 4
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_23",
+        "net_sections": 11,
+        "repaired_sections": 11
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_24",
+        "net_sections": 5,
+        "repaired_sections": 5
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_25",
+        "net_sections": 10,
+        "repaired_sections": 10
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_26",
+        "net_sections": 5,
+        "repaired_sections": 5
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_28",
+        "net_sections": 12,
+        "repaired_sections": 12
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_29",
+        "net_sections": 5,
+        "repaired_sections": 5
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_30",
+        "net_sections": 10,
+        "repaired_sections": 10
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_31",
+        "net_sections": 18,
+        "repaired_sections": 18
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_32",
+        "net_sections": 18,
+        "repaired_sections": 18
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_33",
+        "net_sections": 8,
+        "repaired_sections": 8
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_34",
+        "net_sections": 4,
+        "repaired_sections": 4
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_35",
+        "net_sections": 9,
+        "repaired_sections": 9
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_36",
+        "net_sections": 4,
+        "repaired_sections": 4
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_37",
+        "net_sections": 9,
+        "repaired_sections": 9
+      },
+      {
+        "broken_sections": 1,
+        "fixture": "sset_38",
+        "net_sections": 12,
+        "repaired_sections": 13
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_39",
+        "net_sections": 12,
+        "repaired_sections": 12
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_40",
+        "net_sections": 19,
+        "repaired_sections": 19
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_41",
+        "net_sections": 17,
+        "repaired_sections": 17
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_42",
+        "net_sections": 6,
+        "repaired_sections": 6
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_43",
+        "net_sections": 10,
+        "repaired_sections": 10
+      },
+      {
+        "broken_sections": 0,
+        "fixture": "sset_44",
+        "net_sections": 16,
+        "repaired_sections": 16
+      }
+    ],
+    "contacts_changed": 4448,
+    "minimum_vote_gap": 1,
+    "net_sections": 425,
+    "repaired_identities": [
+      [
+        "sset_01",
+        12
+      ],
+      [
+        "sset_01",
+        20
+      ],
+      [
+        "sset_01",
+        49
+      ],
+      [
+        "sset_01",
+        89
+      ],
+      [
+        "sset_01",
+        93
+      ],
+      [
+        "sset_01",
+        98
+      ],
+      [
+        "sset_02",
+        0
+      ],
+      [
+        "sset_02",
+        2
+      ],
+      [
+        "sset_02",
+        12
+      ],
+      [
+        "sset_02",
+        22
+      ],
+      [
+        "sset_02",
+        26
+      ],
+      [
+        "sset_02",
+        28
+      ],
+      [
+        "sset_02",
+        32
+      ],
+      [
+        "sset_02",
+        34
+      ],
+      [
+        "sset_02",
+        39
+      ],
+      [
+        "sset_02",
+        43
+      ],
+      [
+        "sset_02",
+        45
+      ],
+      [
+        "sset_02",
+        52
+      ],
+      [
+        "sset_02",
+        54
+      ],
+      [
+        "sset_02",
+        59
+      ],
+      [
+        "sset_02",
+        61
+      ],
+      [
+        "sset_02",
+        62
+      ],
+      [
+        "sset_02",
+        71
+      ],
+      [
+        "sset_03",
+        2
+      ],
+      [
+        "sset_03",
+        12
+      ],
+      [
+        "sset_03",
+        13
+      ],
+      [
+        "sset_03",
+        20
+      ],
+      [
+        "sset_03",
+        22
+      ],
+      [
+        "sset_03",
+        25
+      ],
+      [
+        "sset_03",
+        28
+      ],
+      [
+        "sset_03",
+        29
+      ],
+      [
+        "sset_03",
+        37
+      ],
+      [
+        "sset_03",
+        46
+      ],
+      [
+        "sset_03",
+        50
+      ],
+      [
+        "sset_03",
+        56
+      ],
+      [
+        "sset_03",
+        64
+      ],
+      [
+        "sset_04",
+        1
+      ],
+      [
+        "sset_04",
+        9
+      ],
+      [
+        "sset_04",
+        11
+      ],
+      [
+        "sset_04",
+        14
+      ],
+      [
+        "sset_04",
+        28
+      ],
+      [
+        "sset_04",
+        43
+      ],
+      [
+        "sset_04",
+        45
+      ],
+      [
+        "sset_04",
+        58
+      ],
+      [
+        "sset_04",
+        60
+      ],
+      [
+        "sset_05",
+        7
+      ],
+      [
+        "sset_05",
+        17
+      ],
+      [
+        "sset_05",
+        32
+      ],
+      [
+        "sset_05",
+        47
+      ],
+      [
+        "sset_05",
+        62
+      ],
+      [
+        "sset_05",
+        67
+      ],
+      [
+        "sset_05",
+        73
+      ],
+      [
+        "sset_05",
+        77
+      ],
+      [
+        "sset_05",
+        82
+      ],
+      [
+        "sset_05",
+        95
+      ],
+      [
+        "sset_05",
+        97
+      ],
+      [
+        "sset_06",
+        10
+      ],
+      [
+        "sset_06",
+        18
+      ],
+      [
+        "sset_06",
+        25
+      ],
+      [
+        "sset_06",
+        39
+      ],
+      [
+        "sset_06",
+        47
+      ],
+      [
+        "sset_06",
+        49
+      ],
+      [
+        "sset_06",
+        54
+      ],
+      [
+        "sset_06",
+        62
+      ],
+      [
+        "sset_06",
+        85
+      ],
+      [
+        "sset_06",
+        86
+      ],
+      [
+        "sset_06",
+        87
+      ],
+      [
+        "sset_06",
+        94
+      ],
+      [
+        "sset_06",
+        95
+      ],
+      [
+        "sset_06",
+        97
+      ],
+      [
+        "sset_06",
+        101
+      ],
+      [
+        "sset_07",
+        7
+      ],
+      [
+        "sset_07",
+        10
+      ],
+      [
+        "sset_07",
+        15
+      ],
+      [
+        "sset_07",
+        20
+      ],
+      [
+        "sset_07",
+        29
+      ],
+      [
+        "sset_07",
+        31
+      ],
+      [
+        "sset_07",
+        32
+      ],
+      [
+        "sset_07",
+        34
+      ],
+      [
+        "sset_07",
+        36
+      ],
+      [
+        "sset_07",
+        38
+      ],
+      [
+        "sset_07",
+        45
+      ],
+      [
+        "sset_07",
+        48
+      ],
+      [
+        "sset_07",
+        51
+      ],
+      [
+        "sset_08",
+        2
+      ],
+      [
+        "sset_08",
+        7
+      ],
+      [
+        "sset_08",
+        11
+      ],
+      [
+        "sset_08",
+        13
+      ],
+      [
+        "sset_08",
+        21
+      ],
+      [
+        "sset_08",
+        26
+      ],
+      [
+        "sset_08",
+        27
+      ],
+      [
+        "sset_08",
+        28
+      ],
+      [
+        "sset_08",
+        30
+      ],
+      [
+        "sset_08",
+        36
+      ],
+      [
+        "sset_08",
+        39
+      ],
+      [
+        "sset_08",
+        44
+      ],
+      [
+        "sset_08",
+        45
+      ],
+      [
+        "sset_08",
+        53
+      ],
+      [
+        "sset_08",
+        55
+      ],
+      [
+        "sset_11",
+        25
+      ],
+      [
+        "sset_13",
+        3
+      ],
+      [
+        "sset_13",
+        8
+      ],
+      [
+        "sset_13",
+        10
+      ],
+      [
+        "sset_13",
+        12
+      ],
+      [
+        "sset_13",
+        14
+      ],
+      [
+        "sset_13",
+        34
+      ],
+      [
+        "sset_13",
+        36
+      ],
+      [
+        "sset_13",
+        37
+      ],
+      [
+        "sset_13",
+        40
+      ],
+      [
+        "sset_13",
+        46
+      ],
+      [
+        "sset_13",
+        55
+      ],
+      [
+        "sset_13",
+        56
+      ],
+      [
+        "sset_13",
+        58
+      ],
+      [
+        "sset_13",
+        61
+      ],
+      [
+        "sset_13",
+        63
+      ],
+      [
+        "sset_13",
+        71
+      ],
+      [
+        "sset_14",
+        0
+      ],
+      [
+        "sset_14",
+        4
+      ],
+      [
+        "sset_14",
+        11
+      ],
+      [
+        "sset_14",
+        27
+      ],
+      [
+        "sset_14",
+        29
+      ],
+      [
+        "sset_14",
+        32
+      ],
+      [
+        "sset_14",
+        33
+      ],
+      [
+        "sset_14",
+        36
+      ],
+      [
+        "sset_14",
+        37
+      ],
+      [
+        "sset_14",
+        38
+      ],
+      [
+        "sset_14",
+        43
+      ],
+      [
+        "sset_14",
+        57
+      ],
+      [
+        "sset_14",
+        79
+      ],
+      [
+        "sset_14",
+        93
+      ],
+      [
+        "sset_14",
+        103
+      ],
+      [
+        "sset_14",
+        104
+      ],
+      [
+        "sset_15",
+        19
+      ],
+      [
+        "sset_15",
+        45
+      ],
+      [
+        "sset_15",
+        49
+      ],
+      [
+        "sset_15",
+        51
+      ],
+      [
+        "sset_15",
+        52
+      ],
+      [
+        "sset_15",
+        59
+      ],
+      [
+        "sset_15",
+        67
+      ],
+      [
+        "sset_15",
+        70
+      ],
+      [
+        "sset_15",
+        72
+      ],
+      [
+        "sset_15",
+        79
+      ],
+      [
+        "sset_15",
+        90
+      ],
+      [
+        "sset_16",
+        30
+      ],
+      [
+        "sset_17",
+        19
+      ],
+      [
+        "sset_17",
+        36
+      ],
+      [
+        "sset_17",
+        39
+      ],
+      [
+        "sset_17",
+        69
+      ],
+      [
+        "sset_17",
+        90
+      ],
+      [
+        "sset_17",
+        94
+      ],
+      [
+        "sset_18",
+        22
+      ],
+      [
+        "sset_18",
+        23
+      ],
+      [
+        "sset_18",
+        30
+      ],
+      [
+        "sset_18",
+        33
+      ],
+      [
+        "sset_19",
+        5
+      ],
+      [
+        "sset_19",
+        9
+      ],
+      [
+        "sset_19",
+        12
+      ],
+      [
+        "sset_19",
+        19
+      ],
+      [
+        "sset_19",
+        21
+      ],
+      [
+        "sset_19",
+        27
+      ],
+      [
+        "sset_19",
+        29
+      ],
+      [
+        "sset_19",
+        35
+      ],
+      [
+        "sset_19",
+        37
+      ],
+      [
+        "sset_19",
+        40
+      ],
+      [
+        "sset_19",
+        44
+      ],
+      [
+        "sset_19",
+        45
+      ],
+      [
+        "sset_19",
+        47
+      ],
+      [
+        "sset_19",
+        49
+      ],
+      [
+        "sset_19",
+        53
+      ],
+      [
+        "sset_19",
+        64
+      ],
+      [
+        "sset_19",
+        67
+      ],
+      [
+        "sset_19",
+        74
+      ],
+      [
+        "sset_19",
+        79
+      ],
+      [
+        "sset_19",
+        80
+      ],
+      [
+        "sset_19",
+        81
+      ],
+      [
+        "sset_19",
+        92
+      ],
+      [
+        "sset_19",
+        96
+      ],
+      [
+        "sset_19",
+        100
+      ],
+      [
+        "sset_19",
+        107
+      ],
+      [
+        "sset_19",
+        111
+      ],
+      [
+        "sset_20",
+        2
+      ],
+      [
+        "sset_20",
+        5
+      ],
+      [
+        "sset_20",
+        8
+      ],
+      [
+        "sset_20",
+        17
+      ],
+      [
+        "sset_20",
+        24
+      ],
+      [
+        "sset_20",
+        32
+      ],
+      [
+        "sset_20",
+        34
+      ],
+      [
+        "sset_20",
+        38
+      ],
+      [
+        "sset_20",
+        46
+      ],
+      [
+        "sset_20",
+        47
+      ],
+      [
+        "sset_20",
+        55
+      ],
+      [
+        "sset_20",
+        57
+      ],
+      [
+        "sset_20",
+        59
+      ],
+      [
+        "sset_20",
+        62
+      ],
+      [
+        "sset_20",
+        70
+      ],
+      [
+        "sset_21",
+        8
+      ],
+      [
+        "sset_21",
+        19
+      ],
+      [
+        "sset_21",
+        24
+      ],
+      [
+        "sset_21",
+        31
+      ],
+      [
+        "sset_21",
+        46
+      ],
+      [
+        "sset_21",
+        73
+      ],
+      [
+        "sset_22",
+        26
+      ],
+      [
+        "sset_22",
+        36
+      ],
+      [
+        "sset_22",
+        40
+      ],
+      [
+        "sset_22",
+        69
+      ],
+      [
+        "sset_23",
+        8
+      ],
+      [
+        "sset_23",
+        10
+      ],
+      [
+        "sset_23",
+        13
+      ],
+      [
+        "sset_23",
+        30
+      ],
+      [
+        "sset_23",
+        31
+      ],
+      [
+        "sset_23",
+        32
+      ],
+      [
+        "sset_23",
+        35
+      ],
+      [
+        "sset_23",
+        58
+      ],
+      [
+        "sset_23",
+        60
+      ],
+      [
+        "sset_23",
+        64
+      ],
+      [
+        "sset_23",
+        67
+      ],
+      [
+        "sset_24",
+        1
+      ],
+      [
+        "sset_24",
+        48
+      ],
+      [
+        "sset_24",
+        54
+      ],
+      [
+        "sset_24",
+        57
+      ],
+      [
+        "sset_24",
+        71
+      ],
+      [
+        "sset_25",
+        2
+      ],
+      [
+        "sset_25",
+        5
+      ],
+      [
+        "sset_25",
+        7
+      ],
+      [
+        "sset_25",
+        15
+      ],
+      [
+        "sset_25",
+        16
+      ],
+      [
+        "sset_25",
+        18
+      ],
+      [
+        "sset_25",
+        31
+      ],
+      [
+        "sset_25",
+        33
+      ],
+      [
+        "sset_25",
+        43
+      ],
+      [
+        "sset_25",
+        47
+      ],
+      [
+        "sset_26",
+        10
+      ],
+      [
+        "sset_26",
+        43
+      ],
+      [
+        "sset_26",
+        45
+      ],
+      [
+        "sset_26",
+        58
+      ],
+      [
+        "sset_26",
+        60
+      ],
+      [
+        "sset_28",
+        3
+      ],
+      [
+        "sset_28",
+        4
+      ],
+      [
+        "sset_28",
+        17
+      ],
+      [
+        "sset_28",
+        28
+      ],
+      [
+        "sset_28",
+        30
+      ],
+      [
+        "sset_28",
+        32
+      ],
+      [
+        "sset_28",
+        34
+      ],
+      [
+        "sset_28",
+        37
+      ],
+      [
+        "sset_28",
+        45
+      ],
+      [
+        "sset_28",
+        60
+      ],
+      [
+        "sset_28",
+        63
+      ],
+      [
+        "sset_28",
+        70
+      ],
+      [
+        "sset_29",
+        4
+      ],
+      [
+        "sset_29",
+        20
+      ],
+      [
+        "sset_29",
+        51
+      ],
+      [
+        "sset_29",
+        57
+      ],
+      [
+        "sset_29",
+        67
+      ],
+      [
+        "sset_30",
+        5
+      ],
+      [
+        "sset_30",
+        17
+      ],
+      [
+        "sset_30",
+        23
+      ],
+      [
+        "sset_30",
+        28
+      ],
+      [
+        "sset_30",
+        29
+      ],
+      [
+        "sset_30",
+        33
+      ],
+      [
+        "sset_30",
+        78
+      ],
+      [
+        "sset_30",
+        88
+      ],
+      [
+        "sset_30",
+        100
+      ],
+      [
+        "sset_30",
+        115
+      ],
+      [
+        "sset_31",
+        2
+      ],
+      [
+        "sset_31",
+        4
+      ],
+      [
+        "sset_31",
+        5
+      ],
+      [
+        "sset_31",
+        6
+      ],
+      [
+        "sset_31",
+        15
+      ],
+      [
+        "sset_31",
+        17
+      ],
+      [
+        "sset_31",
+        20
+      ],
+      [
+        "sset_31",
+        31
+      ],
+      [
+        "sset_31",
+        34
+      ],
+      [
+        "sset_31",
+        39
+      ],
+      [
+        "sset_31",
+        40
+      ],
+      [
+        "sset_31",
+        42
+      ],
+      [
+        "sset_31",
+        45
+      ],
+      [
+        "sset_31",
+        46
+      ],
+      [
+        "sset_31",
+        48
+      ],
+      [
+        "sset_31",
+        49
+      ],
+      [
+        "sset_31",
+        52
+      ],
+      [
+        "sset_31",
+        63
+      ],
+      [
+        "sset_32",
+        10
+      ],
+      [
+        "sset_32",
+        12
+      ],
+      [
+        "sset_32",
+        18
+      ],
+      [
+        "sset_32",
+        28
+      ],
+      [
+        "sset_32",
+        30
+      ],
+      [
+        "sset_32",
+        37
+      ],
+      [
+        "sset_32",
+        46
+      ],
+      [
+        "sset_32",
+        47
+      ],
+      [
+        "sset_32",
+        49
+      ],
+      [
+        "sset_32",
+        73
+      ],
+      [
+        "sset_32",
+        74
+      ],
+      [
+        "sset_32",
+        80
+      ],
+      [
+        "sset_32",
+        87
+      ],
+      [
+        "sset_32",
+        91
+      ],
+      [
+        "sset_32",
+        95
+      ],
+      [
+        "sset_32",
+        121
+      ],
+      [
+        "sset_32",
+        125
+      ],
+      [
+        "sset_32",
+        143
+      ],
+      [
+        "sset_33",
+        5
+      ],
+      [
+        "sset_33",
+        7
+      ],
+      [
+        "sset_33",
+        14
+      ],
+      [
+        "sset_33",
+        52
+      ],
+      [
+        "sset_33",
+        67
+      ],
+      [
+        "sset_33",
+        68
+      ],
+      [
+        "sset_33",
+        70
+      ],
+      [
+        "sset_33",
+        72
+      ],
+      [
+        "sset_34",
+        9
+      ],
+      [
+        "sset_34",
+        34
+      ],
+      [
+        "sset_34",
+        38
+      ],
+      [
+        "sset_34",
+        43
+      ],
+      [
+        "sset_35",
+        4
+      ],
+      [
+        "sset_35",
+        5
+      ],
+      [
+        "sset_35",
+        6
+      ],
+      [
+        "sset_35",
+        13
+      ],
+      [
+        "sset_35",
+        18
+      ],
+      [
+        "sset_35",
+        24
+      ],
+      [
+        "sset_35",
+        34
+      ],
+      [
+        "sset_35",
+        56
+      ],
+      [
+        "sset_35",
+        67
+      ],
+      [
+        "sset_36",
+        2
+      ],
+      [
+        "sset_36",
+        16
+      ],
+      [
+        "sset_36",
+        28
+      ],
+      [
+        "sset_36",
+        58
+      ],
+      [
+        "sset_37",
+        3
+      ],
+      [
+        "sset_37",
+        16
+      ],
+      [
+        "sset_37",
+        19
+      ],
+      [
+        "sset_37",
+        20
+      ],
+      [
+        "sset_37",
+        23
+      ],
+      [
+        "sset_37",
+        35
+      ],
+      [
+        "sset_37",
+        36
+      ],
+      [
+        "sset_37",
+        42
+      ],
+      [
+        "sset_37",
+        68
+      ],
+      [
+        "sset_38",
+        13
+      ],
+      [
+        "sset_38",
+        14
+      ],
+      [
+        "sset_38",
+        27
+      ],
+      [
+        "sset_38",
+        36
+      ],
+      [
+        "sset_38",
+        43
+      ],
+      [
+        "sset_38",
+        51
+      ],
+      [
+        "sset_38",
+        64
+      ],
+      [
+        "sset_38",
+        74
+      ],
+      [
+        "sset_38",
+        75
+      ],
+      [
+        "sset_38",
+        81
+      ],
+      [
+        "sset_38",
+        94
+      ],
+      [
+        "sset_38",
+        101
+      ],
+      [
+        "sset_38",
+        112
+      ],
+      [
+        "sset_39",
+        24
+      ],
+      [
+        "sset_39",
+        38
+      ],
+      [
+        "sset_39",
+        47
+      ],
+      [
+        "sset_39",
+        50
+      ],
+      [
+        "sset_39",
+        60
+      ],
+      [
+        "sset_39",
+        62
+      ],
+      [
+        "sset_39",
+        66
+      ],
+      [
+        "sset_39",
+        69
+      ],
+      [
+        "sset_39",
+        72
+      ],
+      [
+        "sset_39",
+        73
+      ],
+      [
+        "sset_39",
+        84
+      ],
+      [
+        "sset_39",
+        93
+      ],
+      [
+        "sset_40",
+        1
+      ],
+      [
+        "sset_40",
+        2
+      ],
+      [
+        "sset_40",
+        3
+      ],
+      [
+        "sset_40",
+        4
+      ],
+      [
+        "sset_40",
+        8
+      ],
+      [
+        "sset_40",
+        10
+      ],
+      [
+        "sset_40",
+        14
+      ],
+      [
+        "sset_40",
+        26
+      ],
+      [
+        "sset_40",
+        29
+      ],
+      [
+        "sset_40",
+        36
+      ],
+      [
+        "sset_40",
+        39
+      ],
+      [
+        "sset_40",
+        50
+      ],
+      [
+        "sset_40",
+        57
+      ],
+      [
+        "sset_40",
+        61
+      ],
+      [
+        "sset_40",
+        71
+      ],
+      [
+        "sset_40",
+        72
+      ],
+      [
+        "sset_40",
+        75
+      ],
+      [
+        "sset_40",
+        76
+      ],
+      [
+        "sset_40",
+        78
+      ],
+      [
+        "sset_41",
+        3
+      ],
+      [
+        "sset_41",
+        13
+      ],
+      [
+        "sset_41",
+        19
+      ],
+      [
+        "sset_41",
+        25
+      ],
+      [
+        "sset_41",
+        27
+      ],
+      [
+        "sset_41",
+        40
+      ],
+      [
+        "sset_41",
+        48
+      ],
+      [
+        "sset_41",
+        52
+      ],
+      [
+        "sset_41",
+        60
+      ],
+      [
+        "sset_41",
+        61
+      ],
+      [
+        "sset_41",
+        68
+      ],
+      [
+        "sset_41",
+        75
+      ],
+      [
+        "sset_41",
+        77
+      ],
+      [
+        "sset_41",
+        89
+      ],
+      [
+        "sset_41",
+        104
+      ],
+      [
+        "sset_41",
+        113
+      ],
+      [
+        "sset_41",
+        121
+      ],
+      [
+        "sset_42",
+        21
+      ],
+      [
+        "sset_42",
+        42
+      ],
+      [
+        "sset_42",
+        51
+      ],
+      [
+        "sset_42",
+        56
+      ],
+      [
+        "sset_42",
+        59
+      ],
+      [
+        "sset_42",
+        66
+      ],
+      [
+        "sset_43",
+        3
+      ],
+      [
+        "sset_43",
+        11
+      ],
+      [
+        "sset_43",
+        18
+      ],
+      [
+        "sset_43",
+        28
+      ],
+      [
+        "sset_43",
+        35
+      ],
+      [
+        "sset_43",
+        42
+      ],
+      [
+        "sset_43",
+        45
+      ],
+      [
+        "sset_43",
+        51
+      ],
+      [
+        "sset_43",
+        54
+      ],
+      [
+        "sset_43",
+        55
+      ],
+      [
+        "sset_44",
+        3
+      ],
+      [
+        "sset_44",
+        8
+      ],
+      [
+        "sset_44",
+        10
+      ],
+      [
+        "sset_44",
+        13
+      ],
+      [
+        "sset_44",
+        34
+      ],
+      [
+        "sset_44",
+        39
+      ],
+      [
+        "sset_44",
+        41
+      ],
+      [
+        "sset_44",
+        46
+      ],
+      [
+        "sset_44",
+        54
+      ],
+      [
+        "sset_44",
+        56
+      ],
+      [
+        "sset_44",
+        69
+      ],
+      [
+        "sset_44",
+        76
+      ],
+      [
+        "sset_44",
+        88
+      ],
+      [
+        "sset_44",
+        89
+      ],
+      [
+        "sset_44",
+        92
+      ],
+      [
+        "sset_44",
+        98
+      ]
+    ],
+    "repaired_sections": 426,
+    "revised_contact_and_side": {
+      "contact_and_side_f1": 0.8183606960585378,
+      "correct_first_contact_sides": 1412,
+      "correct_sides": 26618,
+      "first_contact_recall": 0.4864543018755582,
+      "first_contacts": 3359,
+      "labelled_contacts": 33267,
+      "matched_first_contacts": 1634,
+      "predicted_contacts": 31785,
+      "server_side_accuracy_when_start_matched": 0.8641370869033048,
+      "side_accuracy": 0.925972309190844,
+      "side_answers": 28746,
+      "timing_matches": 28781
+    },
+    "revised_fully_correct": 903,
+    "sections_changed": 1798
+  },
+  "selected_minimum_vote_gap": 1,
+  "video_groups": "A, B, C, D, and V; each contact model excluded the scored video group"
+}

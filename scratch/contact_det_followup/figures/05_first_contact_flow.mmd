@@ -1,0 +1,30 @@
+flowchart TB
+    START["ShuttleSet only · no ShuttleSet22<br/>2,850 sections from 32 training videos"] --> CAND{"Earlier contact frame<br/>saved?"}
+    CAND -->|"No: 229 sections"| NOEDIT["Keep the current<br/>contact list"]
+    CAND -->|"Yes: 2,621 sections"| POOL["Up to two earlier<br/>frames are available"]
+    POOL --> ACTIONS["Try the available choices<br/>KEEP the current list<br/>ADD an earlier frame<br/>REPLACE the current first frame"]
+
+    ACTIONS -.->|"try every edit"| LABELS["Compare every result<br/>with ground truth"]
+    LABELS --> ROOM["300 repairs were available<br/>in the saved choices"]
+
+    ACTIONS -->|"runnable test"| MODEL["A model chooses without labels<br/>using scores, gaps, position<br/>and known player sides"]
+    MODEL --> SAME["Use all 32 video results<br/>to choose the model and cut-off"]
+    SAME --> OPT["24 repairs · 0 breaks<br/>Optimistic estimate"]
+    MODEL --> HELD["For each group, choose the model<br/>using the other three groups"]
+    HELD --> CAUT["7 repairs · 0 breaks<br/>Better development estimate"]
+    MODEL --> FINAL["Use the fixed model on<br/>8 untouched validation videos"]
+    FINAL --> VAL["6 repairs · 0 breaks<br/>Validation result"]
+
+    classDef stage fill:#c8dde8,stroke:#5a7a9a,color:#1a1a1a
+    classDef choice fill:#e8d5a3,stroke:#8a6a30,color:#1a1a1a
+    classDef model fill:#9070a0,stroke:#6a4070,color:#ffffff
+    classDef labels fill:#f0c8a0,stroke:#8a6a30,color:#1a1a1a,stroke-dasharray:5 5
+    classDef result fill:#5a7a9a,stroke:#3a5070,color:#ffffff
+    classDef auxiliary fill:#e0e0e0,stroke:#888888,color:#1a1a1a
+
+    class START,POOL stage
+    class ACTIONS choice
+    class MODEL model
+    class LABELS labels
+    class ROOM,OPT,CAUT,VAL result
+    class CAND,NOEDIT,SAME,HELD,FINAL auxiliary

@@ -1,0 +1,30 @@
+{
+  "schema": "contact-rally-start-validation-input-summary/1",
+  "status": "complete",
+  "source_commit": "17c127b1",
+  "result_file": "rally_start_validation_inputs.json.gz",
+  "result_sha256": "0ae0237f854ee8fda3ed5b43d37ae23b78e302b5f2484baee7ebd0d5870c6bec",
+  "video_count": 8,
+  "detected_section_count": 677,
+  "sections_without_kept_contact": 62,
+  "kept_contact_count": 5326,
+  "candidate_list_count": 615,
+  "candidate_entry_count": 1845,
+  "earlier_candidate_count": 1230,
+  "earlier_candidates_before_section": 597,
+  "earlier_candidates_inside_section": 633,
+  "player_side": {
+    "kept_contacts_without_answer": 11,
+    "fixed_candidates_without_answer": 2,
+    "earlier_candidates_with_answer": 629,
+    "earlier_candidates_without_answer": 601
+  },
+  "checks": {
+    "labels_read": false,
+    "maximum_candidates_per_section": 3,
+    "invalid_player_side_count": 0,
+    "repeated_candidate_identity_count": 0,
+    "repeat_matches_byte_for_byte": true,
+    "machine_path_count": 0
+  }
+}
