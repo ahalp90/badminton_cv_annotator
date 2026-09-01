@@ -5,6 +5,8 @@ read ShuttleSet contact labels. Each video gets its own feature file and record
 so a stopped run leaves clear, usable progress.
 """
 
+# ruff: noqa: E402, RUF100
+
 from __future__ import annotations
 
 import argparse

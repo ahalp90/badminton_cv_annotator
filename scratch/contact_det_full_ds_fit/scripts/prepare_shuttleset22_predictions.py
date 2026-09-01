@@ -1,5 +1,7 @@
 """Freeze the fixed ShuttleSet22 contact predictions without reading labels."""
 
+# ruff: noqa: E402, RUF100
+
 from __future__ import annotations
 
 import argparse
