@@ -2,24 +2,30 @@
 
 The numbers in [the report](report.md) come from the files below. The commands rerun each experiment without requiring a reader to study the scripts first.
 
-## Three kinds of result
+## Datasets and result types
+
+The contact detector was developed on 40 ShuttleSet videos. The split used 32 training videos and eight validation videos. The final detector was trained on all 40 before it ran on ShuttleSet22.
+
+The ShuttleSet pool contains videos 1–44, apart from 9, 10, 12, and 27. Its fixed validation videos are `sset_18`, `sset_22`, `sset_24`, `sset_25`, `sset_30`, `sset_31`, `sset_39`, and `sset_40`. The other 32 videos form the training set.
+
+The held-out ShuttleSet22 test uses video IDs 8–13, 15–44, 46–55, and 57 in ShuttleSet22's own numbering. None of those 47 videos was used to develop the detector. The predictions and settings were saved before the ShuttleSet22 labels were opened.
 
 The report keeps these result types separate:
 
-- **Frozen test:** a fixed rule was scored once on 47 test videos after its choices were made on development data
-- **Held-out prediction:** a model acted without labels on videos excluded from that model's training
-- **Best-case check:** labels chose the best allowed edit for each rally; this measures available room, not deployable performance
+- **Held-out ShuttleSet22 test:** a chosen detector or rule was scored once on 47 ShuttleSet22 videos after its predictions and settings had been saved
+- **Held-out model result:** a model acted on videos excluded from the relevant training or model-selection choice
+Some checks tried every permitted edit and compared each result with the ground truth. These checks show whether a useful repair was present among the saved options. They do not show that a running annotator can choose it.
 
-Labels were allowed to train models and score saved predictions. They were not allowed to choose an action for a rally when a label-free rule ran.
+Labels were allowed to train models and score saved predictions. A runnable rule or model did not use labels to choose an action for a rally.
 
-## Video groups
+## How the follow-up used the videos
 
-| Name used in the report | Videos | Purpose |
+| Video set | Videos | Purpose |
 | --- | ---: | --- |
-| A–D | 32 | Develop and compare the small follow-up models |
-| V | 8 | Final untouched check for the chosen first-contact model |
-| Development total | 40 | Choose the side rule and inspect global settings |
-| Frozen test | 47 | Score the fixed baseline and side rule once |
+| ShuttleSet training set | 32 | Develop and compare the small follow-up models using four held-out groups |
+| ShuttleSet validation set | 8 | Score the fixed first-contact model on videos that were not used to develop it |
+| ShuttleSet development total | 40 | Choose the side rule and inspect global settings |
+| Held-out ShuttleSet22 test | 47 | Score the baseline and chosen side rule once |
 
 The development contact predictions are group-held-out. Each video was scored by a contact model that did not train on it. The small follow-up models use their own held-out or nested checks where the report says so.
 
@@ -33,13 +39,13 @@ All success decisions use the ±5 result. The ±10 result provides context only.
 
 | Question | Saved evidence |
 | --- | --- |
-| What was the frozen baseline? | `results/baseline_recount.json` |
+| What was the ShuttleSet22 baseline? | `results/baseline_recount.json` |
 | Did the whole-rally side vote help? | `results/side_development.json`, `results/side_audit.json`, `configs/side_rule.json` |
 | Were close opposite-side duplicates present? | `results/opposite_side_duplicate_audit.json` |
-| Did another cut-off or merge distance help? | `results/setting_sweep.json` |
-| How many first-contact repairs existed? | `results/start_best_case.json` |
+| Did another score cut-off or window for removing nearby copies help? | `results/setting_sweep.json` |
+| How often could any allowed first-contact edit repair a rally? | `results/start_best_case.json` |
 | Could a model choose those first-contact repairs? | `results/start_model_development.json`, `results/start_model_validation.json` |
-| How much room did one start edit and one deletion provide? | `results/combined_best_case.json` |
+| How often could any allowed start or deletion edit repair a rally? | `results/combined_best_case.json` |
 | Could a model choose safe deletions? | `results/delete_model_development.json` |
 | Could a model accept only trustworthy rallies? | `results/keep_review_development.json` |
 
@@ -107,3 +113,29 @@ Run these commands from the repository root. Prediction commands do not load lab
 ```
 
 The plotting script reads the committed result records and writes matching PNG and SVG files to `figures/`.
+
+The pipeline overview and first-contact flowchart have their own Mermaid sources. Rebuild them with:
+
+```bash
+/home/ariel/.venvs/skill-utils/bin/mermaidx \
+  -i scratch/contact_det_followup/figures/00_pipeline_overview.mmd \
+  -o scratch/contact_det_followup/figures/00_pipeline_overview.svg \
+  --embed-font
+
+/home/ariel/.venvs/skill-utils/bin/mermaidx \
+  -i scratch/contact_det_followup/figures/00_pipeline_overview.mmd \
+  -o scratch/contact_det_followup/figures/00_pipeline_overview.png \
+  -w 1800 \
+  -b white
+
+/home/ariel/.venvs/skill-utils/bin/mermaidx \
+  -i scratch/contact_det_followup/figures/05_first_contact_flow.mmd \
+  -o scratch/contact_det_followup/figures/05_first_contact_flow.svg \
+  --embed-font
+
+/home/ariel/.venvs/skill-utils/bin/mermaidx \
+  -i scratch/contact_det_followup/figures/05_first_contact_flow.mmd \
+  -o scratch/contact_det_followup/figures/05_first_contact_flow.png \
+  -w 1600 \
+  -b white
+```

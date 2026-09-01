@@ -32,7 +32,7 @@ A near-100% claim needs enough accepted rallies to support it. When the sample i
 
 ## Second priority: improve first-contact evidence upstream
 
-The label-guided check found 300 complete A–D rally repairs after a start edit and the side vote. The safe model found only 24 in the pooled comparison. The stricter group-held-out estimate found seven. The V check found six. The search space contains useful answers. The chooser lacks the evidence to identify them.
+On the 32 ShuttleSet training videos, at least one allowed start edit produced a complete correct rally in 300 sections after the side vote. The model and cut-off chosen from those same 32-video results repaired only 24 sections. When each group was excluded from that choice before it was scored, the selected models repaired seven. The fixed model repaired six sections on the eight ShuttleSet validation videos. The saved candidates contain useful answers. The chooser lacks the evidence to identify them.
 
 The next first-contact study should focus on the inputs, not another threshold sweep. Useful questions include:
 
@@ -49,7 +49,7 @@ The study should separate those cases before training anything. A model cannot r
 >
 > For each failed rally, work out whether the labelled first contact falls outside the detected section, is absent from the candidate list, or is present but ranked badly. Summarise those three groups by video and broadcast style. Then inspect a small, representative sample from each group.
 >
-> If one group dominates, test the smallest change that addresses that cause. Keep the A–D and V boundary intact. Report complete-rally repairs and breaks rather than candidate accuracy alone.
+> If one group dominates, test the smallest change that addresses that cause. Keep the 32 ShuttleSet training videos separate from the eight ShuttleSet validation videos. Report complete-rally repairs and breaks rather than candidate accuracy alone.
 
 ## Work that can stay parked
 
