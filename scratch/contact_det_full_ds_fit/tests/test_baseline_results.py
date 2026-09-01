@@ -29,8 +29,8 @@ from scratch.contact_det_full_ds_fit.scripts.score_contact_baseline import (
 )
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = EXPERIMENT_ROOT / "baseline_runs.json"
-SPLIT_PATH = EXPERIMENT_ROOT / "shuttleset_development_split.json"
+CONFIG_PATH = EXPERIMENT_ROOT / "records/baseline_runs.json"
+SPLIT_PATH = EXPERIMENT_ROOT / "records/shuttleset_development_split.json"
 SOURCE_COMMIT = "deadbee"
 FEATURE_SOURCE_COMMIT = "featurebee"
 

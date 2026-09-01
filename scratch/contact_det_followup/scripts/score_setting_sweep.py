@@ -50,8 +50,8 @@ SCORE_RESULT_PATH = (
     REPO_ROOT
     / "scratch/contact_det_full_ds_fit/raw/final_contact_scores/combined_repeat/final_contact_setting_result.json"
 )
-GROUP_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/final_video_score_groups.json"
-CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/baseline_runs.json"
+GROUP_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/final_video_score_groups.json"
+CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/baseline_runs.json"
 LABEL_PATH = REPO_ROOT / "training/data/shuttleset/annotations/shots_master.csv"
 OUTPUT_PATH = REPO_ROOT / "scratch/contact_det_followup/results/setting_sweep.json"
 GROUP_NAMES = ("A", "B", "C", "D", "V")

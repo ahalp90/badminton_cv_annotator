@@ -33,8 +33,8 @@ DEFAULT_PREDICTIONS = (
     / "scratch/contact_det_full_ds_fit/raw/shuttleset22-test-predictions/combined_predictions.json.gz"
 )
 PREDICTION_SCHEMA = "shuttleset22-contact-predictions-combined/1"
-DEVELOPMENT_SPLIT = REPO_ROOT / "scratch/contact_det_full_ds_fit/shuttleset_development_split.json"
-SCORE_GROUPS = REPO_ROOT / "scratch/contact_det_full_ds_fit/training_video_score_groups.json"
+DEVELOPMENT_SPLIT = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/shuttleset_development_split.json"
+SCORE_GROUPS = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/training_video_score_groups.json"
 TRAINING_PREDICTIONS = (
     REPO_ROOT
     / "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz"

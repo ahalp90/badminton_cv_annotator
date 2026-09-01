@@ -20,7 +20,7 @@ from scratch.contact_det_full_ds_fit.scripts.save_validation_rally_predictions i
 )
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-SPLIT_PATH = EXPERIMENT_ROOT / "shuttleset_development_split.json"
+SPLIT_PATH = EXPERIMENT_ROOT / "records/shuttleset_development_split.json"
 
 
 def _sha256(path: Path) -> str:

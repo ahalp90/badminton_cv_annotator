@@ -28,10 +28,10 @@ from scratch.contact_det_full_ds_fit.scripts.score_contact_baseline import (
 )
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-GROUPS_PATH = EXPERIMENT_ROOT / "final_video_score_groups.json"
-SPLIT_PATH = EXPERIMENT_ROOT / "shuttleset_development_split.json"
-CONFIG_PATH = EXPERIMENT_ROOT / "baseline_runs.json"
-SUMMARY_PATH = EXPERIMENT_ROOT / "baseline_summary.json"
+GROUPS_PATH = EXPERIMENT_ROOT / "records/final_video_score_groups.json"
+SPLIT_PATH = EXPERIMENT_ROOT / "records/shuttleset_development_split.json"
+CONFIG_PATH = EXPERIMENT_ROOT / "records/baseline_runs.json"
+SUMMARY_PATH = EXPERIMENT_ROOT / "records/baseline_summary.json"
 CHOSEN_RESULT_PATH = (
     EXPERIMENT_ROOT
     / "raw"

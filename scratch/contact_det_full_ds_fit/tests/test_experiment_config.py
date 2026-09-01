@@ -16,7 +16,7 @@ from scratch.contact_det_full_ds_fit.scripts.experiment_config import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-CANONICAL_MANIFEST = EXPERIMENT_ROOT / "shuttleset_development_split.json"
+CANONICAL_MANIFEST = EXPERIMENT_ROOT / "records/shuttleset_development_split.json"
 ANNOTATION_ROOT = REPO_ROOT / "training" / "data" / "shuttleset" / "annotations"
 VALIDATION_IDS = {18, 22, 24, 25, 30, 31, 39, 40}
 EXCLUDED_IDS = {9, 10, 12, 27}

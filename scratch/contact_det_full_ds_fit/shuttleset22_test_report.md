@@ -2,25 +2,11 @@
 
 This report covers a histogram gradient boosting (HGB) contact detector and its test on 47 ShuttleSet22 videos. None of those videos were used to build the detector.
 
-## Table of contents
+**Set-up:** [Bottom line](#bottom-line) · [Question](#what-the-final-test-was-trying-to-learn) · [Label separation](#how-the-labels-were-kept-out-of-the-predictions) · [Videos](#which-shuttleset22-videos-were-used) · [Model](#the-final-model)
 
-- [Bottom line](#bottom-line)
-- [What the final test was trying to learn](#what-the-final-test-was-trying-to-learn)
-- [How the labels were kept out of the predictions](#how-the-labels-were-kept-out-of-the-predictions)
-- [Which ShuttleSet22 videos were used](#which-shuttleset22-videos-were-used)
-- [The final model](#the-final-model)
-- [Contact timing](#contact-timing)
-- [What changed on the new videos](#what-changed-on-the-new-videos)
-- [First contacts remain the weak point](#first-contacts-remain-the-weak-point)
-- [Player side](#player-side)
-- [How well the rally sections worked](#how-well-the-rally-sections-worked)
-- [How much room the sections left](#how-much-room-the-sections-left)
-- [How often the full output was right](#how-often-the-full-output-was-right)
-- [Why high contact scores did not find clean rallies](#why-high-contact-scores-did-not-find-clean-rallies)
-- [Did it work on different kinds of video?](#did-it-work-on-different-kinds-of-video)
-- [Are whole rallies near 100% right?](#are-whole-rallies-near-100-right)
-- [What remains worth testing](#what-remains-worth-testing)
-- [Checks and saved results](#checks-and-saved-results)
+**Results:** [Contact timing](#contact-timing) · [New-video change](#what-changed-on-the-new-videos) · [First contacts](#first-contacts-remain-the-weak-point) · [Player side](#player-side) · [Rally sections](#how-well-the-rally-sections-worked) · [Section edges](#how-much-room-the-sections-left) · [Full outputs](#how-often-the-full-output-was-right) · [Contact scores](#what-a-high-contact-score-tells-us)
+
+**Decision:** [Video types](#did-it-work-on-different-kinds-of-video) · [Near-100% goal](#are-whole-rallies-near-100-right) · [Next tests](#what-remains-worth-testing) · [Checks and records](#checks-and-saved-results)
 
 ## Bottom line
 
@@ -90,9 +76,9 @@ The final model uses the HGB setup chosen during development:
 - learning rate 0.06;
 - 180 boosting rounds;
 - at least 40 training rows per leaf; and
-- L2 regularisation of 1.0.
+- L2 regularisation of 1.0, which limits how strongly each tree can change the score.
 
-Real contacts are rare in the training rows. Balanced class weights stop the many non-contact rows from dominating training. L2 regularisation limits how strongly each tree can change the score.
+Real contacts are rare in the training rows. Balanced class weights stop the many non-contact rows from dominating training.
 
 It trained on 1,313,803 rows from all 40 development videos. Of those rows, 94,530 marked real contacts.
 
@@ -117,7 +103,7 @@ The score rises sharply when the allowed gap grows from one frame to five. The m
 
 The 40 development videos were split into five groups of eight. Each video was scored by a model trained on the other four groups, or 32 videos.
 
-| Five-frame measure | Fair test across 40 development videos | 47-video ShuttleSet22 test | Change |
+| Five-frame measure | Out-of-fold development result used to choose the event rules | 47-video ShuttleSet22 test | Change |
 | --- | ---: | ---: | ---: |
 | Precision | 90.50% | 80.62% | −9.88 points |
 | Recall | 86.58% | 84.37% | −2.21 points |
@@ -140,7 +126,7 @@ The same gap appears at each step:
 | Stage | First-contact recall | Later-contact recall |
 | --- | ---: | ---: |
 | Chosen eight-video validation run | 41.77% | 88.98% |
-| Fair scores across all 40 development videos | 49.39% | 90.75% |
+| Out-of-fold development result used to choose the event rules | 49.39% | 90.75% |
 | 47-video ShuttleSet22 test | 53.92% | 87.36% |
 
 The weak first-contact result is not just a quirk of the first eight videos. It is still there across the larger test.
@@ -173,9 +159,7 @@ The section finder produced 3,982 sections:
 
 This gives **63.16% precision**: 2,515 clean matches from 3,982 predicted sections.
 
-The 2,515 clean matches covered 2,515 of the 3,422 labelled rallies. This gives **73.50% recall**. Rally-section F1 was **67.94%**.
-
-![The section finder reached 63.2% precision and 73.5% recall.](figures/13_rally_section_precision_recall.png)
+The 2,515 clean matches covered 2,515 of the 3,422 usable labelled rallies. This gives **73.50% recall**. Rally-section F1 was **67.94%**.
 
 ![All 3,982 predicted sections, split by what they contained.](figures/12_rally_section_outcomes.png)
 
@@ -219,7 +203,7 @@ There were also 44 predicted contacts outside every saved detected section.
 
 Missing contacts caused the most failures. Wrong timing and wrong players also caused many failures.
 
-The 16.60% in the table is a score among the 2,969 one-rally sections. It does not count the 943 no-rally sections or the 70 multi-rally sections as failed outputs.
+The 16.60% in the table covers the 2,969 one-rally sections. The 943 no-rally sections and 70 multi-rally sections sit outside that calculation.
 
 Counting the old 493 passes against all 3,982 sections gives 12.38%. That still lets the five-frame contact allowance reach past a section edge. Ten sections did this. Requiring one clean section leaves **483 of 3,982, or 12.13%**.
 
@@ -236,7 +220,7 @@ The 44 contacts outside every section still counted as unmatched contact predict
 
 ![Missing contacts cause the most ShuttleSet22 failures, but they are not the only problem.](figures/06_external_error_mix.png)
 
-## Why high contact scores did not find clean rallies
+## What a high contact score tells us
 
 The detector already keeps only contacts with scores of 0.9 or more. Setting a lower minimum does not change the output.
 
@@ -249,9 +233,7 @@ At a 0.95 minimum contact score:
 
 The higher cut-off removes more than half the sections. The share that passed the old check rises by less than two points.
 
-A high contact score only says that one predicted contact looks likely. It does not tell us whether the video section starts and ends in the right place. It cannot see a contact that the detector missed. It also does not rule out extra contacts or a wrong player.
-
-![A higher contact score removes many sections without finding a group of whole rallies that is almost always right.](figures/09_confidence_vs_yield.png)
+A high contact score says that one predicted contact looks likely. A clean whole section also needs the right boundaries, every real contact, no extra contacts and the right player sides.
 
 ## Did it work on different kinds of video?
 
@@ -259,7 +241,7 @@ The model reached 82.45% F1 on 47 new videos, so it did not simply fail outside 
 
 Precision still fell from 90.50% to 80.62%. The model made more false contact predictions in the new dataset. We cannot assume that it will behave the same way in another group of videos.
 
-The test combines all 47 videos. It does not show how well the model worked with each camera layout, set of on-screen graphics, tournament or broadcast style.
+The test combines all 47 videos. Performance for each camera layout, set of on-screen graphics, tournament or broadcast style remains unknown.
 
 So the result tells us three things:
 
@@ -312,6 +294,6 @@ The project scorer and a separate recount agreed on the result:
 - a separate recount did not use the project scorer; and
 - that recount found the same timing and player results for the whole test and for every video.
 
-[`shuttleset22_test_summary.json`](shuttleset22_test_summary.json) holds the short saved result and the new section recount. [`scripts/summarise_shuttleset22_sections.py`](scripts/summarise_shuttleset22_sections.py) rebuilds the recount from the saved predictions, clean labels and full test result. [`shuttleset_development_split.json`](shuttleset_development_split.json) lists the development videos.
+[`records/shuttleset22_test_summary.json`](records/shuttleset22_test_summary.json) holds the short saved result and the new section recount. [`scripts/summarise_shuttleset22_sections.py`](scripts/summarise_shuttleset22_sections.py) rebuilds the recount from the saved predictions, clean labels and full test result. [`records/shuttleset_development_split.json`](records/shuttleset_development_split.json) lists the development videos.
 
 The old plans are unchanged under [`archive/`](archive/). The larger result files stay outside Git in the ignored `raw/` folder. The full raw evidence is also kept in the GitHub release for this branch: [RF/HGB contact study raw evidence](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/contact-det-rf-hgb-series-v1).

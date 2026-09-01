@@ -9,7 +9,7 @@ from scratch.contact_det_full_ds_fit.scripts.rally_start_model_config import (
     load_rally_start_model_config,
 )
 
-CONFIG_PATH = Path(__file__).parents[1] / "rally_start_model_runs.json"
+CONFIG_PATH = Path(__file__).parents[1] / "records/rally_start_model_runs.json"
 
 
 def _saved_video(fixture: str = "sset_01", group: str = "A") -> dict[str, object]:

@@ -17335,10 +17335,10 @@
   "source_files": {
     "development_result": {
       "path": "scratch/contact_det_followup/results/start_model_development.json",
-      "sha256": "2e5879169aa3b379ebe787febd4b3fb234ef06f6fa570e46b9d3f356bd9f3eda"
+      "sha256": "53fbcb8e13ca90665537a4125d3f717de52998b808d6818e2869ba2cbc5c798b"
     },
     "model_config": {
-      "path": "scratch/contact_det_full_ds_fit/rally_start_model_runs.json",
+      "path": "scratch/contact_det_full_ds_fit/records/rally_start_model_runs.json",
       "sha256": "8394fb9ba2a41df8384f8ebe07ed906ab431413f6045c64826cbbeb39897761c"
     },
     "training_inputs": {
@@ -17346,7 +17346,7 @@
       "sha256": "49236a091efde5ee9fcc6ac52616a716a276c992abe833c46830e30c5ec7e784"
     },
     "validation_input_summary": {
-      "path": "scratch/contact_det_full_ds_fit/validation_rally_start_input_summary.json",
+      "path": "scratch/contact_det_full_ds_fit/records/validation_rally_start_input_summary.json",
       "sha256": "1f61eb27909d9e25f105227d39c3bf1067306e048588b66565a50b563e9cc256"
     },
     "validation_inputs": {

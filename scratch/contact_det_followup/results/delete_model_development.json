@@ -86642,7 +86642,7 @@
       "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz",
       "scratch/contact_det_full_ds_fit/raw/validation_rally_start_inputs/rally_start_validation_inputs.json.gz"
     ],
-    "model_config": "scratch/contact_det_full_ds_fit/rally_start_model_runs.json",
+    "model_config": "scratch/contact_det_full_ds_fit/records/rally_start_model_runs.json",
     "model_config_sha256": "8394fb9ba2a41df8384f8ebe07ed906ab431413f6045c64826cbbeb39897761c"
   },
   "labels_used": "A-D labels assign deletion targets and score A-D only; runtime prediction and selection accept no labels",
@@ -86839,7 +86839,7 @@
     ],
     "selection_note": "Each outer group used an inner two-group fit and three-group gate choice; the outer group was scored only from its other-three-group fit."
   },
-  "repository_commit": "f6e0a584d26f1804dac977542edf56b0cf3bead8",
+  "repository_commit": "436968cea7f07ec1b7859f3f280fffcd862bbda7",
   "run_id": "delete-action-held-out-and-nested",
   "schema": "contact-detector-delete-action-model/1",
   "sections": 2850,

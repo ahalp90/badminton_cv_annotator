@@ -8660,7 +8660,7 @@
     "candidate_rows": 5242,
     "candidate_source_commit": "f08621a8",
     "candidate_videos": 32,
-    "model_config": "scratch/contact_det_full_ds_fit/rally_start_model_runs.json"
+    "model_config": "scratch/contact_det_full_ds_fit/records/rally_start_model_runs.json"
   },
   "labels_used": "A-D labels assign action targets and score A-D only; V labels are not read",
   "nested_held_out_estimate": {
@@ -8905,7 +8905,7 @@
     "revised_fully_correct": 733,
     "selection_note": "Each group's model and cut-off were chosen on the other three groups with an inner grouped split."
   },
-  "repository_commit": "fdbfd08232d9c86efafd80b15956568ac873bf92",
+  "repository_commit": "436968cea7f07ec1b7859f3f280fffcd862bbda7",
   "run_id": "start-action-keep-add-replace-held-out",
   "schema": "contact-detector-start-action-model/1",
   "status": "complete"

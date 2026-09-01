@@ -4,23 +4,11 @@ This report covers the work on 40 development videos. It starts with nine RF and
 
 RF means random forest. HGB means histogram gradient boosting. Both models use decision trees. HGB worked better here. F1 is one score that combines precision and recall.
 
-## Table of contents
+**Set-up:** [Bottom line](#bottom-line) · [Question](#what-the-experiments-were-trying-to-learn) · [Held-out design](#how-each-video-was-kept-out-of-its-model) · [Experiment path](#the-experiment-path)
 
-- [Bottom line](#bottom-line)
-- [What the experiments were trying to learn](#what-the-experiments-were-trying-to-learn)
-- [How each video was kept out of its model](#how-each-video-was-kept-out-of-its-model)
-- [The experiment path](#the-experiment-path)
-- [The nine RF and HGB runs](#the-nine-rf-and-hgb-runs)
-- [Why the chosen HGB run won](#why-the-chosen-hgb-run-won)
-- [Why good contact F1 was not enough](#why-good-contact-f1-was-not-enough)
-- [What was going wrong](#what-was-going-wrong)
-- [The missed-contact check](#the-missed-contact-check)
-- [The rally-start candidate list](#the-rally-start-candidate-list)
-- [The small rally-start model](#the-small-rally-start-model)
-- [The final rules across all 40 videos](#the-final-rules-across-all-40-videos)
-- [What this means](#what-this-means)
-- [Useful work after this series](#useful-work-after-this-series)
-- [Saved results](#saved-results)
+**Experiments:** [Nine runs](#the-nine-rf-and-hgb-runs) · [Model choice](#why-the-chosen-hgb-run-won) · [Full-section check](#what-whole-section-scoring-revealed) · [Errors](#what-was-going-wrong) · [Missed contacts](#the-missed-contact-check) · [Rally-start candidates](#the-rally-start-candidate-list) · [Small model](#the-small-rally-start-model)
+
+**Outcome:** [Final rules](#the-final-rules-across-all-40-videos) · [Meaning](#what-this-means) · [Next work](#useful-work-after-this-series) · [Saved results](#saved-results)
 
 ## Bottom line
 
@@ -74,7 +62,7 @@ None of these choices used ShuttleSet22 labels.
 | Error check | Were extra contacts or missed contacts the larger problem? | Missed contacts, especially the first contact |
 | Candidate list | Was a useful first contact nearby? | Often, but the list still held too many wrong choices |
 | Small addition model | Could it safely add one earlier contact? | No choice was right at least 80% of the time |
-| Fair check across all 40 videos | Did the 0.9 cut-off and six-frame rule still work? | Yes |
+| Out-of-fold development result used to choose the event rules | Did the 0.9 cut-off and six-frame rule still work? | Yes |
 | Final fit | Could the chosen HGB model train on all 40 videos? | Yes. Reloading the saved model gave the exact same check scores |
 
 ## The nine RF and HGB runs
@@ -105,7 +93,7 @@ Other models had single strengths. The RF model with original motion and balance
 
 The nine F1 scores are within about 1.3 percentage points. The difference between the model families is small. Of these nine setups, the chosen HGB was the best simple starting model.
 
-## Why good contact F1 was not enough
+## What whole-section scoring revealed
 
 The chosen run produced 677 detected video sections. Of these, 564 matched exactly one labelled rally. Six contained contacts from several labelled rallies. 107 did not match a labelled rally.
 
@@ -123,8 +111,6 @@ Raising the minimum contact score did little:
 | 0.95 | 322 | 55 | 17.1% |
 
 The model already keeps only contacts scoring at least 0.9. Raising that minimum almost halves the output. The share of sections that are fully right rises by less than one percentage point.
-
-![A higher contact score keeps fewer sections without making many more of them right.](figures/09_confidence_vs_yield.png)
 
 ## What was going wrong
 
@@ -263,13 +249,13 @@ A later model must not train on scores from a contact model that saw the same vi
 
 | Record | What it contains |
 | --- | --- |
-| [`baseline_runs.json`](baseline_runs.json) | The nine model setups and the tested event rules |
-| [`baseline_summary.json`](baseline_summary.json) | The short eight-video result and error counts |
-| [`missed_contact_summary.json`](missed_contact_summary.json) | Missed first/later contact diagnosis |
-| [`rally_start_candidate_summary.json`](rally_start_candidate_summary.json) | Candidate-list coverage and size |
-| [`rally_start_model_summary.json`](rally_start_model_summary.json) | All six small-model results and why the test stopped |
-| [`final_contact_score_inputs.json`](final_contact_score_inputs.json) | The all-40 input files and their hashes |
-| [`final_video_score_groups.json`](final_video_score_groups.json) | The five groups used to score all 40 videos without training on them |
+| [`records/baseline_runs.json`](records/baseline_runs.json) | The nine model setups and the tested event rules |
+| [`records/baseline_summary.json`](records/baseline_summary.json) | The short eight-video result and error counts |
+| [`records/missed_contact_summary.json`](records/missed_contact_summary.json) | Missed first/later contact diagnosis |
+| [`records/rally_start_candidate_summary.json`](records/rally_start_candidate_summary.json) | Candidate-list coverage and size |
+| [`records/rally_start_model_summary.json`](records/rally_start_model_summary.json) | All six small-model results and why the test stopped |
+| [`records/final_contact_score_inputs.json`](records/final_contact_score_inputs.json) | The all-40 input files and their hashes |
+| [`records/final_video_score_groups.json`](records/final_video_score_groups.json) | The five groups used to score all 40 videos without training on them |
 | [`archive/`](archive/) | The original plans, stage reports and full worklog |
 
 The larger score arrays, detailed results and final model live under the ignored `raw/` folder.

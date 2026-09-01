@@ -19,7 +19,7 @@ from scratch.contact_det_full_ds_fit.scripts.freeze_contact_features import (
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SPLIT_PATH = EXPERIMENT_ROOT / "shuttleset_development_split.json"
+SPLIT_PATH = EXPERIMENT_ROOT / "records/shuttleset_development_split.json"
 ANNOTATION_ROOT = REPO_ROOT / "training" / "data" / "shuttleset" / "annotations"
 VIDEO_METADATA_PATH = ANNOTATION_ROOT / "video_metadata.csv"
 MATCH_PATH = ANNOTATION_ROOT / "set" / "match.csv"

@@ -7,7 +7,7 @@ import pytest
 
 from scratch.contact_det_full_ds_fit.scripts import rally_start_model_config as config
 
-CONFIG_PATH = Path(__file__).parents[1] / "rally_start_model_runs.json"
+CONFIG_PATH = Path(__file__).parents[1] / "records/rally_start_model_runs.json"
 
 
 def test_fixed_model_comparison_loads() -> None:

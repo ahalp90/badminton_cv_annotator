@@ -2,19 +2,9 @@
 
 This page describes the contact detector and points to its code and saved results.
 
-## Table of contents
+**Pipeline:** [System picture](#the-system-in-one-picture) · [Inputs](#what-goes-into-the-detector) · [Sections](#how-rally-sections-are-found) · [Events](#how-a-contact-becomes-an-event) · [Section scoring](#how-complete-sections-are-judged)
 
-- [The system in one picture](#the-system-in-one-picture)
-- [What goes into the detector](#what-goes-into-the-detector)
-- [How rally sections are found](#how-rally-sections-are-found)
-- [How a contact becomes an event](#how-a-contact-becomes-an-event)
-- [How complete sections are judged](#how-complete-sections-are-judged)
-- [Which videos were used at each step](#which-videos-were-used-at-each-step)
-- [What each part can and cannot do](#what-each-part-can-and-cannot-do)
-- [Code map](#code-map)
-- [Results saved as JSON](#results-saved-as-json)
-- [Files kept out of Git](#files-kept-out-of-git)
-- [Old plans and worklog](#old-plans-and-worklog)
+**Reference:** [Video use](#which-videos-were-used-at-each-step) · [Limits](#what-each-part-contributes-and-where-it-stops) · [Code](#code-map) · [JSON records](#results-saved-as-json) · [Ignored files](#files-kept-out-of-git) · [History](#old-plans-and-worklog)
 
 ## The system in one picture
 
@@ -51,7 +41,7 @@ shuttle track + player poses + rally sections
 
 ## What goes into the detector
 
-The contact detector does not work directly from RGB frames.
+The contact detector works from prepared tracking and pose data rather than directly from RGB frames.
 
 It uses data made by earlier parts of the annotator:
 
@@ -61,7 +51,7 @@ It uses data made by earlier parts of the annotator:
 - court-view and rally-section information; and
 - saved candidate frames where a contact is plausible.
 
-This experiment did not make those inputs. Errors in the shuttle track, pose, court view or section edges can cause wrong contact results. This study did not test those earlier steps on their own.
+Earlier pipeline stages made those inputs, and this experiment treated them as given. Errors in the shuttle track, pose, court view or section edges can cause wrong contact results. Those earlier stages need their own tests.
 
 The model uses 85 fields for each candidate frame. Some hold measured values. Others say whether the needed tracking or pose data was present.
 
@@ -93,7 +83,7 @@ The chosen model uses:
 - original per-frame motion values;
 - balanced class weights;
 - up to 24 non-contact training rows for each real contact row; and
-- the model details recorded in `baseline_runs.json`.
+- the model details recorded in [`records/baseline_runs.json`](records/baseline_runs.json).
 
 Real contacts are rare in the training data. Balanced class weights stop the many non-contact rows from dominating training.
 
@@ -123,7 +113,7 @@ A section cannot be fully correct if it joins several real rallies. Sections tha
 
 That last rule made the old 16.60% whole-rally result look better than an all-output score. It counted 493 correct sections among the 2,969 sections that touched one rally. It left out 943 sections with no labelled rally and 70 with parts of several rallies.
 
-The later recount uses every predicted section. It found 2,515 clean rally sections from 3,982 predictions. Rally-section precision was 63.16%. Those sections covered 2,515 of 3,422 labelled rallies, so recall was 73.50%.
+The later recount uses every predicted section. It found 2,515 clean rally sections from 3,982 predictions. Rally-section precision was 63.16%. Those sections covered 2,515 of 3,422 usable labelled rallies, so recall was 73.50%.
 
 Only 483 of all 3,982 sections were both clean and fully correct for contacts and player side. That is 12.13%.
 
@@ -140,16 +130,16 @@ Only 483 of all 3,982 sections were both clean and fully correct for contacts an
 
 Eight ShuttleSet22 matches also appear in the development data, so the test left them out. The test also left out three matches whose public videos could not be lined up with the official frame numbers.
 
-## What each part can and cannot do
+## What each part contributes and where it stops
 
-| Part | Useful part | Where it falls short |
+| Part | What it contributes | Where it stops |
 | --- | --- | --- |
 | HGB contact score | Finds useful contact candidates in new videos | Precision falls to 80.62% on ShuttleSet22 |
-| Nearby-contact merge | Reduces duplicate events | It cannot recover a missing event |
+| Nearby-contact merge | Reduces duplicate events | Missing events remain missing |
 | First-contact handling | Often finds a possible contact near the missed first contact | The best tested choice was right only 51.7% of the time |
 | Player side | 92.02% accuracy on answered five-frame timing matches | One wrong side spoils a whole section |
 | Detected sections | Found 73.50% of labelled rallies | Only 63.16% of predicted sections held one whole rally and no part of another |
-| Contact score | Ranks single contacts | A high score does not tell us that the whole rally is right |
+| Contact score | Ranks single contacts | Whole-rally correctness also depends on section edges, missing contacts, extra contacts and player sides |
 | Check of the whole section | Tests the complete output that the project needs | Only 12.13% of all ShuttleSet22 sections are clean and fully correct at five frames |
 
 ## Code map
@@ -162,32 +152,45 @@ Eight ShuttleSet22 matches also appear in the development data, so the test left
 | Missed-contact and rally-start checks | `scripts/check_missed_contacts.py`, `scripts/check_rally_start_candidates.py` |
 | Held-out training scores | `scripts/score_training_videos.py` |
 | Rally-start inputs and the model that stopped | `scripts/save_training_rally_start_inputs.py`, `scripts/save_validation_rally_start_inputs.py`, `scripts/rally_start_model.py`, `scripts/run_rally_start_model.py` |
-| Fair scores across all 40 videos and final fit | `scripts/score_final_contact_groups.py`, `scripts/fit_final_contact_model.py` |
+| Out-of-fold development result used to choose the event rules, then final fit | `scripts/score_final_contact_groups.py`, `scripts/fit_final_contact_model.py` |
 | ShuttleSet22 preparation and scoring | `scripts/inpaint_shuttleset22_tracks.py`, `scripts/prepare_shuttleset22_predictions.py`, `scripts/score_shuttleset22_test.py` |
 | ShuttleSet22 rally-section recount | `scripts/summarise_shuttleset22_sections.py` |
 | Report figures | `scripts/plot_report_figures.py` |
 
 Each experiment script has tests under `tests/`. The final group-scoring tests also cover the model-fitting code.
 
+From the repository root, rebuild all 14 report figures with:
+
+```bash
+MPLCONFIGDIR=/tmp/contact-det-matplotlib \
+  ~/.venvs/badminton-cicd/bin/python -m \
+  scratch.contact_det_full_ds_fit.scripts.plot_report_figures
+```
+
+This needs the local ignored input at `raw/final_contact_scores/combined_first/final_contact_setting_result.json` as well as the tracked records.
+
 ## Results saved as JSON
 
 | File | What it records |
 | --- | --- |
-| `shuttleset_development_split.json` | The 40 development videos and the 32/8 split |
-| `baseline_runs.json` | The nine model runs and the event settings they could use |
-| `baseline_summary.json` | Eight-video comparison and chosen-run error counts |
-| `missed_contact_summary.json` | First/later miss diagnosis and one-short sections |
-| `rally_start_candidate_summary.json` | Candidate-list size and target coverage |
-| `training_video_score_groups.json` | Four groups used so each training video was scored by a model trained on other videos |
-| `training_video_score_inputs.json` | The training-score input files and their hashes |
-| `training_video_score_summary.json` | Scores across all 32 training videos, with each video kept out of its model |
-| `training_rally_start_input_summary.json` | Training candidate lists made without reading labels |
-| `validation_rally_start_input_summary.json` | Validation candidate lists made without reading labels |
-| `rally_start_model_runs.json` | The six tested ways to choose an earlier contact |
-| `rally_start_model_summary.json` | All six results and why the work stopped there |
-| `final_video_score_groups.json` | The five groups used to score all 40 videos without training on them |
-| `final_contact_score_inputs.json` | The all-40 scoring files and their hashes |
-| `shuttleset22_test_summary.json` | The final ShuttleSet22 result, the separate contact recount and the later rally-section recount |
+| [`records/shuttleset_development_split.json`](records/shuttleset_development_split.json) | The 40 development videos and the 32/8 split |
+| [`records/pilot_feature_check.json`](records/pilot_feature_check.json) | The replay check for the three pilot feature files |
+| [`records/baseline_runs.json`](records/baseline_runs.json) | The nine model runs and the event settings they could use |
+| [`records/baseline_summary.json`](records/baseline_summary.json) | Eight-video comparison and chosen-run error counts |
+| [`records/missed_contact_summary.json`](records/missed_contact_summary.json) | First/later miss diagnosis and one-short sections |
+| [`records/rally_start_candidate_summary.json`](records/rally_start_candidate_summary.json) | Candidate-list size and target coverage |
+| [`records/training_video_score_groups.json`](records/training_video_score_groups.json) | Four groups used so each training video was scored by a model trained on other videos |
+| [`records/training_video_score_inputs.json`](records/training_video_score_inputs.json) | The training-score input files and their hashes |
+| [`records/training_video_score_summary.json`](records/training_video_score_summary.json) | Scores across all 32 training videos, with each video kept out of its model |
+| [`records/training_rally_start_input_summary.json`](records/training_rally_start_input_summary.json) | Training candidate lists made without reading labels |
+| [`records/validation_rally_start_input_summary.json`](records/validation_rally_start_input_summary.json) | Validation candidate lists made without reading labels |
+| [`records/rally_start_model_runs.json`](records/rally_start_model_runs.json) | The six tested ways to choose an earlier contact |
+| [`records/rally_start_model_summary.json`](records/rally_start_model_summary.json) | All six results and why the work stopped there |
+| [`records/final_video_score_groups.json`](records/final_video_score_groups.json) | The five groups used to score all 40 videos without training on them |
+| [`records/final_contact_score_inputs.json`](records/final_contact_score_inputs.json) | The all-40 scoring files and their hashes |
+| [`records/shuttleset22_test_summary.json`](records/shuttleset22_test_summary.json) | The final ShuttleSet22 result, the separate contact recount and the later rally-section recount |
+
+[`records/README.md`](records/README.md) lists all 16 JSON records and their rebuild paths.
 
 ## Files kept out of Git
 

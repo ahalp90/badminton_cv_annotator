@@ -1,20 +1,10 @@
 # Visual quick guide
 
-These pictures show what the RF and HGB tests tried, what happened and what still fails. The full set takes about five minutes to read.
+These pictures ask whether a contact model that worked on three videos still works on new videos, and whether it brings us closer to a near-perfect automatic annotator. The full set takes about five minutes to read.
 
-## Table of contents
+**Main story:** [Route](#1-the-study-went-from-3-videos-to-47-new-videos) · [Model choice](#2-hgb-came-first-in-the-nine-model-runs) · [New-video result](#3-precision-fell-on-the-new-videos) · [First contacts](#4-first-contacts-stayed-much-harder) · [Section outcomes](#5-most-predicted-sections-held-one-whole-rally) · [Section scores](#6-rally-section-precision-was-632) · [Section edges](#7-the-end-usually-had-more-room-than-the-start) · [Full outputs](#8-single-contacts-are-useful-but-few-full-outputs-are-right)
 
-- [The eight-picture story](#the-eight-picture-story)
-- [1. The study went from 3 videos to 47 new videos](#1-the-study-went-from-3-videos-to-47-new-videos)
-- [2. HGB came first in the nine model runs](#2-hgb-came-first-in-the-nine-model-runs)
-- [3. Precision fell on the new videos](#3-precision-fell-on-the-new-videos)
-- [4. First contacts stayed much harder](#4-first-contacts-stayed-much-harder)
-- [5. Most predicted sections held one whole rally](#5-most-predicted-sections-held-one-whole-rally)
-- [6. Rally-section precision was 63.2%](#6-rally-section-precision-was-632)
-- [7. The end usually had more room than the start](#7-the-end-usually-had-more-room-than-the-start)
-- [8. Single contacts are useful, but few full outputs are right](#8-single-contacts-are-useful-but-few-full-outputs-are-right)
-- [Extra plots](#extra-plots)
-- [The result in one paragraph](#the-result-in-one-paragraph)
+**More:** [Extra plots](#extra-plots) · [Conclusion](#the-result-in-one-paragraph)
 
 ## The eight-picture story
 
@@ -62,7 +52,7 @@ The other sections held part of one rally, parts of several rallies, or no label
 
 ![Rally-section precision, recall and F1.](figures/13_rally_section_precision_recall.png)
 
-The 2,515 clean matches give **63.16% precision** from all 3,982 predicted sections. They give **73.50% recall** from all 3,422 labelled rallies.
+The 2,515 clean matches give **63.16% precision** from all 3,982 predicted sections. They give **73.50% recall** from all 3,422 usable labelled rallies.
 
 This check only asks whether the section holds one whole rally. It does not ask whether every predicted contact is right.
 
@@ -121,7 +111,7 @@ F1 on ShuttleSet22 rises from 51.50% at one frame to 82.45% at five frames. The 
 
 ![A stricter minimum contact score keeps fewer sections without making them much cleaner.](figures/09_confidence_vs_yield.png)
 
-The score helps with single contacts. It does not show whether a whole section is right. Raising the minimum score to 0.95 removes many sections. The share that are fully right stays around 17–18%.
+The score ranks single contacts, while the section result also depends on its boundaries, missing contacts, extra contacts and player sides. On development data, raising the minimum score from 0.9 to 0.95 changed the fully correct share from **16.3% to 17.1%** at a ten-frame tolerance. On the new videos, it changed the old one-rally pass rate from **16.6% to 18.23%** at a five-frame tolerance. The tolerances differ, so the cut-offs should be compared within each dataset only.
 
 ### What changed when the minimum score changed
 

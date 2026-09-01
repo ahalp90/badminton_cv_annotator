@@ -47,7 +47,7 @@ TRAINING_INPUT_PATH = (
     REPO_ROOT
     / "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz"
 )
-CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/rally_start_model_runs.json"
+CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/rally_start_model_runs.json"
 COMBINED_RESULT_PATH = REPO_ROOT / "scratch/contact_det_followup/results/combined_best_case.json"
 OUTPUT_PATH = REPO_ROOT / "scratch/contact_det_followup/results/delete_model_development.json"
 GROUPS = ("A", "B", "C", "D")

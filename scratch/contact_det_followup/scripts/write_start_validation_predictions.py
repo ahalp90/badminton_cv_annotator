@@ -29,9 +29,9 @@ VALIDATION_INPUT_PATH = (
     / "scratch/contact_det_full_ds_fit/raw/validation_rally_start_inputs/rally_start_validation_inputs.json.gz"
 )
 VALIDATION_INPUT_SUMMARY_PATH = (
-    REPO_ROOT / "scratch/contact_det_full_ds_fit/validation_rally_start_input_summary.json"
+    REPO_ROOT / "scratch/contact_det_full_ds_fit/records/validation_rally_start_input_summary.json"
 )
-CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/rally_start_model_runs.json"
+CONFIG_PATH = REPO_ROOT / "scratch/contact_det_full_ds_fit/records/rally_start_model_runs.json"
 PREDICTION_OUTPUT_PATH = (
     REPO_ROOT / "scratch/contact_det_followup/results/start_model_validation_predictions.json"
 )

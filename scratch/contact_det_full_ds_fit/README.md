@@ -1,28 +1,18 @@
 # RF and HGB contact results from the full dataset
 
-This folder records the 40-video development study and the final model's test on 47 ShuttleSet22 videos.
+This folder records the 40-video development study and the final model's frozen test on 47 ShuttleSet22 videos.
 
-## Table of contents
-
-- [Bottom line](#bottom-line)
-- [The five-minute route](#the-five-minute-route)
-- [What the work was trying to learn](#what-the-work-was-trying-to-learn)
-- [The main results](#the-main-results)
-- [How well the rally sections worked](#how-well-the-rally-sections-worked)
-- [How often the full output was right](#how-often-the-full-output-was-right)
-- [Are we closer to an annotator that is almost always right?](#are-we-closer-to-an-annotator-that-is-almost-always-right)
-- [What remains useful](#what-remains-useful)
-- [Where everything lives](#where-everything-lives)
+**Contents:** [Bottom line](#bottom-line) · [Quick route](#the-five-minute-route) · [Question](#what-the-work-was-trying-to-learn) · [Results](#the-main-results) · [Rally sections](#how-well-the-rally-sections-worked) · [Full output](#how-often-the-full-output-was-right) · [Decision](#are-we-closer-to-an-annotator-that-is-almost-always-right) · [Next work](#what-remains-useful) · [Files](#where-everything-lives)
 
 ## Bottom line
 
 The nine-run RF and HGB comparison is complete. More tuning is not planned now.
 
-Histogram gradient boosting, or HGB, was the best of the simple contact models. Across 40 development videos, it reached **90.50% precision, 86.58% recall and 88.49% F1** within five frames. Each video was scored by a model trained on the other 32.
+HGB was the best of the simple contact models. Across 40 development videos, it reached **90.50% precision, 86.58% recall and 88.49% F1** within five frames. Each video was scored by a model trained on the other 32. The study used this development result to choose the final score cut-off and join distance. It was not an independent test.
 
-The final model then ran once on 47 ShuttleSet22 videos that were not used in development. It reached **80.62% precision, 84.37% recall and 82.45% F1** within five frames. It chose the right player for **92.02%** of matched contacts where both sides had an answer.
+The final model then ran once on 47 ShuttleSet22 videos that were not used in development. Every prediction file was saved before the test labels were read. It reached **80.62% precision, 84.37% recall and 82.45% F1** within five frames. It chose the right player for **92.02%** of matched contacts where both sides had an answer.
 
-These scores tell us how well the model finds single contacts. The section finder had **63.16% precision and 73.50% recall**. It found one clean section for 2,515 of the 3,422 labelled rallies.
+These scores tell us how well the model finds single contacts. The section finder had **63.16% precision and 73.50% recall**. It found one clean section for 2,515 of the 3,422 usable labelled rallies.
 
 The full output was much less reliable. Only **483 of all 3,982 sections, or 12.13%,** held one complete rally and also got every contact and player side right.
 
@@ -65,7 +55,7 @@ Each development score came from a model trained without the videos it scored. T
 | Stage | Videos | Precision | Recall | F1 | First-contact recall | Later-contact recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Chosen eight-video validation run | 8 | 89.24% | 83.44% | 86.25% | 41.77% | 88.98% |
-| Fair test across all development videos | 40 | 90.50% | 86.58% | 88.49% | 49.39% | 90.75% |
+| Out-of-fold development result used to choose the final event rules | 40 | 90.50% | 86.58% | 88.49% | 49.39% | 90.75% |
 | ShuttleSet22 test on new videos | 47 | 80.62% | 84.37% | 82.45% | 53.92% | 87.36% |
 
 Every number in this table allows a five-frame timing difference. All frame counts are scaled to 30 fps.
@@ -81,10 +71,8 @@ A section counts as a clean rally match when it contains every labelled contact 
 The section finder produced 3,982 sections. Of those, 2,515 were clean matches. This gives:
 
 - **63.16% precision:** 2,515 clean matches from 3,982 predicted sections
-- **73.50% recall:** 2,515 clean matches from 3,422 labelled rallies
+- **73.50% recall:** 2,515 clean matches from 3,422 usable labelled rallies
 - **67.94% F1:** one score that balances precision and recall
-
-![The section finder reached 63.2% precision and 73.5% recall.](figures/13_rally_section_precision_recall.png)
 
 The other 1,467 predicted sections were wrong for this check. Some held only part of a rally. Some held parts of several rallies. Most of the rest held no labelled contact.
 
@@ -105,13 +93,13 @@ The annotator first proposes a section of video. A section counts as fully corre
 - it contains one complete labelled rally and no part of another rally;
 - every contact is present within the stated timing tolerance;
 - no extra contact is present; and
-- every contact has the correct Top or Bottom player answer.
+- the player side is right for every contact.
 
 This test is stricter than contact F1. One missing contact, extra contact or wrong side makes the whole section fail.
 
 The first report counted only the 2,969 sections that touched one labelled rally. **493 passed its contact-and-side check, or 16.60%.** That old check did not require every label to sit inside the section.
 
-That left 943 no-rally sections and 70 multi-rally sections out of the denominator. The contact timing and player-side scores did not have this problem. They used all contact predictions and labels.
+That left 943 no-rally sections and 70 multi-rally sections out of the old section denominator. Contact timing used all 39,994 predictions and all 38,218 usable labels. Player-side accuracy used the 32,188 timing matches where both the prediction and label had a side answer.
 
 When all 3,982 predicted sections are counted, the old 493 gives **12.38%**. A stricter recount also required every labelled contact to sit inside the section. Ten of the 493 missed that rule by no more than the five-frame timing allowance. The strict result was therefore **483 of 3,982, or 12.13%**.
 
@@ -121,9 +109,16 @@ The answer is **we know more, but the full annotator is still far from the goal*
 
 The contact detector is useful. The next step needs to check whether the section starts and ends in the right place. It also needs to look for a missed first contact, extra contacts and a doubtful player choice.
 
-A high contact score does not tell us that the whole section is right. On the ShuttleSet22 test, a cut-off of 0.95 kept 1,754 sections instead of 3,982 at 0.90. Of those sections, 1,344 matched one labelled rally and had enough player labels to be scored. Only **18.23%** passed the old contact-and-side check. This is still a score among sections that had already passed the one-rally check.
+The whole-section result barely changed when the minimum contact score rose:
 
-No test found a group of whole rallies with near-100% precision. We also do not know how the method works across different broadcast styles. The ShuttleSet22 result combines all 47 videos, so it does not show a score for each broadcast style.
+| Minimum contact score | Sections kept | One-rally sections scored | Passed the old contact-and-side check |
+| ---: | ---: | ---: | ---: |
+| 0.90 | 3,982 | 2,969 | 16.60% |
+| 0.95 | 1,754 | 1,344 | 18.23% |
+
+The higher cut-off removed more than half the sections and raised the old pass rate by less than two percentage points.
+
+The cleanest tested group remained well below near-100% precision. The ShuttleSet22 result combines all 47 videos, so performance for each broadcast style remains unknown.
 
 ![A high score for one contact does not mean that the whole rally is right.](figures/11_standalone_gap.png)
 
@@ -139,7 +134,7 @@ These parts are worth keeping:
 - the finding that first contacts need separate attention
 - the test method that saved every prediction before reading the labels
 
-More RF or HGB tuning is unlikely to make whole rallies reliable. The next useful work is:
+The nine tested RF and HGB setups were close, so more tuning of the same menu is a lower priority than whole-rally work. The next useful work is:
 
 - sections that start and end at the right time
 - a safer source for first contacts, or a safer way to choose one
@@ -159,7 +154,8 @@ The next test should train a model that keeps or rejects each rally. It could lo
 | How the detector works and where results live | [`current_system_map.md`](current_system_map.md) |
 | Generated figures | [`figures/`](figures/) |
 | Figure-building code | [`scripts/plot_report_figures.py`](scripts/plot_report_figures.py) |
-| Machine-readable results | JSON files in this folder |
+| Machine-readable record inventory | [`records/README.md`](records/README.md) |
+| Machine-readable records | 16 unchanged JSON files under `records/` |
 | Larger saved files | local `raw/` and the GitHub release linked in the test report |
 | Completed plans and working record | [`archive/`](archive/) |
 

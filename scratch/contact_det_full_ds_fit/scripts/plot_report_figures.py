@@ -144,12 +144,12 @@ def plot_experiment_route(
     passing_choices = integer(require_mapping(rally_start_model["checks"], "rally-start checks")["passing_choice_count"], "passes")
     stages = [
         (f"{len(pilot_videos)}-video pilot", "Could the saved features\nrun end to end?", "Yes. The rebuilt features\nmatched exactly"),
-        (f"{len(baseline_runs)} model runs\n{len(validation_videos)} test videos", "Which RF or HGB setup\nworked best?",
+        (f"{len(baseline_runs)} model runs\n{len(validation_videos)} validation videos", "Which RF or HGB setup\nworked best?",
          "HGB, with more\nnon-contact examples"),
         ("Failure checks", "Why were complete rallies\nstill wrong?", "First contacts were\nthe main gap"),
         ("Rally-start follow-up", "Could an earlier frame add\nthe missed first contact?",
          f"{passing_choices} of {len(choices)} choices were right\nat least 80% of the time"),
-        (f"{len(require_list(final_setting['videos'], 'development videos'))}-video test",
+        (f"{len(require_list(final_setting['videos'], 'development videos'))}-video development\nscoring",
          "Did the setup still work\nacross development videos?",
          (f"{format_percent(number(development['precision'], 'precision'))} precision; "
           f"{format_percent(number(development['recall'], 'recall'))} recall")),
@@ -181,8 +181,10 @@ def plot_experiment_route(
 
     add_footnote(
         figure,
-        "Sources: pilot_feature_check.json; baseline_summary.json; missed_contact_summary.json; "
-        "rally_start_model_summary.json; final_contact_setting_result.json; shuttleset22_test_summary.json.",
+        "Sources: records/pilot_feature_check.json; records/baseline_summary.json; "
+        "records/missed_contact_summary.json; records/rally_start_model_summary.json; "
+        "raw/final_contact_scores/combined_first/final_contact_setting_result.json; "
+        "records/shuttleset22_test_summary.json.",
     )
     save_figure(figure, "01_experiment_route.png")
 
@@ -265,8 +267,9 @@ def plot_nine_run_model_comparison(baseline: JsonObject) -> None:
                     weight="bold", color=INK)
     add_footnote(
         figure,
-        "Source: baseline_summary.json. Eight development videos. Contact timing allows 5 frames; the check of the whole "
-        "section allows 10. There are 5,696 labelled contacts. RF = random forest; HGB = histogram gradient boosting.",
+        "Source: records/baseline_summary.json. Eight development videos. Contact timing allows 5 frames; the check of "
+        "the whole section allows 10. There are 5,696 labelled contacts. RF = random forest; HGB = histogram gradient "
+        "boosting.",
     )
     figure.tight_layout(rect=(0, 0.055, 1, 0.94))
     save_figure(figure, "02_nine_run_model_comparison.png")
@@ -298,7 +301,7 @@ def plot_contact_metrics(baseline: JsonObject, final_setting: JsonObject, shuttl
     chosen_run = next(run for run in runs if run["run_id"] == chosen_id)
     development = development_metrics(final_setting)
     external = external_metrics(shuttleset)
-    stages = ["8-video model choice", "40-video test", "47-video new-data test"]
+    stages = ["8-video model choice", "40-video development", "47-video frozen test"]
     precision = [number(chosen_run["timing_precision"], "timing_precision"), number(development["precision"], "precision"),
                  number(external["precision"], "precision")]
     recall = [number(chosen_run["timing_recall"], "timing_recall"), number(development["recall"], "recall"),
@@ -322,8 +325,10 @@ def plot_contact_metrics(baseline: JsonObject, final_setting: JsonObject, shuttl
     axis.legend(loc="lower left", ncol=3)
     add_footnote(
         figure,
-        "Sources: baseline_summary.json; raw/final_contact_scores/combined_first/final_contact_setting_result.json; "
-        "shuttleset22_test_summary.json. A predicted contact may be up to 5 frames from its label on a 30 fps clock.",
+        "Sources: records/baseline_summary.json; "
+        "raw/final_contact_scores/combined_first/final_contact_setting_result.json; "
+        "records/shuttleset22_test_summary.json. A predicted contact may be up to 5 frames from its label on a 30 fps "
+        "clock.",
     )
     save_figure(figure, "03_contact_precision_recall_f1.png")
 
@@ -343,7 +348,7 @@ def plot_first_vs_later_recall(baseline: JsonObject, final_setting: JsonObject, 
         number(development["other_contact_recall"], "other_contact_recall"),
         number(external["later_contact_recall"], "later_contact_recall"),
     ]
-    stages = ["8-video model choice", "40-video test", "47-video new-data test"]
+    stages = ["8-video model choice", "40-video development", "47-video frozen test"]
     figure, axis = plt.subplots(figsize=(14, 8.5))
     positions = list(range(len(stages)))
     bar_width = 0.34
@@ -359,8 +364,10 @@ def plot_first_vs_later_recall(baseline: JsonObject, final_setting: JsonObject, 
     axis.legend(loc="lower right")
     add_footnote(
         figure,
-        "Sources: baseline_summary.json; raw/final_contact_scores/combined_first/final_contact_setting_result.json; "
-        "shuttleset22_test_summary.json. A predicted contact may be up to 5 frames from its label on a 30 fps clock.",
+        "Sources: records/baseline_summary.json; "
+        "raw/final_contact_scores/combined_first/final_contact_setting_result.json; "
+        "records/shuttleset22_test_summary.json. A predicted contact may be up to 5 frames from its label on a 30 fps "
+        "clock.",
     )
     save_figure(figure, "04_first_vs_later_recall.png")
 
@@ -389,8 +396,8 @@ def plot_development_error_mix(baseline: JsonObject) -> None:
               ha="right", va="bottom", fontsize=13, color=INK, bbox={"boxstyle": "round,pad=0.5", "fc": "#F7FAFC", "ec": LIGHT_GREY})
     add_footnote(
         figure,
-        f"Source: baseline_summary.json. The four bars include all {total} failed single-rally sections from the selected "
-        "8-video development run. In this whole-rally check, a contact may be up to 10 frames from its label.",
+        f"Source: records/baseline_summary.json. The four bars include all {total} failed single-rally sections from the "
+        "selected 8-video development run. In this whole-rally check, a contact may be up to 10 frames from its label.",
     )
     save_figure(figure, "05_development_error_mix.png")
 
@@ -422,8 +429,8 @@ def plot_external_error_mix(shuttleset: JsonObject) -> None:
     axis.grid(axis="x")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_report.md, checked against shuttleset22_test_summary.json. The bars cover all 2,969 "
-        "sections that match one labelled rally. A contact may be up to 5 frames from its label.",
+        "Source: shuttleset22_test_report.md, checked against records/shuttleset22_test_summary.json. The bars cover all "
+        "2,969 sections that match one labelled rally. A contact may be up to 5 frames from its label.",
     )
     save_figure(figure, "06_external_error_mix.png")
 
@@ -471,8 +478,9 @@ def plot_rally_start_followup(candidate: JsonObject, model: JsonObject) -> None:
                     weight="bold", color=INK)
     add_footnote(
         figure,
-        "Sources: rally_start_candidate_summary.json and rally_start_model_summary.json. Candidate coverage uses the 81 "
-        "otherwise-correct sections missing a first contact. Each training video was scored by a model trained on other videos.",
+        "Sources: records/rally_start_candidate_summary.json and records/rally_start_model_summary.json. Candidate "
+        "coverage uses the 81 otherwise-correct sections missing a first contact. Each training video was scored by a "
+        "model trained on other videos.",
     )
     figure.tight_layout(rect=(0, 0.055, 1, 0.94))
     save_figure(figure, "07_rally_start_followup.png")
@@ -510,8 +518,8 @@ def plot_timing_tolerance(shuttleset: JsonObject) -> None:
     axis.legend(loc="lower right", ncol=3)
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. The test has 47 videos. Precision counts 39,994 predictions; recall counts "
-        "38,218 usable labels. Five frames is about 0.17 seconds at 30 fps.",
+        "Source: records/shuttleset22_test_summary.json. The test has 47 videos. Precision counts 39,994 predictions; "
+        "recall counts 38,218 usable labels. Five frames is about 0.17 seconds at 30 fps.",
     )
     save_figure(figure, "08_timing_tolerance.png")
 
@@ -526,7 +534,12 @@ def plot_whole_section_confidence(baseline: JsonObject, shuttleset: JsonObject) 
     external_whole = require_mapping(require_mapping(shuttleset["whole_rallies"], "whole_rallies")["5"], "whole_rallies.5")
     external_kept_090 = integer(require_mapping(shuttleset["prediction"], "prediction")["detected_sections"], "detected sections")
     external_correct_090 = integer(external_whole["fully_correct_sections"], "external correct sections")
-    labels = ["Development\n0.90", "Development\n0.95", "New videos\n0.90", "New videos\n0.95"]
+    labels = [
+        "Development · 10-frame\ncut-off 0.90",
+        "Development · 10-frame\ncut-off 0.95",
+        "New videos · 5-frame\ncut-off 0.90",
+        "New videos · 5-frame\ncut-off 0.95",
+    ]
     kept_counts = [development_kept_090, 322, external_kept_090, 1754]
     correct_counts = [development_correct_090, 55, external_correct_090, 245]
     accuracy_labels = ["16.26% of kept", "17.08% of kept", "16.60% of 2,969 scored*", "18.23% of 1,344 scored*"]
@@ -558,15 +571,20 @@ def plot_whole_section_confidence(baseline: JsonObject, shuttleset: JsonObject) 
     correct_axis.set_xlabel("Videos and minimum contact score")
     correct_axis.set_ylim(0, max(correct_counts) * 1.28)
     correct_axis.grid(axis="y")
-    figure.suptitle("A minimum score of 0.95 removed many sections, but few more of the rallies left were right", fontsize=20,
-                    weight="bold", color=INK)
+    figure.suptitle(
+        "Within each dataset, a 0.95 cut-off kept fewer sections and modestly improved correctness",
+        fontsize=20,
+        weight="bold",
+        color=INK,
+    )
     add_footnote(
         figure,
-        "Sources: baseline_summary.json, baseline_report.md, shuttleset22_test_summary.json and "
-        "shuttleset22_test_report.md. *A section is scored when it matches one labelled rally and has enough human labels "
-        "to check the player side.",
+        "Sources: records/baseline_summary.json, baseline_report.md, records/shuttleset22_test_summary.json and "
+        "shuttleset22_test_report.md.\nOnly the 0.90-to-0.95 change within each dataset is comparable: populations and "
+        "scorers differ; development uses 10 frames and new videos use 5.\n*A section is scored when it matches one "
+        "labelled rally and has enough human labels to check the player side.",
     )
-    figure.tight_layout(rect=(0, 0.065, 1, 0.94))
+    figure.tight_layout(rect=(0, 0.10, 1, 0.94))
     save_figure(figure, "09_confidence_vs_yield.png")
 
 
@@ -643,9 +661,9 @@ def plot_standalone_gap(shuttleset: JsonObject) -> None:
     axis.grid(axis="y")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. Denominators from left: 39,994 predicted contacts; 32,188 matched "
-        "contacts with two side answers; 2,969 one-rally sections; all 3,982 predicted sections. The last bar also "
-        "requires one complete rally and no part of another.",
+        "Source: records/shuttleset22_test_summary.json. Denominators from left: 39,994 predicted contacts; 32,188 "
+        "matched contacts with two side answers; 2,969 one-rally sections; all 3,982 predicted sections. The last bar "
+        "also requires one complete rally and no part of another.",
     )
     save_figure(figure, "11_standalone_gap.png")
 
@@ -671,8 +689,8 @@ def plot_rally_section_outcomes(shuttleset: JsonObject) -> None:
     axis.grid(axis="x")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. A rally is complete here when every labelled contact is inside the "
-        "section. ShuttleSet22 does not label the true visual start and end of each rally.",
+        "Source: records/shuttleset22_test_summary.json. A rally is complete here when every labelled contact is inside "
+        "the section. ShuttleSet22 does not label the true visual start and end of each rally.",
     )
     save_figure(figure, "12_rally_section_outcomes.png")
 
@@ -695,8 +713,8 @@ def plot_rally_section_precision_recall(shuttleset: JsonObject) -> None:
     axis.grid(axis="y")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. Precision is 2,515 clean matches from 3,982 predicted sections. "
-        "Recall is the same 2,515 matches from 3,422 labelled rallies.",
+        "Source: records/shuttleset22_test_summary.json. Precision is 2,515 clean matches from 3,982 predicted sections. "
+        "Recall is the same 2,515 matches from 3,422 usable labelled rallies.",
     )
     save_figure(figure, "13_rally_section_precision_recall.png")
 
@@ -734,8 +752,8 @@ def plot_rally_section_context(shuttleset: JsonObject) -> None:
     axis.grid(axis="x")
     add_footnote(
         figure,
-        "Source: shuttleset22_test_summary.json. Dots are medians across 2,515 clean one-rally sections. Lines show "
-        "the middle 80% (10th to 90th percentile). These are contact labels, not true rally-boundary labels.",
+        "Source: records/shuttleset22_test_summary.json. Dots are medians across 2,515 clean one-rally sections. Lines "
+        "show the middle 80% (10th to 90th percentile). These are contact labels, not true rally-boundary labels.",
     )
     save_figure(figure, "14_rally_section_context.png")
 
@@ -743,16 +761,16 @@ def plot_rally_section_context(shuttleset: JsonObject) -> None:
 def main() -> None:
     """Load frozen evidence and rebuild every report figure."""
     set_style()
-    baseline = load_json("baseline_summary.json")
+    baseline = load_json("records/baseline_summary.json")
     final_setting = load_json("raw/final_contact_scores/combined_first/final_contact_setting_result.json")
-    missed_contacts = load_json("missed_contact_summary.json")
-    rally_start_candidate = load_json("rally_start_candidate_summary.json")
-    rally_start_model = load_json("rally_start_model_summary.json")
-    shuttleset = load_json("shuttleset22_test_summary.json")
+    missed_contacts = load_json("records/missed_contact_summary.json")
+    rally_start_candidate = load_json("records/rally_start_candidate_summary.json")
+    rally_start_model = load_json("records/rally_start_model_summary.json")
+    shuttleset = load_json("records/shuttleset22_test_summary.json")
     if integer(missed_contacts["otherwise_correct_one_short_sections_at_10_frames"]["section_count"], "one-short sections") != 94:
         raise ValueError("The expected frozen development error count has changed")
 
-    pilot = load_json("pilot_feature_check.json")
+    pilot = load_json("records/pilot_feature_check.json")
     plot_experiment_route(pilot, baseline, final_setting, rally_start_model, shuttleset)
     plot_nine_run_model_comparison(baseline)
     plot_contact_metrics(baseline, final_setting, shuttleset)
@@ -768,8 +786,8 @@ def main() -> None:
     plot_rally_section_precision_recall(shuttleset)
     plot_rally_section_context(shuttleset)
 
-    # shuttleset22_test_summary.json confirms that per-video values were independently checked, but does not store them.
-    # A per-video plot is therefore omitted: rebuilding it would require an untracked external result file.
+    # records/shuttleset22_test_summary.json confirms that per-video values were independently checked, but does not
+    # store them. A per-video plot is therefore omitted: rebuilding it would require an untracked external result file.
 
 
 if __name__ == "__main__":

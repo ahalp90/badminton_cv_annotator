@@ -15,7 +15,7 @@ from scratch.contact_det_full_ds_fit.scripts.baseline_config import (
 )
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-CANONICAL_MANIFEST = EXPERIMENT_ROOT / "baseline_runs.json"
+CANONICAL_MANIFEST = EXPERIMENT_ROOT / "records/baseline_runs.json"
 
 
 def _canonical_payload() -> dict[str, object]:

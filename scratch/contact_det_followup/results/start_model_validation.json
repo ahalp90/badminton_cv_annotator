@@ -288,7 +288,7 @@
   "schema": "contact-detector-start-action-validation/1",
   "source_prediction_record": {
     "path": "scratch/contact_det_followup/results/start_model_validation_predictions.json",
-    "sha256": "c40b1857c935ee2125cc6fe8d2b0759045de25c02aa2ecdb0d1d252cbc1949e3"
+    "sha256": "28680ce6b839afbc9bc9de3ae4a1dee622bda623fb2f4249012428dec6c67faf"
   },
   "status": "complete",
   "validated_candidate_video_count": 8,

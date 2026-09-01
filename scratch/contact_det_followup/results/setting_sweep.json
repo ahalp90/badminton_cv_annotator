@@ -1311,10 +1311,10 @@
       "scratch/contact_det_full_ds_fit/raw/training_rally_start_inputs/rally_start_training_inputs.json.gz",
       "scratch/contact_det_full_ds_fit/raw/validation_rally_start_inputs/rally_start_validation_inputs.json.gz"
     ],
-    "groups": "scratch/contact_det_full_ds_fit/final_video_score_groups.json",
+    "groups": "scratch/contact_det_full_ds_fit/records/final_video_score_groups.json",
     "raw_score_source_commit": "c30f0d01",
     "raw_scores": "scratch/contact_det_full_ds_fit/raw/final_contact_scores/combined_repeat/combined_raw_contact_scores.npy.xz",
-    "settings": "scratch/contact_det_full_ds_fit/baseline_runs.json",
+    "settings": "scratch/contact_det_full_ds_fit/records/baseline_runs.json",
     "source_record_schema": "final-contact-setting-result/1"
   },
   "labels_used": "40-video development labels, for scoring and setting choice",
@@ -1483,7 +1483,7 @@
     "revised_timing_complete_sections": 953
   },
   "primary_tolerance_at_30_fps": 5,
-  "repository_commit": "f6e0a584d26f1804dac977542edf56b0cf3bead8",
+  "repository_commit": "436968cea7f07ec1b7859f3f280fffcd862bbda7",
   "result_type": "Timing-only descriptive development sweep on group-excluded predictions",
   "results_by_tolerance_at_30_fps": {
     "10": {
