@@ -14,9 +14,10 @@ The report keeps these result types separate:
 
 - **Held-out ShuttleSet22 test:** a chosen detector or rule was scored once on 47 ShuttleSet22 videos after its predictions and settings had been saved
 - **Held-out model result:** a model acted on videos excluded from the relevant training or model-selection choice
+
 Some checks tried every permitted edit and compared each result with the ground truth. These checks show whether a useful repair was present among the saved options. They do not show that a running annotator can choose it.
 
-Labels were allowed to train models and score saved predictions. A runnable rule or model did not use labels to choose an action for a rally.
+Models used labels during training, and every result used labels when it was scored. No rule or model saw the labels when choosing what to do for a single rally.
 
 ## How the follow-up used the videos
 
@@ -27,13 +28,13 @@ Labels were allowed to train models and score saved predictions. A runnable rule
 | ShuttleSet development total | 40 | Choose the side rule and inspect global settings |
 | Held-out ShuttleSet22 test | 47 | Score the baseline and chosen side rule once |
 
-The development contact predictions are group-held-out. Each video was scored by a contact model that did not train on it. The small follow-up models use their own held-out or nested checks where the report says so.
+Each ShuttleSet development video was scored by a contact model trained on the other 32 videos. The report says when the smaller follow-up models left the scored videos out of training. It also names the optimistic results where the same development scores helped choose a setting.
 
 ## Timing tolerances
 
-Frame distances use a 30 fps clock. The main score accepts a predicted contact within five frames of its label. The ±10 result repeats the same calculation with a wider allowance.
+Frame distances use a 30 fps clock. Most rules and models were chosen using matches within ±5 frames. Their saved outputs were also scored at ±10. The contact cut-off sweep compared every setting at both distances.
 
-All success decisions use the ±5 result. The ±10 result provides context only.
+±10 frames is close enough for this project. Before using it as the main score, check that contacts which match only at ±10 still refer to the intended hits.
 
 ## Result records
 

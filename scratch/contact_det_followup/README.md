@@ -1,41 +1,38 @@
-# Contact detector follow-up
+# Contact detector follow-up: what matters
 
-This branch found one useful repair: choose player sides across the whole rally instead of judging each contact on its own. On the held-out 47-video ShuttleSet22 test, that change raised fully correct sections from **483 to 901** at the main ±5-frame tolerance. It did not break any section that was already fully correct.
+One change is worth keeping. The whole-rally side rule chooses player sides across the rally instead of judging each contact alone. On the held-out 47-video ShuttleSet22 test, it raised fully correct sections from **483 to 901 of 3,982** at the main ±5-frame tolerance. It repaired 418 sections and did not make any previously correct section wrong.
 
-The repair still leaves most ShuttleSet22 sections wrong. Only **22.63%** of predicted sections were fully correct. A separate keep-or-review model was assessed on 32 ShuttleSet development videos. It reached **40.87%** precision while accepting 16.14% of sections.
+Here, a section is one predicted rally. It is fully correct only when every contact time and player side is right and no extra contacts remain. The ±5 tolerance allows a predicted contact to fall up to five frames from its label on a 30 fps clock.
 
-The branch answers two questions:
+The rule improves player-side assignments. It does not recover missing contacts or remove false ones. Most ShuttleSet22 sections therefore remain wrong: **22.63%** are fully correct after the rule.
 
-- **Can cheap rules recover more complete rallies?** Yes. Use the whole-rally side vote.
-- **Are we close to a near-100%-precision auto-annotator, even if it rejects most rallies?** No. The tested rejector could not identify a clean subset.
+The test results were not separated by broadcast convention, so they do not yet establish that the gain will generalise to unfamiliar broadcasts.
 
-## If you only have two minutes
+![On the held-out 47-video ShuttleSet22 test, the whole-rally side rule nearly doubled fully correct sections. It repaired 418 sections and made no previously correct section wrong.](figures/01_complete_rallies.png)
 
-- The whole-rally side vote is worth keeping. It repaired 418 sections on the held-out ShuttleSet22 test at ±5 frames and broke none.
-- The global contact cut-off should stay at 0.90 for now. On 40 ShuttleSet development videos, the best alternative repaired 139 timing-complete sections but broke 126.
-- The first-contact model is a clue, not a finished component. It repaired six sections on eight ShuttleSet validation videos and broke none.
-- The learned delete rule broke more rallies than it repaired.
-- The current keep-or-review model stayed far below the 90% precision target.
-- These results do not cover new broadcast conventions. The 47 test videos were new to the model, but the results were not reported by camera layout, tournament, graphics package, or broadcast style.
+## What to keep, investigate, or leave alone
 
-## Which data was used
+| Part of the follow-up | What happened | What to do |
+| --- | --- | --- |
+| Whole-rally side rule | Repaired 418 ShuttleSet22 test sections and made no previously correct section wrong at ±5 frames | Use it for complete rallies. Keep the old assignments when contacts must stand alone. |
+| Global contact cut-off | On 40 ShuttleSet development videos, 0.85 corrected the contact count and timing in 139 sections but made 126 other contact lists incorrect. Player sides were not tested. | Keep 0.90 for the main ±5 measure. |
+| First-contact model | Repaired six sections and made no previously correct section wrong on eight ShuttleSet validation videos | Treat this as evidence of a weak signal. Trace missing, excluded, and badly ranked first contacts before training again. |
+| Close-duplicate cleanup | The audit found no opposite-side contacts within two frames of each other in the 40 ShuttleSet development videos or 47 ShuttleSet22 test videos. | Leave this path alone. |
+| Deletion model | On 32 ShuttleSet training videos, it repaired 42 sections and made 88 previously correct sections wrong. | Do not add it. Revisit only with new evidence that can separate false contacts from real ones. |
+| Keep-or-review model | Reached 40.87% precision while accepting 16.14% of sections on ShuttleSet development data | Do not use it for automatic acceptance. Find inputs that distinguish complete rallies from incomplete ones, then test any replacement across whole broadcast families. |
 
-The contact detector was developed on 40 ShuttleSet videos: 32 training videos and eight validation videos. The final detector was trained on all 40 before it ran on ShuttleSet22.
+## The standalone annotator is still a distant goal
 
-The baseline and the 483-to-901 side-rule result come from 47 held-out ShuttleSet22 videos. The first-contact, deletion, and keep-or-review models use ShuttleSet development data. Only the first-contact model was later scored on the eight ShuttleSet validation videos that had not been used to develop it.
+A standalone tool could reject most rallies and keep only the ones it expects to be completely correct. The tested keep-or-review model could not find that dependable subset. Stricter cut-offs did not help: precision stayed near 50% even when the model accepted less than 1% of the ShuttleSet development sections. It was not tested on ShuttleSet22.
 
-The ShuttleSet22 predictions and settings were saved before its labels were opened. Nothing was tuned against those 47 test videos.
+![On 32 ShuttleSet training videos, the rally-level acceptance model remained far below the 90% precision target at every tested coverage. This model was not tested on ShuttleSet22.](figures/04_keep_review_curve.png)
 
-## The document pack
+The ShuttleSet22 test videos were separate from the 40 ShuttleSet development videos. Predictions and settings were saved before the test labels were opened. However, the results were not separated by camera layout, tournament, graphics package, or broadcast style. They do not yet show that the gain will hold across unfamiliar broadcast conventions.
 
-- [Report](report.md) — the experiment story, results, meaning, and recommendation
-- [Useful next work](next_steps.md) — two follow-ups that would answer the remaining product questions
-- [Evidence and reproduction](evidence.md) — data splits, result types, source files, and commands
+All experiments used saved outputs from the existing contact model. They did not retrain the vision model or change the upstream tracker.
 
-The report includes seven reproducible plots and two flowcharts. Matching PNG and SVG files live in `figures/`.
+## Choose what to read next
 
-## What this branch changed
-
-The experiments only changed decisions made **after** the contact model had scored frames. They reused saved contact scores, possible contact frames, pose data, shuttle tracks, side guesses, and rally sections. They did not train a new vision model or change the upstream tracker.
-
-The scripts and committed JSON records contain the full evidence. The reader-facing documents provide the short version.
+- Read the [full report](report.md) to understand the pipeline, each experiment and what the results mean.
+- Use [evidence and reproduction](evidence.md) for the exact video splits, saved result files and rebuild commands.
+- Use [useful next work](next_steps.md) to continue the first-contact and broadcast-generalisation investigations.

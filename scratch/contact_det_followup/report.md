@@ -1,12 +1,18 @@
 # What we learned from the contact-detector follow-up
 
+- **Orientation:** [Short answer](#the-short-answer) · [Pipeline](#how-the-pieces-fit-together) · [Videos](#which-videos-were-used) · [Scoring](#how-the-results-were-judged) · [Results at a glance](#what-happened) · [Baseline errors](#the-baseline-errors-were-not-one-problem)
+- **Experiments:** [1. Player sides](#1-choosing-player-sides-across-the-whole-rally-worked) · [2. Contact-list rules](#2-could-simple-rules-fix-the-contact-list) · [3. First contact](#3-could-we-repair-only-the-first-contact) · [4. Deletion](#4-could-a-second-model-choose-one-contact-to-delete) · [5. Automatic acceptance](#5-could-a-rally-level-model-choose-which-outputs-to-accept)
+- **Conclusions:** [Timing at ±10](#is-10-frames-the-more-useful-score) · [Standalone annotator](#are-we-closer-to-a-standalone-near-100-precision-annotator) · [Broadcast limits](#what-do-we-know-about-different-broadcasts) · [Next work](#what-should-happen-next)
+
 ## The short answer
 
-The whole-rally player-side rule is the only clear improvement from this series. It almost doubled the number of fully correct outputs on the held-out 47-video ShuttleSet22 test. At the main ±5-frame tolerance, the count rose from **483 to 901 of 3,982 sections**. The rule repaired 418 sections and broke none.
+The whole-rally player-side rule is the only clear improvement from this series. It almost doubled the number of fully correct outputs on the held-out 47-video ShuttleSet22 test. At ±5 frames, the count rose from **483 to 901 of 3,982 sections**. The rule repaired 418 sections and did not make any previously correct section wrong.
 
-The rule sits after the contact detector. HGB first chose which frames to keep as contacts. At each kept frame, a separate fixed heuristic found the tracked player whose wrist was nearest the shuttle. It checked whether the bottom of that player's tracking box was above or below the net. This produced an initial Top, Bottom, or unknown side. The new rule used those initial guesses to choose between the two player-side sequences that alternate throughout a rally. HGB did not predict the player sides.
+±10 frames is close enough for this project. At 30 fps, that is 0.33 seconds on either side of the label. We still need to see whether the wider window ever pairs a prediction with a neighbouring hit. At ±10, the side rule gets **995 of 3,982 sections** completely right. The first-contact model still helps very little. The deletion model still makes the results worse, and keep-or-review still misses its target.
 
-The saved possible contact frames often contain a better answer than the one the annotator chose. The tested models cannot choose those answers safely. A separate model also failed to identify a small set of rallies that could be accepted without review.
+The contact model still chooses which frames to keep. The existing wrist-and-net heuristic assigns Top, Bottom, or unknown to each chosen frame. The new rule takes those guesses and chooses between the two player-side sequences that alternate throughout a rally. The contact model did not predict the player sides.
+
+The saved possible contact frames often contain a better answer than the one the annotator chose. The first-contact model recovered very few of them. The deletion model made the output worse. The keep-or-review model also failed to find even a small set of rallies that it could accept reliably.
 
 The 483-to-901 result comes from ShuttleSet22. The first-contact, deletion, and keep-or-review models were assessed on ShuttleSet development videos. They were not tested on ShuttleSet22.
 
@@ -36,22 +42,11 @@ A **section** is a time span that should contain one complete rally. A section i
 
 The earlier test found many correct contacts. Far fewer sections contained a complete correct rally. This follow-up kept the contact model fixed and tried to improve the later decisions.
 
-It asked six questions:
-
-1. Would player labels improve if the whole rally had to alternate between the two court halves?
-2. Was one real contact sometimes recorded twice, once for each player side?
-3. Would different rules for keeping and merging contact frames produce better contact lists?
-4. Could a small model recover a missed first contact?
-5. Could another small model remove one false contact?
-6. Could a model recognise the few rallies that were safe to accept without review?
-
 ## Which videos were used
 
 The upstream contact detector was developed on 40 ShuttleSet videos. Its setup was chosen using 32 training videos and eight validation videos. The final detector was then trained on all 40 ShuttleSet videos before it ran on ShuttleSet22.
 
-The ShuttleSet development pool contains videos 1–44, apart from 9, 10, 12, and 27. The eight validation videos are 18, 22, 24, 25, 30, 31, 39, and 40. The other 32 videos form the training set.
-
-The held-out ShuttleSet22 test contains 47 videos that did not overlap the ShuttleSet development set. In ShuttleSet22's own numbering, they are 8–13, 15–44, 46–55, and 57. Eight overlapping matches and three videos that could not be aligned with the official frame numbers were left out.
+The held-out ShuttleSet22 test contains 47 videos that did not overlap the ShuttleSet development set. The test excluded eight overlapping matches and three videos that could not be aligned with the official frame numbers. The [evidence note](evidence.md) lists the exact video IDs.
 
 The follow-up used the two datasets like this:
 
@@ -66,7 +61,9 @@ The ShuttleSet22 predictions and settings were saved before its labels were open
 
 ## How the results were judged
 
-The main score allows a predicted contact to be five frames away from its label on a 30 fps clock. The report also gives results at ±10 frames. Decisions in this branch use the stricter ±5 result.
+Most experiments chose their settings at ±5 frames. This allows a predicted contact to be about 0.17 seconds from its label on a 30 fps clock. We also scored those choices at ±10 frames, or about 0.33 seconds. The contact cut-off sweep compared every setting at both distances.
+
+The wider distance changes only how we score the predictions. It does not change the frames that the detector outputs. The [±10 discussion](#is-10-frames-the-more-useful-score) explains what we need to check before using it as the main score.
 
 F1 combines precision and recall into one score. It is high only when both are high.
 
@@ -106,11 +103,11 @@ One confidence score cannot describe all these errors. A contact can look convin
 
 The inputs to this rule came from two earlier steps in the detector pipeline. HGB chose the contact frames. At each chosen frame, the existing side heuristic found the tracked player whose wrist was nearest the shuttle. It checked whether the bottom of that player's tracking box was above or below the net. This produced a Top, Bottom, or unknown side guess.
 
-The alternating rule is not another fitted model. Badminton contacts normally alternate between the two court halves. A rally can therefore follow only two possible Top/Bottom sequences. The rule compared both sequences with the heuristic's initial side guesses. It chose a sequence only when that sequence agreed with more guesses than the other one.
+The alternating rule is not another fitted model. Badminton contacts normally alternate between the two court halves. A rally can therefore follow only two possible Top/Bottom sequences. The rule compared both sequences with the heuristic's initial side guesses. It chose a sequence only when that sequence agreed with more guesses than the other one. If the sequences tied, it left the original guesses unchanged.
 
-The contact lists for the 40 ShuttleSet development videos came from HGB models that had not trained on the video they were scoring. We used the human labels to test six requirements for changing a rally. The winning sequence had to agree with one to six more heuristic guesses than the other sequence. A lead of one gave the best result: 426 repairs and one break. The human labels did not choose the sequence for any individual rally.
+The contact lists for the 40 ShuttleSet development videos came from HGB models that had not trained on the video they were scoring. We used the human labels to compare leads of one through six guesses. A lead of one worked best: 426 repairs and one break. The human labels did not choose the sequence for any individual rally.
 
-We then fixed that requirement at one. The final HGB detector and the fixed side heuristic produced the inputs for the 47 held-out ShuttleSet22 videos. We applied the chosen alternating rule once and used the ShuttleSet22 labels only to score the result.
+We then required a lead of one. The final HGB detector and the fixed side heuristic produced the inputs for the 47 held-out ShuttleSet22 videos. We applied the chosen alternating rule once and used the ShuttleSet22 labels only to score the result.
 
 ![How the side rule works. HGB keeps the contact frames. The wrist-and-net heuristic makes an initial side guess at each frame. The rule compares the two possible alternating sequences and uses the one that agrees with more guesses. Human labels were used to choose the required lead on ShuttleSet development videos, but they are not used when the rule runs.](figures/06_side_rule_explainer.png)
 
@@ -139,9 +136,7 @@ The audit found no such pair in the 40 ShuttleSet development videos. It also fo
 
 The baseline keeps a proposed frame when its HGB score is at least 0.90. One hit can make several neighbouring frames score highly. To avoid counting the same hit more than once, the baseline keeps the strongest frame and removes any other proposed frame within six frames of it. Six frames is 0.2 seconds at 30 fps. The code scales this window for videos with another frame rate.
 
-The experiment tried 19 score cut-offs. For each cut-off, it removed nearby copies within four, five, or six frames on a 30 fps clock. This made 57 combinations in all.
-
-The best result lowered the cut-off to 0.85. It still removed proposed frames that fell within six frames of a stronger one.
+The experiment tried 19 score cut-offs. For each cut-off, it removed nearby copies within four, five, or six frames on a 30 fps clock. The best of the 57 combinations used a cut-off of 0.85 and kept the six-frame distance.
 
 The sweep could only judge contact timing. A timing-complete section contains the right number of contacts at the right frames, regardless of player side.
 
@@ -156,13 +151,13 @@ Lowering the cut-off admits weaker contact candidates. Some are the missed first
 
 At ±5, the share of labelled first contacts found rose from 49.39% to 53.47%. Overall contact F1 fell slightly, from 88.49% to 88.38%.
 
-The lower cut-off repaired 139 sections and damaged 126. Its net gain of 13 came from 265 changed outcomes.
+The net gain of 13 came from 265 changed outcomes.
 
 The compact saved data does not contain player-side predictions for most newly admitted frames. The sweep therefore does not show a gain in fully labelled rallies.
 
 The saved ShuttleSet22 test record lacks the raw frame scores needed to apply the 0.85 cut-off. The setting has not been tested on ShuttleSet22.
 
-Keep the 0.90 cut-off for the main ±5 measure. If ±10 becomes the release tolerance, regenerate the raw test scores and test 0.85 once. The development gain at ±10 is still only 25 sections.
+At ±5, keep the 0.90 cut-off. If the extra ±10 matches are the same hits, regenerate the raw ShuttleSet22 scores and test 0.85 once. On the development videos, it improved only 25 more contact lists than it damaged.
 
 ## 3. Could we repair only the first contact?
 
@@ -181,11 +176,7 @@ On the orange path below, the code tries every allowed edit and compares each re
 
 ### First, the code tried every allowed edit
 
-For each section, the code tried keeping the current contacts, adding an earlier candidate, and replacing the first contact. It compared every result with the ground truth.
-
-At least one of these edits repaired the contact timing in 318 sections. After the rally-wide side rule was applied, at least one edit produced a fully correct rally in 300 sections.
-
-For 300 sections, the saved candidates included a first-contact edit that led to a fully correct rally. The harder problem is choosing that edit without seeing the answer.
+The code compared every allowed choice with the ground truth. At least one choice repaired the contact timing in 318 sections. After the rally-wide side rule was applied, at least one choice produced a fully correct rally in 300 sections. The harder problem is choosing that edit without seeing the answer.
 
 ### Then a model tried to choose without labels
 
@@ -206,7 +197,7 @@ On those eight ShuttleSet videos, the model changed 15 sections. Six wrong secti
 
 ![First-contact experiment on ShuttleSet only. On 32 training videos, checking every saved add-or-replace edit against the labels found 300 possible whole-rally repairs. The model repaired 24 sections under optimistic same-data selection and seven when the scored group was excluded from model selection. A fixed model repaired six sections on eight validation videos. No result in this chart uses ShuttleSet22.](figures/03_candidates_and_choosers.png)
 
-The model found a real signal, but it recovered only a small share of the available repairs. Another round of thresholds on the same features is unlikely to close that gap.
+On the 32 training videos, the group-held-out choices recovered seven of the 300 repairs found with labels. The six validation repairs confirm that the features contain a weak signal. Another round of thresholds on the same features is unlikely to close that gap.
 
 Before training another chooser, trace the missed starts into three groups:
 
@@ -220,7 +211,7 @@ Counting these cases will show whether to change candidate generation or candida
 
 Some rallies contain every real hit plus one false contact. Removing the right event would make those rallies complete. Removing a real event would damage them.
 
-This was not another cut-off on the original HGB contact score. The earlier cut-off experiment tested that simpler idea. Every contact considered here had already passed the 0.90 contact cut-off and the nearby-copy removal step. The experiment asked whether a second model could choose at most one of those retained contacts to delete.
+This experiment added a second model after the original HGB cut-off. Every contact it considered had already passed the 0.90 cut-off and the nearby-copy removal step. The second model could choose at most one retained contact to delete.
 
 The deletion work used the same 2,850 sections from the 32 ShuttleSet training videos. After the rally-wide side vote, 726 sections were already fully correct.
 
@@ -300,11 +291,38 @@ Rejecting more rallies did not bring precision close to 90%. Even the strictest 
 
 The keep-or-review model cannot tell a complete rally from an incomplete one. Retuning its acceptance threshold will not create the missing information.
 
+## Is ±10 frames the more useful score?
+
+For this project, a prediction within ±10 frames is close enough. We do not yet know whether the wider window sometimes matches a prediction to a neighbouring hit. The detector itself does not change.
+
+At ±10, the side rule gets a little more credit. The first-contact model still helps very little. The deletion model still makes the results worse. Keep-or-review still misses its target.
+
+| Result | ±5 frames | ±10 frames | What changes? |
+| --- | ---: | ---: | --- |
+| ShuttleSet22 contact F1 | 82.45% | 83.37% | Small improvement |
+| ShuttleSet22 fully correct sections after the side rule | 901 / 3,982 (22.63%) | 995 / 3,982 (24.99%) | The rule repairs 471 sections and breaks none at ±10 |
+| First-contact repairs on eight validation videos | 6 | 6 | No change |
+| Deletion-model net result on 32 training videos | −46 | −55 | The model remains harmful |
+| Keep-or-review precision at 16.14% coverage | 40.87% | 45.87% | Still far below the 90% target |
+| Net gain in contact lists with the right count and timing after lowering the cut-off to 0.85 | 13 | 25 | Test once on held-out videos if we use ±10 |
+
+We chose the side-rule requirement at ±5. We also trained and chose the first-contact, deletion, and keep-or-review models at ±5. The ±10 column scores those same rules and models with a wider match.
+
+The contact cut-off sweep worked differently. It compared all 57 settings at both distances. At both, the best result lowered the cut-off to 0.85 and kept the six-frame gap for removing nearby copies.
+
+On ShuttleSet22, 360 more predictions count as timing matches at ±10. The player side is correct for 29,877 matched predictions, up from 29,620 at ±5. Wrong sides also rise from 2,568 to 2,670. Player-side accuracy slips from 92.02% to 91.80%.
+
+A section only counts as completely right when every prediction matches a different label. Every player side must be right. No extra contact can remain. At ±10, the side rule passes 995 sections rather than 901.
+
+A section can pass this check and still match a prediction to a nearby real hit. We need to inspect the matches that appear at ±10 but not at ±5. Rallies with short gaps between real contacts need particular attention. If the wider match still finds the same hit, use ±10 as the main score and report ±5 alongside it.
+
+If we use ±10, test the 0.85 contact cut-off once on held-out videos. On the ShuttleSet development videos, it gave 25 more repairs than breaks among contact lists with the right count and timing. We need to regenerate the raw ShuttleSet22 scores to test it there. This result only checks timing. Most extra frames do not have saved player-side guesses, so we do not know whether they produce more completely correct rallies.
+
 ## Are we closer to a standalone, near-100%-precision annotator?
 
 We can now produce more correct rallies. We still cannot tell which outputs are safe to trust.
 
-The rally-wide side rule raises the fully correct share on the held-out ShuttleSet22 test from 12.13% to 22.63% at ±5. That still leaves 3,081 of 3,982 predicted sections wrong.
+The rally-wide side rule raises the fully correct share on the held-out ShuttleSet22 test from 12.13% to 22.63% at ±5. That still leaves 3,081 of 3,982 predicted sections wrong. At ±10, 2,987 sections remain wrong.
 
 The keep-or-review experiment tested the low-recall route on 32 ShuttleSet training videos. Precision stayed near 50% even when the model accepted less than 1% of sections. The result was too weak to justify a ShuttleSet22 test.
 
@@ -316,7 +334,7 @@ The rally-wide side rule was chosen before the 47 ShuttleSet22 test videos were 
 
 The test results were not separated by camera layout, tournament, graphics package, or broadcast style. They cannot show whether the gain holds across different broadcast conventions.
 
-The contact model also lost precision when it moved from ShuttleSet development videos to the ShuttleSet22 test. We do not know whether its scores keep the same meaning under a new broadcast style.
+At ±5, contact precision fell from 90.50% on the ShuttleSet development videos to 80.62% on the ShuttleSet22 test. We do not know whether the model's scores keep the same meaning under a new broadcast style.
 
 Test future auto-acceptance models by holding out whole broadcast families. Report a separate precision-versus-coverage curve for each family. A pooled score could hide a failure on one camera or production style.
 
@@ -328,8 +346,8 @@ Trace first-contact failures before training another model. Count how often the 
 
 Build the broadcast-family test before claiming that automatic acceptance generalises. A useful result must have high precision within each held-out family, even if coverage is low.
 
-Leave the duplicate cleanup, deletion model, and current keep-or-review model alone. Their experiments have already shown that the present inputs cannot make those choices reliably.
+Check the contacts that match only at ±10. If they are the same hits, use ±10 as the main timing score and report ±5 alongside it. Then regenerate the held-out ShuttleSet22 scores and test the 0.85 contact cut-off once.
 
-Revisit the 0.85 contact cut-off only if ±10 becomes the release measure and the raw ShuttleSet22 scores can be regenerated.
+Leave the duplicate cleanup, deletion model, and current keep-or-review model alone. Their experiments have already shown that the present inputs cannot make those choices reliably.
 
 The [next-steps note](next_steps.md) turns the two open questions into follow-up briefs. The [evidence note](evidence.md) lists the saved results and reproduction commands.

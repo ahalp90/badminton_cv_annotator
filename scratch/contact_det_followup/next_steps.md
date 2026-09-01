@@ -1,24 +1,33 @@
 # Useful next work
 
-Two questions remain:
+Three questions remain:
 
+- Do the contacts that match only at ±10 still refer to the intended hits?
 - Can the annotator safely accept a small number of rallies from an unfamiliar broadcast style?
 - What better evidence would help it recover missed first contacts?
 
-## First priority: test selective auto-annotation across broadcast styles
+## First: check what ±10 adds
+
+±10 frames is close enough for this project. Compare the ShuttleSet22 matches at ±5 and ±10. Inspect the contacts that match only at ±10, especially when two labelled hits are close together. Check the video and neighbouring labels to make sure each prediction still refers to the intended hit.
+
+If those matches are sound, use ±10 as the main timing score and report ±5 alongside it. The annotator currently keeps proposed contacts with an HGB score of at least 0.90. On the 40 ShuttleSet development videos, lowering that cut-off to 0.85 repaired 167 contact lists and damaged 142 at ±10. Regenerate the raw ShuttleSet22 scores and test 0.85 once there.
+
+That development result checks contact count and timing only. Most newly admitted frames do not have saved player-side guesses. The held-out test therefore needs to report fully correct rallies as well as contact timing.
+
+## Second: test selective auto-annotation across broadcast styles
 
 The present keep-or-review model cannot find an almost-perfect subset. Its inputs may be too weak. The model has also not been tested across camera and broadcast styles.
 
-The next experiment should hold out whole broadcast families. A family might share a tournament, camera layout, graphics package, frame rate, or another visible production convention. The groups should follow the available video metadata and content. File names alone are not enough.
+Hold out one whole broadcast family at a time. Build the families from the available video metadata and what appears on screen. A family might share a tournament, camera layout, graphics package, frame rate, or another visible production convention. Do not group videos from their file names alone.
 
-The result should answer four plain questions:
+Answer four plain questions:
 
 - How many rallies did the annotator accept?
 - How many accepted rallies were fully correct?
 - Did the same threshold work for every held-out broadcast family?
 - What caused the accepted mistakes?
 
-The main plot should be precision against coverage. Show one line for each held-out family and one pooled line. Report the number of accepted rallies beside every high-precision point; a percentage based on three rallies is not useful evidence.
+Plot precision against coverage. Show one line for each held-out family and one pooled line. Report the number of accepted rallies beside every high-precision point. A percentage based on three rallies tells us very little.
 
 ### A conversational brief for an agent
 
@@ -28,20 +37,20 @@ The main plot should be precision against coverage. Show one line for each held-
 >
 > For each held-out group, show precision, coverage, and the raw number of accepted rallies. Pay special attention to the high-precision end of the curve. If no setting gets close to the target, tell us which errors still pass the filter. Explain what new evidence might separate them. Please do not tune a threshold on the group being scored.
 
-A near-100% claim needs enough accepted rallies to support it. When the sample is small, report an uncertainty interval or give a clear count-based warning.
+Always give the number of accepted rallies behind a near-100% result. When that number is small, include an uncertainty interval or say plainly that the result is fragile.
 
-## Second priority: improve first-contact evidence upstream
+## Third: improve first-contact evidence upstream
 
 On the 32 ShuttleSet training videos, at least one allowed start edit produced a complete correct rally in 300 sections after the side vote. The model and cut-off chosen from those same 32-video results repaired only 24 sections. When each group was excluded from that choice before it was scored, the selected models repaired seven. The fixed model repaired six sections on the eight ShuttleSet validation videos. The saved candidates contain useful answers. The chooser lacks the evidence to identify them.
 
-The next first-contact study should focus on the inputs, not another threshold sweep. Useful questions include:
+Before training another first-contact model, find out where the useful information is being lost:
 
 - Does the section begin after the true first contact?
 - Did the candidate generator include the true first contact?
 - When the candidate exists, which shuttle, pose, or scene evidence distinguishes it from the nearby false candidates?
 - Are the failures concentrated in a few broadcast or camera conventions?
 
-The study should separate those cases before training anything. A model cannot recover a contact that never enters its candidate list. Section-edge failures also need a different fix from candidate-ranking failures.
+Separate those cases before training anything. A model cannot recover a contact that never enters its candidate list. Section-edge failures also need a different fix from candidate-ranking failures.
 
 ### A conversational brief for an agent
 
@@ -60,4 +69,4 @@ The following ideas do not need another pass with the same saved inputs:
 - the current keep-or-review model, because precision remained low even at tiny coverage
 - a global 0.85 cut-off for the ±5 measure, because it caused 126 breaks for 139 repairs
 
-The 0.85 cut-off becomes worth one new test only if ±10 is chosen as the release tolerance. That test needs fresh raw scores on a held-out set.
+Do not rerun the 0.85 cut-off on the same saved inputs. If the ±10 check passes, regenerate the raw held-out scores and test 0.85 once.
