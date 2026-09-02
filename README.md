@@ -31,7 +31,7 @@ At this stage we've built a proof of concept dataset by extracting and deriving 
 
 ![Trial performance-feature distributions](docs/dataset_builder/figures/issue_104_feature_distributions.png)
 
-See the [trial feature definitions](docs/trial_feature_list.md) and [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md).
+See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
 
 ## Auto-annotator
 
