@@ -10,6 +10,22 @@ larger.
 This result does not justify a production change. It addresses only the
 distance-normalisation question within issue #33.
 
+## In plain terms
+
+This test checked whether measuring wrist-to-shuttle distance in raw pixels,
+or through a court-projected view, picks the hitting player better than the
+current method, which scales that distance to each player's body height.
+Neither alternative helped. Both cut overall accuracy and made the Top-side
+skew worse.
+
+![Exact-contact accuracy and predicted side share, by method](figures/attribution_by_side.png)
+
+The figure shows the sharper problem. Every method gets Top-side contacts
+almost right, about 99 percent, but gets Bottom-side contacts right only
+46 to 62 percent of the time. Every method also predicts Bottom for under a
+third of contacts, even though the true split is close to 50/50. Changing
+the distance formula does not close that gap.
+
 ## What was compared
 
 The comparison holds sticky player picks, wrist keypoints, shuttle tracks,
