@@ -17,6 +17,7 @@ quota error instead terminates the batch immediately, before another request.
 """
 import argparse
 import json
+import re
 import time
 
 from ._llm_errors import (
@@ -228,6 +229,72 @@ def _keep_decision(n_chunks: int, duration_s: str) -> bool:
     return absolute_safe or density_per_min >= DENSITY_MIN_PER_MIN
 
 
+def _deduplicate_overlap_items(
+    windowed_items: list[tuple[int, dict]],
+) -> list[dict]:
+    """Collapse repeated items returned by adjacent overlapping windows.
+
+    Candidate pairs must share a start and come from adjacent windows. Text
+    similarity decides which items to pair when a window emits more than one.
+    Unmatched same-start items remain separate. A matched pair retains the
+    wider result.
+    """
+    indices_by_start: dict[float, list[int]] = {}
+    for index, (_window_index, item) in enumerate(windowed_items):
+        indices_by_start.setdefault(float(item['start']), []).append(index)
+
+    retained = [True] * len(windowed_items)
+    for indices in indices_by_start.values():
+        candidate_pairs: list[tuple[bool, float, int, int]] = []
+        for offset, first_index in enumerate(indices):
+            first_window, first_item = windowed_items[first_index]
+            first_text = ' '.join(str(first_item['text']).lower().split())
+            for second_index in indices[offset + 1 :]:
+                second_window, second_item = windowed_items[second_index]
+                if abs(first_window - second_window) != 1:
+                    continue
+                second_text = ' '.join(str(second_item['text']).lower().split())
+                first_words = set(re.findall(r'[a-z0-9]+', first_text))
+                second_words = set(re.findall(r'[a-z0-9]+', second_text))
+                if not first_words or not second_words:
+                    continue
+                score = len(first_words & second_words) / min(
+                    len(first_words), len(second_words)
+                )
+                # Variants can add context, but should retain most of the
+                # shorter item's distinct words.
+                if score < 0.7:
+                    continue
+                candidate_pairs.append(
+                    (first_text == second_text, score, first_index, second_index)
+                )
+
+        matched: set[int] = set()
+        for _exact, _score, first_index, second_index in sorted(
+            candidate_pairs,
+            key=lambda pair: (-pair[0], -pair[1], pair[2], pair[3]),
+        ):
+            if first_index in matched or second_index in matched:
+                continue
+            retained_index = max(
+                (first_index, second_index),
+                key=lambda index: (
+                    float(windowed_items[index][1]['end']),
+                    len(str(windowed_items[index][1]['text']).strip()),
+                ),
+            )
+            removed_index = (
+                second_index if retained_index == first_index else first_index
+            )
+            retained[removed_index] = False
+            matched.update((first_index, second_index))
+    return [
+        item
+        for keep, (_window_index, item) in zip(retained, windowed_items)
+        if keep
+    ]
+
+
 def triage_video(
     video_id: str,
     duration_s: str,
@@ -244,20 +311,24 @@ def triage_video(
     transcript = load_transcript(video_id)
     if transcript is None:
         return None
-    chunks: list[dict] = []
-    for window in chunk_windows(transcript['segments']):
+    windowed_items: list[tuple[int, dict]] = []
+    for window_index, window in enumerate(chunk_windows(transcript['segments'])):
         items = (
             call_triage_llm(window)
             if llm_settings is None
             else call_triage_llm(window, llm_settings)
         )
         for item in items:
-            chunks.append({
-                'chunk_id': f'{video_id}_c{len(chunks)}',
-                'start': item['start'],
-                'end': item['end'],
-                'text': item['text'],
-            })
+            windowed_items.append((window_index, item))
+    chunks = [
+        {
+            'chunk_id': f'{video_id}_c{index}',
+            'start': item['start'],
+            'end': item['end'],
+            'text': item['text'],
+        }
+        for index, item in enumerate(_deduplicate_overlap_items(windowed_items))
+    ]
     keep = _keep_decision(len(chunks), duration_s)
     return keep, chunks
 
