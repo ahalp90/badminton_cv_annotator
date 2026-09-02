@@ -145,12 +145,15 @@ def pair_video(
     chunks: list[dict],
     replay_mask: np.ndarray | None,
     fps: float,
+    *,
+    pair_window_s: float = PAIR_WINDOW_S,
 ) -> list[dict]:
     """Pair one video's rallies to commentary chunks.
 
     A rally pairs with the first chunk whose start falls in
-    `(rally_end_t, rally_end_t + PAIR_WINDOW_S]`, where `rally_end_t = end_frame
-    / fps`. A rally overlapping the replay mask is held out (kept, unpaired); a
+    `(rally_end_t, rally_end_t + pair_window_s]`, where `rally_end_t = end_frame
+    / fps`. The default window is the configured `PAIR_WINDOW_S`. A rally
+    overlapping the replay mask is held out (kept, unpaired); a
     chunk whose start lands on a masked frame is not pairable. Every rally
     yields exactly one row (blank commentary fields when unpaired), the
     keep-with-flag default.
@@ -165,8 +168,16 @@ def pair_video(
     :param chunks: `[{chunk_id, start, end, text}, ...]`, times in seconds.
     :param replay_mask: `(frames,)` bool mask, or None.
     :param fps: frames per second for this video.
+    :param pair_window_s: positive post-rally pairing window in seconds.
     :return: one row dict per rally, keyed by PAIRS_COLUMNS.
     """
+    if (
+        isinstance(pair_window_s, bool)
+        or not isinstance(pair_window_s, (int, float))
+        or not np.isfinite(pair_window_s)
+        or pair_window_s <= 0
+    ):
+        raise ValueError('pair_window_s must be a positive finite number')
     sorted_chunks = sorted(chunks, key=lambda chunk: float(chunk['start']))
     claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
@@ -193,7 +204,7 @@ def pair_video(
             continue
 
         rally_end_t = end_frame / fps
-        window_hi = rally_end_t + PAIR_WINDOW_S
+        window_hi = rally_end_t + pair_window_s
         for chunk in sorted_chunks:  # ascending start: first in window wins
             chunk_id = chunk['chunk_id']
             if chunk_id in claimed:

@@ -36,6 +36,161 @@ def test_chunk_windows_boundary_segment_lands_in_two_windows():
     assert len(holding) == 2
 
 
+def test_triage_video_deduplicates_results_from_overlapping_windows(
+    monkeypatch,
+):
+    transcript = {
+        'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'first'},
+            {'start': 540.0, 'end': 541.0, 'text': 'boundary'},
+        ],
+    }
+    shorter = {'start': 540.0, 'end': 541.0, 'text': 'good shot'}
+    wider = {'start': 540.0, 'end': 542.0, 'text': 'good shot with more context'}
+    responses = iter(([shorter], [wider]))
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: next(responses),
+    )
+
+    keep, chunks = relevance_triage.triage_video('video', '600')
+
+    assert keep is False
+    assert chunks == [{**wider, 'chunk_id': 'video_c0'}]
+
+
+def test_triage_video_preserves_distinct_same_start_items_from_one_window(
+    monkeypatch,
+):
+    transcript = {'segments': [{'start': 0.0, 'end': 1.0, 'text': 'source'}]}
+    items = [
+        {'start': 0.0, 'end': 0.5, 'text': 'good attack'},
+        {'start': 0.0, 'end': 1.0, 'text': 'poor defense'},
+    ]
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: [dict(item) for item in items],
+    )
+
+    _keep, chunks = relevance_triage.triage_video('video', '1')
+
+    assert [chunk['text'] for chunk in chunks] == ['good attack', 'poor defense']
+
+
+def test_triage_video_deduplicates_one_repeat_in_mixed_same_start_group(
+    monkeypatch,
+):
+    transcript = {
+        'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'first'},
+            {'start': 540.0, 'end': 541.0, 'text': 'boundary'},
+        ],
+    }
+    attack = {'start': 540.0, 'end': 541.0, 'text': 'good attack'}
+    defense = {'start': 540.0, 'end': 541.0, 'text': 'poor defense'}
+    responses = iter(([attack, defense], [dict(attack)]))
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: next(responses),
+    )
+
+    _keep, chunks = relevance_triage.triage_video('video', '600')
+
+    assert [chunk['text'] for chunk in chunks] == ['good attack', 'poor defense']
+
+
+def test_triage_video_deduplicates_one_variant_in_mixed_same_start_group(
+    monkeypatch,
+):
+    transcript = {
+        'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'first'},
+            {'start': 540.0, 'end': 541.0, 'text': 'boundary'},
+        ],
+    }
+    attack = {'start': 540.0, 'end': 541.0, 'text': 'good attack'}
+    defense = {'start': 540.0, 'end': 541.0, 'text': 'poor defense'}
+    wider_attack = {
+        'start': 540.0,
+        'end': 542.0,
+        'text': 'good attack with more context',
+    }
+    responses = iter(([attack, defense], [wider_attack]))
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: next(responses),
+    )
+
+    _keep, chunks = relevance_triage.triage_video('video', '600')
+
+    assert [chunk['text'] for chunk in chunks] == [
+        'poor defense',
+        'good attack with more context',
+    ]
+
+
+def test_triage_video_preserves_unrelated_cross_window_same_start_items(
+    monkeypatch,
+):
+    transcript = {
+        'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'first'},
+            {'start': 540.0, 'end': 541.0, 'text': 'boundary'},
+        ],
+    }
+    attack = {
+        'start': 540.0,
+        'end': 541.0,
+        'text': 'excellent cross-court attack',
+    }
+    timeout = {
+        'start': 540.0,
+        'end': 542.0,
+        'text': 'medical timeout and court maintenance',
+    }
+    responses = iter(([attack], [timeout]))
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: next(responses),
+    )
+
+    _keep, chunks = relevance_triage.triage_video('video', '600')
+
+    assert [chunk['text'] for chunk in chunks] == [attack['text'], timeout['text']]
+
+
+def test_triage_video_prefers_exact_match_in_mixed_overlap_group(monkeypatch):
+    transcript = {
+        'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'first'},
+            {'start': 540.0, 'end': 541.0, 'text': 'boundary'},
+        ],
+    }
+    short = {'start': 540.0, 'end': 541.0, 'text': 'good attack'}
+    detailed = {'start': 540.0, 'end': 542.0, 'text': 'good attack by Lee'}
+    responses = iter(([short, detailed], [dict(detailed)]))
+    monkeypatch.setattr(relevance_triage, 'load_transcript', lambda _video_id: transcript)
+    monkeypatch.setattr(
+        relevance_triage,
+        'call_triage_llm',
+        lambda _window: next(responses),
+    )
+
+    _keep, chunks = relevance_triage.triage_video('video', '600')
+
+    assert [chunk['text'] for chunk in chunks] == [short['text'], detailed['text']]
+
+
 # ---------------------------------------------------------------------------
 # Three-legged D9 keep rule
 # ---------------------------------------------------------------------------

@@ -9,13 +9,120 @@ primitives only in a separate bundle with their masks and reliability notes.
 The current evidence cuts shots per rally, away-from-centre recovery, and
 movement inefficiency. Their formulas run reliably, but the frozen rally,
 contact, and attribution outputs are not accurate enough to support them. Rally
-duration, serve speed, degradation, commentary, player sex, and backward
-extrapolation remain unresolved.
+duration, serve speed, degradation, player sex, and backward extrapolation
+remain unresolved. Commentary source artifacts should be distributed as an
+auxiliary, source-aligned component for MLLM/VLM use and future research. Rally
+association is cut, and commentary semantic fields remain unresolved.
 
-These are Run 1 dispositions, not the final issue #104 decision. Keep issue
-#104 open. A later run can use the same scorer after Ari's upstream work changes
-the relevant production outputs. Issue #18 should treat cut and unresolved
-fields as deferred until that comparison.
+These are the frozen vision-output dispositions. The commentary addendum below
+completes the missing commentary evidence. Together they are the final issue
+#104 decisions. Issue #18 should treat cut and unresolved fields as deferred
+until their follow-up gates are met.
+
+## Final commentary benchmark
+
+The commentary lane now has complete source-backed data, but the current
+rally-pairing feature is not suitable for the v1 authoritative annotation
+schema. Include the raw captions, normalized transcripts, and cleaned text as
+an auxiliary commentary component alongside the visual and annotation data.
+Associate it only with the canonical video and public-source identity, and keep
+each segment's source timestamp and precision class. This supports MLLM/VLM
+context, weak supervision, and future alignment work without presenting coarse
+timestamps as verified rally labels. Cut the derived rally-to-commentary
+association from v1. Sentiment, concept, and player association remain
+unresolved because the supported contracts emit none of those fields and there
+is no labeled accuracy population.
+
+### Exact inputs and population
+
+| Input | Exact identity |
+|---|---|
+| Commentary repository support | OpenRouter merge `819d3075e72966a3d80eb454202b83b3810225ae` |
+| Cleaning provider and model | `openrouter`, `google/gemma-4-31b-it` |
+| Commentary source inventory | SHA-256 `d6adc338cd7a568eca83d82745edd34ba1a761181c9e2d828d6975194369a65a` |
+| Original commentary manifest | SHA-256 `52a9933bcfd8d4d1cf7c032473181fa637bd296f073fbf09ff69ab0f5334342c` |
+| Repaired commentary per-video status | SHA-256 `bedea7dcac94783625d75350ae75f9f2975ef33c5acde4154bf20963a6f7ca36` |
+| Repaired commentary artifact manifest | SHA-256 `96ac531c8312bf52ed0946e46ac6ca4441cae0d9d385840bdde69fd0cbb8b167` |
+| Evaluator base | `002238dc62ac0390c2e2b4005780cf3d81420255` |
+| Final detailed result | SHA-256 `4f2bec806a424f6262b483df70234b8a11769b2c0fcff84b51d5b8746552cc06` |
+
+The population is the exact 40-video ShuttleSet production set and the exact
+47-video non-overlap ShuttleSet22 comparison set. The ShuttleSet exclusions
+remain `sset_09`, `sset_10`, `sset_12`, and `sset_27`. The ShuttleSet22
+exclusions remain `ss22_14`, `ss22_45`, and `ss22_56` because no new evidence
+established a frame-aligned public source. Eight overlap rows, `ss22_01` through
+`ss22_07` plus `ss22_58`, resolve to their ShuttleSet source identity and were
+not processed twice. The inventory therefore contains 87 unique canonical
+source identities.
+
+All 87 public timelines passed the existing local-duration gate. No substitute
+upload was used. Sixty-five videos use automatic English YouTube captions and
+22 use the existing coarse WhisperX path. This gives 87 normalized transcripts
+with 62,675 segments. Relevance triage originally retained 7,094 rows for 86
+videos. Overlapping prompt windows produced 533 same-start variants. Every
+group contained two adjacent chunk IDs. The repaired source bundle keeps the
+widest existing span, then the longest raw text, and contains 6,561 unique-start
+chunks. The repair made no provider requests and records every removed ID and
+retained ID remap.
+`ss22_17` remains in the population as an explicit zero-cleaned-commentary
+case. It was dropped after its only raw chunk, “Oh, my God.”, failed relevance
+triage.
+
+The repaired bundle retains 6,561 non-empty cleaned texts, each with three alternate phrasings
+and a finite `roberta-large` BERTScore of at least 0.8. The median score is
+0.9620. These checks validate the cleaning contract and similarity to the raw
+text. They are not human judgments of relevance or semantic accuracy.
+The final key-level OpenRouter usage snapshot was USD 0.930799974 for data
+preparation. The benchmark made no paid requests. Per-request token usage was
+not exposed by the supported provider return contract.
+
+### Pairing results
+
+The evaluator calls the supported pairing function with an explicit window. It pairs the
+first unclaimed cleaned chunk starting strictly after a rally and no more than
+eight seconds later. It runs a separate greedy join for the five-second window
+suggested by issue #22. Human contact intervals are used for the direct corpus comparison.
+ShuttleSet production predictions are reported separately.
+
+| Rally view | Eligible rallies | Pairs at 5 s | Pairs at 8 s | 8 s rate |
+|---|---:|---:|---:|---:|
+| ShuttleSet human contacts | 2,807 | 580 | 600 | 21.38% |
+| ShuttleSet22 human contacts | 3,422 | 1,030 | 1,222 | 35.71% |
+| Combined human contacts | 6,229 | 1,610 | 1,822 | 29.25% |
+| ShuttleSet production predictions | 3,434 | 65 | 77 | 2.24% |
+
+Across the human-contact comparison, the median post-rally gap is 1.84 seconds
+and p90 is 5.36 seconds. Leaving out one video at a time keeps the ShuttleSet
+8-second rate between 20.90% and 21.91%. It keeps the ShuttleSet22 rate between
+35.02% and 36.49%. No aggregate conclusion depends on one video.
+
+The ShuttleSet human view starts with 3,359 rallies and holds out 552 through
+the duration-filtered issue #103 replay mask, leaving 2,807 eligible. The
+ShuttleSet22 view has 3,422 rallies and no replay-mask artifact, so all remain
+eligible. This mask asymmetry is explicit and the two datasets are not treated
+as an accuracy comparison.
+
+The contract leaves 4,739 of 6,561 cleaned chunks unpaired. There are 691 chunk
+starts inside a human-contact rally, which the supported post-rally contract
+does not intentionally support and left unpaired in the human-contact views.
+On production-predicted ShuttleSet spans, the mechanical join incorrectly
+claims 12 of the 77 paired chunks for a preceding rally even though each starts
+inside another rally. This difference, together with the 2.24% production pair
+rate, makes the current production association unsafe as a dataset field.
+
+Mechanical pairing coverage is not timestamp accuracy. YouTube automatic
+captions and the retained WhisperX output have coarse segment timestamps. No
+fine alignment or labeled rally-commentary association was available, so this
+run makes no timing-accuracy claim. The supported cleaned schema also contains
+zero sentiment, concept, player, player-link, or court-slot outputs.
+
+Both corrected Carmack runs produced byte-identical gzip output. They took 7.73
+and 7.80 seconds and used at most 170,936 KiB resident memory. The detailed files are
+`/scratch/cmarti56/issue104-commentary-benchmark/results/commentary-benchmark-repaired-v1-verified-run1.json.gz`
+and `commentary-benchmark-repaired-v1-verified-run2.json.gz`. The tracked
+[`issue_104_commentary_per_video.json.gz`](data/issue_104_commentary_per_video.json.gz)
+is the same byte-identical result. It contains aggregate and per-video status
+for all 87 canonical videos.
 
 ## Frozen evidence
 
@@ -250,7 +357,9 @@ subjective confidence score.
 | Movement inefficiency | **Cut** | Input-constrained | Its formula and coverage are verified, but production intervals use predicted contacts. Missing and spurious contacts can change those boundaries, so the values are not independently validated shot-interval measurements. |
 | Raw degradation slope | **Unresolved** | Input-constrained | Upstream retained-feature set and player identity are not complete enough for a meaningful progression. |
 | Tanh-normalized degradation | **Unresolved** | Definition unresolved | Issue #22 does not define the temperature. |
-| Commentary sentiment, concept, timing, and player link | **Unresolved** | Source unavailable | Issue #103 disabled commentary, so there is no valid population. |
+| Auxiliary commentary source text and segment timestamps | **Include as an auxiliary component** | Source-backed | All 87 canonical sources have validated normalized transcripts. Distribute them alongside the visual and annotation data for MLLM/VLM context and future research. Keep raw, normalized, and cleaned artifacts separate, with canonical video/source identity and timestamp-precision provenance. Do not present them as verified rally labels. |
+| Rally-to-commentary association | **Cut** | Ground-truth interval benchmarked | The supported post-rally join covers 29.25% of eligible human-contact rallies and only 2.24% of eligible production spans. Timestamps remain coarse, in-rally commentary is unpaired, and 12 production claims cross into another rally. |
+| Commentary sentiment, concept, and player link | **Unresolved** | Output and labels unavailable | The supported schemas emit zero semantic fields, and no labeled accuracy population exists. Do not infer them from cleaned text. |
 | ShuttleSet contact type, round, and set fields | **Keep** | Source-backed | They are direct human-source fields. They must remain source-scoped rather than presented as annotator predictions. |
 | Linear interpolation and `interpolation_type` provenance | **Keep** | Computation verified | Internal gaps are bounded by observations inside one court scene. The provenance is explicit and broadly exercised. |
 | Backward extrapolation | **Unresolved** | Definition unresolved | Issue #22 does not define a safe scene or match-start policy. No extrapolated values were emitted. |

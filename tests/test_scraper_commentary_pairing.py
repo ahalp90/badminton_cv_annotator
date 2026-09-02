@@ -175,6 +175,21 @@ def test_chunk_claimed_by_earlier_of_two_rallies():
     assert by_id[1]['chunk_id'] == ''                    # later rally left unpaired
 
 
+def test_shorter_window_can_leave_chunk_for_later_rally():
+    rally_spans = [(0, 0, 1), (1, 10, 50)]
+    chunks = [_chunk('c0', 6.0, 6.5)]
+
+    eight_second = commentary_pairing.pair_video(
+        'v', rally_spans, chunks, None, FPS, pair_window_s=8.0,
+    )
+    five_second = commentary_pairing.pair_video(
+        'v', rally_spans, chunks, None, FPS, pair_window_s=5.0,
+    )
+
+    assert [row['chunk_id'] for row in eight_second] == ['c0', '']
+    assert [row['chunk_id'] for row in five_second] == ['', 'c0']
+
+
 class _FakeCapture:
     """Stand-in for cv2.VideoCapture returning a fixed fps, no real decode."""
 
