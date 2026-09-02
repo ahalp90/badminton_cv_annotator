@@ -144,3 +144,12 @@ def test_rally_id_continues_across_sets_sorted_by_set(tmp_path: Path) -> None:
 def test_set_number_rejects_non_set_filenames() -> None:
     with pytest.raises(ValueError):
         set_number(Path("foo.csv"))
+
+
+def test_english_label_maps_the_shuttleset22_spelling_variant() -> None:
+    from dataset_builder.source_annotations import english_label
+
+    assert english_label("過渡切球") == "passive_drop"
+    assert english_label("過度切球") == "passive_drop"
+    assert english_label("not a label") is pd.NA
+    assert english_label(float("nan")) is pd.NA

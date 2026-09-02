@@ -23,6 +23,16 @@ from dataset_builder.schema_v1 import SOURCE_CONTACTS, validate_table
 
 _SET_FILENAME = re.compile(r"^set(\d+)$")
 _REQUIRED_COLUMNS = ("rally", "ball_round", "frame_num", "type", "flaw")
+# ShuttleSet22 writes passive drop with a homophone character (過度 for 過渡).
+# The verbatim label stays in contact_type; only the English mapping uses this.
+SOURCE_LABEL_ALIASES: dict[str, str] = {"過度切球": "過渡切球"}
+
+
+def english_label(label: object) -> object:
+    """Map a verbatim source stroke label to its English taxonomy name, or NA."""
+    if not isinstance(label, str):
+        return pd.NA
+    return ZH_TO_EN.get(SOURCE_LABEL_ALIASES.get(label, label), pd.NA)
 
 
 class SourceRally(NamedTuple):
@@ -140,7 +150,7 @@ def load_source_annotations(
             "ball_round": ball_round,
             "frame_num": frame_num,
             "contact_type": raw["type"],
-            "contact_type_en": raw["type"].map(ZH_TO_EN),
+            "contact_type_en": raw["type"].map(english_label),
             "flaw_marked": flaw_marked,
             "rally_id": rally_id,
         }

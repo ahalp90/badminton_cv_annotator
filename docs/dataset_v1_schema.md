@@ -148,6 +148,12 @@ commentary benchmark used: `transcripts/<video_id>.json`,
 `status/commentary_per_video_status.json`. Without it the two commentary
 tables are written empty.
 
+Both commands accept a subset: `--video-id sset_01 --video-id sset_02` for
+the run export, `--match-id 8 --match-id 9` for ShuttleSet22. A subset is
+the right way to spot-check before a full run. On Carmack, two videos of
+either corpus export in about 40 seconds on the CPU, so the full 40-video
+and 47-video corpora each take about 15 minutes.
+
 ## Kept features and their formulas
 
 ### Posture variability
@@ -254,7 +260,10 @@ decision, and adding one later is a schema change.
 Three columns are added by the export rather than copied from the source.
 `source_row` is the row's position in its set CSV, which keeps duplicate
 source rows distinct. `contact_type_en` is the English name for the stroke
-type, from the shared classifier taxonomy. `rally_id` links the contact to its
+type, from the shared classifier taxonomy. ShuttleSet22 writes passive drop
+with a homophone character, `過度切球` for the taxonomy's `過渡切球`; the
+reader maps that one variant and leaves the verbatim label untouched. Any
+other unmapped label gives a null. `rally_id` links the contact to its
 row in `rallies`, and is null when the rally was unusable, for example a
 flaw-marked row, a frame outside the video, or contacts out of order.
 

@@ -318,3 +318,21 @@ def test_export_rejects_missing_primitive_stage(tmp_path: Path) -> None:
             output_dir=tmp_path / "export",
             fixed_sources_manifest=Path("x"),
         )
+
+
+def test_export_video_id_filter_selects_known_videos_only(tmp_path: Path) -> None:
+    fixture = _build_run(tmp_path)
+    with pytest.raises(ValueError, match="no rally records for video_ids"):
+        export_dataset_v1(
+            ExportInputs(
+                run_dir=fixture.run_dir,
+                output_dir=tmp_path / "export-unknown",
+                video_ids=("nope",),
+            )
+        )
+    with pytest.raises(ValueError, match="without repeats"):
+        ExportInputs(run_dir=fixture.run_dir, output_dir=tmp_path, video_ids=("0012", "0012"))
+    manifest = export_dataset_v1(
+        ExportInputs(run_dir=fixture.run_dir, output_dir=tmp_path / "export", video_ids=("0012",))
+    )
+    assert [video["video_id"] for video in manifest["videos"]] == ["0012"]

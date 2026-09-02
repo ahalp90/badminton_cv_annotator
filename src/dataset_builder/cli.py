@@ -760,6 +760,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Commentary preparation root with transcripts, cleaned chunks, and status.",
     )
+    export_parser.add_argument(
+        "--video-id",
+        action="append",
+        dest="video_ids",
+        help="Export only these video IDs; repeat the flag. Defaults to every video in the run.",
+    )
     ss22_parser = subparsers.add_parser(
         "export-v1-shuttleset22",
         help="Write the frozen v1 dataset tables from completed ShuttleSet22 artifacts.",
@@ -798,6 +804,7 @@ def _run_export_v1(arguments: argparse.Namespace) -> int:
                 fixed_sources_manifest=arguments.fixed_sources,
                 ground_truth_root=arguments.ground_truth_root,
                 commentary_root=arguments.commentary_root,
+                video_ids=None if arguments.video_ids is None else tuple(arguments.video_ids),
             )
         )
     except Exception as error:

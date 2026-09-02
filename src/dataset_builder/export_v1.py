@@ -79,12 +79,17 @@ class ExportInputs:
     fixed_sources_manifest: Path | None = None
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
+    video_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if (self.fixed_sources_manifest is None) != (self.ground_truth_root is None):
             raise ValueError(
                 "fixed_sources_manifest and ground_truth_root must be given together"
             )
+        if self.video_ids is not None and (
+            not self.video_ids or len(set(self.video_ids)) != len(self.video_ids)
+        ):
+            raise ValueError("video_ids must be a non-empty tuple without repeats")
 
 
 @dataclass(frozen=True)
@@ -140,6 +145,7 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
     manifest = load_run_manifest(run_dir)
     sources = [dict(_mapping(source, "record source")) for source in _list(collection["sources"])]
     source_dataset = single_source_dataset(sources)
+    sources = _select_sources(sources, inputs.video_ids)
     video_ids = [str(source["video_id"]) for source in sources]
     annotation_dirs, fixed_manifest = _annotation_directories(inputs, video_ids)
     annotation_root = _optional_resolved(inputs.ground_truth_root)
@@ -359,6 +365,18 @@ def annotator_spans_by_video(
             raise ValueError(f"rally records for {video_id!r} are not contiguous from zero")
         spans[video_id] = tuple((start, end) for _, start, end in rows)
     return spans
+
+
+def _select_sources(
+    sources: Sequence[Mapping[str, object]], video_ids: Sequence[str] | None
+) -> list[Mapping[str, object]]:
+    if video_ids is None:
+        return list(sources)
+    by_id = {str(source["video_id"]): source for source in sources}
+    unknown = [video_id for video_id in video_ids if video_id not in by_id]
+    if unknown:
+        raise ValueError(f"run has no rally records for video_ids {unknown}")
+    return [by_id[video_id] for video_id in video_ids]
 
 
 def single_source_dataset(sources: Sequence[Mapping[str, object]]) -> str:
