@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
+import dataclasses
 import json
 import math
 from pathlib import Path
@@ -20,6 +21,7 @@ from annotator.calibration.commentary_benchmark_inputs import (
     COMMENTARY_REMOVED_OVERLAP_ROWS,
     COMMENTARY_SOURCE_MANIFEST_SHA256,
     COMMENTARY_STATUS_SHA256,
+    RETIMED_ALIGN_STATUSES,
     SHUTTLESET_SHOTS_MASTER_SHA256,
     VideoInputs,
     _canonical_inventory,
@@ -36,13 +38,17 @@ from dataset_builder.vision import save_json_gz
 from scraper.commentary_pairing import (
     PAIR_WINDOW_S,
     _believed_replay_in_rally_interior,
+    _chunk_start_on_mask,
     pair_video,
 )
+from scraper.commentary_retiming import AlignStatus
 
 
-RESULT_SCHEMA = "issue104-commentary-benchmark/3"
+RESULT_SCHEMA = "issue104-commentary-benchmark/4"
 EVALUATOR_BASE_COMMIT = "002238dc62ac0390c2e2b4005780cf3d81420255"
 FIVE_SECOND_WINDOW = 5.0
+# Post-rally lag windows swept on the aligned rows so the lag can be chosen from data (issue #138).
+LAG_SWEEP_SECONDS = (2.0, 4.0, 6.0, 8.0, 10.0, 15.0, 20.0)
 PAIRING_POLICY: dict[str, object] = {
     "pairing": "first unclaimed cleaned chunk starting strictly after the rally",
     "pair_window_seconds": PAIR_WINDOW_S,
@@ -52,13 +58,54 @@ PAIRING_POLICY: dict[str, object] = {
         "can claim a chunk after a preceding rally even when a later rally has begun"
     ),
     "replay": "duration-filtered issue #103 replay masks; no ShuttleSet22 replay masks",
-    "timestamp_precision": "coarse transcript timestamps; fine WhisperX alignment not run",
+    "timestamp_precision": (
+        "supported rows use coarse LLM chunk times; aligned rows use WhisperX large-v2 "
+        "with wav2vec2 word alignment, re-timed by text matching (issue #136)"
+    ),
+    "multi_rally_policy": (
+        "aligned rows only, from issue #138: a chunk belongs to the rally it starts inside "
+        "plus every rally that ended within the lag window before it; a chunk with two or "
+        "more rallies is ascribed to all of them and counted as ambiguous"
+    ),
+    "lag_sweep_seconds": LAG_SWEEP_SECONDS,
     "semantic_outputs": "not implemented by the supported cleaning or pairing contracts",
     "rally_views": (
         "ShuttleSet production predictions are reported separately; the corpus comparison "
         "uses human contact intervals for both datasets"
     ),
 }
+
+
+ALIGNED_RESULT_KEYS = (
+    "aligned_primary_pairing",
+    "aligned_human_contact_pairing",
+    "aligned_multi_primary_pairing",
+    "aligned_multi_human_contact_pairing",
+    "aligned_lag_sweep_primary",
+    "aligned_lag_sweep_human_contact",
+    "retiming",
+)
+ALIGNED_AGGREGATE_KEYS = (
+    "aligned_human_contact_pairing",
+    "aligned_multi_human_contact_pairing",
+    "aligned_lag_sweep_human_contact",
+    "retiming",
+)
+MULTI_RALLY_SUM_FIELDS = (
+    "rallies",
+    "replay_masked_rallies",
+    "pairing_eligible_rallies",
+    "paired_rallies",
+    "rallies_with_in_rally_chunk",
+    "in_rally_chunks",
+    "post_rally_chunks",
+    "single_rally_chunks",
+    "ambiguous_chunks",
+    "unassigned_chunks",
+    "masked_only_chunks",
+    "unpairable_masked_start_chunks",
+    "masked_rally_candidate_incidences",
+)
 
 
 def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
@@ -76,14 +123,23 @@ def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
     }
 
 
+def _duration_filtered_mask(inputs: VideoInputs) -> np.ndarray | None:
+    """Return the video's replay mask with sub-threshold exclusion runs dropped, or None."""
+    if inputs.replay_mask is None:
+        return None
+    return filter_short_exclusion_runs(
+        inputs.replay_mask, scale_for_fps(inputs.fps).replay_mask_min_frames
+    )
+
+
 def _masked_rally_ids(
     inputs: VideoInputs,
     rallies: Sequence[tuple[int, int, int]],
 ) -> set[int]:
-    if inputs.replay_mask is None:
+    filtered = _duration_filtered_mask(inputs)
+    if filtered is None:
         return set()
     minimum_run = scale_for_fps(inputs.fps).replay_mask_min_frames
-    filtered = filter_short_exclusion_runs(inputs.replay_mask, minimum_run)
     return {
         rally_id
         for rally_id, start_frame, end_frame in rallies
@@ -186,12 +242,192 @@ def _pairing_summary(
     }, gaps
 
 
+def _candidate_rallies(
+    start_seconds: float,
+    spans: Mapping[int, tuple[float, float]],
+    pair_window_s: float,
+) -> tuple[set[int], set[int]]:
+    """Rallies a chunk start belongs to under Ari's issue #138 rule.
+
+    :param start_seconds: the chunk's start on the video clock.
+    :param spans: ``{rally_id: (start_seconds, end_seconds)}``.
+    :param pair_window_s: the post-rally lag window.
+    :return: ``(containing, ended_within)``: every rally the chunk starts inside and every
+        rally that ended within the window before the chunk.
+    """
+    containing = {
+        rally_id for rally_id, (start, end) in spans.items() if start <= start_seconds < end
+    }
+    ended_within = {
+        rally_id
+        for rally_id, (_start, end) in spans.items()
+        if end < start_seconds <= end + pair_window_s
+    }
+    return containing, ended_within
+
+
+def _multi_rally_pairing_summary(
+    inputs: VideoInputs,
+    rallies: Sequence[tuple[int, int, int]],
+    pair_window_s: float,
+) -> dict[str, object]:
+    """Ascribe this video's chunks to rallies, allowing one chunk to serve two (issue #138).
+
+    A chunk belongs to the rally it starts inside plus every rally that ended within the
+    lag window before it. A chunk with two or more rallies is ascribed to all of them and
+    counted as ambiguous. Masked rallies are dropped from every candidate set, and a
+    chunk starting on a masked frame is unpairable.
+
+    :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
+    :param rallies: ``[(rally_id, start_frame, end_frame), ...]``.
+    :param pair_window_s: the post-rally lag window in seconds.
+    :return: integer rally and chunk counts, keyed by MULTI_RALLY_SUM_FIELDS.
+    """
+    masked_ids = _masked_rally_ids(inputs, rallies)
+    return _multi_rally_counts(inputs, rallies, pair_window_s, masked_ids, _duration_filtered_mask(inputs))
+
+
+def _multi_rally_counts(
+    inputs: VideoInputs,
+    rallies: Sequence[tuple[int, int, int]],
+    pair_window_s: float,
+    masked_ids: set[int],
+    filtered_mask: np.ndarray | None,
+) -> dict[str, object]:
+    """The multi-rally counts with the replay masking already resolved.
+
+    :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
+    :param rallies: ``[(rally_id, start_frame, end_frame), ...]``.
+    :param pair_window_s: the post-rally lag window in seconds.
+    :param masked_ids: rallies held out by the replay mask.
+    :param filtered_mask: the duration-filtered replay mask, or None.
+    :return: integer rally and chunk counts, keyed by MULTI_RALLY_SUM_FIELDS.
+    """
+    spans = {
+        rally_id: (start_frame / inputs.fps, end_frame / inputs.fps)
+        for rally_id, start_frame, end_frame in rallies
+    }
+    paired: set[int] = set()
+    with_in_rally_chunk: set[int] = set()
+    counts = dict.fromkeys(MULTI_RALLY_SUM_FIELDS, 0)
+    for chunk in sorted(inputs.chunks, key=lambda row: float(row["start"])):
+        start = float(chunk["start"])
+        if filtered_mask is not None and _chunk_start_on_mask(start, inputs.fps, filtered_mask):
+            counts["unpairable_masked_start_chunks"] += 1
+            continue
+        containing, ended_within = _candidate_rallies(start, spans, pair_window_s)
+        masked_hits = (containing | ended_within) & masked_ids
+        counts["masked_rally_candidate_incidences"] += len(masked_hits)
+        containing -= masked_ids
+        ended_within -= masked_ids
+        candidates = containing | ended_within
+        if not candidates:
+            counts["masked_only_chunks" if masked_hits else "unassigned_chunks"] += 1
+            continue
+        counts["in_rally_chunks" if containing else "post_rally_chunks"] += 1
+        counts["ambiguous_chunks" if len(candidates) > 1 else "single_rally_chunks"] += 1
+        paired |= candidates
+        with_in_rally_chunk |= containing
+    counts["rallies"] = len(rallies)
+    counts["replay_masked_rallies"] = len(masked_ids)
+    counts["pairing_eligible_rallies"] = len(rallies) - len(masked_ids)
+    counts["paired_rallies"] = len(paired)
+    counts["rallies_with_in_rally_chunk"] = len(with_in_rally_chunk)
+    return dict(counts)
+
+
+def _lag_sweep(
+    inputs: VideoInputs,
+    rallies: Sequence[tuple[int, int, int]],
+) -> dict[str, dict[str, object]]:
+    """The multi-rally counts at every LAG_SWEEP_SECONDS window, masking resolved once.
+
+    :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
+    :param rallies: ``[(rally_id, start_frame, end_frame), ...]``.
+    :return: ``{window key: counts}`` in LAG_SWEEP_SECONDS order.
+    """
+    masked_ids = _masked_rally_ids(inputs, rallies)
+    filtered_mask = _duration_filtered_mask(inputs)
+    return {
+        _window_key(window): _multi_rally_counts(inputs, rallies, window, masked_ids, filtered_mask)
+        for window in LAG_SWEEP_SECONDS
+    }
+
+
+def _window_key(window: float) -> str:
+    """Zero-padded window key, so the saved JSON's sorted keys keep window order.
+
+    :param window: a lag window in seconds.
+    :return: e.g. ``"02.0"``, ``"10.0"``.
+    """
+    return f"{window:04.1f}"
+
+
+def _retiming_summary(
+    rows: Sequence[Mapping[str, object]],
+    sidecar_sha256: str | None,
+) -> dict[str, object]:
+    """Summarize how far the WhisperX alignment moved one video's chunks.
+
+    :param rows: the video's re-timed chunk rows.
+    :param sidecar_sha256: the re-timed sidecar's hash, recorded for provenance.
+    :return: the sidecar hash, per-status counts, and shift and match-ratio distributions.
+    """
+    aligned_rows = [row for row in rows if str(row["align_status"]) == AlignStatus.ALIGNED.value]
+    shifts = [abs(float(row["align_shift_s"])) for row in aligned_rows]
+    ratios = [float(row["align_match_ratio"]) for row in aligned_rows]
+    return {
+        "sidecar_sha256": sidecar_sha256,
+        "status_counts": {
+            status: sum(str(row["align_status"]) == status for row in rows)
+            for status in RETIMED_ALIGN_STATUSES
+        },
+        "abs_shift_seconds": _distribution(shifts),
+        "match_ratio": _distribution(ratios),
+    }
+
+
+def _aligned_summaries(
+    inputs: VideoInputs,
+) -> tuple[dict[str, object], dict[str, list[float]]]:
+    """Evaluate the WhisperX-aligned view of one video alongside the supported one.
+
+    :param inputs: the video; its ``retimed_chunks`` replace ``chunks`` for these views.
+    :return: the aligned result keys (all None without a sidecar) and their gap lists.
+    """
+    if inputs.retimed_chunks is None:
+        return (
+            dict.fromkeys(ALIGNED_RESULT_KEYS),
+            {"aligned_primary": [], "aligned_human_contact": []},
+        )
+    aligned_inputs = dataclasses.replace(inputs, chunks=inputs.retimed_chunks)
+    primary_pairing, primary_gaps = _pairing_summary(aligned_inputs, inputs.rallies)
+    human_pairing, human_gaps = _pairing_summary(aligned_inputs, inputs.human_rallies)
+    return (
+        {
+            "aligned_primary_pairing": primary_pairing,
+            "aligned_human_contact_pairing": human_pairing,
+            "aligned_multi_primary_pairing": _multi_rally_pairing_summary(
+                aligned_inputs, inputs.rallies, PAIR_WINDOW_S
+            ),
+            "aligned_multi_human_contact_pairing": _multi_rally_pairing_summary(
+                aligned_inputs, inputs.human_rallies, PAIR_WINDOW_S
+            ),
+            "aligned_lag_sweep_primary": _lag_sweep(aligned_inputs, inputs.rallies),
+            "aligned_lag_sweep_human_contact": _lag_sweep(aligned_inputs, inputs.human_rallies),
+            "retiming": _retiming_summary(inputs.retimed_chunks, inputs.retimed_sha256),
+        },
+        {"aligned_primary": primary_gaps, "aligned_human_contact": human_gaps},
+    )
+
+
 def evaluate_video(
     inputs: VideoInputs,
 ) -> tuple[dict[str, object], dict[str, list[float]], list[float], list[int]]:
     """Evaluate one video's supported pairing and cleaning coverage."""
     primary_pairing, primary_gaps = _pairing_summary(inputs, inputs.rallies)
     human_pairing, human_gaps = _pairing_summary(inputs, inputs.human_rallies)
+    aligned_result, aligned_gaps = _aligned_summaries(inputs)
     scores = [float(chunk["bert_f1"]) for chunk in inputs.chunks]
     raw_word_counts = [len(str(chunk["text"]).split()) for chunk in inputs.chunks]
     clean_word_counts = [
@@ -242,10 +478,11 @@ def evaluate_video(
         "primary_pairing": primary_pairing,
         "human_contact_pairing": human_pairing,
         "annotation_population": inputs.annotation_population,
+        **aligned_result,
     }
     return (
         result,
-        {"primary": primary_gaps, "human_contact": human_gaps},
+        {"primary": primary_gaps, "human_contact": human_gaps, **aligned_gaps},
         scores,
         [clean - raw for clean, raw in zip(clean_word_counts, raw_word_counts)],
     )
@@ -305,6 +542,140 @@ def _pairing_aggregate(
         None if eligible == 0 else int(aggregate["paired_rallies_5s"]) / eligible
     )
     return aggregate
+
+
+def _multi_rally_aggregate(summaries: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Sum per-video multi-rally summaries and rate them.
+
+    :param summaries: one multi-rally summary per video, all at the same window.
+    :return: the summed counts plus ``paired_rally_rate`` (paired over eligible rallies)
+        and ``ambiguous_chunk_rate`` (ambiguous over assigned chunks); None when the
+        denominator is zero.
+    """
+    aggregate: dict[str, object] = {
+        sum_field: sum(int(summary[sum_field]) for summary in summaries)
+        for sum_field in MULTI_RALLY_SUM_FIELDS
+    }
+    eligible = int(aggregate["pairing_eligible_rallies"])
+    assigned = int(aggregate["single_rally_chunks"]) + int(aggregate["ambiguous_chunks"])
+    aggregate["paired_rally_rate"] = None if eligible == 0 else int(aggregate["paired_rallies"]) / eligible
+    aggregate["ambiguous_chunk_rate"] = None if assigned == 0 else int(aggregate["ambiguous_chunks"]) / assigned
+    return aggregate
+
+
+def _summaries(rows: Sequence[Mapping[str, object]], field: str) -> list[Mapping[str, object]]:
+    """One per-video summary mapping per row.
+
+    :param rows: per-video result dicts.
+    :param field: the summary key to pull from each row.
+    :return: the summaries in row order.
+    """
+    return [_mapping(row[field], f"{field} summary") for row in rows]
+
+
+def _rows_with_commentary(rows: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
+    """Rows that carry cleaned chunks; a triage-dropped video has nothing to align.
+
+    :param rows: per-video result dicts.
+    :return: the rows whose ``cleaned_chunks`` is non-zero.
+    """
+    return [row for row in rows if int(row["cleaned_chunks"])]
+
+
+def _lag_sweep_aggregate(rows: Sequence[Mapping[str, object]], field: str) -> dict[str, object]:
+    """Aggregate a per-video lag sweep window by window.
+
+    :param rows: per-video result dicts.
+    :param field: the per-video sweep key, a ``{window: summary}`` mapping.
+    :return: ``{window: multi-rally aggregate}`` over LAG_SWEEP_SECONDS.
+    """
+    return {
+        _window_key(window): _multi_rally_aggregate(
+            [_mapping(sweep[_window_key(window)], f"{field} window") for sweep in _summaries(rows, field)]
+        )
+        for window in LAG_SWEEP_SECONDS
+    }
+
+
+def _retiming_aggregate(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Sum the per-video alignment status counts across a set of videos.
+
+    :param rows: per-video result dicts, each carrying a non-None ``retiming``.
+    :return: the video count and the summed status counts.
+    """
+    status_counts = [
+        _mapping(_mapping(row["retiming"], "retiming")["status_counts"], "status counts")
+        for row in rows
+    ]
+    return {
+        "videos": len(rows),
+        "status_counts": {
+            status: sum(int(counts[status]) for counts in status_counts)
+            for status in RETIMED_ALIGN_STATUSES
+        },
+    }
+
+
+def _aligned_dataset_aggregate(
+    dataset: str,
+    rows: Sequence[Mapping[str, object]],
+    primary_gaps: Sequence[float],
+    human_gaps: Sequence[float],
+) -> dict[str, object]:
+    """Aggregate the WhisperX-aligned views, or None-fill them when any video lacks a sidecar.
+
+    :param dataset: the dataset name; ShuttleSet also reports its production-predicted view.
+    :param rows: the dataset's per-video result dicts.
+    :param primary_gaps: aligned post-rally gaps against the primary rally view.
+    :param human_gaps: aligned post-rally gaps against the human-contact rally view.
+    :return: the aligned aggregate keys, every value None when the corpus is unaligned.
+    """
+    keys = list(ALIGNED_AGGREGATE_KEYS)
+    if dataset == "ShuttleSet":
+        keys += [
+            "aligned_production_predicted_pairing",
+            "aligned_multi_production_predicted_pairing",
+            "aligned_lag_sweep_production_predicted",
+        ]
+    aligned_rows = _rows_with_commentary(rows)
+    if not aligned_rows or any(row["retiming"] is None for row in aligned_rows):
+        return dict.fromkeys(keys)
+    aggregate = _aligned_human_contact_aggregate(aligned_rows, human_gaps)
+    if dataset == "ShuttleSet":
+        aggregate["aligned_production_predicted_pairing"] = _pairing_aggregate(
+            aligned_rows, primary_gaps, "aligned_primary_pairing"
+        )
+        aggregate["aligned_multi_production_predicted_pairing"] = _multi_rally_aggregate(
+            _summaries(aligned_rows, "aligned_multi_primary_pairing")
+        )
+        aggregate["aligned_lag_sweep_production_predicted"] = _lag_sweep_aggregate(
+            aligned_rows, "aligned_lag_sweep_primary"
+        )
+    return aggregate
+
+
+def _aligned_human_contact_aggregate(
+    rows: Sequence[Mapping[str, object]],
+    human_gaps: Sequence[float],
+) -> dict[str, object]:
+    """The aligned human-contact aggregates shared by every dataset and the corpus total.
+
+    :param rows: per-video result dicts that all carry a ``retiming`` summary.
+    :param human_gaps: aligned post-rally gaps against the human-contact rally view.
+    :return: the ALIGNED_AGGREGATE_KEYS values.
+    """
+    return {
+        "aligned_human_contact_pairing": _pairing_aggregate(
+            rows, human_gaps, "aligned_human_contact_pairing"
+        ),
+        "aligned_multi_human_contact_pairing": _multi_rally_aggregate(
+            _summaries(rows, "aligned_multi_human_contact_pairing")
+        ),
+        "aligned_lag_sweep_human_contact": _lag_sweep_aggregate(
+            rows, "aligned_lag_sweep_human_contact"
+        ),
+        "retiming": _retiming_aggregate(rows),
+    }
 
 
 def _leave_one_video_out(
@@ -406,6 +777,16 @@ def _dataset_aggregate(
         for row in rows
         for gap in gaps_by_video[str(row["video_id"])]["human_contact"]
     ]
+    aligned_primary_gaps = [
+        gap
+        for row in rows
+        for gap in gaps_by_video[str(row["video_id"])]["aligned_primary"]
+    ]
+    aligned_human_gaps = [
+        gap
+        for row in rows
+        for gap in gaps_by_video[str(row["video_id"])]["aligned_human_contact"]
+    ]
     dataset_result: dict[str, object] = {
         "cleaning": _cleaning_aggregate(rows, scores),
         "human_contact_pairing": _pairing_aggregate(
@@ -413,6 +794,9 @@ def _dataset_aggregate(
         ),
         "human_contact_leave_one_video_out": _leave_one_video_out(
             rows, "human_contact_pairing"
+        ),
+        **_aligned_dataset_aggregate(
+            dataset, rows, aligned_primary_gaps, aligned_human_gaps
         ),
     }
     if dataset == "ShuttleSet":
@@ -432,6 +816,7 @@ def _population_summary(videos: Sequence[VideoInputs]) -> dict[str, object]:
         "shuttleset_videos": sum(video.dataset == "ShuttleSet" for video in videos),
         "shuttleset22_videos": sum(video.dataset == "ShuttleSet22" for video in videos),
         "cleaned_videos": sum(bool(video.chunks) for video in videos),
+        "retimed_videos": sum(video.retimed_chunks is not None for video in videos),
         "triage_dropped_videos": [
             video.video_id for video in videos if not video.chunks
         ],
@@ -475,6 +860,13 @@ def evaluate_corpus(
     all_human_gaps = [
         gap for gaps in gaps_by_video.values() for gap in gaps["human_contact"]
     ]
+    all_aligned_human_gaps = [
+        gap for gaps in gaps_by_video.values() for gap in gaps["aligned_human_contact"]
+    ]
+    aligned_rows = _rows_with_commentary(all_rows)
+    corpus_is_aligned = bool(aligned_rows) and all(
+        row["retiming"] is not None for row in aligned_rows
+    )
     all_scores = [score for scores in scores_by_video.values() for score in scores]
     semantic_totals = {
         field: sum(
@@ -507,6 +899,11 @@ def evaluate_corpus(
             "semantic_output_counts": semantic_totals,
             "human_contact_pairing": _pairing_aggregate(
                 all_rows, all_human_gaps, "human_contact_pairing"
+            ),
+            **(
+                _aligned_human_contact_aggregate(aligned_rows, all_aligned_human_gaps)
+                if corpus_is_aligned
+                else dict.fromkeys(ALIGNED_AGGREGATE_KEYS)
             ),
         },
         "by_dataset": by_dataset,

@@ -33,6 +33,11 @@ association from v1. Sentiment, concept, and player association remain
 unresolved because the supported contracts emit none of those fields and there
 is no labeled accuracy population.
 
+The [aligned rerun](#aligned-rerun-issue-136) below replaces the coarse
+timestamps with word-aligned WhisperX times and measures Ari's issue #138
+pairing rule. It proposes moving the rally link from cut to unresolved, pending
+a lag choice, a replay policy, and a labeled accuracy sample.
+
 ### Exact inputs and population
 
 | Input | Exact identity |
@@ -44,7 +49,8 @@ is no labeled accuracy population.
 | Repaired commentary per-video status | SHA-256 `bedea7dcac94783625d75350ae75f9f2975ef33c5acde4154bf20963a6f7ca36` |
 | Repaired commentary artifact manifest | SHA-256 `96ac531c8312bf52ed0946e46ac6ca4441cae0d9d385840bdde69fd0cbb8b167` |
 | Evaluator base | `002238dc62ac0390c2e2b4005780cf3d81420255` |
-| Final detailed result | SHA-256 `4f2bec806a424f6262b483df70234b8a11769b2c0fcff84b51d5b8746552cc06` |
+| Coarse detailed result, PR #132 | SHA-256 `4f2bec806a424f6262b483df70234b8a11769b2c0fcff84b51d5b8746552cc06` |
+| Aligned detailed result, issue #136, schema `/4` | SHA-256 `7b32230d00ff4a39cd68aed948bebfc702765e8391773fbf7bbb21609f2c7c12` |
 
 The population is the exact 40-video ShuttleSet production set and the exact
 47-video non-overlap ShuttleSet22 comparison set. The ShuttleSet exclusions
@@ -121,8 +127,122 @@ and 7.80 seconds and used at most 170,936 KiB resident memory. The detailed file
 `/scratch/cmarti56/issue104-commentary-benchmark/results/commentary-benchmark-repaired-v1-verified-run1.json.gz`
 and `commentary-benchmark-repaired-v1-verified-run2.json.gz`. The tracked
 [`issue_104_commentary_per_video.json.gz`](data/issue_104_commentary_per_video.json.gz)
-is the same byte-identical result. It contains aggregate and per-video status
-for all 87 canonical videos.
+now carries the aligned rerun below at schema `/4`. Every field of the coarse
+result is unchanged inside it; the aligned rows are additions.
+
+### Aligned rerun, issue 136
+
+Ari's review of PR #132 and issue #138 asked for forced alignment. The coarse
+run had never used it. Its 65 caption-backed videos carried YouTube cues of
+about four seconds, its 22 WhisperX videos carried Whisper's raw 30-second
+windows, and every chunk's start and end was a guess written by the triage
+LLM. This rerun, on 3 September 2026, gives every video word-level times and
+re-times the cleaned chunks from them.
+
+| Step | What ran |
+|---|---|
+| Audio | 30 more ShuttleSet audio-only downloads, so all 40 ShuttleSet sources have audio; the local ShuttleSet files carry no audio stream. Every download passed the 2-second duration gate. |
+| Transcription | WhisperX 3.8.6, `large-v2`, float16, batch 16, pyannote VAD, numerals suppressed, hallucination silence threshold 2 s, whole video, on the Carmack L40. |
+| Alignment | The large wav2vec2 aligner, `WAV2VEC2_ASR_LARGE_LV60K_960H`. A first pass with WhisperX's default base aligner is kept beside it for comparison. |
+| Re-timing | `scraper.commentary_retiming`: each cleaned chunk's raw text is matched to the aligned words within 60 s of its coarse span. A chunk moves when at least half its tokens sit in one contiguous run of matches. |
+| Benchmark | The same evaluator, extended to read the re-timed sidecars and report aligned rows beside the coarse ones. Two runs were byte-identical. |
+
+All 87 videos aligned, giving 39,525 segments and 370,117 words, every one
+with a time. The pass took 1 hour 35 minutes of GPU time for 101.9 media
+hours. Twenty-one segments were Whisper repetition loops that the aligner
+skipped; they keep their segment time and carry no words.
+
+Re-timing moved 6,077 of the 6,561 cleaned chunks, or 92.6%. The other 464
+found no matching run of words and 20 collided with another chunk's start;
+both groups keep their coarse times and are marked. Caption-backed videos
+re-timed 92.2% of their chunks and Whisper-backed videos 94.7%. The median
+absolute shift is 0.23 seconds, the p90 is 3.9 seconds, and the largest is
+60.3 seconds. Most coarse starts were close because the LLM copied cue
+starts, but one chunk in ten moved by almost four seconds or more.
+
+#### Base against large aligner
+
+The first pass used WhisperX's default English aligner, the base wav2vec2
+model. The large model was then run as requested. Both passes produced the
+same 370,117 words, so only the word times differ. The large aligner is more
+confident: the median word score is 0.81 against 0.71, and 9.8% of words sit
+under 0.3 confidence against 13.0%. Half of all word starts moved by less
+than 0.02 seconds between the two passes, one word in seven moved by more
+than 0.2 seconds, and one in sixteen by more than a second, mostly in the
+noisier videos. Re-timing gave the same 6,077 aligned chunks with slightly
+tighter shifts, a median of 0.23 against 0.24 seconds. Pairing counts differ
+by a handful of rallies, for example 2,119 against 2,123 human-contact
+rallies under the issue #138 rule at eight seconds. The large aligner is the
+version reported below. The base outputs are kept beside it on Carmack and
+in the local backup.
+
+#### One chunk per rally, eight seconds after the rally
+
+The supported join was rerun on the aligned times for the 86 videos with
+commentary. `ss22_17` has no chunks and is left out of both columns here.
+
+| Rally view | Eligible rallies | Coarse pairs | Aligned pairs |
+|---|---:|---:|---:|
+| ShuttleSet human contacts | 2,807 | 600 (21.4%) | 532 (19.0%) |
+| ShuttleSet22 human contacts | 3,349 | 1,222 (36.5%) | 1,195 (35.7%) |
+| Combined human contacts | 6,156 | 1,822 (29.6%) | 1,727 (28.1%) |
+| ShuttleSet production predictions | 3,434 | 77 (2.2%) | 86 (2.5%) |
+
+Better timestamps do not raise this join. Its coverage was never limited by
+timing. It pairs one chunk to one rally, only after the rally ends, and only
+within eight seconds, and most commentary falls outside that shape. On
+production spans, chunks claimed for the wrong rally rose from 12 to 17 once
+the chunk starts were exact.
+
+#### Issue 138 rule on aligned times
+
+Ari's rule: a chunk belongs to the rally it starts inside, plus every rally
+that ended within the lag window before it. A chunk with two or more rallies
+is ascribed to all of them and counted as ambiguous. The lag is swept so it
+can be chosen from the data.
+
+| Lag window | Combined human rallies covered | ShuttleSet | ShuttleSet22 | Ambiguous chunks | Chunks near no rally |
+|---:|---:|---:|---:|---:|---:|
+| 2 s | 1,309 / 6,156 (21.3%) | 17.8% | 24.2% | 0 | 3,143 |
+| 4 s | 1,801 (29.3%) | 23.0% | 34.5% | 0 | 2,561 |
+| 6 s | 2,000 (32.5%) | 23.7% | 39.8% | 0 | 2,313 |
+| 8 s | 2,119 (34.4%) | 24.0% | 43.1% | 0 | 2,145 |
+| 10 s | 2,222 (36.1%) | 24.4% | 45.9% | 0 | 1,959 |
+| 15 s | 2,440 (39.6%) | 25.8% | 51.2% | 8 | 1,571 |
+| 20 s | 2,616 (42.5%) | 27.7% | 54.9% | 97 | 1,321 |
+
+Six hundred and nine chunks start inside a human rally and now attach to
+it. No chunk is ambiguous up to ten seconds. Ambiguity stays under one in
+three hundred at fifteen seconds and reaches 3.0% at twenty. Coverage keeps
+rising with the window and shows no natural knee, so the lag is a judgement
+call. Ten seconds is the widest window with zero ambiguity on human rallies.
+
+On ShuttleSet production spans the rule covers 25.7% at eight seconds, up
+from 2.5%, because 887 chunks start inside a predicted span. Predicted spans
+are long and run into each other, so this is not evidence that they are
+right: ambiguity on them reaches 10.4% at fifteen seconds and 20.5% at
+twenty.
+
+The ShuttleSet replay mask dominates its numbers. Of the 2,892 ShuttleSet
+chunks, 1,890 start on a replay-masked frame and are unpairable under the
+mask policy, and another 105 attach only to a masked rally. Commentary during
+a replay usually describes the rally being replayed. A policy for replay-time
+commentary is needed before ShuttleSet coverage means anything.
+
+#### Proposed disposition
+
+Keep the rally link out of v1 for now, but move it from cut to unresolved.
+Coverage is no longer the blocker. Three choices remain, and they belong to
+the team: the lag window, a replay-time policy, and a labeled sample that
+measures whether the pairs are right. The aligned times themselves are ready:
+ship them in the auxiliary commentary bundle with a per-chunk precision class
+of word-aligned or coarse, using the re-timed sidecars' `align_status`.
+
+The aligned transcripts, provenance, and re-timed sidecars sit outside Git on
+Carmack under `/scratch/cmarti56/issue104-commentary-data/transcripts_aligned`,
+`provenance/whisperx_aligned`, and
+`revisions/overlap-dedup-v1/commentary/retimed_chunks`, with a hash-verified
+copy in the local transcript backup.
 
 ## Frozen evidence
 
@@ -358,7 +478,7 @@ subjective confidence score.
 | Raw degradation slope | **Unresolved** | Input-constrained | Upstream retained-feature set and player identity are not complete enough for a meaningful progression. |
 | Tanh-normalized degradation | **Unresolved** | Definition unresolved | Issue #22 does not define the temperature. |
 | Auxiliary commentary source text and segment timestamps | **Include as an auxiliary component** | Source-backed | All 87 canonical sources have validated normalized transcripts. Distribute them alongside the visual and annotation data for MLLM/VLM context and future research. Keep raw, normalized, and cleaned artifacts separate, with canonical video/source identity and timestamp-precision provenance. Do not present them as verified rally labels. |
-| Rally-to-commentary association | **Cut** | Ground-truth interval benchmarked | The supported post-rally join covers 29.25% of eligible human-contact rallies and only 2.24% of eligible production spans. Timestamps remain coarse, in-rally commentary is unpaired, and 12 production claims cross into another rally. |
+| Rally-to-commentary association | **Cut; proposed unresolved after the aligned rerun** | Ground-truth interval benchmarked | The supported post-rally join covers 29.25% of eligible human-contact rallies and only 2.24% of eligible production spans. The aligned rerun word-times 92.6% of chunks and Ari's issue #138 rule covers 34.4% of human-contact rallies at 8 s with no ambiguous chunk. The lag window, a replay-time policy, and a labeled accuracy sample are still needed. |
 | Commentary sentiment, concept, and player link | **Unresolved** | Output and labels unavailable | The supported schemas emit zero semantic fields, and no labeled accuracy population exists. Do not infer them from cleaned text. |
 | ShuttleSet contact type, round, and set fields | **Keep** | Source-backed | They are direct human-source fields. They must remain source-scoped rather than presented as annotator predictions. |
 | Linear interpolation and `interpolation_type` provenance | **Keep** | Computation verified | Internal gaps are bounded by observations inside one court scene. The provenance is explicit and broadly exercised. |

@@ -23,7 +23,25 @@ import pandas as pd
 from annotator.calibration.scoring import load_gt_rallies
 from annotator.calibration.shuttleset22_features import load_annotation_rallies
 from dataset_builder.vision import load_json_gz, load_npy_xz
+from scraper.commentary_retiming import MIN_MATCH_RATIO, SEARCH_PAD_S, AlignStatus
 
+
+RETIMED_RELATIVE_DIR = "commentary/retimed_chunks"
+RETIMED_ALIGN_STATUSES = tuple(status.value for status in AlignStatus)
+# An aligned start may sit up to SEARCH_PAD_S before the coarse start or after the coarse
+# end, plus a little slack for words the aligner timed slightly out of order.
+RETIMED_START_SLACK_S = 2.0
+RETIMED_SHIFT_TOLERANCE_S = 1e-6
+# A re-timed row may only move start/end; every other cleaned field must survive intact.
+RETIMED_PRESERVED_FIELDS = (
+    "text",
+    "text_clean",
+    "bert_f1",
+    "clean_pass",
+    "alt_phrasings",
+)
+# Statuses that kept the coarse times because alignment failed or collided.
+RETIMED_COARSE_STATUSES = (AlignStatus.UNMATCHED.value, AlignStatus.COLLISION.value)
 
 COMMENTARY_CODE_COMMIT = "819d3075e72966a3d80eb454202b83b3810225ae"
 COMMENTARY_PROVIDER = "openrouter"
@@ -158,6 +176,9 @@ class VideoInputs:
     human_rallies: tuple[tuple[int, int, int], ...]
     replay_mask: np.ndarray | None
     annotation_population: Mapping[str, int] | None
+    # WhisperX-aligned re-timing (issue #136); None when no sidecar exists for the video.
+    retimed_chunks: tuple[Mapping[str, object], ...] | None = None
+    retimed_sha256: str | None = None
 
 
 def _sha256(path: Path) -> str:
@@ -535,6 +556,108 @@ def _load_cleaned_chunks_for_video(
     raise ValueError(f"{video_id} has unexpected clean status {status['clean_status']}")
 
 
+def _validate_retimed_row(
+    video_id: str,
+    index: int,
+    row: Mapping[str, Any],
+    cleaned: Mapping[str, Any],
+) -> None:
+    """Check that one re-timed row only moved its own start and end.
+
+    :param video_id: the video the row belongs to.
+    :param index: the row's position, used in error messages.
+    :param row: the re-timed row.
+    :param cleaned: the cleaned chunk carrying the same ``chunk_id``.
+    :return: None; raises ValueError when the row departs from its cleaned source.
+    """
+    status = str(row["align_status"])
+    if status not in RETIMED_ALIGN_STATUSES:
+        raise ValueError(f"{video_id} retimed row {index} has unknown status {status}")
+    if float(row["coarse_start"]) != float(cleaned["start"]) or float(
+        row["coarse_end"]
+    ) != float(cleaned["end"]):
+        raise ValueError(f"{video_id} retimed row {index} coarse times differ from cleaned")
+    if any(row[field] != cleaned[field] for field in RETIMED_PRESERVED_FIELDS):
+        raise ValueError(f"{video_id} retimed row {index} altered a cleaned field")
+    if status in RETIMED_COARSE_STATUSES and (
+        float(row["start"]) != float(row["coarse_start"])
+        or float(row["end"]) != float(row["coarse_end"])
+    ):
+        raise ValueError(f"{video_id} retimed row {index} is {status} but was re-timed")
+    if status == AlignStatus.ALIGNED.value:
+        _validate_aligned_row(video_id, index, row)
+
+
+def _validate_aligned_row(video_id: str, index: int, row: Mapping[str, Any]) -> None:
+    """Check that an aligned row's new time is credible.
+
+    The sidecars are not hash-pinned, so this is the only defence against a producer
+    bug that re-times a chunk to somewhere it could not have been matched.
+
+    :param video_id: the video the row belongs to.
+    :param index: the row's position, used in error messages.
+    :param row: an aligned re-timed row.
+    :return: None; raises ValueError when the start left its search window, the
+        recorded shift disagrees with the start, or the match ratio is below the floor.
+    """
+    start = float(row["start"])
+    coarse_start = float(row["coarse_start"])
+    low = coarse_start - SEARCH_PAD_S - RETIMED_START_SLACK_S
+    high = float(row["coarse_end"]) + SEARCH_PAD_S + RETIMED_START_SLACK_S
+    if not low <= start <= high:
+        raise ValueError(f"{video_id} retimed row {index} moved outside its search window")
+    shift = row["align_shift_s"]
+    if shift is None or abs(float(shift) - (start - coarse_start)) > RETIMED_SHIFT_TOLERANCE_S:
+        raise ValueError(f"{video_id} retimed row {index} shift disagrees with its start")
+    ratio = row["align_match_ratio"]
+    if ratio is None or float(ratio) < MIN_MATCH_RATIO:
+        raise ValueError(f"{video_id} retimed row {index} is aligned below the match floor")
+
+
+def _load_retimed_chunks_for_video(
+    commentary_root: Path,
+    video_id: str,
+    chunks: Sequence[Mapping[str, Any]],
+    duration_seconds: float,
+) -> tuple[tuple[Mapping[str, Any], ...] | None, str | None]:
+    """Load one video's optional WhisperX-aligned re-timed sidecar (issue #136).
+
+    These sidecars post-date the pinned commentary manifest, so they are hash-recorded
+    rather than hash-checked. Their content is instead tied to the cleaned chunks: the
+    same chunk population, the same cleaned fields, and coarse times matching the
+    cleaned start and end.
+
+    :param commentary_root: root of the commentary artifact tree.
+    :param video_id: the video to load.
+    :param chunks: the video's validated cleaned chunks.
+    :param duration_seconds: the video's canonical duration, for timeline validation.
+    :return: ``(rows, sha256)``, or ``(None, None)`` when no sidecar exists.
+    """
+    path = commentary_root / RETIMED_RELATIVE_DIR / f"{video_id}.json"
+    if not path.is_file():
+        return None, None
+    if not chunks:
+        raise ValueError(f"{video_id} has a retimed sidecar but no cleaned chunks")
+    rows = [
+        _mapping(row, f"{video_id} retimed chunk")
+        for row in _sequence(
+            json.loads(path.read_text(encoding="utf-8")), f"{video_id} retimed chunks"
+        )
+    ]
+    cleaned_by_id = {str(chunk["chunk_id"]): chunk for chunk in chunks}
+    if len(rows) != len(chunks) or {str(row["chunk_id"]) for row in rows} != set(
+        cleaned_by_id
+    ):
+        raise ValueError(f"{video_id} retimed chunk population differs from cleaned")
+    for index, row in enumerate(rows):
+        _validate_retimed_row(
+            video_id, index, row, cleaned_by_id[str(row["chunk_id"])]
+        )
+    _validate_timed_rows(rows, duration_seconds, f"{video_id} retimed chunks")
+    _validate_unique_chunk_starts(rows, f"{video_id} retimed chunks")
+    return tuple(rows), _sha256(path)
+
+
 def _video_rally_views(
     dataset: str,
     video_id: str,
@@ -602,6 +725,9 @@ def _load_video_inputs(
         chunks = _load_cleaned_chunks_for_video(
             commentary_root, manifest_index, video_id, status
         )
+        retimed_chunks, retimed_sha256 = _load_retimed_chunks_for_video(
+            commentary_root, video_id, chunks, float(status["local_duration_s"])
+        )
 
         fps = float(row["local_fps"].split("/", maxsplit=1)[0]) / float(
             row["local_fps"].split("/", maxsplit=1)[1]
@@ -632,6 +758,8 @@ def _load_video_inputs(
                 human_rallies=tuple(human_rallies),
                 replay_mask=replay_mask,
                 annotation_population=annotation_population,
+                retimed_chunks=retimed_chunks,
+                retimed_sha256=retimed_sha256,
             )
         )
     return inputs
