@@ -16,7 +16,7 @@ primitive artifacts where they remain compatible.
 | Shots per rally | Exact production count on 298 of 3,287 eligible ShuttleSet rallies | A merged production contact stream with materially better complete-rally contact count and ordering, followed by the same aggregate and per-video ground-truth benchmark |
 | Away-from-centre recovery | Formula and coverage are verified, but production contact and server attribution are weak | Better production contacts and server or striker attribution, followed by a comparison against windows built from existing human contact labels |
 | Movement inefficiency | Formula and coverage are verified, but production intervals use predicted contacts | Better complete-rally contact sequences, followed by a paired comparison of predicted-contact and human-contact interval values on uniquely mapped rallies |
-| Rally-to-commentary association | The post-rally join covers 1,822 of 6,229 eligible human-contact rallies and 77 of 3,434 eligible production spans | Fine-aligned transcript timestamps, an association policy that covers both in-rally and post-rally commentary, and a labeled sample that measures timing and rally-association accuracy |
+| Rally-to-commentary association | The post-rally join covers 1,822 of 6,229 eligible human-contact rallies and 77 of 3,434 eligible production spans. The issue #136 aligned rerun word-times 92.6% of chunks; Ari's issue #138 rule then covers 2,119 of 6,156 human-contact rallies at 8 s and 2,222 at 10 s with no ambiguous chunk. 1,890 ShuttleSet chunk starts sit on replay-masked frames | Choose the lag window and a replay-time commentary policy with Ari, then label a sample that measures timing and rally-association accuracy. Aligned timestamps are done; see the [aligned rerun](issue_104_shuttleset_benchmark.md#aligned-rerun-issue-136) |
 
 The existing ShuttleSet annotations are sufficient for those comparisons. They
 do not require new vision inference. New annotations are needed only if the
@@ -61,7 +61,10 @@ extraction, and commentary was intentionally outside that run path.
 The commentary data preparation and benchmark are now complete. The exact 40
 ShuttleSet and 47 non-overlap ShuttleSet22 sources have normalized transcripts.
 Caption-backed sources use the existing timed-caption parser. The other 22 use
-the existing coarse WhisperX path. Relevance triage and cleaning reuse the
+the existing coarse WhisperX path. Issue #136 then ran a whole-video WhisperX
+pass with forced alignment over all 87 sources and re-timed 92.6% of the
+cleaned chunks to word boundaries; the coarse transcripts stay in place as the
+triage and cleaning inputs. Relevance triage and cleaning reuse the
 supported provider contracts through OpenRouter support pinned at merge
 `819d3075e72966a3d80eb454202b83b3810225ae`; native Gemini support is unchanged.
 
@@ -82,3 +85,6 @@ and player link remain unresolved.
 4. Include the source-aligned commentary bundle as auxiliary supporting data.
    Keep raw, normalized, and cleaned artifacts separate, and revisit derived
    commentary fields only after their gates above are met.
+5. For the rally link, settle the lag window and replay-time policy with Ari
+   from the issue #136 lag sweep, then label a small sample of pairs before
+   any accuracy claim.
