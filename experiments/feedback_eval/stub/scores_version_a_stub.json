@@ -1,0 +1,107 @@
+{
+  "model_version": "A-stub",
+  "scorer": {
+    "model_type": null,
+    "lang": "en",
+    "rescale_with_baseline": false,
+    "batch_size": 16
+  },
+  "aggregates": {
+    "n_clips": 8,
+    "n_players": 3,
+    "n_empty_predictions": 1,
+    "mean_precision": 0.33656832298136646,
+    "mean_recall": 0.2925357374042507,
+    "mean_f1": 0.3088851910706809,
+    "stdev_f1": 0.2170942261772333
+  },
+  "mean_f1_by_player": {
+    "stub_player_a": 0.3532505910165485,
+    "stub_player_b": 0.25391903531438414,
+    "stub_player_c": 0.3247863247863248
+  },
+  "clips": [
+    {
+      "clip_id": "stub_0001",
+      "player_ids": [
+        "stub_player_a"
+      ],
+      "precision": 0.5238095238095238,
+      "recall": 0.4230769230769231,
+      "f1": 0.4680851063829788,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0002",
+      "player_ids": [
+        "stub_player_a"
+      ],
+      "precision": 0.4782608695652174,
+      "recall": 0.44,
+      "f1": 0.4583333333333333,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0003",
+      "player_ids": [
+        "stub_player_a"
+      ],
+      "precision": 0.21428571428571427,
+      "recall": 0.0967741935483871,
+      "f1": 0.13333333333333333,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0004",
+      "player_ids": [
+        "stub_player_b"
+      ],
+      "precision": 0.15,
+      "recall": 0.13043478260869565,
+      "f1": 0.13953488372093023,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0005",
+      "player_ids": [
+        "stub_player_b"
+      ],
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "empty_prediction": true
+    },
+    {
+      "clip_id": "stub_0006",
+      "player_ids": [
+        "stub_player_b"
+      ],
+      "precision": 0.5833333333333334,
+      "recall": 0.6666666666666666,
+      "f1": 0.6222222222222222,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0007",
+      "player_ids": [
+        "stub_player_c"
+      ],
+      "precision": 0.26666666666666666,
+      "recall": 0.16666666666666666,
+      "f1": 0.2051282051282051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "stub_0008",
+      "player_ids": [
+        "stub_player_c"
+      ],
+      "precision": 0.47619047619047616,
+      "recall": 0.4166666666666667,
+      "f1": 0.4444444444444445,
+      "empty_prediction": false
+    }
+  ],
+  "dry_run": true,
+  "split": null
+}
