@@ -28,6 +28,13 @@ from dataset_builder.export_v1 import (
 )
 from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import ArtifactIntegrity
+from dataset_builder.players import (
+    DEFAULT_PLAYERS,
+    MATCH_TABLE_FILENAME,
+    Player,
+    load_match_players,
+    load_players,
+)
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
     COURT_KEEP_VOTE_FILENAME,
@@ -42,6 +49,7 @@ from shuttleset22 import DEFAULT_SOURCES, Source, SourceKind, load_sources, sele
 SOURCE_DATASET = "ShuttleSet22"
 EXTRACTED_DIRECTORY = "extracted-simple"
 ANNOTATIONS_DIRECTORY = "annotations"
+SET_DIRECTORY = "set"
 SOURCES_DIRECTORY = "sources"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
 INPUT_ARTIFACT_FILENAMES: dict[str, str] = {
@@ -63,6 +71,7 @@ class ShuttleSet22ExportInputs:
     sources: Path = DEFAULT_SOURCES
     commentary_root: Path | None = None
     match_ids: tuple[int, ...] | None = None
+    players: Path = DEFAULT_PLAYERS
 
     def __post_init__(self) -> None:
         if not isinstance(self.run_id, str) or not self.run_id:
@@ -84,10 +93,14 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
                 f"source {source.match_id} is {source.kind.value}, not a ShuttleSet22 download"
             )
     annotation_root = data_root / ANNOTATIONS_DIRECTORY
+    players_path = Path(inputs.players)
+    players = load_players(players_path)
     videos = []
     for source in sources:
         videos.append(
-            build_video_tables(inputs.output_dir, _video_inputs(data_root, source, inputs.run_id))
+            build_video_tables(
+                inputs.output_dir, _video_inputs(data_root, source, inputs.run_id, players)
+            )
         )
     identity = DatasetIdentity(
         run_id=inputs.run_id,
@@ -99,12 +112,16 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
             None if inputs.commentary_root is None
             else Path(inputs.commentary_root).resolve(strict=True)
         ),
+        players_table=artifact_integrity("players", players_path).to_dict(),
     )
     video_ids = [video_id_for(source.match_id) for source in sources]
     return write_dataset(inputs.output_dir, identity, videos, video_ids)
 
 
-def _video_inputs(data_root: Path, source: Source, run_id: str) -> VideoInputs:
+def _video_inputs(
+    data_root: Path, source: Source, run_id: str, players: Mapping[str, Player]
+) -> VideoInputs:
+    annotation_root = data_root / ANNOTATIONS_DIRECTORY
     output = data_root / EXTRACTED_DIRECTORY / f"{source.match_id:02d} {source.video}"
     receipt = load_json_gz(output / COURT_RECEIPT_FILENAME)
     metadata = metadata_from_receipt(receipt, data_root, source)
@@ -131,8 +148,11 @@ def _video_inputs(data_root: Path, source: Source, run_id: str) -> VideoInputs:
         player_inputs=player_inputs,
         annotator_spans=(),
         input_artifacts=tuple(input_artifacts),
-        annotation_dir=data_root / ANNOTATIONS_DIRECTORY / "set" / source.video,
-        annotation_root=data_root / ANNOTATIONS_DIRECTORY,
+        annotation_dir=annotation_root / SET_DIRECTORY / source.video,
+        annotation_root=annotation_root,
+        match_players=load_match_players(
+            annotation_root / SET_DIRECTORY / MATCH_TABLE_FILENAME, source.video, players
+        ),
         identity={
             "match_id": source.match_id,
             "video": source.video,

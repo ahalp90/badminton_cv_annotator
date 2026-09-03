@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from enum import IntEnum
+from fractions import Fraction
 import math
 from typing import NamedTuple
 
@@ -27,6 +28,10 @@ EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)
 ANKLE_INDICES = (15, 16)
 COURT_SIDES = ("top", "bottom")
+# Issue #32 fixed the clip offsets: 2 s of lead-in before the first contact and
+# 3 s of tail after the last, so a clip keeps the serve setup and the point ending.
+CLIP_LEAD_SECONDS = 2
+CLIP_TAIL_SECONDS = 3
 
 
 class InterpolationType(IntEnum):
@@ -266,6 +271,19 @@ def rally_timestamps(start_frame: int, end_frame: int, fps: float) -> dict[str, 
         "second_range": [start_frame / fps, end_frame / fps],
         "fps": fps,
     }
+
+
+def clip_frames(
+    start_frame: int, end_frame: int, fps: Fraction, frame_count: int
+) -> tuple[int, int]:
+    """Return the issue #32 clip range around one rally, clamped to the video."""
+    validate_frame_range(start_frame, end_frame)
+    if frame_count < end_frame:
+        raise ValueError(f"frame_count {frame_count} does not cover end_frame {end_frame}")
+    return (
+        max(0, start_frame - round(CLIP_LEAD_SECONDS * fps)),
+        min(frame_count, end_frame + round(CLIP_TAIL_SECONDS * fps)),
+    )
 
 
 def player_rally_features(

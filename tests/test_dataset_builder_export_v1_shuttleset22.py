@@ -25,6 +25,7 @@ from dataset_builder.schema_v1 import (
     DATASET_SCHEMA,
     PLAYER_RALLIES,
     PLAYER_SIGNALS,
+    PLAYERS,
     PRIMITIVE_ARTIFACTS,
     RALLIES,
     SOURCE_CONTACTS,
@@ -32,7 +33,14 @@ from dataset_builder.schema_v1 import (
     read_table,
 )
 from shuttleset22 import COURT_RECEIPT_SCHEMA, Source, SourceKind
-from tests.test_dataset_builder_export_v1 import FRAME_COUNT, RESOLUTION, SET_CSV
+from tests.test_dataset_builder_export_v1 import (
+    FRAME_COUNT,
+    LOSER_ID,
+    RESOLUTION,
+    SET_CSV,
+    WINNER_ID,
+    assert_rally_ids_match_player_rows,
+)
 from tests.test_dataset_builder_vision import _court_vision, _pose_arrays
 
 
@@ -46,8 +54,13 @@ EXTRACTED_DIRECTORY = "extracted-simple"
 ANNOTATIONS_DIRECTORY = "annotations"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
 SET_FILENAME = "set1.csv"
+MATCH_FILENAME = "match.csv"
 # The two usable rallies of the shared fixture, plus a third the flaw field excludes.
-FLAW_MARKED_CSV = SET_CSV + "3,1,80,殺球,1,A,A\n"
+FLAW_MARKED_CSV = SET_CSV + "3,1,80,殺球,1,A,A,3,0\n"
+# ShuttleSet22's 2022 rows write downcourt as a float, so the parser must accept "1.0".
+MATCH_CSV = f"""id,video,winner,loser,downcourt
+{MATCH_ID},{VIDEO},Kento MOMOTA,CHOU Tien Chen,1.0
+"""
 RECEIPT_METADATA: dict[str, object] = {
     "fps_numerator": 30,
     "fps_denominator": 1,
@@ -138,6 +151,7 @@ def _build_data_root(tmp_path: Path) -> DataFixture:
     annotations = data_root / ANNOTATIONS_DIRECTORY / "set" / VIDEO
     annotations.mkdir(parents=True)
     (annotations / SET_FILENAME).write_text(FLAW_MARKED_CSV, encoding="utf-8")
+    (annotations.parent / MATCH_FILENAME).write_text(MATCH_CSV, encoding="utf-8")
     sources = _sources_toml(tmp_path / "sources.toml", {MATCH_ID: DOWNLOAD_ENTRY})
     return DataFixture(data_root.resolve(), sources, artifacts)
 
@@ -166,13 +180,29 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     assert rallies["source_set"].tolist() == [1, 1]
     assert rallies["source_rally"].tolist() == [1, 2]
     assert list(zip(rallies["start_frame"], rallies["end_frame"])) == [(5, 21), (61, 71)]
+    # 30 fps: 60 frames of lead-in and 90 of tail, both clamped by this short fixture.
+    assert list(zip(rallies["clip_start_frame"], rallies["clip_end_frame"])) == [
+        (0, 100), (1, 100),
+    ]
 
-    assert len(tables[PLAYER_RALLIES.name]) == 4
+    player_rallies = tables[PLAYER_RALLIES.name]
+    assert len(player_rallies) == 4
+    # downcourt = 1.0 and set 1 put the match winner on the top court.
+    assert set(zip(player_rallies["court_side"], player_rallies["player_id"])) == {
+        ("top", WINNER_ID), ("bottom", LOSER_ID),
+    }
+    assert_rally_ids_match_player_rows(rallies, player_rallies)
+    people = tables[PLAYERS.name]
+    assert people["player_id"].tolist() == [LOSER_ID, WINNER_ID]
+    assert people["sex"].tolist() == ["male", "male"]
 
     contacts = tables[SOURCE_CONTACTS.name]
     assert contacts["frame_num"].tolist() == [5, 12, 20, 61, 70, 80]
     assert contacts["rally_id"].tolist() == [0, 0, 0, 1, 1, pd.NA]
     assert contacts["flaw_marked"].tolist() == [False] * 5 + [True]
+    assert contacts["player_id"].tolist() == [
+        WINNER_ID, LOSER_ID, WINNER_ID, LOSER_ID, WINNER_ID, WINNER_ID,
+    ]
 
     artifacts = tables[PRIMITIVE_ARTIFACTS.name]
     inputs = artifacts[artifacts["location"] == "input_dir"]
@@ -196,6 +226,7 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
         "shuttleset22_sources", fixture.sources
     ).to_dict()
     assert str(manifest["ground_truth_root"]).endswith(ANNOTATIONS_DIRECTORY)
+    assert manifest["players_table"]["name"] == "players"
     assert manifest["videos"] == [
         {
             **manifest["videos"][0],
@@ -206,6 +237,11 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
             "fps": "30/1",
             "annotator_rallies": 0,
             "source_rallies": 2,
+            "match_players": {
+                "player_a": WINNER_ID,
+                "player_b": LOSER_ID,
+                "first_a_is_top": True,
+            },
         }
     ]
     assert [entry["path"] for entry in manifest["videos"][0]["source_annotation_files"]] == [

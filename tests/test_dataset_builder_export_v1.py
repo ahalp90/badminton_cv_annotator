@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from dataset_builder import vision
@@ -21,6 +22,7 @@ from dataset_builder.schema_v1 import (
     PLAYER_RALLIES,
     PLAYER_SIGNALS,
     PLAYER_SIGNALS_DIRECTORY,
+    PLAYERS,
     PRIMITIVE_ARTIFACTS,
     RALLIES,
     SOURCE_CONTACTS,
@@ -48,6 +50,9 @@ SOURCE_DATASET = "scraped-professional"
 FRAME_COUNT = 100
 RESOLUTION = (100.0, 50.0)
 ANNOTATION_DIRECTORY = "set/fixture_match"
+# The two curated people of the fixture match, as configs/players.csv spells them.
+WINNER_ID = "kento_momota"  # player A; downcourt 1 starts A on the top court in set 1
+LOSER_ID = "chou_tien_chen"
 # The frozen artifact names the export copies out of each per-video run stage.
 STAGE_ARTIFACTS: dict[str, tuple[str, ...]] = {
     "shuttle": ("shuttle_track", "shuttle_guard_codes"),
@@ -61,13 +66,23 @@ SIGNAL_SHAPES = {
     "posture_interpolation": (FRAME_COUNT, 2),
     "position_interpolation": (FRAME_COUNT, 2),
 }
-# rally, ball_round, frame_num, type, flaw, and two fields v1 deliberately drops.
-SET_CSV = """rally,ball_round,frame_num,type,flaw,player,getpoint_player
-1,1,5,發短球,,A,
-1,2,12,挑球,,B,
-1,3,20,殺球,,A,A
-2,1,61,發長球,,B,
-2,2,70,切球,,A,A
+# rally, ball_round, frame_num, type, flaw, player, the two round scores, and one
+# field v1 deliberately drops.
+SET_CSV = """rally,ball_round,frame_num,type,flaw,player,getpoint_player,roundscore_A,roundscore_B
+1,1,5,發短球,,A,,1,0
+1,2,12,挑球,,B,,1,0
+1,3,20,殺球,,A,A,1,0
+2,1,61,發長球,,B,,2,0
+2,2,70,切球,,A,A,2,0
+"""
+# Only rally 1, so the single side phase is [5, 21) and misses the (60, 100) span.
+NARROW_SET_CSV = """rally,ball_round,frame_num,type,flaw,player,getpoint_player,roundscore_A,roundscore_B
+1,1,5,發短球,,A,,1,0
+1,2,12,挑球,,B,,1,0
+1,3,20,殺球,,A,A,1,0
+"""
+MATCH_CSV = """id,video,winner,loser,downcourt
+1,fixture_match,Kento MOMOTA,CHOU Tien Chen,1
 """
 FIXED_SOURCES_TOML = f"""schema = "dataset-builder-fixed-sources/1"
 dataset = "ShuttleSet"
@@ -87,6 +102,26 @@ eligible = true
 match_id = "1"
 annotation_directory = "{ANNOTATION_DIRECTORY}"
 """
+
+
+def assert_rally_ids_match_player_rows(
+    rallies: pd.DataFrame, player_rallies: pd.DataFrame
+) -> None:
+    """Each rally's two id columns must equal its own player_rallies rows, nulls included."""
+    sides: dict[tuple[str, str, str, int], dict[str, object]] = {}
+    for row in player_rallies.itertuples():
+        key = (row.source_dataset, row.video_id, row.rally_origin, int(row.rally_id))
+        sides.setdefault(key, {})[row.court_side] = row.player_id
+    assert len(sides) == len(rallies)
+    for row in rallies.itertuples():
+        key = (row.source_dataset, row.video_id, row.rally_origin, int(row.rally_id))
+        for column, side in (("top_player_id", "top"), ("bottom_player_id", "bottom")):
+            expected = sides[key][side]
+            actual = getattr(row, column)
+            if pd.isna(expected):
+                assert pd.isna(actual), (key, column)
+            else:
+                assert actual == expected, (key, column)
 
 
 class RunFixture(NamedTuple):
@@ -174,6 +209,7 @@ def _build_run(tmp_path: Path, *, skip_stage: str = "") -> RunFixture:
     annotations = ground_truth_root / ANNOTATION_DIRECTORY
     annotations.mkdir(parents=True)
     (annotations / "set1.csv").write_text(SET_CSV, encoding="utf-8")
+    (annotations.parent / "match.csv").write_text(MATCH_CSV, encoding="utf-8")
     fixed_sources = tmp_path / "fixed_sources.toml"
     fixed_sources.write_text(FIXED_SOURCES_TOML, encoding="utf-8")
     return RunFixture(run_dir, ground_truth_root, fixed_sources)
@@ -205,11 +241,24 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     assert (rallies["fps"] == 25.0).all()
     assert (rallies["frame_count"] == FRAME_COUNT).all()
     assert rallies["duration_seconds"].tolist() == [2.0, 1.6, 0.64, 0.4]
+    # 25 fps: 50 frames of lead-in and 75 of tail, clamped to [0, frame_count).
+    assert list(zip(rallies["clip_start_frame"], rallies["clip_end_frame"])) == [
+        (0, 100), (10, 100), (0, 96), (11, 100),
+    ]
 
     players = tables[PLAYER_RALLIES.name]
     assert len(players) == 2 * len(rallies)
     for _, rally_players in players.groupby(["rally_origin", "rally_id"]):
         assert rally_players["court_side"].tolist() == ["bottom", "top"]
+    # downcourt = 1 and set 1 put the match winner on the top court.
+    assert set(zip(players["court_side"], players["player_id"])) == {
+        ("top", WINNER_ID), ("bottom", LOSER_ID),
+    }
+    assert_rally_ids_match_player_rows(rallies, players)
+    people = tables[PLAYERS.name]
+    assert people["player_id"].tolist() == [LOSER_ID, WINNER_ID]
+    assert people["player_name"].tolist() == ["CHOU Tien Chen", "Kento MOMOTA"]
+    assert people["sex"].tolist() == ["male", "male"]
     # The fixture's pose is all-NaN with no detections, so no frame has a posture value.
     assert players["posture_mad"].isna().all()
     assert (players["posture_frames_valid"] == 0).all()
@@ -219,6 +268,9 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     assert contacts["source_row"].tolist() == [0, 1, 2, 3, 4]
     assert contacts["frame_num"].tolist() == [5, 12, 20, 61, 70]
     assert contacts["rally_id"].tolist() == [0, 0, 0, 1, 1]
+    assert contacts["player_id"].tolist() == [
+        WINNER_ID, LOSER_ID, WINNER_ID, LOSER_ID, WINNER_ID,
+    ]
     assert contacts["contact_type_en"].tolist() == [
         "short_service", "lob", "smash", "long_service", "drop",
     ]
@@ -264,6 +316,12 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
             "source_rallies": 2,
         }
     ]
+    assert manifest["players_table"]["name"] == "players"
+    assert manifest["videos"][0]["match_players"] == {
+        "player_a": WINNER_ID,
+        "player_b": LOSER_ID,
+        "first_a_is_top": True,
+    }
     assert [entry["feature"] for entry in manifest["dispositions"]] == [
         disposition.feature for disposition in FEATURE_DISPOSITIONS
     ]
@@ -282,6 +340,34 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
         assert (repeat_dir / table.filename).read_bytes() == (
             output_dir / table.filename
         ).read_bytes()
+
+
+def test_annotator_spans_take_ids_only_from_one_overlapping_side_phase(tmp_path: Path) -> None:
+    """Span (0, 50) meets the one side phase; span (60, 100) meets none, so it is null."""
+    fixture = _build_run(tmp_path)
+    (fixture.ground_truth_root / ANNOTATION_DIRECTORY / "set1.csv").write_text(
+        NARROW_SET_CSV, encoding="utf-8"
+    )
+    output_dir = tmp_path / "export"
+
+    export_dataset_v1(
+        ExportInputs(
+            run_dir=fixture.run_dir,
+            output_dir=output_dir,
+            fixed_sources_manifest=fixture.fixed_sources,
+            ground_truth_root=fixture.ground_truth_root,
+        )
+    )
+
+    players = read_table(output_dir, PLAYER_RALLIES)
+    assert_rally_ids_match_player_rows(read_table(output_dir, RALLIES), players)
+    annotator = players[players["rally_origin"] == "annotator"]
+    inside = annotator[annotator["rally_id"] == 0]
+    outside = annotator[annotator["rally_id"] == 1]
+    assert set(zip(inside["court_side"], inside["player_id"])) == {
+        ("top", WINNER_ID), ("bottom", LOSER_ID),
+    }
+    assert outside["player_id"].isna().all()
 
 
 def test_export_via_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -304,6 +390,11 @@ def test_export_via_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
     rallies = read_table(bare, RALLIES)
     assert set(rallies["rally_origin"]) == {"annotator"}
     assert read_table(bare, SOURCE_CONTACTS).empty
+    # No annotations means no match table, so no side phase resolves a person.
+    assert read_table(bare, PLAYERS).empty
+    assert read_table(bare, PLAYER_RALLIES)["player_id"].isna().all()
+    assert rallies["top_player_id"].isna().all()
+    assert rallies["bottom_player_id"].isna().all()
 
 
 def test_export_rejects_missing_primitive_stage(tmp_path: Path) -> None:

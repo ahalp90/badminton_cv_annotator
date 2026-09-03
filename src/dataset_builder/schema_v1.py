@@ -5,7 +5,8 @@ table, column, type, or nullability changes the frozen schema and must bump
 ``DATASET_SCHEMA`` and update ``tests/test_dataset_builder_schema_v1.py``.
 
 Decisions come from issue #22 (formulas), issue #104 (keep, cut, unresolved),
-and issue #18 (this freeze). See ``docs/dataset_v1_schema.md``.
+issue #18 (this freeze), and Ari's review of PR #135 (player identity and
+sex). See ``docs/dataset_v1_schema.md``.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class ReliabilityClass(StrEnum):
     SOURCE_ANNOTATION = "source_annotation"
     PREDICTED = "predicted"
     DERIVED = "derived"
+    CURATED = "curated"
     BY_RALLY_ORIGIN = "by_rally_origin"
 
 
@@ -51,6 +53,10 @@ RELIABILITY_MEANINGS: dict[ReliabilityClass, str] = {
     ReliabilityClass.DERIVED: (
         "Verified computation over frame-aligned primitives. Not validated against "
         "independent ground truth."
+    ),
+    ReliabilityClass.CURATED: (
+        "Hand-maintained metadata table in the repository, checked against the ShuttleSet "
+        "match tables at export. Not a prediction and not inferred from video."
     ),
     ReliabilityClass.BY_RALLY_ORIGIN: (
         "predicted when rally_origin is annotator; source_annotation when rally_origin "
@@ -223,8 +229,19 @@ RALLIES = TableSpec(
         ),
         ColumnSpec(
             "duration_seconds", ColumnType.FLOAT, False, ReliabilityClass.BY_RALLY_ORIGIN,
-            "duration_frames / fps. This is the span length, not the unresolved issue #22 "
-            "rally duration from the final contact plus an offset.",
+            "duration_frames / fps. This is the span length, not the issue #22 rally "
+            "duration from the final contact plus an offset.",
+        ),
+        ColumnSpec(
+            "clip_start_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
+            "start_frame minus 2 s of lead-in at the source frame rate, clamped at 0. "
+            "Issue #32 context for the serve setup.",
+        ),
+        ColumnSpec(
+            "clip_end_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
+            "end_frame plus 3 s of tail at the source frame rate, clamped at frame_count; "
+            "one past the last clip frame. On source_contacts rows the issue #22 rally "
+            "duration from the final contact plus offset is clip_end_frame - start_frame.",
         ),
         ColumnSpec(
             "source_set", ColumnType.INTEGER, True, ReliabilityClass.SOURCE_ANNOTATION,
@@ -234,6 +251,16 @@ RALLIES = TableSpec(
             "source_rally", ColumnType.INTEGER, True, ReliabilityClass.SOURCE_ANNOTATION,
             "ShuttleSet rally number within its set for source_contacts rows. Null for "
             "annotator rows.",
+        ),
+        ColumnSpec(
+            "top_player_id", ColumnType.STRING, True, ReliabilityClass.DERIVED,
+            "players.player_id of the person on the top court during this rally; same "
+            "derivation and null cases as player_rallies.player_id.",
+        ),
+        ColumnSpec(
+            "bottom_player_id", ColumnType.STRING, True, ReliabilityClass.DERIVED,
+            "players.player_id of the person on the bottom court during this rally; same "
+            "derivation and null cases as player_rallies.player_id.",
         ),
     ),
     description=(
@@ -254,6 +281,14 @@ PLAYER_RALLIES = TableSpec(
             "court_side", ColumnType.STRING, False, ReliabilityClass.DERIVED,
             "top or bottom: the court half the sticky-player picker assigned. A row belongs "
             "to a side within one rally, not to a person.",
+        ),
+        ColumnSpec(
+            "player_id", ColumnType.STRING, True, ReliabilityClass.DERIVED,
+            "players.player_id of the person on court_side in this rally. source_contacts "
+            "rows: exact, from the match table's downcourt flag, the set number, and the "
+            "set-3 change of ends when a score first reaches 11. annotator rows: the one "
+            "side phase whose human-contact frame envelope overlaps the span; null when no "
+            "phase or more than one overlaps, or when the video has no source annotations.",
         ),
         ColumnSpec(
             "posture_frames_valid", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
@@ -289,6 +324,34 @@ PLAYER_RALLIES = TableSpec(
 )
 
 
+PLAYERS = TableSpec(
+    name="players",
+    filename="players.csv.gz",
+    key=("player_id",),
+    columns=(
+        ColumnSpec(
+            "player_id", ColumnType.STRING, False, ReliabilityClass.CURATED,
+            "Stable lowercase identifier shared by ShuttleSet and ShuttleSet22, from "
+            "configs/players.csv.",
+        ),
+        ColumnSpec(
+            "player_name", ColumnType.STRING, False, ReliabilityClass.CURATED,
+            "Display name, spelled as the ShuttleSet match tables spell it.",
+        ),
+        ColumnSpec(
+            "sex", ColumnType.STRING, False, ReliabilityClass.CURATED,
+            "female or male: the BWF singles draw the player competes in. Both players of "
+            "a singles match share the value; the exporter refuses a match where they "
+            "differ.",
+        ),
+    ),
+    description=(
+        "One row per person referenced by this export. player_rallies.player_id and "
+        "source_contacts.player_id are foreign keys to player_id."
+    ),
+)
+
+
 SOURCE_CONTACTS = TableSpec(
     name="source_contacts",
     filename="source_contacts.csv.gz",
@@ -310,6 +373,12 @@ SOURCE_CONTACTS = TableSpec(
         ColumnSpec(
             "ball_round", ColumnType.INTEGER, True, ReliabilityClass.SOURCE_ANNOTATION,
             "ShuttleSet shot number within the rally.",
+        ),
+        ColumnSpec(
+            "player_id", ColumnType.STRING, True, ReliabilityClass.SOURCE_ANNOTATION,
+            "players.player_id of the hitter: the source player letter resolved through "
+            "the match table, where A is the match winner. Null when the letter is not A "
+            "or B.",
         ),
         ColumnSpec(
             "frame_num", ColumnType.INTEGER, True, ReliabilityClass.SOURCE_ANNOTATION,
@@ -465,6 +534,7 @@ COMMENTARY_CHUNKS = TableSpec(
 TABLES: tuple[TableSpec, ...] = (
     RALLIES,
     PLAYER_RALLIES,
+    PLAYERS,
     SOURCE_CONTACTS,
     PRIMITIVE_ARTIFACTS,
     TRANSCRIPT_SEGMENTS,
@@ -603,6 +673,23 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "class. Not rally labels.",
     ),
     FeatureDisposition(
+        "Rally duration from final contact plus offset", Disposition.KEEP,
+        ("rallies.clip_start_frame", "rallies.clip_end_frame"),
+        "Issue #32 fixed the offsets: 2 s before the first contact and 3 s after the last, "
+        "clamped to the video. Exact on source_contacts rows; predicted spans on annotator "
+        "rows.",
+    ),
+    FeatureDisposition(
+        "Player identity and sex", Disposition.KEEP,
+        (
+            "players.player_id", "players.sex", "rallies.top_player_id",
+            "rallies.bottom_player_id", "player_rallies.player_id",
+            "source_contacts.player_id",
+        ),
+        "Curated per-player table joined through the ShuttleSet match tables. Court sides "
+        "map to people by the downcourt flag, the set number, and the set-3 change of ends.",
+    ),
+    FeatureDisposition(
         "Shots per rally", Disposition.CUT, (),
         "Exact production count on 298 of 3,287 eligible ShuttleSet rallies.",
     ),
@@ -619,10 +706,6 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "Post-rally join pairs 2.24% of production spans and mis-claims across rallies.",
     ),
     FeatureDisposition(
-        "Rally duration from final contact plus offset", Disposition.UNRESOLVED, (),
-        "Issue #22 does not define the end offset.",
-    ),
-    FeatureDisposition(
         "Serve speed proxy", Disposition.UNRESOLVED, (),
         "Return, static, and viewport endpoints are undefined and shuttle error is large.",
     ),
@@ -633,10 +716,6 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
     FeatureDisposition(
         "Tanh-normalised degradation", Disposition.UNRESOLVED, (),
         "Issue #22 does not define the temperature.",
-    ),
-    FeatureDisposition(
-        "Player sex", Disposition.UNRESOLVED, (),
-        "No authoritative metadata source. Never inferred from names or video.",
     ),
     FeatureDisposition(
         "Backward extrapolation", Disposition.UNRESOLVED, (),

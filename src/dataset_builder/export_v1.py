@@ -24,13 +24,24 @@ from annotator.shuttle_track import validate_shuttle_track
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.commentary_export import commentary_tables, empty_table
 from dataset_builder.features import (
+    COURT_SIDES,
     PlayerFeatureInputs,
+    clip_frames,
     derive_player_feature_inputs,
     player_rally_features,
 )
 from dataset_builder.fixed_sources import load_fixed_source_manifest
 from dataset_builder.manifest import artifact_integrity, load_run_manifest, run_manifest_sha256
 from dataset_builder.models import ArtifactIntegrity, RunManifest, StageOutcome
+from dataset_builder.players import (
+    DEFAULT_PLAYERS,
+    MATCH_TABLE_FILENAME,
+    MatchPlayers,
+    Player,
+    load_match_players,
+    load_players,
+    phase_for_span,
+)
 from dataset_builder.records import RALLY_RECORDS_FILENAME, load_rally_records
 from dataset_builder.schema_v1 import (
     COMMENTARY_CHUNKS,
@@ -40,6 +51,7 @@ from dataset_builder.schema_v1 import (
     PLAYER_RALLIES,
     PLAYER_SIGNALS,
     PLAYER_SIGNALS_DIRECTORY,
+    PLAYERS,
     PRIMITIVE_ARTIFACT_NOTES,
     PRIMITIVE_ARTIFACTS,
     RALLIES,
@@ -51,7 +63,7 @@ from dataset_builder.schema_v1 import (
     TableSpec,
     write_table,
 )
-from dataset_builder.source_annotations import load_source_annotations
+from dataset_builder.source_annotations import SourceAnnotations, load_source_annotations
 from dataset_builder.vision import (
     TRACK_FILENAME,
     load_court_vision,
@@ -68,6 +80,7 @@ PRIMITIVE_STAGE_BASES = ("shuttle", "pose", "court", "annotation")
 LOCATION_INPUT = "input_dir"
 LOCATION_EXPORT = "export_dir"
 ARTIFACT_NOTES = {note.artifact: note for note in PRIMITIVE_ARTIFACT_NOTES}
+TOP_SIDE, BOTTOM_SIDE = COURT_SIDES
 
 
 @dataclass(frozen=True)
@@ -80,6 +93,7 @@ class ExportInputs:
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
     video_ids: tuple[str, ...] | None = None
+    players: Path = DEFAULT_PLAYERS
 
     def __post_init__(self) -> None:
         if (self.fixed_sources_manifest is None) != (self.ground_truth_root is None):
@@ -105,6 +119,7 @@ class VideoInputs:
     input_artifacts: tuple[ArtifactIntegrity, ...]
     annotation_dir: Path | None = None
     annotation_root: Path | None = None
+    match_players: MatchPlayers | None = None
     identity: dict[str, object] = field(default_factory=dict)
 
 
@@ -115,6 +130,7 @@ class VideoTables:
     rallies: list[dict[str, object]]
     player_rallies: list[dict[str, object]]
     source_contacts: pd.DataFrame | None
+    players: tuple[Player, ...]
     artifacts: list[dict[str, object]]
     manifest: dict[str, object]
 
@@ -133,6 +149,7 @@ class DatasetIdentity:
     sources_manifest: dict[str, object] | None = None
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
+    players_table: dict[str, object] | None = None
 
 
 def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
@@ -151,12 +168,15 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
     annotation_root = _optional_resolved(inputs.ground_truth_root)
     spans_by_video = annotator_spans_by_video(records)
     run_id = str(collection["run_id"])
+    players_path = Path(inputs.players)
+    players = load_players(players_path)
 
     videos: list[VideoTables] = []
     for source in sources:
         video_id = str(source["video_id"])
         metadata = VideoMetadata.from_dict(source["video_metadata"])
         stages = run_dir / STAGES_DIRECTORY
+        annotation_dir = annotation_dirs.get(video_id)
         video_inputs = VideoInputs(
             run_id=run_id,
             source_dataset=source_dataset,
@@ -171,8 +191,9 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
             ),
             annotator_spans=spans_by_video.get(video_id, ()),
             input_artifacts=_run_artifacts(run_dir, manifest, video_id),
-            annotation_dir=annotation_dirs.get(video_id),
+            annotation_dir=annotation_dir,
             annotation_root=annotation_root,
+            match_players=_match_players(annotation_dir, players),
         )
         videos.append(build_video_tables(output_dir, video_inputs))
 
@@ -186,6 +207,7 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
         fixed_source_manifest=fixed_manifest,
         ground_truth_root=annotation_root,
         commentary_root=_optional_resolved(inputs.commentary_root),
+        players_table=artifact_integrity("players", players_path).to_dict(),
     )
     return write_dataset(output_dir, identity, videos, video_ids)
 
@@ -222,6 +244,7 @@ def write_dataset(
         "sources_manifest": identity.sources_manifest,
         "ground_truth_root": _optional_text(identity.ground_truth_root),
         "commentary_root": _optional_text(identity.commentary_root),
+        "players_table": identity.players_table,
         "videos": [video.manifest for video in videos],
         "tables": table_entries,
         "dispositions": [
@@ -242,40 +265,48 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
     """Derive the v1 rows for one video and save its player-signal arrays."""
     signal_files = _save_player_signals(output_dir, inputs.video_id, inputs.player_inputs)
     identity = (inputs.run_id, inputs.source_dataset, inputs.video_id)
+    match = inputs.match_players
+    annotations = _load_annotations(inputs)
 
+    # Annotator spans need the side phases, so the source annotations load first.
     rallies: list[dict[str, object]] = []
     player_rallies: list[dict[str, object]] = []
     for rally_id, (start, end) in enumerate(inputs.annotator_spans):
+        player_ids = _annotator_player_ids(annotations, match, start, end)
         rallies.append(
             _rally_row(
-                identity, RallyOrigin.ANNOTATOR, rally_id, inputs.metadata, start, end, None, None
+                identity,
+                RallyOrigin.ANNOTATOR,
+                rally_id,
+                inputs.metadata,
+                start,
+                end,
+                None,
+                None,
+                player_ids,
             )
         )
         player_rallies.extend(
-            _player_rows(identity, RallyOrigin.ANNOTATOR, rally_id, inputs.player_inputs, start, end)
+            _player_rows(
+                identity,
+                RallyOrigin.ANNOTATOR,
+                rally_id,
+                inputs.player_inputs,
+                start,
+                end,
+                player_ids,
+            )
         )
 
     source_contacts = None
     source_rallies = None
     source_population = None
-    annotation_files: list[dict[str, object]] = []
-    if inputs.annotation_dir is not None:
-        annotations = load_source_annotations(
-            inputs.annotation_dir,
-            source_dataset=inputs.source_dataset,
-            video_id=inputs.video_id,
-            frame_count=inputs.metadata.frame_count,
-        )
+    if annotations is not None and match is not None:
         source_contacts = annotations.contacts
         source_rallies = len(annotations.rallies)
         source_population = dict(annotations.population)
-        annotation_files = [
-            artifact_integrity(
-                f"{inputs.video_id}.{path.stem}", path, relative_to=inputs.annotation_root
-            ).to_dict()
-            for path in sorted(Path(inputs.annotation_dir).glob("set*.csv"))
-        ]
         for rally_id, source_rally in enumerate(annotations.rallies):
+            player_ids = _side_player_ids(match, source_rally.a_is_top)
             rallies.append(
                 _rally_row(
                     identity,
@@ -286,6 +317,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                     source_rally.end_frame,
                     source_rally.source_set,
                     source_rally.source_rally,
+                    player_ids,
                 )
             )
             player_rallies.extend(
@@ -296,6 +328,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                     inputs.player_inputs,
                     source_rally.start_frame,
                     source_rally.end_frame,
+                    player_ids,
                 )
             )
 
@@ -311,6 +344,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
         rallies=rallies,
         player_rallies=player_rallies,
         source_contacts=source_contacts,
+        players=() if match is None else (match.player_a, match.player_b),
         artifacts=artifacts,
         manifest={
             "video_id": inputs.video_id,
@@ -320,11 +354,78 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
             "annotator_rallies": len(inputs.annotator_spans),
             "source_rallies": source_rallies,
             "source_population": source_population,
-            "source_annotation_files": annotation_files,
+            "source_annotation_files": _annotation_files(inputs),
+            "match_players": _match_players_entry(match),
             "player_signals": [integrity.to_dict() for integrity in signal_files],
             **inputs.identity,
         },
     )
+
+
+def _match_players(
+    annotation_dir: Path | None, players: Mapping[str, Player]
+) -> MatchPlayers | None:
+    """Resolve the two people of the match whose set CSVs live in ``annotation_dir``."""
+    if annotation_dir is None:
+        return None
+    return load_match_players(
+        annotation_dir.parent / MATCH_TABLE_FILENAME, annotation_dir.name, players
+    )
+
+
+def _annotation_files(inputs: VideoInputs) -> list[dict[str, object]]:
+    """Pin the set CSVs the video's source annotations were read from."""
+    if inputs.annotation_dir is None:
+        return []
+    return [
+        artifact_integrity(
+            f"{inputs.video_id}.{path.stem}", path, relative_to=inputs.annotation_root
+        ).to_dict()
+        for path in sorted(Path(inputs.annotation_dir).glob("set*.csv"))
+    ]
+
+
+def _load_annotations(inputs: VideoInputs) -> SourceAnnotations | None:
+    """Read the video's ShuttleSet set CSVs, or None when it has none."""
+    if inputs.annotation_dir is None:
+        return None
+    if inputs.match_players is None:
+        raise ValueError(
+            f"{inputs.video_id!r} has source annotations but no match_players; "
+            f"the match table must name both people"
+        )
+    return load_source_annotations(
+        inputs.annotation_dir,
+        source_dataset=inputs.source_dataset,
+        video_id=inputs.video_id,
+        frame_count=inputs.metadata.frame_count,
+        match=inputs.match_players,
+    )
+
+
+def _side_player_ids(match: MatchPlayers, a_is_top: bool) -> dict[str, str]:
+    """Return the player_id on each court side for one side phase."""
+    return {side: match.on_side(side, a_is_top).player_id for side in COURT_SIDES}
+
+
+def _annotator_player_ids(
+    annotations: SourceAnnotations | None, match: MatchPlayers | None, start: int, end: int
+) -> dict[str, str] | None:
+    """Return the side-to-player map for an annotator span, or None when unresolved."""
+    if annotations is None or match is None:
+        return None
+    phase = phase_for_span(annotations.side_phases, start, end)
+    return None if phase is None else _side_player_ids(match, phase.a_is_top)
+
+
+def _match_players_entry(match: MatchPlayers | None) -> dict[str, object] | None:
+    if match is None:
+        return None
+    return {
+        "player_a": match.player_a.player_id,
+        "player_b": match.player_b.player_id,
+        "first_a_is_top": match.first_a_is_top,
+    }
 
 
 def derive_player_inputs(
@@ -415,8 +516,10 @@ def _rally_row(
     end: int,
     source_set: int | None,
     source_rally: int | None,
+    player_ids: Mapping[str, str] | None,
 ) -> dict[str, object]:
     run_id, source_dataset, video_id = identity
+    clip_start, clip_end = clip_frames(start, end, metadata.fps, metadata.frame_count)
     return {
         "run_id": run_id,
         "source_dataset": source_dataset,
@@ -431,8 +534,12 @@ def _rally_row(
         "start_seconds": float(Fraction(start) / metadata.fps),
         "end_seconds": float(Fraction(end) / metadata.fps),
         "duration_seconds": float(Fraction(end - start) / metadata.fps),
+        "clip_start_frame": clip_start,
+        "clip_end_frame": clip_end,
         "source_set": source_set,
         "source_rally": source_rally,
+        "top_player_id": None if player_ids is None else player_ids[TOP_SIDE],
+        "bottom_player_id": None if player_ids is None else player_ids[BOTTOM_SIDE],
     }
 
 
@@ -443,6 +550,7 @@ def _player_rows(
     player_inputs: PlayerFeatureInputs,
     start: int,
     end: int,
+    player_ids: Mapping[str, str] | None,
 ) -> list[dict[str, object]]:
     run_id, source_dataset, video_id = identity
     rows = []
@@ -455,6 +563,7 @@ def _player_rows(
                 "rally_origin": origin.value,
                 "rally_id": rally_id,
                 **features._asdict(),
+                "player_id": None if player_ids is None else player_ids[features.court_side],
             }
         )
     return rows
@@ -497,21 +606,39 @@ def _artifact_row(
 
 def _assemble_tables(videos: Sequence[VideoTables]) -> dict[str, pd.DataFrame]:
     rallies = [row for video in videos for row in video.rallies]
-    players = [row for video in videos for row in video.player_rallies]
+    player_rows = [row for video in videos for row in video.player_rallies]
     artifacts = [row for video in videos for row in video.artifacts]
     contacts = [video.source_contacts for video in videos if video.source_contacts is not None]
+    people = {player.player_id: player for video in videos for player in video.players}
+    player_rallies = pd.DataFrame(player_rows) if player_rows else empty_table(PLAYER_RALLIES)
+    source_contacts = (
+        pd.concat(contacts, ignore_index=True) if contacts else empty_table(SOURCE_CONTACTS)
+    )
+    _check_player_ids(people, player_rallies, source_contacts)
     return {
         RALLIES.name: pd.DataFrame(rallies) if rallies else empty_table(RALLIES),
-        PLAYER_RALLIES.name: pd.DataFrame(players) if players else empty_table(PLAYER_RALLIES),
-        SOURCE_CONTACTS.name: (
-            pd.concat(contacts, ignore_index=True) if contacts else empty_table(SOURCE_CONTACTS)
+        PLAYER_RALLIES.name: player_rallies,
+        PLAYERS.name: (
+            pd.DataFrame([player._asdict() for player in people.values()])
+            if people
+            else empty_table(PLAYERS)
         ),
+        SOURCE_CONTACTS.name: source_contacts,
         PRIMITIVE_ARTIFACTS.name: (
             pd.DataFrame(artifacts) if artifacts else empty_table(PRIMITIVE_ARTIFACTS)
         ),
         TRANSCRIPT_SEGMENTS.name: empty_table(TRANSCRIPT_SEGMENTS),
         COMMENTARY_CHUNKS.name: empty_table(COMMENTARY_CHUNKS),
     }
+
+
+def _check_player_ids(people: Mapping[str, Player], *frames: pd.DataFrame) -> None:
+    """Fail before writing if a player_id foreign key has no row in the players table."""
+    for frame in frames:
+        used = {value for value in frame["player_id"] if not pd.isna(value)}
+        unknown = sorted(used - set(people))
+        if unknown:
+            raise ValueError(f"player_id values missing from the players table: {unknown}")
 
 
 def _table_entry(output_dir: Path, table: TableSpec, frame: pd.DataFrame) -> dict[str, object]:

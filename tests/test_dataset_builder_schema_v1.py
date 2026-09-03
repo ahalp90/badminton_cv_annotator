@@ -33,17 +33,19 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
     "rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",
         "fps", "frame_count", "start_frame", "end_frame", "duration_frames",
-        "start_seconds", "end_seconds", "duration_seconds", "source_set", "source_rally",
+        "start_seconds", "end_seconds", "duration_seconds", "clip_start_frame",
+        "clip_end_frame", "source_set", "source_rally", "top_player_id", "bottom_player_id",
     ),
     "player_rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",
-        "court_side", "posture_frames_valid", "posture_frames_linear", "posture_mad",
-        "position_frames_valid", "position_frames_linear",
+        "court_side", "player_id", "posture_frames_valid", "posture_frames_linear",
+        "posture_mad", "position_frames_valid", "position_frames_linear",
     ),
+    "players": ("player_id", "player_name", "sex"),
     "source_contacts": (
         "source_dataset", "video_id", "source_set", "source_row", "source_rally",
-        "ball_round", "frame_num", "contact_type", "contact_type_en", "flaw_marked",
-        "rally_id",
+        "ball_round", "player_id", "frame_num", "contact_type", "contact_type_en",
+        "flaw_marked", "rally_id",
     ),
     "primitive_artifacts": (
         "source_dataset", "video_id", "artifact", "location", "relative_path",
@@ -75,8 +77,12 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("start_seconds", "float64", False, "by_rally_origin"),
         ("end_seconds", "float64", False, "by_rally_origin"),
         ("duration_seconds", "float64", False, "by_rally_origin"),
+        ("clip_start_frame", "int64", False, "by_rally_origin"),
+        ("clip_end_frame", "int64", False, "by_rally_origin"),
         ("source_set", "int64", True, "source_annotation"),
         ("source_rally", "int64", True, "source_annotation"),
+        ("top_player_id", "string", True, "derived"),
+        ("bottom_player_id", "string", True, "derived"),
     ),
     "player_rallies": (
         ("run_id", "string", False, "observed"),
@@ -85,11 +91,17 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("rally_origin", "string", False, "observed"),
         ("rally_id", "int64", False, "observed"),
         ("court_side", "string", False, "derived"),
+        ("player_id", "string", True, "derived"),
         ("posture_frames_valid", "int64", False, "derived"),
         ("posture_frames_linear", "int64", False, "derived"),
         ("posture_mad", "float64", True, "derived"),
         ("position_frames_valid", "int64", False, "derived"),
         ("position_frames_linear", "int64", False, "derived"),
+    ),
+    "players": (
+        ("player_id", "string", False, "curated"),
+        ("player_name", "string", False, "curated"),
+        ("sex", "string", False, "curated"),
     ),
     "source_contacts": (
         ("source_dataset", "string", False, "observed"),
@@ -98,6 +110,7 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("source_row", "int64", False, "observed"),
         ("source_rally", "int64", True, "source_annotation"),
         ("ball_round", "int64", True, "source_annotation"),
+        ("player_id", "string", True, "source_annotation"),
         ("frame_num", "int64", True, "source_annotation"),
         ("contact_type", "string", True, "source_annotation"),
         ("contact_type_en", "string", True, "derived"),
@@ -143,6 +156,7 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
     "player_rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id", "court_side",
     ),
+    "players": ("player_id",),
     "source_contacts": ("source_dataset", "video_id", "source_set", "source_row"),
     "primitive_artifacts": ("source_dataset", "video_id", "artifact"),
     "transcript_segments": ("source_dataset", "video_id", "segment_index"),
@@ -180,6 +194,8 @@ _EXPECTED_KEEP_FEATURES = {
     "ShuttleSet source fields: contact type, round, set",
     "Raw pose, court, and shuttle primitives",
     "Commentary raw captions, normalised transcripts, cleaned text",
+    "Rally duration from final contact plus offset",
+    "Player identity and sex",
 }
 
 _EXPECTED_CUT_FEATURES = {
@@ -193,7 +209,7 @@ _EXPECTED_CUT_FEATURES = {
 # frozen surface tested above.
 _FORBIDDEN_COLUMN_NAMES = (
     "shots_per_rally", "recovery", "movement_inefficiency",
-    "rally_duration_base30", "serve_speed", "degradation", "player_sex",
+    "rally_duration_base30", "serve_speed", "degradation",
 )
 
 
@@ -245,8 +261,12 @@ def _valid_rallies_frame() -> pd.DataFrame:
             "start_seconds": [0.0, 0.4],
             "end_seconds": [2.0, 2.4],
             "duration_seconds": [2.0, 2.0],
+            "clip_start_frame": [0, 0],
+            "clip_end_frame": [100, 100],
             "source_set": pd.array([1, 1], dtype="Int64"),
             "source_rally": pd.array([1, 2], dtype="Int64"),
+            "top_player_id": pd.array(["kento_momota"] * 2, dtype="string"),
+            "bottom_player_id": pd.array(["chou_tien_chen"] * 2, dtype="string"),
         }
     )
 
@@ -268,8 +288,12 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
             "start_seconds": [0.0, 2.0],
             "end_seconds": [2.0, precise_seconds],
             "duration_seconds": [2.0, precise_seconds],
+            "clip_start_frame": [0, 0],
+            "clip_end_frame": [140, 180],
             "source_set": pd.array([2, None], dtype="Int64"),
             "source_rally": pd.array([1, None], dtype="Int64"),
+            "top_player_id": pd.array(["kento_momota", None], dtype="string"),
+            "bottom_player_id": pd.array(["chou_tien_chen", None], dtype="string"),
         }
     )
 
@@ -305,6 +329,7 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
             "source_row": [0, 1],
             "source_rally": pd.array([1, 1], dtype="Int64"),
             "ball_round": pd.array([1, 2], dtype="Int64"),
+            "player_id": pd.array(["kento_momota", None], dtype="string"),
             "frame_num": pd.array([10, 20], dtype="Int64"),
             "contact_type": ["NA", "smash"],
             "contact_type_en": ["NA", "smash"],
@@ -316,6 +341,9 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
     contacts_result = read_table(tmp_path / "c", SOURCE_CONTACTS)
     assert contacts_result["contact_type"].tolist() == ["NA", "smash"]
     assert contacts_result["flaw_marked"].tolist() == [True, False]
+    # A nullable string foreign key survives as the id and as a real null.
+    assert contacts_result["player_id"].tolist()[0] == "kento_momota"
+    assert contacts_result["player_id"].isna().tolist() == [False, True]
     assert str(contacts_result["flaw_marked"].dtype) == "boolean"
 
 

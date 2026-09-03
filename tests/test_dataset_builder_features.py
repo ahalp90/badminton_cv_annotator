@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fractions import Fraction
+
 import numpy as np
 import pytest
 
@@ -7,6 +9,7 @@ from dataset_builder.features import (
     COURT_SIDES,
     InterpolationType,
     PlayerFeatureInputs,
+    clip_frames,
     interpolate_internal_gaps,
     median_absolute_deviation,
     player_rally_features,
@@ -76,6 +79,18 @@ def test_rally_timestamps_and_its_validation() -> None:
         rally_timestamps(90, 30, 30.0)
     with pytest.raises(ValueError, match="positive and finite"):
         rally_timestamps(30, 90, 0.0)
+
+
+def test_clip_frames_rounds_to_whole_frames_and_clamps_to_the_video() -> None:
+    # 2 s and 3 s at 29.97 fps are 59.94 and 89.91 frames, rounded to 60 and 90.
+    assert clip_frames(1000, 2000, Fraction(30000, 1001), 10_000) == (940, 2090)
+    # A short video clamps the lead-in at 0 and the tail at frame_count.
+    assert clip_frames(10, 95, Fraction(25), 100) == (0, 100)
+
+    with pytest.raises(ValueError, match="half-open"):
+        clip_frames(90, 30, Fraction(25), 100)
+    with pytest.raises(ValueError, match="does not cover end_frame"):
+        clip_frames(10, 95, Fraction(25), 90)
 
 
 def test_player_rally_features_both_sides_and_out_of_range() -> None:

@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from dataset_builder import schema_v1
+from dataset_builder.players import MatchPlayers, Player, SidePhase
 from dataset_builder.source_annotations import (
     SourceRally,
     load_source_annotations,
@@ -15,7 +16,16 @@ from dataset_builder.source_annotations import (
 )
 
 
-_COLUMNS = ["rally", "ball_round", "time", "frame_num", "player", "type", "flaw"]
+_COLUMNS = [
+    "rally", "ball_round", "time", "frame_num", "roundscore_A", "roundscore_B",
+    "player", "type", "flaw",
+]
+# Player A is the match winner; downcourt 1 starts A on the top court in set 1.
+_MATCH = MatchPlayers(
+    Player("kento_momota", "Kento MOMOTA", "male"),
+    Player("chou_tien_chen", "CHOU Tien Chen", "male"),
+    first_a_is_top=True,
+)
 
 
 def _write_set(path: Path, rows: list[dict[str, object]]) -> None:
@@ -23,17 +33,36 @@ def _write_set(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 def _row(
-    rally: int, ball_round: int, frame_num: object, type_: str, flaw: str = ""
+    rally: int,
+    ball_round: int,
+    frame_num: object,
+    type_: str,
+    flaw: str = "",
+    player: str = "A",
+    score_a: int = 0,
+    score_b: int = 0,
 ) -> dict[str, object]:
     return {
         "rally": rally,
         "ball_round": ball_round,
         "time": "00:00:00",
         "frame_num": frame_num,
-        "player": "A",
+        "roundscore_A": score_a,
+        "roundscore_B": score_b,
+        "player": player,
         "type": type_,
         "flaw": flaw,
     }
+
+
+def _load(set_dir: Path, frame_count: int = 1000):
+    return load_source_annotations(
+        set_dir,
+        source_dataset="ShuttleSet",
+        video_id="v1",
+        frame_count=frame_count,
+        match=_MATCH,
+    )
 
 
 def test_main_path_builds_usable_rally_and_maps_contact_types(tmp_path: Path) -> None:
@@ -46,11 +75,9 @@ def test_main_path_builds_usable_rally_and_maps_contact_types(tmp_path: Path) ->
         ],
     )
 
-    result = load_source_annotations(
-        tmp_path, source_dataset="ShuttleSet", video_id="v1", frame_count=1000
-    )
+    result = _load(tmp_path)
 
-    assert result.rallies == (SourceRally(1, 1, 10, 31, (0, 1, 2)),)
+    assert result.rallies == (SourceRally(1, 1, 10, 31, (0, 1, 2), a_is_top=True),)
     contacts = result.contacts
     assert list(contacts.columns) == list(schema_v1.SOURCE_CONTACTS.column_names())
     assert contacts.iloc[0]["contact_type_en"] == "long_service"
@@ -61,6 +88,7 @@ def test_main_path_builds_usable_rally_and_maps_contact_types(tmp_path: Path) ->
         "source_contact_rows": 3,
         "usable_contact_rows": 3,
         "usable_rallies": 1,
+        "side_phases": 1,
         "excluded_flaw_rows": 0,
         "excluded_invalid_frame_rows": 0,
         "excluded_incomplete_rallies": 0,
@@ -78,9 +106,7 @@ def test_flaw_marked_row_makes_rally_unusable(tmp_path: Path) -> None:
         [_row(2, 1, 40, "長球"), _row(2, 2, 41, "長球", flaw="1")],
     )
 
-    result = load_source_annotations(
-        tmp_path, source_dataset="ShuttleSet", video_id="v1", frame_count=1000
-    )
+    result = _load(tmp_path)
 
     assert result.rallies == ()
     assert result.contacts["rally_id"].isna().all()
@@ -95,9 +121,7 @@ def test_non_monotonic_contacts_are_excluded(tmp_path: Path) -> None:
         [_row(3, 1, 100, "長球"), _row(3, 2, 90, "長球")],
     )
 
-    result = load_source_annotations(
-        tmp_path, source_dataset="ShuttleSet", video_id="v1", frame_count=1000
-    )
+    result = _load(tmp_path)
 
     assert result.rallies == ()
     assert result.contacts["rally_id"].isna().all()
@@ -111,9 +135,7 @@ def test_out_of_range_frame_excludes_rally_but_keeps_row(tmp_path: Path) -> None
         [_row(4, 1, 10, "長球"), _row(4, 2, 60, "長球")],
     )
 
-    result = load_source_annotations(
-        tmp_path, source_dataset="ShuttleSet", video_id="v1", frame_count=50
-    )
+    result = _load(tmp_path, frame_count=50)
 
     assert result.rallies == ()
     assert result.contacts["rally_id"].isna().all()
@@ -132,13 +154,44 @@ def test_rally_id_continues_across_sets_sorted_by_set(tmp_path: Path) -> None:
         [_row(1, 1, 5, "長球"), _row(1, 2, 6, "長球")],
     )
 
-    result = load_source_annotations(
-        tmp_path, source_dataset="ShuttleSet", video_id="v1", frame_count=1000
-    )
+    result = _load(tmp_path)
 
     assert [rally.source_set for rally in result.rallies] == [1, 2]
     set2_rows = result.contacts[result.contacts["source_set"] == 2]
     assert set(set2_rows["rally_id"]) == {1}
+
+
+def test_hitter_player_id_maps_the_source_player_letters(tmp_path: Path) -> None:
+    _write_set(
+        tmp_path / "set1.csv",
+        [
+            _row(1, 1, 10, "發長球", player="A"),
+            _row(1, 2, 20, "挑球", player="B"),
+            _row(1, 3, 30, "切球", player="X"),  # not a singles player letter
+        ],
+    )
+
+    result = _load(tmp_path)
+
+    assert result.contacts["player_id"].tolist()[:2] == ["kento_momota", "chou_tien_chen"]
+    assert pd.isna(result.contacts["player_id"].iloc[2])
+
+
+def test_set3_change_of_ends_splits_the_match_into_two_side_phases(tmp_path: Path) -> None:
+    # One contact per rally; player A's score reaches 11 in rally 11, so rally 12
+    # is the first played after the change of ends.
+    _write_set(
+        tmp_path / "set3.csv",
+        [_row(rally, 1, rally * 10, "長球", score_a=rally) for rally in range(1, 13)],
+    )
+
+    result = _load(tmp_path)
+
+    assert result.side_phases == (
+        SidePhase(source_set=3, post_switch=False, a_is_top=True, start_frame=10, end_frame=111),
+        SidePhase(source_set=3, post_switch=True, a_is_top=False, start_frame=120, end_frame=121),
+    )
+    assert [rally.a_is_top for rally in result.rallies] == [True] * 11 + [False]
 
 
 def test_set_number_rejects_non_set_filenames() -> None:
