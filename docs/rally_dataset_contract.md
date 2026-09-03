@@ -4,19 +4,20 @@
 | --- | --- |
 | Collection contract | `rally-record-collection/0.2` |
 | Row contract | `rally-record/0.2` |
-| Status | Provisional |
-| Updated | 12 August 2026 |
+| Status | Provisional internal contract; the frozen export is `rally-dataset/1.0` |
+| Updated | 2 September 2026 |
 
 This document defines the implemented boundary where the acquisition,
 annotator, and commentary lanes meet. The dataset builder writes a compressed
 JSON collection and validates it against an immutable input-manifest snapshot.
 
 Version 0.2 fixes the provisional collection layout, record identity, timing
-rules, required provenance, and primitive evidence. It does not freeze the
-final engineered feature table or a stable version 1 storage format. Issue
-[#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18) owns the
-final feature columns, column types, reliability metadata, and version 1
-schema.
+rules, required provenance, and primitive evidence. It remains the assembler's
+internal output. The frozen version 1 dataset that consumers receive is
+defined in [`dataset_v1_schema.md`](dataset_v1_schema.md), under issue
+[#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18). The v1
+export reads this collection and keeps every identity, timing, provenance, and
+null rule below.
 
 ## Record identity
 
@@ -237,19 +238,24 @@ Existing producer stage files remain their current interfaces. Version 0.2 is
 stored as compressed JSON. It remains provisional and has no compatibility
 loader for earlier drafts.
 
-## Deferred schema decisions
+## Schema decisions made in version 1
 
 Issue [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18)
-will define and freeze:
+froze the consumer-facing schema as `rally-dataset/1.0` on 2 September 2026.
+The single source of truth is `src/dataset_builder/schema_v1.py`, documented
+in [`dataset_v1_schema.md`](dataset_v1_schema.md). In short:
 
-- engineered feature formulas and feature names;
-- final flat or nested column layout and physical storage format;
-- final column types and nullable encodings;
-- feature-specific reliability fields;
-- ShuttleSet feature retention decisions;
-- model-ready tensor or sequence representations; and
-- the first stable version 1 schema.
+- the kept issue #22 formulas live in `src/dataset_builder/features.py`;
+- the layout is flat tables stored as gzip-compressed CSV, with one
+  `player_rallies` row per rally and court side;
+- column types and nullability are declared per column and enforced on
+  write and read;
+- every column carries a reliability class;
+- only the ShuttleSet contact type, rally, shot, set, and frame fields are
+  retained, and they stay source-scoped;
+- no model-ready tensor representation is defined; the frame-aligned
+  primitives and player signals are referenced as a separate bundle.
 
-Those choices may add derived fields. They must keep the version 0.2 identity,
-timing, provenance, and primitive evidence rules or record a new contract
-version with an explicit migration.
+The v1 export keeps every version 0.2 identity, timing, provenance, and
+primitive evidence rule. It adds derived fields without changing this
+collection.

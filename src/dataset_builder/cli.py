@@ -739,13 +739,120 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retry validated optional unavailable stages instead of reusing them.",
     )
+    export_parser = subparsers.add_parser(
+        "export-v1",
+        help="Write the frozen v1 dataset tables from one completed run.",
+    )
+    export_parser.add_argument("--run-dir", type=Path, required=True)
+    export_parser.add_argument("--output-dir", type=Path, required=True)
+    export_parser.add_argument(
+        "--fixed-sources",
+        type=Path,
+        help="Fixed-source manifest TOML that maps video IDs to ShuttleSet annotations.",
+    )
+    export_parser.add_argument(
+        "--ground-truth-root",
+        type=Path,
+        help="ShuttleSet annotation root that the manifest's annotation directories sit under.",
+    )
+    export_parser.add_argument(
+        "--commentary-root",
+        type=Path,
+        help="Commentary preparation root with transcripts, cleaned chunks, and status.",
+    )
+    export_parser.add_argument(
+        "--video-id",
+        action="append",
+        dest="video_ids",
+        help="Export only these video IDs; repeat the flag. Defaults to every video in the run.",
+    )
+    ss22_parser = subparsers.add_parser(
+        "export-v1-shuttleset22",
+        help="Write the frozen v1 dataset tables from completed ShuttleSet22 artifacts.",
+    )
+    ss22_parser.add_argument("--data-root", type=Path, required=True)
+    ss22_parser.add_argument("--output-dir", type=Path, required=True)
+    ss22_parser.add_argument(
+        "--run-id",
+        required=True,
+        help="Label for the artifact set, for example the issue 106 handoff commit.",
+    )
+    ss22_parser.add_argument(
+        "--sources",
+        type=Path,
+        help="ShuttleSet22 sources TOML; defaults to configs/shuttleset22/sources.toml.",
+    )
+    ss22_parser.add_argument(
+        "--match-id",
+        type=int,
+        action="append",
+        dest="match_ids",
+        help="Export only these match IDs; repeat the flag. Defaults to every download source.",
+    )
+    ss22_parser.add_argument("--commentary-root", type=Path)
     return parser
+
+
+def _run_export_v1(arguments: argparse.Namespace) -> int:
+    from dataset_builder.export_v1 import ExportInputs, export_dataset_v1
+
+    try:
+        manifest = export_dataset_v1(
+            ExportInputs(
+                run_dir=arguments.run_dir,
+                output_dir=arguments.output_dir,
+                fixed_sources_manifest=arguments.fixed_sources,
+                ground_truth_root=arguments.ground_truth_root,
+                commentary_root=arguments.commentary_root,
+                video_ids=None if arguments.video_ids is None else tuple(arguments.video_ids),
+            )
+        )
+    except Exception as error:
+        print(f"dataset export failed: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    _print_export_summary(manifest)
+    return 0
+
+
+def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
+    from dataset_builder.export_v1_shuttleset22 import (
+        ShuttleSet22ExportInputs,
+        export_shuttleset22_v1,
+    )
+    from shuttleset22 import DEFAULT_SOURCES
+
+    try:
+        manifest = export_shuttleset22_v1(
+            ShuttleSet22ExportInputs(
+                data_root=arguments.data_root,
+                output_dir=arguments.output_dir,
+                run_id=arguments.run_id,
+                sources=DEFAULT_SOURCES if arguments.sources is None else arguments.sources,
+                commentary_root=arguments.commentary_root,
+                match_ids=None if arguments.match_ids is None else tuple(arguments.match_ids),
+            )
+        )
+    except Exception as error:
+        print(f"dataset export failed: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    _print_export_summary(manifest)
+    return 0
+
+
+def _print_export_summary(manifest: Mapping[str, object]) -> None:
+    tables = cast(Mapping[str, Mapping[str, object]], manifest["tables"])
+    rows = ", ".join(f"{name} {entry['rows']}" for name, entry in tables.items())
+    print(f"dataset export wrote {manifest['schema']} for run {manifest['run_id']}: {rows}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse the one-command interface and return a process exit status."""
     parser = _build_parser()
     arguments = parser.parse_args(argv)
+    if arguments.command == "export-v1":
+        return _run_export_v1(arguments)
+    if arguments.command == "export-v1-shuttleset22":
+        return _run_export_v1_shuttleset22(arguments)
     try:
         runner = run_dataset_builder if arguments.command == "run" else run_dataset_builder_replay
         result = runner(

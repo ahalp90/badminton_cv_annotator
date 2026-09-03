@@ -1,46 +1,57 @@
-"""Benchmark-only prototypes for the trial features defined in issue #22."""
+"""Benchmark-only prototypes for the trial features defined in issue #22.
+
+Issue #18 moved the formulas issue #104 kept into ``dataset_builder.features``;
+this module re-exports them and keeps the prototypes that never shipped to production.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from enum import IntEnum
 import math
 from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 
-from annotator.court_evidence import detected_court_info
 from annotator.fps_constants import BASE_FPS, ScalingKind
 from annotator.point_winner import project_pixels_to_court
-from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.shuttle_track import validate_shuttle_track
-from dataset_builder.vision import CourtVision, PoseArrays
+from dataset_builder.features import (
+    ANKLE_INDICES,
+    EYE_INDICES,
+    HIP_INDICES,
+    InterpolationType,
+    PlayerFeatureInputs,
+    derive_player_feature_inputs,
+    interpolate_internal_gaps,
+    median_absolute_deviation,
+    posture_signal,
+    project_positions_by_scene,
+    rally_timestamps,
+    scene_ref_corners,
+    select_sticky_keypoints,
+    validate_fps,
+    validate_frame_range,
+)
 from shared.court import HOMOGRAPHY_RESOLUTION
 
+# Re-exported for annotator.calibration.shuttleset22_features,
+# annotator.calibration.shuttleset_benchmark, and tests/test_shuttleset_features.py;
+# unused by this module's own prototypes.
+__all__ = (
+    "ANKLE_INDICES",
+    "EYE_INDICES",
+    "HIP_INDICES",
+    "PlayerFeatureInputs",
+    "derive_player_feature_inputs",
+    "interpolate_internal_gaps",
+    "posture_signal",
+    "select_sticky_keypoints",
+)
 
-EYE_INDICES = (1, 2)
-HIP_INDICES = (11, 12)
-ANKLE_INDICES = (15, 16)
+
 RECOVERY_HALF_WINDOW_BASE30 = 5
 HALF_CENTRES = np.array(((0.5, 0.25), (0.5, 0.75)), dtype=float)
-
-
-class InterpolationType(IntEnum):
-    """Issue #22's compact interpolation provenance values."""
-
-    LINEAR = 1
-    BACKWARD_EXTRAPOLATED = 2
-
-
-class PlayerFeatureInputs(NamedTuple):
-    """Frame-aligned signals derived through existing production primitives."""
-
-    posture: np.ndarray
-    court_positions: np.ndarray
-    posture_interpolation: np.ndarray
-    position_interpolation: np.ndarray
-    tracker_segments: tuple[tuple[int, int], ...]
 
 
 class ShuttleFeatureInputs(NamedTuple):
@@ -78,145 +89,6 @@ def derive_shuttle_feature_inputs(
     return ShuttleFeatureInputs(projected, invisible, guard_rejected)
 
 
-def derive_player_feature_inputs(
-    track: np.ndarray,
-    pose: PoseArrays,
-    court: CourtVision,
-    video_id: str,
-) -> PlayerFeatureInputs:
-    """Build issue #22 player signals through the production sticky-player path."""
-    inputs = court.evidence.inputs
-    if inputs is None:
-        raise ValueError("court evidence has no operational inputs")
-    if len(track) != len(pose.kps) or len(track) != len(court.evidence.court_present):
-        raise ValueError("shuttle, pose, and court frame populations differ")
-    segments = tracker_segments(
-        inputs.homography_rows.to_dict("records"),
-        court.evidence.court_present,
-        len(track),
-    )
-    sticky = build_sticky_result(
-        track,
-        segments,
-        pose.bboxes,
-        pose.scores,
-        pose.kps,
-        pose.ndet,
-        video_id,
-        inputs.gate_court_info,
-        inputs.gate_resolution_table,
-        inputs.resolution,
-    )
-    selected_keypoints = select_sticky_keypoints(pose.kps, sticky.picks)
-    raw_posture = posture_signal(selected_keypoints)
-    posture_values, posture_interpolation = interpolate_internal_gaps(
-        raw_posture[:, :, np.newaxis], segments
-    )
-    image_positions = sticky.ankle_pos * np.asarray(inputs.resolution, dtype=float)
-    court_positions = project_positions_by_scene(
-        image_positions,
-        inputs.homography_rows,
-        inputs.resolution,
-    )
-    interpolated, position_interpolation = interpolate_internal_gaps(
-        court_positions, segments
-    )
-    return PlayerFeatureInputs(
-        posture_values[:, :, 0],
-        interpolated,
-        posture_interpolation,
-        position_interpolation,
-        tuple(segments),
-    )
-
-
-def select_sticky_keypoints(pose_kps: np.ndarray, picks: np.ndarray) -> np.ndarray:
-    """Select the two sticky-player pose rows, leaving unavailable rows as NaN."""
-    pose = np.asarray(pose_kps, dtype=float)
-    selected = np.asarray(picks)
-    if pose.ndim != 4 or pose.shape[2:] != (17, 2):
-        raise ValueError("pose_kps must have shape (frames, detections, 17, 2)")
-    if selected.shape != (len(pose), 2):
-        raise ValueError("picks must have shape (frames, 2)")
-    if not np.issubdtype(selected.dtype, np.integer):
-        raise ValueError("picks must contain integer detection slots")
-    if np.any(selected < -1) or np.any(selected >= pose.shape[1]):
-        raise ValueError("picks contain an invalid detection slot")
-
-    result = np.full((len(pose), 2, 17, 2), np.nan, dtype=float)
-    for slot in range(2):
-        valid = selected[:, slot] >= 0
-        frames = np.flatnonzero(valid)
-        result[frames, slot] = pose[frames, selected[frames, slot]]
-    return result
-
-
-def posture_signal(player_keypoints: np.ndarray) -> np.ndarray:
-    """Return issue #22's eye-to-ankle height divided by Euclidean hip width."""
-    keypoints = np.asarray(player_keypoints, dtype=float)
-    if keypoints.ndim != 4 or keypoints.shape[1:] != (2, 17, 2):
-        raise ValueError("player_keypoints must have shape (frames, 2, 17, 2)")
-
-    eyes_y = np.mean(keypoints[:, :, EYE_INDICES, 1], axis=2)
-    ankles_y = np.mean(keypoints[:, :, ANKLE_INDICES, 1], axis=2)
-    hip_delta = (
-        keypoints[:, :, HIP_INDICES[0], :]
-        - keypoints[:, :, HIP_INDICES[1], :]
-    )
-    hip_width = np.linalg.norm(hip_delta, axis=2)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        posture = np.abs(eyes_y - ankles_y) / hip_width
-    posture[~np.isfinite(posture) | (hip_width <= 0.0)] = np.nan
-    return posture
-
-
-def median_absolute_deviation(values: np.ndarray) -> float | None:
-    """Return the issue #22 median absolute deviation over finite samples."""
-    finite = np.asarray(values, dtype=float)
-    finite = finite[np.isfinite(finite)]
-    if not len(finite):
-        return None
-    median = float(np.median(finite))
-    return float(np.median(np.abs(finite - median)))
-
-
-def project_positions_by_scene(
-    image_positions: np.ndarray,
-    homography_rows: pd.DataFrame,
-    resolution: tuple[float, float],
-) -> np.ndarray:
-    """Project frame-aligned player positions through each production scene row."""
-    positions = np.asarray(image_positions, dtype=float)
-    if positions.ndim != 3 or positions.shape[2] != 2:
-        raise ValueError("image_positions must have shape (frames, slots, 2)")
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-
-    projected = np.full_like(positions, np.nan, dtype=float)
-    occupied = np.zeros(len(positions), dtype=bool)
-    for row in homography_rows.to_dict("records"):
-        start = int(row["start_frame"])
-        end = int(row["end_frame"])
-        if not 0 <= start <= end <= len(positions):
-            raise ValueError("homography row is outside the frame population")
-        if occupied[start:end].any():
-            raise ValueError("homography rows overlap")
-        occupied[start:end] = True
-        ref_corners = _scene_ref_corners(row, (width, height))
-        court_info = detected_court_info(ref_corners)
-        for slot in range(positions.shape[1]):
-            points = positions[start:end, slot]
-            valid = np.isfinite(points).all(axis=1)
-            if not valid.any():
-                continue
-            frames = np.flatnonzero(valid) + start
-            projected[frames, slot] = project_pixels_to_court(
-                points[valid].T, (width, height), court_info
-            ).T
-    return projected
-
-
 def coordinate_error_summary(
     predicted: np.ndarray, ground_truth: np.ndarray
 ) -> dict[str, int | float | None]:
@@ -251,7 +123,7 @@ def court_corner_error_rows(
         raise ValueError("ground-truth corners must have finite shape (4, 2)")
     rows = []
     for raw_row in homography_rows.to_dict("records"):
-        corners = _scene_ref_corners(raw_row, resolution)
+        corners = scene_ref_corners(raw_row, resolution)
         errors = np.linalg.norm(corners - truth, axis=1)
         rows.append(
             {
@@ -352,40 +224,6 @@ def score_contact_coordinates(
     }
 
 
-def interpolate_internal_gaps(
-    values: np.ndarray, segments: Sequence[tuple[int, int]]
-) -> tuple[np.ndarray, np.ndarray]:
-    """Linearly fill only gaps bounded by observations inside one scene segment."""
-    result = np.asarray(values, dtype=float).copy()
-    if result.ndim != 3 or result.shape[2] < 1:
-        raise ValueError("values must have shape (frames, slots, channels)")
-    provenance = np.zeros(result.shape[:2], dtype=np.int8)
-    occupied = np.zeros(len(result), dtype=bool)
-    for start, end in segments:
-        if not 0 <= start <= end <= len(result):
-            raise ValueError("interpolation segment is outside the frame population")
-        if occupied[start:end].any():
-            raise ValueError("interpolation segments overlap")
-        occupied[start:end] = True
-        frame_axis = np.arange(start, end)
-        for slot in range(result.shape[1]):
-            block = result[start:end, slot]
-            valid = np.isfinite(block).all(axis=1)
-            if valid.sum() < 2:
-                continue
-            first = int(np.flatnonzero(valid)[0])
-            last = int(np.flatnonzero(valid)[-1])
-            fill = ~valid
-            fill[:first] = False
-            fill[last + 1 :] = False
-            for coordinate in range(result.shape[2]):
-                block[fill, coordinate] = np.interp(
-                    frame_axis[fill], frame_axis[valid], block[valid, coordinate]
-                )
-            provenance[start:end, slot][fill] = InterpolationType.LINEAR
-    return result, provenance
-
-
 def recovery_at_opponent_contacts(
     court_positions: np.ndarray,
     contact_frames: Sequence[int],
@@ -461,17 +299,6 @@ def movement_inefficiency(
     return result
 
 
-def rally_timestamps(start_frame: int, end_frame: int, fps: float) -> dict[str, object]:
-    """Return one half-open rally frame range and its exact second range."""
-    _validate_frame_range(start_frame, end_frame)
-    _validate_fps(fps)
-    return {
-        "frame_range": [start_frame, end_frame],
-        "second_range": [start_frame / fps, end_frame / fps],
-        "fps": fps,
-    }
-
-
 def rally_duration_base30(
     start_frame: int,
     final_contact_frame: int,
@@ -480,7 +307,7 @@ def rally_duration_base30(
     end_offset_base30: int,
 ) -> float:
     """Apply the caller-selected issue #22 offset and return base-30 frames."""
-    _validate_fps(fps)
+    validate_fps(fps)
     if start_frame < 0 or final_contact_frame < start_frame:
         raise ValueError("rally contact range is invalid")
     if (
@@ -507,7 +334,7 @@ def serve_speed_proxy(
     positions = np.asarray(shuttle.court_positions, dtype=float)
     if positions.ndim != 2 or positions.shape[1] != 2:
         raise ValueError("shuttle positions must have shape (frames, 2)")
-    _validate_fps(fps)
+    validate_fps(fps)
     if not 0 <= start_frame < end_frame < len(positions):
         raise ValueError("serve frame range is invalid")
     endpoints = positions[[start_frame, end_frame]]
@@ -555,7 +382,7 @@ def evaluate_rally_features(
     outcomes = _object(record.get("outcomes"), "outcomes")
     start = _integer(rally.get("start_frame"), "start_frame")
     end = _integer(rally.get("end_frame"), "end_frame")
-    _validate_frame_range(start, end)
+    validate_frame_range(start, end)
     if end > len(posture) or end > len(court_positions):
         raise ValueError("rally range exceeds feature arrays")
     if posture_interpolation.shape != court_positions.shape[:2]:
@@ -701,16 +528,6 @@ def feature_population(rows: Sequence[Mapping[str, object]]) -> dict[str, int]:
     }
 
 
-def _validate_frame_range(start_frame: int, end_frame: int) -> None:
-    if start_frame < 0 or end_frame <= start_frame:
-        raise ValueError("frame range must be non-negative and half-open")
-
-
-def _validate_fps(fps: float) -> None:
-    if not math.isfinite(fps) or fps <= 0.0:
-        raise ValueError("fps must be positive and finite")
-
-
 def _median_recovery(
     rows: Sequence[Mapping[str, int | float | None]], slot: int
 ) -> float | None:
@@ -724,28 +541,6 @@ def _median_recovery(
 
 def _finite_or_none(value: float) -> float | None:
     return float(value) if math.isfinite(float(value)) else None
-
-
-def _scene_ref_corners(
-    row: Mapping[str, object], resolution: tuple[float, float]
-) -> np.ndarray:
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-    native = np.array(
-        [
-            [row["upleft_x"], row["upleft_y"]],
-            [row["upright_x"], row["upright_y"]],
-            [row["downright_x"], row["downright_y"]],
-            [row["downleft_x"], row["downleft_y"]],
-        ],
-        dtype=float,
-    )
-    if not np.isfinite(native).all():
-        raise ValueError("scene corners must be finite")
-    return native * np.array(
-        [HOMOGRAPHY_RESOLUTION[0] / width, HOMOGRAPHY_RESOLUTION[1] / height]
-    )
 
 
 def _project_gt_columns(
