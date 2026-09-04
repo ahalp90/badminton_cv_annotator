@@ -1,7 +1,10 @@
 """Benchmark-only prototypes for the trial features defined in issue #22.
 
 Issue #18 moved the formulas issue #104 kept into ``dataset_builder.features``;
-this module re-exports them and keeps the prototypes that never shipped to production.
+issue #138 moved ``recovery_at_opponent_contacts`` and ``movement_inefficiency``
+there too, once human ShuttleSet contacts made them reliable enough to export.
+This module re-exports all of them and keeps the prototypes that never shipped
+to production.
 """
 
 from __future__ import annotations
@@ -19,15 +22,19 @@ from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (
     ANKLE_INDICES,
     EYE_INDICES,
+    HALF_CENTRES,
     HIP_INDICES,
+    RECOVERY_HALF_WINDOW_BASE30,
     InterpolationType,
     PlayerFeatureInputs,
     derive_player_feature_inputs,
     interpolate_internal_gaps,
     median_absolute_deviation,
+    movement_inefficiency,
     posture_signal,
     project_positions_by_scene,
     rally_timestamps,
+    recovery_at_opponent_contacts,
     scene_ref_corners,
     select_sticky_keypoints,
     validate_fps,
@@ -36,22 +43,24 @@ from dataset_builder.features import (
 from shared.court import HOMOGRAPHY_RESOLUTION
 
 # Re-exported for annotator.calibration.shuttleset22_features,
-# annotator.calibration.shuttleset_benchmark, and tests/test_shuttleset_features.py;
-# unused by this module's own prototypes.
+# annotator.calibration.shuttleset_benchmark, and tests/test_shuttleset_features.py.
+# recovery_at_opponent_contacts and movement_inefficiency are also used directly
+# below, by evaluate_rally_features; the rest are unused by this module's own
+# prototypes.
 __all__ = (
     "ANKLE_INDICES",
     "EYE_INDICES",
+    "HALF_CENTRES",
     "HIP_INDICES",
+    "RECOVERY_HALF_WINDOW_BASE30",
     "PlayerFeatureInputs",
     "derive_player_feature_inputs",
     "interpolate_internal_gaps",
+    "movement_inefficiency",
     "posture_signal",
+    "recovery_at_opponent_contacts",
     "select_sticky_keypoints",
 )
-
-
-RECOVERY_HALF_WINDOW_BASE30 = 5
-HALF_CENTRES = np.array(((0.5, 0.25), (0.5, 0.75)), dtype=float)
 
 
 class ShuttleFeatureInputs(NamedTuple):
@@ -222,81 +231,6 @@ def score_contact_coordinates(
         "summary": summaries,
         "rows": rows,
     }
-
-
-def recovery_at_opponent_contacts(
-    court_positions: np.ndarray,
-    contact_frames: Sequence[int],
-    striker_slots: Sequence[int],
-    fps: float,
-    *,
-    frame_range: tuple[int, int] | None = None,
-) -> list[dict[str, int | float | None]]:
-    """Measure the other player's mean distance from half-centre around contacts."""
-    positions = np.asarray(court_positions, dtype=float)
-    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
-        raise ValueError("court_positions must have shape (frames, 2, 2)")
-    if len(contact_frames) != len(striker_slots):
-        raise ValueError("contact_frames and striker_slots must have equal length")
-    half_window = int(
-        ScalingKind.FRAME_COUNT.scale(RECOVERY_HALF_WINDOW_BASE30, fps)
-    )
-    range_start, range_end = (0, len(positions)) if frame_range is None else frame_range
-    if not 0 <= range_start < range_end <= len(positions):
-        raise ValueError("recovery frame range is invalid")
-    rows: list[dict[str, int | float | None]] = []
-    for frame, striker_slot in zip(contact_frames, striker_slots, strict=True):
-        if not 0 <= frame < len(positions):
-            raise ValueError("contact frame is outside the frame population")
-        if striker_slot not in (0, 1):
-            raise ValueError("striker slots must be 0 or 1")
-        if not range_start <= frame < range_end:
-            raise ValueError("contact frame is outside the recovery frame range")
-        measured_slot = 1 - striker_slot
-        start = max(range_start, frame - half_window)
-        end = min(range_end, frame + half_window + 1)
-        samples = positions[start:end, measured_slot]
-        valid = np.isfinite(samples).all(axis=1)
-        distances = np.linalg.norm(
-            samples[valid] - HALF_CENTRES[measured_slot], axis=1
-        )
-        rows.append(
-            {
-                "contact_frame": frame,
-                "measured_slot": measured_slot,
-                "window_start": start,
-                "window_end": end,
-                "valid_frames": int(valid.sum()),
-                "mean_distance": float(np.mean(distances)) if len(distances) else None,
-            }
-        )
-    return rows
-
-
-def movement_inefficiency(
-    court_positions: np.ndarray, contact_frames: Sequence[int]
-) -> np.ndarray:
-    """Return path length minus straight displacement for each contact interval."""
-    positions = np.asarray(court_positions, dtype=float)
-    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
-        raise ValueError("court_positions must have shape (frames, 2, 2)")
-    contacts = np.asarray(contact_frames, dtype=int)
-    if len(contacts) and (
-        contacts.min() < 0
-        or contacts.max() >= len(positions)
-        or np.any(np.diff(contacts) <= 0)
-    ):
-        raise ValueError("contact frames must be strictly increasing and in range")
-    result = np.full((max(0, len(contacts) - 1), 2), np.nan, dtype=float)
-    for interval, (start, end) in enumerate(zip(contacts, contacts[1:])):
-        for slot in range(2):
-            path = positions[start : end + 1, slot]
-            if not np.isfinite(path).all():
-                continue
-            path_length = float(np.linalg.norm(np.diff(path, axis=0), axis=1).sum())
-            displacement = float(np.linalg.norm(path[-1] - path[0]))
-            result[interval, slot] = path_length - displacement
-    return result
 
 
 def rally_duration_base30(

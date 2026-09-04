@@ -3,7 +3,9 @@
 Issue #22 defines the formulas. Issue #104 kept posture variability, rally
 timestamps, and linear-interpolation provenance. Issue #18 moved those parts
 here from the benchmark-only prototype so the dataset export and the ShuttleSet
-benchmark share one implementation.
+benchmark share one implementation. Issue #138 moved recovery_at_opponent_contacts
+and movement_inefficiency here too, once human ShuttleSet contacts made them
+reliable enough to export.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from annotator.court_evidence import detected_court_info
+from annotator.fps_constants import ScalingKind
 from annotator.point_winner import project_pixels_to_court
 from annotator.rally.evidence import build_sticky_result, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
@@ -32,6 +35,10 @@ COURT_SIDES = ("top", "bottom")
 # 3 s of tail after the last, so a clip keeps the serve setup and the point ending.
 CLIP_LEAD_SECONDS = 2
 CLIP_TAIL_SECONDS = 3
+# Issue #138: the away-from-centre recovery window is +/- 5 base-30 frames around
+# a contact, and each side recovers toward its own half-court centre.
+RECOVERY_HALF_WINDOW_BASE30 = 5
+HALF_CENTRES = np.array(((0.5, 0.25), (0.5, 0.75)), dtype=float)
 
 
 class InterpolationType(IntEnum):
@@ -166,6 +173,81 @@ def median_absolute_deviation(values: np.ndarray) -> float | None:
         return None
     median = float(np.median(finite))
     return float(np.median(np.abs(finite - median)))
+
+
+def recovery_at_opponent_contacts(
+    court_positions: np.ndarray,
+    contact_frames: Sequence[int],
+    striker_slots: Sequence[int],
+    fps: float,
+    *,
+    frame_range: tuple[int, int] | None = None,
+) -> list[dict[str, int | float | None]]:
+    """Measure the other player's mean distance from half-centre around contacts."""
+    positions = np.asarray(court_positions, dtype=float)
+    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
+        raise ValueError("court_positions must have shape (frames, 2, 2)")
+    if len(contact_frames) != len(striker_slots):
+        raise ValueError("contact_frames and striker_slots must have equal length")
+    half_window = int(
+        ScalingKind.FRAME_COUNT.scale(RECOVERY_HALF_WINDOW_BASE30, fps)
+    )
+    range_start, range_end = (0, len(positions)) if frame_range is None else frame_range
+    if not 0 <= range_start < range_end <= len(positions):
+        raise ValueError("recovery frame range is invalid")
+    rows: list[dict[str, int | float | None]] = []
+    for frame, striker_slot in zip(contact_frames, striker_slots, strict=True):
+        if not 0 <= frame < len(positions):
+            raise ValueError("contact frame is outside the frame population")
+        if striker_slot not in (0, 1):
+            raise ValueError("striker slots must be 0 or 1")
+        if not range_start <= frame < range_end:
+            raise ValueError("contact frame is outside the recovery frame range")
+        measured_slot = 1 - striker_slot
+        start = max(range_start, frame - half_window)
+        end = min(range_end, frame + half_window + 1)
+        samples = positions[start:end, measured_slot]
+        valid = np.isfinite(samples).all(axis=1)
+        distances = np.linalg.norm(
+            samples[valid] - HALF_CENTRES[measured_slot], axis=1
+        )
+        rows.append(
+            {
+                "contact_frame": frame,
+                "measured_slot": measured_slot,
+                "window_start": start,
+                "window_end": end,
+                "valid_frames": int(valid.sum()),
+                "mean_distance": float(np.mean(distances)) if len(distances) else None,
+            }
+        )
+    return rows
+
+
+def movement_inefficiency(
+    court_positions: np.ndarray, contact_frames: Sequence[int]
+) -> np.ndarray:
+    """Return path length minus straight displacement for each contact interval."""
+    positions = np.asarray(court_positions, dtype=float)
+    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
+        raise ValueError("court_positions must have shape (frames, 2, 2)")
+    contacts = np.asarray(contact_frames, dtype=int)
+    if len(contacts) and (
+        contacts.min() < 0
+        or contacts.max() >= len(positions)
+        or np.any(np.diff(contacts) <= 0)
+    ):
+        raise ValueError("contact frames must be strictly increasing and in range")
+    result = np.full((max(0, len(contacts) - 1), 2), np.nan, dtype=float)
+    for interval, (start, end) in enumerate(zip(contacts, contacts[1:])):
+        for slot in range(2):
+            path = positions[start : end + 1, slot]
+            if not np.isfinite(path).all():
+                continue
+            path_length = float(np.linalg.norm(np.diff(path, axis=0), axis=1).sum())
+            displacement = float(np.linalg.norm(path[-1] - path[0]))
+            result[interval, slot] = path_length - displacement
+    return result
 
 
 def project_positions_by_scene(
