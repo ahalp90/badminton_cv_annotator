@@ -13,9 +13,6 @@ primitive artifacts where they remain compatible.
 
 | Feature | Current evidence | Gate for reconsideration |
 |---|---|---|
-| Shots per rally | Exact production count on 298 of 3,287 eligible ShuttleSet rallies | A merged production contact stream with materially better complete-rally contact count and ordering, followed by the same aggregate and per-video ground-truth benchmark |
-| Away-from-centre recovery | Formula and coverage are verified, but production contact and server attribution are weak | Better production contacts and server or striker attribution, followed by a comparison against windows built from existing human contact labels |
-| Movement inefficiency | Formula and coverage are verified, but production intervals use predicted contacts | Better complete-rally contact sequences, followed by a paired comparison of predicted-contact and human-contact interval values on uniquely mapped rallies |
 | Rally-to-commentary association | The post-rally join covers 1,822 of 6,229 eligible human-contact rallies and 77 of 3,434 eligible production spans. The issue #136 aligned rerun word-times 92.6% of chunks; Ari's issue #138 rule then covers 2,119 of 6,156 human-contact rallies at 8 s and 2,222 at 10 s with no ambiguous chunk. 1,890 ShuttleSet chunk starts sit on replay-masked frames | Choose the lag window and a replay-time commentary policy with Ari, then label a sample that measures timing and rally-association accuracy. Aligned timestamps are done; see the [aligned rerun](issue_104_shuttleset_benchmark.md#aligned-rerun-issue-136) |
 
 The existing ShuttleSet annotations are sufficient for those comparisons. They

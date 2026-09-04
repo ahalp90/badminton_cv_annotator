@@ -180,6 +180,9 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     assert rallies["source_set"].tolist() == [1, 1]
     assert rallies["source_rally"].tolist() == [1, 2]
     assert list(zip(rallies["start_frame"], rallies["end_frame"])) == [(5, 21), (61, 71)]
+    # Issue #138: shots_per_rally is wired through build_video_tables, shared with
+    # the ShuttleSet export, so it is exact here too: 3 contacts then 2.
+    assert rallies["shots_per_rally"].tolist() == [3, 2]
     # 30 fps: 60 frames of lead-in and 90 of tail, both clamped by this short fixture.
     assert list(zip(rallies["clip_start_frame"], rallies["clip_end_frame"])) == [
         (0, 100), (1, 100),

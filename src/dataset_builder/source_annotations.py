@@ -7,6 +7,11 @@ benchmark-only reader
 rally is unusable if any of its rows has an invalid frame or a marked flaw,
 or if its contact frames are not strictly increasing in (ball_round,
 frame_num) order. See issue #18.
+
+This module has no player-signal positions, so the four position-derived
+columns (issue #138: recovery and movement inefficiency) are written as
+placeholders. ``export_v1.build_video_tables`` fills in the real values from
+this table's own rally structure and the player-signal positions.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from pathlib import Path
 import re
 from typing import NamedTuple
 
+import numpy as np
 import pandas as pd
 
 from classifier_shared.player_mapping import find_set3_switch_rally
@@ -210,6 +216,13 @@ def load_source_annotations(
             "contact_type_en": raw["type"].map(english_label),
             "flaw_marked": flaw_marked,
             "rally_id": rally_id,
+            # Position-derived columns: placeholders here, so this table already has the
+            # frozen source_contacts shape. export_v1.build_video_tables fills the real
+            # values in, from the rally's contact order and the player-signal positions.
+            "recovery_distance": np.nan,
+            "recovery_frames_valid": 0,
+            "movement_inefficiency_top": np.nan,
+            "movement_inefficiency_bottom": np.nan,
         }
     )
     population = {
