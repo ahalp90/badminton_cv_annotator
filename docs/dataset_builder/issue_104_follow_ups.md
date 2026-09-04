@@ -29,8 +29,6 @@ existing contact and player labels prove unusable for a specific comparison.
 | Rally duration | Define the offset after the final contact, including its base-30 frame units |
 | Player sex | Add an authoritative metadata source; do not infer it from names or video |
 | Serve speed proxy | Define return, static, and viewport-exit endpoints and missing-shuttle handling; then validate those events on a small reviewed sample |
-| Raw degradation slope | First retain the underlying features and establish stable player identity across rallies and sets |
-| Tanh-normalized degradation | Define the normalization temperature after the raw slope population exists |
 | Commentary sentiment, concept, and player link | Define supported output schemas, then validate each field against human labels before adding it to the dataset |
 | Backward extrapolation | Define the permitted scene boundary, maximum range, and provenance; then audit a small set of non-standard-view starts |
 

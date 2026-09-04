@@ -23,6 +23,7 @@ import pandas as pd
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.commentary_export import commentary_tables, empty_table
+from dataset_builder.degradation import player_trend_rows
 from dataset_builder.features import (
     COURT_SIDES,
     PlayerFeatureInputs,
@@ -51,6 +52,7 @@ from dataset_builder.schema_v1 import (
     PLAYER_RALLIES,
     PLAYER_SIGNALS,
     PLAYER_SIGNALS_DIRECTORY,
+    PLAYER_TRENDS,
     PLAYERS,
     PRIMITIVE_ARTIFACT_NOTES,
     PRIMITIVE_ARTIFACTS,
@@ -129,6 +131,7 @@ class VideoTables:
 
     rallies: list[dict[str, object]]
     player_rallies: list[dict[str, object]]
+    player_trends: list[dict[str, object]]
     source_contacts: pd.DataFrame | None
     players: tuple[Player, ...]
     artifacts: list[dict[str, object]]
@@ -332,6 +335,8 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                 )
             )
 
+    trend_rows, trend_population = player_trend_rows(identity, rallies, player_rallies)
+
     artifacts = [
         _artifact_row(inputs.source_dataset, inputs.video_id, LOCATION_INPUT, integrity)
         for integrity in inputs.input_artifacts
@@ -343,6 +348,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
     return VideoTables(
         rallies=rallies,
         player_rallies=player_rallies,
+        player_trends=trend_rows,
         source_contacts=source_contacts,
         players=() if match is None else (match.player_a, match.player_b),
         artifacts=artifacts,
@@ -354,6 +360,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
             "annotator_rallies": len(inputs.annotator_spans),
             "source_rallies": source_rallies,
             "source_population": source_population,
+            "trend_population": trend_population,
             "source_annotation_files": _annotation_files(inputs),
             "match_players": _match_players_entry(match),
             "player_signals": [integrity.to_dict() for integrity in signal_files],
@@ -607,17 +614,20 @@ def _artifact_row(
 def _assemble_tables(videos: Sequence[VideoTables]) -> dict[str, pd.DataFrame]:
     rallies = [row for video in videos for row in video.rallies]
     player_rows = [row for video in videos for row in video.player_rallies]
+    trend_rows = [row for video in videos for row in video.player_trends]
     artifacts = [row for video in videos for row in video.artifacts]
     contacts = [video.source_contacts for video in videos if video.source_contacts is not None]
     people = {player.player_id: player for video in videos for player in video.players}
     player_rallies = pd.DataFrame(player_rows) if player_rows else empty_table(PLAYER_RALLIES)
+    player_trends = pd.DataFrame(trend_rows) if trend_rows else empty_table(PLAYER_TRENDS)
     source_contacts = (
         pd.concat(contacts, ignore_index=True) if contacts else empty_table(SOURCE_CONTACTS)
     )
-    _check_player_ids(people, player_rallies, source_contacts)
+    _check_player_ids(people, player_rallies, player_trends, source_contacts)
     return {
         RALLIES.name: pd.DataFrame(rallies) if rallies else empty_table(RALLIES),
         PLAYER_RALLIES.name: player_rallies,
+        PLAYER_TRENDS.name: player_trends,
         PLAYERS.name: (
             pd.DataFrame([player._asdict() for player in people.values()])
             if people
