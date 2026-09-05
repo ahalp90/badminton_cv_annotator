@@ -15,7 +15,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
+import math
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -28,7 +30,9 @@ from dataset_builder.features import (
     PlayerFeatureInputs,
     clip_frames,
     derive_player_feature_inputs,
+    movement_inefficiency,
     player_rally_features,
+    recovery_at_opponent_contacts,
 )
 from dataset_builder.fixed_sources import load_fixed_source_manifest
 from dataset_builder.manifest import artifact_integrity, load_run_manifest, run_manifest_sha256
@@ -61,6 +65,7 @@ from dataset_builder.schema_v1 import (
     TRANSCRIPT_SEGMENTS,
     RallyOrigin,
     TableSpec,
+    validate_table,
     write_table,
 )
 from dataset_builder.source_annotations import SourceAnnotations, load_source_annotations
@@ -283,7 +288,9 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                 end,
                 None,
                 None,
+                None,
                 player_ids,
+                False,  # No contact rows to carry the ShuttleSet flaw flag.
             )
         )
         player_rallies.extend(
@@ -295,6 +302,8 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                 start,
                 end,
                 player_ids,
+                (None, None),
+                (None, None),
             )
         )
 
@@ -302,11 +311,17 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
     source_rallies = None
     source_population = None
     if annotations is not None and match is not None:
-        source_contacts = annotations.contacts
+        contact_features = _source_contact_features(
+            annotations, match, inputs.player_inputs, float(inputs.metadata.fps)
+        )
+        source_contacts = contact_features.contacts
         source_rallies = len(annotations.rallies)
         source_population = dict(annotations.population)
+        source_population["unmatched_hitters"] = contact_features.unmatched_hitters
         for rally_id, source_rally in enumerate(annotations.rallies):
             player_ids = _side_player_ids(match, source_rally.a_is_top)
+            in_rally = source_contacts["rally_id"].eq(rally_id)
+            flaw_marked = bool(source_contacts.loc[in_rally, "flaw_marked"].any())
             rallies.append(
                 _rally_row(
                     identity,
@@ -317,7 +332,9 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                     source_rally.end_frame,
                     source_rally.source_set,
                     source_rally.source_rally,
+                    len(source_rally.contact_rows),
                     player_ids,
+                    flaw_marked,
                 )
             )
             player_rallies.extend(
@@ -329,6 +346,8 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                     source_rally.start_frame,
                     source_rally.end_frame,
                     player_ids,
+                    contact_features.recovery_medians[rally_id],
+                    contact_features.movement_medians[rally_id],
                 )
             )
 
@@ -416,6 +435,118 @@ def _annotator_player_ids(
         return None
     phase = phase_for_span(annotations.side_phases, start, end)
     return None if phase is None else _side_player_ids(match, phase.a_is_top)
+
+
+class SourceContactFeatures(NamedTuple):
+    """source_contacts with its position-derived columns filled and validated
+    against the frozen schema, and their medians.
+
+    ``recovery_medians`` and ``movement_medians`` are keyed by rally_id, each a
+    ``(top, bottom)`` pair for ``player_rallies.recovery_distance_median`` and
+    ``.movement_inefficiency_median``.
+    """
+
+    contacts: pd.DataFrame
+    recovery_medians: dict[int, tuple[float | None, float | None]]
+    movement_medians: dict[int, tuple[float | None, float | None]]
+    unmatched_hitters: int
+
+
+def _source_contact_features(
+    annotations: SourceAnnotations,
+    match: MatchPlayers,
+    player_inputs: PlayerFeatureInputs,
+    fps: float,
+) -> SourceContactFeatures:
+    """Fill source_contacts' recovery and movement columns from human contact order.
+
+    Per rally, a contact's striker slot is its hitter matched against the
+    rally's top and bottom player ids. A null or unmatched hitter leaves that
+    contact's recovery values null rather than guessing which player recovered;
+    movement inefficiency does not need a striker, so it is unaffected.
+
+    ``annotations.contacts`` has every source_contacts column except these
+    four; adding them completes the table, so this is also where it is
+    validated against the frozen schema.
+    """
+    contacts = annotations.contacts.copy()
+    # Relied on below: a fresh copy of source_annotations' freshly built table
+    # keeps its RangeIndex, so an index label is also its row position.
+    positions = np.asarray(player_inputs.court_positions, dtype=float)
+    row_count = len(contacts)
+    recovery_distance: list[float | None] = [None] * row_count
+    recovery_frames_valid: list[int] = [0] * row_count
+    movement_top: list[float | None] = [None] * row_count
+    movement_bottom: list[float | None] = [None] * row_count
+    recovery_medians: dict[int, tuple[float | None, float | None]] = {}
+    movement_medians: dict[int, tuple[float | None, float | None]] = {}
+    unmatched_hitters = 0
+
+    for rally_id, source_rally in enumerate(annotations.rallies):
+        in_rally = contacts["rally_id"].eq(rally_id).fillna(False)
+        rally_contacts = contacts.loc[in_rally].sort_values("frame_num", kind="stable")
+        row_positions = rally_contacts.index.to_list()
+        frames = rally_contacts["frame_num"].to_numpy(dtype=int)
+        player_ids = _side_player_ids(match, source_rally.a_is_top)
+
+        striker_slots: list[int | None] = []
+        for hitter in rally_contacts["player_id"]:
+            if not pd.isna(hitter) and hitter == player_ids[TOP_SIDE]:
+                striker_slots.append(0)
+            elif not pd.isna(hitter) and hitter == player_ids[BOTTOM_SIDE]:
+                striker_slots.append(1)
+            else:
+                striker_slots.append(None)
+                unmatched_hitters += 1
+
+        resolved = [index for index, slot in enumerate(striker_slots) if slot is not None]
+        recovery_by_side: dict[int, list[float]] = {0: [], 1: []}
+        if resolved:
+            recovery_rows = recovery_at_opponent_contacts(
+                positions,
+                [int(frames[index]) for index in resolved],
+                [striker_slots[index] for index in resolved],
+                fps,
+                frame_range=(source_rally.start_frame, source_rally.end_frame),
+            )
+            for local_index, recovery_row in zip(resolved, recovery_rows, strict=True):
+                row = row_positions[local_index]
+                recovery_frames_valid[row] = recovery_row["valid_frames"]
+                distance = recovery_row["mean_distance"]
+                recovery_distance[row] = distance
+                if distance is not None:
+                    recovery_by_side[recovery_row["measured_slot"]].append(distance)
+        recovery_medians[rally_id] = _median_pair(recovery_by_side)
+
+        movement_by_side: dict[int, list[float]] = {0: [], 1: []}
+        if len(frames) >= 2:
+            movement = movement_inefficiency(positions, frames)
+            for interval in range(len(frames) - 1):
+                row = row_positions[interval]
+                top_value, bottom_value = movement[interval]
+                movement_top[row] = float(top_value) if math.isfinite(top_value) else None
+                movement_bottom[row] = float(bottom_value) if math.isfinite(bottom_value) else None
+                if math.isfinite(top_value):
+                    movement_by_side[0].append(float(top_value))
+                if math.isfinite(bottom_value):
+                    movement_by_side[1].append(float(bottom_value))
+        movement_medians[rally_id] = _median_pair(movement_by_side)
+
+    contacts["recovery_distance"] = recovery_distance
+    contacts["recovery_frames_valid"] = recovery_frames_valid
+    contacts["movement_inefficiency_top"] = movement_top
+    contacts["movement_inefficiency_bottom"] = movement_bottom
+    contacts = validate_table(SOURCE_CONTACTS, contacts)
+    return SourceContactFeatures(contacts, recovery_medians, movement_medians, unmatched_hitters)
+
+
+def _median_pair(values_by_slot: Mapping[int, Sequence[float]]) -> tuple[float | None, float | None]:
+    """Return the (top, bottom) median, or None per side with no values."""
+    top, bottom = values_by_slot[0], values_by_slot[1]
+    return (
+        None if not top else float(np.median(top)),
+        None if not bottom else float(np.median(bottom)),
+    )
 
 
 def _match_players_entry(match: MatchPlayers | None) -> dict[str, object] | None:
@@ -516,7 +647,9 @@ def _rally_row(
     end: int,
     source_set: int | None,
     source_rally: int | None,
+    shots_per_rally: int | None,
     player_ids: Mapping[str, str] | None,
+    flaw_marked: bool,
 ) -> dict[str, object]:
     run_id, source_dataset, video_id = identity
     clip_start, clip_end = clip_frames(start, end, metadata.fps, metadata.frame_count)
@@ -540,6 +673,8 @@ def _rally_row(
         "source_rally": source_rally,
         "top_player_id": None if player_ids is None else player_ids[TOP_SIDE],
         "bottom_player_id": None if player_ids is None else player_ids[BOTTOM_SIDE],
+        "shots_per_rally": shots_per_rally,
+        "flaw_marked": flaw_marked,
     }
 
 
@@ -551,10 +686,12 @@ def _player_rows(
     start: int,
     end: int,
     player_ids: Mapping[str, str] | None,
+    recovery_distance_median: tuple[float | None, float | None],
+    movement_inefficiency_median: tuple[float | None, float | None],
 ) -> list[dict[str, object]]:
     run_id, source_dataset, video_id = identity
     rows = []
-    for features in player_rally_features(player_inputs, start, end):
+    for slot, features in enumerate(player_rally_features(player_inputs, start, end)):
         rows.append(
             {
                 "run_id": run_id,
@@ -564,6 +701,8 @@ def _player_rows(
                 "rally_id": rally_id,
                 **features._asdict(),
                 "player_id": None if player_ids is None else player_ids[features.court_side],
+                "recovery_distance_median": recovery_distance_median[slot],
+                "movement_inefficiency_median": movement_inefficiency_median[slot],
             }
         )
     return rows

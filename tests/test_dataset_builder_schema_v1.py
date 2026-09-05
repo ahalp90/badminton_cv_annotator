@@ -34,18 +34,21 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",
         "fps", "frame_count", "start_frame", "end_frame", "duration_frames",
         "start_seconds", "end_seconds", "duration_seconds", "clip_start_frame",
-        "clip_end_frame", "source_set", "source_rally", "top_player_id", "bottom_player_id",
+        "clip_end_frame", "source_set", "source_rally", "top_player_id",
+        "bottom_player_id", "shots_per_rally", "flaw_marked",
     ),
     "player_rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",
         "court_side", "player_id", "posture_frames_valid", "posture_frames_linear",
         "posture_mad", "position_frames_valid", "position_frames_linear",
+        "recovery_distance_median", "movement_inefficiency_median",
     ),
     "players": ("player_id", "player_name", "sex"),
     "source_contacts": (
         "source_dataset", "video_id", "source_set", "source_row", "source_rally",
         "ball_round", "player_id", "frame_num", "contact_type", "contact_type_en",
-        "flaw_marked", "rally_id",
+        "flaw_marked", "rally_id", "recovery_distance", "recovery_frames_valid",
+        "movement_inefficiency_top", "movement_inefficiency_bottom",
     ),
     "primitive_artifacts": (
         "source_dataset", "video_id", "artifact", "location", "relative_path",
@@ -83,6 +86,8 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("source_rally", "int64", True, "source_annotation"),
         ("top_player_id", "string", True, "derived"),
         ("bottom_player_id", "string", True, "derived"),
+        ("shots_per_rally", "int64", True, "derived"),
+        ("flaw_marked", "bool", False, "source_annotation"),
     ),
     "player_rallies": (
         ("run_id", "string", False, "observed"),
@@ -97,6 +102,8 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("posture_mad", "float64", True, "derived"),
         ("position_frames_valid", "int64", False, "derived"),
         ("position_frames_linear", "int64", False, "derived"),
+        ("recovery_distance_median", "float64", True, "derived"),
+        ("movement_inefficiency_median", "float64", True, "derived"),
     ),
     "players": (
         ("player_id", "string", False, "curated"),
@@ -116,6 +123,10 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("contact_type_en", "string", True, "derived"),
         ("flaw_marked", "bool", False, "source_annotation"),
         ("rally_id", "int64", True, "derived"),
+        ("recovery_distance", "float64", True, "derived"),
+        ("recovery_frames_valid", "int64", False, "derived"),
+        ("movement_inefficiency_top", "float64", True, "derived"),
+        ("movement_inefficiency_bottom", "float64", True, "derived"),
     ),
     "primitive_artifacts": (
         ("source_dataset", "string", False, "observed"),
@@ -165,7 +176,7 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
 
 
 def test_frozen_schema_surface():
-    assert DATASET_SCHEMA == "rally-dataset/1.0"
+    assert DATASET_SCHEMA == "rally-dataset/1.1"
     assert frozen_column_names() == _EXPECTED_COLUMN_NAMES
 
     for table in TABLES:
@@ -196,19 +207,18 @@ _EXPECTED_KEEP_FEATURES = {
     "Commentary raw captions, normalised transcripts, cleaned text",
     "Rally duration from final contact plus offset",
     "Player identity and sex",
-}
-
-_EXPECTED_CUT_FEATURES = {
     "Shots per rally",
     "Away-from-centre recovery",
     "Movement inefficiency",
+}
+
+_EXPECTED_CUT_FEATURES = {
     "Rally-to-commentary association",
 }
 
 # Hypothetical column names for cut/unresolved features that must never sneak into the
 # frozen surface tested above.
 _FORBIDDEN_COLUMN_NAMES = (
-    "shots_per_rally", "recovery", "movement_inefficiency",
     "rally_duration_base30", "serve_speed", "degradation",
 )
 
@@ -267,6 +277,8 @@ def _valid_rallies_frame() -> pd.DataFrame:
             "source_rally": pd.array([1, 2], dtype="Int64"),
             "top_player_id": pd.array(["kento_momota"] * 2, dtype="string"),
             "bottom_player_id": pd.array(["chou_tien_chen"] * 2, dtype="string"),
+            "shots_per_rally": pd.array([3, 2], dtype="Int64"),
+            "flaw_marked": [True, False],
         }
     )
 
@@ -294,6 +306,8 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
             "source_rally": pd.array([1, None], dtype="Int64"),
             "top_player_id": pd.array(["kento_momota", None], dtype="string"),
             "bottom_player_id": pd.array(["chou_tien_chen", None], dtype="string"),
+            "shots_per_rally": pd.array([3, None], dtype="Int64"),
+            "flaw_marked": [True, False],
         }
     )
 
@@ -335,6 +349,10 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
             "contact_type_en": ["NA", "smash"],
             "flaw_marked": [True, False],
             "rally_id": pd.array([0, 0], dtype="Int64"),
+            "recovery_distance": pd.array([0.144, None], dtype="float64"),
+            "recovery_frames_valid": pd.array([9, 0], dtype="Int64"),
+            "movement_inefficiency_top": pd.array([0.06, None], dtype="float64"),
+            "movement_inefficiency_bottom": pd.array([None, None], dtype="float64"),
         }
     )
     write_table(tmp_path / "c", SOURCE_CONTACTS, contacts)

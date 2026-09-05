@@ -5,8 +5,11 @@ table, column, type, or nullability changes the frozen schema and must bump
 ``DATASET_SCHEMA`` and update ``tests/test_dataset_builder_schema_v1.py``.
 
 Decisions come from issue #22 (formulas), issue #104 (keep, cut, unresolved),
-issue #18 (this freeze), and Ari's review of PR #135 (player identity and
-sex). See ``docs/dataset_v1_schema.md``.
+issue #18 (this freeze), Ari's review of PR #135 (player identity and sex),
+and issue #138 (rally-dataset/1.1: shots per rally, recovery, and movement
+inefficiency, once the dataset moved onto human ShuttleSet contacts; and
+``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped).
+See ``docs/dataset_v1_schema.md``.
 """
 
 from __future__ import annotations
@@ -22,8 +25,8 @@ from uuid import uuid4
 import pandas as pd
 
 
-DATASET_SCHEMA = "rally-dataset/1.0"
-SCHEMA_FROZEN_ON = "2026-09-02"
+DATASET_SCHEMA = "rally-dataset/1.1"
+SCHEMA_FROZEN_ON = "2026-09-03"
 DATASET_MANIFEST_FILENAME = "dataset_manifest.json.gz"
 PLAYER_SIGNALS_DIRECTORY = "player_signals"
 
@@ -262,6 +265,22 @@ RALLIES = TableSpec(
             "players.player_id of the person on the bottom court during this rally; same "
             "derivation and null cases as player_rallies.player_id.",
         ),
+        ColumnSpec(
+            "shots_per_rally", ColumnType.INTEGER, True, ReliabilityClass.DERIVED,
+            "Count of human contact rows in this rally, exact by construction. Null on "
+            "annotator rows, which have no contact rows.",
+        ),
+        ColumnSpec(
+            "flaw_marked", ColumnType.BOOLEAN, False, ReliabilityClass.SOURCE_ANNOTATION,
+            "True when any human contact row in this rally carries the ShuttleSet flaw "
+            "flag. No upstream definition of this flag exists; for most flagged rows its "
+            "meaning is unknown. On roughly 320 of the 40-video corpus's 1,314 flagged "
+            "rows the contact frame number is demonstrably wrong (see "
+            "docs/dataset_v1_schema.md, Source contacts), which corrupts every "
+            "frame-anchored value derived from that rally. Stroke sequence, counts and "
+            "hitters stay sound regardless. Filter on this column before trusting a "
+            "frame-anchored value. False on annotator-origin rows.",
+        ),
     ),
     description=(
         "One row per rally. Annotator rows come from the production rally records. "
@@ -315,6 +334,20 @@ PLAYER_RALLIES = TableSpec(
         ColumnSpec(
             "position_frames_linear", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
             "Of position_frames_valid, frames filled by linear interpolation.",
+        ),
+        ColumnSpec(
+            "recovery_distance_median", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
+            "Median of this side's source_contacts.recovery_distance values over the "
+            "rally, i.e. the contacts where this side was not striking. Unitless: "
+            "normalised doubles-court Euclidean distance. Null when no contact in the "
+            "rally has a recovery_distance for this side.",
+        ),
+        ColumnSpec(
+            "movement_inefficiency_median", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
+            "Median of this side's source_contacts.movement_inefficiency_top or "
+            "_bottom values over the rally. Unitless: normalised doubles-court "
+            "Euclidean distance. Null when no interval in the rally has a value for "
+            "this side.",
         ),
     ),
     description=(
@@ -401,14 +434,47 @@ SOURCE_CONTACTS = TableSpec(
         ColumnSpec(
             "rally_id", ColumnType.INTEGER, True, ReliabilityClass.DERIVED,
             "rally_id of the source_contacts row in rallies that this contact belongs to. "
-            "Null when its rally was unusable: a flaw-marked row, a frame outside the "
-            "video, or contacts out of order.",
+            "Null when its rally was unusable: an invalid frame, or contacts out of order. "
+            "A flaw-marked row does not null this; see rallies.flaw_marked.",
+        ),
+        ColumnSpec(
+            "recovery_distance", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
+            "The measured player is this rally's other player, never the hitter: "
+            "rallies.top_player_id when this row's player_id is bottom_player_id, and "
+            "the reverse. recovery_distance is that player's mean distance from their "
+            "own half-centre over the +/- 5 base-30-frame window around this contact, "
+            "clipped to the rally. Unitless: normalised doubles-court Euclidean "
+            "distance. Null when the hitter is not one of this rally's two players, or "
+            "when no frame in the window has a finite position.",
+        ),
+        ColumnSpec(
+            "recovery_frames_valid", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
+            "How many frames of the recovery_distance window, for that same other "
+            "player, had a finite position. Zero when the hitter could not be matched "
+            "to a rally side, so no window could be built. Provenance, matching how "
+            "the table records player_rallies.posture_frames_valid.",
+        ),
+        ColumnSpec(
+            "movement_inefficiency_top", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
+            "Top player's path length minus straight-line displacement from this "
+            "contact to the next contact in the rally. Unitless: normalised "
+            "doubles-court Euclidean distance. Null on a rally's last contact, and "
+            "null when a position in the interval is not finite.",
+        ),
+        ColumnSpec(
+            "movement_inefficiency_bottom", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
+            "Bottom player's path length minus straight-line displacement from this "
+            "contact to the next contact in the rally. Same units and null cases as "
+            "movement_inefficiency_top.",
         ),
     ),
     description=(
         "Human ShuttleSet contact rows, restricted to the kept source fields: contact "
         "type, rally and shot numbers, set, and frame. All other ShuttleSet columns are "
-        "excluded from v1. Rows are source-scoped and never annotator predictions."
+        "excluded from v1. Rows are source-scoped and never annotator predictions. "
+        "recovery_distance, recovery_frames_valid, movement_inefficiency_top, and "
+        "movement_inefficiency_bottom are derived from this table's own contact order "
+        "and the player-signal positions, not copied from ShuttleSet."
     ),
 )
 
@@ -690,16 +756,32 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "map to people by the downcourt flag, the set number, and the set-3 change of ends.",
     ),
     FeatureDisposition(
-        "Shots per rally", Disposition.CUT, (),
-        "Exact production count on 298 of 3,287 eligible ShuttleSet rallies.",
+        "Shots per rally", Disposition.KEEP,
+        ("rallies.shots_per_rally",),
+        "Issue #104 measured this against predicted contacts, exact on only 298 of 3,287 "
+        "rallies. It is now the count of human ShuttleSet contact rows in the rally, exact "
+        "by construction, so the weak input that cut it is gone.",
     ),
     FeatureDisposition(
-        "Away-from-centre recovery", Disposition.CUT, (),
-        "Contact and server attribution inputs are too weak for player-specific windows.",
+        "Away-from-centre recovery", Disposition.KEEP,
+        (
+            "source_contacts.recovery_distance", "source_contacts.recovery_frames_valid",
+            "player_rallies.recovery_distance_median",
+        ),
+        "Cut because predicted contact and server attribution were too weak for a "
+        "player-specific window. Human ShuttleSet contacts fix the contact frame, and the "
+        "hitter resolved against the match table's own side assignment fixes the "
+        "non-striking player, so both weak inputs are gone.",
     ),
     FeatureDisposition(
-        "Movement inefficiency", Disposition.CUT, (),
-        "Production intervals use predicted contacts that miss or add events.",
+        "Movement inefficiency", Disposition.KEEP,
+        (
+            "source_contacts.movement_inefficiency_top",
+            "source_contacts.movement_inefficiency_bottom",
+            "player_rallies.movement_inefficiency_median",
+        ),
+        "Cut because production intervals used predicted contacts that missed or added "
+        "events. Human ShuttleSet contacts fix each interval's start and end exactly.",
     ),
     FeatureDisposition(
         "Rally-to-commentary association", Disposition.CUT, (),

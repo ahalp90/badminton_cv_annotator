@@ -79,40 +79,56 @@ def test_main_path_builds_usable_rally_and_maps_contact_types(tmp_path: Path) ->
 
     assert result.rallies == (SourceRally(1, 1, 10, 31, (0, 1, 2), a_is_top=True),)
     contacts = result.contacts
-    assert list(contacts.columns) == list(schema_v1.SOURCE_CONTACTS.column_names())
+    # This module owns every source_contacts column except the four
+    # position-derived ones, which export_v1 adds once it has player positions.
+    position_derived = {
+        "recovery_distance", "recovery_frames_valid",
+        "movement_inefficiency_top", "movement_inefficiency_bottom",
+    }
+    assert list(contacts.columns) == [
+        name for name in schema_v1.SOURCE_CONTACTS.column_names() if name not in position_derived
+    ]
     assert contacts.iloc[0]["contact_type_en"] == "long_service"
     assert pd.isna(contacts.iloc[1]["contact_type_en"])
     assert contacts.iloc[2]["contact_type_en"] == "drop"
     assert list(contacts["rally_id"]) == [0, 0, 0]
+    assert not contacts["flaw_marked"].any()  # A clean rally: no row carries the flag.
     assert result.population == {
         "source_contact_rows": 3,
         "usable_contact_rows": 3,
         "usable_rallies": 1,
         "side_phases": 1,
-        "excluded_flaw_rows": 0,
+        "kept_flaw_rows": 0,
         "excluded_invalid_frame_rows": 0,
         "excluded_incomplete_rallies": 0,
         "excluded_incomplete_rally_rows": 0,
         "excluded_non_monotonic_rallies": 0,
         "excluded_non_monotonic_rally_rows": 0,
     }
-    validated = schema_v1.validate_table(schema_v1.SOURCE_CONTACTS, contacts)
-    assert validated.equals(contacts)
+    # The owned columns already carry their frozen dtypes; export_v1 validates
+    # the complete table once it adds the position-derived columns.
+    frozen_dtypes = schema_v1.SOURCE_CONTACTS.pandas_dtypes()
+    assert {name: str(dtype) for name, dtype in contacts.dtypes.items()} == {
+        name: frozen_dtypes[name] for name in contacts.columns
+    }
 
 
-def test_flaw_marked_row_makes_rally_unusable(tmp_path: Path) -> None:
+def test_flagged_serve_keeps_its_rally_and_marks_it(tmp_path: Path) -> None:
+    # Issue #138: a flaw-marked row no longer drops its rally. The flag marks a
+    # broken frame number, almost always the serve's, not a bad rally.
     _write_set(
         tmp_path / "set1.csv",
-        [_row(2, 1, 40, "長球"), _row(2, 2, 41, "長球", flaw="1")],
+        [_row(2, 1, 40, "長球", flaw="1"), _row(2, 2, 65, "長球")],
     )
 
     result = _load(tmp_path)
 
-    assert result.rallies == ()
-    assert result.contacts["rally_id"].isna().all()
-    assert result.population["excluded_flaw_rows"] == 1
-    assert result.population["excluded_incomplete_rallies"] == 1
-    assert result.population["excluded_incomplete_rally_rows"] == 2
+    assert result.rallies == (SourceRally(1, 2, 40, 66, (0, 1), a_is_top=True),)
+    assert list(result.contacts["rally_id"]) == [0, 0]
+    assert result.contacts["flaw_marked"].tolist() == [True, False]
+    assert result.population["kept_flaw_rows"] == 1
+    assert result.population["excluded_incomplete_rallies"] == 0
+    assert result.population["excluded_incomplete_rally_rows"] == 0
 
 
 def test_non_monotonic_contacts_are_excluded(tmp_path: Path) -> None:
