@@ -614,7 +614,7 @@ def _validate_aligned_row(video_id: str, index: int, row: Mapping[str, Any]) -> 
         raise ValueError(f"{video_id} retimed row {index} is aligned below the match floor")
 
 
-def _load_retimed_chunks_for_video(
+def load_retimed_chunks_for_video(
     commentary_root: Path,
     video_id: str,
     chunks: Sequence[Mapping[str, Any]],
@@ -725,7 +725,7 @@ def _load_video_inputs(
         chunks = _load_cleaned_chunks_for_video(
             commentary_root, manifest_index, video_id, status
         )
-        retimed_chunks, retimed_sha256 = _load_retimed_chunks_for_video(
+        retimed_chunks, retimed_sha256 = load_retimed_chunks_for_video(
             commentary_root, video_id, chunks, float(status["local_duration_s"])
         )
 

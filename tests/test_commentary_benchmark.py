@@ -23,7 +23,7 @@ from annotator.calibration.commentary_benchmark_inputs import (
     EXPECTED_SHUTTLESET_IDS,
     RETIMED_RELATIVE_DIR,
     VideoInputs,
-    _load_retimed_chunks_for_video,
+    load_retimed_chunks_for_video,
     _validate_repair_metadata,
     _validate_rallies,
     _validate_timed_rows,
@@ -453,40 +453,40 @@ def test_evaluate_video_reports_aligned_views_only_with_retimed_chunks() -> None
 
 def test_retimed_sidecar_loader_ties_rows_to_the_cleaned_chunks(tmp_path: Path) -> None:
     chunks = [_chunk("video_c0", 30.0, 30.5), _chunk("video_c1", 40.0, 40.5)]
-    assert _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0) == (None, None)
+    assert load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0) == (None, None)
 
     good = [_retimed(chunks[0], 5.5, 5.8), _retimed(chunks[1], 40.0, 40.5, status="unmatched", match_ratio=None)]
     path = _write_retimed(tmp_path, "video", good)
-    rows, sha256 = _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+    rows, sha256 = load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
     assert [row["chunk_id"] for row in rows] == ["video_c0", "video_c1"]
     assert len(sha256) == 64 and path.is_file()
 
     _write_retimed(tmp_path, "video", good[:1])
     with pytest.raises(ValueError, match="population"):
-        _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
 
     drifted = [dict(good[0], coarse_start=31.0), good[1]]
     _write_retimed(tmp_path, "video", drifted)
     with pytest.raises(ValueError, match="coarse times"):
-        _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
 
     moved = [good[0], dict(good[1], start=41.0)]
     _write_retimed(tmp_path, "video", moved)
     with pytest.raises(ValueError, match="unmatched"):
-        _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
 
     far = [dict(good[0], start=95.0, end=95.3, align_shift_s=65.0), good[1]]  # past coarse end + pad
     _write_retimed(tmp_path, "video", far)
     with pytest.raises(ValueError, match="search window"):
-        _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
 
     weak = [dict(good[0], align_match_ratio=0.2), good[1]]
     _write_retimed(tmp_path, "video", weak)
     with pytest.raises(ValueError, match="match floor"):
-        _load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", chunks, 100.0)
 
     with pytest.raises(ValueError, match="no cleaned chunks"):
-        _load_retimed_chunks_for_video(tmp_path, "video", [], 100.0)
+        load_retimed_chunks_for_video(tmp_path, "video", [], 100.0)
 
 
 def test_dataset_aggregate_ignores_the_chunkless_video_when_gating_aligned_results() -> None:

@@ -38,7 +38,7 @@ from dataset_builder.vision import save_json_gz
 from scraper.commentary_pairing import (
     PAIR_WINDOW_S,
     _believed_replay_in_rally_interior,
-    _chunk_start_on_mask,
+    chunk_start_on_mask,
     pair_video,
 )
 from scraper.commentary_retiming import AlignStatus
@@ -312,7 +312,7 @@ def _multi_rally_counts(
     counts = dict.fromkeys(MULTI_RALLY_SUM_FIELDS, 0)
     for chunk in sorted(inputs.chunks, key=lambda row: float(row["start"])):
         start = float(chunk["start"])
-        if filtered_mask is not None and _chunk_start_on_mask(start, inputs.fps, filtered_mask):
+        if filtered_mask is not None and chunk_start_on_mask(start, inputs.fps, filtered_mask):
             counts["unpairable_masked_start_chunks"] += 1
             continue
         containing, ended_within = _candidate_rallies(start, spans, pair_window_s)
