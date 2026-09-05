@@ -328,6 +328,8 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
         }
     ]
     assert manifest["players_table"]["name"] == "players"
+    # The ShuttleSet exporter has no inpainted-root concept; the field always reads null.
+    assert manifest["inpainted_root"] is None
     assert manifest["videos"][0]["match_players"] == {
         "player_a": WINNER_ID,
         "player_b": LOSER_ID,

@@ -157,6 +157,7 @@ class DatasetIdentity:
     sources_manifest: dict[str, object] | None = None
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
+    inpainted_root: Path | None = None
     players_table: dict[str, object] | None = None
 
 
@@ -252,6 +253,7 @@ def write_dataset(
         "sources_manifest": identity.sources_manifest,
         "ground_truth_root": _optional_text(identity.ground_truth_root),
         "commentary_root": _optional_text(identity.commentary_root),
+        "inpainted_root": _optional_text(identity.inpainted_root),
         "players_table": identity.players_table,
         "videos": [video.manifest for video in videos],
         "tables": table_entries,

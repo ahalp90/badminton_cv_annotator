@@ -172,7 +172,8 @@ PYTHONPATH=src uv run python -m dataset_builder export-v1-shuttleset22 \
   --data-root /scratch/cmarti56/issue106-shuttleset22-data \
   --output-dir /scratch/<user>/dataset-v1/shuttleset22 \
   --run-id issue106-ba24a95 \
-  --commentary-root /scratch/<user>/<commentary preparation root>
+  --commentary-root /scratch/<user>/<commentary preparation root> \
+  --inpainted-root /scratch/ahalperi/contact_det_full_ds_fit/shuttleset22-inpainted-extract
 ```
 
 `--commentary-root` is optional. It expects the layout the issue #104
@@ -180,6 +181,38 @@ commentary benchmark used: `transcripts/<video_id>.json`,
 `commentary/cleaned_chunks/<video_id>.json`, and
 `status/commentary_per_video_status.json`. Without it the two commentary
 tables are written empty.
+
+`--inpainted-root` is optional too, but matters: the ShuttleSet22 extract
+under `--data-root` was run with InpaintNet off, so its shuttle track has a
+visible shuttle on only 35-51% of frames per video, well under ShuttleSet's
+77-93%. A later InpaintNet pass over the same videos fixed that, reaching
+78-87% visible frames, and its output lives in a second root instead of
+`extracted-simple/`. Passing `--inpainted-root` swaps that corrected track
+and its guard codes into `primitive_artifacts` for every exported video.
+
+The sticky player picker never reads a shuttle coordinate. It reads pose
+boxes, scores, keypoints, detection counts, and court gate inputs; the
+shuttle track only sets the length of its output arrays. So the flag changes
+no kept feature value: measured on ShuttleSet22 matches 8 and 9, every
+`player_rallies` column came out byte-identical between the plain and
+corrected tracks, while track visibility moved from 35.2% to 78.2% on match
+8 and 51.0% to 86.9% on match 9.
+
+What the flag does change is provenance. The primitive bundle now names the
+corrected track and carries its guard codes, so ShuttleSet22 gets guard
+codes at all for the first time; without the flag it ships none. Serve
+speed, the one unresolved feature that will read shuttle coordinates
+directly, needs this wiring in place before it can land. Without the flag,
+ShuttleSet22 and ShuttleSet sit on shuttle inputs of different quality, and
+ShuttleSet22 ships no guard codes.
+
+Any ShuttleSet22 export meant for delivery should pass `--inpainted-root`.
+Omitting it is a provenance gap, not a numbers gap, but it is still one a
+client copy should not carry silently: the exporter logs a warning naming
+the flag when it is left off, and `dataset_manifest.json.gz` records
+`inpainted_root: null` so the gap is checkable without reading logs. The
+default stays off rather than pointing at a fixed path, because ShuttleSet
+has no matching root and the flag is specific to ShuttleSet22.
 
 Both commands accept a subset: `--video-id sset_01 --video-id sset_02` for
 the run export, `--match-id 8 --match-id 9` for ShuttleSet22. A subset is
@@ -752,7 +785,7 @@ Manifest of the raw primitive bundle: frame-aligned shuttle, pose, court, and ma
 | `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
 | `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
 | `artifact` | string | no | observed | Canonical artifact name; see PRIMITIVE_ARTIFACT_NOTES. |
-| `location` | string | no | observed | input_dir or export_dir: the root that relative_path is relative to. The dataset manifest records both roots. |
+| `location` | string | no | observed | input_dir, export_dir, or inpainted_root: the root that relative_path is relative to. The dataset manifest records input_root and inpainted_root by name; export_dir is implicit, since the manifest file itself lives there. |
 | `relative_path` | string | no | observed | POSIX path of the file under location. |
 | `md5` | string | no | observed | MD5 of the stored file, matching the run manifest convention. |
 | `size_bytes` | int64 | no | observed | Stored file size. |
@@ -813,6 +846,8 @@ One note per artifact name that can appear in the `primitive_artifacts` table. T
 | --- | --- | --- |
 | `shuttle_track` | predicted | (frame_count, 3) TrackNet x, y normalised by resolution, and visibility. Median court error 0.459 units at human contacts. Do not describe as accurate. |
 | `shuttle_guard_codes` | predicted | (frame_count,) inpaint hallucination guard grades. Mask rejected grades before using shuttle positions. |
+| `shuttle_track_inpainted` | predicted | (frame_count, 3) TrackNet x, y normalised by resolution, and visibility, from a later InpaintNet pass over the ShuttleSet22 extract. The base ShuttleSet22 extract was run with InpaintNet off, so this replaces shuttle_track with a higher-visibility track. Do not describe as accurate. |
+| `shuttle_guard_codes_inpainted` | predicted | (frame_count,) inpaint hallucination guard grades for shuttle_track_inpainted. Mask rejected grades before using shuttle positions. |
 | `pose_kps` | predicted | (frame_count, slots, 17, 2) RTMLib keypoints per detection slot. Slots are not player identities. |
 | `pose_bboxes` | predicted | (frame_count, slots, 4) detection boxes. NaN in inactive slots. |
 | `pose_scores` | predicted | (frame_count, slots) detection scores. NaN in inactive slots. |

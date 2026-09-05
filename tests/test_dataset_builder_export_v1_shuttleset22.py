@@ -13,8 +13,11 @@ import numpy as np
 import pytest
 
 from dataset_builder import vision
+from dataset_builder import export_v1_shuttleset22 as ss22_export
 from dataset_builder.cli import main
 from dataset_builder.export_v1_shuttleset22 import (
+    INPAINTED_GUARD_CODES_FILENAME,
+    INPAINTED_TRACK_FILENAME,
     ShuttleSet22ExportInputs,
     export_shuttleset22_v1,
     metadata_from_receipt,
@@ -221,6 +224,8 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     assert len(exports) == len(PLAYER_SIGNALS) == 4
     assert set(exports["artifact"]) == {signal.name for signal in PLAYER_SIGNALS}
     assert inputs["relative_path"].str.startswith(f"{EXTRACTED_DIRECTORY}/").all()
+    # Without --inpainted-root, no inpainted sidecar rows are written at all.
+    assert not artifacts["artifact"].str.endswith("_inpainted").any()
     for row in artifacts.itertuples():
         root = fixture.data_root if row.location == "input_dir" else output_dir
         stored = artifact_integrity(row.artifact, root / row.relative_path, relative_to=root)
@@ -235,6 +240,9 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
         "shuttleset22_sources", fixture.sources
     ).to_dict()
     assert str(manifest["ground_truth_root"]).endswith(ANNOTATIONS_DIRECTORY)
+    # Without --inpainted-root, the manifest records the gap explicitly rather
+    # than omitting the key.
+    assert manifest["inpainted_root"] is None
     assert manifest["players_table"]["name"] == "players"
     assert manifest["videos"] == [
         {
@@ -256,6 +264,130 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     assert [entry["path"] for entry in manifest["videos"][0]["source_annotation_files"]] == [
         f"set/{VIDEO}/{SET_FILENAME}"
     ]
+
+
+def _build_inpainted_root(tmp_path: Path) -> Path:
+    """Write the two corrected sidecars for MATCH_ID under a second root."""
+    inpainted_root = tmp_path / "inpainted"
+    video_dir = inpainted_root / f"{MATCH_ID:02d} {VIDEO}"
+    video_dir.mkdir(parents=True)
+    vision.save_npy_xz(
+        video_dir / INPAINTED_TRACK_FILENAME, np.ones((FRAME_COUNT, 3), dtype=np.float64)
+    )
+    vision.save_npy_xz(
+        video_dir / INPAINTED_GUARD_CODES_FILENAME, np.zeros(FRAME_COUNT, dtype=np.int8)
+    )
+    return inpainted_root
+
+
+def test_shuttleset22_export_with_inpainted_root_adds_corrected_sidecars(
+    tmp_path: Path,
+) -> None:
+    fixture = _build_data_root(tmp_path)
+    inpainted_root = _build_inpainted_root(tmp_path)
+    output_dir = tmp_path / "export"
+
+    manifest = export_shuttleset22_v1(
+        ShuttleSet22ExportInputs(
+            data_root=fixture.data_root,
+            output_dir=output_dir,
+            run_id=RUN_ID,
+            sources=fixture.sources,
+            inpainted_root=inpainted_root,
+        )
+    )
+    assert manifest["inpainted_root"] == str(inpainted_root)
+    artifacts = read_table(output_dir, PRIMITIVE_ARTIFACTS)
+    inpainted = artifacts[artifacts["location"] == "inpainted_root"]
+
+    assert set(inpainted["artifact"]) == {
+        "shuttle_track_inpainted", "shuttle_guard_codes_inpainted",
+    }
+    assert set(inpainted["video_id"]) == {VIDEO_ID}
+    # relative_path is relative to inpainted_root, not data_root, matching the
+    # distinct "inpainted_root" location.
+    expected_prefix = f"{MATCH_ID:02d} {VIDEO}/"
+    assert inpainted["relative_path"].str.startswith(expected_prefix).all()
+    for row in inpainted.itertuples():
+        stored = artifact_integrity(
+            row.artifact, inpainted_root / row.relative_path, relative_to=inpainted_root
+        )
+        assert (stored.md5, stored.size_bytes) == (row.md5, row.size_bytes)
+    # The plain shuttle_track input artifact is still present alongside it.
+    assert "shuttle_track" in set(artifacts["artifact"])
+
+
+def test_shuttleset22_export_with_inpainted_root_feeds_inpainted_track_to_player_signals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The corrected track, not extracted-simple's, must drive player-signal derivation."""
+    fixture = _build_data_root(tmp_path)
+    inpainted_root = _build_inpainted_root(tmp_path)
+    seen_track_paths: list[Path] = []
+    real_derive_player_inputs = ss22_export.derive_player_inputs
+
+    def spy_derive_player_inputs(track_path, *args, **kwargs):
+        seen_track_paths.append(Path(track_path))
+        return real_derive_player_inputs(track_path, *args, **kwargs)
+
+    monkeypatch.setattr(ss22_export, "derive_player_inputs", spy_derive_player_inputs)
+
+    export_shuttleset22_v1(
+        ShuttleSet22ExportInputs(
+            data_root=fixture.data_root,
+            output_dir=tmp_path / "export",
+            run_id=RUN_ID,
+            sources=fixture.sources,
+            inpainted_root=inpainted_root,
+        )
+    )
+
+    assert seen_track_paths == [
+        (inpainted_root / f"{MATCH_ID:02d} {VIDEO}" / INPAINTED_TRACK_FILENAME).resolve()
+    ]
+
+
+def test_shuttleset22_export_with_inpainted_root_missing_directory_names_video(
+    tmp_path: Path,
+) -> None:
+    fixture = _build_data_root(tmp_path)
+    empty_inpainted_root = tmp_path / "inpainted-empty"
+    empty_inpainted_root.mkdir()
+
+    with pytest.raises(FileNotFoundError, match=f"{MATCH_ID:02d} {VIDEO}.*directory not found"):
+        export_shuttleset22_v1(
+            ShuttleSet22ExportInputs(
+                data_root=fixture.data_root,
+                output_dir=tmp_path / "export",
+                run_id=RUN_ID,
+                sources=fixture.sources,
+                inpainted_root=empty_inpainted_root,
+            )
+        )
+
+
+def test_shuttleset22_export_with_inpainted_root_missing_file_names_video(
+    tmp_path: Path,
+) -> None:
+    fixture = _build_data_root(tmp_path)
+    inpainted_root = tmp_path / "inpainted"
+    video_dir = inpainted_root / f"{MATCH_ID:02d} {VIDEO}"
+    video_dir.mkdir(parents=True)
+    vision.save_npy_xz(
+        video_dir / INPAINTED_TRACK_FILENAME, np.ones((FRAME_COUNT, 3), dtype=np.float64)
+    )
+    # shuttle_guard_codes_inpainted.npy.xz is left missing.
+
+    with pytest.raises(FileNotFoundError, match=f"{MATCH_ID:02d} {VIDEO}.*artifact not found"):
+        export_shuttleset22_v1(
+            ShuttleSet22ExportInputs(
+                data_root=fixture.data_root,
+                output_dir=tmp_path / "export",
+                run_id=RUN_ID,
+                sources=fixture.sources,
+                inpainted_root=inpainted_root,
+            )
+        )
 
 
 def test_shuttleset22_export_rejects_non_download_source(tmp_path: Path) -> None:
@@ -302,3 +434,22 @@ def test_shuttleset22_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
         "--sources", str(fixture.sources),
     ]) == 0
     assert DATASET_SCHEMA in capsys.readouterr().out
+
+
+def test_shuttleset22_cli_with_inpainted_root(tmp_path: Path) -> None:
+    fixture = _build_data_root(tmp_path)
+    inpainted_root = _build_inpainted_root(tmp_path)
+    output_dir = tmp_path / "export"
+
+    assert main([
+        "export-v1-shuttleset22",
+        "--data-root", str(fixture.data_root),
+        "--output-dir", str(output_dir),
+        "--run-id", "x",
+        "--sources", str(fixture.sources),
+        "--inpainted-root", str(inpainted_root),
+    ]) == 0
+    artifacts = read_table(output_dir, PRIMITIVE_ARTIFACTS)
+    assert set(artifacts.loc[artifacts["location"] == "inpainted_root", "artifact"]) == {
+        "shuttle_track_inpainted", "shuttle_guard_codes_inpainted",
+    }

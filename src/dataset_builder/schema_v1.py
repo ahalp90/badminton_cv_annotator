@@ -550,7 +550,9 @@ PRIMITIVE_ARTIFACTS = TableSpec(
         ),
         ColumnSpec(
             "location", ColumnType.STRING, False, ReliabilityClass.OBSERVED,
-            "input_dir or export_dir: the root that relative_path is relative to. The dataset manifest records both roots.",
+            "input_dir, export_dir, or inpainted_root: the root that relative_path is "
+            "relative to. The dataset manifest records input_root and inpainted_root by "
+            "name; export_dir is implicit, since the manifest file itself lives there.",
         ),
         ColumnSpec(
             "relative_path", ColumnType.STRING, False, ReliabilityClass.OBSERVED,
@@ -707,6 +709,18 @@ PRIMITIVE_ARTIFACT_NOTES: tuple[ArtifactNote, ...] = (
         "shuttle_guard_codes", ReliabilityClass.PREDICTED,
         "(frame_count,) inpaint hallucination guard grades. Mask rejected grades before "
         "using shuttle positions.",
+    ),
+    ArtifactNote(
+        "shuttle_track_inpainted", ReliabilityClass.PREDICTED,
+        "(frame_count, 3) TrackNet x, y normalised by resolution, and visibility, from a "
+        "later InpaintNet pass over the ShuttleSet22 extract. The base ShuttleSet22 "
+        "extract was run with InpaintNet off, so this replaces shuttle_track with a "
+        "higher-visibility track. Do not describe as accurate.",
+    ),
+    ArtifactNote(
+        "shuttle_guard_codes_inpainted", ReliabilityClass.PREDICTED,
+        "(frame_count,) inpaint hallucination guard grades for shuttle_track_inpainted. "
+        "Mask rejected grades before using shuttle positions.",
     ),
     ArtifactNote(
         "pose_kps", ReliabilityClass.PREDICTED,
