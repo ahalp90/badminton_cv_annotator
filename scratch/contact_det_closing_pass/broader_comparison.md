@@ -2,6 +2,8 @@
 
 **The combined detector holds up on the broader comparison.** Across 47 previously examined videos, it reaches **1,435 correct rallies at ±10**, up from 995: **447 repairs and seven losses**. Forty-four videos improve and three tie. Physical measurements remain part of this combined version. The aim is to recover more usable badminton rallies for the eventual annotator.
 
+Compared with the previous best opening-only model, that is **330 more complete rallies, a 29.9% increase**. This confirms the same combined version previously tested on eight videos; the model itself has not changed.
+
 Its scores identify a better subset, but the tested acceptance rules do not make that subset almost always correct. The development-chosen 0.99 cutoff accepts 382 sections: **278 correct, 95 wrong and nine unjudgeable** at ±10. Saved-input preparation plus chooser work averages **27.5 seconds per video**, about **21.5 minutes across all 47**. That is well below an extra hour for this population.
 
 This comparison uses all 3,982 detected sections from the existing 47 ShuttleSet22 videos. **±10 frames at 30 fps is the usable goal**; ±5 is a diagnostic on the same predictions. The videos have been examined before. All predictions were saved before their labels were loaded for this run, but this is a broader comparison, not an untouched benchmark.
@@ -17,6 +19,18 @@ Each system retains all 3,982 sections. Repairs / losses are relative to the unc
 | Unchanged detector + side vote | 995 | — | 901 | — |
 | Useful opening-only model | 1,105 | 117 / 7 | 1,001 | 107 / 7 |
 | **Frozen combined model** | **1,435** | **447 / 7** | **1,224** | **366 / 43** |
+
+The current accuracy measures are:
+
+| Combined detector metric | ±10 | ±5 |
+| --- | ---: | ---: |
+| Contact F1 requiring both correct time and hitting side | **77.8%** | 76.4% |
+| Retained labelled rallies recovered completely | **41.9%** (1,435 / 3,422) | 35.8% (1,224 / 3,422) |
+| Generated sections that are complete | **36.0%** (1,435 / 3,982) | 30.7% (1,224 / 3,982) |
+
+Joint contact F1 uses the full label-blind prediction streams. At ±10, its precision is 75.0% and recall is 80.8%; a contact earns credit only when both timing and attribution are correct.
+
+The retained labels cover 3,422 of 3,965 originally listed rallies. The inherited cleaner excluded 542 whole rallies containing a source `flaw` flag and one with non-increasing timestamps. **These exclusions do not establish that every omitted contact label is unusable.** Their predictions remain in scoring, so potentially valid contacts can count as unmatched and depress F1. Across all originally listed rallies, 1,435 are known complete: **36.2%**. The [cleaning record](results/label_coverage.json.gz) preserves the exclusions.
 
 The combined model adds 440 correct rallies over the baseline, a 44.2% increase. Its seven losses represent 0.7% of the 995 previously correct rallies. Compared directly with opening-only, it gains 346 rallies and loses 16 at ±10, for a net gain of 330. At ±5, that direct comparison gains 274 and loses 51.
 

@@ -6,6 +6,8 @@ The larger goal is a badminton video annotator that can identify a small set of 
 
 **The combined detector holds up across the existing 47 ShuttleSet22 videos.** At the usable ±10 tolerance it reaches **1,435 correct rallies from 995: 447 repairs and seven losses**. Forty-four videos improve and three tie. At ±5 it reaches 1,224 from 901, with 366 repairs and 43 losses.
 
+That is **29.9% more complete rallies than the previous best opening-only model**. At ±10, joint contact-time-and-attribution F1 is **77.8%**; **41.9% of retained labelled rallies** are recovered completely, and **36.0% of generated sections** are complete. The report explains the label-cleaning exclusions behind those denominators.
+
 The score-only acceptance test falls short: the development-chosen 0.99 cutoff accepts 382 sections, with 278 correct, 95 wrong and nine unjudgeable at ±10. Saved-input preparation plus chooser work averages 27.5 seconds per video, about 21.5 minutes across all 47. These videos were previously examined; predictions were saved before loading their labels for this comparison.
 
 Read the [broader comparison, acceptance results and per-video costs](broader_comparison.md) for the latest result. The original [eight-video whole-rally comparison](whole_rally_report.md) and its predictions remain the reference. Physical measurements stay in the combined model. The next separate branch is insertion from saved candidates for missing later contacts; this run did not test that capability. Everything remains in experiment scripts, with production integration reserved for a later round.
