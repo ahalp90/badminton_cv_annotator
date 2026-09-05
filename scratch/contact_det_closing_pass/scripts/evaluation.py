@@ -82,6 +82,7 @@ def section_result(
         "overlapping_rallies": len(rallies), "whole_rally_contained": contained,
         "events": len(frames), "labelled_contacts": 0 if rally is None else len(rally.frames),
         "matches": matches, "correct_sides": int(correct_sides),
+        "voted_correct_sides": int(voted_correct_sides),
         "timing_complete": bool(timing),
         "fully_correct": bool(timing and correct_sides == len(frames)),
         "side_rule_fully_correct": bool(timing and voted_correct_sides == len(frames)),
