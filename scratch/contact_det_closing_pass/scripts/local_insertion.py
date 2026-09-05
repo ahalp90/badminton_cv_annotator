@@ -101,6 +101,7 @@ def insertion_targets(
     overlap_by_section: dict[SectionIdentity, tuple[RallyReference, ...]] = {}
     touching_counts: Counter[RallyIdentity] = Counter()
     tolerances: dict[str, int] = {}
+    overlaps_by_bounds: dict[tuple[str, int, int], set[RallyIdentity]] = {}
     for span in original_spans:
         identity = (span.fixture, span.span_id)
         if identity in spans_by_section:
@@ -108,6 +109,9 @@ def insertion_targets(
         spans_by_section[identity] = span
         overlap = overlapping_rallies(span, labels)
         overlap_by_section[identity] = overlap
+        overlaps_by_bounds[(span.fixture, span.start_frame, span.end_frame)] = {
+            _rally_identity(rally) for rally in overlap
+        }
         for rally in overlap:
             touching_counts[_rally_identity(rally)] += 1
         if span.fixture not in tolerances:
@@ -133,10 +137,13 @@ def insertion_targets(
             targets.append(-1)
             continue
 
-        expanded_ids = {
-            _rally_identity(expanded)
-            for expanded in overlapping_rallies(option.span, labels)
-        }
+        # Alternatives share section edges even when their contact lists differ.
+        bounds = (option.span.fixture, option.span.start_frame, option.span.end_frame)
+        if bounds not in overlaps_by_bounds:
+            overlaps_by_bounds[bounds] = {
+                _rally_identity(expanded) for expanded in overlapping_rallies(option.span, labels)
+            }
+        expanded_ids = overlaps_by_bounds[bounds]
         if expanded_ids != {rally_identity}:
             targets.append(-1)
             continue
