@@ -35,7 +35,7 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
         "fps", "frame_count", "start_frame", "end_frame", "duration_frames",
         "start_seconds", "end_seconds", "duration_seconds", "clip_start_frame",
         "clip_end_frame", "source_set", "source_rally", "top_player_id",
-        "bottom_player_id", "shots_per_rally",
+        "bottom_player_id", "shots_per_rally", "flaw_marked",
     ),
     "player_rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",
@@ -87,6 +87,7 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("top_player_id", "string", True, "derived"),
         ("bottom_player_id", "string", True, "derived"),
         ("shots_per_rally", "int64", True, "derived"),
+        ("flaw_marked", "bool", False, "source_annotation"),
     ),
     "player_rallies": (
         ("run_id", "string", False, "observed"),
@@ -277,6 +278,7 @@ def _valid_rallies_frame() -> pd.DataFrame:
             "top_player_id": pd.array(["kento_momota"] * 2, dtype="string"),
             "bottom_player_id": pd.array(["chou_tien_chen"] * 2, dtype="string"),
             "shots_per_rally": pd.array([3, 2], dtype="Int64"),
+            "flaw_marked": [True, False],
         }
     )
 
@@ -305,6 +307,7 @@ def test_write_and_read_round_trip_preserves_types(tmp_path):
             "top_player_id": pd.array(["kento_momota", None], dtype="string"),
             "bottom_player_id": pd.array(["chou_tien_chen", None], dtype="string"),
             "shots_per_rally": pd.array([3, None], dtype="Int64"),
+            "flaw_marked": [True, False],
         }
     )
 

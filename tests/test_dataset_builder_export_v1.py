@@ -184,7 +184,7 @@ def _run_manifest(run_dir: Path, files: dict[str, Path], *, skip: str = "") -> R
     return RunManifest(run_id=RUN_ID, created_at_utc="2026-09-02T00:00:00Z", stages=stages)
 
 
-def _build_run(tmp_path: Path, *, skip_stage: str = "") -> RunFixture:
+def _build_run(tmp_path: Path, *, skip_stage: str = "", set_csv: str = SET_CSV) -> RunFixture:
     """Build one completed run directory plus its ShuttleSet ground truth."""
     run_dir = tmp_path / "run"
     run_dir.mkdir()
@@ -212,7 +212,7 @@ def _build_run(tmp_path: Path, *, skip_stage: str = "") -> RunFixture:
     ground_truth_root = tmp_path / "ground_truth"
     annotations = ground_truth_root / ANNOTATION_DIRECTORY
     annotations.mkdir(parents=True)
-    (annotations / "set1.csv").write_text(SET_CSV, encoding="utf-8")
+    (annotations / "set1.csv").write_text(set_csv, encoding="utf-8")
     (annotations.parent / "match.csv").write_text(MATCH_CSV, encoding="utf-8")
     fixed_sources = tmp_path / "fixed_sources.toml"
     fixed_sources.write_text(FIXED_SOURCES_TOML, encoding="utf-8")
@@ -246,6 +246,9 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     # null on the annotator-origin rows, which have no contact rows.
     assert source["shots_per_rally"].tolist() == [3, 2]
     assert annotator["shots_per_rally"].isna().all()
+    # Issue #138: rolled up from source_contacts.flaw_marked; false on the
+    # annotator-origin rows, which have no contact rows to carry the flag.
+    assert not rallies["flaw_marked"].any()
     assert (rallies["fps"] == 25.0).all()
     assert (rallies["frame_count"] == FRAME_COUNT).all()
     assert rallies["duration_seconds"].tolist() == [2.0, 1.6, 0.64, 0.4]
@@ -348,6 +351,44 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
         assert (repeat_dir / table.filename).read_bytes() == (
             output_dir / table.filename
         ).read_bytes()
+
+
+# Issue #138: rally 1's serve is flaw-marked; rally 2 stays clean. A flaw-marked
+# row no longer drops its rally, so both still get a rally_id and a normal span.
+FLAWED_SERVE_SET_CSV = """rally,ball_round,frame_num,type,flaw,player,getpoint_player,roundscore_A,roundscore_B
+1,1,5,發短球,1,A,,1,0
+1,2,12,挑球,,B,,1,0
+1,3,20,殺球,,A,A,1,0
+2,1,61,發長球,,B,,2,0
+2,2,70,切球,,A,A,2,0
+"""
+
+
+def test_flagged_serve_keeps_its_rally_and_marks_rallies_flaw_marked(tmp_path: Path) -> None:
+    fixture = _build_run(tmp_path, set_csv=FLAWED_SERVE_SET_CSV)
+    output_dir = tmp_path / "export"
+
+    export_dataset_v1(
+        ExportInputs(
+            run_dir=fixture.run_dir,
+            output_dir=output_dir,
+            fixed_sources_manifest=fixture.fixed_sources,
+            ground_truth_root=fixture.ground_truth_root,
+        )
+    )
+
+    rallies = read_table(output_dir, RALLIES)
+    source = rallies[rallies["rally_origin"] == "source_contacts"].sort_values("rally_id")
+    assert source["flaw_marked"].tolist() == [True, False]
+    # Still gets a rally_id and a span like any other rally, first contact frame
+    # to one past the last: the flag no longer drops it.
+    assert list(zip(source["start_frame"], source["end_frame"])) == [(5, 21), (61, 71)]
+    annotator = rallies[rallies["rally_origin"] == "annotator"]
+    assert not annotator["flaw_marked"].any()
+
+    contacts = read_table(output_dir, SOURCE_CONTACTS)
+    assert contacts["flaw_marked"].tolist() == [True, False, False, False, False]
+    assert contacts["rally_id"].tolist() == [0, 0, 0, 1, 1]
 
 
 def test_annotator_spans_take_ids_only_from_one_overlapping_side_phase(tmp_path: Path) -> None:
@@ -562,6 +603,8 @@ def test_annotator_rows_get_null_derived_columns(tmp_path: Path) -> None:
     annotator_rallies = [row for row in tables.rallies if row["rally_origin"] == "annotator"]
     assert len(annotator_rallies) == 1
     assert annotator_rallies[0]["shots_per_rally"] is None
+    # No contact rows to carry the ShuttleSet flaw flag, so this is False, not null.
+    assert annotator_rallies[0]["flaw_marked"] is False
 
     annotator_players = [
         row for row in tables.player_rallies if row["rally_origin"] == "annotator"

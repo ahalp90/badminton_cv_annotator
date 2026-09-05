@@ -65,6 +65,7 @@ from dataset_builder.schema_v1 import (
     TRANSCRIPT_SEGMENTS,
     RallyOrigin,
     TableSpec,
+    validate_table,
     write_table,
 )
 from dataset_builder.source_annotations import SourceAnnotations, load_source_annotations
@@ -289,6 +290,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                 None,
                 None,
                 player_ids,
+                False,  # No contact rows to carry the ShuttleSet flaw flag.
             )
         )
         player_rallies.extend(
@@ -318,6 +320,8 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
         source_population["unmatched_hitters"] = contact_features.unmatched_hitters
         for rally_id, source_rally in enumerate(annotations.rallies):
             player_ids = _side_player_ids(match, source_rally.a_is_top)
+            in_rally = source_contacts["rally_id"].eq(rally_id)
+            flaw_marked = bool(source_contacts.loc[in_rally, "flaw_marked"].any())
             rallies.append(
                 _rally_row(
                     identity,
@@ -330,6 +334,7 @@ def build_video_tables(output_dir: Path, inputs: VideoInputs) -> VideoTables:
                     source_rally.source_rally,
                     len(source_rally.contact_rows),
                     player_ids,
+                    flaw_marked,
                 )
             )
             player_rallies.extend(
@@ -433,7 +438,8 @@ def _annotator_player_ids(
 
 
 class SourceContactFeatures(NamedTuple):
-    """source_contacts with its position-derived columns filled, and their medians.
+    """source_contacts with its position-derived columns filled and validated
+    against the frozen schema, and their medians.
 
     ``recovery_medians`` and ``movement_medians`` are keyed by rally_id, each a
     ``(top, bottom)`` pair for ``player_rallies.recovery_distance_median`` and
@@ -458,10 +464,14 @@ def _source_contact_features(
     rally's top and bottom player ids. A null or unmatched hitter leaves that
     contact's recovery values null rather than guessing which player recovered;
     movement inefficiency does not need a striker, so it is unaffected.
+
+    ``annotations.contacts`` has every source_contacts column except these
+    four; adding them completes the table, so this is also where it is
+    validated against the frozen schema.
     """
     contacts = annotations.contacts.copy()
-    # Relied on below: a fresh copy of the already-validated table keeps its
-    # RangeIndex, so an index label is also its row position.
+    # Relied on below: a fresh copy of source_annotations' freshly built table
+    # keeps its RangeIndex, so an index label is also its row position.
     positions = np.asarray(player_inputs.court_positions, dtype=float)
     row_count = len(contacts)
     recovery_distance: list[float | None] = [None] * row_count
@@ -526,6 +536,7 @@ def _source_contact_features(
     contacts["recovery_frames_valid"] = recovery_frames_valid
     contacts["movement_inefficiency_top"] = movement_top
     contacts["movement_inefficiency_bottom"] = movement_bottom
+    contacts = validate_table(SOURCE_CONTACTS, contacts)
     return SourceContactFeatures(contacts, recovery_medians, movement_medians, unmatched_hitters)
 
 
@@ -638,6 +649,7 @@ def _rally_row(
     source_rally: int | None,
     shots_per_rally: int | None,
     player_ids: Mapping[str, str] | None,
+    flaw_marked: bool,
 ) -> dict[str, object]:
     run_id, source_dataset, video_id = identity
     clip_start, clip_end = clip_frames(start, end, metadata.fps, metadata.frame_count)
@@ -662,6 +674,7 @@ def _rally_row(
         "top_player_id": None if player_ids is None else player_ids[TOP_SIDE],
         "bottom_player_id": None if player_ids is None else player_ids[BOTTOM_SIDE],
         "shots_per_rally": shots_per_rally,
+        "flaw_marked": flaw_marked,
     }
 
 

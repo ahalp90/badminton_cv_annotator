@@ -7,8 +7,9 @@ table, column, type, or nullability changes the frozen schema and must bump
 Decisions come from issue #22 (formulas), issue #104 (keep, cut, unresolved),
 issue #18 (this freeze), Ari's review of PR #135 (player identity and sex),
 and issue #138 (rally-dataset/1.1: shots per rally, recovery, and movement
-inefficiency, once the dataset moved onto human ShuttleSet contacts). See
-``docs/dataset_v1_schema.md``.
+inefficiency, once the dataset moved onto human ShuttleSet contacts; and
+``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped).
+See ``docs/dataset_v1_schema.md``.
 """
 
 from __future__ import annotations
@@ -269,6 +270,17 @@ RALLIES = TableSpec(
             "Count of human contact rows in this rally, exact by construction. Null on "
             "annotator rows, which have no contact rows.",
         ),
+        ColumnSpec(
+            "flaw_marked", ColumnType.BOOLEAN, False, ReliabilityClass.SOURCE_ANNOTATION,
+            "True when any human contact row in this rally carries the ShuttleSet flaw "
+            "flag. No upstream definition of this flag exists; for most flagged rows its "
+            "meaning is unknown. On roughly 320 of the 40-video corpus's 1,314 flagged "
+            "rows the contact frame number is demonstrably wrong (see "
+            "docs/dataset_v1_schema.md, Source contacts), which corrupts every "
+            "frame-anchored value derived from that rally. Stroke sequence, counts and "
+            "hitters stay sound regardless. Filter on this column before trusting a "
+            "frame-anchored value. False on annotator-origin rows.",
+        ),
     ),
     description=(
         "One row per rally. Annotator rows come from the production rally records. "
@@ -422,23 +434,25 @@ SOURCE_CONTACTS = TableSpec(
         ColumnSpec(
             "rally_id", ColumnType.INTEGER, True, ReliabilityClass.DERIVED,
             "rally_id of the source_contacts row in rallies that this contact belongs to. "
-            "Null when its rally was unusable: a flaw-marked row, a frame outside the "
-            "video, or contacts out of order.",
+            "Null when its rally was unusable: an invalid frame, or contacts out of order. "
+            "A flaw-marked row does not null this; see rallies.flaw_marked.",
         ),
         ColumnSpec(
             "recovery_distance", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
-            "The non-striking player's mean distance from their own half-centre over "
-            "the +/- 5 base-30-frame window around this contact, clipped to the rally. "
-            "Unitless: normalised doubles-court Euclidean distance. Null when the "
-            "hitter is not one of this rally's two players, or when no frame in the "
-            "window has a finite position.",
+            "The measured player is this rally's other player, never the hitter: "
+            "rallies.top_player_id when this row's player_id is bottom_player_id, and "
+            "the reverse. recovery_distance is that player's mean distance from their "
+            "own half-centre over the +/- 5 base-30-frame window around this contact, "
+            "clipped to the rally. Unitless: normalised doubles-court Euclidean "
+            "distance. Null when the hitter is not one of this rally's two players, or "
+            "when no frame in the window has a finite position.",
         ),
         ColumnSpec(
             "recovery_frames_valid", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
-            "How many frames of the recovery_distance window had a finite position. "
-            "Zero when the hitter could not be matched to a rally side, so no window "
-            "could be built. Provenance, matching how the table records "
-            "player_rallies.posture_frames_valid.",
+            "How many frames of the recovery_distance window, for that same other "
+            "player, had a finite position. Zero when the hitter could not be matched "
+            "to a rally side, so no window could be built. Provenance, matching how "
+            "the table records player_rallies.posture_frames_valid.",
         ),
         ColumnSpec(
             "movement_inefficiency_top", ColumnType.FLOAT, True, ReliabilityClass.DERIVED,
