@@ -2,15 +2,15 @@
 
 *5 September 2026 · scripts and saved outputs*
 
-The larger goal is a badminton video annotator that can identify a small set of fully correct rallies for use without manual checking. This pass tests contact repairs that might help reach that goal.
+The goal is a better badminton contact detector that can eventually recognise rallies suitable for automatic acceptance.
 
-**The combined detector holds up across the existing 47 ShuttleSet22 videos.** At the usable ±10 tolerance it reaches **1,435 correct rallies from 995: 447 repairs and seven losses**. Forty-four videos improve and three tie. At ±5 it reaches 1,224 from 901, with 366 repairs and 43 losses.
+**The latest combined detector reaches 1,597 complete rallies across the existing 47 ShuttleSet22 videos, up from the previous best 1,435.** At the usable ±10 tolerance, that is **178 repairs and 16 losses**, an 11.3% increase. Joint contact-time-and-side F1 rises from 77.8% to **81.5%**. The new version completes **46.7% of retained labelled rallies**, or **40.1% of generated sections**. At ±5 it reaches 1,327, with 121 repairs and 18 losses against the combined reference.
 
-That is **29.9% more complete rallies than the previous best opening-only model**. At ±10, joint contact-time-and-attribution F1 is **77.8%**; **41.9% of retained labelled rallies** are recovered completely, and **36.0% of generated sections** are complete. The report explains the label-cleaning exclusions behind those denominators.
+This version adds real saved candidates for later contacts. A fixed score-advantage rule preserves the reference output when a proposed change is only weakly preferred. The broader gain appears in 39 videos, seven tie and one loses one rally. Settings were chosen on development data; the 47 videos were previously examined, and their new predictions were saved before loading their labels.
 
-The score-only acceptance test falls short: the development-chosen 0.99 cutoff accepts 382 sections, with 278 correct, 95 wrong and nine unjudgeable at ±10. Saved-input preparation plus chooser work averages 27.5 seconds per video, about 21.5 minutes across all 47. These videos were previously examined; predictions were saved before loading their labels for this comparison.
+Added evidence helps acceptance ranking, but does not deliver almost-always-correct output. Its frozen rule accepts **740 sections: 549 correct, 144 wrong and 47 unjudgeable** at ±10. Extra input preparation and prediction take **26.9 minutes across all 47 videos**, about 34 seconds per video. The expensive vision outputs are reused.
 
-Read the [broader comparison, acceptance results and per-video costs](broader_comparison.md) for the latest result. The original [eight-video whole-rally comparison](whole_rally_report.md) and its predictions remain the reference. Physical measurements stay in the combined model. The next separate branch is insertion from saved candidates for missing later contacts; this run did not test that capability. Everything remains in experiment scripts, with production integration reserved for a later round.
+Read the [later-contact comparison, acceptance results and costs](later_contact_comparison.md) for the latest result. The [previous broader comparison](broader_comparison.md), [eight-video whole-rally comparison](whole_rally_report.md), models and predictions remain preserved. Physical measurements stay in the combined detector. Multiple later insertions and broader serve discovery remain separate, untested branches. Production integration is reserved for a later round.
 
 The component experiments below explain what led to that comparison. They tested the first-contact chooser in isolation. Physical measurements did not improve complete-rally recovery in those shallow standalone models. The combined result shows why that finding was insufficient to rule them out from the whole-rally chooser.
 
