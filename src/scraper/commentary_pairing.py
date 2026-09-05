@@ -111,8 +111,13 @@ def build_video_fps_csv(video_dir: Path, out_csv: Path = VIDEO_FPS_CSV) -> Path:
 # ---------------------------------------------------------------------------
 # Pairing
 # ---------------------------------------------------------------------------
-def _chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) -> bool:
-    """True if the chunk's start time lands on a masked frame (so it is unpairable)."""
+def chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) -> bool:
+    """True if the chunk's start time lands on a masked frame (so it is unpairable).
+
+    Public because both the issue #104 benchmark and the issue #138 dataset export
+    test a chunk start against a replay mask; an underscore name across a package
+    boundary is a promise nobody can keep.
+    """
     frame = int(start_s * fps)
     return 0 <= frame < len(replay_mask) and bool(replay_mask[frame])
 
@@ -215,7 +220,7 @@ def pair_video(
             if start_s > window_hi:
                 break  # sorted ascending: nothing later can land in window
             if (duration_filtered_replay_mask is not None
-                    and _chunk_start_on_mask(start_s, fps, duration_filtered_replay_mask)):
+                    and chunk_start_on_mask(start_s, fps, duration_filtered_replay_mask)):
                 continue  # chunk start on a replay frame is unpairable
             claimed.add(chunk_id)
             row['chunk_id'] = chunk_id

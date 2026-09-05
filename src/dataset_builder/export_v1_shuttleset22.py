@@ -89,6 +89,7 @@ class ShuttleSet22ExportInputs:
     run_id: str
     sources: Path = DEFAULT_SOURCES
     commentary_root: Path | None = None
+    replay_mask_root: Path | None = None
     match_ids: tuple[int, ...] | None = None
     players: Path = DEFAULT_PLAYERS
     inpainted_root: Path | None = None
@@ -146,6 +147,10 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
             else Path(inputs.commentary_root).resolve(strict=True)
         ),
         inpainted_root=inpainted_root,
+        replay_mask_root=(
+            None if inputs.replay_mask_root is None
+            else Path(inputs.replay_mask_root).resolve(strict=True)
+        ),
         players_table=artifact_integrity("players", players_path).to_dict(),
     )
     video_ids = [video_id_for(source.match_id) for source in sources]

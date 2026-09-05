@@ -24,7 +24,7 @@ import pandas as pd
 
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.video_metadata import VideoMetadata
-from dataset_builder.commentary_export import commentary_tables, empty_table
+from dataset_builder.commentary_export import CommentaryTables, commentary_tables, empty_table
 from dataset_builder.degradation import player_trend_rows
 from dataset_builder.features import (
     COURT_SIDES,
@@ -50,6 +50,7 @@ from dataset_builder.players import (
 from dataset_builder.records import RALLY_RECORDS_FILENAME, load_rally_records
 from dataset_builder.schema_v1 import (
     COMMENTARY_CHUNKS,
+    COMMENTARY_RALLY_LINKS,
     DATASET_MANIFEST_FILENAME,
     DATASET_SCHEMA,
     FEATURE_DISPOSITIONS,
@@ -99,6 +100,7 @@ class ExportInputs:
     fixed_sources_manifest: Path | None = None
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
+    replay_mask_root: Path | None = None
     video_ids: tuple[str, ...] | None = None
     players: Path = DEFAULT_PLAYERS
 
@@ -158,6 +160,7 @@ class DatasetIdentity:
     ground_truth_root: Path | None = None
     commentary_root: Path | None = None
     inpainted_root: Path | None = None
+    replay_mask_root: Path | None = None
     players_table: dict[str, object] | None = None
 
 
@@ -216,6 +219,7 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
         fixed_source_manifest=fixed_manifest,
         ground_truth_root=annotation_root,
         commentary_root=_optional_resolved(inputs.commentary_root),
+        replay_mask_root=_optional_resolved(inputs.replay_mask_root),
         players_table=artifact_integrity("players", players_path).to_dict(),
     )
     return write_dataset(output_dir, identity, videos, video_ids)
@@ -232,11 +236,35 @@ def write_dataset(
     output_dir.mkdir(parents=True, exist_ok=True)
     tables = _assemble_tables(videos)
     if identity.commentary_root is not None:
-        segments, chunks = commentary_tables(
-            identity.commentary_root, identity.source_dataset, video_ids
+        fps_by_video = {
+            str(video.manifest["video_id"]): float(Fraction(str(video.manifest["fps"])))
+            for video in videos
+        }
+        frame_count_by_video = {
+            str(video.manifest["video_id"]): int(video.manifest["frame_count"]) for video in videos
+        }
+        commentary: CommentaryTables = commentary_tables(
+            identity.commentary_root,
+            identity.run_id,
+            identity.source_dataset,
+            video_ids,
+            tables[RALLIES.name],
+            fps_by_video,
+            frame_count_by_video,
+            replay_mask_root=identity.replay_mask_root,
         )
-        tables[TRANSCRIPT_SEGMENTS.name] = segments
-        tables[COMMENTARY_CHUNKS.name] = chunks
+        tables[TRANSCRIPT_SEGMENTS.name] = commentary.segments
+        tables[COMMENTARY_CHUNKS.name] = commentary.chunks
+        tables[COMMENTARY_RALLY_LINKS.name] = commentary.links
+        for video in videos:
+            video_id = str(video.manifest["video_id"])
+            video.manifest["commentary_masked_start_chunks"] = (
+                commentary.masked_start_chunks.get(video_id)
+            )
+            video.manifest["commentary_ambiguous_links"] = commentary.ambiguous_links.get(video_id)
+            video.manifest["commentary_multi_rally_chunks"] = (
+                commentary.multi_rally_chunks.get(video_id)
+            )
     table_entries = {
         table.name: _table_entry(output_dir, table, tables[table.name]) for table in TABLES
     }
@@ -254,6 +282,7 @@ def write_dataset(
         "ground_truth_root": _optional_text(identity.ground_truth_root),
         "commentary_root": _optional_text(identity.commentary_root),
         "inpainted_root": _optional_text(identity.inpainted_root),
+        "replay_mask_root": _optional_text(identity.replay_mask_root),
         "players_table": identity.players_table,
         "videos": [video.manifest for video in videos],
         "tables": table_entries,
@@ -780,6 +809,7 @@ def _assemble_tables(videos: Sequence[VideoTables]) -> dict[str, pd.DataFrame]:
         ),
         TRANSCRIPT_SEGMENTS.name: empty_table(TRANSCRIPT_SEGMENTS),
         COMMENTARY_CHUNKS.name: empty_table(COMMENTARY_CHUNKS),
+        COMMENTARY_RALLY_LINKS.name: empty_table(COMMENTARY_RALLY_LINKS),
     }
 
 

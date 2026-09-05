@@ -761,6 +761,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Commentary preparation root with transcripts, cleaned chunks, and status.",
     )
     export_parser.add_argument(
+        "--replay-mask-root",
+        type=Path,
+        help=(
+            "Root with one <video_id>/definitive_exclusion_mask.npy.xz per video. "
+            "Optional; omitted means every commentary_rally_links row gets a null "
+            "starts_on_masked_frame instead of a real mask check."
+        ),
+    )
+    export_parser.add_argument(
         "--video-id",
         action="append",
         dest="video_ids",
@@ -791,6 +800,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     ss22_parser.add_argument("--commentary-root", type=Path)
     ss22_parser.add_argument(
+        "--replay-mask-root",
+        type=Path,
+        help=(
+            "Root with one <video_id>/definitive_exclusion_mask.npy.xz per video. "
+            "Optional; omitted means every commentary_rally_links row gets a null "
+            "starts_on_masked_frame instead of a real mask check."
+        ),
+    )
+    ss22_parser.add_argument(
         "--inpainted-root",
         type=Path,
         help=(
@@ -815,6 +833,7 @@ def _run_export_v1(arguments: argparse.Namespace) -> int:
                 fixed_sources_manifest=arguments.fixed_sources,
                 ground_truth_root=arguments.ground_truth_root,
                 commentary_root=arguments.commentary_root,
+                replay_mask_root=arguments.replay_mask_root,
                 video_ids=None if arguments.video_ids is None else tuple(arguments.video_ids),
             )
         )
@@ -840,6 +859,7 @@ def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
                 run_id=arguments.run_id,
                 sources=DEFAULT_SOURCES if arguments.sources is None else arguments.sources,
                 commentary_root=arguments.commentary_root,
+                replay_mask_root=arguments.replay_mask_root,
                 match_ids=None if arguments.match_ids is None else tuple(arguments.match_ids),
                 inpainted_root=arguments.inpainted_root,
             )
