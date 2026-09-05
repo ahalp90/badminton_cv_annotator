@@ -43,7 +43,7 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
     ),
     "player_trends": (
         "run_id", "source_dataset", "video_id", "player_id", "scope", "scope_id",
-        "feature", "n_points", "slope", "intercept", "slope_tanh", "temperature",
+        "feature", "n_points", "slope", "slope_tanh", "temperature",
     ),
     "players": ("player_id", "player_name", "sex"),
     "source_contacts": (
@@ -112,7 +112,6 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("feature", "string", False, "derived"),
         ("n_points", "int64", False, "derived"),
         ("slope", "float64", False, "derived"),
-        ("intercept", "float64", False, "derived"),
         ("slope_tanh", "float64", False, "derived"),
         ("temperature", "float64", False, "derived"),
     ),

@@ -337,8 +337,10 @@ PLAYER_TRENDS = TableSpec(
         ),
         ColumnSpec(
             "scope", ColumnType.STRING, False, ReliabilityClass.DERIVED,
-            "set: trend across one player's rallies within one ShuttleSet set. match: "
-            "trend across every one of that player's rallies in the video, spanning sets.",
+            "set: trend across one player's rallies within one ShuttleSet set, ordered "
+            "by source_rally. match: trend across that player's sets in the video, one "
+            "point per set (the median of the feature over the player's rallies in that "
+            "set), ordered by source_set.",
         ),
         ColumnSpec(
             "scope_id", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
@@ -347,21 +349,20 @@ PLAYER_TRENDS = TableSpec(
         ),
         ColumnSpec(
             "feature", ColumnType.STRING, False, ReliabilityClass.DERIVED,
-            "player_rallies column this trend was fit over, for example posture_mad.",
+            "Feature this trend was fit over: a player_rallies float column (for example "
+            "posture_mad) or a named rally-level column of rallies (duration_seconds, "
+            "and shots_per_rally once that column exists).",
         ),
         ColumnSpec(
             "n_points", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
-            "Rally values that fed the fit. Always at least 3; a fit with fewer points "
-            "is not written.",
+            "Values that fed the fit: rallies for scope=set (at least 3), sets for "
+            "scope=match (at least 2). A fit with fewer points is not written.",
         ),
         ColumnSpec(
             "slope", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
-            "Ordinary least squares slope of the feature value against its position in "
-            "the ordered sequence (rally order within a set, or across the whole match).",
-        ),
-        ColumnSpec(
-            "intercept", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
-            "Ordinary least squares intercept of the same fit.",
+            "Ordinary least squares slope of the feature value against its position: "
+            "the rally's source_rally number for scope=set, or the set's source_set "
+            "number for scope=match.",
         ),
         ColumnSpec(
             "slope_tanh", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
@@ -375,8 +376,8 @@ PLAYER_TRENDS = TableSpec(
         ),
     ),
     description=(
-        "One row per player, scope, and player_rallies feature: an ordinary least "
-        "squares trend over that player's source_contacts rallies, plus its "
+        "One row per player, scope, and trended feature: an ordinary least squares "
+        "trend over that player's source_contacts rallies or sets, plus its "
         "tanh-normalised slope. Annotator rallies are excluded because their player "
         "identity is a guess, not a label."
     ),
@@ -751,7 +752,7 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
     ),
     FeatureDisposition(
         "Raw degradation slope", Disposition.KEEP,
-        ("player_trends.slope", "player_trends.intercept", "player_trends.n_points"),
+        ("player_trends.slope", "player_trends.n_points"),
         "Issue #104 could not fit a trend without a retained feature set and stable "
         "player identity across rallies. Both now exist: player_rallies keeps float "
         "features and source_contacts rallies carry an exact player_id.",
@@ -759,9 +760,10 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
     FeatureDisposition(
         "Tanh-normalised degradation", Disposition.KEEP,
         ("player_trends.slope_tanh", "player_trends.temperature"),
-        "Issue #22 left the tanh scaling temperature undefined. The feature's owner "
-        "chose a fixed temperature of 2.0 over a per-feature sweep; the raw slope is "
-        "kept alongside it so the scaling reverses.",
+        "Issue #22 left the tanh scaling temperature undefined. Issue #138 asked to "
+        "sweep it if that was cheap, and otherwise pick a magic number like 2. The "
+        "sweep was skipped, so the feature's owner used that named fallback, 2.0; the "
+        "raw slope is kept alongside it so the scaling reverses.",
     ),
     FeatureDisposition(
         "Shots per rally", Disposition.CUT, (),

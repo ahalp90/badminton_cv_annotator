@@ -336,50 +336,75 @@ that has no source annotations.
 
 ### Player degradation trends
 
-Issue #22 asked whether a player's performance drifts as a match wears on:
-fit a trend line through a feature's rally-by-rally values and see whether it
-rises or falls. `player_trends` is that trend, one row per player, scope, and
+Issue #138 asks for progression over set or rally: fit a trend line through a
+feature's values and see whether a player gets better or worse as a match
+wears on. `player_trends` is that trend, one row per player, scope, and
 feature.
 
 Only `source_contacts` rallies take part, because they are the only ones with
 an exact `player_id`; an `annotator` row's identity is a guess and would make
-the trend meaningless. The features trended are every float-valued column of
-`player_rallies` (`posture_mad` today), found by column type rather than by a
-hardcoded name, so a new float feature is trended automatically once it lands
-in that table.
+the trend meaningless.
 
-`scope` is `set` or `match`. A `set` row fits across one player's rallies
-within one ShuttleSet set, ordered by the rally's number in that set. A
-`match` row fits across every one of that player's rallies in the video,
-ordered by set then rally, so it does not stop at a set boundary; `scope_id`
-is the fixed sentinel `0` for a `match` row, because no ShuttleSet set is ever
-numbered `0`. Both scopes fit the same per-rally values; `match` just does
-not split them by set. A fit needs at least 3 values or it is not written;
-each video's manifest records how many fits were written and how many were
-skipped for that reason, under `trend_population`, alongside the existing
-`source_population` counts.
+Two feature sources are trended, both read only from `source_contacts`
+rallies:
 
-The trend itself is ordinary least squares, `numpy.polyfit` degree 1, of the
-feature value against its position in the ordered sequence (0, 1, 2, ...):
+- Every float-valued column of `player_rallies`, `posture_mad` today. Found
+  by column type rather than a hardcoded name, so a new float feature is
+  trended automatically once it lands in that table.
+- Named rally-level columns of `rallies`: `duration_seconds` today, and
+  `shots_per_rally` once issue #142 adds it. A rally-level value is read once
+  for each player named on the rally, `top_player_id` and `bottom_player_id`.
+
+Serve speed proxy is not trended. Issue #104 left the feature itself
+unresolved, so there is nothing yet to trend.
+
+`scope` is `set` or `match`, reading issue #138's two named progressions:
+
+- `scope=set` fits a feature's values within one ShuttleSet set, one point
+  per rally the player played there, against that rally's `source_rally`
+  number. A missing rally keeps its gap: the fit uses the real rally number,
+  not a renumbered position, so rallies 1, 2, 5 are not read as three
+  consecutive points. `scope_id` is the set number. This needs at least 3
+  points, `MIN_TREND_POINTS_SET` in `degradation.py`; fewer points make a
+  rally-by-rally line noise, not a trend. That floor is this project's
+  choice, not something issue #138 sets.
+- `scope=match` fits one point per set: the median of the feature over the
+  player's rallies in that set, against the set number. `scope_id` is the
+  fixed sentinel `0`, because no ShuttleSet set is ever numbered `0`. This
+  needs at least 2 points, `MIN_TREND_POINTS_MATCH`. A ShuttleSet match has 2
+  or 3 sets, and a line through 2 points is an exact fit, not a guess, so a
+  2-set match still gets a trend.
+
+Each video's manifest records how many fits were written and, per scope, how
+many were skipped for too few points: `fits_written`,
+`fits_skipped_insufficient_points_set`, and
+`fits_skipped_insufficient_points_match`, under `trend_population`, alongside
+the existing `source_population` counts.
+
+The trend itself is ordinary least squares, `numpy.polyfit` degree 1:
 
 ```text
-slope, intercept = polyfit(position, feature_value, degree=1)
+slope = polyfit(position, feature_value, degree=1)
 ```
+
+`position` is the rally's `source_rally` number for `scope=set`, or the
+set's `source_set` number for `scope=match`.
 
 `slope_tanh = tanh(slope / temperature)` compresses the slope to `(-1, 1)` so
 trends of differently scaled features read on one comparable scale. The
 temperature is a single fixed constant, `DEGRADATION_TEMPERATURE = 2.0` in
 `src/dataset_builder/degradation.py`. Issue #22 left this temperature
-undefined; the feature's owner chose a fixed number over a per-feature sweep,
-and `scripts/degradation_temperature_report.py` reports the raw-slope and
-`slope_tanh` distributions at a few candidate temperatures so that choice has
-evidence behind it rather than a guess. `slope` and `intercept` are kept
-alongside `slope_tanh` precisely so a reader who wants different scaling can
-recover the exact slope: `slope = temperature * arctanh(slope_tanh)`.
+undefined. Issue #138 asked to sweep a range of values if that was cheap, and
+otherwise pick a magic number like 2; the sweep was skipped, so 2 is that
+named fallback. The raw `slope` is kept alongside `slope_tanh` so a reader
+who wants different scaling can recover it exactly:
+`slope = temperature * arctanh(slope_tanh)`. That is why the temperature is
+stored on every row rather than left implicit in the code.
 
 `player_trends` is `derived` on every column. It is a computation over
-`player_rallies`, which is itself unvalidated against independent ground
-truth, so the trend inherits that caveat rather than adding a new one.
+`player_rallies` and `rallies`, both themselves unvalidated against
+independent ground truth, so the trend inherits that caveat rather than
+adding a new one.
 
 ### The primitive bundle
 
@@ -437,6 +462,7 @@ the two markers. `tests/test_dataset_v1_schema_doc.py` fails when this block
 and the module disagree.
 
 <!-- dictionary:start -->
+
 ### rallies
 
 File `rallies.csv.gz`. Key `(run_id, source_dataset, video_id, rally_origin, rally_id)`.
@@ -490,7 +516,7 @@ One row per rally and court side with the kept issue #22 features. Cut and unres
 
 File `player_trends.csv.gz`. Key `(run_id, source_dataset, video_id, player_id, scope, scope_id, feature)`.
 
-One row per player, scope, and player_rallies feature: an ordinary least squares trend over that player's source_contacts rallies, plus its tanh-normalised slope. Annotator rallies are excluded because their player identity is a guess, not a label.
+One row per player, scope, and trended feature: an ordinary least squares trend over that player's source_contacts rallies or sets, plus its tanh-normalised slope. Annotator rallies are excluded because their player identity is a guess, not a label.
 
 | Column | Type | Nullable | Reliability | Description |
 | --- | --- | --- | --- | --- |
@@ -498,12 +524,11 @@ One row per player, scope, and player_rallies feature: an ordinary least squares
 | `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
 | `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
 | `player_id` | string | no | derived | players.player_id of the person this trend is fit for. |
-| `scope` | string | no | derived | set: trend across one player's rallies within one ShuttleSet set. match: trend across every one of that player's rallies in the video, spanning sets. |
+| `scope` | string | no | derived | set: trend across one player's rallies within one ShuttleSet set, ordered by source_rally. match: trend across that player's sets in the video, one point per set (the median of the feature over the player's rallies in that set), ordered by source_set. |
 | `scope_id` | int64 | no | derived | ShuttleSet set number for scope=set. Fixed sentinel 0 for scope=match; no ShuttleSet set is ever numbered 0. |
-| `feature` | string | no | derived | player_rallies column this trend was fit over, for example posture_mad. |
-| `n_points` | int64 | no | derived | Rally values that fed the fit. Always at least 3; a fit with fewer points is not written. |
-| `slope` | float64 | no | derived | Ordinary least squares slope of the feature value against its position in the ordered sequence (rally order within a set, or across the whole match). |
-| `intercept` | float64 | no | derived | Ordinary least squares intercept of the same fit. |
+| `feature` | string | no | derived | Feature this trend was fit over: a player_rallies float column (for example posture_mad) or a named rally-level column of rallies (duration_seconds, and shots_per_rally once that column exists). |
+| `n_points` | int64 | no | derived | Values that fed the fit: rallies for scope=set (at least 3), sets for scope=match (at least 2). A fit with fewer points is not written. |
+| `slope` | float64 | no | derived | Ordinary least squares slope of the feature value against its position: the rally's source_rally number for scope=set, or the set's source_set number for scope=match. |
 | `slope_tanh` | float64 | no | derived | tanh(slope / temperature): the slope compressed to (-1, 1) so trends of differently scaled features are comparable. |
 | `temperature` | float64 | no | derived | Tanh scaling constant used for slope_tanh, stored so the scaling reverses: slope = temperature * arctanh(slope_tanh). |
 
@@ -641,8 +666,8 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Commentary raw captions, normalised transcripts, cleaned text | keep | `transcript_segments`, `commentary_chunks` | Auxiliary component tied to the video with segment timestamps and a precision class. Not rally labels. |
 | Rally duration from final contact plus offset | keep | `rallies.clip_start_frame`, `rallies.clip_end_frame` | Issue #32 fixed the offsets: 2 s before the first contact and 3 s after the last, clamped to the video. Exact on source_contacts rows; predicted spans on annotator rows. |
 | Player identity and sex | keep | `players.player_id`, `players.sex`, `rallies.top_player_id`, `rallies.bottom_player_id`, `player_rallies.player_id`, `source_contacts.player_id` | Curated per-player table joined through the ShuttleSet match tables. Court sides map to people by the downcourt flag, the set number, and the set-3 change of ends. |
-| Raw degradation slope | keep | `player_trends.slope`, `player_trends.intercept`, `player_trends.n_points` | Issue #104 could not fit a trend without a retained feature set and stable player identity across rallies. Both now exist: player_rallies keeps float features and source_contacts rallies carry an exact player_id. |
-| Tanh-normalised degradation | keep | `player_trends.slope_tanh`, `player_trends.temperature` | Issue #22 left the tanh scaling temperature undefined. The feature's owner chose a fixed temperature of 2.0 over a per-feature sweep; the raw slope is kept alongside it so the scaling reverses. |
+| Raw degradation slope | keep | `player_trends.slope`, `player_trends.n_points` | Issue #104 could not fit a trend without a retained feature set and stable player identity across rallies. Both now exist: player_rallies keeps float features and source_contacts rallies carry an exact player_id. |
+| Tanh-normalised degradation | keep | `player_trends.slope_tanh`, `player_trends.temperature` | Issue #22 left the tanh scaling temperature undefined. Issue #138 asked to sweep it if that was cheap, and otherwise pick a magic number like 2. The sweep was skipped, so the feature's owner used that named fallback, 2.0; the raw slope is kept alongside it so the scaling reverses. |
 | Shots per rally | cut | none | Exact production count on 298 of 3,287 eligible ShuttleSet rallies. |
 | Away-from-centre recovery | cut | none | Contact and server attribution inputs are too weak for player-specific windows. |
 | Movement inefficiency | cut | none | Production intervals use predicted contacts that miss or add events. |
@@ -661,6 +686,7 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Court coverage near the shuttle | not_measured | none | Needs a relative measure and event anchor. |
 | Split-step stance geometry | not_measured | none | Needs a stance measure and event detector. |
 | Net-game share, clear share, backhand proportion, forced-to-unforced error ratio, shot-outcome success by type, footwork-to-shot coupling, hit height, shot-selection deception | out_of_scope | none | Outside the trial. No gate planned. |
+
 <!-- dictionary:end -->
 
 ## Provenance
