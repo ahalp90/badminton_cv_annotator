@@ -59,9 +59,9 @@ SCOPE_MATCH = "match"
 MATCH_SCOPE_ID = 0
 
 # Rally-level columns of `rallies` trended per player, when the column
-# exists. `duration_seconds` is always present. `shots_per_rally` is not on
-# this branch; issue #142 adds it, and it starts trending automatically once
-# this branch rebases onto that one, with no change here.
+# exists. Both are present since issue #142 added `shots_per_rally`; a future
+# rally-level column is picked up the same way, with no change here, and a
+# column that is later removed is skipped cleanly instead of raising.
 RALLY_LEVEL_FEATURES = ("duration_seconds", "shots_per_rally")
 
 
@@ -82,8 +82,8 @@ def rally_level_features(table: TableSpec) -> tuple[str, ...]:
 
     :param table: the ``rallies`` TableSpec to check for candidate columns.
     :return: the candidate names present on ``table``, in RALLY_LEVEL_FEATURES
-        order, so an absent column (``shots_per_rally`` today) is skipped
-        cleanly rather than raising.
+        order, so a candidate not yet on the frozen schema is skipped cleanly
+        rather than raising.
     """
     declared = table.column_names()
     return tuple(name for name in RALLY_LEVEL_FEATURES if name in declared)

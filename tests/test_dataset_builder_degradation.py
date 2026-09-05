@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from dataset_builder import degradation
 from dataset_builder.degradation import (
     DEGRADATION_TEMPERATURE,
     MATCH_SCOPE_ID,
@@ -38,32 +39,53 @@ def _rally(
 
 
 def _player_row(
-    rally_id: int, origin: str, player_id: str | None, posture_mad: float | None
+    rally_id: int,
+    origin: str,
+    player_id: str | None,
+    posture_mad: float | None,
+    recovery_distance_median: float | None = None,
+    movement_inefficiency_median: float | None = None,
 ) -> dict[str, object]:
     return {
         "rally_id": rally_id,
         "rally_origin": origin,
         "player_id": player_id,
         "posture_mad": posture_mad,
+        "recovery_distance_median": recovery_distance_median,
+        "movement_inefficiency_median": movement_inefficiency_median,
     }
 
 
 def test_trendable_features_discovers_float_columns() -> None:
-    # posture_mad is the only float-valued player_rallies column on main today;
-    # a future float feature is picked up with no change to this module.
-    assert trendable_features(PLAYER_RALLIES) == ("posture_mad",)
+    # Issue #142 added recovery_distance_median and movement_inefficiency_median
+    # as float player_rallies columns alongside posture_mad; a future float
+    # feature is picked up with no change to this module.
+    assert trendable_features(PLAYER_RALLIES) == (
+        "posture_mad", "recovery_distance_median", "movement_inefficiency_median",
+    )
 
 
-def test_rally_level_features_skips_an_absent_column() -> None:
-    # shots_per_rally does not exist on `rallies` on this branch (issue #142
-    # is not yet merged here). duration_seconds is the only rally-level
-    # feature discoverable today; it starts trending shots_per_rally too,
-    # with no code change, once that column lands.
+def test_rally_level_features_returns_every_declared_candidate() -> None:
+    # Issue #142 added rallies.shots_per_rally, so both RALLY_LEVEL_FEATURES
+    # candidates are now declared on the frozen `rallies` table.
+    assert rally_level_features(RALLIES) == ("duration_seconds", "shots_per_rally")
+
+
+def test_rally_level_features_skips_a_name_not_on_the_frozen_table(monkeypatch) -> None:
+    # A candidate not yet on the frozen `rallies` table must be skipped
+    # cleanly rather than raising: the same guard that let shots_per_rally
+    # sit here safely before issue #142 added the column.
+    monkeypatch.setattr(
+        degradation, "RALLY_LEVEL_FEATURES", ("duration_seconds", "not_a_real_column")
+    )
     assert rally_level_features(RALLIES) == ("duration_seconds",)
 
 
 def test_trended_features_is_the_union_used_for_documentation() -> None:
-    assert trended_features(PLAYER_RALLIES, RALLIES) == ("posture_mad", "duration_seconds")
+    assert trended_features(PLAYER_RALLIES, RALLIES) == (
+        "posture_mad", "recovery_distance_median", "movement_inefficiency_median",
+        "duration_seconds", "shots_per_rally",
+    )
 
 
 def test_least_squares_trend_known_sequence() -> None:
@@ -287,17 +309,40 @@ def test_rally_level_feature_is_trended_from_rallies() -> None:
     assert alice_row["n_points"] == 3
 
 
+def test_shots_per_rally_is_trended_now_that_the_column_exists() -> None:
+    # Issue #142 added rallies.shots_per_rally, so it is discovered and
+    # trended the same way duration_seconds always has been.
+    rallies = [
+        _rally(
+            i, "source_contacts", 1, i + 1,
+            top_player_id="alice", duration_seconds=1.0,
+        )
+        for i in range(3)
+    ]
+    for row, value in zip(rallies, [2, 3, 4]):
+        row["shots_per_rally"] = value
+
+    rows, _ = player_trend_rows(IDENTITY, rallies, [])
+
+    shots_row = next(
+        row for row in rows
+        if row["feature"] == "shots_per_rally" and row["scope"] == "set"
+    )
+    assert shots_row["n_points"] == 3
+    assert shots_row["slope"] == pytest.approx(1.0)
+
+
 def test_undeclared_rally_level_column_is_ignored_without_error() -> None:
-    # shots_per_rally is present in the row dict here (as it would be once
-    # issue #142's exporter code lands) but RALLIES does not declare it yet
-    # on this branch: discovery must skip it cleanly, not read and crash.
+    # A made-up column name that is not one of RALLY_LEVEL_FEATURES must
+    # never surface as a trended feature, whether or not the row dict
+    # happens to carry it.
     rallies = [
         _rally(i, "source_contacts", 1, i + 1, top_player_id="alice", duration_seconds=1.0)
         for i in range(3)
     ]
     for row in rallies:
-        row["shots_per_rally"] = 4
+        row["not_a_real_column"] = 4
 
     rows, _ = player_trend_rows(IDENTITY, rallies, [])
 
-    assert all(row["feature"] != "shots_per_rally" for row in rows)
+    assert all(row["feature"] != "not_a_real_column" for row in rows)

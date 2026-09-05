@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from dataset_builder import vision
@@ -55,7 +54,9 @@ ANNOTATIONS_DIRECTORY = "annotations"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
 SET_FILENAME = "set1.csv"
 MATCH_FILENAME = "match.csv"
-# The two usable rallies of the shared fixture, plus a third the flaw field excludes.
+# The two clean rallies of the shared fixture, plus a third whose only contact is
+# flaw-marked. Issue #138: a flaw-marked row no longer drops its rally, so all
+# three are usable; rallies.flaw_marked marks the third one.
 FLAW_MARKED_CSV = SET_CSV + "3,1,80,殺球,1,A,A,3,0\n"
 # ShuttleSet22's 2022 rows write downcourt as a float, so the parser must accept "1.0".
 MATCH_CSV = f"""id,video,winner,loser,downcourt
@@ -171,22 +172,30 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     tables = {table.name: read_table(output_dir, table) for table in TABLES}
 
     rallies = tables[RALLIES.name]
-    assert len(rallies) == 2
+    assert len(rallies) == 3
     assert set(rallies["rally_origin"]) == {"source_contacts"}
     assert set(rallies["video_id"]) == {VIDEO_ID}
     assert set(rallies["run_id"]) == {RUN_ID}
     assert set(rallies["source_dataset"]) == {SOURCE_DATASET}
     assert (rallies["fps"] == 30.0).all()
-    assert rallies["source_set"].tolist() == [1, 1]
-    assert rallies["source_rally"].tolist() == [1, 2]
-    assert list(zip(rallies["start_frame"], rallies["end_frame"])) == [(5, 21), (61, 71)]
+    assert rallies["source_set"].tolist() == [1, 1, 1]
+    assert rallies["source_rally"].tolist() == [1, 2, 3]
+    assert list(zip(rallies["start_frame"], rallies["end_frame"])) == [
+        (5, 21), (61, 71), (80, 81),
+    ]
+    # Issue #138: shots_per_rally is wired through build_video_tables, shared with
+    # the ShuttleSet export, so it is exact here too: 3 contacts, then 2, then 1.
+    assert rallies["shots_per_rally"].tolist() == [3, 2, 1]
+    # Rolled up from source_contacts.flaw_marked: only the third rally's contact
+    # carries the flag.
+    assert rallies["flaw_marked"].tolist() == [False, False, True]
     # 30 fps: 60 frames of lead-in and 90 of tail, both clamped by this short fixture.
     assert list(zip(rallies["clip_start_frame"], rallies["clip_end_frame"])) == [
-        (0, 100), (1, 100),
+        (0, 100), (1, 100), (20, 100),
     ]
 
     player_rallies = tables[PLAYER_RALLIES.name]
-    assert len(player_rallies) == 4
+    assert len(player_rallies) == 6
     # downcourt = 1.0 and set 1 put the match winner on the top court.
     assert set(zip(player_rallies["court_side"], player_rallies["player_id"])) == {
         ("top", WINNER_ID), ("bottom", LOSER_ID),
@@ -198,7 +207,7 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
 
     contacts = tables[SOURCE_CONTACTS.name]
     assert contacts["frame_num"].tolist() == [5, 12, 20, 61, 70, 80]
-    assert contacts["rally_id"].tolist() == [0, 0, 0, 1, 1, pd.NA]
+    assert contacts["rally_id"].tolist() == [0, 0, 0, 1, 1, 2]
     assert contacts["flaw_marked"].tolist() == [False] * 5 + [True]
     assert contacts["player_id"].tolist() == [
         WINNER_ID, LOSER_ID, WINNER_ID, LOSER_ID, WINNER_ID, WINNER_ID,
@@ -236,7 +245,7 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
             "court_code_id": COURT_CODE_ID,
             "fps": "30/1",
             "annotator_rallies": 0,
-            "source_rallies": 2,
+            "source_rallies": 3,
             "match_players": {
                 "player_a": WINNER_ID,
                 "player_b": LOSER_ID,
