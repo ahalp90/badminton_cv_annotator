@@ -62,10 +62,29 @@ def run(variant: str, boundary_mode: str = "padding") -> None:
     direct = comparison if variant == "session_start" else compare_outputs(
         reference.spans, selected, labels, population.fps, population.groups,
     )
+    local_comparisons = {}
+    if variant in {"both", "early"}:
+        local = restore_stream(prediction_io.read_json(RESULTS / "local_predictions.json.gz")["outputs"])
+        local_boundary = restore_stream(prediction_io.read_json(
+            RESULTS / f"local_boundary_predictions{suffix}.json.gz"
+        )["outputs"])
+        before_options = {
+            (span.fixture, span.span_id): LaterOption(CombinedAction("keep", None, None, span), None, span)
+            for span in before.spans
+        }
+        local_comparisons = {
+            "input_detector_to_local": compare_outputs(
+                local.spans, before_options, labels, population.fps, population.groups,
+            ),
+            "comparison_to_local_boundary": compare_outputs(
+                local_boundary.spans, selected, labels, population.fps, population.groups,
+            ),
+        }
     write_json(RESULTS / f"{variant}_boundary_result{suffix}.json.gz", {
         "schema": "contact-boundary-comparison/1", "status": "complete", "variant": variant,
         "boundary_mode": boundary_mode,
         "comparison_to_input_detector": comparison, "comparison_to_session_start": direct,
+        **local_comparisons,
         "padding_base30": 10, "full_stream_contacts": sum(map(len, after.events_by_fixture.values())),
         "raw_contact_stream_unchanged": after.events_by_fixture == before.events_by_fixture,
         "seconds": perf_counter() - started,
@@ -78,7 +97,7 @@ def run(variant: str, boundary_mode: str = "padding") -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--variant", choices=("session_start", "local", "pairs", "both"), default="session_start")
+    parser.add_argument("--variant", choices=("session_start", "local", "pairs", "both", "early"), default="session_start")
     parser.add_argument("--boundary-mode", choices=BOUNDARY_MODES, default="padding")
     arguments = parser.parse_args()
     run(arguments.variant, arguments.boundary_mode)

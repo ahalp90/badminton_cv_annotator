@@ -93,9 +93,12 @@ class Population:
 
 def prepare_population(
     pack: prediction_io.DevelopmentPredictionPack, groups: frozenset[str], raw_videos: Sequence[Mapping[str, Any]],
+    *, max_earlier_candidates: int = 2,
 ) -> Population:
     videos, spans, events = _subset_development(pack, groups)
-    actions = start.build_action_rows(build_candidate_rows(raw_videos, default_group="V"))
+    actions = start.build_action_rows(build_candidate_rows(
+        raw_videos, default_group="V", max_earlier_candidates=max_earlier_candidates,
+    ))
     grouped_options = build_options(spans, raw_videos, events)
     options = tuple(option for section_options in grouped_options.values() for option in section_options)
     return Population(videos, spans, events, actions, options, {video.fixture: video.fps for video in videos},

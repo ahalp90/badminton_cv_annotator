@@ -34,7 +34,7 @@ from scratch.contact_det_full_ds_fit.scripts.rally_start_model import ContactStr
 ROOT = prediction_io.REPO_ROOT / "scratch/contact_det_closing_pass"
 RESULTS = ROOT / "results/followups"
 DEFAULT_LATER_INPUTS = ROOT / "raw/later_inputs/broader.json.gz"
-VARIANTS = ("session_start", "local", "pairs", "both")
+VARIANTS = ("session_start", "local", "pairs", "both", "early")
 BOUNDARY_MODES = ("padding", "fixed_membership")
 TOLERANCES = (10, 5)
 
@@ -276,6 +276,18 @@ def run(
         "comparison_to_input": _fulltime_pair(source_scores, boundary_scores),
         "comparison_to_session_start": _fulltime_pair(session_scores, boundary_scores),
     }
+    local_comparisons = {}
+    if variant in {"both", "early"}:
+        local_payload = prediction_io.read_json(
+            output_root / f"local_boundary_broader_predictions{suffix}.json.gz"
+        )
+        local_spans = tuple(
+            span for video in local_payload["videos"]
+            for span in restore_stream(video["output"]).spans
+        )
+        local_comparisons["comparison_to_local_boundary"] = compare_outputs(
+            local_spans, boundary_options, labels, fps, groups,
+        )
     result = {
         "schema": "contact-boundary-comparison/1",
         "status": "complete",
@@ -291,6 +303,7 @@ def run(
         },
         "comparison_to_input_detector": comparison,
         "comparison_to_session_start": session_comparison,
+        **local_comparisons,
         "fulltime": fulltime,
         "full_stream_contacts": sum(len(events) for events in boundary.events_by_fixture.values()),
         "raw_contact_stream_unchanged": all(record["raw_stream_unchanged"] for record in video_records),

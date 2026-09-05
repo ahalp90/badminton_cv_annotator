@@ -13,6 +13,9 @@ import joblib
 import numpy as np
 
 from scratch.contact_det.scripts.score_contact_rallies import FixedEvent, FixedSpan
+from scratch.contact_det_closing_pass.scripts.early_shortlist import (
+    MAX_EARLY_CANDIDATES,
+)
 from scratch.contact_det_closing_pass.scripts.evaluation import (
     score_contacts,
     test_labels,
@@ -40,6 +43,7 @@ from scratch.contact_det_closing_pass.scripts.run_broader_comparison import (
 from scratch.contact_det_closing_pass.scripts.run_insertion_followup import (
     local_columns,
 )
+from scratch.contact_det_closing_pass.scripts.run_later_broader import restore_stream
 from scratch.contact_det_closing_pass.scripts.run_later_comparison import (
     ROOT,
     _expanded_matrix,
@@ -71,9 +75,11 @@ from scratch.contact_det_full_ds_fit.scripts.rally_start_model import (
 RAW = ROOT / "raw/followups"
 RESULTS = ROOT / "results/followups"
 DEFAULT_INPUTS = ROOT / "raw/broader_inputs/chooser_inputs.json.gz"
+DEFAULT_EARLY_INPUTS = ROOT / "raw/followups/early_broader_inputs.json.gz"
 DEFAULT_LATER_INPUTS = ROOT / "raw/later_inputs/broader.json.gz"
 DEFAULT_FEATURE_ROOT = ROOT / "raw/broader_inputs/features"
-REFERENCE_PREDICTIONS = ROOT / "results/later/later_broader_predictions.json.gz"
+LOCAL_REFERENCE_PREDICTIONS = ROOT / "results/followups/local_broader_predictions.json.gz"
+SESSION_START_REFERENCE_PREDICTIONS = ROOT / "results/later/later_broader_predictions.json.gz"
 
 SectionIdentity = tuple[str, int]
 
@@ -95,7 +101,7 @@ def _build_variant_options(
     variant: str,
 ) -> tuple[LaterOption, ...]:
     singles = build_later_options(base_options, candidates, fps, max_insertions=1)
-    if variant == "local":
+    if variant in {"local", "early"}:
         return singles
     return (*singles, *_pair_options(base_options, candidates, fps))
 
@@ -152,11 +158,11 @@ def _insertion_matrix(
         parts.append(second)
         names += tuple(second_names)
     local_width = 0
-    if variant in {"local", "both"}:
+    if variant in {"local", "early", "both"}:
         local_model = models.get("local")
         if local_model is None:
             raise ValueError(f"{variant}: frozen local model is missing")
-        if variant == "local":
+        if variant in {"local", "early"}:
             included = np.asarray([option.inserted is not None for option in options])
             context_matrix, context_names = insertion[included], model_names
         else:
@@ -199,7 +205,13 @@ def predict_video(
     load_started = perf_counter()
     candidates, later_physical = _candidate_inputs(later_video, spans)
     actions = start.build_action_rows(
-        build_candidate_rows([opening_video], default_group="ShuttleSet22")
+        build_candidate_rows(
+            [opening_video],
+            default_group="ShuttleSet22",
+            max_earlier_candidates=(
+                MAX_EARLY_CANDIDATES if variant == "early" else 2
+            ),
+        )
     )
     base_by_section = build_options(spans, [opening_video], {fixture: events})
     base_options = tuple(
@@ -313,20 +325,22 @@ def run(
     limit_videos: int | None = None,
     jobs: int = 4,
     *,
-    inputs: Path = DEFAULT_INPUTS,
+    inputs: Path | None = None,
     later_inputs: Path = DEFAULT_LATER_INPUTS,
     feature_root: Path = DEFAULT_FEATURE_ROOT,
     model_path: Path | None = None,
     output_root: Path = RESULTS,
 ) -> dict[str, Any]:
     """Replay a frozen follow-up model on all or a bounded smoke subset."""
-    if variant not in {"local", "pairs", "both"}:
+    if variant not in {"local", "early", "pairs", "both"}:
         raise ValueError(f"unknown follow-up variant: {variant}")
     if limit_videos is not None and limit_videos <= 0:
         raise ValueError("--limit-videos must be positive")
     if jobs <= 0:
         raise ValueError("--jobs must be positive")
     started = perf_counter()
+    if inputs is None:
+        inputs = DEFAULT_EARLY_INPUTS if variant == "early" else DEFAULT_INPUTS
     model_path = (
         RAW / f"{variant}_models.joblib" if model_path is None else Path(model_path)
     )
@@ -352,19 +366,39 @@ def run(
     ):
         raise ValueError("Broader input bundles must cover the frozen 47 videos")
     selected_fixtures = fixtures if limit_videos is None else fixtures[:limit_videos]
-    reference_payload = prediction_io.read_json(REFERENCE_PREDICTIONS)
+    reference_path = (
+        LOCAL_REFERENCE_PREDICTIONS
+        if variant == "early"
+        else SESSION_START_REFERENCE_PREDICTIONS
+    )
+    reference_payload = prediction_io.read_json(reference_path)
     if (
         reference_payload.get("status") != "complete"
         or reference_payload.get("labels_read") is not False
     ):
-        raise ValueError("Saved later-broader reference is incomplete or used labels")
+        raise ValueError("Saved broader reference is incomplete or used labels")
     reference_by_fixture = {
         str(video["fixture"]): video for video in reference_payload["videos"]
     }
     if set(reference_by_fixture) != set(fixtures):
         raise ValueError(
-            "Saved later-broader predictions do not cover the frozen 47 videos"
+            "Saved broader reference does not cover the frozen 47 videos"
         )
+    direct_by_fixture: dict[str, Mapping[str, Any]] = {}
+    if variant == "early":
+        direct_payload = prediction_io.read_json(SESSION_START_REFERENCE_PREDICTIONS)
+        if (
+            direct_payload.get("status") != "complete"
+            or direct_payload.get("labels_read") is not False
+        ):
+            raise ValueError("Saved later-broader reference is incomplete or used labels")
+        direct_by_fixture = {
+            str(video["fixture"]): video for video in direct_payload["videos"]
+        }
+        if set(direct_by_fixture) != set(fixtures):
+            raise ValueError(
+                "Saved later-broader predictions do not cover the frozen 47 videos"
+            )
 
     jobs_data = []
     for raw_video in pack.videos:
@@ -396,6 +430,7 @@ def run(
     all_events: dict[str, Sequence[FixedEvent]] = {}
     selected: dict[SectionIdentity, LaterOption] = {}
     reference_spans: list[FixedSpan] = []
+    direct_reference_spans: list[FixedSpan] = []
     fps: dict[str, float] = {}
     for arguments, result in zip(jobs_data, fitted, strict=True):
         (
@@ -419,6 +454,10 @@ def run(
             reference[identity].span
             for identity in ((span.fixture, span.span_id) for span in spans)
         )
+        if variant == "early":
+            direct_reference_spans.extend(
+                restore_stream(direct_by_fixture[fixture]["output"]).spans
+            )
         fps[fixture] = float(later["fps"])
 
     prediction_path, result_path = _prediction_paths(
@@ -430,7 +469,11 @@ def run(
         "labels_read": False,
         "variant": variant,
         "data_status": "Previously examined videos; predictions made without their labels",
-        "reference_predictions": "later_broader_predictions.json.gz",
+        "reference_predictions": (
+            "local_broader_predictions.json.gz"
+            if variant == "early"
+            else "later_broader_predictions.json.gz"
+        ),
         "minimum_edit_advantage": MIN_EDIT_ADVANTAGE,
         "videos": records,
         "prediction_seconds": perf_counter() - started,
@@ -441,6 +484,11 @@ def run(
     labels = test_labels()
     groups = dict.fromkeys(fps, "ShuttleSet22")
     comparison = compare_outputs(tuple(reference_spans), selected, labels, fps, groups)
+    direct_comparison = None
+    if variant == "early":
+        direct_comparison = compare_outputs(
+            tuple(direct_reference_spans), selected, labels, fps, groups
+        )
     stream = ContactStreams(tuple(all_spans), all_events)
     voted = start.apply_whole_rally_alternation(stream)
     contacts = {}
@@ -486,7 +534,14 @@ def run(
             "selected_sections": selected_count,
             "selected_insertions": selected_insertions,
         },
-        "comparison_to_session_start": comparison,
+        **(
+            {
+                "comparison_to_local": comparison,
+                "comparison_to_session_start": direct_comparison,
+            }
+            if variant == "early"
+            else {"comparison_to_session_start": comparison}
+        ),
         "contacts": contacts,
         "lineage": {
             "prediction_selection_uses_labels": False,
@@ -508,14 +563,14 @@ def run(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--variant", choices=("local", "pairs", "both"), required=True)
+    parser.add_argument("--variant", choices=("local", "early", "pairs", "both"), required=True)
     parser.add_argument(
         "--limit-videos",
         type=int,
         help="run only the first N videos and use smoke output names",
     )
     parser.add_argument("--jobs", type=int, default=4)
-    parser.add_argument("--inputs", type=Path, default=DEFAULT_INPUTS)
+    parser.add_argument("--inputs", type=Path)
     parser.add_argument("--later-inputs", type=Path, default=DEFAULT_LATER_INPUTS)
     parser.add_argument("--feature-root", type=Path, default=DEFAULT_FEATURE_ROOT)
     parser.add_argument("--models", type=Path)

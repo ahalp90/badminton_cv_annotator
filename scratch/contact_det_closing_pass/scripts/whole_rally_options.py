@@ -150,11 +150,13 @@ def whole_targets(
         spans_by_section[identity] = span
 
     overlap_by_section: dict[SectionIdentity, tuple[RallyReference, ...]] = {}
+    overlaps_by_bounds: dict[tuple[str, int, int], tuple[RallyReference, ...]] = {}
     touching_counts: Counter[tuple[str, str]] = Counter()
     for span in baseline_spans:
         identity = (span.fixture, span.span_id)
         overlaps = evaluation.overlapping_rallies(span, labels)
         overlap_by_section[identity] = overlaps
+        overlaps_by_bounds[(span.fixture, span.start_frame, span.end_frame)] = overlaps
         for rally in overlaps:
             touching_counts[_rally_identity(rally)] += 1
 
@@ -193,7 +195,10 @@ def whole_targets(
         reason = baseline_reason.get(identity, "section_not_in_baseline")
         if reason == "eligible":
             expected_rally = baseline_rally[identity]
-            expanded = evaluation.overlapping_rallies(option.span, labels)
+            bounds = (option.span.fixture, option.span.start_frame, option.span.end_frame)
+            if bounds not in overlaps_by_bounds:
+                overlaps_by_bounds[bounds] = evaluation.overlapping_rallies(option.span, labels)
+            expanded = overlaps_by_bounds[bounds]
             expanded_ids = {_rally_identity(rally) for rally in expanded}
             if expected_rally not in expanded_ids or expanded_ids - {expected_rally}:
                 reason = "expanded_section_has_other_labels"
@@ -202,12 +207,18 @@ def whole_targets(
             reason_counts[reason] += 1
             continue
 
-        result = evaluation.section_result(
-            option.span,
-            labels,
-            tolerances[option.span.fixture],
-        )
-        target = int(bool(result["side_rule_fully_correct"]))
+        rally = overlap_by_section[identity][0]
+        predicted_frames = sorted(event.frame for event in option.span.events)
+        tolerance = tolerances[option.span.fixture]
+        target = 0
+        # A complete one-to-one timing match must pair equal-length sorted lists.
+        # Most edit alternatives fail this cheap condition before side scoring.
+        if len(predicted_frames) == len(rally.frames) and all(
+            abs(predicted - labelled) <= tolerance
+            for predicted, labelled in zip(predicted_frames, sorted(rally.frames), strict=True)
+        ):
+            result = evaluation.section_result(option.span, labels, tolerance)
+            target = int(bool(result["side_rule_fully_correct"]))
         targets.append(target)
         reason_counts[reason] += 1
         if target == 1:
