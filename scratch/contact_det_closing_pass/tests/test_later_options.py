@@ -14,6 +14,7 @@ from scratch.contact_det_closing_pass.scripts.later_options import (
     apply_options,
     build_later_options,
     select_options,
+    select_with_reference,
     shortlist_frames,
 )
 from scratch.contact_det_closing_pass.scripts.whole_rally_evaluation import (
@@ -76,6 +77,19 @@ def test_empty_sections_remain_visible() -> None:
     options = build_later_options((CombinedAction("keep", None, None, span),), {}, {"fixture": 30})
     selected = select_options(options, np.array([.1]))
     assert apply_options((span,), {"fixture": ()}, selected).spans == (span,)
+
+
+def test_score_advantage_restores_reference_start_and_contacts() -> None:
+    span = FixedSpan("fixture", 0, 20, 100, (event(20), event(80)))
+    keep = CombinedAction("keep", None, None, span)
+    reference_span = FixedSpan("fixture", 0, 10, 100, (event(10, "Bot"), *span.events))
+    opening = CombinedAction("add", 10, None, reference_span)
+    options = build_later_options((keep, opening), {("fixture", 0): (event(50, "Bot"),)}, {"fixture": 30})
+    reference = {("fixture", 0): LaterOption(opening, None, reference_span)}
+    weak = select_with_reference(options, np.array([.30, .83, .80, .40]), reference)
+    assert weak[("fixture", 0)].span == reference_span
+    strong = select_with_reference(options, np.array([.30, .90, .80, .40]), reference)
+    assert strong[("fixture", 0)] == options[1]
 
 
 def test_opportunity_includes_missing_opening_and_later_hit_together() -> None:

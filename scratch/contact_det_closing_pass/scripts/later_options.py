@@ -26,6 +26,7 @@ from scratch.contact_det_full_ds_fit.scripts.rally_start_model import (
 )
 
 MAX_LATER_CANDIDATES = 6
+MIN_EDIT_ADVANTAGE = 0.05
 SectionIdentity = tuple[str, int]
 
 
@@ -112,6 +113,32 @@ def select_options(options: Sequence[LaterOption], scores: np.ndarray) -> dict[S
                 continue
         selected[option.base.identity] = (option, float(score))
     return {identity: pair[0] for identity, pair in selected.items()}
+
+
+def select_with_reference(
+    options: Sequence[LaterOption], scores: np.ndarray,
+    reference: Mapping[SectionIdentity, LaterOption], minimum_advantage: float = MIN_EDIT_ADVANTAGE,
+) -> dict[SectionIdentity, LaterOption]:
+    """Keep the reference output unless an alternative has a clear score advantage."""
+    selected = select_options(options, scores)
+    if set(reference) != set(selected):
+        raise ValueError("Reference choices do not cover the option population")
+    reference_scores = {}
+    best_scores: dict[SectionIdentity, float] = {}
+    for option, score in zip(options, scores, strict=True):
+        identity = option.base.identity
+        best_scores[identity] = max(float(score), best_scores.get(identity, -np.inf))
+        original = reference[identity]
+        if option.inserted is None and (
+            option.base.kind, option.base.candidate_frame, option.base.deleted_frame
+        ) == (original.base.kind, original.base.candidate_frame, original.base.deleted_frame):
+            reference_scores[identity] = float(score)
+    if set(reference_scores) != set(reference):
+        raise ValueError("Reference output is missing from the scored alternatives")
+    for identity, score in best_scores.items():
+        if score - reference_scores[identity] < minimum_advantage:
+            selected[identity] = reference[identity]
+    return selected
 
 
 def apply_options(
