@@ -59,6 +59,11 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
         "source_dataset", "video_id", "chunk_id", "timestamp_precision",
         "start_seconds", "end_seconds", "text", "text_clean", "bert_f1", "clean_pass",
     ),
+    "commentary_rally_links": (
+        "run_id", "source_dataset", "video_id", "chunk_id", "rally_origin",
+        "rally_id", "relation", "lag_seconds", "ambiguous",
+        "starts_on_masked_frame",
+    ),
 }
 
 # (name, type.value, nullable, reliability.value) per column, in frozen order.
@@ -149,6 +154,18 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("bert_f1", "float64", True, "derived"),
         ("clean_pass", "bool", True, "derived"),
     ),
+    "commentary_rally_links": (
+        ("run_id", "string", False, "observed"),
+        ("source_dataset", "string", False, "observed"),
+        ("video_id", "string", False, "observed"),
+        ("chunk_id", "string", False, "derived"),
+        ("rally_origin", "string", False, "derived"),
+        ("rally_id", "int64", False, "derived"),
+        ("relation", "string", False, "derived"),
+        ("lag_seconds", "float64", False, "derived"),
+        ("ambiguous", "bool", False, "derived"),
+        ("starts_on_masked_frame", "bool", True, "derived"),
+    ),
 }
 
 _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
@@ -161,11 +178,15 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
     "primitive_artifacts": ("source_dataset", "video_id", "artifact"),
     "transcript_segments": ("source_dataset", "video_id", "segment_index"),
     "commentary_chunks": ("source_dataset", "video_id", "chunk_id"),
+    "commentary_rally_links": (
+        "run_id", "source_dataset", "video_id", "chunk_id", "rally_origin",
+        "rally_id",
+    ),
 }
 
 
 def test_frozen_schema_surface():
-    assert DATASET_SCHEMA == "rally-dataset/1.0"
+    assert DATASET_SCHEMA == "rally-dataset/1.3"
     assert frozen_column_names() == _EXPECTED_COLUMN_NAMES
 
     for table in TABLES:
@@ -202,7 +223,6 @@ _EXPECTED_CUT_FEATURES = {
     "Shots per rally",
     "Away-from-centre recovery",
     "Movement inefficiency",
-    "Rally-to-commentary association",
 }
 
 # Hypothetical column names for cut/unresolved features that must never sneak into the
