@@ -4,9 +4,11 @@
 
 The larger goal is a badminton video annotator that can identify a small set of fully correct rallies for use without manual checking. This pass tests contact repairs that might help reach that goal.
 
-**The combined whole-rally experiment now recovers substantially more complete rallies.** On eight reused validation videos, the chooser with opening scores, player-side disagreement and physical measurements reaches **235 correct rallies at ±10**, up from 182: 56 repairs and three losses. At ±5 it reaches 195 from 175, with 44 repairs and 24 losses. The gain therefore comes with a larger cost to timing accuracy at the tighter allowance.
+**The combined detector holds up across the existing 47 ShuttleSet22 videos.** At the usable ±10 tolerance it reaches **1,435 correct rallies from 995: 447 repairs and seven losses**. Forty-four videos improve and three tie. At ±5 it reaches 1,224 from 901, with 366 repairs and 43 losses.
 
-Read the [whole-rally comparison and tradeoffs](whole_rally_report.md) for the latest result. Everything remains in experiment scripts; production integration is reserved for a later round.
+The score-only acceptance test falls short: the development-chosen 0.99 cutoff accepts 382 sections, with 278 correct, 95 wrong and nine unjudgeable at ±10. Saved-input preparation plus chooser work averages 27.5 seconds per video, about 21.5 minutes across all 47. These videos were previously examined; predictions were saved before loading their labels for this comparison.
+
+Read the [broader comparison, acceptance results and per-video costs](broader_comparison.md) for the latest result. The original [eight-video whole-rally comparison](whole_rally_report.md) and its predictions remain the reference. Physical measurements stay in the combined model. The next separate branch is insertion from saved candidates for missing later contacts; this run did not test that capability. Everything remains in experiment scripts, with production integration reserved for a later round.
 
 The component experiments below explain what led to that comparison. They tested the first-contact chooser in isolation. Physical measurements did not improve complete-rally recovery in those shallow standalone models. The combined result shows why that finding was insufficient to rule them out from the whole-rally chooser.
 
@@ -42,7 +44,7 @@ The evidence has two levels:
 - **32 development videos, 2,850 sections:** each edit model predicts a group left out of its fit. Cached detector scores are not fully isolated across these groups: a held-out group's labels may have trained detectors supplying other groups' edit-training inputs. These results are descriptive, not a fully nested validation estimate.
 - **Eight reused validation videos, 677 sections:** excluded from the edit fits and the detector fits supplying development training scores. Predictions were saved before loading their labels for this evaluation. These videos had already been examined in earlier work, including detector setting selection. They are not a fresh test.
 
-The separate 47-video ShuttleSet22 population is used only for the saved-output scoring checks below. The new chooser was not run on that population.
+At the component stage recorded below, the separate 47-video ShuttleSet22 population was used only for saved-output scoring checks. The later combined run on that population is reported in the [broader comparison](broader_comparison.md).
 
 ## First-contact results
 
@@ -190,7 +192,7 @@ Those small timings exclude loading and joining feature files, evaluation, the s
 
 These component results justified testing the promising inputs together. The [whole-rally continuation](whole_rally_report.md) now does that: it compares unchanged sections, opening edits, one deletion and combined edits using the same saved candidates. The summary/opening standalone model remains a useful lower-intervention reference, with 16 validation repairs and zero baseline losses at ±10.
 
-The physical branch remains useful in the combined model. The scoring-mask branch has no recoverable skipped rows in this census. Later-contact insertion and reliable automatic acceptance remain separate questions. Production integration stays for the planned later round.
+The physical branch remains useful in the combined model. The scoring-mask branch has no recoverable skipped rows in this census. Later-contact insertion remains untested. The broader comparison found the tested score-only acceptance rules insufficient for near-certain acceptance. Production integration stays for the planned later round.
 
 ## Methods, records and checks
 

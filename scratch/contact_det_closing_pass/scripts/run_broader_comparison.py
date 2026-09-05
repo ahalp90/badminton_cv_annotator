@@ -125,6 +125,8 @@ def predict_video(
     proposal_seconds = perf_counter() - started
     started = perf_counter()
     measurements = load_measurements(actions, {fixture: events}, feature_root)
+    if measurements.audit["missing_identity_count"]:
+        raise ValueError(f"{fixture}: frozen physical measurements are missing from the supplied feature root")
     action_values = action_matrix(actions, measurements)
     loading_seconds = perf_counter() - started
     started = perf_counter()
