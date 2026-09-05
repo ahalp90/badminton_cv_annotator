@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
+import logging
 from pathlib import Path
 
 from annotator.video_metadata import VideoMetadata
@@ -35,6 +36,7 @@ from dataset_builder.players import (
     load_match_players,
     load_players,
 )
+from dataset_builder.schema_v1 import PRIMITIVE_ARTIFACT_NOTES
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
     COURT_KEEP_VOTE_FILENAME,
@@ -45,6 +47,8 @@ from dataset_builder.vision import (
 )
 from shuttleset22 import DEFAULT_SOURCES, Source, SourceKind, load_sources, select_sources
 
+
+log = logging.getLogger(__name__)
 
 SOURCE_DATASET = "ShuttleSet22"
 EXTRACTED_DIRECTORY = "extracted-simple"
@@ -59,6 +63,21 @@ INPUT_ARTIFACT_FILENAMES: dict[str, str] = {
     "court_keep_vote": COURT_KEEP_VOTE_FILENAME,
     "court_present": COURT_PRESENT_FILENAME,
 }
+# The base ShuttleSet22 extract was run with InpaintNet off. A later pass over
+# the same videos produced these corrected sidecars, kept in a second root
+# (--inpainted-root) instead of extracted-simple/ alongside the rest.
+INPAINTED_TRACK_FILENAME = "shuttle_track_inpainted.npy.xz"
+INPAINTED_GUARD_CODES_FILENAME = "shuttle_guard_codes_inpainted.npy.xz"
+INPAINTED_ARTIFACT_FILENAMES: dict[str, str] = {
+    "shuttle_track_inpainted": INPAINTED_TRACK_FILENAME,
+    "shuttle_guard_codes_inpainted": INPAINTED_GUARD_CODES_FILENAME,
+}
+# primitive_artifacts.location is normally "input_dir" or "export_dir" (see
+# export_v1.build_video_tables). This third value flags that relative_path is
+# relative to --inpainted-root, not data_root, so a reader does not mistake
+# the two roots for one.
+LOCATION_INPAINTED_ROOT = "inpainted_root"
+_ARTIFACT_NOTES = {note.artifact: note for note in PRIMITIVE_ARTIFACT_NOTES}
 
 
 @dataclass(frozen=True)
@@ -72,6 +91,7 @@ class ShuttleSet22ExportInputs:
     commentary_root: Path | None = None
     match_ids: tuple[int, ...] | None = None
     players: Path = DEFAULT_PLAYERS
+    inpainted_root: Path | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.run_id, str) or not self.run_id:
@@ -86,6 +106,17 @@ def video_id_for(match_id: int) -> str:
 def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object]:
     """Write every v1 table and the dataset manifest; return the manifest."""
     data_root = Path(inputs.data_root).resolve(strict=True)
+    inpainted_root = (
+        None if inputs.inpainted_root is None
+        else Path(inputs.inpainted_root).resolve(strict=True)
+    )
+    if inpainted_root is None:
+        log.warning(
+            "no --inpainted-root given: this export extracted the plain ShuttleSet22 "
+            "shuttle track, which was recorded with InpaintNet off, and is not "
+            "referencing the InpaintNet-corrected track or its guard codes. Pass "
+            "--inpainted-root to use the corrected track."
+        )
     sources = select_sources(load_sources(inputs.sources), inputs.match_ids)
     for source in sources:
         if source.kind is not SourceKind.DOWNLOAD:
@@ -97,11 +128,13 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
     players = load_players(players_path)
     videos = []
     for source in sources:
-        videos.append(
-            build_video_tables(
-                inputs.output_dir, _video_inputs(data_root, source, inputs.run_id, players)
-            )
+        video_tables = build_video_tables(
+            inputs.output_dir,
+            _video_inputs(data_root, source, inputs.run_id, players, inpainted_root),
         )
+        if inpainted_root is not None:
+            video_tables.artifacts.extend(_inpainted_artifact_rows(inpainted_root, source))
+        videos.append(video_tables)
     identity = DatasetIdentity(
         run_id=inputs.run_id,
         source_dataset=SOURCE_DATASET,
@@ -112,21 +145,69 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
             None if inputs.commentary_root is None
             else Path(inputs.commentary_root).resolve(strict=True)
         ),
+        inpainted_root=inpainted_root,
         players_table=artifact_integrity("players", players_path).to_dict(),
     )
     video_ids = [video_id_for(source.match_id) for source in sources]
     return write_dataset(inputs.output_dir, identity, videos, video_ids)
 
 
+def _inpainted_video_path(inpainted_root: Path, source: Source, filename: str) -> Path:
+    """Resolve one inpainted sidecar path, failing loudly and naming the video."""
+    video_label = f"{source.match_id:02d} {source.video}"
+    video_dir = inpainted_root / video_label
+    if not video_dir.is_dir():
+        raise FileNotFoundError(f"{video_label}: inpainted directory not found: {video_dir}")
+    path = video_dir / filename
+    if not path.is_file():
+        raise FileNotFoundError(f"{video_label}: inpainted artifact not found: {path}")
+    return path
+
+
+def _inpainted_artifact_rows(inpainted_root: Path, source: Source) -> list[dict[str, object]]:
+    """Build primitive_artifacts rows for one video's InpaintNet-corrected sidecars.
+
+    These are not part of ``VideoInputs.input_artifacts``: that tuple is
+    always tagged ``location="input_dir"`` by ``build_video_tables``, which
+    would hide that these two files live under a different root entirely.
+    """
+    video_id = video_id_for(source.match_id)
+    rows: list[dict[str, object]] = []
+    for name, filename in INPAINTED_ARTIFACT_FILENAMES.items():
+        path = _inpainted_video_path(inpainted_root, source, filename)
+        integrity = artifact_integrity(name, path, relative_to=inpainted_root)
+        note = _ARTIFACT_NOTES[name]
+        rows.append({
+            "source_dataset": SOURCE_DATASET,
+            "video_id": video_id,
+            "artifact": integrity.name,
+            "location": LOCATION_INPAINTED_ROOT,
+            "relative_path": integrity.path,
+            "md5": integrity.md5,
+            "size_bytes": integrity.size_bytes,
+            "reliability": note.reliability.value,
+            "note": note.note,
+        })
+    return rows
+
+
 def _video_inputs(
-    data_root: Path, source: Source, run_id: str, players: Mapping[str, Player]
+    data_root: Path,
+    source: Source,
+    run_id: str,
+    players: Mapping[str, Player],
+    inpainted_root: Path | None = None,
 ) -> VideoInputs:
     annotation_root = data_root / ANNOTATIONS_DIRECTORY
     output = data_root / EXTRACTED_DIRECTORY / f"{source.match_id:02d} {source.video}"
     receipt = load_json_gz(output / COURT_RECEIPT_FILENAME)
     metadata = metadata_from_receipt(receipt, data_root, source)
+    track_path = (
+        output / TRACK_FILENAME if inpainted_root is None
+        else _inpainted_video_path(inpainted_root, source, INPAINTED_TRACK_FILENAME)
+    )
     player_inputs = derive_player_inputs(
-        output / TRACK_FILENAME,
+        track_path,
         output,
         output,
         court_video_id=str(source.match_id),
