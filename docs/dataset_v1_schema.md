@@ -2,8 +2,8 @@
 
 | Item | Value |
 | --- | --- |
-| Schema | `rally-dataset/1.1` |
-| Frozen on | 2026-09-03 |
+| Schema | `rally-dataset/1.2` |
+| Frozen on | 2026-09-04 |
 | Status | Frozen |
 | Owner | Issues [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18), [#138](https://github.com/ahalp90/badminton_cv_annotator/issues/138) |
 | Builds on | [`rally_dataset_contract.md`](rally_dataset_contract.md) version 0.2 |
@@ -41,6 +41,13 @@ were too unreliable; the dataset now builds on human ShuttleSet contacts
 instead, which removes that reason (see Kept features below). Nothing already
 frozen in 1.0 changed name, type, nullability, or reliability class, so 1.0
 code that ignores unknown columns still reads a 1.1 export correctly.
+`rally-dataset/1.1` also adds `rallies.flaw_marked` (see Source contacts
+below).
+
+`rally-dataset/1.2` adds one table, `player_trends`, that fits a per-player
+degradation trend over a rally-level or set-level feature (see Player
+degradation trends below). Nothing already frozen in 1.1 changed, so 1.1
+code that ignores unknown tables still reads a 1.2 export correctly.
 
 ## How to read reliability
 
@@ -103,17 +110,18 @@ set 3 changes ends when a score first reaches 11. The Players section below
 gives the rule, its cross-check, and the cases that leave `player_id` null.
 
 Features that need identity across rallies, such as a player's degradation
-across a match, can group on `player_id`. They stay unresolved for the
-reasons in the dispositions table, not for lack of a key.
+across a match, group on `player_id`. `player_trends` is the one that does
+this; see its formula below.
 
 ## Files
 
-An export writes nine things.
+An export writes ten things.
 
 | Path | Holds |
 | --- | --- |
 | `rallies.csv.gz` | One row per rally. |
 | `player_rallies.csv.gz` | One row per rally and court side. |
+| `player_trends.csv.gz` | One row per player, scope, and trended feature. |
 | `players.csv.gz` | One row per person the export references: name and sex. |
 | `source_contacts.csv.gz` | Human ShuttleSet contact rows. |
 | `primitive_artifacts.csv.gz` | A list of the raw frame-aligned files. |
@@ -126,7 +134,7 @@ Two commands write this layout. `export-v1` reads a completed dataset-builder
 run, so its `rallies` table holds `annotator` rows and, when the ShuttleSet
 annotations are given, `source_contacts` rows too. `export-v1-shuttleset22`
 reads the ShuttleSet22 primitives, which have no production run, so every
-rally there is a `source_contacts` row. Both produce the same seven tables.
+rally there is a `source_contacts` row. Both produce the same eight tables.
 
 Three rules matter when reading the tables:
 
@@ -493,6 +501,79 @@ When none overlaps, for example a span in the break between sets, or more
 than one does, `player_id` is null. It is also null on every row of a video
 that has no source annotations.
 
+### Player degradation trends
+
+Issue #138 asks for progression over set or rally: fit a trend line through a
+feature's values and see whether a player gets better or worse as a match
+wears on. `player_trends` is that trend, one row per player, scope, and
+feature.
+
+Only `source_contacts` rallies take part, because they are the only ones with
+an exact `player_id`; an `annotator` row's identity is a guess and would make
+the trend meaningless.
+
+Two feature sources are trended, both read only from `source_contacts`
+rallies:
+
+- Every float-valued column of `player_rallies`: `posture_mad`,
+  `recovery_distance_median`, and `movement_inefficiency_median` today.
+  Found by column type rather than a hardcoded name, so a new float feature
+  is trended automatically once it lands in that table.
+- Named rally-level columns of `rallies`: `duration_seconds` and
+  `shots_per_rally` today. A rally-level value is read once for each player
+  named on the rally, `top_player_id` and `bottom_player_id`.
+
+Serve speed proxy is not trended. Issue #104 left the feature itself
+unresolved, so there is nothing yet to trend.
+
+`scope` is `set` or `match`, reading issue #138's two named progressions:
+
+- `scope=set` fits a feature's values within one ShuttleSet set, one point
+  per rally the player played there, against that rally's `source_rally`
+  number. A missing rally keeps its gap: the fit uses the real rally number,
+  not a renumbered position, so rallies 1, 2, 5 are not read as three
+  consecutive points. `scope_id` is the set number. This needs at least 3
+  points, `MIN_TREND_POINTS_SET` in `degradation.py`; fewer points make a
+  rally-by-rally line noise, not a trend. That floor is this project's
+  choice, not something issue #138 sets.
+- `scope=match` fits one point per set: the median of the feature over the
+  player's rallies in that set, against the set number. `scope_id` is the
+  fixed sentinel `0`, because no ShuttleSet set is ever numbered `0`. This
+  needs at least 2 points, `MIN_TREND_POINTS_MATCH`. A ShuttleSet match has 2
+  or 3 sets, and a line through 2 points is an exact fit, not a guess, so a
+  2-set match still gets a trend.
+
+Each video's manifest records how many fits were written and, per scope, how
+many were skipped for too few points: `fits_written`,
+`fits_skipped_insufficient_points_set`, and
+`fits_skipped_insufficient_points_match`, under `trend_population`, alongside
+the existing `source_population` counts.
+
+The trend itself is ordinary least squares, `numpy.polyfit` degree 1:
+
+```text
+slope = polyfit(position, feature_value, degree=1)
+```
+
+`position` is the rally's `source_rally` number for `scope=set`, or the
+set's `source_set` number for `scope=match`.
+
+`slope_tanh = tanh(slope / temperature)` compresses the slope to `(-1, 1)` so
+trends of differently scaled features read on one comparable scale. The
+temperature is a single fixed constant, `DEGRADATION_TEMPERATURE = 2.0` in
+`src/dataset_builder/degradation.py`. Issue #22 left this temperature
+undefined. Issue #138 asked to sweep a range of values if that was cheap, and
+otherwise pick a magic number like 2; the sweep was skipped, so 2 is that
+named fallback. The raw `slope` is kept alongside `slope_tanh` so a reader
+who wants different scaling can recover it exactly:
+`slope = temperature * arctanh(slope_tanh)`. That is why the temperature is
+stored on every row rather than left implicit in the code.
+
+`player_trends` is `derived` on every column. It is a computation over
+`player_rallies` and `rallies`, both themselves unvalidated against
+independent ground truth, so the trend inherits that caveat rather than
+adding a new one.
+
 ### The primitive bundle
 
 `primitive_artifacts` lists files. It does not contain their contents. Each
@@ -532,7 +613,7 @@ because a later reader cannot tell the difference.
 | Group | What it means | Examples |
 | --- | --- | --- |
 | Cut | The formula works, but the inputs it needs were measured and are too weak. | Rally-to-commentary association. |
-| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, degradation slope and its tanh temperature, backward extrapolation, commentary sentiment. |
+| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, backward extrapolation, commentary sentiment. |
 | Not measured | The trial never defined or benchmarked it. | Rest time, smash shuttle speed, stroke duration, split-step stance geometry, match duration. |
 | Out of scope | Outside the trial, with no gate planned. | Net-game share, backhand proportion, forced-to-unforced error ratio, hit height, shot-selection deception. |
 
@@ -602,6 +683,26 @@ One row per rally and court side with the kept issue #22 features. Cut and unres
 | `position_frames_linear` | int64 | no | derived | Of position_frames_valid, frames filled by linear interpolation. |
 | `recovery_distance_median` | float64 | yes | derived | Median of this side's source_contacts.recovery_distance values over the rally, i.e. the contacts where this side was not striking. Unitless: normalised doubles-court Euclidean distance. Null when no contact in the rally has a recovery_distance for this side. |
 | `movement_inefficiency_median` | float64 | yes | derived | Median of this side's source_contacts.movement_inefficiency_top or _bottom values over the rally. Unitless: normalised doubles-court Euclidean distance. Null when no interval in the rally has a value for this side. |
+
+### player_trends
+
+File `player_trends.csv.gz`. Key `(run_id, source_dataset, video_id, player_id, scope, scope_id, feature)`.
+
+One row per player, scope, and trended feature: an ordinary least squares trend over that player's source_contacts rallies or sets, plus its tanh-normalised slope. Annotator rallies are excluded because their player identity is a guess, not a label.
+
+| Column | Type | Nullable | Reliability | Description |
+| --- | --- | --- | --- | --- |
+| `run_id` | string | no | observed | Immutable dataset-builder run that produced the row. |
+| `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
+| `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
+| `player_id` | string | no | derived | players.player_id of the person this trend is fit for. |
+| `scope` | string | no | derived | set: trend across one player's rallies within one ShuttleSet set, ordered by source_rally. match: trend across that player's sets in the video, one point per set (the median of the feature over the player's rallies in that set), ordered by source_set. |
+| `scope_id` | int64 | no | derived | ShuttleSet set number for scope=set. Fixed sentinel 0 for scope=match; no ShuttleSet set is ever numbered 0. |
+| `feature` | string | no | derived | Feature this trend was fit over: a player_rallies float column (for example posture_mad) or a named rally-level column of rallies (duration_seconds, and shots_per_rally once that column exists). |
+| `n_points` | int64 | no | derived | Values that fed the fit: rallies for scope=set (at least 3), sets for scope=match (at least 2). A fit with fewer points is not written. |
+| `slope` | float64 | no | derived | Ordinary least squares slope of the feature value against its position: the rally's source_rally number for scope=set, or the set's source_set number for scope=match. |
+| `slope_tanh` | float64 | no | derived | tanh(slope / temperature): the slope compressed to (-1, 1) so trends of differently scaled features are comparable. |
+| `temperature` | float64 | no | derived | Tanh scaling constant used for slope_tanh, stored so the scaling reverses: slope = temperature * arctanh(slope_tanh). |
 
 ### players
 
@@ -741,13 +842,13 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Commentary raw captions, normalised transcripts, cleaned text | keep | `transcript_segments`, `commentary_chunks` | Auxiliary component tied to the video with segment timestamps and a precision class. Not rally labels. |
 | Rally duration from final contact plus offset | keep | `rallies.clip_start_frame`, `rallies.clip_end_frame` | Issue #32 fixed the offsets: 2 s before the first contact and 3 s after the last, clamped to the video. Exact on source_contacts rows; predicted spans on annotator rows. |
 | Player identity and sex | keep | `players.player_id`, `players.sex`, `rallies.top_player_id`, `rallies.bottom_player_id`, `player_rallies.player_id`, `source_contacts.player_id` | Curated per-player table joined through the ShuttleSet match tables. Court sides map to people by the downcourt flag, the set number, and the set-3 change of ends. |
+| Raw degradation slope | keep | `player_trends.slope`, `player_trends.n_points` | Issue #104 could not fit a trend without a retained feature set and stable player identity across rallies. Both now exist: player_rallies keeps float features and source_contacts rallies carry an exact player_id. |
+| Tanh-normalised degradation | keep | `player_trends.slope_tanh`, `player_trends.temperature` | Issue #22 left the tanh scaling temperature undefined. Issue #138 asked to sweep it if that was cheap, and otherwise pick a magic number like 2. The sweep was skipped, so the feature's owner used that named fallback, 2.0; the raw slope is kept alongside it so the scaling reverses. |
 | Shots per rally | keep | `rallies.shots_per_rally` | Issue #104 measured this against predicted contacts, exact on only 298 of 3,287 rallies. It is now the count of human ShuttleSet contact rows in the rally, exact by construction, so the weak input that cut it is gone. |
 | Away-from-centre recovery | keep | `source_contacts.recovery_distance`, `source_contacts.recovery_frames_valid`, `player_rallies.recovery_distance_median` | Cut because predicted contact and server attribution were too weak for a player-specific window. Human ShuttleSet contacts fix the contact frame, and the hitter resolved against the match table's own side assignment fixes the non-striking player, so both weak inputs are gone. |
 | Movement inefficiency | keep | `source_contacts.movement_inefficiency_top`, `source_contacts.movement_inefficiency_bottom`, `player_rallies.movement_inefficiency_median` | Cut because production intervals used predicted contacts that missed or added events. Human ShuttleSet contacts fix each interval's start and end exactly. |
 | Rally-to-commentary association | cut | none | Post-rally join pairs 2.24% of production spans and mis-claims across rallies. |
 | Serve speed proxy | unresolved | none | Return, static, and viewport endpoints are undefined and shuttle error is large. |
-| Raw degradation slope | unresolved | none | Needs a retained feature set and stable player identity across rallies. |
-| Tanh-normalised degradation | unresolved | none | Issue #22 does not define the temperature. |
 | Backward extrapolation | unresolved | none | No defined scene boundary, range, or provenance policy. |
 | Commentary sentiment, concept, and player link | unresolved | none | Supported schemas emit no semantic fields and no labelled population exists. |
 | Out-of-position posture states | not_measured | none | The three states need pose-term definitions. |

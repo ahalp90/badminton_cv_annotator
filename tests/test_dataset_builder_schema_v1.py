@@ -43,6 +43,10 @@ _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
         "posture_mad", "position_frames_valid", "position_frames_linear",
         "recovery_distance_median", "movement_inefficiency_median",
     ),
+    "player_trends": (
+        "run_id", "source_dataset", "video_id", "player_id", "scope", "scope_id",
+        "feature", "n_points", "slope", "slope_tanh", "temperature",
+    ),
     "players": ("player_id", "player_name", "sex"),
     "source_contacts": (
         "source_dataset", "video_id", "source_set", "source_row", "source_rally",
@@ -104,6 +108,19 @@ _EXPECTED_COLUMN_SPECS: dict[str, tuple[tuple[str, str, bool, str], ...]] = {
         ("position_frames_linear", "int64", False, "derived"),
         ("recovery_distance_median", "float64", True, "derived"),
         ("movement_inefficiency_median", "float64", True, "derived"),
+    ),
+    "player_trends": (
+        ("run_id", "string", False, "observed"),
+        ("source_dataset", "string", False, "observed"),
+        ("video_id", "string", False, "observed"),
+        ("player_id", "string", False, "derived"),
+        ("scope", "string", False, "derived"),
+        ("scope_id", "int64", False, "derived"),
+        ("feature", "string", False, "derived"),
+        ("n_points", "int64", False, "derived"),
+        ("slope", "float64", False, "derived"),
+        ("slope_tanh", "float64", False, "derived"),
+        ("temperature", "float64", False, "derived"),
     ),
     "players": (
         ("player_id", "string", False, "curated"),
@@ -167,6 +184,9 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
     "player_rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id", "court_side",
     ),
+    "player_trends": (
+        "run_id", "source_dataset", "video_id", "player_id", "scope", "scope_id", "feature",
+    ),
     "players": ("player_id",),
     "source_contacts": ("source_dataset", "video_id", "source_set", "source_row"),
     "primitive_artifacts": ("source_dataset", "video_id", "artifact"),
@@ -176,7 +196,7 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
 
 
 def test_frozen_schema_surface():
-    assert DATASET_SCHEMA == "rally-dataset/1.1"
+    assert DATASET_SCHEMA == "rally-dataset/1.2"
     assert frozen_column_names() == _EXPECTED_COLUMN_NAMES
 
     for table in TABLES:
@@ -207,6 +227,8 @@ _EXPECTED_KEEP_FEATURES = {
     "Commentary raw captions, normalised transcripts, cleaned text",
     "Rally duration from final contact plus offset",
     "Player identity and sex",
+    "Raw degradation slope",
+    "Tanh-normalised degradation",
     "Shots per rally",
     "Away-from-centre recovery",
     "Movement inefficiency",

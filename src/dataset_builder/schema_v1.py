@@ -8,7 +8,8 @@ Decisions come from issue #22 (formulas), issue #104 (keep, cut, unresolved),
 issue #18 (this freeze), Ari's review of PR #135 (player identity and sex),
 and issue #138 (rally-dataset/1.1: shots per rally, recovery, and movement
 inefficiency, once the dataset moved onto human ShuttleSet contacts; and
-``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped).
+``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped; and
+rally-dataset/1.2: player degradation trends and their tanh temperature).
 See ``docs/dataset_v1_schema.md``.
 """
 
@@ -25,8 +26,8 @@ from uuid import uuid4
 import pandas as pd
 
 
-DATASET_SCHEMA = "rally-dataset/1.1"
-SCHEMA_FROZEN_ON = "2026-09-03"
+DATASET_SCHEMA = "rally-dataset/1.2"
+SCHEMA_FROZEN_ON = "2026-09-04"
 DATASET_MANIFEST_FILENAME = "dataset_manifest.json.gz"
 PLAYER_SIGNALS_DIRECTORY = "player_signals"
 
@@ -357,6 +358,65 @@ PLAYER_RALLIES = TableSpec(
 )
 
 
+PLAYER_TRENDS = TableSpec(
+    name="player_trends",
+    filename="player_trends.csv.gz",
+    key=("run_id", "source_dataset", "video_id", "player_id", "scope", "scope_id", "feature"),
+    columns=(
+        *_identity_columns(),
+        ColumnSpec(
+            "player_id", ColumnType.STRING, False, ReliabilityClass.DERIVED,
+            "players.player_id of the person this trend is fit for.",
+        ),
+        ColumnSpec(
+            "scope", ColumnType.STRING, False, ReliabilityClass.DERIVED,
+            "set: trend across one player's rallies within one ShuttleSet set, ordered "
+            "by source_rally. match: trend across that player's sets in the video, one "
+            "point per set (the median of the feature over the player's rallies in that "
+            "set), ordered by source_set.",
+        ),
+        ColumnSpec(
+            "scope_id", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
+            "ShuttleSet set number for scope=set. Fixed sentinel 0 for scope=match; no "
+            "ShuttleSet set is ever numbered 0.",
+        ),
+        ColumnSpec(
+            "feature", ColumnType.STRING, False, ReliabilityClass.DERIVED,
+            "Feature this trend was fit over: a player_rallies float column (for example "
+            "posture_mad) or a named rally-level column of rallies (duration_seconds, "
+            "and shots_per_rally once that column exists).",
+        ),
+        ColumnSpec(
+            "n_points", ColumnType.INTEGER, False, ReliabilityClass.DERIVED,
+            "Values that fed the fit: rallies for scope=set (at least 3), sets for "
+            "scope=match (at least 2). A fit with fewer points is not written.",
+        ),
+        ColumnSpec(
+            "slope", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
+            "Ordinary least squares slope of the feature value against its position: "
+            "the rally's source_rally number for scope=set, or the set's source_set "
+            "number for scope=match.",
+        ),
+        ColumnSpec(
+            "slope_tanh", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
+            "tanh(slope / temperature): the slope compressed to (-1, 1) so trends of "
+            "differently scaled features are comparable.",
+        ),
+        ColumnSpec(
+            "temperature", ColumnType.FLOAT, False, ReliabilityClass.DERIVED,
+            "Tanh scaling constant used for slope_tanh, stored so the scaling reverses: "
+            "slope = temperature * arctanh(slope_tanh).",
+        ),
+    ),
+    description=(
+        "One row per player, scope, and trended feature: an ordinary least squares "
+        "trend over that player's source_contacts rallies or sets, plus its "
+        "tanh-normalised slope. Annotator rallies are excluded because their player "
+        "identity is a guess, not a label."
+    ),
+)
+
+
 PLAYERS = TableSpec(
     name="players",
     filename="players.csv.gz",
@@ -600,6 +660,7 @@ COMMENTARY_CHUNKS = TableSpec(
 TABLES: tuple[TableSpec, ...] = (
     RALLIES,
     PLAYER_RALLIES,
+    PLAYER_TRENDS,
     PLAYERS,
     SOURCE_CONTACTS,
     PRIMITIVE_ARTIFACTS,
@@ -756,6 +817,21 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "map to people by the downcourt flag, the set number, and the set-3 change of ends.",
     ),
     FeatureDisposition(
+        "Raw degradation slope", Disposition.KEEP,
+        ("player_trends.slope", "player_trends.n_points"),
+        "Issue #104 could not fit a trend without a retained feature set and stable "
+        "player identity across rallies. Both now exist: player_rallies keeps float "
+        "features and source_contacts rallies carry an exact player_id.",
+    ),
+    FeatureDisposition(
+        "Tanh-normalised degradation", Disposition.KEEP,
+        ("player_trends.slope_tanh", "player_trends.temperature"),
+        "Issue #22 left the tanh scaling temperature undefined. Issue #138 asked to "
+        "sweep it if that was cheap, and otherwise pick a magic number like 2. The "
+        "sweep was skipped, so the feature's owner used that named fallback, 2.0; the "
+        "raw slope is kept alongside it so the scaling reverses.",
+    ),
+    FeatureDisposition(
         "Shots per rally", Disposition.KEEP,
         ("rallies.shots_per_rally",),
         "Issue #104 measured this against predicted contacts, exact on only 298 of 3,287 "
@@ -790,14 +866,6 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
     FeatureDisposition(
         "Serve speed proxy", Disposition.UNRESOLVED, (),
         "Return, static, and viewport endpoints are undefined and shuttle error is large.",
-    ),
-    FeatureDisposition(
-        "Raw degradation slope", Disposition.UNRESOLVED, (),
-        "Needs a retained feature set and stable player identity across rallies.",
-    ),
-    FeatureDisposition(
-        "Tanh-normalised degradation", Disposition.UNRESOLVED, (),
-        "Issue #22 does not define the temperature.",
     ),
     FeatureDisposition(
         "Backward extrapolation", Disposition.UNRESOLVED, (),
