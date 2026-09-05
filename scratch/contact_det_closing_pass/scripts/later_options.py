@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -32,11 +33,20 @@ SectionIdentity = tuple[str, int]
 
 @dataclass(frozen=True)
 class LaterOption:
-    """An existing start/deletion choice, optionally followed by one insertion."""
+    """An existing start/deletion choice followed by zero, one or two insertions."""
 
     base: CombinedAction
     inserted: FixedEvent | None
     span: FixedSpan
+    second_inserted: FixedEvent | None = None
+
+    @property
+    def inserted_events(self) -> tuple[FixedEvent, ...]:
+        if self.inserted is None:
+            return ()
+        if self.second_inserted is None:
+            return (self.inserted,)
+        return (self.inserted, self.second_inserted)
 
     @property
     def proxy(self) -> CombinedAction:
@@ -70,13 +80,16 @@ def shortlist_frames(
 
 def build_later_options(
     base_options: Sequence[CombinedAction], candidates: Mapping[SectionIdentity, Sequence[FixedEvent]],
-    fps: Mapping[str, float],
+    fps: Mapping[str, float], max_insertions: int = 1,
 ) -> tuple[LaterOption, ...]:
-    """Cross each existing option with one later candidate; retain all originals."""
+    """Cross existing options with compatible saved candidates, without labels."""
+    if max_insertions not in (1, 2):
+        raise ValueError("The later comparison supports one or two insertions")
     output = []
     for base in base_options:
         output.append(LaterOption(base, None, base.span))
         distance = scale_base30_frames(DUPLICATE_DISTANCE_AT_30_FPS, fps[base.span.fixture])
+        eligible = []
         for candidate in candidates.get(base.identity, ()):
             if candidate.fixture != base.span.fixture:
                 raise ValueError("Later candidate belongs to another fixture")
@@ -86,16 +99,26 @@ def build_later_options(
                 continue
             events = tuple(sorted((*base.span.events, candidate), key=lambda event: event.frame))
             output.append(LaterOption(base, candidate, replace(base.span, events=events)))
+            eligible.append(candidate)
+        if max_insertions == 2:
+            for first, second in combinations(eligible, 2):
+                if abs(first.frame - second.frame) <= distance:
+                    continue
+                events = tuple(sorted((*base.span.events, first, second), key=lambda event: event.frame))
+                output.append(LaterOption(base, first, replace(base.span, events=events), second))
     return tuple(output)
 
 
 def option_record(option: LaterOption) -> dict[str, Any]:
-    return {
+    record = {
         "fixture": option.span.fixture, "span_id": option.span.span_id, "kind": option.base.kind,
         "candidate_frame": option.base.candidate_frame, "deleted_frame": option.base.deleted_frame,
         "inserted_frame": None if option.inserted is None else option.inserted.frame,
         "start_frame": option.span.start_frame, "end_frame": option.span.end_frame,
     }
+    if option.second_inserted is not None:
+        record["second_inserted_frame"] = option.second_inserted.frame
+    return record
 
 
 def select_options(options: Sequence[LaterOption], scores: np.ndarray) -> dict[SectionIdentity, LaterOption]:
@@ -105,10 +128,10 @@ def select_options(options: Sequence[LaterOption], scores: np.ndarray) -> dict[S
     selected: dict[SectionIdentity, tuple[LaterOption, float]] = {}
     for option, score in zip(options, scores, strict=True):
         previous = selected.get(option.base.identity)
-        priority = (option.inserted is not None, _action_priority(option.base))
+        priority = (len(option.inserted_events), _action_priority(option.base))
         if previous is not None:
             old, old_score = previous
-            old_priority = (old.inserted is not None, _action_priority(old.base))
+            old_priority = (len(old.inserted_events), _action_priority(old.base))
             if score < old_score or (score == old_score and priority >= old_priority):
                 continue
         selected[option.base.identity] = (option, float(score))
@@ -129,14 +152,13 @@ def select_with_reference(
         identity = option.base.identity
         best_scores[identity] = max(float(score), best_scores.get(identity, -np.inf))
         original = reference[identity]
-        if option.inserted is None and (
-            option.base.kind, option.base.candidate_frame, option.base.deleted_frame
-        ) == (original.base.kind, original.base.candidate_frame, original.base.deleted_frame):
-            reference_scores[identity] = float(score)
+        if option.span == original.span:
+            reference_scores[identity] = max(float(score), reference_scores.get(identity, -np.inf))
     if set(reference_scores) != set(reference):
         raise ValueError("Reference output is missing from the scored alternatives")
     for identity, score in best_scores.items():
-        if score - reference_scores[identity] < minimum_advantage:
+        advantage = score - reference_scores[identity]
+        if advantage <= 0.0 or advantage < minimum_advantage:
             selected[identity] = reference[identity]
     return selected
 
