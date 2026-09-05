@@ -151,6 +151,17 @@ def _plot(populations: Mapping[str, tuple[dict[str, Any], dict[str, Any]]]) -> N
             [100 * point[0] for point in points], [100 * point[1] for point in points],
             color=COLOURS[variant], label=f"{variant} frozen policies", s=28,
         )
+        for coverage, value, policy in points:
+            summary = metrics[policy]
+            correct = summary["by_tolerance"]["10"]["counts"]["correct"]
+            label = "Base" if variant == "base" else "With gap evidence"
+            offset = (-12, -35) if variant == "base" else (12, 20)
+            axes[1].annotate(
+                f"{label}: {correct}/{summary['accepted_count']}\n{100 * value:.1f}% verified correct",
+                (100 * coverage, 100 * value), xytext=offset, textcoords="offset points",
+                ha="right" if variant == "base" else "left", fontsize=9, color=COLOURS[variant],
+                arrowprops={"arrowstyle": "-", "color": COLOURS[variant], "lw": 0.8},
+            )
     axes[1].set_title("Broader: 47 previously examined videos")
     for axis in axes:
         axis.axhline(95, color="#555555", linestyle="--", linewidth=1, label="95% reference")

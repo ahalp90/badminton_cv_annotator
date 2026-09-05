@@ -1,8 +1,10 @@
 # Contact detection: closing experiments
 
-*5 September 2026 · scripts and saved outputs*
+*6 September 2026 · scripts and saved outputs*
 
 The goal is a better badminton contact detector that can eventually recognise rallies suitable for automatic acceptance.
+
+**Latest: the [serve and acceptance follow-up](serve_and_acceptance.md) keeps the current detector and measures acceptance on its actual output.** It finds 2,781 of 3,422 labelled serves at ±10 (81.3%); 2,647 also have the correct server (77.4%). Of 3,725 nonempty proposals, 2,536 start at the serve with the right server (68.1%). The new deletion model gave too many losses for its small development gain.
 
 **The recommended follow-up detector reaches 1,763 complete rallies across the existing 47 ShuttleSet22 videos, up from 1,597.** At ±10 base-30 frames, that is **180 repairs and 14 losses**. It recovers **51.5% of retained labelled rallies**, or **44.3% of the 3,982 proposed sections**. At ±5, the same predictions reach 1,430, with 113 repairs and ten losses. Joint contact-time-and-side F1 is **81.8% / 80.2%**.
 
@@ -10,9 +12,9 @@ The useful changes are a local insertion score inside the combined chooser and g
 
 A wider early shortlist reaches the highest count, **1,767**, but adds only four beyond the recommendation while trading 19 repairs for 15 losses. Its model and outputs remain saved as an alternative. Compatible pairs did not give a useful incremental combined gain. The recommended cached-input pass took about four minutes across 47 videos, plus 8.5 seconds for guarded edges; this is not an end-to-end vision timing.
 
-Gap evidence improves acceptance ranking on the unchanged session-start detector. Its frozen rule accepts **785 sections: 599 correct, 149 wrong and 37 unjudgeable** at ±10. That is not reliable automatic acceptance, and it has not been calibrated for the recommended changed detector. A narrow visual serve gate rejected too much correct output and was closed.
+Acceptance is now measured on the recommended detector, including guarded edges. Its frozen gap rule accepts **784 sections: 616 correct, 124 wrong and 44 unknown** at ±10. That is **78.6% verified correct among all accepted sections**; no tested development selection reached 95%. Gap evidence can help prioritise manual review, but automatic acceptance remains off. The earlier 599-correct result concerned the preceding detector. A narrow visual serve gate was closed in the earlier work.
 
-Read the [follow-up comparison, decisions and reproduction details](followup_comparison.md) for the latest result. The [preceding later-contact comparison](later_contact_comparison.md), [broader comparison](broader_comparison.md), [eight-video whole-rally comparison](whole_rally_report.md), models and predictions remain preserved. Everything remains experimental scripts and saved outputs; production defaults are unchanged.
+Read [serves, deletion evidence and acceptance](serve_and_acceptance.md) for the latest result and replay commands. The [earlier follow-up comparison](followup_comparison.md) explains the retained detector changes. The [preceding later-contact comparison](later_contact_comparison.md), [broader comparison](broader_comparison.md), [eight-video whole-rally comparison](whole_rally_report.md), models and predictions remain preserved. Everything remains experimental scripts and saved outputs; production defaults are unchanged.
 
 The component experiments below explain what led to that comparison. They tested the first-contact chooser in isolation. Physical measurements did not improve complete-rally recovery in those shallow standalone models. The combined result shows why that finding was insufficient to rule them out from the whole-rally chooser.
 

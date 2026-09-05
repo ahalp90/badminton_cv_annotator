@@ -1,5 +1,7 @@
 # Better contacts and safer section edges
 
+The [serve and acceptance follow-up](serve_and_acceptance.md) now reports server attribution and acceptance on the recommended detector. This report preserves the preceding detector comparison.
+
 *5 September 2026 · experimental scripts; production defaults unchanged*
 
 **Keep local insertion evidence plus guarded section edges.** Each proposed
