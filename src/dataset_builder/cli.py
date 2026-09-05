@@ -808,6 +808,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "starts_on_masked_frame instead of a real mask check."
         ),
     )
+    ss22_parser.add_argument(
+        "--inpainted-root",
+        type=Path,
+        help=(
+            "Root of InpaintNet-corrected shuttle_track_inpainted.npy.xz and "
+            "shuttle_guard_codes_inpainted.npy.xz sidecars, one per-video directory "
+            "named as in --data-root's extracted-simple/. The base ShuttleSet22 "
+            "extract had InpaintNet off; without this flag its shuttle track keeps "
+            "that lower visibility."
+        ),
+    )
     return parser
 
 
@@ -850,6 +861,7 @@ def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
                 commentary_root=arguments.commentary_root,
                 replay_mask_root=arguments.replay_mask_root,
                 match_ids=None if arguments.match_ids is None else tuple(arguments.match_ids),
+                inpainted_root=arguments.inpainted_root,
             )
         )
     except Exception as error:

@@ -5,7 +5,7 @@
 | Schema | `rally-dataset/1.3` |
 | Frozen on | 2026-09-04 |
 | Status | Frozen |
-| Owner | Issue [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18), commentary link from issue [#138](https://github.com/ahalp90/badminton_cv_annotator/issues/138) |
+| Owner | Issues [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18), [#138](https://github.com/ahalp90/badminton_cv_annotator/issues/138) |
 | Builds on | [`rally_dataset_contract.md`](rally_dataset_contract.md) version 0.2 |
 
 `src/dataset_builder/schema_v1.py` holds the frozen surface and is the single
@@ -32,6 +32,31 @@ Changing anything on the frozen surface is a breaking change. It bumps the
 schema string away from `rally-dataset/1.3` and it updates the freeze test in
 `tests/test_dataset_builder_schema_v1.py`. That rule lets a reader tell a
 changed schema from a bigger export.
+
+`rally-dataset/1.0` froze on 2 September 2026. `rally-dataset/1.1` only adds
+columns: `rallies.shots_per_rally`, the four position-derived `source_contacts`
+columns, and the two `player_rallies` medians they roll up into. Issue #104 cut
+those three features on 2 September because the annotator's predicted contacts
+were too unreliable; the dataset now builds on human ShuttleSet contacts
+instead, which removes that reason (see Kept features below). Nothing already
+frozen in 1.0 changed name, type, nullability, or reliability class, so 1.0
+code that ignores unknown columns still reads a 1.1 export correctly.
+`rally-dataset/1.1` also adds `rallies.flaw_marked` (see Source contacts
+below).
+
+`rally-dataset/1.2` adds one table, `player_trends`, that fits a per-player
+degradation trend over a rally-level or set-level feature (see Player
+degradation trends below). Nothing already frozen in 1.1 changed, so 1.1
+code that ignores unknown tables still reads a 1.2 export correctly.
+
+`rally-dataset/1.3` adds one table, `commentary_rally_links`, that pairs a
+commentary chunk to the rally it most likely discusses (see Commentary
+tables below). It also adds `whisperx_aligned` as a
+`timestamp_precision` value, for chunk timing replaced by forced-aligned word
+boundaries under issue #136. Nothing already frozen in 1.2 changed, so 1.2
+code that ignores unknown tables and values still reads a 1.3 export
+correctly. `rally-dataset/1.1`, `1.2`, and `1.3` merged onto main in that
+order.
 
 ## How to read reliability
 
@@ -66,6 +91,18 @@ first usable human contact of a ShuttleSet rally to one frame past the last.
 The same column is therefore a guess on one row and a human label on another.
 Filter on `rally_origin` before you trust a rally boundary.
 
+A `source_contacts` rally can also carry `rallies.flaw_marked` (see Source
+contacts below). On some of those rallies the contact frame number itself is
+wrong, which corrupts every value built from it: `rallies.start_frame`,
+`end_frame`, `duration_frames`, `duration_seconds`, `start_seconds`,
+`end_seconds`, `clip_start_frame`, `clip_end_frame`; `player_rallies.posture_mad`,
+`posture_frames_valid`, `posture_frames_linear`, `position_frames_valid`,
+`position_frames_linear`, `recovery_distance_median`,
+`movement_inefficiency_median`; and, on the flagged contact and its
+neighbours, `source_contacts.recovery_distance`, `recovery_frames_valid`,
+`movement_inefficiency_top`, `movement_inefficiency_bottom`. Filter on
+`rallies.flaw_marked` before trusting any of these for frame-anchored work.
+
 ## Row ownership
 
 A `player_rallies` row belongs to one court side within one rally.
@@ -82,17 +119,18 @@ set 3 changes ends when a score first reaches 11. The Players section below
 gives the rule, its cross-check, and the cases that leave `player_id` null.
 
 Features that need identity across rallies, such as a player's degradation
-across a match, can group on `player_id`. They stay unresolved for the
-reasons in the dispositions table, not for lack of a key.
+across a match, group on `player_id`. `player_trends` is the one that does
+this; see its formula below.
 
 ## Files
 
-An export writes ten things.
+An export writes eleven things.
 
 | Path | Holds |
 | --- | --- |
 | `rallies.csv.gz` | One row per rally. |
 | `player_rallies.csv.gz` | One row per rally and court side. |
+| `player_trends.csv.gz` | One row per player, scope, and trended feature. |
 | `players.csv.gz` | One row per person the export references: name and sex. |
 | `source_contacts.csv.gz` | Human ShuttleSet contact rows. |
 | `primitive_artifacts.csv.gz` | A list of the raw frame-aligned files. |
@@ -106,7 +144,7 @@ Two commands write this layout. `export-v1` reads a completed dataset-builder
 run, so its `rallies` table holds `annotator` rows and, when the ShuttleSet
 annotations are given, `source_contacts` rows too. `export-v1-shuttleset22`
 reads the ShuttleSet22 primitives, which have no production run, so every
-rally there is a `source_contacts` row. Both produce the same eight tables.
+rally there is a `source_contacts` row. Both produce the same nine tables.
 
 Three rules matter when reading the tables:
 
@@ -146,7 +184,8 @@ PYTHONPATH=src uv run python -m dataset_builder export-v1-shuttleset22 \
   --output-dir /scratch/<user>/dataset-v1/shuttleset22 \
   --run-id issue106-ba24a95 \
   --commentary-root /scratch/<user>/<commentary preparation root> \
-  --replay-mask-root /scratch/<user>/<replay mask root>
+  --replay-mask-root /scratch/<user>/<replay mask root> \
+  --inpainted-root /scratch/ahalperi/contact_det_full_ds_fit/shuttleset22-inpainted-extract
 ```
 
 `--commentary-root` is optional. It expects the layout the issue #104
@@ -162,6 +201,38 @@ sidecars exist, `commentary/retimed_chunks/<video_id>.json`. Without
 `commentary_rally_links.starts_on_masked_frame` value is null instead of a
 real mask check; see [Commentary tables](#commentary-tables) below for why
 that matters.
+
+`--inpainted-root` is optional too, but matters: the ShuttleSet22 extract
+under `--data-root` was run with InpaintNet off, so its shuttle track has a
+visible shuttle on only 35-51% of frames per video, well under ShuttleSet's
+77-93%. A later InpaintNet pass over the same videos fixed that, reaching
+78-87% visible frames, and its output lives in a second root instead of
+`extracted-simple/`. Passing `--inpainted-root` swaps that corrected track
+and its guard codes into `primitive_artifacts` for every exported video.
+
+The sticky player picker never reads a shuttle coordinate. It reads pose
+boxes, scores, keypoints, detection counts, and court gate inputs; the
+shuttle track only sets the length of its output arrays. So the flag changes
+no kept feature value: measured on ShuttleSet22 matches 8 and 9, every
+`player_rallies` column came out byte-identical between the plain and
+corrected tracks, while track visibility moved from 35.2% to 78.2% on match
+8 and 51.0% to 86.9% on match 9.
+
+What the flag does change is provenance. The primitive bundle now names the
+corrected track and carries its guard codes, so ShuttleSet22 gets guard
+codes at all for the first time; without the flag it ships none. Serve
+speed, the one unresolved feature that will read shuttle coordinates
+directly, needs this wiring in place before it can land. Without the flag,
+ShuttleSet22 and ShuttleSet sit on shuttle inputs of different quality, and
+ShuttleSet22 ships no guard codes.
+
+Any ShuttleSet22 export meant for delivery should pass `--inpainted-root`.
+Omitting it is a provenance gap, not a numbers gap, but it is still one a
+client copy should not carry silently: the exporter logs a warning naming
+the flag when it is left off, and `dataset_manifest.json.gz` records
+`inpainted_root: null` so the gap is checkable without reading logs. The
+default stays off rather than pointing at a fixed path, because ShuttleSet
+has no matching root and the flag is specific to ShuttleSet22.
 
 Both commands accept a subset: `--video-id sset_01 --video-id sset_02` for
 the run export, `--match-id 8 --match-id 9` for ShuttleSet22. A subset is
@@ -273,9 +344,10 @@ mostly filled says less about the player than one that is mostly observed.
 `source_contacts` carries human ShuttleSet labels. The kept source fields are
 the set number, the rally number within that set, the shot number within that
 rally (`ball_round`), the stroke type (`contact_type`), and the contact frame
-(`frame_num`). `flaw_marked` is kept as well, because a flaw-marked row makes
-its whole rally unusable. Every other ShuttleSet column is excluded from v1 by
-decision, and adding one later is a schema change.
+(`frame_num`). `flaw_marked` is kept too: it is ShuttleSet's own per-row flag,
+unrelated to the curated `flaw_shot_records.csv` defect list (29 rows) the
+classifier pipeline uses elsewhere. Every other ShuttleSet column is excluded
+from v1 by decision, and adding one later is a schema change.
 
 Four columns are added by the export rather than copied from the source.
 `source_row` is the row's position in its set CSV, which keeps duplicate
@@ -285,15 +357,160 @@ with a homophone character, `過度切球` for the taxonomy's `過渡切球`; th
 reader maps that one variant and leaves the verbatim label untouched. Any
 other unmapped label gives a null. `player_id` is the hitter, resolved from
 the source player letter through the match table; see Players below.
-`rally_id` links the contact to its row in `rallies`, and is null when the rally was unusable, for example a
-flaw-marked row, a frame outside the video, or contacts out of order.
+`rally_id` links the contact to its row in `rallies`, and is null when the
+rally was unusable: an invalid frame, or contacts out of order. A
+flaw-marked row does not null it; see below.
 
-That usability rule is the one the ShuttleSet22 benchmark used, and it is
-strict. On the 40 ShuttleSet videos the set CSVs hold 33,486 contact rows, of
-which 1,314 are flaw-marked. Because one flaw-marked row drops its whole
-rally, 2,173 of the 3,359 human rallies receive a `rally_id`. The other rows
-are still in the table with `flaw_marked` and `frame_num` intact, so a reader
-who wants a looser rule can build their own spans from them.
+A flaw-marked row stays in its rally. On the 40 ShuttleSet videos, 1,314 of
+33,486 contact rows carry the flag, across 1,154 of the 3,359 human rallies
+(34.4%). 86.9% of the flagged rows (1,142) are the serve (`ball_round` 1).
+
+Serve timing barely separates flagged from clean: the frame gap to the
+rally's second shot has a median of 26 frames on a flagged serve against 21
+on a clean one, and only 14.8% of flagged serves sit under 3 frames against
+0.1% of clean ones. So roughly 150 of the 1,142 flagged serves carry a
+visibly broken frame number; the other ~1,000 have ordinary timing, and for
+those the flag's meaning is not known. The 172 flagged rows that are not the
+serve are different: their median gap is 0 frames and 82.6% sit under 3, so
+nearly all of those are a broken frame number too.
+
+No upstream definition of this column exists anywhere in the repository. One
+signal does separate flagged rallies from clean ones: 165 flaw-marked rallies
+have no `lose_reason` recorded, against 6 clean. That fits a faulted or
+replayed serve, and fits an annotator skipping the ending on a row already
+flagged. It does not settle the meaning. Stroke type, `ball_round`, and the
+hitter stay sound on every flagged row regardless of what the flag means.
+
+For most flagged rows the flag's meaning is unknown. On the roughly 320 rows
+with a demonstrably broken frame (about 150 serves plus the 172 others),
+every frame-anchored value built from that row is wrong: `rallies.start_frame`,
+`end_frame`, `duration_frames`, `duration_seconds`, `start_seconds`,
+`end_seconds`, `clip_start_frame`, `clip_end_frame`; `player_rallies.posture_mad`,
+`posture_frames_valid`, `posture_frames_linear`, `position_frames_valid`,
+`position_frames_linear`, `recovery_distance_median`,
+`movement_inefficiency_median`; and, on the flagged contact and its
+neighbours, `source_contacts.recovery_distance`, `recovery_frames_valid`,
+`movement_inefficiency_top`, `movement_inefficiency_bottom`.
+
+Because of this, a flaw-marked row no longer drops its rally. Keeping it does
+not depend on knowing what the flag means, and it was requested by the
+feature's owner. The old whole-rally rule dropped 1,154 of 3,359 ShuttleSet
+rallies and 542 of 3,964 ShuttleSet22 rallies, just for having one flagged
+row. Those rallies are now kept: they get a `rally_id` and a span like any
+other, first contact frame to one past the last. `rallies.flaw_marked` marks
+them instead: true when any of the rally's contact rows carries the flag, so
+a consumer doing frame-anchored work should filter on it. A rally is still
+excluded only for an invalid frame or contacts out of order, exactly as
+before.
+
+The next three features are computed only for `source_contacts` rows,
+because every one of them needs a real contact frame and, for recovery, the
+hitter's identity. An `annotator` row is a predicted span with neither: it
+has no per-shot contact rows at all, so there is nothing to count or window
+around. Guessing from a predicted span would be exactly the kind of
+plausible-looking, unverified number this dataset avoids (see "What is
+absent and why" below).
+
+### Shots per rally
+
+`rallies.shots_per_rally` is the count of human contact rows in the rally:
+
+```text
+shots_per_rally = len(contact_frames)
+```
+
+Issue #104 measured this against the production annotator's predicted
+contacts and found it exact on only 298 of 3,287 eligible rallies: the
+predicted count either missed a real shot or invented one that never
+happened. On a `source_contacts` row the count is exact by construction,
+because it counts the same human contacts the rally's span is built from.
+It is null on `annotator` rows, which have no contact rows to count.
+
+### Away-from-centre recovery
+
+For every contact, `source_contacts.recovery_distance` is the mean distance
+the non-striking player kept from their own half-court centre, over the
++/- 5 base-30-frame window around that contact:
+
+```text
+recovery_distance = mean( |position_t - half_centre| ) for t in [contact - w, contact + w]
+```
+
+`half_centre` is `(0.5, 0.25)` for a player on the top half of the court and
+`(0.5, 0.75)` for the bottom half, in the same normalised doubles-court
+coordinates as `player_signals.court_position`, where `1.0` is the full
+width or length of the doubles court. So `recovery_distance` is a normalised
+doubles-court Euclidean distance, unitless. `w` is 5 base-30 frames,
+converted to the row's own `fps`. The window clips to the rally: a contact
+near the start or end of a rally gets a shorter window rather than reaching
+into the previous or next rally. This is deliberate, not just a boundary
+convenience: a frame before the serve shows the receiver set to receive, not
+recovering, and a frame after the rally's last contact is dead time before
+the next rally starts. Neither belongs in a recovery mean.
+
+Recovery only means something once you know which player was not hitting
+the shuttle. The hitter is `source_contacts.player_id`; the exporter matches
+it against the rally's top and bottom player ids and treats whichever one is
+not the hitter as the measured player. When the hitter is null or matches
+neither player, `recovery_distance` is null rather than guessed.
+`recovery_frames_valid` is how many frames of the window had a finite
+position, the same kind of provenance count as
+`player_rallies.posture_frames_valid`. It is zero, never null, both when the
+window has no valid position and when no window could be built at all, so
+`recovery_distance` is null exactly when `recovery_frames_valid` is zero.
+
+Issue #104 cut this feature because the production annotator's predicted
+contacts and predicted server were too weak to build a reliable window or
+know which player was recovering. Human ShuttleSet contacts fix the contact
+frame, and the hitter resolved through the match table fixes the recovering
+player, so both weak inputs are gone.
+
+`player_rallies.recovery_distance_median` is the median of one side's
+`recovery_distance` values over the rally, i.e. the contacts where that side
+was not striking. It ignores the contacts where `recovery_distance` is
+null, and is itself null when the side has no non-null value in the rally.
+
+### Movement inefficiency
+
+For every contact except a rally's last, `source_contacts.movement_inefficiency_top`
+and `movement_inefficiency_bottom` are how much extra distance each player
+travelled between that contact and the next one, compared to a straight line
+between their positions at the two contacts:
+
+```text
+movement_inefficiency = path_length - straight_line_displacement
+```
+
+measured over the closed interval from this contact's frame to the next
+contact's frame in the same rally. Like recovery, this is a normalised
+doubles-court Euclidean distance. A player who moves in a straight line
+between the two contacts scores 0; a player who takes a longer route scores
+higher. A side's value is null when any frame in the interval has no finite
+position for that side, and both sides are null on a rally's last contact,
+which has no next contact to define an interval.
+
+Ari's spec line for this feature, "Deception (or skill at reading opponent):
+`Player_t -> Player_t+1`", is read as naming the contact-to-contact interval
+this measure is taken over, not as asking for a separate value. No distinct
+deception column is computed.
+
+Issue #104 cut this feature because the production annotator's predicted
+contacts missed or added events, so an interval built between two predicted
+contacts often did not match a real rally exchange. Human ShuttleSet
+contacts fix each interval's start and end exactly.
+
+`player_rallies.movement_inefficiency_median` is the median of one side's
+interval values over the rally, ignoring nulls the same way the recovery
+median does.
+
+Issue #104's benchmark numbers for these two formulas, on the production
+annotator's predicted contacts, were coverage of 38,155 of 40,962 recovery
+windows and a leave-one-video-out median distance of 0.144 to 0.145, and
+coverage of 74,056 of 74,914 movement intervals and a leave-one-video-out
+median of 0.0595 to 0.0605. Those numbers describe the old predicted-contact
+prototype, not this export: on human contacts the population and the exact
+coverage and median differ, and this document does not restate them until
+someone runs the real export and recomputes them the same way.
 
 ### Players
 
@@ -336,6 +553,79 @@ span. When exactly one phase overlaps, the row gets that phase's players.
 When none overlaps, for example a span in the break between sets, or more
 than one does, `player_id` is null. It is also null on every row of a video
 that has no source annotations.
+
+### Player degradation trends
+
+Issue #138 asks for progression over set or rally: fit a trend line through a
+feature's values and see whether a player gets better or worse as a match
+wears on. `player_trends` is that trend, one row per player, scope, and
+feature.
+
+Only `source_contacts` rallies take part, because they are the only ones with
+an exact `player_id`; an `annotator` row's identity is a guess and would make
+the trend meaningless.
+
+Two feature sources are trended, both read only from `source_contacts`
+rallies:
+
+- Every float-valued column of `player_rallies`: `posture_mad`,
+  `recovery_distance_median`, and `movement_inefficiency_median` today.
+  Found by column type rather than a hardcoded name, so a new float feature
+  is trended automatically once it lands in that table.
+- Named rally-level columns of `rallies`: `duration_seconds` and
+  `shots_per_rally` today. A rally-level value is read once for each player
+  named on the rally, `top_player_id` and `bottom_player_id`.
+
+Serve speed proxy is not trended. Issue #104 left the feature itself
+unresolved, so there is nothing yet to trend.
+
+`scope` is `set` or `match`, reading issue #138's two named progressions:
+
+- `scope=set` fits a feature's values within one ShuttleSet set, one point
+  per rally the player played there, against that rally's `source_rally`
+  number. A missing rally keeps its gap: the fit uses the real rally number,
+  not a renumbered position, so rallies 1, 2, 5 are not read as three
+  consecutive points. `scope_id` is the set number. This needs at least 3
+  points, `MIN_TREND_POINTS_SET` in `degradation.py`; fewer points make a
+  rally-by-rally line noise, not a trend. That floor is this project's
+  choice, not something issue #138 sets.
+- `scope=match` fits one point per set: the median of the feature over the
+  player's rallies in that set, against the set number. `scope_id` is the
+  fixed sentinel `0`, because no ShuttleSet set is ever numbered `0`. This
+  needs at least 2 points, `MIN_TREND_POINTS_MATCH`. A ShuttleSet match has 2
+  or 3 sets, and a line through 2 points is an exact fit, not a guess, so a
+  2-set match still gets a trend.
+
+Each video's manifest records how many fits were written and, per scope, how
+many were skipped for too few points: `fits_written`,
+`fits_skipped_insufficient_points_set`, and
+`fits_skipped_insufficient_points_match`, under `trend_population`, alongside
+the existing `source_population` counts.
+
+The trend itself is ordinary least squares, `numpy.polyfit` degree 1:
+
+```text
+slope = polyfit(position, feature_value, degree=1)
+```
+
+`position` is the rally's `source_rally` number for `scope=set`, or the
+set's `source_set` number for `scope=match`.
+
+`slope_tanh = tanh(slope / temperature)` compresses the slope to `(-1, 1)` so
+trends of differently scaled features read on one comparable scale. The
+temperature is a single fixed constant, `DEGRADATION_TEMPERATURE = 2.0` in
+`src/dataset_builder/degradation.py`. Issue #22 left this temperature
+undefined. Issue #138 asked to sweep a range of values if that was cheap, and
+otherwise pick a magic number like 2; the sweep was skipped, so 2 is that
+named fallback. The raw `slope` is kept alongside `slope_tanh` so a reader
+who wants different scaling can recover it exactly:
+`slope = temperature * arctanh(slope_tanh)`. That is why the temperature is
+stored on every row rather than left implicit in the code.
+
+`player_trends` is `derived` on every column. It is a computation over
+`player_rallies` and `rallies`, both themselves unvalidated against
+independent ground truth, so the trend inherits that caveat rather than
+adding a new one.
 
 ### The primitive bundle
 
@@ -479,8 +769,7 @@ because a later reader cannot tell the difference.
 
 | Group | What it means | Examples |
 | --- | --- | --- |
-| Cut | The formula works, but the inputs it needs were measured and are too weak. | Shots per rally, away-from-centre recovery, movement inefficiency. |
-| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, degradation slope and its tanh temperature, backward extrapolation, commentary sentiment, rally-to-commentary association. |
+| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, backward extrapolation, commentary sentiment, rally-to-commentary association. |
 | Not measured | The trial never defined or benchmarked it. | Rest time, smash shuttle speed, stroke duration, split-step stance geometry, match duration. |
 | Out of scope | Outside the trial, with no gate planned. | Net-game share, backhand proportion, forced-to-unforced error ratio, hit height, shot-selection deception. |
 
@@ -503,6 +792,7 @@ the two markers. `tests/test_dataset_v1_schema_doc.py` fails when this block
 and the module disagree.
 
 <!-- dictionary:start -->
+
 ### rallies
 
 File `rallies.csv.gz`. Key `(run_id, source_dataset, video_id, rally_origin, rally_id)`.
@@ -530,6 +820,8 @@ One row per rally. Annotator rows come from the production rally records. source
 | `source_rally` | int64 | yes | source_annotation | ShuttleSet rally number within its set for source_contacts rows. Null for annotator rows. |
 | `top_player_id` | string | yes | derived | players.player_id of the person on the top court during this rally; same derivation and null cases as player_rallies.player_id. |
 | `bottom_player_id` | string | yes | derived | players.player_id of the person on the bottom court during this rally; same derivation and null cases as player_rallies.player_id. |
+| `shots_per_rally` | int64 | yes | derived | Count of human contact rows in this rally, exact by construction. Null on annotator rows, which have no contact rows. |
+| `flaw_marked` | bool | no | source_annotation | True when any human contact row in this rally carries the ShuttleSet flaw flag. No upstream definition of this flag exists; for most flagged rows its meaning is unknown. On roughly 320 of the 40-video corpus's 1,314 flagged rows the contact frame number is demonstrably wrong (see docs/dataset_v1_schema.md, Source contacts), which corrupts every frame-anchored value derived from that rally. Stroke sequence, counts and hitters stay sound regardless. Filter on this column before trusting a frame-anchored value. False on annotator-origin rows. |
 
 ### player_rallies
 
@@ -551,6 +843,28 @@ One row per rally and court side with the kept issue #22 features. Cut and unres
 | `posture_mad` | float64 | yes | derived | Posture variability: median absolute deviation over the rally of the per-frame posture \|mean eye y - mean ankle y\| / hip width. Unitless. Null when no frame has a finite value. A derived signal, not validated biomechanics. |
 | `position_frames_valid` | int64 | no | derived | Frames with a finite court-normalised mean-ankle position after bounded linear interpolation. |
 | `position_frames_linear` | int64 | no | derived | Of position_frames_valid, frames filled by linear interpolation. |
+| `recovery_distance_median` | float64 | yes | derived | Median of this side's source_contacts.recovery_distance values over the rally, i.e. the contacts where this side was not striking. Unitless: normalised doubles-court Euclidean distance. Null when no contact in the rally has a recovery_distance for this side. |
+| `movement_inefficiency_median` | float64 | yes | derived | Median of this side's source_contacts.movement_inefficiency_top or _bottom values over the rally. Unitless: normalised doubles-court Euclidean distance. Null when no interval in the rally has a value for this side. |
+
+### player_trends
+
+File `player_trends.csv.gz`. Key `(run_id, source_dataset, video_id, player_id, scope, scope_id, feature)`.
+
+One row per player, scope, and trended feature: an ordinary least squares trend over that player's source_contacts rallies or sets, plus its tanh-normalised slope. Annotator rallies are excluded because their player identity is a guess, not a label.
+
+| Column | Type | Nullable | Reliability | Description |
+| --- | --- | --- | --- | --- |
+| `run_id` | string | no | observed | Immutable dataset-builder run that produced the row. |
+| `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
+| `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
+| `player_id` | string | no | derived | players.player_id of the person this trend is fit for. |
+| `scope` | string | no | derived | set: trend across one player's rallies within one ShuttleSet set, ordered by source_rally. match: trend across that player's sets in the video, one point per set (the median of the feature over the player's rallies in that set), ordered by source_set. |
+| `scope_id` | int64 | no | derived | ShuttleSet set number for scope=set. Fixed sentinel 0 for scope=match; no ShuttleSet set is ever numbered 0. |
+| `feature` | string | no | derived | Feature this trend was fit over: a player_rallies float column (for example posture_mad) or a named rally-level column of rallies (duration_seconds, and shots_per_rally once that column exists). |
+| `n_points` | int64 | no | derived | Values that fed the fit: rallies for scope=set (at least 3), sets for scope=match (at least 2). A fit with fewer points is not written. |
+| `slope` | float64 | no | derived | Ordinary least squares slope of the feature value against its position: the rally's source_rally number for scope=set, or the set's source_set number for scope=match. |
+| `slope_tanh` | float64 | no | derived | tanh(slope / temperature): the slope compressed to (-1, 1) so trends of differently scaled features are comparable. |
+| `temperature` | float64 | no | derived | Tanh scaling constant used for slope_tanh, stored so the scaling reverses: slope = temperature * arctanh(slope_tanh). |
 
 ### players
 
@@ -568,7 +882,7 @@ One row per person referenced by this export. player_rallies.player_id and sourc
 
 File `source_contacts.csv.gz`. Key `(source_dataset, video_id, source_set, source_row)`.
 
-Human ShuttleSet contact rows, restricted to the kept source fields: contact type, rally and shot numbers, set, and frame. All other ShuttleSet columns are excluded from v1. Rows are source-scoped and never annotator predictions.
+Human ShuttleSet contact rows, restricted to the kept source fields: contact type, rally and shot numbers, set, and frame. All other ShuttleSet columns are excluded from v1. Rows are source-scoped and never annotator predictions. recovery_distance, recovery_frames_valid, movement_inefficiency_top, and movement_inefficiency_bottom are derived from this table's own contact order and the player-signal positions, not copied from ShuttleSet.
 
 | Column | Type | Nullable | Reliability | Description |
 | --- | --- | --- | --- | --- |
@@ -583,7 +897,11 @@ Human ShuttleSet contact rows, restricted to the kept source fields: contact typ
 | `contact_type` | string | yes | source_annotation | Verbatim ShuttleSet stroke-type label for the contact. |
 | `contact_type_en` | string | yes | derived | English name for contact_type from the shared classifier taxonomy. Null when the label has no mapping. |
 | `flaw_marked` | bool | no | source_annotation | True when the ShuttleSet flaw field is non-empty for this row. |
-| `rally_id` | int64 | yes | derived | rally_id of the source_contacts row in rallies that this contact belongs to. Null when its rally was unusable: a flaw-marked row, a frame outside the video, or contacts out of order. |
+| `rally_id` | int64 | yes | derived | rally_id of the source_contacts row in rallies that this contact belongs to. Null when its rally was unusable: an invalid frame, or contacts out of order. A flaw-marked row does not null this; see rallies.flaw_marked. |
+| `recovery_distance` | float64 | yes | derived | The measured player is this rally's other player, never the hitter: rallies.top_player_id when this row's player_id is bottom_player_id, and the reverse. recovery_distance is that player's mean distance from their own half-centre over the +/- 5 base-30-frame window around this contact, clipped to the rally. Unitless: normalised doubles-court Euclidean distance. Null when the hitter is not one of this rally's two players, or when no frame in the window has a finite position. |
+| `recovery_frames_valid` | int64 | no | derived | How many frames of the recovery_distance window, for that same other player, had a finite position. Zero when the hitter could not be matched to a rally side, so no window could be built. Provenance, matching how the table records player_rallies.posture_frames_valid. |
+| `movement_inefficiency_top` | float64 | yes | derived | Top player's path length minus straight-line displacement from this contact to the next contact in the rally. Unitless: normalised doubles-court Euclidean distance. Null on a rally's last contact, and null when a position in the interval is not finite. |
+| `movement_inefficiency_bottom` | float64 | yes | derived | Bottom player's path length minus straight-line displacement from this contact to the next contact in the rally. Same units and null cases as movement_inefficiency_top. |
 
 ### primitive_artifacts
 
@@ -596,7 +914,7 @@ Manifest of the raw primitive bundle: frame-aligned shuttle, pose, court, and ma
 | `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
 | `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
 | `artifact` | string | no | observed | Canonical artifact name; see PRIMITIVE_ARTIFACT_NOTES. |
-| `location` | string | no | observed | input_dir or export_dir: the root that relative_path is relative to. The dataset manifest records both roots. |
+| `location` | string | no | observed | input_dir, export_dir, or inpainted_root: the root that relative_path is relative to. The dataset manifest records input_root and inpainted_root by name; export_dir is implicit, since the manifest file itself lives there. |
 | `relative_path` | string | no | observed | POSIX path of the file under location. |
 | `md5` | string | no | observed | MD5 of the stored file, matching the run manifest convention. |
 | `size_bytes` | int64 | no | observed | Stored file size. |
@@ -676,6 +994,8 @@ One note per artifact name that can appear in the `primitive_artifacts` table. T
 | --- | --- | --- |
 | `shuttle_track` | predicted | (frame_count, 3) TrackNet x, y normalised by resolution, and visibility. Median court error 0.459 units at human contacts. Do not describe as accurate. |
 | `shuttle_guard_codes` | predicted | (frame_count,) inpaint hallucination guard grades. Mask rejected grades before using shuttle positions. |
+| `shuttle_track_inpainted` | predicted | (frame_count, 3) TrackNet x, y normalised by resolution, and visibility, from a later InpaintNet pass over the ShuttleSet22 extract. The base ShuttleSet22 extract was run with InpaintNet off, so this replaces shuttle_track with a higher-visibility track. Do not describe as accurate. |
+| `shuttle_guard_codes_inpainted` | predicted | (frame_count,) inpaint hallucination guard grades for shuttle_track_inpainted. Mask rejected grades before using shuttle positions. |
 | `pose_kps` | predicted | (frame_count, slots, 17, 2) RTMLib keypoints per detection slot. Slots are not player identities. |
 | `pose_bboxes` | predicted | (frame_count, slots, 4) detection boxes. NaN in inactive slots. |
 | `pose_scores` | predicted | (frame_count, slots) detection scores. NaN in inactive slots. |
@@ -705,12 +1025,12 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Commentary raw captions, normalised transcripts, cleaned text | keep | `transcript_segments`, `commentary_chunks` | Auxiliary component tied to the video with segment timestamps and a precision class. Not rally labels. |
 | Rally duration from final contact plus offset | keep | `rallies.clip_start_frame`, `rallies.clip_end_frame` | Issue #32 fixed the offsets: 2 s before the first contact and 3 s after the last, clamped to the video. Exact on source_contacts rows; predicted spans on annotator rows. |
 | Player identity and sex | keep | `players.player_id`, `players.sex`, `rallies.top_player_id`, `rallies.bottom_player_id`, `player_rallies.player_id`, `source_contacts.player_id` | Curated per-player table joined through the ShuttleSet match tables. Court sides map to people by the downcourt flag, the set number, and the set-3 change of ends. |
-| Shots per rally | cut | none | Exact production count on 298 of 3,287 eligible ShuttleSet rallies. |
-| Away-from-centre recovery | cut | none | Contact and server attribution inputs are too weak for player-specific windows. |
-| Movement inefficiency | cut | none | Production intervals use predicted contacts that miss or add events. |
+| Raw degradation slope | keep | `player_trends.slope`, `player_trends.n_points` | Issue #104 could not fit a trend without a retained feature set and stable player identity across rallies. Both now exist: player_rallies keeps float features and source_contacts rallies carry an exact player_id. |
+| Tanh-normalised degradation | keep | `player_trends.slope_tanh`, `player_trends.temperature` | Issue #22 left the tanh scaling temperature undefined. Issue #138 asked to sweep it if that was cheap, and otherwise pick a magic number like 2. The sweep was skipped, so the feature's owner used that named fallback, 2.0; the raw slope is kept alongside it so the scaling reverses. |
+| Shots per rally | keep | `rallies.shots_per_rally` | Issue #104 measured this against predicted contacts, exact on only 298 of 3,287 rallies. It is now the count of human ShuttleSet contact rows in the rally, exact by construction, so the weak input that cut it is gone. |
+| Away-from-centre recovery | keep | `source_contacts.recovery_distance`, `source_contacts.recovery_frames_valid`, `player_rallies.recovery_distance_median` | Cut because predicted contact and server attribution were too weak for a player-specific window. Human ShuttleSet contacts fix the contact frame, and the hitter resolved against the match table's own side assignment fixes the non-striking player, so both weak inputs are gone. |
+| Movement inefficiency | keep | `source_contacts.movement_inefficiency_top`, `source_contacts.movement_inefficiency_bottom`, `player_rallies.movement_inefficiency_median` | Cut because production intervals used predicted contacts that missed or added events. Human ShuttleSet contacts fix each interval's start and end exactly. |
 | Serve speed proxy | unresolved | none | Return, static, and viewport endpoints are undefined and shuttle error is large. |
-| Raw degradation slope | unresolved | none | Needs a retained feature set and stable player identity across rallies. |
-| Tanh-normalised degradation | unresolved | none | Issue #22 does not define the temperature. |
 | Backward extrapolation | unresolved | none | No defined scene boundary, range, or provenance policy. |
 | Rally-to-commentary association | unresolved | none | Issue #138's lag rule fixes coverage on aligned times with zero ambiguity at 10 s, but accuracy is unmeasured: nobody has labelled a sample to check the pairs are right. |
 | Commentary sentiment, concept, and player link | unresolved | none | Supported schemas emit no semantic fields and no labelled population exists. |
@@ -725,6 +1045,7 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Court coverage near the shuttle | not_measured | none | Needs a relative measure and event anchor. |
 | Split-step stance geometry | not_measured | none | Needs a stance measure and event detector. |
 | Net-game share, clear share, backhand proportion, forced-to-unforced error ratio, shot-outcome success by type, footwork-to-shot coupling, hit height, shot-selection deception | out_of_scope | none | Outside the trial. No gate planned. |
+
 <!-- dictionary:end -->
 
 ## Provenance

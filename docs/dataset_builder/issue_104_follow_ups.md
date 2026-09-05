@@ -11,15 +11,10 @@ primitive artifacts where they remain compatible.
 
 ## Cut features
 
-| Feature | Current evidence | Gate for reconsideration |
-|---|---|---|
-| Shots per rally | Exact production count on 298 of 3,287 eligible ShuttleSet rallies | A merged production contact stream with materially better complete-rally contact count and ordering, followed by the same aggregate and per-video ground-truth benchmark |
-| Away-from-centre recovery | Formula and coverage are verified, but production contact and server attribution are weak | Better production contacts and server or striker attribution, followed by a comparison against windows built from existing human contact labels |
-| Movement inefficiency | Formula and coverage are verified, but production intervals use predicted contacts | Better complete-rally contact sequences, followed by a paired comparison of predicted-contact and human-contact interval values on uniquely mapped rallies |
-
-The existing ShuttleSet annotations are sufficient for those comparisons. They
-do not require new vision inference. New annotations are needed only if the
-existing contact and player labels prove unusable for a specific comparison.
+No feature is currently cut. Issue #142 promoted shots per rally,
+away-from-centre recovery, and movement inefficiency to keep once production
+moved onto human ShuttleSet contacts. Issue #138 moved rally-to-commentary
+association to unresolved once its lag rule shipped; see below.
 
 ## Unresolved features
 
@@ -28,8 +23,6 @@ existing contact and player labels prove unusable for a specific comparison.
 | Rally duration | Define the offset after the final contact, including its base-30 frame units |
 | Player sex | Add an authoritative metadata source; do not infer it from names or video |
 | Serve speed proxy | Define return, static, and viewport-exit endpoints and missing-shuttle handling; then validate those events on a small reviewed sample |
-| Raw degradation slope | First retain the underlying features and establish stable player identity across rallies and sets |
-| Tanh-normalized degradation | Define the normalization temperature after the raw slope population exists |
 | Commentary sentiment, concept, and player link | Define supported output schemas, then validate each field against human labels before adding it to the dataset |
 | Backward extrapolation | Define the permitted scene boundary, maximum range, and provenance; then audit a small set of non-standard-view starts |
 | Rally-to-commentary association | Coverage and construction are shipped in `commentary_rally_links` (Ari's issue #138 rule, 10 s lag, chunk-vs-two-rallies marked ambiguous, replay-masked starts flagged not dropped). Label a sample that measures whether a linked chunk actually discusses its rally, then move the disposition from unresolved to keep or narrow it |

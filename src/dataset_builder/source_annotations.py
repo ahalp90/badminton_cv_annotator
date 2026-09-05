@@ -1,12 +1,27 @@
 """Reader for ShuttleSet human contact annotations into the frozen v1 schema.
 
-Builds the ``schema_v1.SOURCE_CONTACTS`` table and usable rally spans for one
-match's ShuttleSet set CSVs. Reproduces the rally-usability rules from the
-benchmark-only reader
+Builds usable rally spans and the columns this module owns for one match's
+ShuttleSet set CSVs: every ``schema_v1.SOURCE_CONTACTS`` column except the
+four position-derived ones (issue #138: recovery and movement
+inefficiency), which need player-signal positions this module does not
+have. ``export_v1.build_video_tables`` adds those columns from this table's
+rally structure and the player-signal positions, then validates the
+completed table against the frozen schema.
+
+Reproduces the rally-usability rules from the benchmark-only reader
 ``annotator.calibration.shuttleset22_features.load_annotation_rallies``: a
-rally is unusable if any of its rows has an invalid frame or a marked flaw,
-or if its contact frames are not strictly increasing in (ball_round,
-frame_num) order. See issue #18.
+rally is unusable if any of its rows has an invalid frame, or if its contact
+frames are not strictly increasing in (ball_round, frame_num) order. See
+issue #18.
+
+Issue #138 changed the flaw rule: a flaw-marked row no longer makes its
+rally unusable. For most flagged rows the flag's meaning is not documented
+anywhere upstream; on a minority the contact frame number is demonstrably
+broken. Stroke sequence, counts and hitters stay sound on a flagged row
+regardless. The row keeps ``source_contacts.flaw_marked``, and ``export_v1``
+rolls it up to ``rallies.flaw_marked`` so a consumer who needs a reliable
+``start_frame`` can filter it out instead. See docs/dataset_v1_schema.md,
+Source contacts, for the measurements behind this.
 """
 
 from __future__ import annotations
@@ -20,7 +35,7 @@ import pandas as pd
 from classifier_shared.player_mapping import find_set3_switch_rally
 from classifier_shared.taxonomy import ZH_TO_EN
 from dataset_builder.players import SWITCH_SET, MatchPlayers, SidePhase, a_is_top
-from dataset_builder.schema_v1 import SOURCE_CONTACTS, validate_table
+from dataset_builder.schema_v1 import SOURCE_CONTACTS
 
 
 _SET_FILENAME = re.compile(r"^set(\d+)$")
@@ -123,9 +138,12 @@ def _usable_rallies(
     ball_round: pd.Series,
     frame_num: pd.Series,
     invalid_frame: pd.Series,
-    flaw_marked: pd.Series,
 ) -> tuple[list[SourceRally], pd.Series, dict[str, int]]:
-    """Group contact rows into rallies and split usable from unusable ones."""
+    """Group contact rows into rallies and split usable from unusable ones.
+
+    A flaw-marked row does not make its rally unusable (issue #138): only an
+    invalid frame or out-of-order contacts do.
+    """
     rallies: list[SourceRally] = []
     rally_id = pd.Series(pd.NA, index=raw.index, dtype="Int64")
     counts = {
@@ -136,7 +154,7 @@ def _usable_rallies(
     }
     groups = raw.groupby([raw["source_set"], source_rally], sort=True).groups
     for (set_value, rally_value), index in groups.items():
-        if bool((invalid_frame.loc[index] | flaw_marked.loc[index]).any()):
+        if bool(invalid_frame.loc[index].any()):
             counts["excluded_incomplete_rallies"] += 1
             counts["excluded_incomplete_rally_rows"] += len(index)
             continue
@@ -190,7 +208,7 @@ def load_source_annotations(
     invalid_frame = frame_num.isna() | (frame_num < 0) | (frame_num >= frame_count)
 
     rallies, rally_id, rally_counts = _usable_rallies(
-        raw, source_rally, ball_round, frame_num, invalid_frame, flaw_marked
+        raw, source_rally, ball_round, frame_num, invalid_frame
     )
     side_phases = _side_phases(raw, frame_num, ~invalid_frame)
 
@@ -212,20 +230,28 @@ def load_source_annotations(
             "rally_id": rally_id,
         }
     )
+    # Cheap self-check: cast the owned columns to their frozen dtypes now, so a
+    # type mistake here surfaces in this module rather than downstream in
+    # export_v1, which validates the completed table once it adds the
+    # position-derived columns.
+    frozen_dtypes = SOURCE_CONTACTS.pandas_dtypes()
+    contacts = contacts.astype({name: frozen_dtypes[name] for name in contacts.columns})
     population = {
         "source_contact_rows": len(raw),
         "usable_contact_rows": int(rally_id.notna().sum()),
         "usable_rallies": len(rallies),
         "side_phases": len(side_phases),
-        "excluded_flaw_rows": int(flaw_marked.sum()),
-        "excluded_invalid_frame_rows": int((invalid_frame & ~flaw_marked).sum()),
+        # Flaw-marked rows are kept, not excluded (issue #138); this counts how
+        # many of them ended up in a usable rally, for anyone tallying the flag.
+        "kept_flaw_rows": int((flaw_marked & rally_id.notna()).sum()),
+        "excluded_invalid_frame_rows": int(invalid_frame.sum()),
         "excluded_incomplete_rallies": rally_counts["excluded_incomplete_rallies"],
         "excluded_incomplete_rally_rows": rally_counts["excluded_incomplete_rally_rows"],
         "excluded_non_monotonic_rallies": rally_counts["excluded_non_monotonic_rallies"],
         "excluded_non_monotonic_rally_rows": rally_counts["excluded_non_monotonic_rally_rows"],
     }
     return SourceAnnotations(
-        contacts=validate_table(SOURCE_CONTACTS, contacts),
+        contacts=contacts,
         rallies=tuple(rallies),
         side_phases=side_phases,
         population=population,
