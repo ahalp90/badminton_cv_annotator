@@ -16,7 +16,6 @@ primitive artifacts where they remain compatible.
 | Shots per rally | Exact production count on 298 of 3,287 eligible ShuttleSet rallies | A merged production contact stream with materially better complete-rally contact count and ordering, followed by the same aggregate and per-video ground-truth benchmark |
 | Away-from-centre recovery | Formula and coverage are verified, but production contact and server attribution are weak | Better production contacts and server or striker attribution, followed by a comparison against windows built from existing human contact labels |
 | Movement inefficiency | Formula and coverage are verified, but production intervals use predicted contacts | Better complete-rally contact sequences, followed by a paired comparison of predicted-contact and human-contact interval values on uniquely mapped rallies |
-| Rally-to-commentary association | The post-rally join covers 1,822 of 6,229 eligible human-contact rallies and 77 of 3,434 eligible production spans. The issue #136 aligned rerun word-times 92.6% of chunks; Ari's issue #138 rule then covers 2,119 of 6,156 human-contact rallies at 8 s and 2,222 at 10 s with no ambiguous chunk. 1,890 ShuttleSet chunk starts sit on replay-masked frames | Choose the lag window and a replay-time commentary policy with Ari, then label a sample that measures timing and rally-association accuracy. Aligned timestamps are done; see the [aligned rerun](issue_104_shuttleset_benchmark.md#aligned-rerun-issue-136) |
 
 The existing ShuttleSet annotations are sufficient for those comparisons. They
 do not require new vision inference. New annotations are needed only if the
@@ -33,6 +32,7 @@ existing contact and player labels prove unusable for a specific comparison.
 | Tanh-normalized degradation | Define the normalization temperature after the raw slope population exists |
 | Commentary sentiment, concept, and player link | Define supported output schemas, then validate each field against human labels before adding it to the dataset |
 | Backward extrapolation | Define the permitted scene boundary, maximum range, and provenance; then audit a small set of non-standard-view starts |
+| Rally-to-commentary association | Coverage and construction are shipped in `commentary_rally_links` (Ari's issue #138 rule, 10 s lag, chunk-vs-two-rallies marked ambiguous, replay-masked starts flagged not dropped). Label a sample that measures whether a linked chunk actually discusses its rally, then move the disposition from unresolved to keep or narrow it |
 
 ## Why issue 103 had no commentary
 
@@ -74,8 +74,9 @@ pipeline or rerun vision inference. The [final commentary benchmark](issue_104_s
 records the evidence and decisions. Source text and segment timestamps can be
 distributed alongside the visual and annotation data as an auxiliary,
 source-aligned component for MLLM/VLM use and future research. Rally
-association is cut from the authoritative v1 schema, while sentiment, concept,
-and player link remain unresolved.
+association ships in `commentary_rally_links` at unresolved, not cut, because
+issue #138 fixed its lag window and replay-time policy; sentiment, concept,
+and player link remain unresolved and absent.
 
 ## Recommended order
 
@@ -85,6 +86,7 @@ and player link remain unresolved.
 4. Include the source-aligned commentary bundle as auxiliary supporting data.
    Keep raw, normalized, and cleaned artifacts separate, and revisit derived
    commentary fields only after their gates above are met.
-5. For the rally link, settle the lag window and replay-time policy with Ari
-   from the issue #136 lag sweep, then label a small sample of pairs before
-   any accuracy claim.
+5. For the rally link, label a small sample of `commentary_rally_links` pairs
+   to measure accuracy before treating any pair as verified. The lag window
+   (10 s) and replay-time policy (flag, don't drop) are already settled and
+   shipped.

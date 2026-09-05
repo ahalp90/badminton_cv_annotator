@@ -291,7 +291,7 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
         assert vision.load_npy_xz(signals / signal.filename).shape == SIGNAL_SHAPES[signal.name]
 
     assert manifest == vision.load_json_gz(output_dir / DATASET_MANIFEST_FILENAME)
-    assert manifest["schema"] == DATASET_SCHEMA == "rally-dataset/1.0"
+    assert manifest["schema"] == DATASET_SCHEMA == "rally-dataset/1.3"
     assert manifest["run_id"] == RUN_ID
     assert manifest["code_version"] == CODE_VERSION
     assert manifest["tables"] == {

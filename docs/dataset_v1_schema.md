@@ -2,10 +2,10 @@
 
 | Item | Value |
 | --- | --- |
-| Schema | `rally-dataset/1.0` |
-| Frozen on | 2026-09-02 |
+| Schema | `rally-dataset/1.3` |
+| Frozen on | 2026-09-04 |
 | Status | Frozen |
-| Owner | Issue [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18) |
+| Owner | Issue [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18), commentary link from issue [#138](https://github.com/ahalp90/badminton_cv_annotator/issues/138) |
 | Builds on | [`rally_dataset_contract.md`](rally_dataset_contract.md) version 0.2 |
 
 `src/dataset_builder/schema_v1.py` holds the frozen surface and is the single
@@ -29,7 +29,7 @@ more videos can be processed at any time. The second is the raw primitive
 layer, which is versioned by the pipeline run that produced it.
 
 Changing anything on the frozen surface is a breaking change. It bumps the
-schema string away from `rally-dataset/1.0` and it updates the freeze test in
+schema string away from `rally-dataset/1.3` and it updates the freeze test in
 `tests/test_dataset_builder_schema_v1.py`. That rule lets a reader tell a
 changed schema from a bigger export.
 
@@ -87,7 +87,7 @@ reasons in the dispositions table, not for lack of a key.
 
 ## Files
 
-An export writes nine things.
+An export writes ten things.
 
 | Path | Holds |
 | --- | --- |
@@ -98,6 +98,7 @@ An export writes nine things.
 | `primitive_artifacts.csv.gz` | A list of the raw frame-aligned files. |
 | `transcript_segments.csv.gz` | Normalised commentary transcript segments. |
 | `commentary_chunks.csv.gz` | Triaged commentary chunks, raw and cleaned. |
+| `commentary_rally_links.csv.gz` | Chunk-to-rally links under the issue #138 pairing rule. |
 | `player_signals/<video_id>/` | Four frame-aligned arrays per video, stored as `.npy.xz`. |
 | `dataset_manifest.json.gz` | Provenance for the whole export. |
 
@@ -105,7 +106,7 @@ Two commands write this layout. `export-v1` reads a completed dataset-builder
 run, so its `rallies` table holds `annotator` rows and, when the ShuttleSet
 annotations are given, `source_contacts` rows too. `export-v1-shuttleset22`
 reads the ShuttleSet22 primitives, which have no production run, so every
-rally there is a `source_contacts` row. Both produce the same seven tables.
+rally there is a `source_contacts` row. Both produce the same eight tables.
 
 Three rules matter when reading the tables:
 
@@ -131,7 +132,8 @@ PYTHONPATH=src uv run python -m dataset_builder export-v1 \
   --output-dir /scratch/<user>/dataset-v1/shuttleset \
   --fixed-sources configs/dataset_builder/shuttleset_sources_v1.toml \
   --ground-truth-root training/data/shuttleset/annotations \
-  --commentary-root /scratch/<user>/<commentary preparation root>
+  --commentary-root /scratch/<user>/<commentary preparation root> \
+  --replay-mask-root /scratch/<user>/<replay mask root>
 ```
 
 The ShuttleSet22 export reads the issue #106 and #120 primitives. Its
@@ -143,14 +145,23 @@ PYTHONPATH=src uv run python -m dataset_builder export-v1-shuttleset22 \
   --data-root /scratch/cmarti56/issue106-shuttleset22-data \
   --output-dir /scratch/<user>/dataset-v1/shuttleset22 \
   --run-id issue106-ba24a95 \
-  --commentary-root /scratch/<user>/<commentary preparation root>
+  --commentary-root /scratch/<user>/<commentary preparation root> \
+  --replay-mask-root /scratch/<user>/<replay mask root>
 ```
 
 `--commentary-root` is optional. It expects the layout the issue #104
 commentary benchmark used: `transcripts/<video_id>.json`,
-`commentary/cleaned_chunks/<video_id>.json`, and
-`status/commentary_per_video_status.json`. Without it the two commentary
-tables are written empty.
+`commentary/cleaned_chunks/<video_id>.json`,
+`status/commentary_per_video_status.json`, and, when the issue #136 re-timed
+sidecars exist, `commentary/retimed_chunks/<video_id>.json`. Without
+`--commentary-root` all three commentary tables are written empty.
+
+`--replay-mask-root` is also optional and only matters when
+`--commentary-root` is given. It expects one
+`<video_id>/definitive_exclusion_mask.npy.xz` per video. Without it, every
+`commentary_rally_links.starts_on_masked_frame` value is null instead of a
+real mask check; see [Commentary tables](#commentary-tables) below for why
+that matters.
 
 Both commands accept a subset: `--video-id sset_01 --video-id sset_02` for
 the run export, `--match-id 8 --match-id 9` for ShuttleSet22. A subset is
@@ -346,15 +357,119 @@ numbers in `rallies`.
 `transcript_segments` holds normalised transcript segments.
 `commentary_chunks` holds the triaged chunks with their raw text, cleaned
 text, and cleaning diagnostics. Both are tied to the video and its timeline.
-Neither is a rally label. They are auxiliary material for future work, and
-they sit beside the annotation data rather than inside it.
+`commentary_rally_links` additionally links a chunk to the `source_contacts`
+rallies it plausibly refers to. All three are auxiliary material for future
+work, and they sit beside the annotation data rather than inside it.
+Ari's spec also asked for a per-chunk sentiment label (positive/negative/
+neutral) and a single-word concept descriptor; neither is in this table,
+and both stay unresolved and gated on a labelled sample in
+[`issue_104_follow_ups.md`](dataset_builder/issue_104_follow_ups.md).
 
-`timestamp_precision` says how a segment's times were produced. `caption`
-means automatic caption timing. `whisperx_coarse` means segment-level WhisperX
-timing. Neither is word-level, and neither was checked against rally
-boundaries. The benchmark tried a post-rally join and paired only 2.24% of
-production rally spans, with 12 of its 77 pairs claiming text that started
-inside a different rally. Rally association is cut from v1 for that reason.
+`timestamp_precision` says how a chunk or segment's times were produced.
+`caption` means automatic caption timing. `whisperx_coarse` means
+segment-level WhisperX timing, not word-level. `whisperx_aligned` means the
+issue #136 forced aligner replaced the coarse time with a matched word
+boundary; only `commentary_chunks` rows can carry it, because only chunks
+have a re-timed sidecar. A row keeps its coarse label when the aligner found
+no match (`unmatched`) or its aligned start collided with another chunk's
+(`collision`); its `start_seconds`/`end_seconds` are unchanged in that case.
+
+#### The rally-link pairing rule
+
+The original post-rally join paired only 2.24% of production rally spans,
+with 12 of its 77 pairs claiming text that started inside a different rally,
+so issue #104 cut rally association from v1. Issue #136 then re-timed 92.6%
+of chunks to word boundaries, and issue #138 asked a different question: not
+"does the first chunk after a rally belong to it", but "which rallies could
+this chunk's start plausibly be commentary for". A chunk links to the rally
+it starts inside (`relation` `inside`, `lag_seconds` `0.0`), plus every rally
+that ended within `LAG_SECONDS` before it (`relation` `post_rally`,
+`lag_seconds` the gap). A chunk matching more than one rally gets one row per
+rally, every one marked `ambiguous`. A chunk starting exactly at a rally's
+end matches neither test (the inside test excludes the end, the post-rally
+test requires strictly after it), so it gets no link; the benchmark has the
+same gap.
+
+`LAG_SECONDS` is 10 seconds, chosen by sweeping the aligned times over 6,156
+combined human rallies from ShuttleSet and ShuttleSet22:
+
+| Lag window | Combined coverage | Ambiguous chunks |
+| ---: | ---: | ---: |
+| 8 s | 34.4% | 0 |
+| 10 s | 36.1% | 0 |
+| 15 s | 39.6% | 8 |
+| 20 s | 42.5% | 97 |
+
+Ten seconds is the widest window with zero ambiguous chunks, and coverage
+keeps climbing past it with no natural knee, so a wider window is a
+judgement call this schema does not make. The full sweep, from 2 to 20
+seconds, is in
+[the aligned rerun](dataset_builder/issue_104_shuttleset_benchmark.md#aligned-rerun-issue-136).
+
+That zero-ambiguity count comes from the benchmark's `_multi_rally_counts`,
+which skips any chunk starting on a masked frame and removes masked rallies
+from the candidate set before counting ambiguity. This exporter keeps both:
+a masked chunk still gets a link, and a masked rally still counts as a
+candidate. So the swept figure describes the benchmark's filtered
+population, not the population this table ships. The manifest's per-video
+`commentary_ambiguous_links` and `commentary_multi_rally_chunks` counts (see
+below) give the real ambiguity count for the shipped table.
+
+`commentary_rally_links` covers only `source_contacts` rallies. Annotator
+rallies are predicted spans, and the benchmark showed the two rally origins
+cannot be safely mixed, so linking commentary to a predicted span was not
+attempted.
+
+#### Replay-masked chunks are linked, not dropped
+
+A chunk that starts on a replay-masked frame usually describes the rally
+that was just replayed, not the live rally at that timestamp. The benchmark
+treated such a chunk as unpairable and dropped it, which is a conservative
+choice, not a settled one: dropping it may throw away real signal. This
+schema instead links the chunk normally and sets
+`starts_on_masked_frame` so a consumer can filter either way.
+
+The flag matters because it is common: of 2,892 ShuttleSet chunks, 1,890
+start on a replay-masked frame under the benchmark's own mask handling. A
+consumer who ignores the flag is treating almost two-thirds of ShuttleSet's
+chunks as if they describe the rally their timestamp lands on, when many of
+them more likely describe the replay of the rally before it.
+
+That 1,890 figure is not this flag's count. The benchmark loaded each
+video's `raw_replay_mask` and applied its own duration filter
+(`filter_short_exclusion_runs`) on top; it never unions that with
+`~court_present`. This exporter loads `definitive_exclusion_mask.npy.xz`,
+production's array, which already has `filter_short_exclusion_runs` applied
+and is unioned with `~court_present` (`src/annotator/run_video.py`,
+`_finalize_exclusion_mask`). The two masks are built from different arrays,
+so `starts_on_masked_frame` and the manifest's masked-start count on a real
+export can differ from 1,890 of 2,892; that figure describes the benchmark's
+population, not this flag's.
+
+The flag needs `--replay-mask-root` at export time. Without it,
+`starts_on_masked_frame` is null throughout and the manifest's
+`commentary_masked_start_chunks` count is null for every video, saying
+plainly that masking was never checked rather than implying zero masked
+chunks.
+
+Each video's manifest entry also carries `commentary_ambiguous_links`, the
+count of `commentary_rally_links` rows for that video with `ambiguous` true,
+and `commentary_multi_rally_chunks`, the count of distinct chunks behind
+those rows. An ambiguous chunk contributes one row per rally it matches, so
+`commentary_ambiguous_links` is always at least twice
+`commentary_multi_rally_chunks` whenever either is non-zero. Unlike
+`commentary_masked_start_chunks`, both are always computed on the shipped
+population, with or without `--replay-mask-root`.
+
+#### Accuracy is unmeasured
+
+Coverage is fixed: the lag rule above always links a chunk to a specific set
+of rallies. Whether a linked chunk actually talks about that rally is a
+different question, and nobody has labelled a sample to check it. That is
+why issue #104's disposition for rally association is `unresolved`, not
+`keep`: the link ships because its coverage and construction are honestly
+described, but a reviewer should treat every row as a plausible candidate,
+not a verified label, until that sample exists.
 
 ## What is absent and why
 
@@ -364,10 +479,16 @@ because a later reader cannot tell the difference.
 
 | Group | What it means | Examples |
 | --- | --- | --- |
-| Cut | The formula works, but the inputs it needs were measured and are too weak. | Shots per rally, away-from-centre recovery, movement inefficiency, rally-to-commentary association. |
-| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, degradation slope and its tanh temperature, backward extrapolation, commentary sentiment. |
+| Cut | The formula works, but the inputs it needs were measured and are too weak. | Shots per rally, away-from-centre recovery, movement inefficiency. |
+| Unresolved | A definition or a data source is missing, so no value could be produced honestly. | Serve speed proxy, degradation slope and its tanh temperature, backward extrapolation, commentary sentiment, rally-to-commentary association. |
 | Not measured | The trial never defined or benchmarked it. | Rest time, smash shuttle speed, stroke duration, split-step stance geometry, match duration. |
 | Out of scope | Outside the trial, with no gate planned. | Net-game share, backhand proportion, forced-to-unforced error ratio, hit height, shot-selection deception. |
+
+Rally-to-commentary association is the one unresolved feature that is not
+absent. `commentary_rally_links` ships because its coverage is fixed and its
+construction is fully described; the unresolved half is only accuracy,
+covered above under [Accuracy is unmeasured](#accuracy-is-unmeasured). Every
+other unresolved feature in the table has no columns in v1 at all.
 
 The Feature dispositions table below lists every trial feature with its exact
 reason. [`issue_104_follow_ups.md`](dataset_builder/issue_104_follow_ups.md)
@@ -493,7 +614,7 @@ Auxiliary component: normalised commentary transcript segments tied to the video
 | `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
 | `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
 | `segment_index` | int64 | no | observed | Zero-based segment position in the normalised transcript. |
-| `timestamp_precision` | string | no | observed | caption: automatic caption segment timing. whisperx_coarse: segment-level WhisperX timing. Neither is word-level or verified against rallies. |
+| `timestamp_precision` | string | no | observed | caption: automatic caption segment timing. whisperx_coarse: segment-level WhisperX timing, not word-level. whisperx_aligned: chunk timing replaced by forced-aligned word boundaries (issue #136); commentary_chunks only. None of the three were checked against rally boundaries; that check is the unmeasured part of commentary_rally_links. |
 | `start_seconds` | float64 | no | observed | Segment start on the source-video timeline. |
 | `end_seconds` | float64 | no | observed | Segment end on the source-video timeline. |
 | `text` | string | no | observed | Normalised transcript text. May contain transcription errors. |
@@ -502,20 +623,39 @@ Auxiliary component: normalised commentary transcript segments tied to the video
 
 File `commentary_chunks.csv.gz`. Key `(source_dataset, video_id, chunk_id)`.
 
-Auxiliary component: relevance-triaged commentary chunks with raw and cleaned text, tied to the video. Sentiment, concept, and player link are unresolved and absent.
+Auxiliary component: relevance-triaged commentary chunks with raw and cleaned text, tied to the video. Sentiment, concept, and player link are unresolved and absent. commentary_rally_links carries the separate, unresolved rally association.
 
 | Column | Type | Nullable | Reliability | Description |
 | --- | --- | --- | --- | --- |
 | `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
 | `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
 | `chunk_id` | string | no | observed | Cleaning-stage chunk identifier, unique within the video. |
-| `timestamp_precision` | string | no | observed | caption: automatic caption segment timing. whisperx_coarse: segment-level WhisperX timing. Neither is word-level or verified against rallies. |
+| `timestamp_precision` | string | no | observed | caption: automatic caption segment timing. whisperx_coarse: segment-level WhisperX timing, not word-level. whisperx_aligned: chunk timing replaced by forced-aligned word boundaries (issue #136); commentary_chunks only. None of the three were checked against rally boundaries; that check is the unmeasured part of commentary_rally_links. |
 | `start_seconds` | float64 | no | observed | Segment start on the source-video timeline. |
 | `end_seconds` | float64 | no | observed | Segment end on the source-video timeline. |
 | `text` | string | no | observed | Raw chunk text before cleaning. |
 | `text_clean` | string | no | derived | Generated cleaned text. Not a human judgement of relevance or accuracy. |
 | `bert_f1` | float64 | yes | derived | BERTScore F1 between text and text_clean. A cleaning diagnostic, not a truth probability. |
 | `clean_pass` | bool | yes | derived | Whether the chunk passed the cleaning contract. |
+
+### commentary_rally_links
+
+File `commentary_rally_links.csv.gz`. Key `(run_id, source_dataset, video_id, chunk_id, rally_origin, rally_id)`.
+
+One row per commentary chunk linked to one source_contacts rally under the issue #138 pairing rule. A chunk with more than one candidate rally gets one row per rally, all marked ambiguous. Coverage is measured; accuracy is not: nobody has labelled a sample to check that a linked chunk actually discusses its rally.
+
+| Column | Type | Nullable | Reliability | Description |
+| --- | --- | --- | --- | --- |
+| `run_id` | string | no | observed | Immutable dataset-builder run that produced the row. |
+| `source_dataset` | string | no | observed | Dataset label that namespaces video identifiers, for example ShuttleSet. |
+| `video_id` | string | no | observed | Exact string video identifier. Never coerce it to a number: 0012 and 12 differ. |
+| `chunk_id` | string | no | derived | commentary_chunks.chunk_id of the linked chunk. |
+| `rally_origin` | string | no | derived | Always source_contacts: only ShuttleSet human-contact rallies are linked in v1. Kept as a column so the key joins directly to rallies. |
+| `rally_id` | int64 | no | derived | rallies.rally_id of the linked rally. |
+| `relation` | string | no | derived | inside: the chunk starts inside this rally's span. post_rally: this rally ended within LAG_SECONDS before the chunk started. |
+| `lag_seconds` | float64 | no | derived | 0.0 for relation inside; otherwise the chunk's start_seconds minus this rally's end_seconds, the gap the pairing rule allowed. |
+| `ambiguous` | bool | no | derived | True when this chunk links to more than one rally under the pairing rule; every one of its link rows carries the same value. |
+| `starts_on_masked_frame` | bool | yes | derived | True when the chunk's start lands on a frame the optional replay mask marks excluded. Null when the export was not given a replay mask root; the export never drops a masked-start chunk on this basis. |
 
 ### Player-signal arrays
 
@@ -568,11 +708,11 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Shots per rally | cut | none | Exact production count on 298 of 3,287 eligible ShuttleSet rallies. |
 | Away-from-centre recovery | cut | none | Contact and server attribution inputs are too weak for player-specific windows. |
 | Movement inefficiency | cut | none | Production intervals use predicted contacts that miss or add events. |
-| Rally-to-commentary association | cut | none | Post-rally join pairs 2.24% of production spans and mis-claims across rallies. |
 | Serve speed proxy | unresolved | none | Return, static, and viewport endpoints are undefined and shuttle error is large. |
 | Raw degradation slope | unresolved | none | Needs a retained feature set and stable player identity across rallies. |
 | Tanh-normalised degradation | unresolved | none | Issue #22 does not define the temperature. |
 | Backward extrapolation | unresolved | none | No defined scene boundary, range, or provenance policy. |
+| Rally-to-commentary association | unresolved | none | Issue #138's lag rule fixes coverage on aligned times with zero ambiguity at 10 s, but accuracy is unmeasured: nobody has labelled a sample to check the pairs are right. |
 | Commentary sentiment, concept, and player link | unresolved | none | Supported schemas emit no semantic fields and no labelled population exists. |
 | Out-of-position posture states | not_measured | none | The three states need pose-term definitions. |
 | Rest time, work density, effective playing time | not_measured | none | Work density and cutaway handling need definitions. |
@@ -585,7 +725,6 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Court coverage near the shuttle | not_measured | none | Needs a relative measure and event anchor. |
 | Split-step stance geometry | not_measured | none | Needs a stance measure and event detector. |
 | Net-game share, clear share, backhand proportion, forced-to-unforced error ratio, shot-outcome success by type, footwork-to-shot coupling, hit height, shot-selection deception | out_of_scope | none | Outside the trial. No gate planned. |
-
 <!-- dictionary:end -->
 
 ## Provenance

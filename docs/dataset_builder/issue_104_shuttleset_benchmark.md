@@ -244,6 +244,15 @@ Carmack under `/scratch/cmarti56/issue104-commentary-data/transcripts_aligned`,
 `revisions/overlap-dedup-v1/commentary/retimed_chunks`, with a hash-verified
 copy in the local transcript backup.
 
+This proposal is implemented: the lag window is 10 s, the replay-time policy
+flags a masked-start chunk instead of dropping it, and `commentary_chunks`
+carries `whisperx_aligned` as a third `timestamp_precision` value. The
+resulting `commentary_rally_links` table ships at unresolved, not keep,
+because the labelled accuracy sample this section calls for still does not
+exist. See [`dataset_v1_schema.md`](../dataset_v1_schema.md#commentary-tables)
+for the shipped table and [`issue_104_follow_ups.md`](issue_104_follow_ups.md)
+for the remaining accuracy gate.
+
 ## Frozen evidence
 
 | Input | Exact identity |
