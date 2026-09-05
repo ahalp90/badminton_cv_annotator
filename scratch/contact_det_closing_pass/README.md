@@ -4,11 +4,11 @@
 
 The larger goal is a badminton video annotator that can identify a small set of fully correct rallies for use without manual checking. This pass tests contact repairs that might help reach that goal.
 
-**The extra physical measurements did not improve complete-rally recovery in this comparison.** This pass tested whether the first-contact chooser benefits from saved shuttle and player measurements, and from learning to repair the opening independently of later errors.
+**The combined whole-rally experiment now recovers substantially more complete rallies.** On eight reused validation videos, the chooser with opening scores, player-side disagreement and physical measurements reaches **235 correct rallies at ±10**, up from 182: 56 repairs and three losses. At ±5 it reaches 195 from 175, with 44 repairs and 24 losses. The gain therefore comes with a larger cost to timing accuracy at the tighter allowance.
 
-The most promising conservative version keeps the ten summary inputs and learns whether an edit completes the rally. On eight reused validation videos, it repairs **11 rallies at ±10**, compared with six for the old chooser. Neither loses a rally that the unchanged system got right. The new version also records no losses in the 32-video development comparison. **It does miss one rally repaired by the old chooser**, so it is a candidate for further comparison rather than a drop-in replacement.
+Read the [whole-rally comparison and tradeoffs](whole_rally_report.md) for the latest result. Everything remains in experiment scripts; production integration is reserved for a later round.
 
-Teaching the chooser to fix just the opening recovers more rallies, but both opening versions spoil three previously correct development rallies. Adding physical inputs makes the chooser more selective and recovers fewer complete rallies. Keep the new summary/whole-rally script as a candidate for the later integration round. These results do not establish which outputs can be accepted without review.
+The component experiments below explain what led to that comparison. They tested the first-contact chooser in isolation. Physical measurements did not improve complete-rally recovery in those shallow standalone models. The combined result shows why that finding was insufficient to rule them out from the whole-rally chooser.
 
 ## Contents
 
@@ -70,7 +70,7 @@ The zero losses above are relative to the unchanged detector and side vote. Dire
 
 For summary/whole rally, the missed historical repair is `sset_18/set1:25` at both tolerances. The old chooser adds the missing serve; the new chooser leaves that section unchanged with six of seven contacts. Its higher pooled total therefore does not establish a loss-free replacement for the old chooser.
 
-The development comparison explains why the largest validation total is not the default recommendation. Here the baseline has **802 correct rallies at ±10 and 710 at ±5**.
+The development comparison shows the larger recovery-versus-loss tradeoff of the opening targets. Here the baseline has **802 correct rallies at ±10 and 710 at ±5**.
 
 | Development system | ±10 correct / 2,850 | ±10 repaired / lost | ±5 correct / 2,850 | ±5 repaired / lost |
 |---|---:|---:|---:|---:|
@@ -82,7 +82,7 @@ The development comparison explains why the largest validation total is not the 
 
 ![Paired complete-rally repairs and losses at ±10, shown separately for 32 development videos and eight reused validation videos.](figures/paired_repairs.png)
 
-*The two panels are different populations, with separate count scales. Opening targets recover more rallies within each population. Their development losses remain an objection even when the net gain is positive.*
+*The two panels are different populations, with separate count scales. Opening targets recover more rallies within each population. The development losses are shown separately from the larger repair counts.*
 
 The validation gains are uneven. The summary/whole-rally repairs appear in four of eight videos at ±10, with eight of the eleven in `sset_31` and `sset_39`. This supports a limited improvement across several videos, not broad reliability.
 
@@ -188,9 +188,9 @@ Training all 16 development group fits took **3.76 seconds**. Final fitting on a
 
 Those small timings exclude loading and joining feature files, evaluation, the side vote and upstream vision processing. They are not end-to-end runtime measurements. All physical joins succeeded; missing measurement cells remained NaN. No tracking, pose, video model or vision-language model (VLM) inference was rerun.
 
-The useful outcome is a conservative summary/whole-rally candidate with a small recurring model cost. It needs to preserve the historical chooser’s useful repairs before it earns replacement. Preserve it for the later integration comparison, including its errors and the historical reference. Keep the opening variants as evidence of a recall-versus-harm trade-off. Their development losses do not meet the aim of preserving usable output.
+These component results justified testing the promising inputs together. The [whole-rally continuation](whole_rally_report.md) now does that: it compares unchanged sections, opening edits, one deletion and combined edits using the same saved candidates. The summary/opening standalone model remains a useful lower-intervention reference, with 16 validation repairs and zero baseline losses at ±10.
 
-Stop the physical-feature and mask-widening branches here. The current results do not justify a broader model sweep, larger sequence search or new VLM service. If repair modelling resumes, the useful question is how to reject unnecessary additions among candidates already available. The corrected targets and saved paired records provide a concrete starting point. Reliable automatic acceptance remains unresolved, and end-to-end integration stays for the planned later round.
+The physical branch remains useful in the combined model. The scoring-mask branch has no recoverable skipped rows in this census. Later-contact insertion and reliable automatic acceptance remain separate questions. Production integration stays for the planned later round.
 
 ## Methods, records and checks
 
