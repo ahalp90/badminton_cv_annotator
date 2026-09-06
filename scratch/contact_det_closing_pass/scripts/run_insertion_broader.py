@@ -192,6 +192,7 @@ def predict_video(
     reference_choices: Sequence[Mapping[str, Any]],
     reference_output: Mapping[str, Any],
     variant: str,
+    score_root: Path | None = None,
 ) -> tuple[
     ContactStreams,
     dict[SectionIdentity, LaterOption],
@@ -275,8 +276,9 @@ def predict_video(
         choice_key(option_record(option)): float(score)
         for option, score in zip(options, scores, strict=True)
     }
-    RAW.mkdir(parents=True, exist_ok=True)
-    scores_path = RAW / f"{variant}_{fixture}_option_scores.npy.xz"
+    score_root = RAW if score_root is None else score_root
+    score_root.mkdir(parents=True, exist_ok=True)
+    scores_path = score_root / f"{variant}_{fixture}_option_scores.npy.xz"
     with lzma.open(scores_path, "wb", format=lzma.FORMAT_XZ, preset=9) as handle:
         np.save(handle, scores)
     selected_records = []
@@ -330,6 +332,7 @@ def run(
     feature_root: Path = DEFAULT_FEATURE_ROOT,
     model_path: Path | None = None,
     output_root: Path = RESULTS,
+    score_root: Path | None = None,
 ) -> dict[str, Any]:
     """Replay a frozen follow-up model on all or a bounded smoke subset."""
     if variant not in {"local", "early", "pairs", "both"}:
@@ -418,6 +421,7 @@ def run(
                 reference_by_fixture[fixture]["selected_actions"],
                 reference_by_fixture[fixture]["output"],
                 variant,
+                score_root,
             )
         )
     with joblib.parallel_config(backend="loky", n_jobs=jobs, inner_max_num_threads=6):
@@ -444,6 +448,7 @@ def run(
             _choices,
             _output,
             _variant,
+            _score_root,
         ) = arguments
         stream, chosen, reference, _record = result
         fixture = str(later["fixture"])
@@ -575,6 +580,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--feature-root", type=Path, default=DEFAULT_FEATURE_ROOT)
     parser.add_argument("--models", type=Path)
     parser.add_argument("--output-root", type=Path, default=RESULTS)
+    parser.add_argument("--score-root", type=Path, help="save option scores in a separate experiment directory")
     return parser.parse_args()
 
 
@@ -589,6 +595,7 @@ def main() -> None:
         feature_root=arguments.feature_root,
         model_path=arguments.models,
         output_root=arguments.output_root,
+        score_root=arguments.score_root,
     )
     print(f"Finished {result['status']}", flush=True)
 
