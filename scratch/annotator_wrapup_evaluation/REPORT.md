@@ -14,6 +14,10 @@ This evaluation asked where the finished annotator fails and whether its inputs 
 those failures. It checked saved results from already examined footage. The detector
 and its selection rule stayed fixed. No model was trained or adopted.
 
+For the later questions about excluding videos 15 and 53, how far the footage checks
+went, and what is still open, read [the follow-up answers](VIDEO_CHECKS.md). This
+overview keeps the original investigation's sample counts.
+
 ## What these results cover
 
 The saved detector proposes 3,982 rally clips across 47 previously examined
@@ -32,8 +36,8 @@ adds no unmatched contact, and names the correct player. The main timing allowan
 frames. All 47 source videos are 30 fps.
 
 The recount reproduced the previous results under both label sets and both timing
-allowances. These are descriptions of already examined footage, rather than a new test
-of generalisation.
+allowances. The videos had already been examined, so these results do not establish how well
+the detector will work on new matches.
 
 ## One video's labels point to the wrong footage
 
@@ -59,8 +63,7 @@ selected clips with more than one extra contact. Some apparently enormous contac
 errors therefore come from comparing the output with the wrong part of the match.
 
 The original 47-video counts remain below so they can be compared with earlier work.
-For explanations based on upstream inputs, video 15 is set aside explicitly. No labels
-were shifted and no replacement score was adopted. The
+For the court and player checks below, video 15 is left out. The labels and saved scores were not changed. The
 [recorded checks](results/label_alignment_checks.csv.gz) preserve the relevant frames.
 
 ## What the fixed selection keeps
@@ -158,7 +161,7 @@ human judgement that the footage is a replay.
 
 ### Some rejected scenes show ordinary live play
 
-The new visual sample contains eight missed contacts and eight successful contacts
+The initial visual sample contains eight missed contacts and eight successful contacts
 from the same videos. Four missed examples were deliberately drawn from court-rejected
 scenes in videos 12, 20, 21 and 53. The other four came from accepted scenes.
 
@@ -170,7 +173,9 @@ This is a small sample chosen to investigate errors. It demonstrates real false
 rejections; it does not estimate their frequency across the collection.
 
 In video 53, one rejected scene places the court's top-right corner near the bottom
-of the image. Its people-on-court check passes in zero frames. A successful scene from
+of the image. That corner came from the OpenCV fallback. The saved record calls
+this the “raw” outline, meaning before the shared-outline step; it is already a mix
+of neural-net and OpenCV corners. Its people-on-court check passes in zero frames. A successful scene from
 the same video has a sensible outline and passes throughout.
 
 ![A misplaced court corner in rejected footage beside an accepted scene from the same video.](figures/court_example.png)
@@ -194,7 +199,7 @@ scenes. Changing only the outline gave these results:
 
 The four successful controls were unchanged. Three rejected scenes would pass the
 existing 50% people-check threshold with that outline; video 21 would still fail.
-This isolates a geometry problem in the sampled scenes. It does not measure repaired
+This shows that a bad court outline can cause usable scenes to be rejected. It does not measure repaired
 contacts or rallies, and the detector's actual inputs and outputs remain unchanged.
 
 ## When the inputs are available, contact errors remain
@@ -213,7 +218,12 @@ Rerunning the original player tracker over video 17 reproduced both player-avail
 fields at all 91,970 saved feature rows. It preserved the original settings and resets.
 At the two failed examples, the tracker used a shared court outline that placed the
 far player's projected position beyond its allowed distance from the expected position.
-The detected person was present; the player picker rejected that candidate.
+The person had been detected, but the player picker rejected them.
+
+The original outline for that scene came from four confident neural-net corners.
+OpenCV was not used there. The shared-outline step replaced that outline with a
+smaller one, and the player picker received that smaller outline. The
+[numbered comparison pictures](COURT_ISSUE.md) show both court failures step by step.
 
 ![The same video-17 frame with the tracker's shared court outline and the original scene outline.](figures/player_geometry.png)
 
@@ -255,7 +265,7 @@ would miss that transition.
    another model change.** Check whether the annotations and download use different
    edits of the match. Keep the current counts as the historical reference.
 2. **Investigate court geometry and scene rejection before another contact-model fit.**
-   The evaluation has concrete examples of visible match play being blocked upstream.
+   The footage shows visible match play being rejected before contact scoring.
    A useful follow-up should check both rescued scenes and newly admitted non-play
    footage.
 3. **Keep human review in the dataset workflow.** The fixed selection still admits

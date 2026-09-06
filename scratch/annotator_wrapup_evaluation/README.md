@@ -1,32 +1,42 @@
-# Final annotator evaluation
+# Annotator evaluation: where to start
 
-Start with [the report](REPORT.md). It explains what the fixed detector produces,
-where the inputs fail, and what the footage can establish.
+For the questions about videos 15 and 53, start with
+[the follow-up answers](VIDEO_CHECKS.md). That report now says what was counted in
+full, what was checked in a sample, and what is still open.
 
-For the latest questions, read [the video checks](VIDEO_CHECKS.md): results without
-videos 15 and 53, new footage checks, training settings and original-ShuttleSet
-feasibility. The [per-video viewer](VIDEO_BREAKDOWN.html) shows contact and player
-errors for either output method. Open the HTML file locally in a browser.
+The reports cover different questions. You do not need to read them all in order.
 
-[The court issue draft](COURT_ISSUE.md) embeds numbered before-and-after overlays
-for the OpenCV failure in video 53 and the shared-outline failure in video 17.
+| What you want to know | Where to read |
+|---|---|
+| What changes without videos 15 and 53? Could the labels explain the failures? What was checked elsewhere? | [Follow-up answers](VIDEO_CHECKS.md) |
+| What exactly goes wrong with the court outlines? | [Court issue with numbered before-and-after pictures](COURT_ISSUE.md) |
+| How does one particular video perform? | [Per-video viewer](VIDEO_BREAKDOWN.html); open locally in a browser |
+| What does the final detector produce overall? | [Original overview](REPORT.md) |
+| More detail on missed hits, wrong players, clip selection and the initial footage checks | [Expanded report](REPORT_BIG.md) |
+| How does the ordinary heuristic compare with the learned detector? | [Heuristic comparison](HEURISTIC_REPORT.md) |
 
-This directory contains an observational evaluation of the 47 broader ShuttleSet22
-videos. Results describe previously examined footage. The 32 development videos are
-separate. The detector, selection, source labels and cached inputs were kept fixed.
+All scores describe saved outputs on the same 47 ShuttleSet22 videos. These videos
+had already been examined. The separate 32 development videos are not part of those
+scores. No detector or label changes were made during this investigation.
 
-## Saved baseline and source contracts
+The latest footage checks and numbered court images came after the original overview
+and expanded report. Those earlier reports keep their original sample counts and
+point to the follow-up where it adds evidence.
+
+The rest of this page is for checking the source files or rerunning the work.
+
+## Saved inputs and scoring rules
 
 All paths below are relative to the repository root.
 
 | Record | Role |
 |---|---|
-| `scratch/contact_det_closing_pass/results/followups/local_boundary_broader_predictions_fixed_membership.json.gz` | Recommended local contact chooser with fixed-membership boundary padding |
-| `scratch/contact_det_closing_pass/results/serve_followups/chosen_acceptance_broader.json.gz` | Fixed 784 selected proposal identities; original threshold 0.7570784853533734 |
+| `scratch/contact_det_closing_pass/results/followups/local_boundary_broader_predictions_fixed_membership.json.gz` | Saved final output: chosen contacts and extended clip edges, with the same contacts kept in each clip |
+| `scratch/contact_det_closing_pass/results/serve_followups/chosen_acceptance_broader.json.gz` | The unchanged list of 784 clips kept for review; score threshold 0.7570784853533734 |
 | `scratch/contact_det_closing_pass/results/metric_summary.json.gz` | Previous headline counts, reproduced by assertions in the recount |
-| `scratch/contact_det_closing_pass/scripts/summarise_metrics.py` | Existing population loading, matching and full-correctness definitions |
+| `scratch/contact_det_closing_pass/scripts/summarise_metrics.py` | Code that reads the label sets, matches contacts and judges complete rallies |
 | `scratch/contact_det_closing_pass/results/selected_clip_review.csv` | Earlier broad visual review of the 44 unknown selections |
-| `src/annotator/court_evidence.py` | Raw court outline, scene people check, subsequent consensus correction |
+| `src/annotator/court_evidence.py` | Scene court estimate, two-player check, then correction using the shared outline |
 | `src/annotator/rally/evidence.py` | Tracker coverage, original sequential player picker and resets |
 | `src/bst_x/preparing_data/heuristics/sticky_anchor.py` | Player projection, selection distances and carried position state |
 
@@ -44,7 +54,7 @@ CSV and JSON files use gzip compression. Frames refer to the source video, at 30
 | File in `results/` | Unit and meaning |
 |---|---|
 | `baseline.json.gz` | Recount totals for both label populations and both timing allowances |
-| `proposals.csv.gz` | One proposal per population and tolerance; overlapping error flags and frozen selection |
+| `proposals.csv.gz` | One proposal per population and tolerance; overlapping error flags and unchanged clip selection |
 | `rallies.csv.gz` | One labelled rally per population and tolerance, including rallies without a correct clip |
 | `contacts.csv.gz` | One labelled contact per population and tolerance; complete-video one-to-one matching |
 | `predictions.csv.gz` | One emitted contact per population and tolerance, with complete-video match identity |
@@ -59,7 +69,7 @@ CSV and JSON files use gzip compression. Frames refer to the source video, at 30
 | `visual_sample.csv.gz`, `visual_review.csv.gz` | Exact new sample requests and independent broad scene observations |
 | `visual_geometry.json.gz` | Raw and active outlines at inspected frames, in native image coordinates |
 | `court_vote_check.csv.gz` | Original and alternative-outline people votes for eight whole scenes |
-| `replay_player_sample.csv.gz`, `replay_player_sample.json.gz` | Sequential video-17 player replay and isolated geometry probes |
+| `replay_player_sample.csv.gz`, `replay_player_sample.json.gz` | Video 17 tracker replay and checks that change only the court outline |
 | `label_alignment_checks.csv.gz` | Three checked video-15 disagreements between source rows and footage |
 
 `population=retained` means the cleaned (trusted) labels; `all_gt` means all source labels.
@@ -77,12 +87,12 @@ tracker segments. The saved exclusion decision is not a human replay label.
 Shuttle availability uses the track's visibility field and does not measure coordinate
 accuracy. Surrounding-window fractions use the half-open interval [frame−15, frame+15).
 
-## Visual sampling and small diagnostic checks
+## How the initial footage and court checks were done
 
 The initial eight-frame pilot targeted the unusually poor videos 15 and 53. It found
 video 15's label disagreement. Its observations are separate from the following sample.
 
-The new sample uses seed 20260906 and eight missed middle contacts outside video 15:
+The initial 16-window sample uses seed 20260906 and eight missed middle contacts outside video 15:
 four court-rejected examples, two with a missing player pick, and two with both picks.
 Each has a successful middle-contact control from a fully correct rally in the same
 video, chosen by nearest rally length and then time. All centres are more than two
@@ -108,7 +118,7 @@ outline; its result never affects the next frame. Raw detection indices identify
 candidates within a frame, not persistent physical players.
 
 Existing human scene labels used a different dataset's IDs, so they could not support
-full-corpus camera-view or replay error rates. Exact unsupported endpoint hits, physical
+collection-wide camera-view or replay error rates. Exact unsupported endpoint hits, physical
 player swaps and shuttle-coordinate accuracy also remain unresolved. These omissions
 are deliberate; the available records do not establish them.
 
@@ -116,7 +126,7 @@ are deliberate; the available records do not establish them.
 
 Use the project's existing Python environment with NumPy, pandas, matplotlib and the
 annotator dependencies. Run from the repository root. Supply paths to the original
-annotation tree, base prepared fixtures, separate inpainted tracks, frozen prediction
+annotation tree, base prepared fixtures, separate inpainted tracks, saved prediction
 bundle and source videos through the arguments shown below. Cached inputs are not
 included in this directory.
 
