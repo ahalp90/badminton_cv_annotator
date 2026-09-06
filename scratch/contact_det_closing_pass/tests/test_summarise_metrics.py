@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import gzip
+import json
+import re
+from pathlib import Path
+
 import pytest
 
 from scratch.contact_det.scripts.score_contact_rallies import (
@@ -9,10 +14,16 @@ from scratch.contact_det.scripts.score_contact_rallies import (
     FixedSpan,
     RallyReference,
 )
+from scratch.contact_det_closing_pass.scripts.regenerate_figures import (
+    regenerate_metric_figures,
+)
 from scratch.contact_det_closing_pass.scripts.summarise_metrics import (
+    ROOT,
+    contact_table,
     full_stream_counts,
     section_rows,
     selection_summary,
+    write_table,
 )
 from scratch.contact_det_full_ds_fit.scripts.rally_start_model import (
     ContactStreams,
@@ -60,3 +71,23 @@ def test_repeated_proposals_do_not_inflate_unique_rally_recovery() -> None:
     summary = selection_summary([row, row], 1)
     assert summary["correct"] == 2
     assert summary["unique_complete"] == summary["unique_contained"] == 1
+
+
+def test_reports_and_chart_labels_reproduce_the_saved_counts(tmp_path: Path) -> None:
+    with gzip.open(ROOT / "results/metric_summary.json.gz", "rt") as source:
+        result = json.load(source)
+    table = tmp_path / "serve_tables.md"
+    write_table(result, table)
+    assert table.read_text() == (ROOT / "serve_tables.md").read_text()
+    for name in ("README.md", "serve_and_acceptance.md", "contact_performance.md"):
+        report = (ROOT / name).read_text()
+        assert contact_table(result, "contacts") in report
+        assert contact_table(result, "starts") in report
+
+    regenerate_metric_figures(result, tmp_path)
+    for generated in tmp_path.glob("*.svg"):
+        saved = ROOT / "figures" / generated.name
+        # SVG metadata changes on each render; the displayed labels must stay equal.
+        assert re.findall(r"<!-- (.*?) -->", generated.read_text()) == re.findall(
+            r"<!-- (.*?) -->", saved.read_text()
+        ), generated.name

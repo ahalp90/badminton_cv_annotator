@@ -9,7 +9,7 @@ The same predictions are scored against **3,422 trusted rallies** and **all 3,96
 | Perfect-rally recall before later-contact repair | 1,435 / 3,422 = **41.9%** | 1,433 / 3,965 = **36.1%** |
 | Perfect-rally recall after later-contact repair | **1,597 / 3,422 = 46.7%** | 1,596 / 3,965 = **40.3%** |
 
-At ±10, the new version repairs **178** rallies and breaks **16**, for a net gain of **162**.
+Against trusted GT at ±10, the new version repairs **178** rallies and breaks **16**, for a net gain of **162**.
 
 The gain appears in 39 videos; seven tie; one loses one rally.
 

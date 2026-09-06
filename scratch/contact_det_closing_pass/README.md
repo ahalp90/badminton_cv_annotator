@@ -13,14 +13,14 @@ The existing cleaning drops **543 rallies** from strict scoring:
 
 That leaves **3,422 rallies whose ground truth we trust**.
 
-Every headline metric below uses the same rule:
+The tables compare two sets of labels:
 
 | Read | What it means |
 |---|---|
 | **Trusted GT only** | Score against the 3,422 retained rallies. Selection precision uses judgeable proposals. |
 | **All GT included** | Restore all source labels, including flagged rows. Unknown selections receive no credit. |
 
-Both reads are now measured from the saved predictions. The [reproducible table](metric_summary.md) contains the full comparison.
+Both reads are now measured from the saved predictions. The [compact reference](serve_tables.md) contains the full comparison.
 
 ## Final detector
 
@@ -28,34 +28,38 @@ At ±10 frames on a 30 fps clock:
 
 ### Individual contacts
 
-| Contact task | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| **Timing only** | **81.0%** | **88.2%** | **84.5%** |
-| **Timing + correct player** | **78.5%** | **85.5%** | **81.8%** |
+| Task | Labels | Precision | Recall | F1 |
+|---|---|---:|---:|---:|
+| Timing only | Trusted GT | 81.0% | 88.2% | 84.5% |
+| Timing only | All GT | 90.1% | 86.9% | 88.4% |
+| Timing + correct player | Trusted GT | 78.5% | 85.5% | 81.8% |
+| Timing + correct player | All GT | 87.2% | 84.0% | 85.6% |
 
 ![All-contact precision, recall and F1.](figures/contact_prf.svg)
 
-Useful recall slices:
+Recall by contact type:
 
-| Labelled contact | Timing recall | Timing + correct-player recall |
-|---|---:|---:|
-| **Non-serve contacts** | **88.9%** | **86.3%** |
-| **Serves** | **81.3%** | **77.4%** |
+| Contact type | Labels | Timing recall | Timing + correct-player recall |
+|---|---|---:|---:|
+| Non-serve | Trusted GT | 88.9% | 86.3% |
+| Non-serve | All GT | 88.4% | 85.7% |
+| Serve | Trusted GT | 81.3% | 77.4% |
+| Serve | All GT | 72.0% | 67.3% |
 
 There is no separate full-stream non-serve precision because the detector does not classify every prediction as serve/non-serve.
 
 ### Rally start and full rally
 
-| Task | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| **Proposed start is the serve** | **70.4%** | **76.7%** | **73.4%** |
-| **Proposed start is the serve + correct server** | **68.1%** | **74.1%** | **71.0%** |
+| Task | Labels | Precision | Recall | F1 |
+|---|---|---:|---:|---:|
+| Start is serve | Trusted GT | 70.4% | 76.7% | 73.4% |
+| Start is serve | All GT | 72.1% | 67.7% | 69.8% |
+| Start + correct server | Trusted GT | 68.1% | 74.1% | 71.0% |
+| Start + correct server | All GT | 68.5% | 64.4% | 66.4% |
 
-**Perfect-rally recall is 1,763 / 3,422 = 51.5%.** A clean full-detector rally precision is not reported because the 543 untrusted-GT rallies were removed before rally scoring.
+**Perfect-rally recall is 1,763 / 3,422 = 51.5% with trusted GT, or 1,763 / 3,965 = 44.5% with all GT.**
 
-With all source labels restored, contact timing F1 is **88.4%**, serve recall is **72.0%**, and perfect-rally recall is **44.5%**. These include the original flagged annotations.
-
-![How the detector improved during the closing pass. All counts use trusted GT only.](figures/system_progression.svg)
+![How the detector improved during the closing pass. Trusted and all-GT counts are shown together.](figures/system_progression.svg)
 
 ## Automatic use
 
@@ -186,7 +190,7 @@ For **macro rally extraction**, the selected set is already strong: **98.4% prec
 - [later_contact_comparison.md](later_contact_comparison.md) — adding one missed contact later in the rally.
 - [followup_comparison.md](followup_comparison.md) — the final detector refinements.
 - [serve_and_acceptance.md](serve_and_acceptance.md) — serve performance and automatic-use results.
-- [serve_tables.md](serve_tables.md) — compact reference numbers.
+- [serve_tables.md](serve_tables.md) — compact reference numbers and the reproduction command.
 - [promising_leads.md](promising_leads.md) — useful ideas we stopped, deferred, closed, or folded into the final detector.
 
 Machine-readable experiment outputs remain under `results/`. Production code under `src/` was not changed.

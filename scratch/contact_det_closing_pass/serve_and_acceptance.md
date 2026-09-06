@@ -1,32 +1,36 @@
 # Final deployment view: contacts, serves and automatic use
 
+The ranking model selects whole-rally clips reliably. Their contact annotations still need review.
+
 ## The two reads used throughout this report
 
 ShuttleSet22 contains **3,965 rallies** in the source CSVs.
 
 The existing cleaning drops **543** from strict scoring: 542 contain at least one contact marked `flaw`, and one has timestamps out of order.
 
-So every headline result is shown in two ways:
+The tables compare two sets of ground-truth (GT) labels:
 
 - **Trusted GT only:** score against the remaining 3,422 rallies.
 - **All GT included:** restore the 543 rallies and their source labels. Unknown selections receive no credit.
 
-Both reads use the same saved predictions. All source labels include the original flagged rows.
+Both use the same saved predictions, scored at **±10 frames on a 30 fps clock**.
 
 ## Contact performance
 
-Across all **38,218 trusted contact labels** at ±10:
+Across the 47 videos:
 
-| Contact task | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| **Timing only** | **81.0%** | **88.2%** | **84.5%** |
-| **Timing + correct player** | **78.5%** | **85.5%** | **81.8%** |
+| Task | Labels | Precision | Recall | F1 |
+|---|---|---:|---:|---:|
+| Timing only | Trusted GT | 81.0% | 88.2% | 84.5% |
+| Timing only | All GT | 90.1% | 86.9% | 88.4% |
+| Timing + correct player | Trusted GT | 78.5% | 85.5% | 81.8% |
+| Timing + correct player | All GT | 87.2% | 84.0% | 85.6% |
 
-Non-serve contacts have **88.9% timing recall** and **86.3% timing + player recall**. Serves are harder, at **81.3% / 77.4% recall**.
+Serves are harder to find than later contacts. The next section separates serve detection from getting the rally start right.
 
 ![All-contact precision, recall and F1.](figures/contact_prf.svg)
 
-With all source labels restored, contact timing P/R/F1 is **90.1% / 86.9% / 88.4%**. With the correct player required, it is **87.2% / 84.0% / 85.6%**. More detail: [contact_performance.md](contact_performance.md).
+Contact breakdown: [contact_performance.md](contact_performance.md).
 
 ## Serve performance
 
@@ -45,10 +49,12 @@ This is a recall measure because the full-stream detector outputs contacts, not 
 
 Every nonempty proposal makes one explicit start prediction, so this task has clean precision, recall and F1:
 
-| Start task | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| **Start is serve** | **70.4%** | **76.7%** | **73.4%** |
-| **Start is serve + correct server** | **68.1%** | **74.1%** | **71.0%** |
+| Task | Labels | Precision | Recall | F1 |
+|---|---|---:|---:|---:|
+| Start is serve | Trusted GT | 70.4% | 76.7% | 73.4% |
+| Start is serve | All GT | 72.1% | 67.7% | 69.8% |
+| Start + correct server | Trusted GT | 68.1% | 74.1% | 71.0% |
+| Start + correct server | All GT | 68.5% | 64.4% | 66.4% |
 
 The sequence-based player assignment still helps substantially. Among the 2,781 serves matched in time:
 
@@ -57,11 +63,11 @@ The sequence-based player assignment still helps substantially. Among the 2,781 
 | Raw wrist/net guess | 2,222 | 250 | 309 |
 | **Final sequence-based answer** | **2,647** | **128** | **6** |
 
-That last table is an attribution diagnostic conditional on the serve already being found; it is not another recall denominator.
+This table checks player assignment only for serves already found within the timing window.
 
 ## Automatic use: fully correct rallies
 
-The ranking model selects **784** proposed rallies.
+The ranking model selects **784** proposed rallies. Of these, **740 can be judged against trusted GT** and **44 cannot**.
 
 | Measure | Trusted GT only | All GT included |
 |---|---:|---:|
@@ -75,7 +81,7 @@ The selector also leaves **1,147 fully correct trusted-GT rallies unselected**.
 
 For fully correct rally selections, the selected set still needs review. Keep automatic approval off.
 
-## Automatic use: contains one whole rally**
+## Automatic use: contains one whole rally
 
 The exact metric hides an important product result.
 
@@ -94,11 +100,6 @@ That gives:
 *Some contact details inside the rally may still be incorrect.*
 
 ![Fully correct rally versus whole-rally selection, using the same two reads.](figures/automatic_use.svg)
-
-So the ranking model has two very different product profiles:
-
-- **Fully correct rallies:** useful, but not safe enough to approve automatically.
-- **Whole-rally clips:** **98.4% among judgeable clips; 94.3% verified against all source labels**.
 
 ### What is wrong inside the 124 fully-correct-rally failures?
 
@@ -138,4 +139,4 @@ For **review ordering**: keep the ranking score.
 
 For **selecting clips that contain one whole rally***: the ranking model is already very strong, at **98.4% precision with trusted GT and 94.3% verified with all GT included**.
 
-Compact numbers: [serve_tables.md](serve_tables.md).
+Compact numbers and reproduction command: [serve_tables.md](serve_tables.md).

@@ -19,11 +19,11 @@ Compared with the original detector, the whole-sequence model:
 - gains **440** perfect rallies overall;
 - improves in 44 videos and ties in three.
 
-At the individual-contact level, timing P/R/F1 is **81.1% / 87.3% / 84.1%**. Requiring the player to be correct gives **75.0% / 80.8% / 77.8%**.
+Against trusted GT, individual-contact timing P/R/F1 is **81.1% / 87.3% / 84.1%**. Requiring the player to be correct gives **75.0% / 80.8% / 77.8%**.
 
 So the whole-rally gain is not only a rally-level effect: it also recovers more labelled contacts, although it still produces too many unmatched predictions.
 
-![The first large gain across all 47 videos. Trusted GT only.](figures/broader_gain.svg)
+![The first large gain across all 47 videos, under both label sets.](figures/broader_gain.svg)
 
 ## What the model changed
 

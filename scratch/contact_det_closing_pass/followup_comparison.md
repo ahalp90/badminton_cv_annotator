@@ -14,9 +14,9 @@ The same predictions are scored against **3,422 trusted rallies** and **all 3,96
 | **Final detector: both** | **1,763 / 3,422 = 51.5%** | 1,763 / 3,965 = **44.5%** | **180 / 14** |
 | Also consider more possible serve timestamps | 1,767 / 3,422 = **51.6%** | 1,767 / 3,965 = **44.6%** | 194 / 24 |
 
-![What each final change contributed. Trusted GT only.](figures/final_followup.svg)
+![What each final change contributed, under both label sets.](figures/final_followup.svg)
 
-At the individual-contact level, the final detector reaches **81.0% precision / 88.2% recall / 84.5% F1** for timing. Requiring the correct player gives **78.5% / 85.5% / 81.8%**. The detector entering this follow-up was already at **81.1% / 88.0% / 84.4%** for timing and **78.3% / 85.0% / 81.5%** with the player.
+Against trusted GT, the final detector reaches **81.0% precision / 88.2% recall / 84.5% F1** for timing. Requiring the correct player gives **78.5% / 85.5% / 81.8%**. The detector entering this follow-up was already at **81.1% / 88.0% / 84.4%** for timing and **78.3% / 85.0% / 81.5%** with the player.
 
 That small contact-level change is important context for the much larger whole-rally gain below: most of the final improvement comes from fixing rally boundaries, not finding many more contacts.
 

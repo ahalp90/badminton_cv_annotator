@@ -18,6 +18,9 @@ from scratch.contact_det_closing_pass.scripts.evaluation import (
     write_json,
 )
 from scratch.contact_det_closing_pass.scripts.matching import match_contacts
+from scratch.contact_det_closing_pass.scripts.regenerate_figures import (
+    regenerate_metric_figures,
+)
 from scratch.contact_det_closing_pass.scripts.run_later_broader import restore_stream
 from scratch.contact_det_followup.scripts.prediction_io import read_json
 from scratch.contact_det_followup.scripts.score_start_model import (
@@ -183,63 +186,102 @@ def full_stream_counts(
 
 
 def prf(correct: int, predicted: int, labelled: int) -> str:
-    return f"{100 * correct / predicted:.1f} / {100 * correct / labelled:.1f} / {200 * correct / (predicted + labelled):.1f}%"
+    return (
+        f"{100 * correct / predicted:.1f}% | {100 * correct / labelled:.1f}% | "
+        f"{200 * correct / (predicted + labelled):.1f}%"
+    )
+
+
+def contact_table(result: Mapping[str, Any], task: str, tolerance: int = 10) -> str:
+    """Show each label population on its own row with explicit metric columns."""
+    keys = {
+        "contacts": (("Timing only", "matched"), ("Timing + correct player", "side_correct")),
+        "starts": (("Start is serve", "start_matched"), ("Start + correct server", "start_side_correct")),
+    }
+    prediction_key, label_key = ("predicted", "labelled") if task == "contacts" else ("starts", "labelled_serves")
+    lines = ["| Task | Labels | Precision | Recall | F1 |", "|---|---|---:|---:|---:|"]
+    for title, correct_key in keys[task]:
+        for population, label in (("retained", "Trusted GT"), ("all_gt", "All GT")):
+            counts = result["contacts"][population][str(tolerance)]
+            values = prf(counts[correct_key], counts[prediction_key], counts[label_key])
+            lines.append(f"| {title} | {label} | {values} |")
+    return "\n".join(lines)
+
+
+def recall_table(result: Mapping[str, Any], tolerance: int = 10) -> str:
+    lines = ["| Contact type | Labels | Timing recall | Timing + correct-player recall |",
+             "|---|---|---:|---:|"]
+    for serve, title in ((False, "Non-serve"), (True, "Serve")):
+        for population, label in (("retained", "Trusted GT"), ("all_gt", "All GT")):
+            counts = result["contacts"][population][str(tolerance)]
+            labelled = counts["labelled_serves"] if serve else counts["labelled"] - counts["labelled_serves"]
+            timing = counts["serve_matched"] if serve else counts["matched"] - counts["serve_matched"]
+            joint = counts["serve_side_correct"] if serve else counts["side_correct"] - counts["serve_side_correct"]
+            lines.append(f"| {title} | {label} | {100 * timing / labelled:.1f}% | {100 * joint / labelled:.1f}% |")
+    return "\n".join(lines)
 
 
 def write_table(result: Mapping[str, Any], path: Path) -> None:
     lines = [
-        "# Contact detector: reproducible numbers", "",
-        "The final detector recovers complete rallies from saved vision outputs. These tables compare trusted labels with every original source label.", "",
-        "**Trusted GT:** 3,422 rallies and 38,218 contacts. **All GT:** 3,965 rallies and 43,159 contacts, including flagged rows. Missing labels receive no credit; restoring flawed labels does not make them reliable.", "",
-        "## Whole-rally recovery", "",
-        "Each cell is the number of fully correct rallies at **±10 / ±5** frames on a 30 fps clock.", "",
-        "| Detector | Trusted GT | All GT |", "|---|---:|---:|",
+        "# Contact, serve and automatic-use numbers at a glance", "",
+        "The final detector finds contacts; the ranking model selects 784 rally clips for review.", "",
+        ("**Trusted GT:** 3,422 rallies and 38,218 contacts. "
+        "**All GT:** all 3,965 source rallies and 43,159 contacts."), "",
+        "The difference is 543 rallies excluded during label cleaning. Both scores use the same predictions.", "",
+        "Results below use **±10 frames on a 30 fps clock**. The tighter ±5 check is at the end.", "",
+        "## Individual contacts", "", contact_table(result, "contacts"), "",
+        "## Serve and non-serve recall", "", recall_table(result), "",
+        "## Does the proposed rally start at the serve?", "", contact_table(result, "starts"), "",
+        "## Automatic use", "",
+        ("Fully correct means every contact and player is right. "
+        "A whole-rally clip can still contain contact errors."), "",
+        ("Trusted-GT precision uses the 740 judgeable clips. "
+        "All-GT precision uses all 784; unknown clips receive no credit."), "",
+        "| Selection task | Labels | Precision | Recall | F1 |", "|---|---|---:|---:|---:|",
     ]
+    for title, key in (("Fully correct rally", "unique_complete"), ("Contains one whole rally", "unique_contained")):
+        for population, label in (("retained", "Trusted GT"), ("all_gt", "All GT")):
+            selected = result["selected"][population]["10"]
+            predicted = selected["proposals"] - (selected["unknown"] if population == "retained" else 0)
+            values = prf(selected[key], predicted, selected["labelled_rallies"])
+            lines.append(f"| {title} | {label} | {values} |")
+    lines.extend(["", "### Selected clip counts", "",
+                  "| Labels | Fully correct | Wrong | Unknown | Contains one whole rally |",
+                  "|---|---:|---:|---:|---:|"])
+    for population, label in (("retained", "Trusted GT"), ("all_gt", "All GT")):
+        selected = result["selected"][population]["10"]
+        lines.append(f"| {label} | {selected['correct']} | {selected['wrong']} | "
+                     f"{selected['unknown']} | {selected['unique_contained']} |")
+    lines.extend(["", "## Whole-rally recovery before selection", "",
+                  ("Each entry counts fully correct rallies. "
+                  "The same detector predictions are checked at both timing windows."), "",
+                  "| Detector | Trusted ±10 | All GT ±10 | Trusted ±5 | All GT ±5 |", "|---|---:|---:|---:|---:|"])
     for stage, (_, _, title) in STAGES.items():
         values = result["stages"][stage]
-        cells = [" / ".join(f"{values[population][str(tolerance)]['unique_complete']:,}" for tolerance in (10, 5))
-                 for population in ("retained", "all_gt")]
-        lines.append(f"| {title} | {cells[0]} | {cells[1]} |")
-    lines.extend(["", "## Final contact and serve performance", "",
-                  "Each cell is **precision / recall / F1**. All predictions stay in the contact and start denominators.", "",
-                  "| Task | Timing window | Trusted GT | All GT |", "|---|---|---:|---:|"])
-    for title, correct_key, prediction_key, label_key in (
-        ("All contacts", "matched", "predicted", "labelled"),
-        ("Contacts + correct player", "side_correct", "predicted", "labelled"),
-        ("Start is the serve", "start_matched", "starts", "labelled_serves"),
-        ("Start + correct server", "start_side_correct", "starts", "labelled_serves"),
-    ):
-        for tolerance in (10, 5):
-            cells = []
-            for population in ("retained", "all_gt"):
-                counts = result["contacts"][population][str(tolerance)]
-                cells.append(prf(counts[correct_key], counts[prediction_key], counts[label_key]))
-            lines.append(f"| {title} | ±{tolerance} | {cells[0]} | {cells[1]} |")
-    lines.extend(["", "Recall by labelled contact type (timing / timing + correct player):", "",
-                  "| Contact type | Timing window | Trusted GT | All GT |", "|---|---|---:|---:|"])
-    for serve, title in ((True, "Serve"), (False, "Non-serve")):
-        for tolerance in (10, 5):
-            cells = []
-            for population in ("retained", "all_gt"):
-                counts = result["contacts"][population][str(tolerance)]
-                labelled = counts["labelled_serves"] if serve else counts["labelled"] - counts["labelled_serves"]
-                timing = counts["serve_matched"] if serve else counts["matched"] - counts["serve_matched"]
-                joint = counts["serve_side_correct"] if serve else counts["side_correct"] - counts["serve_side_correct"]
-                cells.append(f"{100 * timing / labelled:.1f}% / {100 * joint / labelled:.1f}%")
-            lines.append(f"| {title} | ±{tolerance} | {cells[0]} | {cells[1]} |")
-    lines.extend(["", "## The 784 selected proposals", "",
-                  "These counts keep unknown cases visible. A whole rally can still contain contact mistakes.", "",
-                  "| Labels | Timing window | Fully correct | Wrong | Unknown | Contains one whole rally |",
-                  "|---|---|---:|---:|---:|---:|"])
-    for population, title in (("retained", "Trusted GT"), ("all_gt", "All GT")):
-        for tolerance in (10, 5):
-            selected = result["selected"][population][str(tolerance)]
-            lines.append(f"| {title} | ±{tolerance} | {selected['correct']} | {selected['wrong']} | {selected['unknown']} | {selected['unique_contained']} |")
-    lines.extend(["", "## Rebuild", "", "Run from the repository root with the original ShuttleSet22 annotation folder:", "",
+        cells = [f"{values[population][str(tolerance)]['unique_complete']:,}"
+                 for tolerance in (10, 5) for population in ("retained", "all_gt")]
+        lines.append(f"| {title} | {' | '.join(cells)} |")
+    lines.extend(["", "<details>", "<summary>Tighter timing check: ±5</summary>", "",
+                  "### Individual contacts", "", contact_table(result, "contacts", 5), "",
+                  "### Serve and non-serve recall", "", recall_table(result, 5), "",
+                  "### Rally starts", "", contact_table(result, "starts", 5), "",
+                  "### Selected clips", "",
+                  "| Labels | Fully correct | Wrong | Unknown | Contains one whole rally |",
+                  "|---|---:|---:|---:|---:|"])
+    for population, label in (("retained", "Trusted GT"), ("all_gt", "All GT")):
+        selected = result["selected"][population]["5"]
+        lines.append(f"| {label} | {selected['correct']} | {selected['wrong']} | "
+                     f"{selected['unknown']} | {selected['unique_contained']} |")
+    lines.extend(["", "</details>", "", "## Reproduce these results", "",
+                  "Run from the repository root with the original ShuttleSet22 annotation folder:", "",
                   "```bash", 'PYTHONPATH="$PWD/src:$PWD" ~/.venvs/badminton-cicd/bin/python \\',
                   "  -m scratch.contact_det_closing_pass.scripts.summarise_metrics \\",
                   "  --annotations /path/to/ShuttleSet22", "```", "",
-                  "The script checks the trusted-label results against the saved experiments before writing this table and `results/metric_summary.json.gz`. It does not train models or rerun vision.", ""])
+                  ("This rebuilds the saved counts, this reference and the comparison charts from saved predictions. "
+                  "It checks the trusted-GT counts against the original experiments. "
+                  "No training or vision inference is needed."), "",
+                  ("Saved counts: `results/metric_summary.json.gz`. "
+                  "Clip review: [individual notes](results/selected_clip_review.csv)."), ""])
     path.write_text("\n".join(lines))
 
 
@@ -284,13 +326,14 @@ def run(annotations: Path, results: Path, table: Path) -> None:
         assert counts[key] == value, (key, counts[key], value)
     write_json(results / "metric_summary.json.gz", result)
     write_table(result, table)
+    regenerate_metric_figures(result)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--annotations", type=Path, required=True)
     parser.add_argument("--results", type=Path, default=ROOT / "results")
-    parser.add_argument("--table", type=Path, default=ROOT / "metric_summary.md")
+    parser.add_argument("--table", type=Path, default=ROOT / "serve_tables.md")
     args = parser.parse_args()
     run(args.annotations, args.results, args.table)
 
