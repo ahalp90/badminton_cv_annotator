@@ -11,7 +11,7 @@ So every headline result is shown in two ways:
 - **Trusted GT only:** score against the remaining 3,422 rallies.
 - **All GT included:** restore the 543 rallies and their source labels. Unknown selections receive no credit.
 
-If the original experiment never scored those 543, the second result is **not measured**.
+Both reads use the same saved predictions. All source labels include the original flagged rows.
 
 ## Contact performance
 
@@ -26,7 +26,7 @@ Non-serve contacts have **88.9% timing recall** and **86.3% timing + player reca
 
 ![All-contact precision, recall and F1.](figures/contact_prf.svg)
 
-The all-GT contact version was not scored. More detail: [contact_performance.md](contact_performance.md).
+With all source labels restored, contact timing P/R/F1 is **90.1% / 86.9% / 88.4%**. With the correct player required, it is **87.2% / 84.0% / 85.6%**. More detail: [contact_performance.md](contact_performance.md).
 
 ## Serve performance
 
@@ -38,8 +38,8 @@ This is a recall measure because the full-stream detector outputs contacts, not 
 
 | Measure | Trusted-GT recall | All GT included |
 |---|---:|---:|
-| Serve timing | **2,781 / 3,422 = 81.3%** | **not measured** |
-| Serve timing + correct server | **2,647 / 3,422 = 77.4%** | **not measured** |
+| Serve timing | **2,781 / 3,422 = 81.3%** | **2,855 / 3,965 = 72.0%** |
+| Serve timing + correct server | **2,647 / 3,422 = 77.4%** | **2,667 / 3,965 = 67.3%** |
 
 ### Does the proposed rally start at the serve?
 
@@ -70,6 +70,8 @@ The ranking model selects **784** proposed rallies.
 | **Fully correct rally F1** | **29.6%** | **25.9%** |
 
 Restoring the original labels gives **615 correct, 140 wrong and 29 still unknown**. Unknown cases receive no credit in the all-GT column.
+
+The selector also leaves **1,147 fully correct trusted-GT rallies unselected**.
 
 For fully correct rally selections, the selected set still needs review. Keep automatic approval off.
 
@@ -113,6 +115,12 @@ These categories overlap:
 ![Why the selected-but-imperfect rallies fail strict scoring. Trusted GT only.](figures/selected_errors.svg)
 
 The key result is **112 / 124 = 90.3%**: most fully-correct-rally failures are still the right whole rally with local contact errors.
+
+## The 44 clips with untrusted GT
+
+All 44 received a sampled visual review. Four mix replay footage with live play, and one appears to be warm-up footage. The other 39 show live play, though many openings are obscured by camera changes.
+
+Two frames per second cannot verify exact contact timing, so this adds no perfect-rally credit. [Review details and clip notes](promising_leads.md#4-what-the-44-untrusted-gt-selections-contain).
 
 ## Deleting extra contacts: not worth another model
 

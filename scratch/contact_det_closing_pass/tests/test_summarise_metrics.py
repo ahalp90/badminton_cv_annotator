@@ -1,0 +1,62 @@
+"""Check original-label edge cases that the retained-label reports cannot exercise."""
+
+from __future__ import annotations
+
+import pytest
+
+from scratch.contact_det.scripts.score_contact_rallies import (
+    FixedEvent,
+    FixedSpan,
+    RallyReference,
+)
+from scratch.contact_det_closing_pass.scripts.summarise_metrics import (
+    full_stream_counts,
+    section_rows,
+    selection_summary,
+)
+from scratch.contact_det_full_ds_fit.scripts.rally_start_model import (
+    ContactStreams,
+    HumanLabels,
+)
+
+
+def test_duplicate_source_timestamps_keep_their_separate_player_labels() -> None:
+    events = (FixedEvent("video", 100, 1.0, "Top"), FixedEvent("video", 103, 1.0, "Bot"))
+    stream = ContactStreams((FixedSpan("video", 0, 90, 110, events),), {"video": events})
+    labels = HumanLabels({"video": (RallyReference("video", 0, "rally", (100, 100)),)},
+                         {("video", 100): "Bot"})
+    sides = {("video", "rally"): ("Top", "Bot")}
+    rows = section_rows(stream, labels, sides, {"video": 30.0}, 5)
+    assert rows[0]["outcome"] == "correct"
+    assert rows[0]["voted_correct_sides"] == 2
+    counts = full_stream_counts(stream, labels, sides, {"video": 30.0}, 5)
+    assert counts["side_correct"] == 2
+    assert counts["serve_matched"] == counts["serve_side_correct"] == 1
+
+
+def test_unlabelled_proposal_stays_unknown_without_recovery_credit() -> None:
+    events = (FixedEvent("video", 100, 1.0, "Top"),)
+    stream = ContactStreams((FixedSpan("video", 0, 90, 110, events),), {"video": events})
+    labels = HumanLabels({"video": ()}, {})
+    rows = section_rows(stream, labels, {}, {"video": 30.0}, 10)
+    summary = selection_summary(rows, 0)
+    assert summary["unknown"] == 1
+    assert summary["correct"] == summary["unique_complete"] == summary["unique_contained"] == 0
+
+
+@pytest.mark.parametrize(("fps", "expected"), [(30.0, 0), (60.0, 1)])
+def test_full_stream_tolerance_scales_to_source_frames(fps: float, expected: int) -> None:
+    events = (FixedEvent("video", 115, 1.0, "Top"),)
+    stream = ContactStreams((FixedSpan("video", 0, 90, 120, events),), {"video": events})
+    labels = HumanLabels({"video": (RallyReference("video", 0, "rally", (100,)),)},
+                         {("video", 100): "Top"})
+    counts = full_stream_counts(stream, labels, {("video", "rally"): ("Top",)}, {"video": fps}, 10)
+    assert counts["serve_matched"] == counts["start_matched"] == expected
+
+
+def test_repeated_proposals_do_not_inflate_unique_rally_recovery() -> None:
+    row = {"fixture": "video", "rally_id": "rally", "fully_correct": True,
+           "whole_rally_contained": True, "overlapping_rallies": 1, "outcome": "correct"}
+    summary = selection_summary([row, row], 1)
+    assert summary["correct"] == 2
+    assert summary["unique_complete"] == summary["unique_contained"] == 1

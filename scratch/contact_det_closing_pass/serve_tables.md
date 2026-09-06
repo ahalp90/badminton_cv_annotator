@@ -34,15 +34,15 @@ Additional recall-only measures:
 
 | Measure | Trusted GT only | All GT included |
 |---|---:|---:|
-| Serve found anywhere | **81.3%** | **not measured** |
-| Serve found anywhere + correct server | **77.4%** | **not measured** |
-| Perfect whole rally | **51.5%** | **not measured** |
+| Serve found anywhere | **81.3%** | **72.0%** |
+| Serve found anywhere + correct server | **77.4%** | **67.3%** |
+| Perfect whole rally | **51.5%** | **44.5%** |
 
-The all-GT contact/serve/rally scores would require re-running the scorer with the 543 dropped rallies restored.
+The [reproducible table](metric_summary.md) includes all-GT contact and start scores, with the tighter ±5 check.
 
 ## Player assignment after the serve is found
 
-This is a diagnostic on the 2,781 trusted-GT serves found in time, so there is no separate all-GT version.
+This diagnostic uses the 2,781 trusted-GT serves found in time.
 
 | Player answer | Correct | Wrong | Missing |
 |---|---:|---:|---:|

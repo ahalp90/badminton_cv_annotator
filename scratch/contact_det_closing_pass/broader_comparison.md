@@ -4,13 +4,13 @@
 
 The whole-sequence model held up across the 47 ShuttleSet22 videos.
 
-All figures in this experiment were scored **after the 543 flagged rallies had been removed**. The all-GT version was not run, so it is shown as not measured rather than replacing the denominator with something else.
+The same saved predictions are scored against the trusted labels and all original source labels.
 
 | Measure | Trusted GT only | All GT included |
 |---|---:|---:|
-| Perfect-rally recall: original detector | 995 / 3,422 = **29.1%** | **not measured** |
-| Perfect-rally recall: first-contact repair only | 1,105 / 3,422 = **32.3%** | **not measured** |
-| Perfect-rally recall: whole-sequence model | **1,435 / 3,422 = 41.9%** | **not measured** |
+| Perfect-rally recall: original detector | 995 / 3,422 = **29.1%** | 993 / 3,965 = **25.0%** |
+| Perfect-rally recall: first-contact repair only | 1,105 / 3,422 = **32.3%** | 1,103 / 3,965 = **27.8%** |
+| Perfect-rally recall: whole-sequence model | **1,435 / 3,422 = 41.9%** | 1,433 / 3,965 = **36.1%** |
 
 Compared with the original detector, the whole-sequence model:
 

@@ -58,7 +58,7 @@ def run():
         "Perfect rallies at ±10", "final_followup")
     simple_bar(
         ["Serve found", "Serve +\ncorrect server"], [81.3, 77.4],
-        "Final detector serve performance — trusted GT only\n(all-GT score was not measured)",
+        "Final detector serve performance — trusted GT only",
         "Percent of 3,422 trusted-GT rallies", "serve_summary", percent=True)
 
     labels = ["1–5", "6–10", "11–20", "21+"]

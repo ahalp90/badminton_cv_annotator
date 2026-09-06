@@ -15,7 +15,7 @@ The distinction matters. Some ideas were tested properly and failed. Some were o
 | Fix the contact-level mistakes inside already-correct rally clips | **Revisit first** | 112 of the 124 selected proposals that fail fully correct rally scoring are still the correct whole rally. |
 | Pick the serve better from candidates we already have | **Revisit** | Many missed serves already had a useful candidate; the model chose the wrong one. |
 | Recover contacts that never entered the saved candidate files | **Deferred upstream work** | More than half of the missed later contacts in the development census had no nearby row to choose from. |
-| Manually check the 44 selected proposals with untrusted GT | **Cheap measurement win** | It would settle the current all-GT automatic-use result instead of treating those 44 as unknown. |
+| Supply missing labels for selected clips | **Visual review complete; exact labels still needed** | The 44-clip review found replay contamination, apparent warm-up footage and unclear openings. |
 
 The rest of this document explains those leads, then records the branches that are genuinely closed.
 
@@ -130,33 +130,23 @@ Saved evidence:
 
 ---
 
-## 4. Check the 44 selected outputs whose GT is not trusted
+## 4. What the 44 untrusted-GT selections contain
 
-**Status: cheap measurement win**
+**Status: source labels recounted; visual review complete**
 
-The ranking model selects **784** proposals.
+Restoring the original labels resolves **15 as wrong**. Another **28 have no source labels**, and **one lacks player information**. Thirteen contain a whole source-labelled rally; none is confirmed fully correct.
 
-Strict scoring can verify:
+A sampled visual review covered all 44 intervals, including two seconds before and after each:
 
-- 616 as perfect;
-- 124 as imperfect;
-- **44 cannot be settled because their GT was removed from strict scoring**.
+- **39 show live play** without an obvious replay inside the interval;
+- **four include a replay before returning to live play**: `19_056`, `20_036`, `22_017` and `27_006`;
+- **one appears to be pre-match warm-up**: `52_000`.
 
-Those 44 are a small, unusually valuable annotation target.
+Camera changes around the serve make many openings unclear. In five clips, serve action is visible before the proposed start. All 43 clips containing live play show the rally ending in the review samples.
 
-The original-label recount resolves 15 as wrong. Another 28 have no source labels, and one lacks player information. None of the 44 is confirmed fully correct. Thirteen contain a whole source-labelled rally.
+The review used two frames per second. It checks footage and broad boundaries; exact contact timing still needs frame-level labels. It gives no additional perfect-rally credit.
 
-Visual inspection is the next useful check.
-
-This does not improve the detector. It improves our knowledge of what we already have.
-
-It is also much cheaper than cleaning all 543 rallies whose source GT was excluded.
-
-One broadcast is especially worth noting: an An Se Young–Akane Yamaguchi 2022 Uber Cup semi-final contributes 37 selected proposals in the saved breakdown, including **27 whose GT cannot settle the result**. That is enough concentration in one source that a small amount of targeted checking could materially clarify the aggregate result.
-
-Saved evidence:
-`results/serve_followups/acceptance_breakdown.json.gz`
-and `results/serve_followups/acceptance_per_video.csv.gz`
+Clip times, source videos and individual notes: [selected_clip_review.csv](results/selected_clip_review.csv).
 
 ---
 
@@ -264,7 +254,7 @@ This result says **do not add a broad deletion model to the main detector**.
 
 It does *not* say “never remove extra contacts.”
 
-The final ranking results show 92 selected near-misses with extra predicted contacts. A conservative cleanup pass applied only after we already know the clip is almost certainly one whole rally is a much narrower problem than the deletion experiment tested here.
+Of the 112 selected clips that contain the right whole rally, 80 have extra predicted contacts. A conservative cleanup pass applied only after we already know the clip is almost certainly one whole rally is a much narrower problem than the deletion experiment tested here.
 
 That narrower version remains plausible; it was not tested.
 
@@ -416,6 +406,6 @@ The strongest next questions are much narrower:
 1. **Can we clean up the 112 selected clips that are already the correct whole rally?**
 2. **Can we choose the correct serve more often when the useful candidate is already present?**
 3. **What upstream step is responsible for the 1,072 missed later contacts that never enter the saved candidate files?**
-4. **What are the 44 selected untrusted-GT cases actually doing?**
+4. **Can missing contact labels resolve the remaining selected clips after the visual review?**
 
 Those are the leads this closing pass leaves open.

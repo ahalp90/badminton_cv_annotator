@@ -2,12 +2,12 @@
 
 ## Result
 
-This experiment was scored against the **3,422 rallies with trusted GT**. The 543 dropped rallies were not re-scored, so the all-GT result is not measured.
+The same predictions are scored against **3,422 trusted rallies** and **all 3,965 source rallies**.
 
 | Measure | Trusted GT only | All GT included |
 |---|---:|---:|
-| Perfect-rally recall before later-contact repair | 1,435 / 3,422 = **41.9%** | **not measured** |
-| Perfect-rally recall after later-contact repair | **1,597 / 3,422 = 46.7%** | **not measured** |
+| Perfect-rally recall before later-contact repair | 1,435 / 3,422 = **41.9%** | 1,433 / 3,965 = **36.1%** |
+| Perfect-rally recall after later-contact repair | **1,597 / 3,422 = 46.7%** | 1,596 / 3,965 = **40.3%** |
 
 At ±10, the new version repairs **178** rallies and breaks **16**, for a net gain of **162**.
 

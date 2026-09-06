@@ -2,17 +2,17 @@
 
 This experiment produced the final recommended detector.
 
-All perfect-rally recall counts here use the **3,422 rallies with trusted GT**. The 543 dropped rallies were not re-scored, so the all-GT figures are not measured.
+The same predictions are scored against **3,422 trusted rallies** and **all 3,965 source rallies**.
 
 ## Result
 
 | Version | Trusted GT only | All GT included | Repairs / losses vs 1,597 |
 |---|---:|---:|---:|
-| Starting point | 1,597 / 3,422 = **46.7%** | **not measured** | — |
-| + local score for the inserted contact | 1,622 / 3,422 = **47.4%** | **not measured** | 41 / 16 |
-| Fix rally start/end times only | 1,732 / 3,422 = **50.6%** | **not measured** | **135 / 0** |
-| **Final detector: both** | **1,763 / 3,422 = 51.5%** | **not measured** | **180 / 14** |
-| Also consider more possible serve timestamps | 1,767 / 3,422 = **51.6%** | **not measured** | 194 / 24 |
+| Starting point | 1,597 / 3,422 = **46.7%** | 1,596 / 3,965 = **40.3%** | — |
+| + local score for the inserted contact | 1,622 / 3,422 = **47.4%** | 1,621 / 3,965 = **40.9%** | 41 / 16 |
+| Fix rally start/end times only | 1,732 / 3,422 = **50.6%** | 1,732 / 3,965 = **43.7%** | **135 / 0** |
+| **Final detector: both** | **1,763 / 3,422 = 51.5%** | 1,763 / 3,965 = **44.5%** | **180 / 14** |
+| Also consider more possible serve timestamps | 1,767 / 3,422 = **51.6%** | 1,767 / 3,965 = **44.6%** | 194 / 24 |
 
 ![What each final change contributed. Trusted GT only.](figures/final_followup.svg)
 

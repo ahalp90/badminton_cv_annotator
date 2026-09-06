@@ -20,7 +20,7 @@ Every headline metric below uses the same rule:
 | **Trusted GT only** | Score against the 3,422 retained rallies. Selection precision uses judgeable proposals. |
 | **All GT included** | Restore all source labels, including flagged rows. Unknown selections receive no credit. |
 
-If an experiment was never scored against the 543 dropped rallies, the all-GT result is shown as **not measured**. We do not swap in a different denominator.
+Both reads are now measured from the saved predictions. The [reproducible table](metric_summary.md) contains the full comparison.
 
 ## Final detector
 
@@ -53,7 +53,7 @@ There is no separate full-stream non-serve precision because the detector does n
 
 **Perfect-rally recall is 1,763 / 3,422 = 51.5%.** A clean full-detector rally precision is not reported because the 543 untrusted-GT rallies were removed before rally scoring.
 
-The contact, serve and perfect-rally experiments therefore have a **trusted-GT result only**. Their all-GT versions would require a new scoring pass, not new model inference.
+With all source labels restored, contact timing F1 is **88.4%**, serve recall is **72.0%**, and perfect-rally recall is **44.5%**. These include the original flagged annotations.
 
 ![How the detector improved during the closing pass. All counts use trusted GT only.](figures/system_progression.svg)
 

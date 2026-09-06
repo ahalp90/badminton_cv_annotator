@@ -21,6 +21,8 @@ That comes from:
 - **33,716 timing matches**;
 - **32,667 matches with both correct timing and correct player**.
 
+With **all source labels** restored, timing P/R/F1 is **90.1% / 86.9% / 88.4%**. Requiring the correct player gives **87.2% / 84.0% / 85.6%**.
+
 At the tighter ±5 check:
 
 | Contact task | Precision | Recall | F1 |
@@ -100,17 +102,6 @@ These are different tasks:
 
 A detector can have high contact recall while a much smaller share of rallies are perfect end to end. Long rallies multiply the chances of at least one mistake.
 
-## What still needs new scoring
+## Reproduce the numbers
 
-| Metric | Can we derive it from the saved summaries? | Why |
-|---|---|---|
-| All-contact P/R/F1 | **Yes** | Predicted, matched and labelled contact totals are saved. |
-| Timing + player P/R/F1 | **Yes** | Correctly sided timing matches are saved. |
-| Serve-start P/R/F1 | **Yes** | Nonempty starts, matched serves and labelled serves are saved. |
-| Non-serve recall | **Yes** | Subtract matched serves from all matched contacts. |
-| Full-stream non-serve precision/F1 | **No natural definition** | The detector does not label every prediction serve/non-serve. |
-| All-GT contact P/R/F1 | **Needs a new scoring pass** | The 543 dropped rallies were not included in the saved contact matcher. |
-
-The last row does **not** require new vision inference or retraining. It would require rerunning the contact scorer against the original, uncleaned annotation rows.
-
-No alternate denominator is substituted in the meantime.
+The [metric summary](metric_summary.md) gives both label populations at ±10 and ±5, plus the command to rebuild them from saved predictions. Full-stream non-serve precision remains undefined because predictions do not carry that class.
