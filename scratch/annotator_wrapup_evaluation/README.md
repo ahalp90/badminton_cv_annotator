@@ -8,6 +8,9 @@ videos 15 and 53, new footage checks, training settings and original-ShuttleSet
 feasibility. The [per-video viewer](VIDEO_BREAKDOWN.html) shows contact and player
 errors for either output method. Open the HTML file locally in a browser.
 
+[The court issue draft](COURT_ISSUE.md) embeds numbered before-and-after overlays
+for the OpenCV failure in video 53 and the shared-outline failure in video 17.
+
 This directory contains an observational evaluation of the 47 broader ShuttleSet22
 videos. Results describe previously examined footage. The 32 development videos are
 separate. The detector, selection, source labels and cached inputs were kept fixed.
@@ -290,3 +293,29 @@ contact count, and all 94 choices passed a JavaScript rendering check. The page 
 also inspected in a browser. Script syntax and scoped Ruff checks passed (exit 0).
 The original-ShuttleSet work checked available records and model identity only;
 no new original-dataset evaluation or footage sample was run.
+
+## Court images for the issue
+
+`replay_court_corners.py` reruns the ten original scene samples for video 53,
+scene 334. It checks the model weights against the saved receipt, then compares
+corner positions, confidence decisions and corner sources with the saved fallback.
+The largest position difference was 0.019 pixels. All ten neural-net outputs had
+valid shapes, but none passed every confidence check. The top-right corner remained
+below the threshold. The figure shows its median position before replacement.
+
+`results/video53_nn_replay.json.gz` retains each sampled frame's four neural-net
+positions and confidence values, along with the saved and replayed fallback outputs.
+`plot_court_issue.py` draws that comparison and the two saved video 17 outlines.
+Numbers 0–3 follow the model's top-left, top-right, bottom-right, bottom-left order.
+
+```bash
+python -m scratch.annotator_wrapup_evaluation.scripts.replay_court_corners \
+  --prepared-root "$PREPARED" \
+  --sources "$SOURCES" \
+  --output scratch/annotator_wrapup_evaluation/results/video53_nn_replay.json.gz
+python -m scratch.annotator_wrapup_evaluation.scripts.plot_court_issue
+```
+
+The replay needs the original court model and its CUDA environment. Plotting uses
+the saved replay and previously extracted source frames. Neither script changes
+the detector or its saved predictions.
