@@ -2,6 +2,10 @@
 
 This folder records the last scripts-only experiments on badminton contact detection.
 
+The [last follow-ups](last_followups.md) tested independent boundary padding and
+corrected chooser targets. Neither improved the final result, so the detector
+and figures below remain the recommendation.
+
 ## How the numbers are reported
 
 The 47 ShuttleSet22 videos contain **3,965 rallies** in the source CSVs.
