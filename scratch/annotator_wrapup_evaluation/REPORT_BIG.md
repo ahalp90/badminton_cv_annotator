@@ -10,6 +10,11 @@ failures. It adds detail that would have slowed down [the short report](REPORT.m
 It uses the same fixed detector and previously examined 47-video collection. There
 was no new fit, selection threshold or label correction.
 
+The later [video checks](VIDEO_CHECKS.md) add dedicated exclusion charts, direct
+game-and-score checks for video 53 and other weak videos, and a random sample of
+missed contacts. They also answer the training and original-ShuttleSet questions.
+Use the [per-video viewer](VIDEO_BREAKDOWN.html) to inspect individual results.
+
 ## Find the question you need
 
 - [What exactly counts as success?](#what-exactly-counts-as-success)

@@ -3,6 +3,11 @@
 Start with [the report](REPORT.md). It explains what the fixed detector produces,
 where the inputs fail, and what the footage can establish.
 
+For the latest questions, read [the video checks](VIDEO_CHECKS.md): results without
+videos 15 and 53, new footage checks, training settings and original-ShuttleSet
+feasibility. The [per-video viewer](VIDEO_BREAKDOWN.html) shows contact and player
+errors for either output method. Open the HTML file locally in a browser.
+
 This directory contains an observational evaluation of the 47 broader ShuttleSet22
 videos. Results describe previously examined footage. The 32 development videos are
 separate. The detector, selection, source labels and cached inputs were kept fixed.
@@ -230,3 +235,58 @@ frame bounds and counts passed for all 47 videos. New scripts passed scoped Ruff
 syntax checks and Serena/Pyrefly diagnostics. Independent technical review checked
 ordinary defaults, a correct native rally, a seeded wrong rally and the new source-frame
 scoreboard evidence. Production code and the original short report remain unchanged.
+
+## Excluding videos and checking more footage
+
+[VIDEO_CHECKS.md](VIDEO_CHECKS.md) compares all 47 videos, the 46 without video 15,
+and the 45 without videos 15 and 53. The outputs and selection remain fixed.
+Four charts separate exact whole-rally timing, fully correct rallies, contacts and
+serves. Correct attribution requires both timing and the hitting player.
+
+The new visual sample has 53 windows across 19 ShuttleSet22 videos. It includes
+24 uniformly sampled missed labels, 21 misses from seven weak videos, three further
+video 53 misses and five successful controls. Seed: 20260907. Each window contains
+nine stills at half-second intervals over ±2 seconds, plus its full-resolution centre.
+Readers recorded the visible game and score before seeing source labels or outcomes.
+The comparison permits reversed player order and a total score difference of one point.
+It checks whether the label could refer to that rally; it does not certify exact hits.
+Targeted checks and controls are kept separate from the random sample.
+
+| Added result files | Contents |
+|---|---|
+| `exclusion_metrics.csv.gz` | 24 comparisons: two methods, two label sets, two tolerances and three video populations |
+| `video_outcome_breakdown.csv.gz` | 376 per-video rows across methods, label sets and tolerances |
+| `video_player_confusion.csv.gz` | 4,512 cells, including unknown target players and missing predictions |
+| `alignment_sample.csv.gz`, `alignment_labels.csv.gz` | Requests and 53 verified source-label identities, including game and score |
+| `alignment_observations.csv.gz`, `alignment_review.csv.gz` | Independent visual readings and their comparison with source rows |
+| `alignment_summary.csv.gz`, `alignment_per_video.csv.gz` | Results by sampling group, court state and video |
+| `video17_court_summary.json.gz` | Saved court-source counts and the scene covering the two earlier player failures |
+
+Reproduce the local aggregation and source requests:
+
+```bash
+python -m scratch.annotator_wrapup_evaluation.scripts.summarise_video_exclusions
+python -m scratch.annotator_wrapup_evaluation.scripts.sample_alignment_checks
+python -m scratch.annotator_wrapup_evaluation.scripts.extract_alignment_labels \
+  --sample scratch/annotator_wrapup_evaluation/results/alignment_sample.csv.gz \
+  --annotations "$ANNOTATIONS" \
+  --output scratch/annotator_wrapup_evaluation/results/alignment_labels.csv.gz
+python -m scratch.annotator_wrapup_evaluation.scripts.extract_views \
+  --sample scratch/annotator_wrapup_evaluation/results/alignment_sample.csv.gz \
+  --sources "$SOURCES" \
+  --output scratch/annotator_wrapup_evaluation/raw/alignment_checks
+python -m scratch.annotator_wrapup_evaluation.scripts.summarise_alignment_checks
+python -m scratch.annotator_wrapup_evaluation.scripts.build_video_view
+```
+
+The last two commands use the saved visual observations. They do not generate new
+visual judgements. The HTML viewer contains its data and needs no network connection.
+Its 94 video/method combinations use cleaned labels and ±10 frames; the compressed
+tables retain the other comparisons.
+
+All 53 source-row checks and frame extractions passed. Aggregation reproduces the
+baseline totals and checks complete joins. Every viewer matrix sums to its labelled
+contact count, and all 94 choices passed a JavaScript rendering check. The page was
+also inspected in a browser. Script syntax and scoped Ruff checks passed (exit 0).
+The original-ShuttleSet work checked available records and model identity only;
+no new original-dataset evaluation or footage sample was run.
