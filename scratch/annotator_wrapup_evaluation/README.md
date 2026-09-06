@@ -162,3 +162,71 @@ Completed checks (all exit 0):
 
 Serena/Pyrefly reported no diagnostics for the ten evaluation scripts. No full-project
 lint, type or test run was needed for these self-contained observational scripts.
+
+## Expanded questions and ordinary heuristic comparison
+
+[REPORT_BIG.md](REPORT_BIG.md) answers the additional questions behind the short report.
+It includes the scope of the video 15 alignment checks, the share of each reported
+error count occurring in that video, and checks of its strongest timing matches.
+Those shares describe where errors are counted; they do not estimate how many errors
+misalignment caused.
+
+[HEURISTIC_REPORT.md](HEURISTIC_REPORT.md) evaluates the ordinary end-to-end heuristic
+output before the learned chooser. It uses the same 47 videos and source labels.
+The saved `videos/ss22_NN/annotation/annotator_result.json.gz` files contain the ordinary
+outputs: the broader prediction producer called `run_full_annotation_stage` with its
+default configuration and shipped landing settings. The relaxed impulse/wrist regions
+were created later for learned feature search. No vision model needed to be rerun.
+
+The heuristic scorer preserves native player answers. It alternates each saved
+`fitted_first_all` over that rally's saved `filtered_by_rally` contacts and checks the
+final side against `striker_halves`. It uses source-label row identities when timestamps
+repeat. Raw candidates are scored for timing only; they have no native per-event side.
+The learned output's selection and extra side correction are not imposed on the heuristic.
+
+| Added result files | What they contain |
+|---|---|
+| `extended_summary.json.gz` | Timing offsets, rally coverage and per-video extremes |
+| `player_confusion.csv.gz` | Near/far side confusion on matched cleaned contacts |
+| `label_judgement_changes.csv.gz` | Paired clip judgements under cleaned and all-source labels |
+| `selection_per_video.csv.gz`, `selected_error_severity.csv.gz` | Retained output and sizes of selected errors |
+| `input_conditional_rates.csv.gz` | Missed-contact rate within each input state outside video 15 |
+| `video15_error_contribution.csv.gz` | Error-count shares occurring in video 15; no causal attribution |
+| `video15_followup_sample.csv.gz`, `video15_followup_labels.csv.gz`, `video15_followup_review.csv.gz` | Five additional strong-match requests, original source scores and observed scoreboard findings |
+| `heuristic_summary.json.gz`, `heuristic_receipts.csv.gz` | Native-output totals and receipt/count checks across all 47 videos |
+| `heuristic_contacts.csv.gz`, `heuristic_proposals.csv.gz`, `heuristic_rallies.csv.gz` | Native timing matches, clip errors and labelled-rally outcomes |
+| `heuristic_paired_contacts.csv.gz`, `heuristic_paired_rallies.csv.gz` | Same-label comparison with final learned output |
+| `heuristic_filtering_matches.csv.gz` | Label matches before and after ordinary filtering |
+| `heuristic_position.csv.gz`, `heuristic_upstream.csv.gz`, `heuristic_per_video.csv.gz` | Contact position, saved input state and per-video comparisons |
+| `heuristic_error_combinations.csv.gz` | Overlapping native-clip error combinations |
+
+For the video 15 follow-up, the two fully timing-matched cleaned rallies were selected
+first: set2:39 and set2:7. The other requests inspect strong matches from game 1, game 3,
+and the next strongest six-contact example. Each window has nine frames over ±2 seconds.
+The scoreboard comparisons tolerate reversing score order and a one-point difference
+between before/after-point recording. All five still disagree. This targeted check
+establishes no collection-wide alignment-error rate or verified aligned subset.
+
+Run the extra aggregations and saved-output comparison from the repository root:
+
+```bash
+python -m scratch.annotator_wrapup_evaluation.scripts.summarise_extended
+python -m scratch.annotator_wrapup_evaluation.scripts.evaluate_heuristic \
+  --annotations "$ANNOTATIONS" \
+  --saved-root "$SAVED_PREDICTIONS" \
+  --output scratch/annotator_wrapup_evaluation/results
+python -m scratch.annotator_wrapup_evaluation.scripts.summarise_heuristic
+python -m scratch.annotator_wrapup_evaluation.scripts.extract_views \
+  --sample scratch/annotator_wrapup_evaluation/results/video15_followup_sample.csv.gz \
+  --sources "$SOURCES" \
+  --output scratch/annotator_wrapup_evaluation/raw/video15_followup
+python -m scratch.annotator_wrapup_evaluation.scripts.plot_video15_checks
+```
+
+The native one-video smoke took 22.4 seconds; the full four-way recount took 444.3
+seconds. Both exited 0. All 162,754 contact identities and 14,774 rally identities
+joined the learned-output tables exactly. Native filtering lists, player parity,
+frame bounds and counts passed for all 47 videos. New scripts passed scoped Ruff,
+syntax checks and Serena/Pyrefly diagnostics. Independent technical review checked
+ordinary defaults, a correct native rally, a seeded wrong rally and the new source-frame
+scoreboard evidence. Production code and the original short report remain unchanged.
