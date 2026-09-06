@@ -16,12 +16,18 @@ away-from-centre recovery, and movement inefficiency to keep once production
 moved onto human ShuttleSet contacts. Issue #138 moved rally-to-commentary
 association to unresolved once its lag rule shipped; see below.
 
+## Resolved since Run 1
+
+Rally duration: PR #135 fixed the issue #32 offsets, 2 s before the first
+contact and 3 s after the last, as `rallies.clip_start_frame` and
+`rallies.clip_end_frame`. Player sex: PR #135 added the `players` table
+with `sex` curated in `configs/players.csv` from the BWF singles draw
+category, never inferred from names or video.
+
 ## Unresolved features
 
 | Feature | Gate for resolution |
 |---|---|
-| Rally duration | Define the offset after the final contact, including its base-30 frame units |
-| Player sex | Add an authoritative metadata source; do not infer it from names or video |
 | Serve speed proxy | Define return, static, and viewport-exit endpoints and missing-shuttle handling; then validate those events on a small reviewed sample |
 | Commentary sentiment, concept, and player link | Define supported output schemas, then validate each field against human labels before adding it to the dataset |
 | Backward extrapolation | Define the permitted scene boundary, maximum range, and provenance; then audit a small set of non-standard-view starts |
