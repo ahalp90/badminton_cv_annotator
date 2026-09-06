@@ -194,3 +194,5 @@ For **macro rally extraction**, the selected set is already strong: **98.4% prec
 - [promising_leads.md](promising_leads.md) — useful ideas we stopped, deferred, closed, or folded into the final detector.
 
 Machine-readable experiment outputs remain under `results/`. Production code under `src/` was not changed.
+
+Historical launch templates and checked audit findings are in the small [development archive](archive/README.md).
