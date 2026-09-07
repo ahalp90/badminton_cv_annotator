@@ -36,6 +36,7 @@ import cv2
 import numpy as np
 
 from .constants import DEFAULT_CORNER_MIN_PEAK_CONF
+from .geometry import _geometry_flags
 
 if TYPE_CHECKING:
     # Type-only, so this module imports without torch (the annotator needs just the
@@ -581,13 +582,6 @@ def _split_families(lines: list[_Line], anchors: dict[int, np.ndarray]) -> tuple
 
 # --- Outer bounding lines --------------------------------------------------
 
-def _nearest_line(point: np.ndarray, family: list[_Line]) -> _Line | None:
-    """:return: the family line whose infinite extent passes closest to a point."""
-    if not family:
-        return None
-    return min(family, key=lambda line: _point_line_distance(point, line.coef))
-
-
 def _extreme_line(family: list[_Line], reference: _Line) -> _Line | None:
     """The family line whose midpoint sits farthest from a reference line.
 
@@ -606,12 +600,12 @@ def _extreme_line(family: list[_Line], reference: _Line) -> _Line | None:
 
 
 def _outer_lines(
-    x_family: list[_Line], y_family: list[_Line], anchors: dict[int, np.ndarray]
+    x_family: list[_Line], y_family: list[_Line], anchors: dict[int, np.ndarray], sample_quad: np.ndarray,
 ) -> dict[str, _Line] | None:
     """Identify the four outer bounding lines (both sidelines, both baselines).
 
-    Each sideline and each baseline is pinned by any confident anchor that sits on
-    it (the anchor is a court corner, so it lies on its own two bounding lines). A
+    Each boundary is pinned by its confident anchors. The sampled model edge
+    supplies its direction, including when one endpoint has low confidence. A
     baseline with both corners withheld falls back to the extreme-line rule. Fails
     (None) if a bounding line cannot be found or two of them collapse to the same
     detected line (too little evidence to define the court rectangle).
@@ -619,18 +613,25 @@ def _outer_lines(
     :return: {'left','right','far','near': _Line}, or None
     """
     def pin(corners: tuple[int, int], family: list[_Line]) -> _Line | None:
-        for corner in corners:
-            if corner in anchors:
-                return _nearest_line(anchors[corner], family)
-        return None
+        points = [anchors[corner] for corner in corners if corner in anchors]
+        if not points:
+            return None
+        start = anchors.get(corners[0], sample_quad[corners[0]])
+        end = anchors.get(corners[1], sample_quad[corners[1]])
+        direction = end - start
+        angle = float(np.arctan2(direction[1], direction[0]) % np.pi)
+        candidates = [line for line in family if _circular_diff(line.angle, angle) <= ASSIGN_ANGLE_TOL]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda line: max(_point_line_distance(point, line.coef) for point in points))
 
     left = pin(LEFT_CORNERS, x_family)
     right = pin(RIGHT_CORNERS, x_family)
     far = pin(FAR_CORNERS, y_family)
     near = pin(NEAR_CORNERS, y_family)
-    if far is None and near is not None:
+    if far is None and near is not None and not any(corner in anchors for corner in FAR_CORNERS):
         far = _extreme_line(y_family, near)
-    if near is None and far is not None:
+    if near is None and far is not None and not any(corner in anchors for corner in NEAR_CORNERS):
         near = _extreme_line(y_family, far)
 
     outer = {"left": left, "right": right, "far": far, "near": near}
@@ -842,6 +843,34 @@ def _assemble_corners(
     return corners, (sources[0], sources[1], sources[2], sources[3])
 
 
+class _CourtFit(NamedTuple):
+    corners: np.ndarray
+    corner_source: tuple[str, str, str, str]
+    line_error: float
+    anchor_error: float
+    n_lines: int
+
+
+def _court_fit(
+    homography: np.ndarray, lines: list[_Line], anchors: dict[int, np.ndarray], frame_wh: tuple[int, int],
+) -> _CourtFit | None:
+    """Score a candidate only when its projected and returned courts are usable."""
+    projected = _project(homography, CORNER_COURT_M)
+    if _geometry_flags(projected, frame_wh):
+        return None
+    corners, corner_source = _assemble_corners(homography, anchors)
+    # Replacing fitted anchors by their model positions changes the actual output.
+    if _geometry_flags(corners, frame_wh):
+        return None
+    assignments = _assign_lines(homography, lines)
+    line_error = _line_reproj_error(homography, assignments)
+    anchor_error = _anchor_reproj_error(homography, anchors)
+    diagonal = float(np.hypot(*frame_wh))
+    if line_error > GATE_LINE_FRAC * diagonal or anchor_error > GATE_ANCHOR_FRAC * diagonal:
+        return None
+    return _CourtFit(corners, corner_source, line_error, anchor_error, len(assignments))
+
+
 # --- Entry point -----------------------------------------------------------
 
 def _ckn_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> CourtQuad | None:
@@ -886,7 +915,7 @@ def _cv2_path(
         logger.info("court fallback: a line family is under-populated (x=%d y=%d)", len(x_family), len(y_family))
         return None
 
-    outer = _outer_lines(x_family, y_family, anchors)
+    outer = _outer_lines(x_family, y_family, anchors, sample_quad)
     if outer is None:
         logger.info("court fallback: could not identify the four outer court lines")
         return None
@@ -903,40 +932,29 @@ def _cv2_path(
 
     court_pts, image_pts = _correspondences(_assign_lines(homography0, lines), anchors)
     refined = _ransac_homography(court_pts, image_pts, np.random.default_rng(RANSAC_SEED))
-    # Keep whichever of the bootstrap and the refined fit scores lower against the
-    # line evidence; on clean footage the bootstrap already fits, on noisy footage
-    # the refit over pooled intersections wins.
     candidates = [homography0] + ([refined] if refined is not None else [])
-    homography = min(candidates, key=lambda h: _line_reproj_error(h, _assign_lines(h, lines)))
-
-    assignments = _assign_lines(homography, lines)
-    reproj_line = _line_reproj_error(homography, assignments)
-    reproj_anchor = _anchor_reproj_error(homography, anchors)
-    diagonal = float(np.hypot(*frames_bgr[0].shape[:2]))
-    gate_line = reproj_line / diagonal
-    gate_anchor = reproj_anchor / diagonal
-    if gate_line > GATE_LINE_FRAC or gate_anchor > GATE_ANCHOR_FRAC:
-        logger.info(
-            "court fallback: acceptance gate failed (line %.4f > %.4f or anchor %.4f > %.4f); failing closed",
-            gate_line, GATE_LINE_FRAC, gate_anchor, GATE_ANCHOR_FRAC,
-        )
+    height, width = frames_bgr[0].shape[:2]
+    fits = [_court_fit(candidate, lines, anchors, (width, height)) for candidate in candidates]
+    accepted = [fit for fit in fits if fit is not None]
+    if not accepted:
+        logger.info("court fallback: no candidate satisfies court shape, line and anchor checks")
         return None
-
-    corners, corner_source = _assemble_corners(homography, anchors)
+    fit = min(accepted, key=lambda candidate: candidate.line_error)
+    diagonal = float(np.hypot(width, height))
     diagnostics = FallbackDiagnostics(
-        reproj_line_px=reproj_line,
-        reproj_anchor_px=reproj_anchor,
-        gate_line_frac=gate_line,
-        gate_anchor_frac=gate_anchor,
-        n_lines_used=len(assignments),
+        reproj_line_px=fit.line_error,
+        reproj_anchor_px=fit.anchor_error,
+        gate_line_frac=fit.line_error / diagonal,
+        gate_anchor_frac=fit.anchor_error / diagonal,
+        n_lines_used=fit.n_lines,
         n_correspondences=court_pts.shape[0],
         max_sagitta_px=max_sagitta,
     )
     return CourtQuad(
-        corners_px=corners,
+        corners_px=fit.corners,
         peak=scene_peaks.astype(np.float32),
         source="fallback",
-        corner_source=corner_source,
+        corner_source=fit.corner_source,
         diagnostics=diagnostics,
     )
 

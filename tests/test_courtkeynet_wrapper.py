@@ -20,7 +20,6 @@ from courtkeynet.wrapper import (
     ckn_scene_corners,
 )
 
-
 # --- Model-free: coordinate round-trips ------------------------------------
 
 @pytest.mark.parametrize("width,height", [(1280, 720), (720, 1280)])
@@ -43,7 +42,7 @@ def test_letterbox_inverse_uses_effective_scale() -> None:
     4001x3000 makes round(h * fit) land a whole step off h * fit, the case where
     inverting through the theoretical fit scale drifts ~0.75 px at the far edge.
     """
-    geom, new_w, new_h = _letterbox_geometry(4001, 3000)
+    geom, _new_w, _new_h = _letterbox_geometry(4001, 3000)
     corners_px = np.array([[0, 0], [4001, 0], [4001, 3000], [0, 3000]], dtype=np.float32)
     small = corners_px * np.array([geom.scale_x, geom.scale_y])
     corners_norm = (small + np.array([geom.pad_x, geom.pad_y])) / 640
@@ -71,6 +70,29 @@ def test_geometry_gate_plausible_quad_clean() -> None:
     """A broadcast-shaped court quad clears the geometry checks."""
     quad = np.array([[0.2, 0.35], [0.8, 0.35], [0.95, 0.9], [0.05, 0.9]], dtype=np.float32)
     assert _geometry_flags(quad, UNIT_FRAME) == ()
+
+
+@pytest.mark.parametrize(
+    "quad",
+    [
+        np.array([[0.2, 0.2], [0.8, 0.2], [0.8, np.nan], [0.2, 0.8]], dtype=np.float32),
+        np.array([[0.2, 0.2], [0.8, 0.2], [0.5, 0.2], [0.2, 0.8]], dtype=np.float32),
+        np.array([[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.8, 0.8]], dtype=np.float32),
+    ],
+    ids=["nonfinite", "collinear", "duplicate"],
+)
+def test_geometry_gate_rejects_nonfinite_or_degenerate_quad(quad: np.ndarray) -> None:
+    """Nonfinite, collinear, and duplicate corners cannot form a court quad."""
+    flags = _geometry_flags(quad, UNIT_FRAME)
+
+    assert flags
+
+
+def test_geometry_gate_accepts_valid_off_frame_quad() -> None:
+    """A finite, correctly ordered court may extend beyond the image bounds."""
+    quad = np.array([[350, 140], [1000, 140], [1120, 690], [-40, 735]], dtype=np.float32)
+
+    assert _geometry_flags(quad, (1280.0, 720.0)) == ()
 
 
 def test_geometry_gate_concave_flags_non_convex() -> None:

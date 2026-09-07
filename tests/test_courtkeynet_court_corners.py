@@ -13,14 +13,15 @@ import pytest
 
 from courtkeynet import court_corners as fb
 from courtkeynet.court_corners import (
-    CORNER_COURT_M,
     BL,
     BR,
+    CORNER_COURT_M,
     TL,
     TR,
     _anchor_points,
-    _cluster_segments,
     _circular_diff,
+    _cluster_segments,
+    _court_fit,
     _intersect,
     _line_through,
     _point_line_distance,
@@ -109,6 +110,26 @@ def test_intersect_parallel_returns_none() -> None:
     line_a = _line_through(np.array([0.0, 100.0]), np.array([100.0, 100.0]))
     line_b = _line_through(np.array([0.0, 200.0]), np.array([100.0, 200.0]))
     assert _intersect(line_a, line_b) is None
+
+
+def test_missing_anchored_baseline_does_not_select_extreme_line() -> None:
+    sample = IMG_CORNERS.copy()
+    sample[TR, 1] += 150
+    anchors = {slot: IMG_CORNERS[slot] for slot in (TL, BL, BR)}
+
+    def line_between(start: np.ndarray, end: np.ndarray) -> fb._Line:
+        direction = end - start
+        return fb._Line(
+            _line_through(start, end), float(np.arctan2(direction[1], direction[0]) % np.pi),
+            (start + end) / 2, float(np.linalg.norm(direction)),
+        )
+
+    sidelines = [line_between(IMG_CORNERS[TL], IMG_CORNERS[BL]), line_between(sample[TR], sample[BR])]
+    baselines = [
+        line_between(np.array([250.0, 50.0]), np.array([1050.0, 50.0])),
+        line_between(IMG_CORNERS[BL], IMG_CORNERS[BR]),
+    ]
+    assert fb._outer_lines(sidelines, baselines, anchors, sample) is None
 
 
 def test_tls_line_recovers_slope() -> None:
@@ -306,6 +327,24 @@ def test_three_anchor_recovers_missing_corner(recovered_three_anchor) -> None:
     assert np.linalg.norm(result.corners_px[BR] - true_corners[BR]) < 4.0
 
 
+def test_three_anchor_ignores_short_diagonal_passing_missing_far_corner() -> None:
+    """A short diagonal through TL must not replace the missing far baseline."""
+    homography = _homography(IMG_CORNERS)
+    true_corners = _project(homography, CORNER_COURT_M)
+    frames = []
+    for _ in range(4):
+        frame = _render_court(homography, GREEN_MAT, YELLOW_LINE)
+        cv2.line(frame, tuple(true_corners[TL].astype(int)), (390, 190), YELLOW_LINE, 2, cv2.LINE_AA)
+        frames.append(frame)
+    detections = [_detection(homography, {TL, BR, BL}, withheld_offset=0.0) for _ in frames]
+
+    result = pick_scene_corners(frames, detections)
+
+    assert result is not None
+    assert result.corner_source == ("model", "fallback", "model", "model")
+    assert np.linalg.norm(result.corners_px[TR] - true_corners[TR]) < 4.0
+
+
 def test_two_diagonal_recovers_both_corners(recovered_two_diagonal) -> None:
     """TL+BR confident: both withheld corners recover within a few px."""
     result, true_corners = recovered_two_diagonal
@@ -361,6 +400,31 @@ def test_fallback_is_deterministic() -> None:
     second = pick_scene_corners(frames, detections)
     assert first is not None and second is not None
     assert np.array_equal(first.corners_px, second.corners_px)
+
+
+def test_court_fit_rejects_malformed_projected_quad(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A malformed projection fails before excellent residuals can accept it."""
+    malformed = np.array([[300, 150], [980, 150], [500, 300], [230, 650]], dtype=np.float64)
+    monkeypatch.setattr(fb, "_project", lambda _homography, _points: malformed)
+    monkeypatch.setattr(fb, "_line_reproj_error", lambda _homography, _assignments: 0.0)
+    monkeypatch.setattr(fb, "_anchor_reproj_error", lambda _homography, _anchors: 0.0)
+
+    result = _court_fit(np.eye(3), [], {}, (FRAME_W, FRAME_H))
+
+    assert result is None
+
+
+def test_court_fit_rejects_invalid_quad_after_anchor_replacement(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A valid projection still fails when a returned anchor makes the quad invalid."""
+    homography = _homography(IMG_CORNERS)
+    projected = _project(homography, CORNER_COURT_M)
+    anchors = {TL: projected[BR].copy()}  # duplicate BR in the assembled output
+    monkeypatch.setattr(fb, "_line_reproj_error", lambda _homography, _assignments: 0.0)
+    monkeypatch.setattr(fb, "_anchor_reproj_error", lambda _homography, _anchors: 0.0)
+
+    result = _court_fit(homography, [], anchors, (FRAME_W, FRAME_H))
+
+    assert result is None
 
 
 def test_boards_alias_minority_flagged_and_repaired_by_consensus() -> None:
