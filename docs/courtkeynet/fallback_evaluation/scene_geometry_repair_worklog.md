@@ -292,6 +292,35 @@ tests; production code was unchanged. Whole Ruff/Pyrefly retain the previous
 905/11 findings (exit 1), with no added findings. Carmack loaded both real fixtures
 and completed the descriptive measurement successfully.
 
+## Late review: recovery protection and cached replay
+
+A review of `72c88fe` exposed two gaps. Both reproduced against the checkout;
+the sharing failure also reproduced through the full court-evidence builder.
+
+First, image-aligned sharing could overwrite a validated alternative with a worse
+majority court. Sharing now respects the target's original confident anchors and
+preserves a fallback's total painted-line support. Rejected members retain their
+local calibration. The [sharing safeguard comparison](scene_grouping.md#sharing-must-preserve-the-targets-evidence)
+records the cost: fewer scenes share a court, with small mixed effects on reference
+accuracy. The synthetic failure is fixed; its frequency in real videos is unmeasured.
+
+Second, the public comparison decoder dropped retained alternatives, while its
+producer supplied no image summaries. The current scene-cache format now preserves
+both. It uses lossless thumbnails and hashes from frames already decoded by the
+producer. Direct and cached regressions match accepted geometry, court records,
+group membership and masks. Cached source dimensions must match the replay input. Required line evidence and
+PNG encoding are checked too. Older incomplete caches must be regenerated.
+The [reproduction instructions](../../../experiments/annotator/court_geometry_repair/REPRODUCE.md)
+distinguish current-code replay from the historical measured revision.
+
+The cache gap was not a deliberate detector-related deferral. The later grouping
+and fresh-video evaluations used separate runners, so this defect does not
+invalidate their recorded results. Neither correction needs model training or
+new CourtKeyNet-specific recovery heuristics. Full pytest passes 2,133 tests with
+29 skipped (exit 0); the final cache-validation additions pass eight focused tests
+(exit 0). Whole Ruff/Pyrefly retain 905/11 existing findings (exit 1). Independent
+review verified both fixes and the final cache checks.
+
 ## Stopping point and next work
 
 The detector-independent pass is complete. Fixed-representative grouping improves

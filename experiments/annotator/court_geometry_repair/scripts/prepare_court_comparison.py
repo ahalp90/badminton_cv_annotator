@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ import numpy as np
 
 from annotator import replay_mask
 from annotator.court_evidence import SceneEvidence, build_detected_court_evidence
+from annotator.court_views import HASH_SIZE, VIEW_RESOLUTION, CourtView
 from annotator.video_metadata import VideoMetadata, probe_video_fps
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
 from dataset_builder.vision import (
@@ -36,11 +38,21 @@ from scratch.contact_det_full_ds_fit.scripts.prepare_shuttleset22_predictions im
     fill_mask_from_sidecar,
 )
 
+EVIDENCE_SCHEMA = 'scene-court-evidence/2'
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 
-def _quad(payload: dict[str, object] | None) -> CourtQuad | None:
+
+def _quad(payload: dict[str, object] | None, *, path: Path | None = None) -> CourtQuad | None:
     if payload is None:
         return None
     record = payload  # Producer: rebuild_scene_courts.py.
+    for field_name in ('alternative_corners_px', 'line_segments_px'):
+        if field_name not in record:
+            location = f' in {path}' if path is not None else ''
+            raise ValueError(
+                f'cached court evidence{location} omits {field_name}; '
+                'regenerate with rebuild_scene_courts.py'
+            )
     diagnostics_payload = record["diagnostics"]
     diagnostics = None
     if diagnostics_payload is not None:
@@ -53,21 +65,60 @@ def _quad(payload: dict[str, object] | None) -> CourtQuad | None:
             n_correspondences=int(diagnostics_payload["n_correspondences"]),
             max_sagitta_px=float(diagnostics_payload["max_sagitta_px"]),
         )
+    alternatives = tuple(
+        np.asarray(corners, dtype=np.float32) for corners in record['alternative_corners_px']
+    )
     return CourtQuad(
         corners_px=np.asarray(record["corners_px"], dtype=np.float32),
         peak=np.asarray(record["peak"], dtype=np.float32),
         source=str(record["source"]),
         corner_source=tuple(str(value) for value in record["corner_source"]),
         diagnostics=diagnostics,
-        line_segments_px=tuple(np.asarray(segments, dtype=np.int32).reshape(-1, 4)
-                               for segments in record.get('line_segments_px', ())),
+        line_segments_px=tuple(np.asarray(segments, dtype=float).reshape(-1, 4)
+                               for segments in record['line_segments_px']),
+        alternative_corners_px=alternatives,
     )
+
+
+def _view(payload: dict[str, object] | None, *, path: Path) -> CourtView | None:
+    """Restore a CourtView from the lossless image cache."""
+    if payload is None:
+        return None
+    try:
+        hashes = np.asarray(payload['hashes'])
+        encoded = base64.b64decode(str(payload['image_png_base64']), validate=True)
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(
+            f'cached court evidence view is malformed in {path}; '
+            'regenerate with rebuild_scene_courts.py'
+        ) from error
+    if (
+        hashes.dtype != np.bool_
+        or hashes.ndim != 3
+        or not 1 <= hashes.shape[0] <= 3
+        or hashes.shape[1:] != (HASH_SIZE, HASH_SIZE)
+    ):
+        raise ValueError(
+            f'cached court evidence view has invalid hashes in {path}; '
+            'regenerate with rebuild_scene_courts.py'
+        )
+    if not encoded.startswith(PNG_SIGNATURE):
+        raise ValueError(f'cached court view in {path} must be PNG; regenerate with rebuild_scene_courts.py')
+    image = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    if image is None or tuple(image.shape[::-1]) != VIEW_RESOLUTION:
+        raise ValueError(
+            f'cached court evidence view has invalid image in {path}; '
+            'regenerate with rebuild_scene_courts.py'
+        )
+    return CourtView(hashes, image)
 
 
 def _scene_evidence(
     nn_root: Path,
     cuts: Sequence[tuple[int, int]],
     video_id: int,
+    *,
+    frame_wh: tuple[int, int],
 ) -> tuple[SceneEvidence, ...]:
     evidence = []
     for scene_index, interval in enumerate(cuts):
@@ -76,7 +127,29 @@ def _scene_evidence(
         if tuple(record["interval"]) != tuple(interval):
             raise ValueError(f"scene interval differs in {path}")
         samples = tuple(int(frame) for frame in record["sampled_frame_indices"])
-        evidence.append(SceneEvidence(*interval, samples, _quad(record["court_quad"])))
+        if record.get('evidence_schema') != EVIDENCE_SCHEMA:
+            raise ValueError(
+                f'{path}: cached court evidence lacks schema {EVIDENCE_SCHEMA}; '
+                'regenerate with rebuild_scene_courts.py'
+            )
+        if tuple(record.get('frame_wh', ())) != frame_wh:
+            raise ValueError(
+                f'{path}: cached frame dimensions differ from {frame_wh}; '
+                'regenerate with rebuild_scene_courts.py'
+            )
+        if 'view' not in record:
+            raise ValueError(
+                f'{path}: cached court evidence omits view; '
+                'regenerate with rebuild_scene_courts.py'
+            )
+        quad = _quad(record["court_quad"], path=path)
+        view = _view(record['view'], path=path)
+        if quad is not None and view is None:
+            raise ValueError(
+                f'{path}: cached court evidence with a quad omits view; '
+                'regenerate with rebuild_scene_courts.py'
+            )
+        evidence.append(SceneEvidence(*interval, samples, quad, view))
     return tuple(evidence)
 
 
@@ -225,7 +298,8 @@ def prepare(arguments: argparse.Namespace) -> None:
             resolution=resolution,
             raw_cuts=original.raw_cuts,
             scene_evidence=_scene_evidence(
-                arguments.nn_results, original.raw_cuts, fixture.video_id
+                arguments.nn_results, original.raw_cuts, fixture.video_id,
+                frame_wh=(metadata.width, metadata.height),
             ),
             bboxes=pose.bboxes,
             scores=pose.scores,

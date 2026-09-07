@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import gzip
 import json
 from dataclasses import asdict, is_dataclass
@@ -11,8 +12,11 @@ from time import perf_counter
 import cv2
 import numpy as np
 
+from annotator.court_views import CourtView, describe_court_view
 from courtkeynet.court_corners import pick_scene_corners
 from courtkeynet.wrapper import CourtKeyNetDetector
+
+EVIDENCE_SCHEMA = 'scene-court-evidence/2'
 
 
 def json_value(value: object) -> object:
@@ -33,6 +37,41 @@ def write_json(path: Path, value: object) -> None:
 def read_json(path: Path) -> dict:
     with gzip.open(path, 'rt', encoding='utf-8') as handle:
         return json.load(handle)
+
+
+def view_payload(view: CourtView) -> dict[str, object]:
+    """Encode a current CourtView without decoding another video frame."""
+    encoded_ok, encoded = cv2.imencode('.png', np.asarray(view.image, dtype=np.uint8))
+    if not encoded_ok:
+        raise ValueError('could not encode cached court view image')
+    return {
+        'hashes': np.asarray(view.hashes).tolist(),
+        'image_png_base64': base64.b64encode(encoded.tobytes()).decode('ascii'),
+    }
+
+
+def scene_payload(
+    scene_index: int,
+    interval: tuple[int, int],
+    samples: list[int],
+    frame_wh: tuple[int, int],
+    quad: object,
+    view: CourtView | None,
+    raw_nn: list[object],
+    elapsed_seconds: float,
+) -> dict[str, object]:
+    """Build one current-evidence cache record from the decoded scene."""
+    return {
+        'evidence_schema': EVIDENCE_SCHEMA,
+        'index': scene_index,
+        'interval': list(interval),
+        'sampled_frame_indices': samples,
+        'frame_wh': list(frame_wh),
+        'raw_nn': raw_nn,
+        'court_quad': quad,
+        'view': None if view is None else view_payload(view),
+        'elapsed_seconds': elapsed_seconds,
+    }
 
 
 def run(args: argparse.Namespace) -> None:
@@ -87,13 +126,21 @@ def run(args: argparse.Namespace) -> None:
                     frames.append(frame)
                 detections = detector.detect_batch(frames)
                 quad = pick_scene_corners(frames, detections, corner_min_peak_conf=detector.corner_min_peak_conf)
+                view = None if quad is None else describe_court_view(frames)
                 recovered += quad is not None
-                write_json(args.output / f"video_{video_id:02d}_scene_{record['scene_index']:04d}.json.gz", {
-                    'index': record['scene_index'], 'interval': [record['start_frame'], record['end_frame']],
-                    'sampled_frame_indices': samples, 'frame_wh': list(frames[0].shape[1::-1]),
-                    'raw_nn': [asdict(detection) for detection in detections], 'court_quad': quad,
-                    'elapsed_seconds': perf_counter() - scene_started,
-                })
+                write_json(
+                    args.output / f"video_{video_id:02d}_scene_{record['scene_index']:04d}.json.gz",
+                    scene_payload(
+                        record['scene_index'],
+                        (record['start_frame'], record['end_frame']),
+                        samples,
+                        tuple(frames[0].shape[1::-1]),
+                        quad,
+                        view,
+                        [asdict(detection) for detection in detections],
+                        perf_counter() - scene_started,
+                    ),
+                )
                 if (position + 1) % 25 == 0:
                     print(f'video {video_id}: {position + 1}/{len(records)} scenes, {recovered} courts', flush=True)
         finally:

@@ -65,12 +65,24 @@ The model loader verifies its existing receipt identities and runtime versions.
 The saved run metadata lists the opening, later and local selection-model paths
 and the fixed policy file. Keep those versions for the comparison.
 
+The historical measured report was produced from source revision `2b486d5`
+with the public evidence bundle at `c9dc6ac`. The commands below run the
+current checkout against the same kind of frozen inputs; current output is not
+required to reproduce every historical score exactly. Treat any difference as
+an item to inspect against the recorded evidence.
+
 ## Regenerate annotations and predictions
 
 For each video, first sample the recorded scene frames and regenerate neural
 court predictions. Current fallback outputs include the finite line fragments
 needed by the acceptance rule. The original experiment added those fragments
 to cached predictions in a separate step; the current producer includes them.
+The scene cache also records the lossless image view summary and retained
+alternative corners required by current grouping and final validation. The
+preparation step rejects older or incomplete cache records with a regeneration
+message; rerun `rebuild_scene_courts.py` instead of silently replaying a
+historical cache without those fields. Cached frame dimensions must match the
+source video used for replay; thumbnail dimensions are a separate check.
 
 ```bash
 for VIDEO in 17 53; do
