@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from annotator import court_evidence as evidence
+from annotator.court_views import describe_court_view, matching_view_groups
 from courtkeynet import court_corners as fallback
 from courtkeynet.wrapper import CornerDetection
 
@@ -85,3 +86,49 @@ def test_supported_alternative_still_requires_person_votes(monkeypatch: pytest.M
     quad = _candidate_scene(monkeypatch)
     with pytest.raises(evidence.CourtConsensusError):
         _accept(quad, player_count=1)
+
+
+@pytest.mark.parametrize(('moved_corner', 'shift', 'recover_alternative'), [(2, 75, True), (0, 50, False)])
+@pytest.mark.parametrize('native_scale', [0.4, 1.0, 1.5])
+def test_sharing_preserves_target_anchors_and_stronger_line_support(
+    monkeypatch: pytest.MonkeyPatch, moved_corner: int, shift: float, recover_alternative: bool, native_scale: float,
+) -> None:
+    target = _candidate_scene(monkeypatch)
+    if not recover_alternative:
+        target = replace(target, corners_px=GOOD_CORNERS, alternative_corners_px=())
+    shared_proposal = GOOD_CORNERS.copy()
+    shared_proposal[moved_corner, 0] -= shift
+    local_support = fallback.painted_line_support(GOOD_CORNERS, target.line_segments_px, (1280, 720))
+    shared_support = fallback.painted_line_support(shared_proposal, target.line_segments_px, (1280, 720))
+    assert min(shared_support) >= evidence.MIN_PAINTED_LINE_SUPPORT
+    assert sum(shared_support) < sum(local_support)
+
+    frame = np.full((720, 1280, 3), 80, dtype=np.uint8)
+    for first, last in target.line_segments_px[0].reshape(-1, 2, 2):
+        cv2.line(frame, tuple(np.rint(first).astype(int)), tuple(np.rint(last).astype(int)), (240, 240, 240), 2)
+    view = describe_court_view([frame] * 3)
+    assert matching_view_groups([view] * 3, [GOOD_CORNERS, shared_proposal, shared_proposal], [True] * 3) == [[0, 1, 2]]
+
+    target = replace(
+        target, corners_px=target.corners_px * native_scale,
+        line_segments_px=tuple(segments * native_scale for segments in target.line_segments_px),
+        alternative_corners_px=tuple(corners * native_scale for corners in target.alternative_corners_px),
+    )
+    model = fallback.CourtQuad(
+        shared_proposal * native_scale, np.full(4, 0.5, dtype=np.float32), 'model', ('model',) * 4, None,
+    )
+    intervals = [(0, 10), (10, 20), (20, 30)]
+    scenes = [evidence.SceneEvidence(start, end, (start + 1, start + 5, start + 8), quad, view)
+              for (start, end), quad in zip(intervals, [target, model, model])]
+    bboxes = np.tile(np.array([[[600, 220, 650, 300], [600, 500, 650, 580]]], dtype=float), (30, 1, 1))
+    result = evidence.build_detected_court_evidence(
+        'sharing-test', 'detected', '7', (1280., 720.), intervals, scenes,
+        bboxes, np.full((30, 2), 0.9), np.full(30, 2),
+        detector_resolution=(1280 * native_scale, 720 * native_scale),
+    )
+    assert result.keep_vote.all() and result.court_present.all()
+    assert all(record.scene_valid for record in result.scene_records)
+    assert all(record.view_group_index is None for record in result.scene_records)
+    np.testing.assert_allclose(result.scene_records[0].active_corners_native_px, GOOD_CORNERS * native_scale)
+    np.testing.assert_allclose(result.scene_records[0].raw_corners_px, target.corners_px)
+    assert min(result.scene_records[0].painted_line_support) > 0.98

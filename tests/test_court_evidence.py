@@ -797,3 +797,25 @@ def test_shared_court_failing_person_vote_does_not_change_existing_geometry(monk
     assert result == [None] * 3
     np.testing.assert_array_equal(active, raw)
     assert old_votes.all()
+
+
+def test_sharing_keeps_conflicting_model_anchors_local_and_groups_remaining_three(monkeypatch) -> None:
+    corners = np.array([[100., 100.], [1100., 100.], [1200., 700.], [0., 700.]])
+    raw = [corners - 3, corners, corners + 3, corners + 75]
+    scenes = [evidence.SceneEvidence(index * 10, (index + 1) * 10, (), _quad(quad))
+              for index, quad in enumerate(raw)]
+    active = [quad.copy() for quad in raw]
+    votes = np.ones(40, dtype=bool)
+    monkeypatch.setattr(evidence, 'matching_view_groups', lambda *_args: [[0, 1, 2, 3]])
+    monkeypatch.setattr(evidence, 'build_keep_vote', lambda *_args: votes.copy())
+
+    groups = evidence._share_scene_corners(
+        scenes, active, [True] * 4, votes, [None] * 4,
+        *_pose_inputs(40), (1280., 720.), (1280., 720.),
+    )
+
+    assert groups == [0, 0, 0, None]
+    for shared in active[:3]:
+        np.testing.assert_array_equal(shared, np.median(raw, axis=0))
+    np.testing.assert_array_equal(active[3], raw[3])
+    assert votes.all()

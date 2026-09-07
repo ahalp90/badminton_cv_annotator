@@ -43,9 +43,13 @@ Videos with only one or two scenes still use their individual detected courts;
 the minimum applies only to sharing a calibration.
 
 The shared quadrilateral must pass the existing geometry checks. Each target
-scene must pass a fresh person vote. Fallback scenes also need the existing
-painted-line support in both court directions. A failing scene retains its prior
-court; at least three scenes must pass before any member changes.
+scene must pass a fresh person vote. The proposal must stay within the existing
+anchor tolerance of that scene's original confident model-derived corners.
+Fallback scenes also need the existing painted-line floor in both court directions,
+and total line support must not decrease from their current accepted court.
+A failing scene retains its prior court; at least three scenes must pass before
+any member changes. The median is computed once from the initial image group;
+survivors validate that same proposal rather than recomputing it.
 
 Raw detector corners and sources remain available. `view_group_index` identifies
 the first scene sharing a final calibration. Members save identical active
@@ -134,9 +138,38 @@ not establish a meaningful calibration-accuracy gain.
 
 These are image-grouping controls using locally valid courts. They exclude the
 production person gate, so 42 matched scenes is not a full-pipeline acceptance
-count. The sharing adapter still applies its existing geometry, person and
-fallback-line checks. Matching requires images and court outlines; it does not
+count. The sharing adapter applies geometry, person and target-evidence checks; the
+subsequent safeguard below reduces how many matches actually share a court. Matching requires images and court outlines; it does not
 use neural confidence or depend on CourtKeyNet's candidate-recovery rules.
+
+## Sharing must preserve the target's evidence
+
+A later synthetic review reproduced a recovery being undone by sharing. Two
+model-only scenes agreed on a misplaced corner. Their median passed the fallback
+target's absolute line floor, but moved its confident anchor by 75 reference
+pixels and weakened the accepted local fit. Identical images establish the same
+camera view; they do not establish that its majority court estimate is correct.
+
+Sharing now applies the existing donor anchor bound to every target's original
+confident corners. A fallback target also retains its accepted calibration when
+the proposed median reduces total painted-line support. This protects an accepted
+alternative through the later sharing step. Regressions cover both checks, native
+resolution scaling, fresh person votes and sharing among three remaining survivors.
+
+The stricter check trades shared calibration for stronger local evidence:
+
+| Original control | Image-matched scenes | Scenes sharing after safeguards | Mean corner error, previous sharing → guarded |
+| --- | ---: | ---: | ---: |
+| 3 | 39 | 26 | 4.631 → 4.492 px |
+| 21 | 42 | 22 | 4.632 → 4.684 px |
+
+The comparison reuses the same cached original frames and locally valid courts.
+Person votes are forced true to isolate the geometry guards; these are not final
+production acceptance counts. Errors cover the same 39/42 matching-view populations,
+including the scenes that now retain local courts. No court is discarded. The
+accuracy effects are small and mixed; line support is not ground-truth accuracy.
+Earlier complete downstream results remain measurements of their stated revision.
+The safeguards have not been rescored end to end on the development videos.
 
 ## Feature coverage and deferred work
 

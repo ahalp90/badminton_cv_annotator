@@ -664,6 +664,7 @@ def _share_scene_corners(
     groups = matching_view_groups([scene.view for scene in evidence], active_corners, scene_valid)
     group_indices: list[int | None] = [None] * len(evidence)
     native_scale = np.asarray(detector_resolution) / np.asarray(HOMOGRAPHY_RESOLUTION)
+    anchor_tolerance = GATE_ANCHOR_FRAC * float(np.hypot(*HOMOGRAPHY_RESOLUTION))
     for members in groups:
         shared = np.median([active_corners[index] for index in members], axis=0)
         if _geometry_flags(shared, HOMOGRAPHY_RESOLUTION, area_bounds=(0.0, float('inf'))):
@@ -676,10 +677,15 @@ def _share_scene_corners(
             if _scene_fraction(votes, interval) < SCENE_VALID_MIN_FRACTION:
                 continue
             quad = evidence[index].quad
+            anchors = np.array([source == 'model' for source in quad.corner_source])
+            target_corners = _as_ref_corners(quad.corners_px, detector_resolution)
+            if anchors.any() and np.linalg.norm(shared[anchors] - target_corners[anchors], axis=1).max() > anchor_tolerance:
+                continue
             support = line_supports[index]
             if quad.source == 'fallback':
                 support = painted_line_support(shared * native_scale, quad.line_segments_px, detector_resolution)
-                if min(support) < MIN_PAINTED_LINE_SUPPORT:
+                # Repeated images do not make a majority fit stronger target evidence.
+                if min(support) < MIN_PAINTED_LINE_SUPPORT or sum(support) < sum(line_supports[index]):
                     continue
             supports[index] = support
             supported.append(index)
