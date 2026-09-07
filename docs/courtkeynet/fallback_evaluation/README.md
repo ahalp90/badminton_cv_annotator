@@ -11,6 +11,10 @@ The [neural-line follow-up](neural_lines.md) compares DeepLSD and LINEA, then pr
 broader direction groups and person support. It isolates useful line evidence
 from the unresolved task of choosing and accepting the correct court.
 
+The three new example clips now have manual court annotations for three frames
+each; see the [annotation note](neural_lines.md#manual-annotations--2026-09-08)
+for the dataset location, overlays and coverage. Evaluation results have not yet been rescored.
+
 ## Result
 
 The current court-corner chain is useful on standard fixed-camera broadcast

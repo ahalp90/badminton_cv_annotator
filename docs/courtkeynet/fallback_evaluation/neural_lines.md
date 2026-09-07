@@ -166,8 +166,20 @@ qualitatively plausible accepts for the letterboxed and centre-court examples;
 the yellow court remained unsupported. Broad-group MD default with this check
 remained ambiguous on all three.
 
-These outcomes have no numerical ground truth. They support visual inspection,
-not pixel-accuracy claims.
+These outcomes were evaluated without numerical ground truth. They support
+visual inspection, not pixel-accuracy claims.
+
+### Manual annotations — 2026-09-08
+
+Each example clip now has three manually annotated frames:
+`E8WW8DFCnwk_sample.mp4` frames 14/90/156, `Cb-xs5rPyxI_gameplay.mp4` frames
+45/58/78, and `l-I_Di1Ad2Y_h264.mp4` frames 36/64/71. The
+[annotation dataset](../../../data/amateur_court_corners/2026-09-08/README.md)
+contains compressed corner and landmark CSVs, source clip details and overlays
+for all nine frames. Source videos remain local. Hidden corners were projected from
+the marked landmarks. Frame numbers are local to the clips. The nearby frames
+cover one camera view per video, rather than the full source videos.
+The published evaluation results have not been rescored against these annotations.
 
 ## What the next attempt needs
 

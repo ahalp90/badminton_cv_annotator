@@ -1,5 +1,9 @@
 # Amateur-video court corner ground truth
 
+Additional annotations from 8 September 2026 are in [2026-09-08/](2026-09-08/README.md):
+nine frames across three further gameplay clips, with supporting landmarks and
+an overlay for every frame. The original Curtis Martin dataset below is unchanged.
+
 Hand-annotated court corners for four amateur badminton videos, for scoring
 court detection on footage that has no recorded homography. Annotated by
 Curtis Martin on 12 Jul 2026 with
