@@ -79,11 +79,23 @@ Reference labels never influence detector acceptance.
 `--extractor lsd` selects OpenCV's line segment detector. It is a comparison
 hook, not a validated improvement; DeepLSD has not been evaluated.
 
+`--extractor ridge` retains Hough fragments that look like bright painted
+stripes, with darker pixels on both sides. It supports white and yellow paint.
+The optional filter leaves candidate search and acceptance rules unchanged.
+On the same development inputs it preserves 15/18 accurate top broadcast
+proposals and increases accurate accepted fits from 1/18 to 10/18. It rejects
+all eight non-court controls, compared with seven for ordinary Hough.
+Amateur accuracy remains 0/11, with four wrong accepted fits. The filter is
+therefore useful evidence for further experiments, not a production solution.
+The exact settings and 58 outputs are in `recorded/ridge.json.gz`, including
+three subsequently downloaded static-camera gameplay samples with no numerical
+reference labels. The original recorded bundles remain the frozen first pass.
+
 ## Recorded development evidence
 
 The [replacement assessment](../../../docs/courtkeynet/fallback_evaluation/independent_detector.md)
-explains the populations, results and decision. The three `recorded/*.json.gz`
-bundles contain exact case IDs, references, all retained candidates, decisions
+explains the populations, results and decision. The original, amateur and control
+bundles in `recorded/` contain exact case IDs, references, all retained candidates, decisions
 and fresh baseline outputs where measured. `inputs.cases` can be written as a
 manifest for the commands above once its relative image paths are populated.
 

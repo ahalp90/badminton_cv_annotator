@@ -93,6 +93,21 @@ def test_full_template_keeps_an_accurate_proposal_separate_from_acceptance() -> 
         assert detection.reason == "ambiguous"
 
 
+@pytest.mark.parametrize("colour", [(255, 255, 255), (0, 255, 255)])
+def test_painted_stripe_filter_preserves_white_and_yellow_lines(colour: tuple[int, int, int]) -> None:
+    frame = np.zeros((80, 160, 3), dtype=np.uint8)
+    cv2.line(frame, (10, 40), (150, 40), colour, 3)
+    segments = np.array([[10, 38, 150, 38]], dtype=float)
+    np.testing.assert_array_equal(detector._filter_painted_stripes(frame, segments), segments)
+
+
+def test_painted_stripe_filter_rejects_a_one_sided_brightness_edge() -> None:
+    frame = np.zeros((80, 160, 3), dtype=np.uint8)
+    frame[40:] = 255
+    segments = np.array([[10, 40, 150, 40]], dtype=float)
+    assert detector._filter_painted_stripes(frame, segments).shape == (0, 4)
+
+
 def test_repeated_court_patterns_are_rejected_as_ambiguous() -> None:
     """Two complete marking patterns must not silently choose one court."""
     image = _render_template(

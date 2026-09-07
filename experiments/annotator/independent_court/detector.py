@@ -24,6 +24,11 @@ SEGMENTS_M = np.asarray(PAINTED_SEGMENTS_M, dtype=np.float64)
 X_COORDS = np.unique(SEGMENTS_M[:6, 0, 0])
 Y_COORDS = np.unique(SEGMENTS_M[6:, 0, 1])
 UNIT_CORNERS = np.array([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
+RIDGE_SAMPLES = 24
+RIDGE_CENTRE_SHIFTS = np.array([-4, -2, 0, 2, 4], dtype=np.float32)
+RIDGE_SIDE_DISTANCE = 6.0
+RIDGE_MIN_CONTRAST = 10.0
+RIDGE_MIN_FRACTION = 0.4
 
 
 @dataclass(frozen=True)
@@ -98,8 +103,9 @@ def project(homographies: np.ndarray, points: np.ndarray) -> tuple[np.ndarray, n
 
 def extract_segments(frame: np.ndarray, method: str) -> np.ndarray:
     """Extract full-frame fragments; no court mask or manual region is used."""
-    if method == "hough":
-        return _frame_segments(frame, np.full(frame.shape[:2], 255, dtype=np.uint8)).astype(np.float64)
+    if method in ("hough", "ridge"):
+        segments = _frame_segments(frame, np.full(frame.shape[:2], 255, dtype=np.uint8)).astype(np.float64)
+        return _filter_painted_stripes(frame, segments) if method == "ridge" else segments
     if method == "lsd":
         lines = cv2.createLineSegmentDetector().detect(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
         if lines is None:
@@ -108,6 +114,44 @@ def extract_segments(frame: np.ndarray, method: str) -> np.ndarray:
         length = np.linalg.norm(segments[:, 2:] - segments[:, :2], axis=1)
         return segments[length >= 30]
     raise ValueError(f"unknown line extractor: {method}")
+
+
+def _filter_painted_stripes(frame: np.ndarray, segments: np.ndarray) -> np.ndarray:
+    """Keep bright stripes with darker pixels on both sides, regardless of colour.
+
+    Canny marks stripe edges, so sample several nearby centres along the normal.
+    This is an optional evidence filter; weak or crowded markings can be lost.
+    Input fragments from the extractors have finite endpoints and positive length.
+    """
+    if not len(segments):
+        return segments
+    endpoints = segments.reshape(-1, 2, 2).astype(np.float32)
+    vectors = endpoints[:, 1] - endpoints[:, 0]
+    normals = np.stack((-vectors[:, 1], vectors[:, 0]), axis=1)
+    normals /= np.linalg.norm(vectors, axis=1)[:, None]
+    fractions = np.linspace(0, 1, RIDGE_SAMPLES, dtype=np.float32)
+    centres = endpoints[:, None, 0] + vectors[:, None] * fractions[None, :, None]
+    shifted = centres[:, :, None] + normals[:, None, None] * RIDGE_CENTRE_SHIFTS[None, None, :, None]
+    sides = RIDGE_SIDE_DISTANCE * normals[:, None, None]
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    height, width = frame.shape[:2]
+    intensities = []
+    in_frame = []
+    # Each sample tests five possible centres and the pixels on either side.
+    for points in (shifted, shifted - sides, shifted + sides):
+        maps = points.reshape(len(segments), -1, 2)
+        sampled = cv2.remap(grey, maps[..., 0], maps[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        intensities.append(sampled.reshape(points.shape[:-1]))
+        in_frame.append(
+            (points[..., 0] >= 0) & (points[..., 0] < width)
+            & (points[..., 1] >= 0) & (points[..., 1] < height)
+        )
+    centre, first_side, second_side = intensities
+    contrast = np.minimum(centre - first_side, centre - second_side)
+    visible = in_frame[0] & in_frame[1] & in_frame[2]
+    contrast = np.where(visible, contrast, -np.inf)
+    ridge_samples = contrast.max(axis=2) >= RIDGE_MIN_CONTRAST
+    return segments[ridge_samples.mean(axis=1) >= RIDGE_MIN_FRACTION]
 
 
 def _line_families(segments: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
