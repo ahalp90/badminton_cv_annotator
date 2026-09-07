@@ -51,6 +51,7 @@ class Settings:
     distinct_corner_distance: float = 12.0
     keep_candidates: int = 32
     extractor: str = "hough"
+    wide_families: bool = False
 
     def __post_init__(self) -> None:
         if self.keep_candidates < 2:
@@ -167,6 +168,13 @@ def _line_families(segments: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     differences = np.abs(angles - baseline_angle)
     differences = np.minimum(differences, np.pi - differences)
     return segments[differences >= np.deg2rad(22)], segments[differences <= np.deg2rad(12)]
+
+
+def _wide_line_families(segments: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Exploratory overlapping groups preserve lines that fan out under perspective."""
+    vectors = segments[:, 2:] - segments[:, :2]
+    angles = (np.arctan2(vectors[:, 1], vectors[:, 0]) + np.pi / 2) % np.pi - np.pi / 2
+    return segments[np.abs(angles) >= np.deg2rad(10)], segments[np.abs(angles) <= np.deg2rad(35)]
 
 
 def _covered_length(points: np.ndarray, line: np.ndarray) -> float:
@@ -394,7 +402,7 @@ def detect(
         if np.any(np.linalg.norm(segments_px[:, 2:] - segments_px[:, :2], axis=1) == 0):
             raise ValueError("segments_px must have positive length")
         segments = segments_px / np.tile(native_scale, 2)
-    families = _line_families(segments)
+    families = _wide_line_families(segments) if settings.wide_families else _line_families(segments)
     x_lines, y_lines = (_merge_lines(family, settings) for family in families)
     counts = (len(x_lines), len(y_lines))
     native_segments = segments * np.tile(native_scale, 2)

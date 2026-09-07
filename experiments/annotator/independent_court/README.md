@@ -4,6 +4,10 @@ This experiment tests whether image lines and the badminton court layout can
 locate courts without CourtKeyNet. It is an additive research prototype;
 the annotation pipeline does not use its outputs.
 
+The [neural follow-up](../../../docs/courtkeynet/fallback_evaluation/neural_lines.md)
+compares both DeepLSD weight sets and LINEA large. The models provide useful
+fragments, but court selection and false acceptance still prevent replacement.
+
 `detector.py` extracts full-frame OpenCV fragments, groups them into two line
 families and proposes perspective transforms from possible line identities.
 It scores the visible portions of the finite painted markings. The net is
@@ -100,6 +104,13 @@ Model and source hashes are retained when supplied. Search timings exclude neura
 validation. The cache does not supply candidate courts or acceptance decisions.
 Direct callers can pass native fragments as `detect(image, segments_px=lines)`.
 
+The broader geometry probe uses `--wide-families --min-supported-lines 3`.
+Lengthwise fragments have absolute angle at least 10 degrees; crosscourt fragments
+have absolute angle at most 35 degrees. The overlapping groups preserve more
+oblique court lines. These optional settings reproduce an unsuccessful acceptance
+experiment: accurate candidates can survive, while wrong candidates rank first.
+The original grouping and four-line minimum remain the defaults.
+
 ### Export neural lines
 
 `export_lines.py` runs frozen upstream models in a separate inference environment.
@@ -126,7 +137,10 @@ DeepLSD uses the inference-only implementation at upstream commit
 `f7d9d6258c0cd25d4f6eea882853565403d289be` in this comparison. MegaDepth emits two
 caches: gradient checking disabled (`hard`) and enabled (`default`). Wireframe
 emits the `hard` variant. Images are grey, with longest dimension capped at 960.
-The full Ceres-based refinement package is not used. See the
+The full Ceres-based refinement package is not used. This run used Python 3.12;
+the pinned `pytlsd` binding needed pybind11 2.13.6 through CMake
+`find_package(pybind11 CONFIG REQUIRED)` in place of its bundled binding generator.
+The numerical LSD source was unchanged. See the
 [DeepLSD instructions and weights](https://github.com/cvg/DeepLSD#usage).
 
 LINEA uses upstream commit `475c5ceea64114a48495c15888094e12f1a2d267`, the large
@@ -170,3 +184,9 @@ The final spatial-ambiguity correction was replayed over unchanged saved
 candidates. A fresh search on the affected scene reproduced every candidate,
 score and final decision exactly. Saved timing covers the original search,
 excluding that acceptance-only replay, and concurrent CPU jobs affected it.
+
+`recorded/neural.json.gz` contains 348 further court evaluations, reference-support
+diagnostics and person-support replays. `recorded/neural_lines/` preserves the four
+frozen model caches, which can be supplied directly to `--line-cache` once matching
+input PNGs are available. Each population's `inputs.cases` forms its evaluation
+manifest. Model weights and full input videos are external to these bundles.

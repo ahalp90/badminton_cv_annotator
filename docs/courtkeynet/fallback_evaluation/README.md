@@ -7,6 +7,9 @@ below record the original fallback and video-wide consensus evaluation.
 The [independent detector assessment](independent_detector.md) tests a custom
 OpenCV replacement on broadcast and partially visible amateur courts. It records
 useful proposals and unresolved false acceptance; production remains unchanged.
+The [neural-line follow-up](neural_lines.md) compares DeepLSD and LINEA, then probes
+broader direction groups and person support. It isolates useful line evidence
+from the unresolved task of choosing and accepting the correct court.
 
 ## Result
 

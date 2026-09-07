@@ -250,3 +250,24 @@ def test_cached_segments_reject_malformed_fragments(segments: np.ndarray) -> Non
     image = np.zeros((360, 480, 3), dtype=np.uint8)
     with pytest.raises(ValueError, match="segments_px"):
         detector.detect(image, TEST_SETTINGS, segments_px=segments)
+
+
+def test_wide_families_preserve_a_projected_oblique_court() -> None:
+    corners = np.array([[180, 100], [380, 110], [300, 300], [-450, 220]], dtype=np.float32)
+    homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M.astype(np.float32), corners)
+    projected, _ = detector.project(homography[None], detector.SEGMENTS_M)
+    segments = projected.reshape(-1, 4)
+    settings = detector.Settings(wide_families=True)
+    families = detector._wide_line_families(segments)
+    merged = tuple(detector._merge_lines(family, settings) for family in families)
+    maps = detector._distance_maps(families, FRAME_SIZE)
+    _, scores, support, counts = detector._score(homography[None], maps, settings, merged)
+    assert scores[0] == 1.0
+    np.testing.assert_array_equal(support, [[1.0, 1.0]])
+    np.testing.assert_array_equal(counts, [[5, 5]])
+
+    narrow = detector._line_families(segments)
+    narrow_merged = tuple(detector._merge_lines(family, settings) for family in narrow)
+    narrow_maps = detector._distance_maps(narrow, FRAME_SIZE)
+    _, narrow_scores, _, _ = detector._score(homography[None], narrow_maps, settings, narrow_merged)
+    assert narrow_scores[0] < 0

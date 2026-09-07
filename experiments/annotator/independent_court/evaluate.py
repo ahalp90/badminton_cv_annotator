@@ -287,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--extractor", choices=("hough", "ridge", "lsd"), default="hough")
     parser.add_argument("--line-cache", type=Path, help="Use cached native XYXY lines matched by image ID and hash")
+    parser.add_argument("--wide-families", action="store_true", help="Probe overlapping direction groups for oblique views")
+    parser.add_argument("--min-supported-lines", type=_positive, default=detector.DEFAULT_SETTINGS.min_supported_lines)
     parser.add_argument(
         "--max-family-lines",
         type=_positive,
@@ -311,6 +313,8 @@ def main(argv: list[str] | None = None) -> int:
         extractor=arguments.extractor,
         max_family_lines=arguments.max_family_lines,
         merge_distance=arguments.merge_distance,
+        wide_families=arguments.wide_families,
+        min_supported_lines=arguments.min_supported_lines,
     )
     arguments.output.mkdir(parents=True, exist_ok=True)
     overlay_dir = arguments.output / "overlays"
