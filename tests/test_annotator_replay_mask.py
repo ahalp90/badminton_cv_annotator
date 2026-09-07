@@ -15,15 +15,15 @@ from annotator.config import (
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
 )
-from annotator.inpaint_guard import FABRICATED, code_counts, grade_track
 from annotator.fps_constants import scale_for_fps
+from annotator.inpaint_guard import FABRICATED, code_counts, grade_track
 from annotator.replay_mask import (
     HOMOGRAPHY_CORNER_COLS,
     _cli_non_evidence,
     combine_mask,
     court_absence_signal,
-    perspective_shift_signal,
     filter_short_exclusion_runs,
+    perspective_shift_signal,
     velocity_drop_signal,
 )
 
@@ -57,7 +57,7 @@ def test_perspective_fires_only_on_deviant_segment():
     rows = [
         _homography_row('v', 0, 100, REFERENCE_CORNERS),   # dominant view
         _homography_row('v', 100, 200, REFERENCE_CORNERS),  # dominant view
-        _homography_row('v', 200, 220, shifted),            # +200 in x on every corner -> replay angle
+        _homography_row('v', 200, 220, shifted),            # alternate camera view
     ]
     n_frames = 220
     mask = perspective_shift_signal(rows, n_frames)
@@ -119,7 +119,7 @@ def test_union_combines_signals():
 
     mask = combine_mask(court_present, rows, track, rally_spans, n_frames, 25.0)
     assert mask[15:25].all()                             # court absence
-    assert mask[205:215].all()                           # perspective shift
+    assert not mask[205:215].any()                       # a different view can be live play
 
 
 def test_missing_inputs_contribute_all_false():
@@ -393,7 +393,7 @@ def test_combine_mask_excludes_court_producer_from_baseline():
     np.testing.assert_array_equal(result, expected)
 
 
-def test_combine_mask_excludes_perspective_producer_from_baseline():
+def test_combine_mask_keeps_alternate_views_in_the_velocity_baseline():
     n_frames = 80
     track = _borderline_baseline_track(n_frames)
     shifted = [value + (200.0 if index % 2 == 0 else 0.0) for index, value in enumerate(REFERENCE_CORNERS)]
@@ -405,14 +405,31 @@ def test_combine_mask_excludes_perspective_producer_from_baseline():
     perspective = perspective_shift_signal(rows, n_frames)
     result = combine_mask(None, rows, track, [(0, 40)], n_frames, 25.0)
     without_perspective = combine_mask(None, None, track, [(0, 40)], n_frames, 25.0)
-    expected = perspective | velocity_drop_signal(
-        track, [(0, 40)], n_frames, 25.0, baseline_exclude=perspective,
+    expected = velocity_drop_signal(
+        track, [(0, 40)], n_frames, 25.0, baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
 
     assert perspective[5:35].all()
     assert without_perspective[50]
-    assert not result[50]
+    assert result[50]
+    np.testing.assert_array_equal(result, without_perspective)
     np.testing.assert_array_equal(result, expected)
+
+
+def test_valid_camera_change_does_not_mask_the_rest_of_the_video():
+    n_frames = 300
+    shifted = [value + (200.0 if index % 2 == 0 else 0.0) for index, value in enumerate(REFERENCE_CORNERS)]
+    rows = [
+        _homography_row('v', 0, 200, REFERENCE_CORNERS),
+        _homography_row('v', 200, 250, shifted),
+        _homography_row('v', 250, 300, shifted),
+    ]
+    assert perspective_shift_signal(rows, n_frames)[200:].all()
+    mask = combine_mask(
+        np.ones(n_frames, dtype=bool), rows, _speed_track(0.01, n_frames),
+        [(0, n_frames)], n_frames, 25.0,
+    )
+    assert not mask.any()
 
 
 def _borderline_baseline_track(n_frames: int) -> np.ndarray:

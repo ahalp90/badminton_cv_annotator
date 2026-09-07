@@ -19,11 +19,10 @@ Court model note: TL/TR/BR/BL map to court metres (0,0)/(6.1,0)/(6.1,13.4)/
 top corners (TL/TR) are the far baseline, which is why the far baseline takes
 y=0. cv2 + numpy only; no new dependencies.
 
-A second, video-level pass lives at the bottom of this module: consensus_repair()
-takes one video's per-scene quads (from pick_scene_corners above, run once per scene) and
-repairs the minority that drifted far from the video's own per-corner median.
-pick_scene_corners's per-scene contract is untouched; consensus_repair is an opt-in
-post-pass a caller runs across a video's scenes.
+The annotator checks finite painted-line coverage before accepting a fallback court.
+It can first repair a candidate using other scenes that agree with its confident
+anchors. The target scene's own lines must support the repaired outline. The pure
+consensus_repair() helper below supplies the majority vote within that donor set.
 """
 
 from __future__ import annotations
@@ -156,23 +155,16 @@ RANSAC_INLIER_PX = 8.0
 # None instead of a fabricated quad (Stage-0 saw peaks up to 0.14 on a net post).
 GATE_LINE_FRAC = 0.010
 GATE_ANCHOR_FRAC = 0.020
-# KNOWN FAILURE MODE, measured on ShuttleSet vid 3 (session 17): when neither far
-# corner is anchored, the extreme-line rule can hand the far baseline to the
-# advertising boards' bottom edge (the green surround apron pulls it into the mat
-# ROI), and the resulting fit is self-consistent enough to pass both gate arms
-# (9 of 43 rescued scenes, far corners ~220-450 refpx off while anchors stay
-# ~4 px). Baseline-candidate enumeration scored by model-line coverage was measured
-# as a fix and came out WORSE (vid 3 good rescues 34 -> 24; near-court line spacing
-# is too tight for nearest-match scoring to discriminate hypotheses); it is NOT
-# shipped. A cross-scene consensus vote (video-level, not scene-level) is: measured
-# on the session-18 fb5 eval, good scenes sit <=18.1 refpx from the video's own
-# per-corner-median consensus while the 7 boards-aliased vid-3 scenes start at
-# >=177.3 refpx, a clean ~10x gap. It ships below as consensus_repair();
-# pick_scene_corners above is untouched and can still hit this failure mode on its own,
-# which is why consensus_repair runs as a separate video-level post-pass.
-# tests/test_courtkeynet_court_corners.py::test_boards_alias_minority_flagged_and_repaired_by_consensus
-# drives consensus_repair() over this exact scene shape (reproduced with
-# pick_scene_corners, boards line and all) and passes.
+# Painted-line corroboration uses finite Hough fragments in individual frames.
+# Ten reference pixels allows for line width and corner localisation error.
+PAINTED_LINE_TOLERANCE_REFPX = 10.0
+MIN_PAINTED_LINE_SUPPORT = 0.5
+# With neither far corner anchored, advertising edges can supply a false far
+# baseline. The candidate can pass the infinite-line residual checks despite
+# wrong internal court spacing. Retain its anchors and finite image fragments so
+# the annotator can try a compatible donor before checking painted-line coverage.
+# The original board-alias controls are documented in
+# docs/courtkeynet/fallback_evaluation/README.md.
 # Distortion: the pooled residual of a straight painted line already runs a few
 # pixels from line thickness, anti-aliasing and Hough endpoint quantisation, so
 # the material-curvature floor sits above that noise. Real barrel distortion bows
@@ -197,11 +189,13 @@ class FallbackDiagnostics:
 
 @dataclass(frozen=True)
 class CourtQuad:
-    """Four court corners plus provenance, the shared output of both paths.
+    """A scene court candidate and the evidence needed for final acceptance.
 
     Downstream callers read corners_px and source without caring which path ran.
     peak carries the model's honest per-corner median peak: the fallback does not
     fabricate a confidence for the corners it recovered from geometry.
+    Fallback fragments allow the annotator to corroborate a repaired outline
+    against this scene's images without extracting the lines a second time.
     """
 
     corners_px: np.ndarray  # (4, 2) float32, original-frame pixels, TL TR BR BL
@@ -209,6 +203,7 @@ class CourtQuad:
     source: str  # 'model' | 'fallback'
     corner_source: tuple[str, str, str, str]  # per corner: 'model' | 'fallback'
     diagnostics: FallbackDiagnostics | None  # None on the model path
+    line_segments_px: tuple[np.ndarray, ...] = ()  # one (fragments, 4) array per sampled frame
 
 
 class _Line(NamedTuple):
@@ -890,6 +885,67 @@ def _ckn_path(detections: list[CornerDetection], scene_peaks: np.ndarray) -> Cou
     )
 
 
+def painted_line_support(
+    corners_px: np.ndarray,
+    segments_by_frame: tuple[np.ndarray, ...],
+    frame_wh: tuple[float, float],
+) -> tuple[float, float]:
+    """Measure visible painted-line coverage in each court direction.
+
+    A fragment supports only points along its finite extent. Taking each line's
+    median across frames prevents moving people from accumulating fake support.
+    The two family means allow partial occlusion without letting horizontal net
+    or advertising edges stand in for a complete court.
+
+    :return: lengthwise and cross-court coverage fractions, each between zero and one.
+    """
+    if not segments_by_frame:
+        raise ValueError('fallback court is missing its sampled line evidence')
+    homography = cv2.getPerspectiveTransform(CORNER_COURT_M, corners_px.astype(np.float32))
+    projected = _project(homography, np.asarray(PAINTED_SEGMENTS_M).reshape(-1, 2)).reshape(-1, 2, 2)
+    width, height = frame_wh
+    reference_scale = np.array([1280.0 / width, 720.0 / height])
+    reference_fragments = tuple(fragments * np.tile(reference_scale, 2) for fragments in segments_by_frame)
+    coverage = np.zeros((len(segments_by_frame), len(PAINTED_SEGMENTS_M)))
+    visible_lines = np.zeros(len(PAINTED_SEGMENTS_M), dtype=bool)
+    for line_index, (endpoint_a, endpoint_b) in enumerate(projected):
+        visible, clipped_a, clipped_b = cv2.clipLine(
+            (0, 0, int(width), int(height)),
+            tuple(np.rint(endpoint_a).astype(int)), tuple(np.rint(endpoint_b).astype(int)),
+        )
+        if not visible:
+            continue
+        visible_lines[line_index] = True
+        points = np.linspace(clipped_a, clipped_b, 100) * reference_scale
+        direction = (endpoint_b - endpoint_a) * reference_scale
+        angle = np.arctan2(direction[1], direction[0]) % np.pi
+        for frame_index, fragments in enumerate(reference_fragments):
+            if not len(fragments):
+                continue
+            vectors = fragments[:, 2:] - fragments[:, :2]
+            angles = np.arctan2(vectors[:, 1], vectors[:, 0]) % np.pi
+            differences = np.abs(angles - angle)
+            aligned = np.minimum(differences, np.pi - differences) <= ASSIGN_ANGLE_TOL
+            fragments = fragments[aligned]
+            if not len(fragments):
+                continue
+            starts = fragments[:, :2]
+            vectors = fragments[:, 2:] - starts
+            length_squared = np.einsum('ij,ij->i', vectors, vectors)
+            offsets = points[:, None, :] - starts[None, :, :]
+            along = np.einsum('mij,ij->mi', offsets, vectors) / length_squared[None, :]
+            nearest = starts[None, :, :] + along[:, :, None] * vectors[None, :, :]
+            distance = np.linalg.norm(points[:, None, :] - nearest, axis=2)
+            supported = (distance <= PAINTED_LINE_TOLERANCE_REFPX) & (along >= 0.0) & (along <= 1.0)
+            coverage[frame_index, line_index] = np.any(supported, axis=1).mean()
+    medians = np.median(coverage, axis=0)
+    families = []
+    for family in (slice(0, 6), slice(6, 12)):
+        visible = visible_lines[family]
+        families.append(float(medians[family][visible].mean()) if visible.any() else 0.0)
+    return families[0], families[1]
+
+
 def _cv2_path(
     frames_bgr: list[np.ndarray],
     clean: list[CornerDetection],
@@ -956,6 +1012,7 @@ def _cv2_path(
         source="fallback",
         corner_source=fit.corner_source,
         diagnostics=diagnostics,
+        line_segments_px=tuple(segments),
     )
 
 
@@ -965,13 +1022,16 @@ def pick_scene_corners(
     *,
     corner_min_peak_conf: float = DEFAULT_CORNER_MIN_PEAK_CONF,
 ) -> CourtQuad | None:
-    """One scene in, four court corners with provenance out, or None (fail closed).
+    """Produce one scene's court candidate and provenance, or None if fitting fails.
 
     Trigger over the scene's geometry-clean frames only: a corner is confident
     when its per-corner median peak clears the floor. Four confident corners take
     the model path (the wrapper's median); two or three take the classical-CV
     fallback; zero or one, or no geometry-clean frame at all, fails closed, since
     from-zero detection is out of scope.
+
+    A fallback candidate still needs painted-line corroboration after any
+    cross-scene repair; the annotator adapter performs that final acceptance step.
 
     :param frames_bgr: the scene's sampled BGR frames (static-camera assumption)
     :param detections: the matching CornerDetection per frame, same order/length

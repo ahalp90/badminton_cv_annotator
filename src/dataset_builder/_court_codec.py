@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import fields
-import math
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
@@ -41,8 +41,10 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
 
     record = _object(payload, name)
     expected = {field.name for field in fields(CourtSceneRecord)}
-    if set(record) != expected:
+    # Older persisted evidence predates finite painted-line corroboration.
+    if set(record) not in (expected, expected - {'painted_line_support'}):
         raise ValueError(f"{name} fields differ from CourtSceneRecord")
+    support = _optional_array(record.get('painted_line_support'), f'{name}.painted_line_support', (2,))
     return CourtSceneRecord(
         video_id=_video_id(record["video_id"], f"{name}.video_id"),
         case_id=_string(record["case_id"], f"{name}.case_id"),
@@ -76,6 +78,7 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
             f"{name}.active_corners_native_px",
             (4, 2),
         ),
+        painted_line_support=None if support is None else (float(support[0]), float(support[1])),
     )
 
 
@@ -160,6 +163,10 @@ def _validate_scene_records(
         expected_fraction = record.exactly_two_count / duration
         if not math.isclose(record.exactly_two_fraction, expected_fraction):
             raise ValueError("court exactly-two fraction differs from its count")
+        if record.painted_line_support is not None and any(
+            fraction < 0.0 or fraction > 1.0 for fraction in record.painted_line_support
+        ):
+            raise ValueError('court painted-line support must lie between zero and one')
 
 
 def _object(payload: object, name: str) -> dict[str, object]:

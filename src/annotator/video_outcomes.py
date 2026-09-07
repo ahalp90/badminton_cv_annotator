@@ -1,16 +1,16 @@
 """Downstream contact, landing, verdict, horizon, and hit-height stages."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 
 import annotator.point_winner as point_winner
 from annotator.config import ResolvedAnnotatorConfig
+from annotator.scene_courts import SceneCourt, court_at_frame
 from annotator.types import ContactCandidate, StickyResult
-
 
 OTHER_HALF = point_winner.OTHER_HALF
 
@@ -78,6 +78,7 @@ class _LandingContext:
     band_m: float
     landing_horizons_s: tuple[float, ...]
     horizon_rows: list[LandingHorizonRow] | None
+    scene_courts: tuple[SceneCourt, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ def build_contact_data(
     sticky: StickyResult,
     bboxes: np.ndarray,
     net_band: tuple[float, float],
+    scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> ContactData:
     """Filter contacts and fit each rally's alternating striker phase."""
     scored_contacts = scoring_filter(contacts)
@@ -143,7 +145,8 @@ def build_contact_data(
     for rally_id in range(len(spans)):
         guesses = []
         for frame in filtered_by_rally.get(rally_id, []):
-            guesses.append(point_winner.attribute_half(frame, track, sticky, bboxes, net_band))
+            frame_net_band = net_band if scene_courts is None else court_at_frame(scene_courts, frame).net_band
+            guesses.append(point_winner.attribute_half(frame, track, sticky, bboxes, frame_net_band))
         striker_halves.append(point_winner.fit_alternation(guesses))
     n_strokes_list = [len(filtered_by_rally.get(rally_id, [])) for rally_id in range(len(spans))]
     next_servers = point_winner.next_server_half(striker_halves, n_strokes_list)
@@ -416,6 +419,14 @@ def _build_rally_outcome(
         )
         return _RallyOutcome(verdict, landing, geometric_verdict)
 
+    if context.scene_courts is not None:
+        scene = court_at_frame(context.scene_courts, final_contact)
+        context = replace(
+            context, court_info=scene.court_info, net_band=scene.net_band,
+            band_m=scene.landing_error_band_m,
+        )
+        # A landing search cannot carry one camera's geometry across a scene cut.
+        next_start = min(next_start, scene.end_frame)
     selection = _select_landing(rally_id, final_contact, striker, next_start, context)
     verdict = point_winner.rally_verdict(
         rally_id, striker, next_server, selection.landing, context.band_m,
@@ -463,6 +474,7 @@ def build_verdict_data(
     rejection_diagnostics: list[dict[str, object]] | None,
     landing_horizons_s: tuple[float, ...],
     horizon_rows: list[LandingHorizonRow] | None,
+    scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> VerdictData:
     """Build landing, verdict, diagnostic, and horizon outputs for every rally."""
     kinematics = point_winner.build_landing_kinematics(track, sticky, kps, resolution)
@@ -487,6 +499,7 @@ def build_verdict_data(
         band_m=band_m,
         landing_horizons_s=landing_horizons_s,
         horizon_rows=horizon_rows,
+        scene_courts=scene_courts,
     )
     verdict_rows: dict[int, point_winner.VerdictRow] = {}
     landings: dict[int, point_winner.Landing | None] = {}
@@ -521,6 +534,7 @@ def build_hit_heights(
     track: np.ndarray,
     net_band: tuple[float, float],
     resolution: tuple[float, float],
+    scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> tuple[dict[int, int], list[tuple[int, int, int, str]]]:
     """Build hit-height outputs without coupling them to landing verdicts."""
     hit_height_by_frame: dict[int, int] = {}
@@ -528,8 +542,11 @@ def build_hit_heights(
     for rally_id in range(len(spans)):
         for stroke_idx, contact_frame in enumerate(filtered_by_rally.get(rally_id, [])):
             try:
+                frame_net_band = (
+                    net_band if scene_courts is None else court_at_frame(scene_courts, contact_frame).net_band
+                )
                 rows = point_winner.build_hit_height_rows(
-                    [(rally_id, stroke_idx, contact_frame)], track, net_band, resolution,
+                    [(rally_id, stroke_idx, contact_frame)], track, frame_net_band, resolution,
                 )
             except ValueError as exc:
                 hit_height_failures.append((rally_id, stroke_idx, contact_frame, str(exc)))

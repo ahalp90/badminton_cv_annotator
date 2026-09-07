@@ -1,21 +1,35 @@
 """Regression floors for the full annotator GT scoring harness."""
 import math
 import os
+from types import SimpleNamespace
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from annotator.calibration import gt_scoring
 from annotator.calibration.fixtures import FIXTURES
-from annotator.calibration.gt_scoring import REFERENCE_SCORES, flatten_metrics, render_table, run_fixture
+from annotator.calibration.gt_scoring import (
+    REFERENCE_SCORES,
+    flatten_metrics,
+    render_table,
+    run_fixture,
+)
 from annotator.calibration.scoring import (
     CANONICAL_CONTACT_TOLERANCE_BASE30,
     GtRally,
     strict_contact_rows,
     wide_edge_contact_rows,
 )
-from annotator.point_winner import LandingFilterOptions, SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.point_winner import (
+    SHIPPED_LANDING_FILTER_OPTIONS,
+    Half,
+    Landing,
+    LandingFilterOptions,
+)
+from annotator.run_video import AnnotatorResult
+from annotator.scene_courts import SceneCourt
 from annotator.types import ContactCandidate
-
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
 # raised from the drafted 0.5).
@@ -29,6 +43,76 @@ def test_calibration_uses_shipped_landing_filter_options() -> None:
 
 def test_canonical_tolerance_uses_the_shared_base30_value() -> None:
     assert gt_scoring.canonical_tolerance(30.0) == CANONICAL_CONTACT_TOLERANCE_BASE30
+
+
+def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixture = SimpleNamespace(name="scene-fixture", video_id=1, fps=30.0, gt_set_dir=None)
+    rally = GtRally("set1", 1, (5, 15))
+    master = pd.DataFrame({
+        "vid": [1, 1],
+        "frame_num": [5, 15],
+        "player_side": ["Top", "Bot"],
+    })
+    winner = gt_scoring.GtWinner(None, None, None, None, (20.0, 30.0), {}, False)
+    reconciliation = gt_scoring.Reconciliation([winner], 1, 0, 0, 0, 0, 0)
+    set_table = pd.DataFrame({
+        "rally": [1, 1], "frame_num": [5, 15], "hit_height": [np.nan, np.nan],
+    })
+    result = AnnotatorResult(
+        [(0, 20)],
+        [],
+        [],
+        {0: [5, 15]},
+        [Half.TOP],
+        [2],
+        [None],
+        [Half.TOP],
+        {},
+        {0: Landing(18, (0.5, 0.75), Half.BOT, False, False)},
+        {},
+        {},
+        [],
+    )
+    early = {"name": "early"}
+    late = {"name": "late"}
+    scenes = (
+        SceneCourt(0, 10, early, (0.1, 0.2), 0.1),
+        SceneCourt(10, 20, late, (0.1, 0.2), 0.1),
+    )
+    projected_courts: list[str] = []
+
+    monkeypatch.setattr(gt_scoring, "load_gt_rallies", lambda _master, _video_id: [rally])
+    monkeypatch.setattr(gt_scoring, "load_set_tables", lambda _fixture, _gt: {"set1": set_table})
+    monkeypatch.setattr(gt_scoring, "reconcile_sets", lambda *_args: reconciliation)
+    monkeypatch.setattr(
+        gt_scoring, "classify_all", lambda _spans, _gt: [(gt_scoring.RallyBoundary.COVERED, 0)],
+    )
+    monkeypatch.setattr(gt_scoring, "score_boundaries", lambda _spans, _gt: {})
+    monkeypatch.setattr(
+        gt_scoring,
+        "score_contacts",
+        lambda *_args, **_kwargs: {"count_gate": {"covered": {"pass": 1, "total": 1}}},
+    )
+
+    def project(_pixels, _resolution, court):
+        projected_courts.append(court["name"])
+        return np.array([[0.5], [0.75 if court["name"] == "late" else 0.25]])
+
+    monkeypatch.setattr(gt_scoring.point_winner, "project_pixels_to_court", project)
+    scored = gt_scoring.score_video(fixture, result, master, {1: {"name": "global"}}, 5, scenes)
+
+    assert projected_courts == ["late"]
+    assert scored.rows[0].landing_gt == Half.BOT.value
+    assert scored.rows[0].landing_correct is True
+
+    gap = gt_scoring.score_video(
+        fixture, result, master, {1: {"name": "global"}}, 5,
+        (SceneCourt(0, 10, early, (0.1, 0.2), 0.1),),
+    )
+    assert gap.rows[0].landing_gt is None
+    assert gap.rows[0].landing_pred == Half.BOT.value
+    assert gap.rows[0].landing_correct is False
+    assert gap.landing == gt_scoring.ColumnAgg(0, 1, 0, 1)
 
 
 def _assert_floors(fixture, metrics: dict[str, int | float | None]) -> None:

@@ -1,9 +1,9 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-import math
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -15,12 +15,15 @@ from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
 from annotator.replay_mask import filter_short_exclusion_runs
 from annotator.resolve import resolve
+from annotator.scene_courts import SceneCourt, build_scene_courts
 from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 from annotator.video_outcomes import (
     LandingHorizonRow,
     build_contact_data,
     build_hit_heights,
     build_verdict_data,
+)
+from annotator.video_outcomes import (
     scoring_filter as scoring_filter,
 )
 
@@ -347,6 +350,7 @@ def _run_court_segmentation(
     fps: float,
     court: _CourtInputs,
     homography_rows: object,
+    scene_courts: tuple[SceneCourt, ...],
     raw_exclusion_mask: np.ndarray | None,
     positions: np.ndarray | None,
     serve_start: ServeStartConfig | None,
@@ -368,6 +372,7 @@ def _run_court_segmentation(
         track, segments, court.bboxes, court.scores, court.kps, court.ndet,
         str(court.video_id), court.gate_court_info, court.gate_resolution_table,
         court.resolution, resolved.constants.body_unit_half_window,
+        scene_courts=scene_courts,
     )
 
     serve_options = None
@@ -541,11 +546,13 @@ def run_video(
         return _empty_result(segmentation.spans, segmentation.contacts)
 
     assert homography_rows is not None
+    scene_courts = build_scene_courts(homography_rows, court.resolution, ref_err_px)
     segmentation = _run_court_segmentation(
         track,
         fps=fps,
         court=court,
         homography_rows=homography_rows,
+        scene_courts=scene_courts,
         raw_exclusion_mask=raw_exclusion_mask,
         positions=positions,
         serve_start=serve_start,
@@ -571,6 +578,7 @@ def run_video(
         spans=segmentation.spans, contacts=segmentation.contacts,
         definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
         track=track, sticky=segmentation.sticky, bboxes=court.bboxes, net_band=net_band,
+        scene_courts=scene_courts,
     )
     verdict_data = build_verdict_data(
         track,
@@ -585,10 +593,12 @@ def run_video(
         source_codes=source_codes, rejection_diagnostics=rejection_diagnostics,
         landing_horizons_s=landing_horizons_s,
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
+        scene_courts=scene_courts,
     )
     hit_height_by_frame, hit_height_failures = build_hit_heights(
         spans=segmentation.spans, filtered_by_rally=contact_data.filtered_by_rally,
         track=track, net_band=net_band, resolution=court.resolution,
+        scene_courts=scene_courts,
     )
     return AnnotatorResult(
         spans=segmentation.spans,

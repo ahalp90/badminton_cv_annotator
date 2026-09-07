@@ -4,7 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.rally_segmentation import WRIST_L, WRIST_R, build_sticky_result, segment_video
+from annotator.rally_segmentation import (
+    WRIST_L,
+    WRIST_R,
+    build_sticky_result,
+    segment_video,
+)
+from annotator.scene_courts import build_scene_courts
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -74,6 +80,108 @@ def _sticky_inputs():
     }
     resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
     return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info}, resolution_table)
+
+
+def _scene_sticky_inputs():
+    n_frames, n_slots = 4, 2
+    bboxes = np.full((n_frames, n_slots, 4), np.nan, dtype=np.float32)
+    scores = np.full((n_frames, n_slots), np.nan, dtype=np.float32)
+    kps = np.full((n_frames, n_slots, 17, 2), np.nan, dtype=np.float32)
+    ndet = np.full(n_frames, n_slots, dtype=np.int64)
+    for frame in range(n_frames):
+        x_positions = (320.0, 960.0) if frame < 2 else (890.0, 890.0)
+        for slot, (x_position, foot_y) in enumerate(zip(x_positions, (180.0, 540.0))):
+            box = _bbox(x_position, foot_y)
+            bboxes[frame, slot] = box
+            scores[frame, slot] = 0.9
+            kps[frame, slot] = _standing_pose(box, (x_position - 14, foot_y), (x_position + 14, foot_y))
+
+    def row(start_frame: int, end_frame: int, left: float, right: float):
+        return {
+            'start_frame': start_frame,
+            'end_frame': end_frame,
+            'upleft_x': left,
+            'upleft_y': 0.0,
+            'upright_x': right,
+            'upright_y': 0.0,
+            'downright_x': right,
+            'downright_y': 720.0,
+            'downleft_x': left,
+            'downleft_y': 720.0,
+        }
+
+    scene_courts = build_scene_courts(
+        [row(0, 2, 0.0, 1280.0), row(2, 4, 250.0, 1530.0)],
+        (1280.0, 720.0),
+    )
+    track = np.tile(np.array([0.5, 0.5, 1.0]), (n_frames, 1))
+    resolution_table = pd.DataFrame(
+        {'width': [1280.0], 'height': [720.0]}, index=['1']
+    )
+    return track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row
+
+
+def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
+    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row) = (
+        _scene_sticky_inputs()
+    )
+    assert not np.allclose(scene_courts[0].court_info['H'], scene_courts[1].court_info['H'])
+
+    local_result = build_sticky_result(
+        track,
+        [(0, 2), (2, 4)],
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        '1',
+        {'1': scene_courts[0].court_info},
+        resolution_table,
+        (1280.0, 720.0),
+        scene_courts=scene_courts,
+    )
+
+    # A displaced global outline rejects the top player in scene 0, while the
+    # scene-local rows retain both picks in both camera views.
+    global_scene = build_scene_courts([row(0, 4, 500.0, 1780.0)], (1280.0, 720.0))[0]
+    global_result = build_sticky_result(
+        track,
+        [(0, 4)],
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        '1',
+        {'1': global_scene.court_info},
+        resolution_table,
+        (1280.0, 720.0),
+    )
+
+    np.testing.assert_array_equal(local_result.picks, np.tile([0, 1], (4, 1)))
+    assert local_result.analysed.all()
+    assert local_result.picks[0, 0] == 0
+    assert global_result.picks[0].tolist() == [-1, 1]
+
+
+def test_sticky_picker_rejects_tracker_segment_crossing_scene_boundary():
+    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, _row) = (
+        _scene_sticky_inputs()
+    )
+
+    with pytest.raises(ValueError, match='tracker segment crosses a court scene boundary'):
+        build_sticky_result(
+            track,
+            [(1, 3)],
+            bboxes,
+            scores,
+            kps,
+            ndet,
+            '1',
+            {'1': scene_courts[0].court_info},
+            resolution_table,
+            (1280.0, 720.0),
+            scene_courts=scene_courts,
+        )
 
 
 def test_build_sticky_result_pins_failure_defaults_and_success_contract():

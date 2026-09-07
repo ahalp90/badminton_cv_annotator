@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,7 +13,12 @@ import pandas as pd
 import pytest
 
 import annotator.e2e_court_annotator as runner
-from annotator.artifact_io import load_npy, open_text_artifact, read_json_object, write_json_object
+from annotator.artifact_io import (
+    load_npy,
+    open_text_artifact,
+    read_json_object,
+    write_json_object,
+)
 from annotator.court_evidence import (
     COURT_SCENE_SAMPLE_LIMIT,
     PERSON_COURT_MARGIN,
@@ -254,6 +260,13 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
     assert scene_row["raw_br_x"] == "1.0"
     assert scene_row["active_bl_y"] == "1.0"
     assert scene_row["scene_valid"] == "true"
+    assert scene_row["painted_line_lengthwise_frac"] == ""
+    assert scene_row["painted_line_crosscourt_frac"] == ""
+    measured_row = runner._scene_row(
+        replace(court_result.scene_records[0], painted_line_support=(0.8, 0.6)),
+    )
+    assert measured_row["painted_line_lengthwise_frac"] == 0.8
+    assert measured_row["painted_line_crosscourt_frac"] == 0.6
     with open_text_artifact(directory / "scene_rows.csv.gz", newline="") as handle:
         assert next(csv.reader(handle)) == [
             "video_id", "start_frame", "end_frame", "upleft_x", "upleft_y",

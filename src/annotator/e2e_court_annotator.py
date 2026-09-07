@@ -11,18 +11,18 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass, fields, is_dataclass
-from datetime import datetime, timezone
-from enum import Enum
 import hashlib
 import json
 import math
 import platform
-from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, fields, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple, cast
 
 import cv2
@@ -58,7 +58,6 @@ from annotator.calibration.scoring import (
     wide_edge_contact_rows,
 )
 from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
-from annotator.experiment_records import clean_run, human_bytes, utc_run_directory, write_summary_and_report
 from annotator.court_evidence import (
     COURT_SCENE_SAMPLE_LIMIT,
     DETECTOR_RESOLUTION,
@@ -72,12 +71,23 @@ from annotator.court_evidence import (
     build_static_court_evidence,
     detect_scene_evidence,
 )
-from annotator.point_winner import Landing, SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.experiment_records import (
+    clean_run,
+    human_bytes,
+    utc_run_directory,
+    write_summary_and_report,
+)
+from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Landing
 from annotator.resolve import resolve
-from annotator.run_video import AnnotatorResult, LandingHorizonRow, RunCapture, run_video
+from annotator.run_video import (
+    AnnotatorResult,
+    LandingHorizonRow,
+    RunCapture,
+    run_video,
+)
+from annotator.scene_courts import SceneCourt, build_scene_courts
 from annotator.types import DeadMaskMode
 from courtkeynet.wrapper import CONFIG_PATH, CourtKeyNetDetector
-
 
 PARENTS = (
     "static_shuttleset_homography",
@@ -101,6 +111,7 @@ COURT_SCENES_COLUMNS = (
     "consensus_distance_px", "consensus_flagged",
     "active_tl_x", "active_tl_y", "active_tr_x", "active_tr_y",
     "active_br_x", "active_br_y", "active_bl_x", "active_bl_y",
+    "painted_line_lengthwise_frac", "painted_line_crosscourt_frac",
 )
 LANDING_HORIZON_COLUMNS = (
     "rally_id", "horizon_seconds", "horizon_frames", "final_contact_frame",
@@ -541,6 +552,11 @@ def _scene_row(record: CourtSceneRecord) -> dict[str, object]:
     active = _corner_values(record.active_corners_native_px)
     peaks = [None] * 4 if record.raw_peaks is None else [float(value) for value in record.raw_peaks]
     corner_sources = [None] * 4 if record.raw_corner_source is None else list(record.raw_corner_source)
+    line_support = (
+        [None, None]
+        if record.painted_line_support is None
+        else [float(value) for value in record.painted_line_support]
+    )
     diagnostics = record.fallback_diagnostics
     diagnostic_values = [None] * 7 if diagnostics is None else [
         float(diagnostics.reproj_line_px), float(diagnostics.reproj_anchor_px),
@@ -561,6 +577,7 @@ def _scene_row(record: CourtSceneRecord) -> dict[str, object]:
             record.exactly_two_count, record.exactly_two_fraction, record.scene_valid,
             record.consensus_distance_px, record.consensus_flag,
             active[0], active[1], active[2], active[3], active[4], active[5], active[6], active[7],
+            line_support[0], line_support[1],
         ],
     ))
 
@@ -832,6 +849,7 @@ def _write_scoring_outputs(
     capture: RunCapture,
     master: Any,
     court_info: dict[str, object],
+    scene_courts: Sequence[SceneCourt] | None = None,
 ) -> dict[str, object]:
     rallies = _gt_rallies_for_fixture(master, fixture)
     strict_rows = strict_contact_rows(result.spans, result.filtered_contacts, rallies, case.fixed.fps)
@@ -839,7 +857,8 @@ def _write_scoring_outputs(
     _write_rows(directory / "strict_contacts.csv.gz", STRICT_CONTACT_COLUMNS, strict_rows)
     _write_rows(directory / "wide_edge_contacts.csv.gz", WIDE_CONTACT_COLUMNS, wide_rows)
     scoring = score_video(
-        fixture, result, master, {fixture.video_id: court_info}, canonical_tolerance(case.fixed.fps)
+        fixture, result, master, {fixture.video_id: court_info}, canonical_tolerance(case.fixed.fps),
+        scene_courts,
     )
     metrics = {
         "schema_version": 1,
@@ -1068,6 +1087,7 @@ def _not_run_configuration_summaries() -> list[dict[str, object]]:
 
 def _environment(driver: RunDriver) -> dict[str, object]:
     import importlib.metadata
+
     import torch
 
     def version(package: str) -> str | None:
@@ -1256,9 +1276,14 @@ def _score_configurations(driver: RunDriver) -> None:
         try:
             if state.court_result.inputs is None:
                 raise ValueError("successful inference has no court inputs")
+            scene_courts = build_scene_courts(
+                state.court_result.inputs.homography_rows.to_dict("records"),
+                state.court_result.inputs.resolution,
+                REF_ERR_PX,
+            )
             _write_scoring_outputs(
                 state.directory, state.fixture, state.case, state.result, state.capture,
-                driver.master, state.court_result.inputs.court_info,
+                driver.master, state.court_result.inputs.court_info, scene_courts,
             )
             state.status = "succeeded"
             _write_terminal_configuration_manifest(state, driver)

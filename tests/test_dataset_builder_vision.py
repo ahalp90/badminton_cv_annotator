@@ -577,6 +577,7 @@ def test_court_provenance_round_trip_restores_every_scene_and_consensus_value(
         consensus_distance_px=0.0,
         consensus_flag=False,
         active_corners_native_px=raw_corners,
+        painted_line_support=(0.75, 0.6),
     )
     consensus = ConsensusRepair(
         consensus_quad=raw_corners,
@@ -611,6 +612,38 @@ def test_court_provenance_round_trip_restores_every_scene_and_consensus_value(
     assert isinstance(restored.evidence.scene_records[0].video_id, str)
     _assert_structured_equal(restored.evidence.scene_records, evidence.scene_records)
     _assert_structured_equal(restored.evidence.consensus, evidence.consensus)
+
+    payload = vision.load_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME)
+    payload["scene_records"][0]["painted_line_support"] = [-0.1, 1.2]
+    vision.save_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME, payload)
+    with pytest.raises(ValueError, match="painted-line support must lie between zero and one"):
+        vision.load_court_vision(
+            tmp_path,
+            video_id=video_id,
+            frame_count=frame_count,
+            resolution=(100.0, 50.0),
+        )
+
+    payload = vision.load_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME)
+    del payload["scene_records"][0]["painted_line_support"]
+    vision.save_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME, payload)
+    legacy = vision.load_court_vision(
+        tmp_path,
+        video_id=video_id,
+        frame_count=frame_count,
+        resolution=(100.0, 50.0),
+    )
+    assert legacy.evidence.scene_records[0].painted_line_support is None
+
+    del payload["scene_records"][0]["active_corners_native_px"]
+    vision.save_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME, payload)
+    with pytest.raises(ValueError, match="fields differ from CourtSceneRecord"):
+        vision.load_court_vision(
+            tmp_path,
+            video_id=video_id,
+            frame_count=frame_count,
+            resolution=(100.0, 50.0),
+        )
 
 
 def test_court_loader_rejects_missing_scene_provenance(tmp_path: Path) -> None:

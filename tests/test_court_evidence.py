@@ -1,6 +1,7 @@
 """Focused contracts for the Packet 2 court-evidence adapter."""
 from __future__ import annotations
 
+import cv2
 import numpy as np
 import pandas as pd
 import pytest
@@ -9,8 +10,26 @@ import annotator.court_evidence as evidence
 import annotator.point_winner as point_winner
 from annotator.calibration.fixtures import FIXTURES
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
-from annotator.point_winner import corner_error_band_from_corners, project_pixels_to_court
-from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
+from annotator.point_winner import (
+    corner_error_band_from_corners,
+    project_pixels_to_court,
+)
+from courtkeynet.court_corners import (
+    CORNER_COURT_M,
+    PAINTED_SEGMENTS_M,
+    CourtQuad,
+    FallbackDiagnostics,
+)
+
+
+def _line_segments(corners: np.ndarray) -> tuple[np.ndarray, ...]:
+    homography = cv2.getPerspectiveTransform(CORNER_COURT_M, corners.astype(np.float32))
+    projected = []
+    for endpoint_a, endpoint_b in PAINTED_SEGMENTS_M:
+        points_m = np.stack((endpoint_a, endpoint_b)).reshape(-1, 1, 2)
+        points_px = cv2.perspectiveTransform(points_m, homography).reshape(2, 2)
+        projected.append(np.concatenate((points_px[0], points_px[1])))
+    return (np.asarray(projected, dtype=np.float32),)
 
 
 def _quad(
@@ -24,6 +43,7 @@ def _quad(
         source=source,
         corner_source=(source, source, source, source),
         diagnostics=diagnostics,
+        line_segments_px=_line_segments(corners),
     )
 
 
@@ -301,7 +321,7 @@ def test_detected_consensus_failure_handoff_preserves_raw_values() -> None:
         )
     null_handoff = null_failure.value.result
     assert null_failure.value.original_error.args == (
-        'detected court consensus requires at least one accepted scene quad',
+        'detected court requires at least one accepted scene quad',
     )
     assert null_handoff.inputs is None
     assert not null_handoff.keep_vote.any()
@@ -309,39 +329,28 @@ def test_detected_consensus_failure_handoff_preserves_raw_values() -> None:
     assert null_handoff.scene_records[0].raw_corners_px is None
     assert null_handoff.scene_records[0].active_corners_native_px is None
 
+
+
+def test_distinct_accepted_camera_views_keep_their_own_courts() -> None:
     quad_a = _quad(np.array([[0, 0], [512, 0], [512, 288], [0, 288]]))
     quad_b = _quad(np.array([[200, 0], [712, 0], [712, 288], [200, 288]]))
     bboxes, scores, ndet = _pose_inputs(20)
     bboxes[:, 0] = (650.0, 100.0, 750.0, 200.0)
     bboxes[:, 1] = (950.0, 300.0, 1050.0, 400.0)
-    with pytest.raises(evidence.CourtConsensusError) as consensus_failure:
-        evidence.build_detected_court_evidence(
-            'case-a', 'detected', 1,
-            (1280.0, 720.0),
-            [(0, 10), (10, 20)],
-            [
-                evidence.SceneEvidence(0, 10, (), quad_a),
-                evidence.SceneEvidence(10, 20, (), quad_b),
-            ],
-            bboxes,
-            scores,
-            ndet,
-        )
-    handoff = consensus_failure.value.result
-    assert 'no trustworthy majority' in str(consensus_failure.value.original_error)
-    assert handoff.inputs is None
-    assert handoff.keep_vote.all()
-    assert handoff.court_present.all()
-    assert handoff.consensus is None
-    for record, quad in zip(handoff.scene_records, (quad_a, quad_b)):
-        np.testing.assert_array_equal(record.raw_corners_px, quad.corners_px)
-        assert record.raw_source == 'model'
-        assert record.consensus_distance_px is None
-        assert record.consensus_flag is None
-        assert record.active_corners_native_px is None
+    result = evidence.build_detected_court_evidence(
+        'case-a', 'detected', 1, (1280.0, 720.0), [(0, 10), (10, 20)],
+        [evidence.SceneEvidence(0, 10, (), quad_a), evidence.SceneEvidence(10, 20, (), quad_b)],
+        bboxes, scores, ndet,
+    )
+    assert result.inputs is not None
+    assert result.keep_vote.all()
+    assert result.court_present.all()
+    assert result.consensus is None
+    for record, quad in zip(result.scene_records, (quad_a, quad_b)):
+        np.testing.assert_array_equal(record.active_corners_native_px, quad.corners_px)
 
 
-def test_consensus_outlier_uses_matching_repaired_native_active_quad() -> None:
+def test_model_minority_view_is_not_overwritten_by_other_scenes() -> None:
     base_corners = np.array([[0, 0], [512, 0], [512, 288], [0, 288]])
     outlier_corners = base_corners.copy()
     outlier_corners[:, 0] += 100
@@ -361,11 +370,9 @@ def test_consensus_outlier_uses_matching_repaired_native_active_quad() -> None:
     outlier_record = result.scene_records[2]
     assert outlier_record.video_id == 1
     assert outlier_record.scene_index == 2
-    assert outlier_record.consensus_flag is True
-    assert outlier_record.consensus_distance_px is not None
-    assert outlier_record.consensus_distance_px > 55.0
+    assert outlier_record.consensus_flag is None
     np.testing.assert_array_equal(outlier_record.raw_corners_px, outlier_corners)
-    np.testing.assert_allclose(outlier_record.active_corners_native_px, base_corners)
+    np.testing.assert_allclose(outlier_record.active_corners_native_px, outlier_corners)
 
 
 def test_typed_detected_records_preserve_provenance_vote_and_consensus_fields() -> None:
@@ -400,13 +407,13 @@ def test_typed_detected_records_preserve_provenance_vote_and_consensus_fields() 
     assert model_record.raw_source == 'model'
     assert model_record.raw_peaks is not None
     assert model_record.raw_corner_source == ('model',) * 4
-    assert model_record.consensus_distance_px is not None
-    assert model_record.consensus_flag is False
+    assert model_record.consensus_distance_px is None
+    assert model_record.consensus_flag is None
     assert model_record.active_corners_native_px is not None
     assert fallback_record.raw_source == 'fallback'
     assert fallback_record.fallback_diagnostics == diagnostics
-    assert fallback_record.consensus_distance_px is not None
-    assert fallback_record.consensus_flag is False
+    assert fallback_record.consensus_distance_px is None
+    assert fallback_record.consensus_flag is None
     assert null_record.raw_corners_px is None
     assert null_record.raw_source is None
     assert null_record.raw_peaks is None
@@ -423,25 +430,185 @@ def test_typed_detected_records_preserve_provenance_vote_and_consensus_fields() 
     assert not result.court_present[8:].any()
 
 
-def test_detected_consensus_receives_native_quads_before_scaling(monkeypatch) -> None:
-    quad = _quad(np.array([[10, 20], [500, 20], [500, 280], [10, 280]]))
-    bboxes, scores, ndet = _pose_inputs(4)
-    received = []
-    import courtkeynet.court_corners as corners_module
-
-    real_consensus = corners_module.consensus_repair
-
-    def spy(quads):
-        received.append(quads.copy())
-        return real_consensus(quads)
-
-    monkeypatch.setattr(corners_module, 'consensus_repair', spy)
-    evidence.build_detected_court_evidence(
-        'case-a', 'detected', 1, (1280.0, 720.0), [(0, 4)],
-        [evidence.SceneEvidence(0, 4, (1, 3), quad)], bboxes, scores, ndet,
+@pytest.mark.parametrize('native_scale', [0.4, 1.0, 1.5])
+def test_fallback_repair_uses_matching_anchors_and_revotes_before_acceptance(native_scale) -> None:
+    good = np.array([[100, 100], [1180, 100], [1180, 650], [100, 650]], dtype=float)
+    alias = good.copy()
+    alias[:2, 1] = 400
+    model = _quad(good * native_scale)
+    fallback = CourtQuad(
+        corners_px=alias * native_scale,
+        peak=np.array([0.01, 0.01, 0.9, 0.9]),
+        source='fallback',
+        corner_source=('fallback', 'fallback', 'model', 'model'),
+        diagnostics=None,
+        # The image evidence belongs to the good target court. The raw quad is
+        # deliberately the board-alias geometry that the donor should replace.
+        line_segments_px=_line_segments(good * native_scale),
     )
-    assert len(received) == 1
-    np.testing.assert_array_equal(received[0], quad.corners_px[None, ...])
+    bboxes, scores, ndet = _pose_inputs(8)
+    bboxes[:, 0] = (550, 150, 650, 200)
+    bboxes[:, 1] = (550, 500, 650, 550)
+    result = evidence.build_detected_court_evidence(
+        '', '', 1, (1280.0, 720.0), [(0, 4), (4, 8)],
+        [evidence.SceneEvidence(0, 4, (), model), evidence.SceneEvidence(4, 8, (), fallback)],
+        bboxes, scores, ndet, detector_resolution=(1280 * native_scale, 720 * native_scale),
+    )
+    repaired = result.scene_records[1]
+    assert repaired.scene_valid
+    assert repaired.exactly_two_fraction == 1.0
+    assert result.keep_vote.all()
+    assert result.court_present.all()
+    np.testing.assert_allclose(repaired.active_corners_native_px, good * native_scale)
+    np.testing.assert_allclose(repaired.raw_corners_px, alias * native_scale)
+    np.testing.assert_allclose(repaired.painted_line_support, (1.0, 1.0), atol=0.02)
+    assert result.inputs.homography_rows[['start_frame', 'end_frame']].values.tolist() == [[0, 4], [4, 8]]
+
+
+def test_fallback_does_not_borrow_from_a_view_with_different_anchors() -> None:
+    good = np.array([[100, 100], [1180, 100], [1180, 650], [100, 650]], dtype=float)
+    shifted = good + [100, 0]
+    quads = [
+        _quad(good),
+        CourtQuad(shifted, np.array([0.01, 0.01, 0.9, 0.9]), 'fallback',
+                  ('fallback', 'fallback', 'model', 'model'), None,
+                  _line_segments(shifted)),
+    ]
+    bboxes, scores, ndet = _pose_inputs(8)
+    bboxes[:, 0] = (550, 150, 650, 200)
+    bboxes[:, 1] = (550, 500, 650, 550)
+    result = evidence.build_detected_court_evidence(
+        '', '', 1, (1280.0, 720.0), [(0, 4), (4, 8)],
+        [evidence.SceneEvidence(start, end, (), quad)
+         for (start, end), quad in zip([(0, 4), (4, 8)], quads)],
+        bboxes, scores, ndet, detector_resolution=(1280, 720),
+    )
+    np.testing.assert_allclose(result.scene_records[1].active_corners_native_px, shifted)
+    np.testing.assert_allclose(result.scene_records[1].painted_line_support, (1.0, 1.0), atol=0.02)
+
+
+def test_bad_borrowed_quad_cannot_override_image_matching_raw() -> None:
+    good = np.array([[100, 100], [1180, 100], [1180, 650], [100, 650]], dtype=float)
+    bad = good.copy()
+    bad[2:, 1] = 300.0
+    target = CourtQuad(
+        good.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+        'fallback', ('model', 'model', 'fallback', 'fallback'), None,
+        _line_segments(good),
+    )
+    donor = _quad(bad, 'model')
+    bboxes, scores, ndet = _pose_inputs(8)
+    bboxes[:, 0] = (550, 150, 650, 200)
+    bboxes[:, 1] = (550, 500, 650, 550)
+
+    result = evidence.build_detected_court_evidence(
+        '', '', 1, (1280.0, 720.0), [(0, 4), (4, 8)],
+        [evidence.SceneEvidence(0, 4, (), target), evidence.SceneEvidence(4, 8, (), donor)],
+        bboxes, scores, ndet, detector_resolution=(1280, 720),
+    )
+
+    record = result.scene_records[0]
+    np.testing.assert_allclose(record.raw_corners_px, good)
+    np.testing.assert_allclose(record.active_corners_native_px, good)
+    np.testing.assert_allclose(record.painted_line_support, (1.0, 1.0), atol=0.02)
+
+
+def test_two_people_with_empty_fallback_line_evidence_is_rejected() -> None:
+    corners = np.array([[100, 100], [1180, 100], [1180, 650], [100, 650]], dtype=float)
+    empty = np.empty((0, 4), dtype=np.float32)
+    fallback = CourtQuad(
+        corners.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+        'fallback', ('fallback',) * 4, None, (empty, empty),
+    )
+    bboxes, scores, ndet = _pose_inputs(4)
+
+    with pytest.raises(evidence.CourtConsensusError) as failure:
+        evidence.build_detected_court_evidence(
+            '', '', 1, (1280.0, 720.0), [(0, 4)],
+            [evidence.SceneEvidence(0, 4, (1, 3), fallback)],
+            bboxes, scores, ndet, detector_resolution=(1280, 720),
+        )
+
+    record = failure.value.result.scene_records[0]
+    assert record.scene_valid is False
+    assert record.painted_line_support == (0.0, 0.0)
+    assert failure.value.result.keep_vote.all()
+    assert not failure.value.result.court_present.any()
+
+
+def test_fallback_repair_uses_majority_compatible_donors() -> None:
+    actual = np.array([
+        [120.0, 100.0], [1160.0, 110.0], [1080.0, 640.0], [180.0, 650.0],
+    ])
+    target = np.array([
+        [120.0, 100.0], [1160.0, 110.0], [900.0, 430.0], [360.0, 440.0],
+    ])
+    fallback_corners = [
+        actual,
+        actual + np.array([[1.0, -1.0], [2.0, 1.0], [-2.0, 2.0], [1.0, -1.0]]),
+        actual + np.array([[-2.0, 1.0], [-1.0, -1.0], [2.0, -1.0], [-1.0, 2.0]]),
+    ]
+    incompatible_model = np.array([
+        [300.0, 105.0], [980.0, 115.0], [910.0, 640.0], [360.0, 650.0],
+    ])
+    target_quad = CourtQuad(
+        target.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+        'fallback', ('model', 'model', 'fallback', 'fallback'), None,
+    )
+    fallback_quads = [
+        CourtQuad(
+            corners.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+            'fallback', ('fallback',) * 4, None,
+        )
+        for corners in fallback_corners
+    ]
+    model_quad = _quad(incompatible_model, 'model')
+    quads = [target_quad, *fallback_quads, model_quad]
+    scenes = [
+        evidence.SceneEvidence(index, index + 1, (), quad)
+        for index, quad in enumerate(quads)
+    ]
+
+    repaired = evidence._repair_scene_corners(
+        scenes,
+        [target, *fallback_corners, incompatible_model],
+        [True] * len(quads),
+    )
+
+    np.testing.assert_allclose(repaired[0], np.median(np.stack(fallback_corners), axis=0))
+    assert not np.array_equal(repaired[0], target)
+
+
+def test_fallback_repair_keeps_target_when_compatible_donors_tie() -> None:
+    target = np.array([
+        [120.0, 100.0], [1160.0, 110.0], [900.0, 430.0], [360.0, 440.0],
+    ])
+    donor_a = np.array([
+        [120.0, 100.0], [1160.0, 110.0], [1080.0, 640.0], [180.0, 650.0],
+    ])
+    donor_b = np.array([
+        [120.0, 100.0], [1160.0, 110.0], [850.0, 430.0], [430.0, 440.0],
+    ])
+    target_quad = CourtQuad(
+        target.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+        'fallback', ('model', 'model', 'fallback', 'fallback'), None,
+    )
+    donor_quads = [
+        CourtQuad(
+            corners.astype(np.float32), np.full(4, 0.9, dtype=np.float32),
+            'fallback', ('fallback',) * 4, None,
+        )
+        for corners in (donor_a, donor_b)
+    ]
+    quads = [target_quad, *donor_quads]
+    repaired = evidence._repair_scene_corners(
+        [evidence.SceneEvidence(index, index + 1, (), quad) for index, quad in enumerate(quads)],
+        [target, donor_a, donor_b],
+        [True] * len(quads),
+    )
+
+    assert repaired[0] is target
+    np.testing.assert_array_equal(repaired[0], target)
 
 
 def test_rejected_detected_quad_keeps_raw_evidence_without_active_geometry() -> None:

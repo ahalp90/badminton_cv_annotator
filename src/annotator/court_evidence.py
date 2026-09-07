@@ -2,7 +2,7 @@
 
 Here, a parent is one alternative court-evidence producer profile for a run,
 not process lineage. The adapter keeps the static ShuttleSet homography and
-detected CourtKeyNet consensus parents on the same operational interface. The
+detected CourtKeyNet parents on the same operational interface. The
 two parents share only their raw scene intervals; scene geometry and person
 votes are built from the active parent.
 """
@@ -11,11 +11,23 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
 import cv2
 import numpy as np
 import pandas as pd
 
-from courtkeynet.court_corners import ConsensusRepair, CourtQuad, FallbackDiagnostics, pick_scene_corners
+from courtkeynet.court_corners import (
+    CONSENSUS_FLAG_THRESHOLD_PX,
+    GATE_ANCHOR_FRAC,
+    MIN_PAINTED_LINE_SUPPORT,
+    ConsensusRepair,
+    CourtQuad,
+    FallbackDiagnostics,
+    consensus_repair,
+    painted_line_support,
+    pick_scene_corners,
+)
+from courtkeynet.geometry import _geometry_flags
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
 
 from .composition_mask import detect_cuts
@@ -27,7 +39,6 @@ from .point_winner import (
     corner_error_band_from_corners,
     project_pixels_to_court,
 )
-
 
 SCENE_ROW_COLUMNS = (
     'video_id', 'start_frame', 'end_frame',
@@ -117,6 +128,7 @@ class CourtSceneRecord:
     consensus_distance_px: float | None
     consensus_flag: bool | None
     active_corners_native_px: np.ndarray | None
+    painted_line_support: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         if self.raw_corners_px is not None:
@@ -482,6 +494,7 @@ def _scene_record(
     consensus_distance_px: float | None,
     consensus_flag: bool | None,
     static_corners_px: np.ndarray | None = None,
+    line_support: tuple[float, float] | None = None,
 ) -> CourtSceneRecord:
     """Build one immutable writer record without reprojecting later."""
     fraction = _scene_fraction(keep_vote, (scene.start_frame, scene.end_frame))
@@ -528,6 +541,7 @@ def _scene_record(
         consensus_distance_px=consensus_distance_px,
         consensus_flag=consensus_flag,
         active_corners_native_px=active_corners_native_px,
+        painted_line_support=line_support,
     )
 
 
@@ -581,6 +595,49 @@ def build_static_court_evidence(
     return CourtEvidenceResult(inputs, records, keep_vote, court_present, None)
 
 
+def _repair_scene_corners(
+    evidence: Sequence[SceneEvidence],
+    corners_refpx: list[np.ndarray | None],
+    scene_valid: Sequence[bool],
+) -> list[np.ndarray | None]:
+    """Borrow a court only from scenes agreeing with the confident target corners.
+
+    Fully model-derived outlines retain their own camera geometry. A partial
+    fallback can borrow a whole outline when compatible scenes have a majority;
+    using one whole outline preserves its projective geometry.
+    """
+    repaired = list(corners_refpx)
+    anchor_tolerance = GATE_ANCHOR_FRAC * float(np.hypot(*HOMOGRAPHY_RESOLUTION))
+    for index, scene in enumerate(evidence):
+        quad = scene.quad
+        corners = corners_refpx[index]
+        if quad is None or quad.source != 'fallback' or corners is None:
+            continue
+        anchors = np.array([source == 'model' for source in quad.corner_source])
+        if anchors.sum() < 2:
+            continue
+        compatible = [
+            donor for donor, valid in enumerate(scene_valid)
+            if valid and donor != index
+            and np.linalg.norm(corners_refpx[donor][anchors] - corners[anchors], axis=1).max()
+            <= anchor_tolerance
+        ]
+        if not compatible:
+            continue
+        try:
+            candidate = consensus_repair(np.stack([corners_refpx[donor] for donor in compatible])).consensus_quad
+        except ValueError:
+            # Distinct views can share anchors. An ambiguous donor set supplies no repair.
+            continue
+        if _geometry_flags(candidate, HOMOGRAPHY_RESOLUTION, area_bounds=(0.0, float('inf'))):
+            continue
+        if np.linalg.norm(candidate[anchors] - corners[anchors], axis=1).max() > anchor_tolerance:
+            continue
+        if np.linalg.norm(candidate - corners, axis=1).max() > CONSENSUS_FLAG_THRESHOLD_PX:
+            repaired[index] = candidate
+    return repaired
+
+
 def build_detected_court_evidence(
     case_id: str,
     parent: str,
@@ -596,107 +653,97 @@ def build_detected_court_evidence(
     gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
-    """Build detected geometry, votes, consensus and records in one pass."""
-    from courtkeynet.court_corners import consensus_repair
-
+    """Build scene-specific geometry and derive acceptance from the active courts."""
     evidence = _validate_scene_evidence(raw_cuts, scene_evidence)
     intervals = [(scene.start_frame, scene.end_frame) for scene in evidence]
-    native_corners = [
-        None if scene.quad is None else np.asarray(scene.quad.corners_px, dtype=float)
+    corners_refpx = [
+        None if scene.quad is None else _as_ref_corners(scene.quad.corners_px, detector_resolution)
         for scene in evidence
     ]
+    # The producer applies its area limits. Recheck shape after temporal aggregation.
+    corners_refpx = [
+        corners if corners is not None
+        and not _geometry_flags(corners, HOMOGRAPHY_RESOLUTION, area_bounds=(0.0, float('inf')))
+        else None
+        for corners in corners_refpx
+    ]
     provisional_infos = [
-        None if corners is None else detected_court_info(_as_ref_corners(corners, detector_resolution))
-        for corners in native_corners
+        None if corners is None else detected_court_info(corners)
+        for corners in corners_refpx
     ]
-    keep_vote = build_keep_vote(
-        bboxes, scores, ndet, resolution, intervals, provisional_infos,
-    )
+    native_scale = np.asarray(detector_resolution) / np.asarray(HOMOGRAPHY_RESOLUTION)
+    line_supports = [
+        painted_line_support(corners * native_scale, scene.quad.line_segments_px, detector_resolution)
+        if corners is not None and scene.quad.source == 'fallback' else None
+        for scene, corners in zip(evidence, corners_refpx)
+    ]
+    keep_vote = build_keep_vote(bboxes, scores, ndet, resolution, intervals, provisional_infos)
     scene_valid = [
-        corners is not None
-        and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
-        for corners, interval in zip(native_corners, intervals)
+        corners is not None and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
+        and (support is None or min(support) >= MIN_PAINTED_LINE_SUPPORT)
+        for corners, interval, support in zip(corners_refpx, intervals, line_supports)
     ]
+    active_corners = _repair_scene_corners(evidence, corners_refpx, scene_valid)
+    for index, (raw, active) in enumerate(zip(corners_refpx, active_corners)):
+        if active is raw:
+            continue
+        support = painted_line_support(
+            active * native_scale, evidence[index].quad.line_segments_px, detector_resolution,
+        )
+        # Shared anchors identify a possible donor, while target-image lines decide
+        # whether its full court is a better fit than the original candidate.
+        if min(support) >= MIN_PAINTED_LINE_SUPPORT and sum(support) > sum(line_supports[index]):
+            line_supports[index] = support
+        else:
+            active_corners[index] = raw
+    changed_indices = [
+        index for index, (raw, active) in enumerate(zip(corners_refpx, active_corners))
+        if active is not raw
+    ]
+    if changed_indices:
+        changed_votes = build_keep_vote(
+            bboxes, scores, ndet, resolution,
+            [intervals[index] for index in changed_indices],
+            [detected_court_info(active_corners[index]) for index in changed_indices],
+        )
+        for index in changed_indices:
+            start, end = intervals[index]
+            keep_vote[start:end] = changed_votes[start:end]
+            scene_valid[index] = _scene_fraction(keep_vote, intervals[index]) >= SCENE_VALID_MIN_FRACTION
     court_present = build_court_present(keep_vote, intervals, scene_valid)
-    raw_records = tuple(
+    records = tuple(
         _scene_record(
-            video_id,
-            case_id,
-            parent,
-            scene_index,
-            scene,
-            keep_vote,
-            scene_valid[scene_index],
-            active_corners_native_px=None,
+            video_id, case_id, parent, index, scene, keep_vote, scene_valid[index],
+            active_corners_native_px=(active_corners[index] * native_scale if scene_valid[index] else None),
             consensus_distance_px=None,
             consensus_flag=None,
+            line_support=line_supports[index],
         )
-        for scene_index, scene in enumerate(evidence)
+        for index, scene in enumerate(evidence)
     )
-    raw_result = CourtEvidenceResult(None, raw_records, keep_vote, court_present, None)
-    accepted_scene_indices = [
-        index for index, valid in enumerate(scene_valid) if valid
-    ]
-    if not accepted_scene_indices:
-        original_error = ValueError(
-            'detected court consensus requires at least one accepted scene quad',
-        )
-        raise CourtConsensusError(raw_result, original_error) from original_error
+    accepted_indices = [index for index, valid in enumerate(scene_valid) if valid]
+    if not accepted_indices:
+        result = CourtEvidenceResult(None, records, keep_vote, court_present, None)
+        original_error = ValueError('detected court requires at least one accepted scene quad')
+        raise CourtConsensusError(result, original_error) from original_error
 
-    accepted_quads = np.stack([native_corners[index] for index in accepted_scene_indices])
-    try:
-        consensus = consensus_repair(accepted_quads)
-    except ValueError as original_error:
-        raise CourtConsensusError(raw_result, original_error) from original_error
-    consensus_corners = _as_ref_corners(consensus.consensus_quad, detector_resolution)
-    repaired_corners = np.asarray(consensus.repaired_quads, dtype=float)
-    repaired_corners_refpx = _as_ref_corners(repaired_corners, detector_resolution)
-    active_info = detected_court_info(consensus_corners)
-    active_rows = [
-        _scene_row(video_id, intervals[index], repaired_corners_refpx[accepted_position], resolution)
-        for accepted_position, index in enumerate(accepted_scene_indices)
-    ]
-    homography_rows = pd.DataFrame(active_rows, columns=SCENE_ROW_COLUMNS)
+    # Static callers retain a representative court. Scene-aware callers use the rows.
+    representative = max(accepted_indices, key=lambda index: intervals[index][1] - intervals[index][0])
+    representative_corners = active_corners[representative]
+    active_info = detected_court_info(representative_corners)
     inputs = CourtInputs(
         court_info=active_info,
         gate_court_info={str(video_id): active_info},
         net_band=build_net_band(active_info, resolution),
         resolution=tuple(map(float, resolution)),
         gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),
-        homography_rows=homography_rows,
-        landing_error_band_m=corner_error_band_from_corners(
-            consensus_corners, active_info, ref_err_px,
+        homography_rows=build_scene_rows(
+            video_id, [intervals[index] for index in accepted_indices],
+            [active_corners[index] for index in accepted_indices], resolution,
         ),
-        active_corners_refpx=consensus_corners,
+        landing_error_band_m=corner_error_band_from_corners(
+            representative_corners, active_info, ref_err_px,
+        ),
+        active_corners_refpx=representative_corners,
     )
-    accepted_positions = {
-        scene_index: accepted_position
-        for accepted_position, scene_index in enumerate(accepted_scene_indices)
-    }
-    records = []
-    for scene_index, scene in enumerate(evidence):
-        accepted_position = accepted_positions.get(scene_index)
-        records.append(
-            _scene_record(
-                video_id,
-                case_id,
-                parent,
-                scene_index,
-                scene,
-                keep_vote,
-                scene_valid[scene_index],
-                active_corners_native_px=(
-                    repaired_corners[accepted_position]
-                    if accepted_position is not None else None
-                ),
-                consensus_distance_px=(
-                    float(consensus.distances_px[accepted_position])
-                    if accepted_position is not None else None
-                ),
-                consensus_flag=(
-                    bool(consensus.flagged[accepted_position])
-                    if accepted_position is not None else None
-                ),
-            )
-        )
-    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present, consensus)
+    return CourtEvidenceResult(inputs, records, keep_vote, court_present, None)

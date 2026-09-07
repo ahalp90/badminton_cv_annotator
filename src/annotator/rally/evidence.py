@@ -1,13 +1,14 @@
 """Sticky player evidence shared by serve and contact rules."""
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 from typing import Iterable, Mapping, NamedTuple
 
 import numpy as np
 
-from ..types import ANKLE_L, ANKLE_R, Slot, StickyResult, WRIST_L, WRIST_R
+from ..scene_courts import SceneCourt, court_at_frame
+from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -136,6 +137,7 @@ def _track_sticky_players(
     gate_court_info: dict[str, dict],
     gate_resolution_table: object,
     resolution: tuple[float, float],
+    scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> _StickyEvidence:
     """Run the sequential sticky picker and retain its frame-aligned evidence."""
     params = sticky_anchor.StickyAnchorParams()
@@ -163,6 +165,12 @@ def _track_sticky_players(
     )
 
     for start, end in segments:
+        if scene_courts is not None:
+            scene = court_at_frame(scene_courts, start)
+            if end > scene.end_frame:
+                raise ValueError('tracker segment crosses a court scene boundary')
+            ctx = ClipContext(gate_video_id, {gate_video_id: scene.court_info}, gate_resolution_table)
+            halfcourt_centre = sticky_anchor.compute_halfcourt_centres(scene.court_info)
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
             evidence.analysed[frame] = True
@@ -252,6 +260,7 @@ def build_sticky_result(
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
     resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
+    *, scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> StickyResult:
     """Run sticky player tracking and measure its contact and serve evidence."""
     evidence = _track_sticky_players(
@@ -265,6 +274,7 @@ def build_sticky_result(
         gate_court_info,
         gate_resolution_table,
         resolution,
+        scene_courts,
     )
     _measure_sticky_distances(track, segments, pose_kps, resolution, half_window, evidence)
     return StickyResult(

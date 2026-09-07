@@ -5,23 +5,23 @@ import argparse
 import csv
 import logging
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
 import numpy as np
 import pandas as pd
 
-from annotator.fps_constants import ScalingKind
+from annotator import point_winner
 from annotator.calibration.fixtures import (
-    FIXTURES, REPO_ROOT, SHARED_FILES, Fixture, fixtures_root, verify_file,
+    FIXTURES,
+    REPO_ROOT,
+    SHARED_FILES,
+    Fixture,
+    fixtures_root,
+    verify_file,
     verify_run_video_fixture,
 )
-from annotator.run_video import AnnotatorResult, run_video
-from annotator.inpaint_guard import code_counts, grade_track
-from annotator import point_winner
-from annotator.point_winner import Half, OTHER_HALF, SHIPPED_LANDING_FILTER_OPTIONS, Verdict
-from annotator.replay_mask import _read_homography_rows
 from annotator.calibration.scoring import (
     CANONICAL_CONTACT_TOLERANCE_BASE30,
     RallyBoundary,
@@ -32,6 +32,17 @@ from annotator.calibration.scoring import (
     score_boundaries,
     score_contacts,
 )
+from annotator.fps_constants import ScalingKind
+from annotator.inpaint_guard import code_counts, grade_track
+from annotator.point_winner import (
+    OTHER_HALF,
+    SHIPPED_LANDING_FILTER_OPTIONS,
+    Half,
+    Verdict,
+)
+from annotator.replay_mask import _read_homography_rows
+from annotator.run_video import AnnotatorResult, run_video
+from annotator.scene_courts import SceneCourt, court_at_frame
 from shared.court import load_all_court_info
 
 log = logging.getLogger(__name__)
@@ -570,8 +581,29 @@ def _hit_height_gt_map(
     return result
 
 
-def score_video(fixture: GroundTruthVideo, result: AnnotatorResult, master: pd.DataFrame, court_info: dict,
-                tolerance: int) -> VideoScoring:
+def _landing_court_info(
+    video_id: int,
+    final_stroke_frame: int,
+    court_info: dict,
+    scene_courts: Sequence[SceneCourt] | None,
+) -> dict[str, object] | None:
+    if scene_courts is None:
+        return court_info[video_id]
+    try:
+        return court_at_frame(scene_courts, final_stroke_frame).court_info
+    except ValueError:
+        # An accepted-scene gap has no trusted camera geometry for GT projection.
+        return None
+
+
+def score_video(
+    fixture: GroundTruthVideo,
+    result: AnnotatorResult,
+    master: pd.DataFrame,
+    court_info: dict,
+    tolerance: int,
+    scene_courts: Sequence[SceneCourt] | None = None,
+) -> VideoScoring:
     gt = load_gt_rallies(master, fixture.video_id)
     sets = load_set_tables(fixture, gt)
     recon = reconcile_sets(fixture, master, gt, sets)
@@ -664,11 +696,21 @@ def score_video(fixture: GroundTruthVideo, result: AnnotatorResult, master: pd.D
         landing_half = pred_landing = None
         ld_ok = None
         if gt_landing is not None:
-            projected = point_winner.project_pixels_to_court(np.array([[gt_landing[0]], [gt_landing[1]]]), point_winner.HOMOGRAPHY_RESOLUTION, court_info[fixture.video_id])
-            landing_half = Half.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else Half.BOT
+            landing_court = _landing_court_info(
+                fixture.video_id, rally.stroke_frames[-1], court_info, scene_courts
+            )
             detected_landing = result.landings.get(span) if covered else None
             pred_landing = detected_landing.half if detected_landing is not None else None
-            ld_ok = covered and pred_landing == landing_half
+            if landing_court is not None:
+                projected = point_winner.project_pixels_to_court(
+                    np.array([[gt_landing[0]], [gt_landing[1]]]),
+                    point_winner.HOMOGRAPHY_RESOLUTION,
+                    landing_court,
+                )
+                landing_half = Half.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else Half.BOT
+                ld_ok = covered and pred_landing == landing_half
+            else:
+                ld_ok = False
             landing[0] += int(ld_ok)
             landing[1] += 1
             if covered:

@@ -10,10 +10,10 @@ reliable enough to export.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import math
+from collections.abc import Sequence
 from enum import IntEnum
 from fractions import Fraction
-import math
 from typing import NamedTuple
 
 import numpy as np
@@ -23,9 +23,8 @@ from annotator.court_evidence import detected_court_info
 from annotator.fps_constants import ScalingKind
 from annotator.point_winner import project_pixels_to_court
 from annotator.rally.evidence import build_sticky_result, tracker_segments
+from annotator.scene_courts import build_scene_courts, scene_ref_corners
 from dataset_builder.vision import CourtVision, PoseArrays
-from shared.court import HOMOGRAPHY_RESOLUTION
-
 
 EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)
@@ -101,6 +100,7 @@ def derive_player_feature_inputs(
         inputs.gate_court_info,
         inputs.gate_resolution_table,
         inputs.resolution,
+        scene_courts=build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution),
     )
     selected_keypoints = select_sticky_keypoints(pose.kps, sticky.picks)
     raw_posture = posture_signal(selected_keypoints)
@@ -285,29 +285,6 @@ def project_positions_by_scene(
                 points[valid].T, (width, height), court_info
             ).T
     return projected
-
-
-def scene_ref_corners(
-    row: Mapping[str, object], resolution: tuple[float, float]
-) -> np.ndarray:
-    """Scale one scene row's native corner quad to the homography reference frame."""
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-    native = np.array(
-        [
-            [row["upleft_x"], row["upleft_y"]],
-            [row["upright_x"], row["upright_y"]],
-            [row["downright_x"], row["downright_y"]],
-            [row["downleft_x"], row["downleft_y"]],
-        ],
-        dtype=float,
-    )
-    if not np.isfinite(native).all():
-        raise ValueError("scene corners must be finite")
-    return native * np.array(
-        [HOMOGRAPHY_RESOLUTION[0] / width, HOMOGRAPHY_RESOLUTION[1] / height]
-    )
 
 
 def interpolate_internal_gaps(
