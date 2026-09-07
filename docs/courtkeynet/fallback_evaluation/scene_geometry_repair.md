@@ -10,6 +10,8 @@ annotations for its badminton dataset.
 
 The [companion worklog](scene_geometry_repair_worklog.md) records failed
 approaches, the decisions they informed and the outstanding geometry work.
+The [evidence bundle](../../../experiments/annotator/court_geometry_repair/README.md)
+contains saved results, scoring checks and reproduction instructions.
 
 ## What was tested
 

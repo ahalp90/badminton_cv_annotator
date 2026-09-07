@@ -9,6 +9,8 @@ and features.
 This companion records useful failed approaches and decisions from issue #148.
 The [results report](scene_geometry_repair.md) contains the final implementation
 summary, comparison protocol and measurements.
+The [evidence bundle](../../../experiments/annotator/court_geometry_repair/README.md)
+provides the selected records and runnable checks behind them.
 
 ## What the investigation ruled out
 
