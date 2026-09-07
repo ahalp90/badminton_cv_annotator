@@ -8,13 +8,17 @@ precision loss. Video 53 gains 28 fully correct sections.
 Reliable court geometry supports the project's automatic player, contact and rally
 annotations for its badminton dataset.
 
+The [companion worklog](scene_geometry_repair_worklog.md) records failed
+approaches, the decisions they informed and the outstanding geometry work.
+
 ## What was tested
 
 The comparison uses the saved production court evidence as its baseline
 (`a111181`). Both runs use the same pose and shuttle arrays, contact models,
 rally-selection models and settings. Court-dependent annotations and features
-were regenerated. No models were retrained. The reconstructed baseline matches
-the saved reference contact and final-section records on both videos.
+were regenerated. No models were retrained, and the tree models were not tuned.
+The reconstructed baseline matches the saved reference contact and final-section
+records on both videos.
 
 These are development checks on known failures, not an untouched test-set claim.
 The two videos have 976 and 937 labelled contacts, across 73 and 76 labelled
@@ -52,9 +56,10 @@ containing two people could pass while fitting shirt, net or advertising edges.
 The check measures actual fragment extent in sampled frames with valid corner shapes.
 It takes each painted line's median coverage across frames, then averages within
 each court direction.
-Both directions require at least 50% coverage, within 10 reference pixels and
-10 degrees. A borrowed outline must improve coverage and pass a fresh person
-check. Coverage fractions are saved with each scene's evidence.
+For fallback and borrowed courts, both directions require at least 50% coverage,
+within 10 reference pixels and 10 degrees. A borrowed outline must improve
+coverage and pass a fresh person check. Coverage fractions are saved with each
+scene's evidence.
 
 Tracking, contact-side assignment, landing projection, hit-height estimation and
 feature export now use the accepted court for the current scene. Landing searches
@@ -77,8 +82,8 @@ At ±5 frames, F1 changes from 0.868 to 0.872 on video 17 and from 0.332 to
 6 to 31 on video 53, again with no previously correct sections lost.
 
 Video 17 retains its correct opening court and selects both players at the two
-reported frames, 46045 and 47276. Video 53 recovers the reported scene 334 and
-74 previously rejected wide-court scenes overall. Two old close-up acceptances
+reported frames, 46045 and 47276. Video 53 recovers 74 previously rejected
+wide-court scenes, including the reported scene 334. Two old close-up acceptances
 are removed. The final court evidence contains 28 accepted scenes on video 17
 and 97 on video 53.
 
@@ -107,9 +112,14 @@ advertising-board failures; it is not a separately trained scene classifier.
 
 Video 17's long opening scene still spans multiple rallies. Its improved player
 evidence does not by itself solve those rally boundaries. The fixed contact
-models also produce more false positives there. Next, evaluate the corrected
-geometry on the remaining broadcasts. Then address splitting rallies within
-long scenes. Regenerate court-dependent features before any model retraining.
+models also produce more false positives there.
+
+Next, group scenes with matching camera views to establish a shared calibration
+and prevent coordinate drift between their separate court estimates. This is
+not implemented yet. Partial-court usefulness also needs evaluation; the
+[companion worklog](scene_geometry_repair_worklog.md) describes both follow-ups.
+Further work includes evaluating the remaining broadcasts and splitting rallies
+within long scenes. Regenerate court-dependent features before model retraining.
 Replay detection still needs evidence beyond camera novelty; this change does
 not claim to identify every replay.
 
