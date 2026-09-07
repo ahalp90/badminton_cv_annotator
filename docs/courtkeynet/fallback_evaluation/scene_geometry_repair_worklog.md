@@ -229,8 +229,10 @@ fractions of 0/0.019. This is a scene-acceptance limitation, not absent court ev
 Grouping is conservative. Some selected separate views align within one native pixel,
 including the first members of video 8's two groups and several ungrouped video 9
 scenes. Other pairs show little movement but fail the image-correlation threshold.
-Pair compatibility does not guarantee a shared group: all-pair hash bounds,
-representative alignment and final court checks also apply. No thresholds were
+At this evaluated revision, pair compatibility did not guarantee a shared group:
+all-pair hash bounds, representative alignment and final court checks also applied.
+A subsequent [original-data grouping revision](scene_grouping.md#matching-revision-on-original-shuttleset)
+removes the preliminary all-pair hash partition while retaining geometric checks. No thresholds were
 changed in response to these test-set findings.
 
 This is a bounded image audit. Scenes without a raw quadrilateral were not inspected,

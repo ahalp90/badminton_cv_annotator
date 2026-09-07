@@ -63,8 +63,9 @@ def matching_view_groups(
 ) -> list[list[int]]:
     """Find image-supported groups among initially accepted, static scene courts.
 
-    Every pair must pass the broad hash bound. Alignment to the group's hash
-    medoid then excludes zoom/crop changes that a perceptual hash can overlook.
+    Every member must hash-match and align to one fixed representative. Requiring
+    all pairs to hash-match can split a static view when players or overlays change.
+    Alignment to the representative excludes zoom/crop changes and neighbour chains.
     Missing image evidence leaves a scene's existing calibration in place.
     """
     indices = [index for index, (view, valid) in enumerate(zip(views, scene_valid)) if view is not None and valid]
@@ -75,27 +76,20 @@ def matching_view_groups(
             other_hashes = views[indices[second]].hashes
             distance = np.median(np.mean(hashes[:, None] != other_hashes[None, :], axis=(2, 3)))
             distances[first, second] = distances[second, first] = distance
-    groups: list[list[int]] = []
-    for position in range(len(indices)):
-        for group in groups:
-            if max(distances[position, group]) <= MAX_HASH_DISTANCE:
-                group.append(position)
-                break
-        else:
-            groups.append([position])
+    remaining = list(range(len(indices)))
+    representatives = remaining.copy()
     matched = []
-    for group in groups:
-        remaining = list(group)
-        while len(remaining) >= MIN_SHARED_SCENES:
-            medoid = remaining[int(np.argmin(distances[np.ix_(remaining, remaining)].sum(axis=1)))]
-            template_index = indices[medoid]
-            template = views[template_index]
-            corners = corners_refpx[template_index]
-            members = [position for position in remaining
-                       if _view_alignment(template, views[indices[position]], corners)]
-            if len(members) >= MIN_SHARED_SCENES:
-                matched.append([indices[position] for position in members])
-                remaining = [position for position in remaining if position not in members]
-            else:
-                remaining.remove(medoid)
+    while len(remaining) >= MIN_SHARED_SCENES and representatives:
+        medoid = representatives[int(np.argmin(distances[np.ix_(representatives, remaining)].sum(axis=1)))]
+        representatives.remove(medoid)
+        template_index = indices[medoid]
+        template = views[template_index]
+        corners = corners_refpx[template_index]
+        members = [position for position in remaining
+                   if distances[medoid, position] <= MAX_HASH_DISTANCE
+                   and _view_alignment(template, views[indices[position]], corners)]
+        if len(members) >= MIN_SHARED_SCENES:
+            matched.append([indices[position] for position in members])
+            remaining = [position for position in remaining if position not in members]
+            representatives = [position for position in representatives if position not in members]
     return matched

@@ -41,6 +41,27 @@ def test_hash_groups_do_not_merge_by_a_chain_of_similar_scenes(monkeypatch) -> N
     assert court_views.matching_view_groups(views, [np.ones((4, 2))] * 5, [True] * 5) == [[0, 1, 2, 3]]
 
 
+def test_aligned_views_can_share_a_representative_despite_pairwise_hash_variation() -> None:
+    hashes = np.zeros((1, 16, 16), dtype=bool)
+    first = hashes.copy()
+    first.reshape(-1)[:60] = True
+    last = hashes.copy()
+    last.reshape(-1)[-60:] = True
+    image = cv2.cvtColor(_court_image(), cv2.COLOR_BGR2GRAY)
+    views = [court_views.CourtView(value, image) for value in (first, hashes, hashes, last)]
+    corners = np.array([[280, 170], [680, 170], [800, 490], [160, 490]]) * (4 / 3)
+    assert court_views.matching_view_groups(views, [corners] * 4, [True] * 4) == [[0, 1, 2, 3]]
+
+
+def test_failed_representative_can_still_join_another_view_group(monkeypatch) -> None:
+    views = [court_views.CourtView(np.zeros((1, 16, 16), dtype=bool), np.zeros((540, 960), np.uint8))
+             for _ in range(3)]
+    # Image alignment is directional: an unsuitable template can still align as a sample.
+    monkeypatch.setattr(court_views, '_view_alignment',
+                        lambda template, sample, _corners: template is not views[0] or sample is template)
+    assert court_views.matching_view_groups(views, [np.ones((4, 2))] * 3, [True] * 3) == [[0, 1, 2]]
+
+
 def test_textureless_images_and_small_groups_keep_existing_courts() -> None:
     image = np.zeros((540, 960, 3), np.uint8)
     view = court_views.describe_court_view([image])

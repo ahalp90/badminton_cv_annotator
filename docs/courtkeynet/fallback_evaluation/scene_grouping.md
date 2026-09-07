@@ -16,21 +16,23 @@ middle and last samples to compute
 and a median greyscale image at 960×540. It adds no neural inference pass.
 
 Hash distance measures the fraction of differing bits. For a scene pair, the
-comparison takes the median distance across its sampled-frame pairs. Every pair
-in a candidate group must have distance at most 0.30. This prevents a chain of
-approximately matching scenes from joining distinct views.
+comparison takes the median distance across its sampled-frame pairs. Every member
+must have distance at most 0.30 from one fixed representative. That representative
+has the smallest total hash distance to the remaining scenes.
 
 A perceptual hash can tolerate a small zoom or crop. An
 [OpenCV image-alignment check](https://docs.opencv.org/4.13.0/dc/d6b/group__video__track.html)
-therefore checks each candidate against a representative image. The representative
-has the smallest total hash distance to the other members. Alignment uses image
+therefore checks each candidate against the same representative image. Matching
+a neighbour is insufficient: every member must align directly. Alignment uses image
 intensity within an expanded court mask. It must achieve correlation of at least
 0.8 and move the court corners by at most one pixel at the 1280×720 reference
 resolution. That corresponds to 1.5 pixels in a 1920×1080 source.
 
-A different recurring projection within a broad hash group can form its own
-aligned subgroup. Failed or ambiguous matches retain their existing courts.
-These are development settings, established on the two examples below.
+After accepting a group, the remaining scenes can form their own groups around
+other representatives. A failed representative remains eligible to join a group
+using another reference image. Failed or ambiguous matches retain their existing courts.
+The thresholds were established on the two development examples below. The
+representative-based grouping revision was tested on original ShuttleSet.
 
 ## Choosing the shared court
 
@@ -52,6 +54,9 @@ calculations and player-feature projection. Older saved records remain readable;
 scene evidence without image summaries retains its previous geometry.
 
 ## Development results
+
+These results describe the initial grouping revision `4aa75fb`. The later
+representative-based revision is assessed separately below.
 
 The comparison uses the same cached detections, pose and shuttle inputs as the
 previous repair. It regenerates annotations and contact features before applying
@@ -108,6 +113,31 @@ from 0.075668 to 0.075607 for the bottom player, in normalised court coordinates
 Recovery excludes one span in video 17 and eight in video 53 because the saved
 prediction does not identify which court side supplies the initial striker.
 
+## Matching revision on original ShuttleSet
+
+The first implementation required every pair of scenes in a preliminary group to
+pass the hash bound. In the original video-21 control, ten scenes were left in
+groups too small for alignment. Seven matched 33 or 34 of the main group's 35
+members, but a mismatch with another member prevented admission.
+
+The revised implementation requires both hash compatibility and geometric alignment
+to one fixed representative. It removes the preliminary all-pair hash partition;
+it retains the 0.30 hash, 0.8 correlation, one-reference-pixel movement and three-
+member requirements. Chained matches and changed zooms still fail the tests.
+
+Using the same cached geometry and sampled images, original video 3 retains its
+39 matched scenes. Video 21 increases from 35 to 42, with no previously grouped
+member lost. The seven additions were visually checked against the same wide view.
+Shared-median reference-corner error stays 4.631 px in video 3 and changes from
+4.636 to 4.632 px in video 21. This improves coverage of repeated views; it does
+not establish a meaningful calibration-accuracy gain.
+
+These are image-grouping controls using locally valid courts. They exclude the
+production person gate, so 42 matched scenes is not a full-pipeline acceptance
+count. The sharing adapter still applies its existing geometry, person and
+fallback-line checks. Matching requires images and court outlines; it does not
+use neural confidence or depend on CourtKeyNet's candidate-recovery rules.
+
 ## Feature coverage and deferred work
 
 The contact comparison regenerates the existing image-space shuttle and player
@@ -123,9 +153,10 @@ supplied to that existing path; it adds no new feature definitions.
 
 Remaining work includes:
 
-- Comparing a shared fit against pooled painted-line evidence across the group.
-  A median can preserve a bias shared by most original detections.
-- Evaluation on additional broadcasts and appropriate view-specific ground truth.
+- Shared calibration accuracy: the tested pooled-line fit worsened corner error
+  on two original-data controls, so the median stays. A common bias can remain.
+- Broader view-specific ground truth. The completed frozen fresh-broadcast audit
+  and its limits are recorded in the [follow-up worklog](scene_geometry_repair_worklog.md).
 - Moving cameras within a scene, general partial-court recovery and rally splitting.
 - Any new court-space tree features or changes to the fitted tree models.
 
