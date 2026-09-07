@@ -134,8 +134,8 @@ with frozen models. Existing player-feature inputs were regenerated; the
 
 Two small tree-feature candidates are player ground-anchor speed in court
 coordinates and distance from the centre of the player's half-court. Existing
-image-space features would remain the comparison. First measure finite coverage,
-interpolation and out-of-court positions using exact video/frame joins. A floor
+image-space features remain the comparison for a future fit. The initial coverage
+check below measures availability, interpolation and out-of-court positions. A floor
 homography does not recover airborne shuttle position or physical shuttle speed.
 Feature selection should use the original training data; keep fresh broadcasts
 for evaluation. ShuttleSet22 is the test set: it supplies no learned-model fitting,
@@ -262,7 +262,7 @@ Null intervals do not enter rally medians. No schema or fitted feature vector ch
 
 The reusable `scripts/measure_player_court_features.py` reads canonical metadata,
 pose, shuttle and court stages. It writes counts, quantiles, exact input paths and
-maximum-value frame/player IDs to a compressed JSON summary. Run it with
+maximum-value frame and top/bottom slot indices to a compressed JSON summary. Run it with
 `--stage-root <stages> --video-ids sset_03 sset_21 --output <summary.json.gz>`.
 It reads no contact labels and runs no neural inference or fitting.
 
