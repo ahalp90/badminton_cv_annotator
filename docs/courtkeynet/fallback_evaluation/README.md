@@ -1,5 +1,9 @@
 # CourtKeyNet fallback evaluation
 
+The [issue #148 scene-geometry repair](scene_geometry_repair.md) describes the
+current production integration and its paired pipeline checks. The measurements
+below record the original fallback and video-wide consensus evaluation.
+
 ## Result
 
 The current court-corner chain is useful on standard fixed-camera broadcast
@@ -14,7 +18,7 @@ per-scene geometry gate cannot recognise.
 This record separates the measured result from the wider interpretation. It
 does not claim that the fallback is a general amateur-court detector.
 
-## Current path
+## Path measured in the original evaluation
 
 `src/courtkeynet/wrapper.py` resizes frames with aspect-preserving padding and
 returns corners in `TL, TR, BR, BL` order. The frame gate uses:
@@ -161,4 +165,3 @@ and the mean consensus error against ground truth.
 
 Research and measurements were checked against the current implementation on
 8 August 2026.
-
