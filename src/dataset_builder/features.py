@@ -1,4 +1,4 @@
-"""Production formulas for the frozen v1 features.
+"""Production feature formulas and reusable projected player signals.
 
 Issue #22 defines the formulas. Issue #104 kept posture variability, rally
 timestamps, and linear-interpolation provenance. Issue #18 moved those parts
@@ -21,7 +21,11 @@ import pandas as pd
 
 from annotator.court_evidence import detected_court_info
 from annotator.fps_constants import ScalingKind
-from annotator.point_winner import project_pixels_to_court
+from annotator.point_winner import (
+    COURT_LENGTH_M,
+    COURT_WIDTH_M,
+    project_pixels_to_court,
+)
 from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.scene_courts import build_scene_courts, scene_ref_corners
 from dataset_builder.vision import CourtVision, PoseArrays
@@ -38,6 +42,7 @@ CLIP_TAIL_SECONDS = 3
 # a contact, and each side recovers toward its own half-court centre.
 RECOVERY_HALF_WINDOW_BASE30 = 5
 HALF_CENTRES = np.array(((0.5, 0.25), (0.5, 0.75)), dtype=float)
+COURT_AXIS_METRES = np.array((COURT_WIDTH_M, COURT_LENGTH_M), dtype=float)
 
 
 class InterpolationType(IntEnum):
@@ -224,10 +229,57 @@ def recovery_at_opponent_contacts(
     return rows
 
 
+def court_position_speed_mps(
+    court_positions: np.ndarray,
+    position_interpolation: np.ndarray,
+    segments: Sequence[tuple[int, int]],
+    fps: float,
+) -> np.ndarray:
+    """Return observed ground-anchor speed in metres/second, aligned to step end.
+
+    Positions use unit-court [width, length] coordinates and [top, bottom] slots.
+    Both endpoints must be finite observations; interpolation can hide jumps.
+    Segments are the validated, disjoint half-open tracker ranges. Their first
+    frames and all unavailable steps remain NaN, including adjacent scene cuts.
+    This measures projected anchor motion, including pose and calibration noise.
+    """
+    validate_fps(fps)
+    positions = np.asarray(court_positions, dtype=float)
+    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
+        raise ValueError("court_positions must have shape (frames, 2, 2)")
+    provenance = np.asarray(position_interpolation)
+    if provenance.shape != positions.shape[:2]:
+        raise ValueError("position_interpolation must have shape (frames, 2)")
+    observed = np.isfinite(positions).all(axis=2) & (provenance == InterpolationType.OBSERVED)
+    speed = np.full(positions.shape[:2], np.nan, dtype=float)
+    for start, end in segments:
+        block = positions[start:end]
+        valid_steps = observed[start:end][1:] & observed[start:end][:-1]
+        displacement = (block[1:][valid_steps] - block[:-1][valid_steps]) * COURT_AXIS_METRES
+        speed[start:end][1:][valid_steps] = np.linalg.norm(displacement, axis=1) * fps
+    return speed
+
+
+def half_court_centre_distance_m(court_positions: np.ndarray) -> np.ndarray:
+    """Return metres from each player's half-centre, retaining out-of-court values.
+
+    Input axes are [frame, top/bottom slot, width/length coordinate]. Finite
+    interpolated positions are allowed; callers retain their separate provenance.
+    """
+    positions = np.asarray(court_positions, dtype=float)
+    if positions.ndim != 3 or positions.shape[1:] != (2, 2):
+        raise ValueError("court_positions must have shape (frames, 2, 2)")
+    finite = np.isfinite(positions).all(axis=2)
+    distance = np.full(positions.shape[:2], np.nan, dtype=float)
+    displacement = (positions - HALF_CENTRES)[finite] * COURT_AXIS_METRES
+    distance[finite] = np.linalg.norm(displacement, axis=1)
+    return distance
+
+
 def movement_inefficiency(
     court_positions: np.ndarray, contact_frames: Sequence[int]
 ) -> np.ndarray:
-    """Return path length minus straight displacement for each contact interval."""
+    """Return path length minus displacement; callers must enforce scene continuity."""
     positions = np.asarray(court_positions, dtype=float)
     if positions.ndim != 3 or positions.shape[1:] != (2, 2):
         raise ValueError("court_positions must have shape (frames, 2, 2)")

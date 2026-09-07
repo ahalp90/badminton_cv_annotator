@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
@@ -596,6 +597,32 @@ def test_shots_recovery_and_movement_are_wired_from_human_contacts(tmp_path: Pat
     # The top side was never the non-striking player in rally 2, so it has no
     # recovery observations at all.
     assert by_key[(1, "top")]["recovery_distance_median"] is None
+
+
+def test_movement_export_leaves_cross_scene_intervals_null(tmp_path: Path) -> None:
+    inputs = _rally_features_video_inputs(tmp_path)
+    positions = inputs.player_inputs.court_positions.copy()
+    positions[15, 1] = (0.5, 0.80)
+    positions[25, 1] = (0.5, 0.95)
+    positions[35, 1] = (0.5, 0.90)
+    player_inputs = inputs.player_inputs._replace(
+        court_positions=positions,
+        tracker_segments=((0, 30), (30, FEATURES_FRAME_COUNT)),
+    )
+    tables = build_video_tables(tmp_path / "export", replace(inputs, player_inputs=player_inputs))
+
+    assert tables.source_contacts is not None
+    contacts = validate_table(SOURCE_CONTACTS, tables.source_contacts)
+    rally1 = contacts[contacts["rally_id"] == 0].sort_values("frame_num")
+    for column in ("movement_inefficiency_top", "movement_inefficiency_bottom"):
+        assert pd.isna(rally1[column].iloc[1])  # The next contact is exactly on the cut.
+        assert pd.isna(rally1[column].iloc[3])
+    assert rally1["movement_inefficiency_bottom"].iloc[[0, 2]].tolist() == pytest.approx([0.1, 0.3])
+    bottom = next(
+        row for row in tables.player_rallies
+        if row["rally_origin"] == "source_contacts" and row["rally_id"] == 0 and row["court_side"] == "bottom"
+    )
+    assert bottom["movement_inefficiency_median"] == pytest.approx(0.2)
 
 
 def test_annotator_rows_get_null_derived_columns(tmp_path: Path) -> None:

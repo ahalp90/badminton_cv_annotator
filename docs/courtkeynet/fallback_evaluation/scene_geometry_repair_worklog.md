@@ -3,8 +3,10 @@
 The geometry repair and subsequent [scene grouping](scene_grouping.md) are
 implemented. The follow-up retains usable fallback candidates through final
 validation. A comparison on original ShuttleSet supports keeping the shared median.
-Frozen evaluation on three fresh broadcasts is complete; it identifies remaining
-zoomed-court errors and missed grouping.
+Frozen evaluation on three fresh broadcasts is complete. A later original-data
+comparison improves repeated-view coverage. Reusable player-feature helpers and
+a scene-boundary correction are complete; further detector repair is deferred
+until the upstream detector choice is assessed.
 
 This companion records useful failed approaches and decisions from issue #148.
 The [results report](scene_geometry_repair.md) contains the final implementation
@@ -125,9 +127,10 @@ with frozen models. Existing player-feature inputs were regenerated; the
 3. Completed on original ShuttleSet: compare the shared median against a fit
    using pooled visible court lines. Keep the median: the pooled fit worsened
    reference-corner accuracy on both controls. Details follow below.
-4. Initial assessment complete: identify small court-space feature candidates.
-   Their coverage and predictive benefit remain unmeasured. Review those results
-   and tradeoffs before authorising any tree retraining or refitting.
+4. Detector-independent groundwork complete: implement two court-space helpers,
+   measure descriptive coverage on original videos 3/21 and prevent movement
+   export across scene cuts. Predictive benefit remains unmeasured. Review the
+   coverage and tradeoffs below before authorising any tree retraining/refitting.
 
 Two small tree-feature candidates are player ground-anchor speed in court
 coordinates and distance from the centre of the player's half-court. Existing
@@ -139,7 +142,8 @@ for evaluation. ShuttleSet22 is the test set: it supplies no learned-model fitti
 tuning or feature selection. Shared-fit development also uses original ShuttleSet;
 the completed SS22 pass evaluated the fixed detector. The queued SS22 line-fit
 comparison was cancelled before it ran. Acceptance and grouping thresholds remain fixed.
-No feature implementation or tree fitting has started.
+The helpers are implemented; trained-model inputs and the frozen export schema
+remain unchanged. No tree fitting has started.
 
 Original ShuttleSet is the preferred source for geometric development. A targeted
 SS22 exception may be useful for a meaningfully different failure mode absent from
@@ -240,22 +244,77 @@ so overall recovery recall is unmeasured. Midframes do not establish calibration
 accuracy throughout a moving shot. The findings support targeted investigation on
 original ShuttleSet; they do not justify calling the detector generally accurate.
 
-## Next work
+## Detector-independent player features
 
-1. Find original-ShuttleSet examples of misplaced, confidently model-derived courts,
-   particularly zoomed or partial views. Assess a correction against good model-only
-   views whose painted lines are weak. Applying the fallback coverage gate to every
-   model court could discard useful views.
-2. Trace missed grouping on original data. Keep the current rules until a bounded
-   comparison can improve repeated-view coverage while preserving zoom separation.
-3. Measure coverage of player court-space speed and half-court-centre distance on
-   original training data. Review interpolation, missingness and geometry errors
-   before deciding whether a tree-fit experiment is worthwhile. Tree fitting still
-   requires an explicit check-in.
+`src/dataset_builder/features.py` now supplies player ground-anchor speed in
+metres per second and distance from each player's half-court centre in metres.
+Both reuse existing projected positions. The width/length axes scale separately
+by 6.10/13.40 m. Speed requires two finite observed endpoints in one tracker
+segment; scene cuts, court gaps and interpolation leave missing values. Centre
+distance accepts finite interpolated positions with their provenance retained.
+Out-of-court positions remain visible for diagnosis.
 
-Boundary-direction filtering, normal-speed replay recognition and general moving-
-camera recovery remain separate work. The pooled shared-line fit stays deferred
-because the tested version worsened reference-corner accuracy.
+Existing frozen v1 recovery and movement formulas retain their dimensionless
+units. Movement export now leaves an interval null if its two contacts do not
+belong to the same tracker segment. Its inclusive path includes the next contact,
+so a next contact exactly on a scene cut also makes the interval unavailable.
+Null intervals do not enter rally medians. No schema or fitted feature vector changed.
+
+The reusable `scripts/measure_player_court_features.py` reads canonical metadata,
+pose, shuttle and court stages. It writes counts, quantiles, exact input paths and
+maximum-value frame/player IDs to a compressed JSON summary. Run it with
+`--stage-root <stages> --video-ids sset_03 sset_21 --output <summary.json.gz>`.
+It reads no contact labels and runs no neural inference or fitting.
+
+The first smoke run uses saved original ShuttleSet stages from revision `ad8da4f`.
+Those contain the older CourtKeyNet/consensus courts, not this branch's regenerated
+scene-grouped geometry. This checks the helpers on real inputs; it is not a
+before/after detector comparison.
+
+| Original video | All frame/player slots | Finite positions | Observed / interpolated positions | Finite speed | Speed median / p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 3, 25 fps | 215,802 | 51,766 (23.99%) | 50,830 / 936 | 50,649 (23.47%) | 1.39 / 5.91 m/s |
+| 21, 30 fps | 200,698 | 67,475 (33.62%) | 66,611 / 864 | 66,397 (33.08%) | 1.15 / 5.82 m/s |
+
+The denominator includes the whole video and both player slots. It includes
+non-playing scenes and structural speed gaps at segment starts. These are neither
+court-detection accuracy nor labelled training-row coverage measurements.
+There are 3,099/4,576 finite positions outside the court. Maximum speed reaches
+3,475.98/839.93 m/s; maximum centre distance reaches 154.75/36.62 m. These extremes
+cannot describe physical player motion. Their causes remain unresolved: pose,
+player selection and the older calibration can each contribute. They do not
+isolate a defect in the current detector. No clipping or smoothing was fitted
+to these examples.
+
+Production and script reviews found no defects. Full pytest: 2,121 passed,
+29 skipped (exit 0). The final summary-only frame-ID addition passed 29 focused
+tests; production code was unchanged. Whole Ruff/Pyrefly retain the previous
+905/11 findings (exit 1), with no added findings. Carmack loaded both real fixtures
+and completed the descriptive measurement successfully.
+
+## Stopping point and next work
+
+The detector-independent pass is complete. Fixed-representative grouping improves
+original video 21 from 35 to 42 members without losses; video 3 stays at 39.
+Reference accuracy is effectively unchanged. Details and limits are in the
+[grouping comparison](scene_grouping.md#matching-revision-on-original-shuttleset).
+
+The next useful step is to assess upstream detector quality on original data,
+with matching good controls and view-specific references. Further CourtKeyNet
+confidence exceptions, direction-hint repairs and zoom/partial-view recovery could
+be discarded with a replacement, so they remain deferred. The current model-only
+painted-line exemption preserves good weak-line courts but also permits bad outlines.
+The pooled shared-line fit remains deferred because it worsened corner accuracy.
+
+The two player-feature helpers are ready for later integration. Accurate geometry
+and player anchors still matter, and raw derivatives amplify noise. Tree integration,
+feature selection, smoothing and acceleration remain deferred. Before any tree
+retraining/refitting, review covered features, deferrals and tradeoffs with the user.
+Keep ShuttleSet22 out of learned fitting, tuning and feature selection.
+
+Normal-speed replay recognition, general moving-camera recovery and rally splitting
+remain separate investigations. Repeated-view hashes identify camera projections;
+they do not establish that the action itself is a replay.
 
 ## Explore usefulness on partial courts
 

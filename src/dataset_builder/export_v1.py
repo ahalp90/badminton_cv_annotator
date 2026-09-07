@@ -560,6 +560,12 @@ def _source_contact_features(
         if len(frames) >= 2:
             movement = movement_inefficiency(positions, frames)
             for interval in range(len(frames) - 1):
+                first_contact, next_contact = frames[interval : interval + 2]
+                if not any(
+                    start <= first_contact and next_contact < end
+                    for start, end in player_inputs.tracker_segments
+                ):
+                    continue
                 row = row_positions[interval]
                 top_value, bottom_value = movement[interval]
                 movement_top[row] = float(top_value) if math.isfinite(top_value) else None
