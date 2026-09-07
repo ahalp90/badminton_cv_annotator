@@ -695,6 +695,40 @@ def _share_scene_corners(
     return group_indices
 
 
+def _accept_scene_alternatives(
+    scenes: Sequence[SceneEvidence],
+    active_corners: list[np.ndarray | None],
+    scene_valid: list[bool],
+    keep_vote: np.ndarray,
+    line_supports: list[tuple[float, float] | None],
+    bboxes: np.ndarray,
+    scores: np.ndarray,
+    ndet: np.ndarray,
+    resolution: tuple[float, float],
+    detector_resolution: tuple[float, float],
+) -> None:
+    """Try retained local fits only after the preferred court and donor repair fail."""
+    for index, scene in enumerate(scenes):
+        if scene_valid[index] or scene.quad is None:
+            continue
+        for candidate in scene.quad.alternative_corners_px:
+            support = painted_line_support(candidate, scene.quad.line_segments_px, detector_resolution)
+            if min(support) < MIN_PAINTED_LINE_SUPPORT:
+                continue
+            corners = _as_ref_corners(candidate, detector_resolution)
+            interval = (scene.start_frame, scene.end_frame)
+            votes = build_keep_vote(
+                bboxes, scores, ndet, resolution, [interval], [detected_court_info(corners)],
+            )
+            if _scene_fraction(votes, interval) < SCENE_VALID_MIN_FRACTION:
+                continue
+            active_corners[index] = corners
+            scene_valid[index] = True
+            keep_vote[scene.start_frame:scene.end_frame] = votes[scene.start_frame:scene.end_frame]
+            line_supports[index] = support
+            break
+
+
 def build_detected_court_evidence(
     case_id: str,
     parent: str,
@@ -767,6 +801,10 @@ def build_detected_court_evidence(
             start, end = intervals[index]
             keep_vote[start:end] = changed_votes[start:end]
             scene_valid[index] = _scene_fraction(keep_vote, intervals[index]) >= SCENE_VALID_MIN_FRACTION
+    _accept_scene_alternatives(
+        evidence, active_corners, scene_valid, keep_vote, line_supports,
+        bboxes, scores, ndet, resolution, detector_resolution,
+    )
     group_indices = _share_scene_corners(
         evidence, active_corners, scene_valid, keep_vote, line_supports,
         bboxes, scores, ndet, resolution, detector_resolution,

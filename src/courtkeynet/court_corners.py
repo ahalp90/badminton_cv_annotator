@@ -196,6 +196,8 @@ class CourtQuad:
     fabricate a confidence for the corners it recovered from geometry.
     Fallback fragments allow the annotator to corroborate a repaired outline
     against this scene's images without extracting the lines a second time.
+    Alternative fits retain the same confident anchors. Raw metadata describes
+    the preferred fit even when final scene acceptance uses another outline.
     """
 
     corners_px: np.ndarray  # (4, 2) float32, original-frame pixels, TL TR BR BL
@@ -204,6 +206,7 @@ class CourtQuad:
     corner_source: tuple[str, str, str, str]  # per corner: 'model' | 'fallback'
     diagnostics: FallbackDiagnostics | None  # None on the model path
     line_segments_px: tuple[np.ndarray, ...] = ()  # one (fragments, 4) array per sampled frame
+    alternative_corners_px: tuple[np.ndarray, ...] = ()  # Other shape/anchor-valid fits, ordered by line residual.
 
 
 class _Line(NamedTuple):
@@ -995,7 +998,8 @@ def _cv2_path(
     if not accepted:
         logger.info("court fallback: no candidate satisfies court shape, line and anchor checks")
         return None
-    fit = min(accepted, key=lambda candidate: candidate.line_error)
+    accepted.sort(key=lambda candidate: candidate.line_error)
+    fit = accepted[0]
     diagonal = float(np.hypot(width, height))
     diagnostics = FallbackDiagnostics(
         reproj_line_px=fit.line_error,
@@ -1013,6 +1017,7 @@ def _cv2_path(
         corner_source=fit.corner_source,
         diagnostics=diagnostics,
         line_segments_px=tuple(segments),
+        alternative_corners_px=tuple(candidate.corners for candidate in accepted[1:]),
     )
 
 
