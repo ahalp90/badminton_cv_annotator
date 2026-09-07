@@ -4,6 +4,10 @@ The [issue #148 scene-geometry repair](scene_geometry_repair.md) describes the
 current production integration and its paired pipeline checks. The measurements
 below record the original fallback and video-wide consensus evaluation.
 
+The [independent detector assessment](independent_detector.md) tests a custom
+OpenCV replacement on broadcast and partially visible amateur courts. It records
+useful proposals and unresolved false acceptance; production remains unchanged.
+
 ## Result
 
 The current court-corner chain is useful on standard fixed-camera broadcast
