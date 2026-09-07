@@ -112,6 +112,7 @@ COURT_SCENES_COLUMNS = (
     "active_tl_x", "active_tl_y", "active_tr_x", "active_tr_y",
     "active_br_x", "active_br_y", "active_bl_x", "active_bl_y",
     "painted_line_lengthwise_frac", "painted_line_crosscourt_frac",
+    "view_group_index",
 )
 LANDING_HORIZON_COLUMNS = (
     "rally_id", "horizon_seconds", "horizon_frames", "final_contact_frame",
@@ -578,6 +579,7 @@ def _scene_row(record: CourtSceneRecord) -> dict[str, object]:
             record.consensus_distance_px, record.consensus_flag,
             active[0], active[1], active[2], active[3], active[4], active[5], active[6], active[7],
             line_support[0], line_support[1],
+            record.view_group_index,
         ],
     ))
 

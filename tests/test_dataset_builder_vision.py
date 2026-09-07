@@ -626,6 +626,7 @@ def test_court_provenance_round_trip_restores_every_scene_and_consensus_value(
 
     payload = vision.load_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME)
     del payload["scene_records"][0]["painted_line_support"]
+    del payload["scene_records"][0]["view_group_index"]
     vision.save_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME, payload)
     legacy = vision.load_court_vision(
         tmp_path,
@@ -634,6 +635,7 @@ def test_court_provenance_round_trip_restores_every_scene_and_consensus_value(
         resolution=(100.0, 50.0),
     )
     assert legacy.evidence.scene_records[0].painted_line_support is None
+    assert legacy.evidence.scene_records[0].view_group_index is None
 
     del payload["scene_records"][0]["active_corners_native_px"]
     vision.save_json_gz(tmp_path / vision.COURT_EVIDENCE_FILENAME, payload)

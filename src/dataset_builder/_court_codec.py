@@ -41,8 +41,8 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
 
     record = _object(payload, name)
     expected = {field.name for field in fields(CourtSceneRecord)}
-    # Older persisted evidence predates finite painted-line corroboration.
-    if set(record) not in (expected, expected - {'painted_line_support'}):
+    optional_fields = {'painted_line_support', 'view_group_index'}
+    if set(record) - expected or expected - set(record) - optional_fields:
         raise ValueError(f"{name} fields differ from CourtSceneRecord")
     support = _optional_array(record.get('painted_line_support'), f'{name}.painted_line_support', (2,))
     return CourtSceneRecord(
@@ -79,6 +79,7 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
             (4, 2),
         ),
         painted_line_support=None if support is None else (float(support[0]), float(support[1])),
+        view_group_index=_optional(record.get('view_group_index'), _integer, f'{name}.view_group_index'),
     )
 
 
@@ -148,6 +149,8 @@ def _validate_scene_records(
     raw_cuts: Sequence[tuple[int, int]],
     video_id: str,
 ) -> None:
+    from annotator.court_views import MIN_SHARED_SCENES
+
     if len(records) != len(raw_cuts):
         raise ValueError("court scene record count differs from raw cuts")
     for index, (record, interval) in enumerate(zip(records, raw_cuts)):
@@ -167,6 +170,21 @@ def _validate_scene_records(
             fraction < 0.0 or fraction > 1.0 for fraction in record.painted_line_support
         ):
             raise ValueError('court painted-line support must lie between zero and one')
+    groups = {}
+    for record in records:
+        if record.view_group_index is None:
+            continue
+        if not record.scene_valid or not 0 <= record.view_group_index < len(records):
+            raise ValueError('court view group requires an accepted scene and an in-range group index')
+        groups.setdefault(record.view_group_index, []).append(record)
+    for group_index, members in groups.items():
+        if len(members) < MIN_SHARED_SCENES:
+            raise ValueError('court view group requires at least three members')
+        if group_index != min(record.scene_index for record in members):
+            raise ValueError('court view group index must identify its first member')
+        if any(not np.array_equal(record.active_corners_native_px, members[0].active_corners_native_px)
+               for record in members):
+            raise ValueError('court view group members must share the same active corners')
 
 
 def _object(payload: object, name: str) -> dict[str, object]:

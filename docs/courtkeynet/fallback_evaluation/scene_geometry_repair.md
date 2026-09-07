@@ -116,10 +116,10 @@ Video 17's long opening scene still spans multiple rallies. Its improved player
 evidence does not by itself solve those rally boundaries. The fixed contact
 models also produce more false positives there.
 
-Next, group scenes with matching camera views to establish a shared calibration
-and prevent coordinate drift between their separate court estimates. This is
-not implemented yet. Partial-court usefulness also needs evaluation; the
-[companion worklog](scene_geometry_repair_worklog.md) describes both follow-ups.
+The [scene-grouping follow-up](scene_grouping.md) gives repeated camera views a
+shared calibration to prevent coordinate drift between separate court estimates.
+Partial-court usefulness still needs evaluation; the
+[companion worklog](scene_geometry_repair_worklog.md) describes that question.
 Further work includes evaluating the remaining broadcasts and splitting rallies
 within long scenes. Regenerate court-dependent features before model retraining.
 Replay detection still needs evidence beyond camera novelty; this change does

@@ -32,6 +32,12 @@ from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_inf
 
 from .composition_mask import detect_cuts
 from .config import COMPOSITION_CONTENT_THRESHOLD
+from .court_views import (
+    MIN_SHARED_SCENES,
+    CourtView,
+    describe_court_view,
+    matching_view_groups,
+)
 from .fps_constants import scale_for_fps
 from .point_winner import (
     COURT_LENGTH_M,
@@ -101,6 +107,7 @@ class SceneEvidence:
     end_frame: int
     sampled_frame_indices: tuple[int, ...]
     quad: CourtQuad | None
+    view: CourtView | None = None
 
 
 @dataclass(frozen=True)
@@ -129,6 +136,7 @@ class CourtSceneRecord:
     consensus_flag: bool | None
     active_corners_native_px: np.ndarray | None
     painted_line_support: tuple[float, float] | None = None
+    view_group_index: int | None = None
 
     def __post_init__(self) -> None:
         if self.raw_corners_px is not None:
@@ -256,7 +264,8 @@ def detect_scene_evidence(
                 detections,
                 corner_min_peak_conf=corner_floor,
             )
-            evidence.append(SceneEvidence(start_frame, end_frame, tuple(sample_indices), quad))
+            view = None if quad is None else describe_court_view(sampled_frames)
+            evidence.append(SceneEvidence(start_frame, end_frame, tuple(sample_indices), quad, view))
     finally:
         capture.release()
     return evidence
@@ -495,6 +504,7 @@ def _scene_record(
     consensus_flag: bool | None,
     static_corners_px: np.ndarray | None = None,
     line_support: tuple[float, float] | None = None,
+    view_group_index: int | None = None,
 ) -> CourtSceneRecord:
     """Build one immutable writer record without reprojecting later."""
     fraction = _scene_fraction(keep_vote, (scene.start_frame, scene.end_frame))
@@ -542,6 +552,7 @@ def _scene_record(
         consensus_flag=consensus_flag,
         active_corners_native_px=active_corners_native_px,
         painted_line_support=line_support,
+        view_group_index=view_group_index,
     )
 
 
@@ -638,6 +649,52 @@ def _repair_scene_corners(
     return repaired
 
 
+def _share_scene_corners(
+    evidence: Sequence[SceneEvidence],
+    active_corners: list[np.ndarray | None],
+    scene_valid: Sequence[bool],
+    keep_vote: np.ndarray,
+    line_supports: list[tuple[float, float] | None],
+    bboxes: np.ndarray,
+    scores: np.ndarray,
+    ndet: np.ndarray,
+    resolution: tuple[float, float],
+    detector_resolution: tuple[float, float],
+) -> list[int | None]:
+    groups = matching_view_groups([scene.view for scene in evidence], active_corners, scene_valid)
+    group_indices: list[int | None] = [None] * len(evidence)
+    native_scale = np.asarray(detector_resolution) / np.asarray(HOMOGRAPHY_RESOLUTION)
+    for members in groups:
+        shared = np.median([active_corners[index] for index in members], axis=0)
+        if _geometry_flags(shared, HOMOGRAPHY_RESOLUTION, area_bounds=(0.0, float('inf'))):
+            continue
+        intervals = [(evidence[index].start_frame, evidence[index].end_frame) for index in members]
+        votes = build_keep_vote(bboxes, scores, ndet, resolution, intervals, [detected_court_info(shared)] * len(members))
+        supported = []
+        supports = {}
+        for index, interval in zip(members, intervals):
+            if _scene_fraction(votes, interval) < SCENE_VALID_MIN_FRACTION:
+                continue
+            quad = evidence[index].quad
+            support = line_supports[index]
+            if quad.source == 'fallback':
+                support = painted_line_support(shared * native_scale, quad.line_segments_px, detector_resolution)
+                if min(support) < MIN_PAINTED_LINE_SUPPORT:
+                    continue
+            supports[index] = support
+            supported.append(index)
+        if len(supported) < MIN_SHARED_SCENES:
+            continue
+        group_index = min(supported)
+        for index in supported:
+            active_corners[index] = shared.copy()
+            start, end = evidence[index].start_frame, evidence[index].end_frame
+            keep_vote[start:end] = votes[start:end]
+            line_supports[index] = supports[index]
+            group_indices[index] = group_index
+    return group_indices
+
+
 def build_detected_court_evidence(
     case_id: str,
     parent: str,
@@ -710,6 +767,10 @@ def build_detected_court_evidence(
             start, end = intervals[index]
             keep_vote[start:end] = changed_votes[start:end]
             scene_valid[index] = _scene_fraction(keep_vote, intervals[index]) >= SCENE_VALID_MIN_FRACTION
+    group_indices = _share_scene_corners(
+        evidence, active_corners, scene_valid, keep_vote, line_supports,
+        bboxes, scores, ndet, resolution, detector_resolution,
+    )
     court_present = build_court_present(keep_vote, intervals, scene_valid)
     records = tuple(
         _scene_record(
@@ -718,6 +779,7 @@ def build_detected_court_evidence(
             consensus_distance_px=None,
             consensus_flag=None,
             line_support=line_supports[index],
+            view_group_index=group_indices[index],
         )
         for index, scene in enumerate(evidence)
     )

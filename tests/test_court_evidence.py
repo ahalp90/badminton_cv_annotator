@@ -737,3 +737,63 @@ def test_static_error_band_wrapper_matches_pure_helper() -> None:
     assert inputs.landing_error_band_m == pytest.approx(
         corner_error_band_from_corners(inputs.active_corners_refpx, inputs.court_info, 3.5),
     )
+
+
+def test_shared_courts_preserve_raw_evidence_and_round_trip_group_geometry(monkeypatch, tmp_path) -> None:
+    from dataset_builder.vision import (
+        COURT_EVIDENCE_FILENAME,
+        CourtVision,
+        load_court_vision,
+        load_json_gz,
+        persist_court_vision,
+        save_json_gz,
+    )
+
+    corners = np.array([[100., 100.], [1100., 100.], [1200., 700.], [0., 700.]])
+    raw = [corners - 3, corners, corners + 3]
+    intervals = [(0, 10), (10, 20), (20, 30)]
+    scenes = [evidence.SceneEvidence(start, end, (start,), _quad(quad))
+              for (start, end), quad in zip(intervals, raw)]
+    monkeypatch.setattr(evidence, 'matching_view_groups', lambda *_args: [[0, 1, 2]])
+    bboxes, scores, ndet = _pose_inputs(30)
+    result = evidence.build_detected_court_evidence(
+        'shared', 'detected', '7', (1280., 720.), intervals, scenes, bboxes, scores, ndet,
+        detector_resolution=(1280., 720.),
+    )
+    assert [record.view_group_index for record in result.scene_records] == [0, 0, 0]
+    for record, original in zip(result.scene_records, raw):
+        np.testing.assert_array_equal(record.raw_corners_px, original)
+        np.testing.assert_array_equal(record.active_corners_native_px, corners)
+    assert result.court_present.all()
+    assert result.keep_vote.all()
+    assert result.inputs.homography_rows['upleft_x'].tolist() == [100.] * 3
+    persist_court_vision(tmp_path, video_id='7', court=CourtVision(tuple(intervals), result),
+                         frame_count=30, resolution=(1280., 720.))
+    restored = load_court_vision(tmp_path, video_id='7', frame_count=30, resolution=(1280., 720.))
+    assert [record.view_group_index for record in restored.evidence.scene_records] == [0, 0, 0]
+    for record in restored.evidence.scene_records:
+        np.testing.assert_array_equal(record.active_corners_native_px, corners)
+
+    payload = load_json_gz(tmp_path / COURT_EVIDENCE_FILENAME)
+    payload['scene_records'][2]['view_group_index'] = None
+    save_json_gz(tmp_path / COURT_EVIDENCE_FILENAME, payload)
+    with pytest.raises(ValueError, match='at least three members'):
+        load_court_vision(tmp_path, video_id='7', frame_count=30, resolution=(1280., 720.))
+
+
+def test_shared_court_failing_person_vote_does_not_change_existing_geometry(monkeypatch) -> None:
+    corners = np.array([[100., 100.], [1100., 100.], [1200., 700.], [0., 700.]])
+    raw = [corners - 3, corners, corners + 3]
+    scenes = [evidence.SceneEvidence(index * 10, (index + 1) * 10, (), _quad(quad))
+              for index, quad in enumerate(raw)]
+    active = [quad.copy() for quad in raw]
+    old_votes = np.ones(30, dtype=bool)
+    votes = old_votes.copy()
+    votes[20:] = False
+    monkeypatch.setattr(evidence, 'matching_view_groups', lambda *_args: [[0, 1, 2]])
+    monkeypatch.setattr(evidence, 'build_keep_vote', lambda *_args: votes)
+    result = evidence._share_scene_corners(scenes, active, [True] * 3, old_votes, [None] * 3,
+                                          *_pose_inputs(30), (1280., 720.), (1280., 720.))
+    assert result == [None] * 3
+    np.testing.assert_array_equal(active, raw)
+    assert old_votes.all()
