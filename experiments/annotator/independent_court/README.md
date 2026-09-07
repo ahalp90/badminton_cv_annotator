@@ -8,8 +8,8 @@ the annotation pipeline does not use its outputs.
 families and proposes perspective transforms from possible line identities.
 It scores the visible portions of the finite painted markings. The net is
 excluded from the floor template. Court dimensions and markings reuse the
-existing project constants; no neural predictions or manual regions enter
-the detector.
+existing project constants. The geometry search accepts image-line evidence;
+manual regions and reference corners never enter the detector.
 
 The search keeps multiple spatially distinct candidates. It permits off-screen
 corners and rejects close-scoring alternatives. The `accepted` flag means that
@@ -76,8 +76,69 @@ off-screen corners. Landmark RMS measures Euclidean reprojection error over
 visible reference clicks. Invalid projections receive an explicit status.
 Reference labels never influence detector acceptance.
 
-`--extractor lsd` selects OpenCV's line segment detector. It is a comparison
-hook, not a validated improvement; DeepLSD has not been evaluated.
+`--extractor lsd` selects OpenCV's line segment detector. Neural comparisons use
+cached DeepLSD or LINEA fragments through the same geometry search.
+
+### Compare cached lines
+
+`--line-cache` replaces OpenCV extraction with saved native-image line segments.
+The cache is a gzip JSON object containing a `variant` name and a `cases` list.
+Each record contains `id`, `dimensions: {width, height}`, `image_file_md5` and
+`segments_px`: one `[x1, y1, x2, y2]` row per line in native image pixels.
+Empty line lists are valid. Non-finite and zero-length lines are rejected.
+Records join by ID; one cache can serve several smaller evaluation manifests.
+The evaluator checks the PNG hash and decoded dimensions before using the lines.
+
+```bash
+python -m experiments.annotator.independent_court.evaluate \
+  --manifest inputs/manifest.json.gz --line-cache lines/model.json.gz \
+  --output results/model
+```
+
+The result records the cache file's SHA-256 digest, extractor name and metadata.
+Model and source hashes are retained when supplied. Search timings exclude neural inference and cache
+validation. The cache does not supply candidate courts or acceptance decisions.
+Direct callers can pass native fragments as `detect(image, segments_px=lines)`.
+
+### Export neural lines
+
+`export_lines.py` runs frozen upstream models in a separate inference environment.
+It records the checkpoint SHA-256, the source checkout's Git commit, image hashes,
+model settings and native coordinates. Its `--help` needs no model dependencies.
+Install each upstream model's inference dependencies before running it.
+
+```bash
+python -m experiments.annotator.independent_court.export_lines \
+  --model deeplsd-md --source third_party/DeepLSD \
+  --weights weights/deeplsd_md.tar --manifest inputs/manifest.json.gz \
+  --output lines
+python -m experiments.annotator.independent_court.export_lines \
+  --model deeplsd-wireframe --source third_party/DeepLSD \
+  --weights weights/deeplsd_wireframe.tar --manifest inputs/manifest.json.gz \
+  --output lines
+python -m experiments.annotator.independent_court.export_lines \
+  --model linea-large --source third_party/LINEA \
+  --weights weights/linea_hgnetv2_l.pth --manifest inputs/manifest.json.gz \
+  --output lines
+```
+
+DeepLSD uses the inference-only implementation at upstream commit
+`f7d9d6258c0cd25d4f6eea882853565403d289be` in this comparison. MegaDepth emits two
+caches: gradient checking disabled (`hard`) and enabled (`default`). Wireframe
+emits the `hard` variant. Images are grey, with longest dimension capped at 960.
+The full Ceres-based refinement package is not used. See the
+[DeepLSD instructions and weights](https://github.com/cvg/DeepLSD#usage).
+
+LINEA uses upstream commit `475c5ceea64114a48495c15888094e12f1a2d267`, the large
+checkpoint and the authors' RGB 640x640 preprocessing. It retains scores strictly
+greater than 0.2. The model postprocessor restores native image coordinates.
+See the [LINEA source and checkpoints](https://github.com/SebastianJanampa/LINEA).
+
+The portable exporter reproduced the original private inference outputs exactly
+on four images covering every input resolution. This check included all four
+model variants and their line coordinates, scores, image hashes and dimensions.
+
+### Painted stripes
 
 `--extractor ridge` retains Hough fragments that look like bright painted
 stripes, with darker pixels on both sides. It supports white and yellow paint.

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
 from experiments.annotator.independent_court import evaluate
 
@@ -19,6 +21,23 @@ def _write_manifest(tmp_path: Path, case: dict) -> Path:
     with gzip.open(manifest, "wt", encoding="utf-8") as target:
         json.dump({"cases": [case]}, target)
     return manifest
+
+
+def _write_multi_manifest(tmp_path: Path, cases: list[dict]) -> Path:
+    """Write distinct same-sized images so cache-to-case joins are observable."""
+    for index, case in enumerate(cases):
+        image = np.full((720, 1280, 3), index * 17, dtype=np.uint8)
+        assert cv2.imwrite(str(tmp_path / case["image"]), image)
+    manifest = tmp_path / "input.json.gz"
+    with gzip.open(manifest, "wt", encoding="utf-8") as target:
+        json.dump({"cases": cases}, target)
+    return manifest
+
+
+def _write_line_cache(path: Path, variant: str, cases: list[dict]) -> Path:
+    with gzip.open(path, "wt", encoding="utf-8") as target:
+        json.dump({"variant": variant, "cases": cases}, target)
+    return path
 
 
 def _detection(corners: np.ndarray, *, accepted: bool = True) -> evaluate.detector.Detection:
@@ -100,3 +119,119 @@ def test_degenerate_prediction_marks_landmarks_invalid(tmp_path: Path, monkeypat
     metrics = result["cases"][0]["raw_metrics"]
     assert metrics["landmark_rms_px"] is None
     assert metrics["landmark_status"] == "invalid_homography"
+
+
+def test_line_cache_joins_subset_by_id_and_preserves_provenance(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    cases = [
+        {"id": "first", "image": "first.png", "reference_status": "unlabelled"},
+        {"id": "second", "image": "second.png", "reference_status": "unlabelled"},
+    ]
+    manifest = _write_multi_manifest(tmp_path, cases)
+    first_segments = np.array([[10, 20, 80, 20], [40, 10, 40, 70]], dtype=float)
+    second_segments = np.array([[100, 120, 180, 120], [140, 110, 140, 170]], dtype=float)
+    cache_records = [
+        {
+            "id": "second",
+            "dimensions": {"width": 1280, "height": 720},
+            "image_file_md5": hashlib.md5((tmp_path / "second.png").read_bytes()).hexdigest(),
+            "segments_px": second_segments.tolist(),
+        },
+        {
+            "id": "first",
+            "dimensions": {"width": 1280, "height": 720},
+            "image_file_md5": hashlib.md5((tmp_path / "first.png").read_bytes()).hexdigest(),
+            "segments_px": first_segments.tolist(),
+        },
+        {
+            "id": "unrelated-cache-case",
+            "dimensions": {"width": 1280, "height": 720},
+            "image_file_md5": "unused",
+            "segments_px": [],
+        },
+    ]
+    cache = _write_line_cache(tmp_path / "shared-lines.json.gz", "ridge", cache_records)
+    seen: dict[int, np.ndarray] = {}
+
+    def detect(image: np.ndarray, settings, *, segments_px: np.ndarray | None = None):
+        assert segments_px is not None
+        seen[int(image[0, 0, 0])] = segments_px.copy()
+        return _detection(np.array([[100, 100], [1100, 100], [1100, 620], [100, 620]], dtype=float))
+
+    monkeypatch.setattr(evaluate.detector, "detect", detect)
+    output = tmp_path / "result"
+    assert evaluate.main([
+        "--manifest", str(manifest), "--output", str(output), "--line-cache", str(cache),
+    ]) == 0
+
+    np.testing.assert_array_equal(seen[0], first_segments)
+    np.testing.assert_array_equal(seen[17], second_segments)
+    with gzip.open(output / "results.json.gz", "rt", encoding="utf-8") as source:
+        result = json.load(source)
+    assert result["settings"]["extractor"] == "ridge"
+    assert result["line_cache"] == {
+        "variant": "ridge", "file": cache.name, "file_sha256": hashlib.sha256(cache.read_bytes()).hexdigest(),
+    }
+    assert str(tmp_path) not in json.dumps(result)
+
+
+def test_line_cache_missing_case_id_fails(tmp_path: Path) -> None:
+    cases = [
+        {"id": "first", "image": "frame.png", "reference_status": "unlabelled"},
+        {"id": "second", "image": "other.png", "reference_status": "unlabelled"},
+    ]
+    manifest = _write_multi_manifest(tmp_path, cases)
+    cache = _write_line_cache(tmp_path / "lines.json.gz", "ridge", [{
+        "id": "first",
+        "dimensions": {"width": 1280, "height": 720},
+        "image_file_md5": hashlib.md5((tmp_path / "frame.png").read_bytes()).hexdigest(),
+        "segments_px": [[10, 10, 20, 10]],
+    }])
+    with pytest.raises(ValueError, match="missing case IDs"):
+        evaluate.main(["--manifest", str(manifest), "--output", str(tmp_path / "result"), "--line-cache", str(cache)])
+
+
+def test_line_cache_duplicate_case_id_fails(tmp_path: Path) -> None:
+    case = {"id": "first", "image": "frame.png", "reference_status": "unlabelled"}
+    manifest = _write_manifest(tmp_path, case)
+    record = {
+        "id": "first",
+        "dimensions": {"width": 1280, "height": 720},
+        "image_file_md5": hashlib.md5((tmp_path / "frame.png").read_bytes()).hexdigest(),
+        "segments_px": [[10, 10, 20, 10]],
+    }
+    cache = _write_line_cache(tmp_path / "lines.json.gz", "ridge", [record, record])
+    with pytest.raises(ValueError, match="unique"):
+        evaluate.main(["--manifest", str(manifest), "--output", str(tmp_path / "result"), "--line-cache", str(cache)])
+
+
+@pytest.mark.parametrize("failure", ["hash", "dimensions"])
+def test_line_cache_image_identity_mismatch_fails(tmp_path: Path, failure: str) -> None:
+    case = {"id": "first", "image": "frame.png", "reference_status": "unlabelled"}
+    manifest = _write_manifest(tmp_path, case)
+    dimensions = {"width": 1280, "height": 720} if failure == "hash" else {"width": 960, "height": 540}
+    record = {
+        "id": "first",
+        "dimensions": dimensions,
+        "image_file_md5": "wrong" if failure == "hash" else hashlib.md5((tmp_path / "frame.png").read_bytes()).hexdigest(),
+        "segments_px": [[10, 10, 20, 10]],
+    }
+    cache = _write_line_cache(tmp_path / "lines.json.gz", "ridge", [record])
+    message = "different image" if failure == "hash" else "dimensions"
+    with pytest.raises(ValueError, match=message):
+        evaluate.main(["--manifest", str(manifest), "--output", str(tmp_path / "result"), "--line-cache", str(cache)])
+
+
+def test_line_cache_provenance_identifies_changed_evidence(tmp_path: Path) -> None:
+    path = tmp_path / "same-name.json.gz"
+    record = {"id": "court", "segments_px": [[0, 0, 10, 10]]}
+    _write_line_cache(path, "same-model", [record])
+    first, _ = evaluate._load_line_cache(path)
+    record["segments_px"] = [[0, 0, 20, 20]]
+    _write_line_cache(path, "same-model", [record])
+    second, _ = evaluate._load_line_cache(path)
+    assert first["file"] == second["file"]
+    assert first["variant"] == second["variant"]
+    assert first["file_sha256"] != second["file_sha256"]
+    assert second["file_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()

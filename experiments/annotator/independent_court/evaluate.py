@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import sys
 import time
@@ -251,11 +252,41 @@ def _positive(value: str) -> int:
     return parsed
 
 
+def _load_line_cache(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    with gzip.open(path, "rt", encoding="utf-8") as source:
+        cache = json.load(source)
+    if not isinstance(cache, dict) or not isinstance(cache.get("cases"), list):
+        raise TypeError("line cache must contain a cases list")
+    if not isinstance(cache.get("variant"), str) or not cache["variant"]:
+        raise ValueError("line cache must name its extractor variant")
+    records: dict[str, dict[str, Any]] = {}
+    for record in cache["cases"]:
+        case_id = record["id"]
+        if not isinstance(case_id, str) or not case_id or case_id in records:
+            raise ValueError("line cache case IDs must be non-empty and unique")
+        records[case_id] = record
+    metadata = {key: value for key, value in cache.items() if key != "cases"}
+    metadata["file"] = path.name
+    metadata["file_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return metadata, records
+
+
+def _cached_segments(record: dict[str, Any], image_path: Path, image: np.ndarray) -> np.ndarray:
+    if hashlib.md5(image_path.read_bytes()).hexdigest() != record["image_file_md5"]:
+        raise ValueError(f"{record['id']}: cached lines belong to a different image")
+    dimensions = record["dimensions"]
+    if (image.shape[1], image.shape[0]) != (dimensions["width"], dimensions["height"]):
+        raise ValueError(f"{record['id']}: cached native dimensions do not match the image")
+    segments = np.asarray(record["segments_px"], dtype=np.float64)
+    return segments.reshape(0, 4) if segments.shape == (0,) else segments
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--extractor", choices=("hough", "ridge", "lsd"), default="hough")
+    parser.add_argument("--line-cache", type=Path, help="Use cached native XYXY lines matched by image ID and hash")
     parser.add_argument(
         "--max-family-lines",
         type=_positive,
@@ -269,6 +300,13 @@ def main(argv: list[str] | None = None) -> int:
     cases = _load_manifest(arguments.manifest)
     if arguments.limit is not None:
         cases = cases[: arguments.limit]
+    line_metadata, line_records = (
+        _load_line_cache(arguments.line_cache) if arguments.line_cache is not None else (None, {})
+    )
+    if line_metadata is not None:
+        missing = [case["id"] for case in cases if case["id"] not in line_records]
+        if missing:
+            raise ValueError(f"line cache is missing case IDs: {missing}")
     settings = detector.Settings(
         extractor=arguments.extractor,
         max_family_lines=arguments.max_family_lines,
@@ -279,14 +317,19 @@ def main(argv: list[str] | None = None) -> int:
     overlay_dir.mkdir(exist_ok=True)
     records: list[dict[str, Any]] = []
     for case in cases:
+        image_path = arguments.manifest.parent / case["image"]
         image = cv2.imread(
-            str(arguments.manifest.parent / case["image"]), cv2.IMREAD_COLOR
+            str(image_path), cv2.IMREAD_COLOR
         )
         if image is None or image.size == 0:
             raise OSError(f"{case['id']}: could not read image {case['image']!r}")
         height, width = image.shape[:2]
+        segments = None if line_metadata is None else _cached_segments(line_records[case["id"]], image_path, image)
         started = time.perf_counter()
-        detection = detector.detect(image, settings)
+        detection = (
+            detector.detect(image, settings) if segments is None
+            else detector.detect(image, settings, segments_px=segments)
+        )
         elapsed = time.perf_counter() - started
         candidates = []
         for candidate in detection.candidates:
@@ -360,6 +403,9 @@ def main(argv: list[str] | None = None) -> int:
         "cases": records,
         "summary": summary,
     }
+    if line_metadata is not None:
+        result["settings"]["extractor"] = line_metadata["variant"]
+        result["line_cache"] = line_metadata
     with gzip.open(
         arguments.output / "results.json.gz", "wt", encoding="utf-8"
     ) as target:

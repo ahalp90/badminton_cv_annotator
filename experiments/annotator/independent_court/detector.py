@@ -371,10 +371,13 @@ def _separate_court(candidates: list[Candidate], size: tuple[int, int]) -> bool:
     return False
 
 
-def detect(frame: np.ndarray, settings: Settings = DEFAULT_SETTINGS) -> Detection:
+def detect(
+    frame: np.ndarray, settings: Settings = DEFAULT_SETTINGS, *, segments_px: np.ndarray | None = None,
+) -> Detection:
     """Return supported court hypotheses and an explicit ambiguity decision.
 
     :param frame: uint8 BGR image in source pixels; no reference geometry is accepted.
+    :param segments_px: optional precomputed fragments, one native XYXY row per line.
     :return: candidates and line fragments in the original frame coordinates.
     """
     height, width = frame.shape[:2]
@@ -382,7 +385,15 @@ def detect(frame: np.ndarray, settings: Settings = DEFAULT_SETTINGS) -> Detectio
     working = cv2.resize(frame, (round(width * scale), round(height * scale))) if scale < 1 else frame
     native_scale = np.array([width / working.shape[1], height / working.shape[0]])
     size = (working.shape[1], working.shape[0])
-    segments = extract_segments(working, settings.extractor)
+    if segments_px is None:
+        segments = extract_segments(working, settings.extractor)
+    else:
+        segments_px = np.asarray(segments_px, dtype=np.float64)
+        if segments_px.ndim != 2 or segments_px.shape[1] != 4 or not np.isfinite(segments_px).all():
+            raise ValueError("segments_px must contain finite native XYXY rows")
+        if np.any(np.linalg.norm(segments_px[:, 2:] - segments_px[:, :2], axis=1) == 0):
+            raise ValueError("segments_px must have positive length")
+        segments = segments_px / np.tile(native_scale, 2)
     families = _line_families(segments)
     x_lines, y_lines = (_merge_lines(family, settings) for family in families)
     counts = (len(x_lines), len(y_lines))

@@ -42,10 +42,11 @@ def _render_template(
     *,
     line_indices: set[int] | None = None,
     image: np.ndarray | None = None,
+    frame_size: tuple[int, int] | None = None,
 ) -> np.ndarray:
     """Render selected finite template segments into a black BGR frame."""
     if image is None:
-        width, height = FRAME_SIZE
+        width, height = FRAME_SIZE if frame_size is None else frame_size
         image = np.zeros((height, width, 3), dtype=np.uint8)
     homography = cv2.getPerspectiveTransform(
         detector.CORNER_COURT_M.astype(np.float32), corners_px.astype(np.float32),
@@ -216,3 +217,36 @@ def test_broad_candidate_cannot_hide_two_separate_supported_courts() -> None:
     ):
         candidates.append(detector.Candidate(np.asarray(corners, dtype=float), 0.9, (0.9, 0.9), (5, 6)))
     assert detector._separate_court(candidates, FRAME_SIZE)
+
+
+def test_native_cached_segments_reproduce_hough_detection_after_resize() -> None:
+    native_corners = FULL_CORNERS * np.asarray([4.0, 3.0])
+    image = _render_template(native_corners, frame_size=(1920, 1080))
+    settings = detector.Settings(max_dimension=960, max_family_lines=8)
+
+    direct = detector.detect(image, settings)
+    cached = detector.detect(image, settings, segments_px=direct.segments_px)
+
+    assert len(direct.segments_px) > 0
+    np.testing.assert_allclose(cached.segments_px, direct.segments_px, rtol=1e-12, atol=1e-12)
+    assert cached.reason == direct.reason
+    assert cached.family_line_counts == direct.family_line_counts
+    assert len(cached.candidates) == len(direct.candidates)
+    for cached_candidate, direct_candidate in zip(cached.candidates, direct.candidates):
+        np.testing.assert_allclose(cached_candidate.corners_px, direct_candidate.corners_px, rtol=1e-10, atol=1e-8)
+        assert cached_candidate.score == direct_candidate.score
+
+
+@pytest.mark.parametrize(
+    "segments",
+    [
+        np.array([[1.0, 2.0, 3.0]], dtype=float),
+        np.array([[1.0, 2.0, np.nan, 4.0]], dtype=float),
+        np.array([[1.0, 2.0, 1.0, 2.0]], dtype=float),
+    ],
+    ids=("bad_shape", "nonfinite", "zero_length"),
+)
+def test_cached_segments_reject_malformed_fragments(segments: np.ndarray) -> None:
+    image = np.zeros((360, 480, 3), dtype=np.uint8)
+    with pytest.raises(ValueError, match="segments_px"):
+        detector.detect(image, TEST_SETTINGS, segments_px=segments)
