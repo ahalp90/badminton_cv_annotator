@@ -4,6 +4,74 @@ This experiment tests whether image lines and the badminton court layout can
 locate courts without CourtKeyNet. It is an additive research prototype;
 the annotation pipeline does not use its outputs.
 
+## Temporal player-guided experiment
+
+`export_people.py` samples person detections from specified video windows.
+`temporal.py` follows native-image footpoints with a small greedy tracker.
+`player_guided.py` tests complete court hypotheses against these observations
+before retaining candidates. The line-only detector remains unchanged.
+
+This is a baseline for experimentation. A window qualifies when two selected
+tracks are observed together in at least half its sampled frames and at least
+one is observed in every sampled frame. Missing detections remain missing;
+tracking through a short gap does not turn it into an observation. Selecting
+the intended player pair is a separate step.
+
+Prepare a gzip JSON window manifest with this layout:
+
+```json
+{
+  "windows": [
+    {
+      "id": "example",
+      "video": "example.mp4",
+      "start_frame": 0,
+      "end_frame": 900,
+      "anchor_frames": [150, 450, 750]
+    }
+  ]
+}
+```
+
+Frame intervals are start-inclusive and end-exclusive. Use decoded frame
+indices and verify the available frames: trimmed videos can have misleading
+container frame-count headers. Anchor images do not change the person sampling
+schedule or the fractions calculated from it.
+
+In the project's rtmlib inference environment, run from the repository root:
+
+```bash
+PYTHONPATH=src:src/bst_x python -m experiments.annotator.independent_court.export_people \
+  --manifest inputs/windows.json.gz --video-root videos \
+  --output results/people --device cuda --sample-fps 10 --score-min 0.2
+```
+
+The exporter writes per-window compressed observations, native anchor images,
+a median image from at most 15 sampled frames, and manifests for the observations
+and line exporter. A CUDA request fails if the ONNX session falls back to CPU.
+Output records contain video/model basenames and relative image paths.
+
+The track API is `track_people(samples)`, `summarise_track(track, sample_count)`
+and `pair_presence(first, second, sample_count)`. Each sample contains
+`timestamp_seconds`, native `bboxes` in XYXY order and matching `scores`.
+The default strict score cut is `> 0.2`; source exports must retain those
+detections for this cut to have meaning.
+
+Pass selected tracks as a `(sampled_frames, 2, 2)` array of native XY footpoints
+to `player_guided.detect(image, feet_px, settings, segments_px=lines)`.
+Missing feet use NaN in both coordinates. The guidance checks full court
+placements, since the search's seed rectangles can represent internal service
+boxes. The returned experimental acceptance flag still needs real-data
+evaluation; it is not a production acceptance rule.
+
+For the focused checks:
+
+```bash
+pytest -q tests/test_independent_court_temporal.py \
+  tests/test_independent_court_people_export.py \
+  tests/test_independent_court_player_guided.py
+```
+
 The [neural follow-up](../../../docs/courtkeynet/fallback_evaluation/neural_lines.md)
 compares both DeepLSD weight sets and LINEA large. The models provide useful
 fragments, but court selection and false acceptance still prevent replacement.
