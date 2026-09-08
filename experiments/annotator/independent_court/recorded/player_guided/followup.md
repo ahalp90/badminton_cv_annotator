@@ -31,8 +31,9 @@ beyond those retained lines remains untested.
 
 These are the leading candidates under floor-plus-net scoring. Their visible
 markings fit closely, but their extrapolated corners fail the accuracy cutoff.
-Refitting nearby line fragments changes their corner errors to 80.47 and
-48.99 pixels; it does not improve both views.
+**Multi-fragment refit** adjusts an existing court to align with several
+nearby DeepLSD line pieces. It changes these corner errors to 80.47 and 48.99 pixels;
+it does not improve both views.
 
 Across the nine short-clip frames, each search size ranks an accurate candidate
 first in four frames. Neither search accepts a court. The wider search improves the yellow
@@ -43,14 +44,14 @@ Combining the full-search candidates lets one court be scored across all three
 frames of each short clip. The following errors are the worst across those
 three frames, using the existing median floor-plus-net score:
 
-| Clip | Before line refinement | After line refinement |
+| Clip | Before multi-fragment refit | After multi-fragment refit |
 |---|---:|---:|
 | Yellow | 14.89 px | 671.37 px |
 | Letterboxed | 19.49 px | 11.06 px |
 | Centre | 3.00 px | 3.20 px |
 
 This comparison only selects geometry. It does not define an acceptance rule.
-Refinement can promote the wrong court, so it cannot be applied unconditionally.
+The refit can promote the wrong court, so it cannot be applied unconditionally.
 
 ## Player evidence and controls
 
@@ -91,7 +92,7 @@ corners remain uncertain.
 
 The partial and angled amateur examples pass the corner cutoff, but their
 centre lines remain visibly offset.
-Refitting each selected candidate against nearby detected line fragments gives:
+Applying the multi-fragment refit to each selected candidate gives:
 
 | Example | Visible error before | Visible error after | Centre-marker error before → after |
 |---|---:|---:|---:|
@@ -109,12 +110,12 @@ Both figures below show source pixels, the original fit and the refit from left
 to right. Each row uses the same crop across its three panels. Thin magenta lines show the fitted grid;
 orange crosses are manual markers.
 
-![Partial court: source pixels, original fit and fragment refit](followup_centre_partial.jpg)
+![Partial court: source pixels, original fit and multi-fragment refit](followup_centre_partial.jpg)
 
 The refit brings both centre sections much closer to the white markings. The original near-centre section has line support at only
 one of 24 sampled positions. Other markings let the overall score pass.
 
-![Angled court: source pixels, original fit and fragment refit](followup_centre_angled.jpg)
+![Angled court: source pixels, original fit and multi-fragment refit](followup_centre_angled.jpg)
 
 The angled court improves less. Its two service-line junctions are enlarged
 above to expose the remaining offsets. As a separate diagnostic, fitting a perspective
@@ -129,7 +130,7 @@ image. The extra pinhole-camera assumptions affect net scoring and candidate
 selection. This check does not isolate their effect on ranking. It establishes
 that line fitting and scoring leave useful accuracy unrecovered.
 
-Across the six gallery examples, the unchanged fragment refit improves visible
+Across the six gallery examples, the unchanged multi-fragment refit improves visible
 error in four and worsens it in two. Together with the yellow-clip regression above,
 this rules out applying the refit unconditionally. The next experiment should
 check residual distances for each visible marking, rather than only counting
@@ -151,8 +152,9 @@ PYTHONPATH="$PWD:$PWD/src" python /tmp/court-followup/replay_followup.py \
 ```
 
 Use `--max-rectangles 500000` for the full search. The archive also includes
-the multi-frame and refinement runners. Seven independently recorded case and
-variant results replay exactly, including candidate order, scores and metrics.
+the multi-frame and multi-fragment refit runners. Seven independently recorded
+case and variant results replay exactly, including candidate order, scores and
+metrics.
 [The measurement summary](followup_summary.json.gz) preserves the comparisons.
 
 The next step is to improve marking assignment and candidate selection while

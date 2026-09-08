@@ -38,19 +38,20 @@ three frames. Values are the worst corner error across those frames in
 **1280×720 coordinates**.
 The existing accuracy cutoff is **15 pixels**, including off-screen corners.
 
-| Clip | Floor score | Floor + net score | Then joint line refinement |
+| Clip | Floor score | Floor + net score | Then multi-fragment refit |
 |---|---:|---:|---:|
 | Yellow court | 221.19 px | 26.01 px | 21.22 px |
 | Letterboxed court | 10.06 px | 17.38 px | 14.75 px |
 | Centre court | 4.04 px | 4.04 px | 3.20 px |
 
 Floor scores use the median, or middle value, of the three frame scores. The
-second stage adds projected net evidence with a 3:1 floor-to-net weighting. The final stage
-fits nearby finite line fragments jointly, then repeats the scoring. The labels
+second stage adds projected net evidence with a 3:1 floor-to-net weighting.
+The final stage, **multi-fragment refit**, adjusts the court to align with
+several nearby DeepLSD line pieces, then repeats the scoring. The labels
 are used only to measure the resulting corner errors. The replay includes the
 retained proposals, observations, lines, labels and diagnostic scripts.
 
-Floor-only scoring and the final refined stage each meet the cutoff on two of
+Floor-only scoring and the multi-fragment refit stage each meet the cutoff on two of
 the three clips. The yellow court improves substantially but still fails it.
 Net scoring initially worsens the letterboxed result. These results concern the selected geometry; **the
 replay does not define an automatic acceptance rule**.
@@ -80,8 +81,8 @@ PYTHONPATH="$PWD:$PWD/src" python /tmp/court-replay/joint_short.py \
   --run /tmp/court-replay --no-overlays
 ```
 
-The command recomputes candidate ranking and refinement without videos or model
-inference. It writes `joint_short/results.json.gz`. Compare its top-candidate
+The command recomputes candidate ranking and the multi-fragment refit without
+videos or model inference. It writes `joint_short/results.json.gz`. Compare its top-candidate
 metrics with [summary.json.gz](summary.json.gz). Images are omitted from the
 archive; the displayed net comparison is included separately above.
 
