@@ -24,6 +24,9 @@ from . import detector
 
 REFERENCE_SIZE = (1280, 720)
 SAFE_COORDINATE = 1_000_000
+OVERLAY_OUTLINE_BGR = (20, 20, 20)
+PREDICTION_COLOUR_BGR = (220, 65, 255)
+REFERENCE_COLOUR_BGR = (0, 128, 255)
 REFERENCE_STATUSES = frozenset(
     ("matching_view", "view_unverified", "unlabelled", "non_court")
 )
@@ -198,10 +201,12 @@ def _dash(image: np.ndarray, points: np.ndarray, colour: tuple[int, int, int]) -
     for offset in np.arange(0, length, 16):
         a = start + (end - start) * offset / length
         b = start + (end - start) * min(offset + 8, length) / length
+        dash_start, dash_end = tuple(np.rint(a).astype(int)), tuple(np.rint(b).astype(int))
+        cv2.line(image, dash_start, dash_end, OVERLAY_OUTLINE_BGR, 5, cv2.LINE_AA)
         cv2.line(
             image,
-            tuple(np.rint(a).astype(int)),
-            tuple(np.rint(b).astype(int)),
+            dash_start,
+            dash_end,
             colour,
             2,
             cv2.LINE_AA,
@@ -211,6 +216,7 @@ def _dash(image: np.ndarray, points: np.ndarray, colour: tuple[int, int, int]) -
 def _dot(image: np.ndarray, point: np.ndarray, colour: tuple[int, int, int]) -> None:
     safe = _safe_pair(np.asarray([point, point], dtype=np.float64))
     if safe is not None:
+        cv2.circle(image, safe[0], 6, OVERLAY_OUTLINE_BGR, -1, cv2.LINE_AA)
         cv2.circle(image, safe[0], 4, colour, -1, cv2.LINE_AA)
 
 
@@ -232,16 +238,17 @@ def _overlay(
             if np.isfinite(denominator).all() and np.all(denominator > 1e-9):
                 clipped = _clip(segment, output.shape[1], output.shape[0])
                 if clipped is not None:
-                    cv2.line(output, *clipped, (255, 255, 0), 2, cv2.LINE_AA)
+                    cv2.line(output, *clipped, OVERLAY_OUTLINE_BGR, 7, cv2.LINE_AA)
+                    cv2.line(output, *clipped, PREDICTION_COLOUR_BGR, 3, cv2.LINE_AA)
     if reference is not None:
         corners = reference.get("corners_px")
         if corners is not None:
             for start, end in zip(corners, np.roll(corners, -1, axis=0)):
-                _dash(output, np.stack([start, end]), (0, 128, 255))
+                _dash(output, np.stack([start, end]), REFERENCE_COLOUR_BGR)
             for point in corners:
-                _dot(output, point, (0, 128, 255))
+                _dot(output, point, REFERENCE_COLOUR_BGR)
         for landmark in reference.get("landmarks") or []:
-            _dot(output, landmark["image_px"], (0, 128, 255))
+            _dot(output, landmark["image_px"], REFERENCE_COLOUR_BGR)
     if not cv2.imwrite(str(path), output):
         raise OSError(f"could not write overlay {path}")
 

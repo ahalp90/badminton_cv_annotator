@@ -149,8 +149,9 @@ also needs the existing CourtKeyNet weights and PyTorch. It records raw model
 validity and availability of the existing model-plus-line proposal separately.
 It does not run the production scene acceptance, repair or sharing stages.
 
-The evaluator writes `results.json.gz` and cyan/orange overlays. Metrics use
-1280x720 coordinates and only `matching_view` references. Corner errors include
+The evaluator writes `results.json.gz` and court overlays. Outlined magenta shows
+the detector's fit; dashed orange lines and orange dots show the manual reference.
+Metrics use 1280x720 coordinates and only `matching_view` references. Corner errors include
 off-screen corners. Landmark RMS measures Euclidean reprojection error over
 visible reference clicks. Invalid projections receive an explicit status.
 Reference labels never influence detector acceptance.
