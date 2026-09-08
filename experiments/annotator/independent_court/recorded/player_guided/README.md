@@ -1,6 +1,10 @@
 # Player-guided court experiment, 8 September 2026
 
-[The latest scoring experiment](marking_refit.md) tests which multi-fragment
+[The latest assignment experiment](assignment.md) compares explicit marking
+assignments on frozen geometries. The first matcher reaches 5/20 accurate fits;
+the observation model and objective need further work.
+
+[The previous scoring experiment](marking_refit.md) tests which multi-fragment
 refits to keep and records the remaining court-selection failures.
 
 This experiment asks whether moving players and visible markings can locate a
