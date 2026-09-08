@@ -88,3 +88,63 @@ comes from position tolerance or membership before adding a selector. If they
 do not, inspect the assigned evidence and paired-edge diagnostic before
 choosing the next experiment. Preserve unsuccessful runs and distinguish
 post-run diagnostics from prespecified comparisons.
+
+## Follow-up diagnostic: centre-line junctions
+
+The four-way run selected 8/20 with either nominal-centre variant, 8/20 with
+independent stripe positions and 9/20 with exclusive stripe positions. Yellow
+156 still chose the wrong 653.42-pixel geometry. Paired paint-edge support did
+not cleanly separate that winner from the accurate original. The next diagnostic
+therefore examines finite marking identity directly.
+
+At each transverse marking, sample the four arms around its intersection with
+the centre line. Horizontal arms should contain paint. Vertical arms should
+contain paint or lie in an unpainted interval, according to the finite template.
+This distinguishes a baseline termination from a long-service crossing.
+
+Each arm samples 0.04–0.24 metres from the junction, excluding the central
+painted intersection. Use sixteen samples, the same centre/±0.02-m position
+hypotheses, two-pixel distance scale and five-degree direction gate. An arm
+needs eight unoccluded in-frame samples spanning eight working pixels.
+Saved person boxes exclude samples; their frame offsets remain a limitation.
+
+A site is usable only when all four arms are observable, both transverse arms
+have support at least 0.55, and at least one vertical arm does too. On such a
+site, support at least 0.55 is present, at most 0.20 is absent, and intermediate
+values are unresolved. Record disagreements with the finite template. These
+threshold values come from earlier support/absence settings. The earlier absence
+setting was a binary coverage fraction; this one thresholds a Gaussian response.
+The values were not tuned here.
+Absent DeepLSD responses remain imperfect evidence of absent paint.
+
+This is diagnostic only: no new selector or acceptance rule is applied. Inspect
+all eligible frozen candidates, including the named yellow, letterboxed and centre
+comparisons. A raw detector endpoint is never treated directly as a physical
+termination. A later selector needs its own stated comparison and checks.
+
+## Follow-up comparison: junction evidence and selection
+
+The diagnostic found 159 of 682 eligible geometries with a junction disagreement.
+None of the 78 geometries within the accuracy tolerance had one. Only 439
+geometries had any usable site, so a lack of disagreement can mean a lack of
+evidence. These are post-run development observations, used to choose the next
+comparison. They do not establish a reliable rejection rule.
+
+Freeze two simple ranking comparisons before computing their outcomes:
+
+- **Contradictions first:** ascending number of disagreeing arms, then descending
+  stripe-exclusive score, then candidate ID. Unobserved sites add zero. This
+  tests whether the diagnostic can remove known aliases, and exposes escape
+  through missing evidence.
+- **Complete agreements first:** descending number of usable sites with both
+  vertical arms conclusively agreeing, then ascending disagreeing-arm count,
+  then descending stripe-exclusive score and candidate ID. This checks the
+  effect of rewarding positive identity evidence. It can favour candidates
+  that project more junctions into observable image regions.
+
+Keep every eligible candidate in both full orders; change no acceptance flag.
+Use the same twenty frames, frozen geometry, gates, stripe scores and recorded
+junction responses. Compare with stripe-exclusive and the historical scores.
+Read reference metrics only after forming all orders. Report changed winners,
+correct candidates demoted, missing-evidence winners and the same 15-pixel
+worst-corner tolerance. No weight or threshold sweep follows this comparison.
