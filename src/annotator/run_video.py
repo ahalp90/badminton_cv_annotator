@@ -410,15 +410,21 @@ def _run_court_segmentation(
             )
 
     assert raw_exclusion_mask is not None
+    # Full-chain contact attribution needs the geometry of its own scene.
+    usable_court_frames = np.zeros(len(track), dtype=bool)
+    for scene in scene_courts:
+        start = max(0, scene.start_frame)
+        end = max(0, min(len(track), scene.end_frame))
+        usable_court_frames[start:end] = True
+    if court_invalid_is_excluded:
+        usable_court_frames = usable_court_frames & court.court_present
     definitive_exclusion_mask = _finalize_exclusion_mask(
         raw_exclusion_mask,
         n_frames=len(track),
         replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
         capture=capture,
-        court_present=court.court_present,
-        include_court_invalid=(
-            court_invalid_is_excluded and not stop_after_segmentation
-        ),
+        court_present=usable_court_frames,
+        include_court_invalid=not stop_after_segmentation,
     )
     if contacts is None:
         final_spans, raw_contacts = rally_segmentation.segment_video(
@@ -502,8 +508,9 @@ def run_video(
     Full-chain mode also appends to caller-owned ``rejection_diagnostics`` and
     records requested ``landing_horizons_s`` in ``capture``. Horizons require a
     capture and must be finite, positive, and strictly increasing.
-    ``court_invalid_is_excluded`` adds invalid-court frames only in full-chain
-    mode, not when stopping after segmentation.
+    Full-chain mode always excludes frames outside the supplied scene geometry.
+    ``court_invalid_is_excluded`` also excludes frames where ``court_present``
+    is false. Neither exclusion is added when stopping after segmentation.
     """
     court = _CourtInputs(
         bboxes=bboxes, scores=scores, kps=kps, ndet=ndet, resolution=resolution,

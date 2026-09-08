@@ -16,6 +16,7 @@ to regenerate detections, annotations and model predictions.
 | `evidence/video_17/`, `evidence/video_53/` | Baseline and final court evidence, contact/rally streams, run metadata and player-selection probes; `expected.json.gz` holds the reported scores |
 | `evidence/controls/video_3/`, `evidence/controls/video_21/` | Same-frame old/new fallback outputs, neural predictions, painted-line measurements, ground-truth corners and expected geometry results |
 | `evidence/labels/` | The saved clean contact/rally labels for ShuttleSet22 videos 17 and 53 |
+| `evidence/followup.json.gz` | Retained grouping, fresh-broadcast, player-feature and painted-line pilot outputs; scope below |
 | `models/` | Frozen contact model and its original fit/setting receipts; the other frozen selection models already live in the repository |
 | `scripts/` | Saved-output checks and the cleaned experiment entry points |
 | `figures/` | Two selected **prototype** contact sheets, explained below |
@@ -55,6 +56,7 @@ for VIDEO in 17 53; do
 done
 
 python "$BUNDLE/scripts/check_geometry.py"
+python "$BUNDLE/scripts/check_followup.py"
 ```
 
 The contact checks cover both ±10-frame and ±5-frame matching at 30 fps.
@@ -87,6 +89,36 @@ inference was reused for this portability check.
 
 The whole-project type check still reported the same 11 existing import errors.
 Production source was unchanged while packaging this bundle.
+
+## Retained follow-up evidence
+
+`evidence/followup.json.gz` preserves 31 later output files in one compressed
+mapping. Its keys retain the source filenames within the investigation's checks
+directory. Absolute local and remote paths inside the records are reduced to
+basenames; numerical values are unchanged. The additional `mask_runs` key stores
+the fresh before/after boolean masks as half-open true intervals and frame counts.
+Those intervals were checked against the original arrays before packaging.
+
+The archive includes the initial grouping outputs for videos 17/53, their rally
+evaluation and player-feature summaries, original-data matching and sharing-guard
+comparisons, the pooled-fit summaries, and the 26-scene painted-line pilot.
+For fresh videos 8/9/10 it includes both full court payloads, masks and review
+summaries. The records describe their historical revisions, not a rerun of HEAD.
+
+`check_followup.py` checks accepted/shared counts and identical group corners.
+It reconstructs the 105-point coordinate-disagreement comparison using the
+original repaired corners in `evidence/video_{17,53}/after/` and the saved group
+medians. It also recomputes maximum corner variation before sharing.
+It compares the fresh court payloads after removing only `case_id`, then compares
+both masks. It also derives the pilot's family coverage from the saved per-frame
+vectors: median across frames for each line, then mean within each family.
+The distinct `mean_x_family`/`mean_y_family` fields average all samples and should
+not be substituted for this calculation.
+
+Other archived summaries can be inspected directly by their source keys. Source
+videos, decoded images and full player arrays remain external. The archive
+preserves recorded visual-review conclusions; it cannot independently establish
+their visual correctness or regenerate the full experiments.
 
 ## Selected visual evidence
 

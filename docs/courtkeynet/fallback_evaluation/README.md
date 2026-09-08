@@ -22,9 +22,17 @@ footage and deliberately fails closed on the amateur sample tested so far.
 
 CourtKeyNet supplies frame-level corner candidates. A scene median uses only
 unflagged detections. When two or three corners are confident, the classical-CV
-fallback uses court-line geometry to recover the missing corners. An optional
-video-level consensus pass repairs a measured advertising-board alias that the
-per-scene geometry gate cannot recognise.
+fallback uses court-line geometry to recover the missing corners. Scene repair
+uses donors that agree with the target's confident anchors. The target's own
+painted lines must support the borrowed court, which also needs a fresh person
+check. Retained fallback alternatives get their own acceptance checks. Repeated
+image-matched views can then share a calibration while preserving each target's
+anchor and line evidence.
+
+The harness name `detected_ckn_opencv_consensus` remains for saved-comparison
+compatibility. The `consensus` result field and consensus CSV columns remain
+empty in this scene-aware path. The video-wide consensus measurements below
+describe the earlier implementation.
 
 This record separates the measured result from the wider interpretation. It
 does not claim that the fallback is a general amateur-court detector.

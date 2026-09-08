@@ -8,6 +8,10 @@ videos retain exactly the same final contact and rally records with frozen model
 This follows the [scene geometry repair](scene_geometry_repair.md). That repair
 preserves different camera views. Grouping stabilises repeated instances of a view.
 
+The [retained follow-up evidence](../../../experiments/annotator/court_geometry_repair/README.md#retained-follow-up-evidence)
+contains the saved grouping outputs and later control summaries. Its checker
+verifies group counts, shared corners and the fresh-broadcast equality comparison.
+
 ## Matching a view
 
 The court detector already decodes scene samples. Grouping reuses the first,
@@ -82,7 +86,9 @@ uses 105 grid locations over a 6.1×13.4 m court. Each group median projects the
 into the image; the original scene calibrations map those identical image points
 back into court coordinates. The table reports the largest pairwise difference.
 It measures inconsistency, not error against ground truth. Shared calibrations
-remove that variation by construction.
+remove that variation by construction. The follow-up checker reproduces both
+coordinate disagreement and corner variation from the saved original and shared
+corners; no separate grid-output file is needed.
 
 Both final contact/rally streams are identical to the repaired baseline. Grouping
 improves coordinate consistency on these examples; it does not improve their

@@ -13,8 +13,14 @@ The [results report](scene_geometry_repair.md) contains the final implementation
 summary, comparison protocol and measurements.
 The [evidence bundle](../../../experiments/annotator/court_geometry_repair/README.md)
 provides the selected records and runnable checks behind them.
+The [follow-up archive](../../../experiments/annotator/court_geometry_repair/README.md#retained-follow-up-evidence)
+preserves the later grouping, fresh-broadcast, player-feature and pilot outputs.
 
 ## What the investigation ruled out
+
+The prototype corner-distance comparison and visual acceptance tally below are
+historical observations. The saved-output checks cover the retained final and
+pilot results, rather than these earlier prototype figures.
 
 ### Rejecting malformed courts alone would miss the recovery
 
@@ -57,14 +63,19 @@ new evidence could spread a bad repair and make results depend on scene order.
 
 A pilot compared raw and borrowed courts on 26 selected scenes. It tested line
 matching tolerances of 5, 10 and 15 pixels at 1280×720 reference resolution.
-At 10 pixels, the false video-53 close-up covered only 5% and 2% of the expected
-lines in the two court directions. A useful repair in video 53, scene 223 improved those
-fractions from 64% / 47% to 91% / 96%.
+Coverage takes the median across frames for each line, then averages those
+medians within each six-line family. These values come from the retained
+`median_by_line` array. The pilot's `mean_x_family` and `mean_y_family` fields
+instead average all frame/line samples and do not represent this acceptance rule.
 
-There was an important exception: video 17's correct, fully model-derived
-opening court scored 48% / 58%, with weak outer sidelines. The 50% requirement
-therefore applies to fallback and borrowed courts, not fully model-derived
-courts. Extending it to every detection would need separate validation.
+At 10 pixels, the false video-53 close-up covered only 5% and 2% of the expected
+lines in the two court directions. A useful repair in video 53, scene 223 improved
+those fractions from 64% / 47% to 91% / 96%.
+
+Video 17's correct, fully model-derived opening court scored 48% / 58%, with
+weak outer sidelines. The 50% requirement therefore applies to fallback and
+borrowed courts, not fully model-derived courts. Extending it to every detection
+would need separate validation.
 These development examples informed the rule; they do not establish a universal
 threshold for every view or lighting condition.
 
@@ -320,6 +331,26 @@ new CourtKeyNet-specific recovery heuristics. Full pytest passes 2,133 tests wit
 29 skipped (exit 0); the final cache-validation additions pass eight focused tests
 (exit 0). Whole Ruff/Pyrefly retain 905/11 existing findings (exit 1). Independent
 review verified both fixes and the final cache checks.
+
+## 8 September audit follow-up
+
+Full-chain annotation now excludes frames outside the supplied scene geometry.
+Previously, a contact in a short scene gap could reach court lookup and crash
+when the optional invalid-court flag was false. Segmentation-only runs retain
+their previous masks. Twelve regressions cover start, middle and end gaps,
+both flag settings, and both execution modes. The focused independent review
+also checked exact scene endpoints and the mask passed to natural segmentation.
+
+The full suite passes 2,176 tests with 29 skipped (exit 0). Ruff retains 905
+findings (exit 1). The untracked local Pyrefly profile needed the repository root
+in its search path: without it there were 13 errors, including two new experiment
+imports. With that correction, three missing optional VLM imports remain (exit 1).
+Earlier 11-error counts above describe the checks at those historical revisions.
+
+The painted-line pilot figures reproduce from the saved per-line medians.
+The audit's discrepancy came from substituting the overall sample means.
+The aggregation is now explicit, and the follow-up checker reproduces it from
+the per-frame vectors. No acceptance threshold or model-only exemption changed.
 
 ## Stopping point and next work
 

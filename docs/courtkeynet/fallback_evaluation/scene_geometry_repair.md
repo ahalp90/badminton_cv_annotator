@@ -22,6 +22,10 @@ were regenerated. No models were retrained, and the tree models were not tuned.
 The reconstructed baseline matches the saved reference contact and final-section
 records on both videos.
 
+The saved court evidence for videos 17 and 53 uses 1920×1080 detector inputs.
+These results do not measure the e2e harness's 512×288 proxy path. The fallback
+uses native-pixel Hough settings, so resolution can affect its proposals.
+
 These are development checks on known failures, not an untouched test-set claim.
 The two videos have 976 and 937 labelled contacts, across 73 and 76 labelled
 rallies respectively. Contact matching uses a tolerance of ±10 frames at 30 fps;
@@ -63,6 +67,9 @@ within 10 reference pixels and 10 degrees. A borrowed outline must improve
 coverage and pass a fresh person check. Coverage fractions are saved with each
 scene's evidence.
 
+A borrowed court can improve line support and still fail its fresh person check.
+That scene loses acceptance; the earlier outline is not automatically restored.
+
 Tracking, contact-side assignment, landing projection, hit-height estimation and
 feature export now use the accepted court for the current scene. Landing searches
 stop at its boundary. Calibration scoring also uses the relevant scene geometry.
@@ -78,6 +85,7 @@ stop at its boundary. Calibration scoring also uses the relevant scene geometry.
 | Contact F1 | 0.877 → 0.881 | 0.342 → 0.961 |
 | Fully correct sections / labelled rallies | 17/73 → 17/73 | 7/76 → 35/76 |
 | Previously correct sections lost | 0 | 0 |
+| Previously accepted court scenes rejected | 10 | 2 |
 
 At ±5 frames, F1 changes from 0.868 to 0.872 on video 17 and from 0.332 to
 0.944 on video 53. Fully correct sections remain 14 on video 17 and rise from
@@ -86,8 +94,9 @@ At ±5 frames, F1 changes from 0.868 to 0.872 on video 17 and from 0.332 to
 Video 17 retains its correct opening court and selects both players at the two
 reported frames, 46045 and 47276. Video 53 recovers 74 previously rejected
 wide-court scenes, including the reported scene 334. Two old close-up acceptances
-are removed. The final court evidence contains 28 accepted scenes on video 17
-and 97 on video 53.
+are removed. Video 17 also rejects ten previously accepted court scenes; this
+does not remove any previously correct rally section. The final court evidence
+contains 28 accepted scenes on video 17 and 97 on video 53.
 
 | Original ShuttleSet geometry control | Video 3 | Video 21 |
 | --- | ---: | ---: |

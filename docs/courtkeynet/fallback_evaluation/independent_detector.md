@@ -162,5 +162,9 @@ decision exactly. Saved timings cover the original concurrent CPU runs and
 exclude the acceptance-only replay; they are not a speed benchmark.
 
 The 13 detector and evaluator boundary tests pass. Scoped Ruff and Pyrefly
-checks pass. Whole-project Pyrefly still reports 11 existing findings.
+checks pass. The earlier whole-project Pyrefly run reported 11 findings.
+The 8 September audit found 13 with the same local profile, including two
+unresolved imports of the new experiment package. Adding the repository root
+to the local search path resolves those and other repository imports. Three
+missing optional VLM dependency imports remain (exit 1).
 Production code was unchanged, so the prior production suite was not rerun.

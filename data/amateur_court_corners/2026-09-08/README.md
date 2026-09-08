@@ -24,6 +24,12 @@ Annotations were made with `annotate_court_corners_offframe.py`. The compressed
 CSVs preserve the original tool output exactly. Published court detection
 evaluations have not yet been rescored against these annotations.
 
+The `video` column contains the local clip path shown above, rather than the
+YouTube ID used by the parent dataset. Use the table to map clip names to IDs.
+All four corners in each yellow-court (`E8WW8DFCnwk`) frame are extrapolated
+from the clicked landmarks. Scores against those corners measure agreement
+with the fitted projection, rather than directly clicked corner positions.
+
 ## View the overlays
 
 | Clip | Saved frame overlays |
