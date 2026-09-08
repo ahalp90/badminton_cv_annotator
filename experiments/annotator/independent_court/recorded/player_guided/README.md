@@ -6,6 +6,9 @@ but the first temporal prototype still accepts wrong courts. Adding the net's
 projected position helps resolve one floor-line ambiguity. The annotation
 pipeline continues to use its existing court detector.
 
+[The follow-up](followup.md) records wider search, image-motion experiments and
+thin-overlay checks of the amateur centre-line errors.
+
 The intended replacement must locate the main playing court in partial amateur
 views so those videos can be annotated automatically.
 
