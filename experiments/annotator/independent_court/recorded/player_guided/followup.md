@@ -1,5 +1,8 @@
 # Wider court search, 8 September 2026
 
+[The next experiment](marking_refit.md) tests marking-level scores and
+neighbouring frames as safeguards for multi-fragment refits.
+
 Searching more line combinations recovers plausible courts that the sampled
 search missed. It also introduces ranking regressions. The experiment now fits
 several partial amateur views closely, but automatic court selection remains

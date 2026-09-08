@@ -1,5 +1,8 @@
 # Player-guided court experiment, 8 September 2026
 
+[The latest scoring experiment](marking_refit.md) tests which multi-fragment
+refits to keep and records the remaining court-selection failures.
+
 This experiment asks whether moving players and visible markings can locate a
 badminton court without CourtKeyNet. Player movement provides useful evidence,
 but the first temporal prototype still accepts wrong courts. Adding the net's
