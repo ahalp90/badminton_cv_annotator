@@ -11,6 +11,13 @@ the annotation pipeline does not use its outputs.
 `player_guided.py` tests complete court hypotheses against these observations
 before retaining candidates. The line-only detector remains unchanged.
 
+`net_geometry.py` projects a net from a candidate court under stated camera
+assumptions. Its `project_net(corners_px, (width, height))` helper returns net
+segments, a camera-geometry residual and the selected focal length in image
+widths. These are diagnostics for comparing court hypotheses. The first
+[temporal results and replay bundle](recorded/player_guided/README.md) record
+where player and net evidence helped, and where the fits remain wrong.
+
 This is a baseline for experimentation. A window qualifies when two selected
 tracks are observed together in at least half its sampled frames and at least
 one is observed in every sampled frame. Missing detections remain missing;
