@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import paint_geometry
 from .assignment import (
     DISTANCE_SIGMA_PX,
     MARKING_INTERVALS,
@@ -21,9 +22,9 @@ from .assignment import (
     distances_to_segments,
 )
 from .detector import SEGMENTS_M, _visible_samples, project
+from .paint_geometry import POSITION_OFFSETS_M, positioned_segments
 
-STRIPE_WIDTH_M = 0.04
-POSITION_OFFSETS_M = np.array([0.0, -STRIPE_WIDTH_M / 2, STRIPE_WIDTH_M / 2])
+STRIPE_WIDTH_M = paint_geometry.STRIPE_WIDTH_M
 POSITION_NAMES = ("centre", "negative_edge", "positive_edge")
 RESOLVABLE_WIDTH_PX = 2 * DISTANCE_SIGMA_PX
 
@@ -52,11 +53,13 @@ def interval_evidence(
     centre_samples: np.ndarray,
     observations: Observations,
     size: tuple[int, int],
+    centres: np.ndarray = SEGMENTS_M,
+    boundary_tolerance_px: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Measure all positions at matching court locations on one finite interval."""
     normal_m = np.array([1.0, 0.0]) if interval < 6 else np.array([0.0, 1.0])
     offsets = POSITION_OFFSETS_M[:, None] * normal_m
-    shifted_segments = SEGMENTS_M[interval][None] + offsets[:, None]
+    shifted_segments = positioned_segments(centres, np.full(3, interval), np.arange(3))
     projected, _ = project(homography[None], shifted_segments)
     projected = projected.reshape(3, 2, 2)
     vectors = projected[:, 1] - projected[:, 0]
@@ -66,7 +69,8 @@ def interval_evidence(
     court_samples, _ = project(inverse[None], centre_samples)
     shifted_samples, _ = project(homography[None], court_samples[0][None] + offsets[:, None])
     shifted_samples = shifted_samples.reshape(3, len(centre_samples), 2)
-    inside = ((shifted_samples >= 0) & (shifted_samples <= np.asarray(size) - 1)).all(axis=2)
+    inside = ((shifted_samples >= -boundary_tolerance_px)
+              & (shifted_samples <= np.asarray(size) - 1 + boundary_tolerance_px)).all(axis=2)
     forward = []
     for position in range(len(POSITION_OFFSETS_M)):
         distances = distances_to_segments(shifted_samples[position], observations.segments)
@@ -81,9 +85,12 @@ def interval_evidence(
     return np.asarray(forward), distances, resolvable
 
 
-def measure(homography: np.ndarray, observations: Observations, size: tuple[int, int]) -> StripeEvidence:
+def measure(
+    homography: np.ndarray, observations: Observations, size: tuple[int, int], centres: np.ndarray = SEGMENTS_M,
+    boundary_tolerance_px: float = 0.0,
+) -> StripeEvidence:
     """Cache nominal-centre and paint-edge evidence for the complete comparison."""
-    projected, _ = project(homography[None], SEGMENTS_M)
+    projected, _ = project(homography[None], centres)
     samples, interval_visible = _visible_samples(projected.reshape(1, 12, 2, 2), size, MARKING_SAMPLES)
     inverse = np.linalg.inv(homography)
     forward = []
@@ -96,7 +103,7 @@ def measure(homography: np.ndarray, observations: Observations, size: tuple[int,
             if not interval_visible[0, interval]:
                 continue
             found, distances, resolved = interval_evidence(
-                homography, inverse, interval, samples[0, interval], observations, size,
+                homography, inverse, interval, samples[0, interval], observations, size, centres, boundary_tolerance_px,
             )
             forward_parts.append(found)
             reverse_parts.append(distances)

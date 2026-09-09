@@ -16,7 +16,7 @@ from .assignment import (
 )
 from .detector import CORNER_COURT_M, SEGMENTS_M, UNIT_CORNERS, project
 from .junction_observations import PRESENT_SUPPORT
-from .stripe_observations import POSITION_OFFSETS_M
+from .paint_geometry import positioned_segments
 
 MAX_EVALUATIONS = 100
 
@@ -31,16 +31,16 @@ class Constraints:
     sample_ids: np.ndarray
 
 
-def shifted_intervals(intervals: np.ndarray, positions: np.ndarray) -> np.ndarray:
+def shifted_intervals(
+    intervals: np.ndarray, positions: np.ndarray, centres: np.ndarray = SEGMENTS_M,
+) -> np.ndarray:
     """Keep the metric stripe positions consistent with the observation experiment."""
-    normals = np.zeros((len(intervals), 2))
-    normals[intervals < 6, 0] = 1
-    normals[intervals >= 6, 1] = 1
-    return SEGMENTS_M[intervals] + POSITION_OFFSETS_M[positions, None, None] * normals[:, None]
+    return positioned_segments(centres, intervals, positions)
 
 
 def prepare(
     homography: np.ndarray, observations: Observations, assignments: dict, fragment_weights: np.ndarray,
+    centres: np.ndarray = SEGMENTS_M,
 ) -> Constraints:
     """Freeze the local fitting subset and each sample's finite interval identity."""
     points, intervals, positions, weights, fragment_ids, sample_ids = [], [], [], [], [], []
@@ -49,7 +49,7 @@ def prepare(
             continue
         marking, position = assignments["marking"][fragment], assignments["position"][fragment]
         choices = np.asarray(MARKING_INTERVALS[marking])
-        segments_m = shifted_intervals(choices, np.full(len(choices), position))
+        segments_m = shifted_intervals(choices, np.full(len(choices), position), centres)
         projected, _ = project(homography[None], segments_m)
         distances = distances_to_segments(observations.samples[fragment], projected.reshape(-1, 2, 2))
         nearest = distances.argmin(axis=1)
@@ -86,6 +86,7 @@ def initial_parameters(corners: np.ndarray, size: tuple[int, int]) -> np.ndarray
 def refine(
     corners: np.ndarray, constraints: Constraints, size: tuple[int, int], use_positions: bool,
     initial: np.ndarray | None = None,
+    centres: np.ndarray = SEGMENTS_M,
 ) -> dict:
     """Fit one fixed interpretation; diagnostic failures never become accepted courts."""
     if len(constraints.points) < 4:
@@ -93,7 +94,7 @@ def refine(
     image_scale = max(size)
     court_scale = CORNER_COURT_M.max(axis=0)
     positions = constraints.positions if use_positions else np.zeros_like(constraints.positions)
-    segments = shifted_intervals(constraints.intervals, positions) / court_scale
+    segments = shifted_intervals(constraints.intervals, positions, centres) / court_scale
     points = constraints.points / image_scale
     weights = np.sqrt(constraints.weights / constraints.weights.sum()) * image_scale
     if initial is None:
