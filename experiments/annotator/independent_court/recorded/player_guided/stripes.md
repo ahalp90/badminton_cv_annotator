@@ -1,10 +1,15 @@
 # Stripe identities and fixed-assignment refits, 9 September 2026
 
-Keeping the starts alongside new refits selects **10/20 accurate courts**,
-up from 9/20. Half the frames still fail the accuracy requirement, so the result
-is insufficient to replace CourtKeyNet in the annotation pipeline. Finite junction evidence resolves two large yellow-court ambiguities,
-but line responses outside the court can mislead it. Refinement improves some
-fits and worsens others. Keeping the starting fits prevents one clear loss.
+Keeping the starts alongside new refits selects **10/20 courts within the
+original corner-error cutoff**, up from 9/20. That cutoff includes off-screen
+reference corners; it is not a count of usable courts. The user's subsequent
+gallery review found most fits visually convincing and shifted the next
+assessment towards visible outer-boundary accuracy. The recorded results remain
+unchanged. Production still uses CourtKeyNet pending further evaluation.
+
+Finite junction evidence resolves two large yellow-court ambiguities, but line
+responses outside the court can mislead it. Refinement improves some fits and
+worsens others. Keeping the starting fits prevents one clear loss.
 
 The goal is to locate the playing court in partial amateur views without
 CourtKeyNet. This continuation tests stripe measurement, fragment identity,
@@ -16,11 +21,12 @@ It does not test a complete graph matcher or establish that graph matching fails
 before/latest panels and switches for reference and fitted lines. A
 [Markdown image gallery](stripe_overlays/README.md) is also available.
 
-## Evaluation contract
+## Recorded evaluation contract
 
 All results use the same **20 development frames from seven videos**. Several
-frames share a video, so they are not independent test examples. Accuracy means
-**worst corner error at most 15 pixels in 1280×720 coordinates**, including
+frames share a video, so they are not independent test examples. In these runs,
+“accurate” means **worst corner error at most 15 pixels in 1280×720 coordinates**,
+including
 off-screen corners. Visible-landmark root-mean-square (RMS) error is reported
 separately. No held-out performance or automatic acceptance rule is evaluated.
 
@@ -29,6 +35,78 @@ admit 682; an accurate geometry exists in 13/20 pools before and after those
 gates. Two extra gallery probes are excluded. The empty frame remains in every
 20-frame denominator. Labels are read after ranking or fitting, except for the
 label-guided diagnostics below.
+
+## Visual review and priorities for the next pass
+
+These observations followed the user's review of all twenty fitted overlays.
+They are qualitative observations and revised priorities, not a new measured
+success rate. The user found most fits essentially correct, except that fitted
+lines often follow the inner edge or centre of the paint rather than the outer
+court boundary. Proposed fits should remain magenta in future visualisations.
+
+| Frames | User's visual observation |
+|---|---|
+| `am3_window_00_frame_0`, `am3_window_01_frame_10514` | Essentially correct apart from the paint-edge convention. |
+| `am3_window_02_frame_17174`, `am3_window_03_frame_24515` | Coherent court shapes, but substantially offset from the actual court. |
+| `am4_window_00_frame_0` | Too narrow; the fit follows inner dark lines. |
+| `am4_window_00_frame_319`, `am4_window_01_frame_13782` | Essentially correct apart from the paint-edge convention. |
+
+### Judge visible outer boundaries first
+
+The outer court determines the image-to-court mapping used downstream for
+player positions and landing decisions. Inner lines help estimate that mapping.
+Small inner-line discrepancies can be acceptable when the outer boundary is
+accurate. One perspective transform still links all the markings; this does
+not propose independently moving inner lines to improve their appearance.
+
+For the next evaluation, visible outer-boundary alignment takes priority.
+Off-screen geometry should remain plausible, but extrapolated reference corners
+should not carry the same authority as visible paint. Annotation jitter and
+camera-model mismatch can be magnified outside the image. For example, the
+27.83-pixel maximum error on `am3_window_01_frame_10514` is at an off-screen
+reference corner. The user considers that less concerning if the projection
+stays sensible.
+
+Keep the old four-corner metric for historical comparisons. Use off-screen
+corners as a plausibility and uncertainty diagnostic in the next assessment;
+inner-line residuals and net evidence remain supporting measurements. No new
+visible-boundary tolerance, plausibility threshold or usability count has yet
+been specified. The existing landmark RMS includes inner landmarks and is not
+itself the proposed outer-boundary measure.
+
+### Resolve the paint-edge convention
+
+Source inspection confirms that the overlay directly projects the saved court
+geometry and adds no inset. The experiment treats nominal template lines as
+stripe centres and permits observations at ±20 mm. The relationship between
+those centres, actual paint edges and the output outer boundary remains
+unresolved. This is a geometry/measurement issue, not an overlay adjustment.
+
+The lead is to represent the outer boundary and the painted stripe consistently
+in court coordinates. For example, a 40 mm left boundary stripe occupies
+`x=0…0.04 m` when the outer edge is `x=0`; its centre is `x=0.02 m`. The reference
+annotations need the same convention. A fixed pixel expansion would not account
+for perspective. This correction has not been implemented or evaluated, and it
+would not explain the much larger misplaced amateur-3 fits.
+
+### Use post bases as a soft preference
+
+The user proposed favouring courts whose outer sidelines meet the net posts.
+The ground contact of each visible post is a useful anchor for the doubles
+sideline at the net plane. Posts belong on doubles sidelines even during singles
+play. [BWF court rules](https://hkbadmintonassn.org.hk/wp-content/uploads/2023/06/Section-4.1-Laws-of-Badminton-29-May-2023-V2.0.pdf)
+
+The existing score averages generic line support along predicted net tape and
+posts. It does not explicitly associate a detected post base with a sideline.
+That association could help distinguish the narrow amateur-4 fit. Either
+visible side can contribute; both posts need not be observable. Poor pinhole-camera agreement,
+occlusion or displaced portable posts can weaken one or both sides; failure to
+match a post should not automatically reject a court.
+
+A bounded next diagnostic is to mark visible post bases on the named failure
+frames and compare the saved alternatives. This would test whether the evidence
+distinguishes them before choosing a weight or building automatic post detection.
+No post-base constraint, weight or detector has been tested yet.
 
 ## What changed the result
 
@@ -175,8 +253,8 @@ solve the remaining selection problem.
 
 ## Per-frame results
 
-Values are worst-corner errors in the primary metric. “Junction” rewards complete
-junction agreements before stripe score. The two final columns retain starts and
+Values are worst-corner errors under the recorded, off-screen-inclusive metric.
+“Junction” rewards complete junction agreements before stripe score. The two final columns retain starts and
 use that same junction ranking after renewed evidence. “Best start” is
 label-guided pool availability, not a selector. A dash denotes the empty pool.
 
@@ -241,11 +319,10 @@ experiments. Its claim of broadly worsening fits was checked against all paired
 errors and was not supported. The supported concern is narrower: improving the
 fitting objective can worsen reference accuracy, including for the added winner.
 
-The next step is to examine whether the floor gate measures the available paint
-correctly in partial views. The rejected 8.75-pixel proposal supplies a specific
-counterexample. Pair that investigation with checks for floor texture,
-neighbouring courts and missing observations before changing a threshold.
-Establish separate evaluation examples before choosing further score rules.
-A complete graph matcher remains an open option, but it would inherit these
-observation and eligibility problems. The evidence does not yet justify
-replacing the production detector.
+The next pass should first establish the outer paint-edge convention and a
+visible-boundary assessment. Then test post-base support on the named misplaced
+fits. Retain the floor-gate investigation: the rejected 8.75-pixel proposal
+remains a specific counterexample. Include floor texture, neighbouring courts
+and missing observations before changing gates or score weights. Separate
+evaluation examples are still needed. A complete graph matcher remains an open
+option; the present experiments do not settle its value.

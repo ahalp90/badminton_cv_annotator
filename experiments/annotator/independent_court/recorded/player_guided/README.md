@@ -1,9 +1,12 @@
 # Player-guided court experiment, 8 September 2026
 
-[The latest stripe and refinement experiment](stripes.md) selects 10/20 accurate
-courts on the development frames. It also finds an accurate generated proposal
-rejected by the floor gate, and floor texture mistaken for a court-line continuation.
-The annotation pipeline keeps CourtKeyNet.
+[The latest stripe and refinement experiment](stripes.md) reaches 10/20 under
+the original corner cutoff, including off-screen corners. Subsequent visual
+review prioritises visible outer-boundary accuracy, a consistent paint-edge
+convention and soft post-base evidence. The score is not a count of usable
+courts. The report also records an accurate proposal rejected by the floor gate
+and floor texture mistaken for a court-line continuation. Production keeps
+CourtKeyNet.
 
 [The earlier assignment experiment](assignment.md) compares explicit marking
 assignments on frozen geometries. That first matcher reaches 5/20 accurate fits.
