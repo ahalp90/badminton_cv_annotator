@@ -1,8 +1,12 @@
 # Player-guided court experiment, 8 September 2026
 
-[The latest assignment experiment](assignment.md) compares explicit marking
-assignments on frozen geometries. The first matcher reaches 5/20 accurate fits;
-the observation model and objective need further work.
+[The latest stripe and refinement experiment](stripes.md) selects 10/20 accurate
+courts on the development frames. It also finds an accurate generated proposal
+rejected by the floor gate, and floor texture mistaken for a court-line continuation.
+The annotation pipeline keeps CourtKeyNet.
+
+[The earlier assignment experiment](assignment.md) compares explicit marking
+assignments on frozen geometries. That first matcher reaches 5/20 accurate fits.
 
 [The previous scoring experiment](marking_refit.md) tests which multi-fragment
 refits to keep and records the remaining court-selection failures.
