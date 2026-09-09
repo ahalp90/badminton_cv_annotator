@@ -12,6 +12,10 @@ finite junctions and geometry refinement. It follows the
 [first assignment comparison](assignment.md), which selected 5/20 accurate fits.
 It does not test a complete graph matcher or establish that graph matching fails.
 
+[View fitted court overlays for all 20 frames](stripe_overlays/index.html), with
+before/latest panels and switches for reference and fitted lines. A
+[Markdown image gallery](stripe_overlays/README.md) is also available.
+
 ## Evaluation contract
 
 All results use the same **20 development frames from seven videos**. Several
