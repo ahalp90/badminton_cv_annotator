@@ -1,5 +1,10 @@
 # Player-guided court experiment, 8 September 2026
 
+[The GX proposal trace](gx_proposal_trace.md) separates proposal loss from gate
+rejection. A useful frame-0 start is rejected by floor support; on frame 5,
+the random rectangle cap removes a close court before scoring. Controlled
+cached-fragment diagnostics also expose evidence lost through angle grouping.
+
 [The additional-footage checkpoint](extension_results.md) records the latest
 post and appearance probes, the broadcast comparison and the new seven-frame
 amateur evaluation. Stripe ranking reaches 16/18 matching broadcast references

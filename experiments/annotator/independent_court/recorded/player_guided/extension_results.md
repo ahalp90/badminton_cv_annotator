@@ -13,6 +13,9 @@ views. The tests below ask whether better paint evidence and post constraints
 repair known failures, and whether those changes survive a wider comparison.
 CourtKeyNet remains the production detector.
 
+The subsequent [GX proposal trace](gx_proposal_trace.md) distinguishes missing
+proposals from rejection using the original cached observations.
+
 ## Evaluation contract
 
 These are development and regression checks. They do not measure held-out
@@ -105,9 +108,10 @@ on all seven frames. This gate requires enough supporting line evidence from
 the floor. Geometry, player containment and camera checks pass.
 The old support score for the sideline family ranges from 0.417 to 0.444,
 below its required 0.55; only two lines in that family meet its support test,
-below the required three. All three alternative saved line-evidence schemes also reject all
-seven reference geometries. Replacing the old family score with those existing
-alternatives is therefore not an established fix.
+below the required three. All three alternative saved scoring schemes share
+that original floor-eligibility condition, so their joint rejection does not
+test independent gates. Replacing the old family score with those existing
+alternatives is not an established fix.
 
 This identifies a rejection at plausible court geometry. It does not establish
 that the generator produced a sufficiently accurate candidate. Fixed image-angle
