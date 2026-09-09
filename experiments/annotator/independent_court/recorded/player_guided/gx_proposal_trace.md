@@ -83,6 +83,9 @@ Errors below again use 1280×720 coordinates.
 
 ![Frame 5 sampled and complete-rectangle diagnostic proposals](gx_trace_overlays/gxBQ_window_00_frame_5__cap.jpg)
 
+Visual review judged the complete-search frame-5 court a huge improvement over
+the sampled result.
+
 The usual arm exactly reproduces the full detector trace's generated count,
 geometry-valid count and closest examples. The frame-5 result establishes that
 the existing line pool can generate a close court which the cap removes.

@@ -71,6 +71,10 @@ crosscourt family excludes angles beyond ±35°. Its finite-distance support is
 [right-singles comparison](fixed_matching_overlays/gxBQ_window_00_frame_5__reference__right_singles.jpg)
 shows the lengthwise case: a projected 7.1° marking falls below the original 10° limit.
 
+The [full-court frame-5 comparison](gx_trace_overlays/gxBQ_window_00_frame_5__cap.jpg)
+was visually judged a huge improvement over the sampled court. Its geometry is
+unchanged by this matching experiment.
+
 ![Same frame-5 baseline with family and directional fragment access](fixed_matching_overlays/gxBQ_window_00_frame_5__reference__near_baseline.jpg)
 
 Unrestricted access can credit the wrong marking. On frame 0, fragment 160 at
