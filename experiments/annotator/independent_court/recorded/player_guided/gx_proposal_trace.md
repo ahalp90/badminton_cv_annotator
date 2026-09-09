@@ -84,7 +84,10 @@ Errors below again use 1280×720 coordinates.
 ![Frame 5 sampled and complete-rectangle diagnostic proposals](gx_trace_overlays/gxBQ_window_00_frame_5__cap.jpg)
 
 Visual review judged the complete-search frame-5 court a huge improvement over
-the sampled result.
+the sampled result. The user considers this individual fit deployable. The left
+and bottom edges follow the outside of the white line. The right edge is mildly
+inset, which the user considers acceptable; including the full paint width there
+would be preferable but is not required for usability.
 
 The usual arm exactly reproduces the full detector trace's generated count,
 geometry-valid count and closest examples. The frame-5 result establishes that

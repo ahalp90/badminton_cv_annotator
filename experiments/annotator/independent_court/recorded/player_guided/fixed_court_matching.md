@@ -72,8 +72,11 @@ crosscourt family excludes angles beyond ±35°. Its finite-distance support is
 shows the lengthwise case: a projected 7.1° marking falls below the original 10° limit.
 
 The [full-court frame-5 comparison](gx_trace_overlays/gxBQ_window_00_frame_5__cap.jpg)
-was visually judged a huge improvement over the sampled court. Its geometry is
-unchanged by this matching experiment.
+was visually judged a huge improvement over the sampled court. The user considers
+the complete-search fit deployable: its left and bottom edges follow the outside
+of the paint, and the mildly inset right edge is acceptable. Full paint width on
+the right remains an ideal preference. Its geometry is unchanged by this matching
+experiment, so it supplies a concrete usable-geometry control.
 
 ![Same frame-5 baseline with family and directional fragment access](fixed_matching_overlays/gxBQ_window_00_frame_5__reference__near_baseline.jpg)
 
