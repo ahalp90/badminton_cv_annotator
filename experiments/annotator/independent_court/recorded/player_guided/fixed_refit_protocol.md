@@ -74,3 +74,33 @@ the next step is renewed evidence and selection with all alternatives retained.
 If they systematically drift, inspect the frozen fragment/position constraints
 before widening proposal search. Report mixed results and their causes rather
 than choosing a per-frame fitting mode.
+
+## Follow-up: renewed evidence with every starting fit retained
+
+The diagnostic completed all 1,364 unique fits within budget. Both models retain
+9/20 accurate winners when each selected identity is followed through its fit.
+They improve yellow 90 but lose letterboxed 58. Nominal-centre fitting loses
+10 of the 78 accurate starts; fixed positions lose four. Both raise descriptive
+pool availability from 13 to 14 frames when starts are retained.
+
+The next comparison retains each original eligible geometry and each successful
+new geometry. Recompute geometry validity, player fractions, camera consistency,
+floor gates and net evidence using the exact archived scoring implementation.
+Reproduce the archived gates and net scores on all 682 starts. Fail the
+comparison if that control differs. Never inherit those quantities from a parent.
+
+For floor evidence, keep every parent's stripe marking/position assignment fixed
+for both refinement controls. The nominal-centre fit changes its fitting target;
+it is evaluated with the same stripe model and assigned positions as the other
+geometries. Recompute forward and reverse responses under the new homography.
+An assigned fragment with zero support keeps its identity and contributes zero.
+Recompute finite junction observations too; their threshold classifications may
+change with geometry. Such a response change is not itself a changed assignment.
+
+Compare stripe-exclusive and complete-agreements-first selection on three pools:
+starts alone; starts plus nominal-centre fits; starts plus fixed-position fits.
+Retain complete deterministic orders and use candidate ID for exact ties. Keep
+the same 3:1 floor/net blend and junction ordering. Do not introduce new weights,
+thresholds, acceptance rules, suppression or proposal search. Attach labels only
+after all scoring and ranking. Report renewed eligibility losses, the original
+9/20 control, changed winners, regressions and useful geometry after renewed gates.

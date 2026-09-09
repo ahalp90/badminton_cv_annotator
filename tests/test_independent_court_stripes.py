@@ -72,6 +72,30 @@ def test_fragment_identity_is_constant_and_alternative_is_distinct() -> None:
     assert result["alternative_strength"].tolist() == [0.7]
 
 
+def test_fixed_assignment_remeasures_support_without_reassigning_zero_response() -> None:
+    reverse = np.array([[[0.0, 0.8], [0.0, 0.7]], [[0.9, 0.2], [0.6, 0.1]]])
+    result = stripes.describe_assignment(reverse, np.array([0, -1]), np.array([1, -1]))
+    assert result["marking"].tolist() == [0, -1]
+    assert result["position"].tolist() == [1, -1]
+    assert result["strength"].tolist() == [0.0, 0.0]
+    assert result["alternative_marking"].tolist() == [1, 0]
+    assert result["alternative_strength"].tolist() == [0.9, 0.8]
+
+
+def test_fixed_score_uses_new_geometry_responses_in_both_directions() -> None:
+    observations = prepare_observations(painted_edges(), SIZE)
+    weights = stripes.fragment_weights(observations)
+    measured = stripes.measure(HOMOGRAPHY, observations, SIZE)
+    initial = stripes.score_model(measured, weights, 3)
+    moved = HOMOGRAPHY.copy()
+    moved[1, 2] += 10
+    fixed = stripes.score_model(stripes.measure(moved, observations, SIZE), weights, 3, initial["assignments"])
+    assert fixed["assignments"]["marking"] == initial["assignments"]["marking"]
+    assert fixed["assignments"]["position"] == initial["assignments"]["position"]
+    assert fixed["exclusive"]["forward"] < initial["exclusive"]["forward"]
+    assert fixed["exclusive"]["reverse"] < initial["exclusive"]["reverse"]
+
+
 def test_centre_gap_has_no_finite_stripe_support() -> None:
     homography = np.array([[40.0, 0, 50], [0, 40.0, 40], [0, 0, 1]])
     gap = np.array([[3.05, 5.5], [3.05, 7.8]])

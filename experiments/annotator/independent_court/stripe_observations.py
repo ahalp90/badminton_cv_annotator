@@ -124,19 +124,33 @@ def resolve_fragments(reverse: np.ndarray) -> dict[str, np.ndarray]:
     selected = flattened.argmax(axis=0)
     strength = flattened[selected, np.arange(fragment_count)]
     marking, position = selected // position_count, selected % position_count
+    return describe_assignment(reverse, np.where(strength > 0, marking, -1), np.where(strength > 0, position, -1))
+
+
+def describe_assignment(reverse: np.ndarray, marking: np.ndarray, position: np.ndarray) -> dict[str, np.ndarray]:
+    """Measure a supplied identity assignment without changing it when support vanishes."""
+    marking_count, _, fragment_count = reverse.shape
+    strength = reverse[np.maximum(marking, 0), np.maximum(position, 0), np.arange(fragment_count)]
+    strength = np.where(marking >= 0, strength, 0.0)
     by_marking = reverse.max(axis=1)
     alternatives = np.where(np.arange(marking_count)[:, None] == marking[None], -1.0, by_marking)
     alternative_marking = alternatives.argmax(axis=0)
     alternative_strength = alternatives[alternative_marking, np.arange(fragment_count)]
-    return {"marking": np.where(strength > 0, marking, -1),
-            "position": np.where(strength > 0, position, -1), "strength": strength,
+    return {"marking": marking, "position": position, "strength": strength,
             "alternative_marking": np.where(alternative_strength > 0, alternative_marking, -1),
             "alternative_strength": np.maximum(alternative_strength, 0)}
 
 
-def score_model(evidence: StripeEvidence, weights: np.ndarray, position_count: int) -> dict:
+def score_model(
+    evidence: StripeEvidence, weights: np.ndarray, position_count: int, fixed_assignment: dict | None = None,
+) -> dict:
     """Compare evidence reuse and exclusive fragment identities for one position model."""
-    resolved = resolve_fragments(evidence.reverse[:, :position_count])
+    responses = evidence.reverse[:, :position_count]
+    if fixed_assignment is None:
+        resolved = resolve_fragments(responses)
+    else:
+        resolved = describe_assignment(responses, np.asarray(fixed_assignment["marking"]),
+                                       np.asarray(fixed_assignment["position"]))
     independent_per_marking = np.zeros(len(MARKINGS))
     exclusive_per_marking = np.zeros(len(MARKINGS))
     paired_per_marking: list[float | None] = []
