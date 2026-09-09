@@ -77,7 +77,16 @@ def residual(parameters: np.ndarray, points: np.ndarray, segments: np.ndarray, w
     return ((points - closest) * weights[:, None]).ravel()
 
 
-def refine(corners: np.ndarray, constraints: Constraints, size: tuple[int, int], use_positions: bool) -> dict:
+def initial_parameters(corners: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """Expose the exact normalised state received by the optimiser for cache identity."""
+    transform = cv2.getPerspectiveTransform(UNIT_CORNERS, (corners / max(size)).astype(np.float32))
+    return (transform / transform[2, 2]).ravel()[:8]
+
+
+def refine(
+    corners: np.ndarray, constraints: Constraints, size: tuple[int, int], use_positions: bool,
+    initial: np.ndarray | None = None,
+) -> dict:
     """Fit one fixed interpretation; diagnostic failures never become accepted courts."""
     if len(constraints.points) < 4:
         return {"status": "insufficient_samples", "successful": False, "corners_px": None, "nfev": 0}
@@ -87,8 +96,8 @@ def refine(corners: np.ndarray, constraints: Constraints, size: tuple[int, int],
     segments = shifted_intervals(constraints.intervals, positions) / court_scale
     points = constraints.points / image_scale
     weights = np.sqrt(constraints.weights / constraints.weights.sum()) * image_scale
-    transform = cv2.getPerspectiveTransform(UNIT_CORNERS, (corners / image_scale).astype(np.float32))
-    initial = (transform / transform[2, 2]).ravel()[:8]
+    if initial is None:
+        initial = initial_parameters(corners, size)
     arguments = (points, segments, weights)
     before = residual(initial, *arguments)
     fit = least_squares(residual, initial, args=arguments, jac="3-point", max_nfev=MAX_EVALUATIONS)

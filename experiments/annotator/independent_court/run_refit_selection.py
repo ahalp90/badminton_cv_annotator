@@ -40,21 +40,37 @@ def rank_pools(entries: list[dict]) -> dict:
     return orders
 
 
-def run_case(case: dict, frozen: dict, fits: dict, saved: dict, legacy: ModuleType) -> dict:
-    """Check the parent control, then remeasure every changed geometry without labels."""
-    started = perf_counter()
+def verify_starts(case: dict, frozen: dict, saved: dict, legacy: ModuleType) -> tuple[dict, dict]:
+    """Verify all archived gates and net scores before expensive refinement scoring."""
     prepared = legacy.prepare_case(case)
+    old = {entry["id"]: entry for entry in saved["entries"]}
+    renewed = {}
+    for source in frozen["entries"]:
+        if not source["eligible"]:
+            continue
+        construction = case["candidates"][source["source_index"]]
+        observed = legacy.evidence(np.asarray(source["corners_px"]), case, prepared, construction)
+        previous = old[source["id"]]
+        if eligible(observed) != previous["eligible"] or observed["net_score"] != previous["evidence"]["net_score"]:
+            raise ValueError(f"Renewed starting evidence differs: {case['id']}/{source['id']}")
+        renewed[source["id"]] = observed
+    return prepared, renewed
+
+
+def run_case(
+    case: dict, frozen: dict, fits: dict, legacy: ModuleType, prepared: dict, starting_evidence: dict,
+) -> dict:
+    """Remeasure changed geometries while reusing the verified parent control."""
+    started = perf_counter()
     size, scale = prepared["size"], prepared["native_scale"]
     observations = prepare_observations(prepared["segments"], size)
     weights = stripes.fragment_weights(observations)
-    before = {entry["id"]: entry for entry in saved["entries"]}
     fitted = {entry["id"]: entry for entry in fits["entries"]}
     entries = []
     for source in frozen["entries"]:
         if not source["eligible"]:
             continue
-        original = before[source["id"]]
-        construction = case["candidates"][original["source_index"]]
+        construction = case["candidates"][source["source_index"]]
         assigned = source["stripe_evidence"]["stripe"]["assignments"]
         variants = [("start", source["corners_px"])]
         for model in MODELS:
@@ -63,12 +79,9 @@ def run_case(case: dict, frozen: dict, fits: dict, saved: dict, legacy: ModuleTy
                 variants.append((model, result["corners_px"]))
         for model, coordinates in variants:
             corners = np.asarray(coordinates)
-            observed = legacy.evidence(corners, case, prepared, construction)
+            observed = (starting_evidence[source["id"]] if model == "start"
+                        else legacy.evidence(corners, case, prepared, construction))
             is_eligible = eligible(observed)
-            if model == "start":
-                old = original["evidence"]
-                if is_eligible != original["eligible"] or observed["net_score"] != old["net_score"]:
-                    raise ValueError(f"Renewed starting evidence differs: {case['id']}/{source['id']}")
             entry = {"id": f"{source['id']}/{model}", "parent_id": source["id"], "model": model,
                      "corners_px": coordinates, "eligible": is_eligible, "gate_evidence": observed}
             if is_eligible:
@@ -124,16 +137,24 @@ def main() -> None:
     args = parser.parse_args()
     sys.path.insert(0, str(args.legacy_dir.resolve()))
     legacy = importlib.import_module("run_alignment")
+    # The archived replay fixes OpenCV threads; distance-map rounding depends on it.
+    cv2.setNumThreads(1)
     inputs, saved = read_replay(args.replay)
     stripes_saved = json.loads(gzip.decompress(args.stripes.read_bytes()))
     refits = json.loads(gzip.decompress(args.refits.read_bytes()))
     cases = {case["id"]: case for case in inputs["cases"]}
     original = {record["id"]: {"entries": frozen_entries(record)} for record in saved["records"]}
     fitted = {record["id"]: record for record in refits["records"]}
+    controls = {}
+    for frozen in stripes_saved["records"]:
+        identifier = frozen["id"]
+        controls[identifier] = verify_starts(cases[identifier], frozen, original[identifier], legacy)
+    print("All starting eligibility flags and net scores reproduce exactly.", flush=True)
     records = []
     for frozen in stripes_saved["records"]:
         identifier = frozen["id"]
-        result = run_case(cases[identifier], frozen, fitted[identifier], original[identifier], legacy)
+        prepared, starting_evidence = controls.pop(identifier)
+        result = run_case(cases[identifier], frozen, fitted[identifier], legacy, prepared, starting_evidence)
         records.append(result)
         print(f"{identifier}: {len(result['entries'])} geometries, {result['elapsed_seconds']:.2f}s", flush=True)
     attach_metrics(records, inputs["references"])

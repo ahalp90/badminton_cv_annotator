@@ -42,15 +42,16 @@ def run_case(case: dict, frozen: dict) -> dict:
         homography = cv2.getPerspectiveTransform(CORNER_COURT_M, (corners / scale).astype(np.float32))
         assignment = source["stripe_evidence"]["stripe"]["assignments"]
         constraints = fitting.prepare(homography, observations, assignment, weights)
+        initial = fitting.initial_parameters(corners / scale, size)
         fits = {}
         for model in MODELS:
-            key = (model, corners.tobytes(), constraints.fragment_ids.tobytes(), constraints.sample_ids.tobytes(),
+            key = (model, initial.tobytes(), constraints.fragment_ids.tobytes(), constraints.sample_ids.tobytes(),
                    constraints.intervals.tobytes(), constraints.positions.tobytes())
             attempted += 1
             if key in cache:
                 duplicates += 1
             else:
-                fitted = fitting.refine(corners / scale, constraints, size, model == "fixed_position")
+                fitted = fitting.refine(corners / scale, constraints, size, model == "fixed_position", initial)
                 if fitted["corners_px"] is not None:
                     fitted["corners_px"] = (np.asarray(fitted["corners_px"]) * scale).tolist()
                 cache[key] = fitted

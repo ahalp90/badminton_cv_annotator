@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
 import cv2
 import numpy as np
 
@@ -143,3 +145,17 @@ def test_prepare_keeps_centre_pieces_and_drops_weak_fragments() -> None:
     assert np.array_equal(constraints.fragment_ids, np.r_[np.full(16, 101), np.full(16, 202)])
     assert np.array_equal(constraints.sample_ids, np.r_[np.arange(16), np.arange(16)])
     assert np.allclose(constraints.weights, np.r_[np.full(16, 0.25 / 16), np.full(16, 0.65 / 16)])
+
+
+def test_normalised_start_state_preserves_subprecision_corner_equivalence() -> None:
+    first = KNOWN_CORNERS.copy()
+    second = deepcopy(first)
+    second[0, 0] += 1e-10
+    assert not np.array_equal(first, second)
+    np.testing.assert_array_equal(refit.initial_parameters(first, IMAGE_SIZE),
+                                  refit.initial_parameters(second, IMAGE_SIZE))
+    constraints = _constraints((0, 1, 4, 6, 7, 10, 11), (1, 2, 1, 2, 1, 2, 1))
+    initial = refit.initial_parameters(first, IMAGE_SIZE)
+    ordinary = refit.refine(first, constraints, IMAGE_SIZE, use_positions=True)
+    supplied = refit.refine(second, constraints, IMAGE_SIZE, use_positions=True, initial=initial)
+    assert ordinary == supplied

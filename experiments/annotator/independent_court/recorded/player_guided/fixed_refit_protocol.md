@@ -104,3 +104,18 @@ the same 3:1 floor/net blend and junction ordering. Do not introduce new weights
 thresholds, acceptance rules, suppression or proposal search. Attach labels only
 after all scoring and ranking. Report renewed eligibility losses, the original
 9/20 control, changed winners, regressions and useful geometry after renewed gates.
+
+## Replay accounting correction
+
+The first run's key used saved corner coordinates. A post-run check found that
+274 requests with slightly different coordinates have identical normalised
+optimiser parameters and fixed constraints. The replay key now uses those actual
+parameters. Preserve the first run and rerun all fits to verify exact equality of
+geometry, objectives, solver status and metrics. This changes work reuse and
+budget accounting only; it introduces no geometric tolerance or new pruning.
+
+The first renewed-evidence attempt stopped at am1 frame54: one net score differed
+by2.98e-8. The archived replay sets OpenCV to one thread; reproducing that setting
+restores exact equality. Keep the exact control check, preflight all starting
+gates/net scores before scoring any refits, and reuse the verified evidence.
+No score tolerance was widened. The failed attempt produced no final result.
