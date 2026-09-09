@@ -1,5 +1,8 @@
 # Where the GX court proposals are lost
 
+The [fixed-court follow-up](fixed_court_matching.md) now tests directional
+fragment access while preserving the selected court geometries.
+
 **GX has both proposal-coverage and rejection problems.** The original generator
 contains a useful starting court for frame 0, but the floor gate rejects it.
 On frame 5, the random limit on seed rectangles discards a much closer court

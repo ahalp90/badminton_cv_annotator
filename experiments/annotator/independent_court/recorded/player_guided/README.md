@@ -1,5 +1,10 @@
 # Player-guided court experiment, 8 September 2026
 
+[The fixed-court matching comparison](fixed_court_matching.md) restores hidden
+line evidence and rejects a known wrong broadcast court. It also isolates a
+raster-versus-finite-distance regression on one previously good amateur fit.
+The result supports another controlled evidence-access test before wider search.
+
 [The GX proposal trace](gx_proposal_trace.md) separates proposal loss from gate
 rejection. A useful frame-0 start is rejected by floor support; on frame 5,
 the random rectangle cap removes a close court before scoring. Controlled
