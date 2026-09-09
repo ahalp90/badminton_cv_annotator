@@ -119,6 +119,9 @@ def measure(
     if corners.shape != (4, 2) or not np.isfinite(corners).all():
         raise ValueError("corners must contain four finite points")
     homography = cv2.getPerspectiveTransform(CORNER_COURT_M, corners.astype(np.float32))
+    # OpenCV can return either matrix sign for ill-conditioned corner sets.
+    # The finite origin corner fixes a common scale before testing depth.
+    homography /= homography[2, 2]
     _project(homography, np.asarray(CORNER_COURT_M, dtype=np.float64))
     width, height = dimensions
     scale = np.array(

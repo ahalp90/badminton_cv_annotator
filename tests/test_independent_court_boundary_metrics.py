@@ -52,6 +52,24 @@ def test_diagonal_perspective_direct_clicks_and_boundary_corners_are_exact() -> 
     }
 
 
+@pytest.mark.parametrize("matrix_scale", [0.001, -0.003, 17.0])
+def test_metric_is_invariant_to_homography_scale(
+    monkeypatch: pytest.MonkeyPatch, matrix_scale: float,
+) -> None:
+    reference = _reference()
+    predicted = COURT_CORNERS + [3.0, -2.0]
+    expected = measure(predicted, reference, (1280, 720), [0, 1], 0.02)
+    original_transform = cv2.getPerspectiveTransform
+
+    def scaled_transform(source: np.ndarray, destination: np.ndarray) -> np.ndarray:
+        return original_transform(source, destination) * matrix_scale
+
+    monkeypatch.setattr(cv2, "getPerspectiveTransform", scaled_transform)
+    actual = measure(predicted, reference, (1280, 720), [0, 1], 0.02)
+
+    assert actual == pytest.approx(expected, abs=1e-9)
+
+
 def test_extrapolated_reference_corners_do_not_enter_clicked_corner_metric() -> None:
     reference = _reference()
     reference["corners_px"][2] = [99999.0, -99999.0]
