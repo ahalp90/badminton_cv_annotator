@@ -5,8 +5,11 @@ the original corner cutoff, including off-screen corners. Subsequent visual
 review prioritises visible outer-boundary accuracy, a consistent paint-edge
 convention and soft post-base evidence. The score is not a count of usable
 courts. The report also records an accurate proposal rejected by the floor gate
-and floor texture mistaken for a court-line continuation. Production keeps
-CourtKeyNet.
+and floor texture mistaken for a court-line continuation. CourtKeyNet remains
+wired into production, but its recorded patched chain failed all eleven amateur
+reference frames. Replacement is a comparative decision, not a requirement for
+perfect amateur fits. The report distinguishes the earlier broadcast results
+from the latest variant, which has not yet been replayed on that broadcast set.
 
 [The earlier assignment experiment](assignment.md) compares explicit marking
 assignments on frozen geometries. That first matcher reaches 5/20 accurate fits.

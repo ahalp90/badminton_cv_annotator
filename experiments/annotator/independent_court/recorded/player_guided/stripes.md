@@ -5,7 +5,8 @@ original corner-error cutoff**, up from 9/20. That cutoff includes off-screen
 reference corners; it is not a count of usable courts. The user's subsequent
 gallery review found most fits visually convincing and shifted the next
 assessment towards visible outer-boundary accuracy. The recorded results remain
-unchanged. Production still uses CourtKeyNet pending further evaluation.
+unchanged. CourtKeyNet remains wired into production; that is implementation
+status, not evidence that it performs better on partial amateur views.
 
 Finite junction evidence resolves two large yellow-court ambiguities, but line
 responses outside the court can mislead it. Refinement improves some fits and
@@ -16,6 +17,36 @@ CourtKeyNet. This continuation tests stripe measurement, fragment identity,
 finite junctions and geometry refinement. It follows the
 [first assignment comparison](assignment.md), which selected 5/20 accurate fits.
 It does not test a complete graph matcher or establish that graph matching fails.
+
+## What would justify replacing CourtKeyNet
+
+Replacement should depend on comparative usefulness, not perfect amateur court
+fits. The new detector should recover useful courts where the existing chain
+fails and preserve useful broadcast behaviour. Remaining wrong selections need
+assessment in that comparison; the old 10/20 cutoff is not itself a reason to
+retain CourtKeyNet.
+
+The [recorded patched-chain evaluation](../../../../../docs/courtkeynet/fallback_evaluation/README.md#amateur-footage-limit)
+returned no scoreable quad on all eleven amateur frames across eight scenes.
+Raw ungated median errors were hundreds of pixels, so relaxing acceptance alone
+would not have supplied useful geometry. The current fallback still needs at
+least two confident neural corners. This supports the observed failure on the
+amateur sample, rather than a universal claim that any cropped court must fail.
+The fallback is designed to recover missing corners when enough anchors remain.
+
+The [earlier independent-detector comparison](../../../../../docs/courtkeynet/fallback_evaluation/independent_detector.md#what-happened)
+found accurate top proposals on 15/18 matching broadcast views. On those same
+images, raw CourtKeyNet geometry was accurate on 18/18 and the combined
+model-and-line proposal on 14/18. These are geometric-fit counts, not production
+acceptance rates. The sample comprises medians from two broadcasts. It supports
+promising broadcast fitting by the independent approach, but it is an earlier
+variant: the latest stripe/refit selection has not been replayed on that set.
+
+Useful partial amateur fits now address a recorded gap in the existing chain.
+The remaining replacement question is whether the latest approach provides a
+better working detector across the required footage, including its wrong
+selections and downstream effects. No new baseline run or production switch was
+performed for this clarification.
 
 [View fitted court overlays for all 20 frames](stripe_overlays/index.html), with
 before/latest panels and switches for reference and fitted lines. A
