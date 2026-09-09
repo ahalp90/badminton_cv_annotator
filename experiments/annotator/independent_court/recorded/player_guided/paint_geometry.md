@@ -1,5 +1,10 @@
 # Paint geometry and post-base diagnostics
 
+The [additional-footage checkpoint](extension_results.md) continues this trial
+with post-constrained fitting, corrected appearance evidence and the completed
+broadcast and seven-frame amateur comparisons. The results below describe the
+initial paired paint trial.
+
 **The physical paint model is now explicit, but the paired trial gives mixed
 results. Keep it experimental.** Post-base observations point to a better
 existing alternative for Amateur-3 frame 17174. The saved pools for Amateur-3
@@ -191,13 +196,13 @@ PYTHONPATH=src:. python -m experiments.annotator.independent_court.run_paint_ref
   --output /tmp/court-paint-replay
 ```
 
-The remaining work is concrete: compare stronger evidence before discarding the
-known Amateur-2 proposal; inspect the near-baseline continuation response on
-frame 17174; and test
-post-conditioned proposals on frame 24515 and Amateur-4 frame 0. Keep the
-already-good fits as controls. The newest video adds seven annotated frames,
-bringing the inventory to 27 frames across eight videos. Those seven frames and
-the broadcast regression set have not been evaluated in this paint trial.
+The follow-up questions from this trial were to compare stronger evidence before discarding the
+known Amateur-2 proposal, inspect the near-baseline continuation response on
+frame 17174, and test post-conditioned proposals on frame 24515 and Amateur-4
+frame 0. The next checkpoint records those diagnostics and their remaining
+limits. The newest video adds seven annotated frames, bringing the amateur
+inventory to 27 frames across eight videos. Those seven frames and the broadcast
+regression set were evaluated separately in that follow-up.
 
 The detector remains experimental. This pass establishes the physical convention
 and identifies where existing alternatives can help; it does not justify changing

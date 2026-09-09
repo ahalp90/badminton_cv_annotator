@@ -1,5 +1,12 @@
 # Player-guided court experiment, 8 September 2026
 
+[The additional-footage checkpoint](extension_results.md) records the latest
+post and appearance probes, the broadcast comparison and the new seven-frame
+amateur evaluation. Stripe ranking reaches 16/18 matching broadcast references
+under the historical corner cutoff; junction-first ranking reaches 3/18.
+All seven new amateur frames produce no retained court. Start there for the
+current findings and [broadcast gallery](extension_overlays/broadcast/index.html).
+
 [The paint-geometry and post-base trial](paint_geometry.md) separates outside
 boundaries from stripe centres. The paired fit results are mixed. Post evidence
 distinguishes a better saved alternative in one misplaced case, while two other
@@ -14,7 +21,7 @@ and floor texture mistaken for a court-line continuation. CourtKeyNet remains
 wired into production, but its recorded patched chain failed all eleven amateur
 reference frames. Replacement is a comparative decision, not a requirement for
 perfect amateur fits. The report distinguishes the earlier broadcast results
-from the latest variant, which has not yet been replayed on that broadcast set.
+from the latest variant, whose wider comparison is recorded in the checkpoint above.
 
 [The earlier assignment experiment](assignment.md) compares explicit marking
 assignments on frozen geometries. That first matcher reaches 5/20 accurate fits.
