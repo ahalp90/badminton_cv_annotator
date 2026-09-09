@@ -1,6 +1,11 @@
 # Player-guided court experiment, 8 September 2026
 
-[The latest stripe and refinement experiment](stripes.md) reaches 10/20 under
+[The paint-geometry and post-base trial](paint_geometry.md) separates outside
+boundaries from stripe centres. The paired fit results are mixed. Post evidence
+distinguishes a better saved alternative in one misplaced case, while two other
+cases still need better geometry. Production and acceptance rules are unchanged.
+
+[The earlier stripe and refinement experiment](stripes.md) reaches 10/20 under
 the original corner cutoff, including off-screen corners. Subsequent visual
 review prioritises visible outer-boundary accuracy, a consistent paint-edge
 convention and soft post-base evidence. The score is not a count of usable
