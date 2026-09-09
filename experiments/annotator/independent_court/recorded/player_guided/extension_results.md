@@ -166,6 +166,32 @@ show why accurate post placement alone does not establish accurate boundaries.
 These trials report post RMS; the earlier saved-alternative trial reported mean
 post distance, so the two numbers should not be treated as the same metric.
 
+Direct visual review of the score-selected pack gives the following corrected
+judgements. Each row shows the outside boundary at four post weights, rather
+than the full internal court grid. These are row-level observations; they do
+not establish a preferred weight or a new accuracy threshold.
+
+| Row and frame | Visual judgement |
+| --- | --- |
+| 1: Amateur-3 10514 | Great. |
+| 2: Amateur-3 17174 | Great. |
+| 3: Amateur-3 24515 | Okayish, but visibly too narrow on the left. The right projected post suggests a width error there too, though the right boundary is indistinct. Top and bottom seem fine; the top is also indistinct. |
+| 4: Amateur-4 0 | The clear severe failure: a projected post sits in midcourt. The far boundary may be near the right place, but that judgement is tentative. |
+| 5: Amateur-4 319 | Left looks good, and the right looks fine, particularly from the projected post. Top alignment is tentatively fine where distinguishable. No bottom-edge judgement was supplied. |
+
+This corrected reading supersedes the initial rejection of the last three rows.
+It removes the apparent disagreement between frame 319's low boundary error
+and its visual assessment. Frame 24515 remains imperfect; the corrected feedback
+does not endorse its full geometry as accurate.
+
+The separately displayed rejected fits received no whole-court endorsement.
+For Amateur-3 frame 24515, only the bottom boundary and left projected post
+look good across the three displayed weights. For Amateur-4 frame 0, only the
+weight-4 panel has an endorsed feature: its left projected post is correctly
+placed. These are the named parents `0000:original` and `0001:refit`, respectively,
+at weights 0.25, 1 and 4. This feedback supports keeping those examples rejected.
+It does not validate the gate across the entire rejected population.
+
 A second trial refreshes line assignments for up to three more fitting steps,
 using weights 0 and 0.25. It retains all 64 original start rows and 63 successful
 saved refits. Another 184 successful steps give 311 scored rows. The single
