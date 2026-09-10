@@ -238,7 +238,12 @@ Both commands accept a subset: `--video-id sset_01 --video-id sset_02` for
 the run export, `--match-id 8 --match-id 9` for ShuttleSet22. A subset is
 the right way to spot-check before a full run. On Carmack, two videos of
 either corpus export in about 40 seconds on the CPU, so the full 40-video
-and 47-video corpora each take about 15 minutes.
+and 46-video corpora each take about 15 minutes.
+
+ShuttleSet22 video 15 carries an `excluded_reason` in
+`configs/shuttleset22/sources.toml` (issue #147): its labels point to the
+wrong parts of the match. The default export skips it. Its extracts stay on
+disk, and `--match-id 15` still exports it with a logged warning.
 
 ## Kept features and their formulas
 

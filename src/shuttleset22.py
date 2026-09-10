@@ -55,6 +55,7 @@ class Source:
     url: str | None = None
     overlap_id: int | None = None
     unresolved_reason: str | None = None
+    excluded_reason: str | None = None
 
     @property
     def filename(self) -> str:
@@ -99,7 +100,10 @@ def load_sources(path: Path = DEFAULT_SOURCES) -> tuple[Source, ...]:
                 row.get("unresolved_reason"),
                 f"videos[{index}].unresolved_reason",
             )
-        sources.append(Source(match_id, video, kind, url, overlap_id, reason))
+        excluded_reason = None
+        if "excluded_reason" in row:
+            excluded_reason = _text(row.get("excluded_reason"), f"videos[{index}].excluded_reason")
+        sources.append(Source(match_id, video, kind, url, overlap_id, reason, excluded_reason))
 
     ids = tuple(source.match_id for source in sources)
     if ids != EXPECTED_IDS:
@@ -110,9 +114,17 @@ def load_sources(path: Path = DEFAULT_SOURCES) -> tuple[Source, ...]:
 
 
 def select_sources(sources: Sequence[Source], ids: Sequence[int] | None) -> tuple[Source, ...]:
-    """Select explicit IDs or the default non-overlap, downloadable corpus."""
+    """Select explicit IDs, or the default corpus: downloadable, non-overlap, not excluded.
+
+    Explicit IDs may name an excluded source. That is the deliberate way to reach
+    its extracts.
+    """
     if ids is None:
-        return tuple(source for source in sources if source.kind is SourceKind.DOWNLOAD)
+        return tuple(
+            source
+            for source in sources
+            if source.kind is SourceKind.DOWNLOAD and source.excluded_reason is None
+        )
     if len(ids) != len(set(ids)):
         raise ValueError(f"source IDs contain duplicates: {list(ids)}")
     by_id = {source.match_id: source for source in sources}

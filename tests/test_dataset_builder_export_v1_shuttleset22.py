@@ -453,3 +453,23 @@ def test_shuttleset22_cli_with_inpainted_root(tmp_path: Path) -> None:
     assert set(artifacts.loc[artifacts["location"] == "inpainted_root", "artifact"]) == {
         "shuttle_track_inpainted", "shuttle_guard_codes_inpainted",
     }
+
+
+def test_shuttleset22_export_warns_when_an_excluded_match_is_named(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    fixture = _build_data_root(tmp_path)
+    excluded_entry = DOWNLOAD_ENTRY + 'excluded_reason = "fixture exclusion"\n'
+    _sources_toml(fixture.sources, {MATCH_ID: excluded_entry})
+
+    export_shuttleset22_v1(
+        ShuttleSet22ExportInputs(
+            data_root=fixture.data_root,
+            output_dir=tmp_path / "export",
+            run_id=RUN_ID,
+            sources=fixture.sources,
+            match_ids=(MATCH_ID,),
+        )
+    )
+
+    assert "fixture exclusion" in caplog.text

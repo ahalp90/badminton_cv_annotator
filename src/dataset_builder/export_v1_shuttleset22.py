@@ -124,6 +124,13 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
             raise ValueError(
                 f"source {source.match_id} is {source.kind.value}, not a ShuttleSet22 download"
             )
+        if source.excluded_reason is not None:
+            log.warning(
+                "source %02d is excluded from the default corpus (%s) and is in this export "
+                "only because --match-id named it",
+                source.match_id,
+                source.excluded_reason,
+            )
     annotation_root = data_root / ANNOTATIONS_DIRECTORY
     players_path = Path(inputs.players)
     players = load_players(players_path)
