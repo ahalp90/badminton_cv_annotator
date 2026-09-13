@@ -177,6 +177,33 @@ supported against the required three. Camera checks pass for both fits of
 frames 0 and 689, and for the legacy fit of frame 5766. Improving the local fit
 alone therefore does not produce an accepted GX court.
 
+## Optional close-start control — 13 September
+
+Refitting the approved complete-search frame-5 court slightly improves boundary
+RMS but worsens maximum corner error. It does not restore the original floor
+pass. This control changes only the starting court, using saved generation
+6476322 with the same refitter and both existing paint conventions.
+
+| Geometry | Boundary RMS (px) | Maximum corner error (px) |
+| --- | ---: | ---: |
+| Approved complete-search start | 1.47 | 3.37 |
+| Legacy refit | 1.01 | 3.97 |
+| Physical refit | 1.35 | 5.09 |
+
+All errors use 1280×720 coordinates; boundary measurement retains the 5 mm click
+inset. The two fits converged in a combined 2.32 seconds of measurement/refitting.
+Both retain lengthwise support 0.4306 and two distinct lengthwise lines, below
+the original requirements of 0.55 and three. Player and separately measured
+camera checks pass. This is a fixed-start diagnostic, not an emitted detection.
+The starting court alone has prior visual approval; the refits are not yet
+visually assessed. The result does not justify a wider refinement sweep.
+
+The [small replay archive](gx_close_refit.zip) contains the wrapper and saved
+result. It calls the unchanged refit_examples.py from
+[the existing trace archive](gx_proposal_diagnostics.zip). Scoped lint, shell
+syntax, the real-case run and reused-viewer checkbox checks passed, exit 0.
+No production or fitting implementation changed.
+
 ## Next tests and reproducibility
 
 Prioritise how seed rectangles are selected and how scoring uses line evidence.

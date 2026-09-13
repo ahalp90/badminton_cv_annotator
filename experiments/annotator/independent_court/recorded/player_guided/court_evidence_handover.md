@@ -90,6 +90,13 @@ The visual comparison is complete; do not treat the numerical coverage gain as
 recovery of the approved geometry. Missing
 far-centre support still does not establish occlusion. No new experiment is queued.
 
+The optional refit from the approved complete-search frame-5 court is also
+complete. Legacy/physical boundary RMS moves from 1.47 to 1.01/1.35 px, while
+maximum corner error rises from 3.37 to 3.97/5.09 px. Both still fail original
+floor support. See the [close-start control](gx_proposal_trace.md#optional-close-start-control--13-september).
+The new refits have no visual judgement yet. More informed rectangle selection
+is the next triggered follow-up; no follow-up implementation has started.
+
 The 9 September session stopped after the single experiment and handover. Seed selection,
 refitting, paint-width corrections, threshold tuning, graph search and production
 integration were excluded. No automatic continuation into those tasks is queued.
