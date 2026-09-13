@@ -94,7 +94,11 @@ The optional refit from the approved complete-search frame-5 court is also
 complete. Legacy/physical boundary RMS moves from 1.47 to 1.01/1.35 px, while
 maximum corner error rises from 3.37 to 3.97/5.09 px. Both still fail original
 floor support. See the [close-start control](gx_proposal_trace.md#optional-close-start-control--13-september).
-The new refits have no visual judgement yet. More informed rectangle selection
+The user judged the right-hand refit marginally better, with both start and
+refit looking fine; no legacy-versus-physical preference was stated.
+The right-hand refitted courts perfectly hug the outer boundary of the white
+lines, according to the user's follow-up inspection.
+More informed rectangle selection
 is the next triggered follow-up; no follow-up implementation has started.
 
 The 9 September session stopped after the single experiment and handover. Seed selection,

@@ -195,8 +195,14 @@ inset. The two fits converged in a combined 2.32 seconds of measurement/refittin
 Both retain lengthwise support 0.4306 and two distinct lengthwise lines, below
 the original requirements of 0.55 and three. Player and separately measured
 camera checks pass. This is a fixed-start diagnostic, not an emitted detection.
-The starting court alone has prior visual approval; the refits are not yet
-visually assessed. The result does not justify a wider refinement sweep.
+The user judged the right-hand refit marginally better, with both the starting
+court and refit looking fine. No preference between the legacy and physical
+paint conventions was stated. The user further confirmed that the right-hand
+refitted courts perfectly hug the outer boundary of the white lines. The small
+increase in maximum corner error is therefore not a visual-regression judgement.
+This visual judgement does not change the floor
+rejection or establish a general benefit from refinement. The result does not
+justify a wider refinement sweep.
 
 The [small replay archive](gx_close_refit.zip) contains the wrapper and saved
 result. It calls the unchanged refit_examples.py from
