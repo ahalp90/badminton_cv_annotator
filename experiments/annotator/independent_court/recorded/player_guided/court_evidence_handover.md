@@ -6,10 +6,12 @@ random, but accepts no GX court. The user rejects its closest frame-5 court as
 a disaster compared with the approved complete-search example.
 The [latest report](evidence_ranked_seeds.md) records all 17 runs and replay.
 
-The next prepared experiment is projective line-pattern generation: estimate two
-common line directions, rectify the court plane, and match the existing badminton
-line-coordinate patterns. It is not implemented. Production, original detection,
-fitting code and annotations remain unchanged on branch fix/court-det.
+The next prepared experiment estimates two common line directions, prunes the
+existing merged pools and enumerates their surviving rectangles/templates.
+Rectification and badminton line-pattern matching remain the next branch if
+that smaller test is insufficient. Neither generator change is implemented.
+Production, original detection, fitting code and annotations remain unchanged
+on branch fix/court-det.
 
 ## What is established
 
@@ -73,13 +75,23 @@ spacing and finite marking extents must resolve those aliases.
 
 Use separate stages:
 
-1. Check homogeneous basis construction and axis matching on synthetic courts.
-2. Supply directions from the approved GX5 homography and match cached
-   observations. Label this given-direction control as label-guided.
-3. Estimate competing directions automatically from the same single-frame
-   observations, then use the unchanged matcher.
+1. Estimate competing vanishing-point pairs from cached fragments. Prune the
+   existing merged families by directional agreement, then enumerate surviving
+   rectangles with the unchanged templates. Test both direction roles.
+2. Check known seed retention and frozen controls. Preserve original merging,
+   line caps, scoring and gates; record pruning losses and any search truncation.
+   Declare a budget/fallback for broad pools, especially broadcast.
+3. If this remains insufficient, check homogeneous basis construction and axis
+   matching on synthetic courts. Supply directions from the approved GX5 court
+   as a label-guided matching diagnostic, then use automatic direction estimates.
 4. Compare frozen GX and accepted controls, then wrong-court/background cases.
    Attribute losses before changing ranking or acceptance.
+
+Pruning can remove search clutter but cannot restore lines already lost through
+family assignment or merging. A wrong direction estimate creates another loss
+point. Retain competing pairs and distinguish estimator scales from acceptance
+thresholds. Saved reference/refitted courts need residual diagnostics; they do
+not necessarily have an exact original seed identity.
 
 Reuse detector.X_COORDS/Y_COORDS and the existing corner template. Two vanishing
 points give affine rectification with aligned axes; the known pattern supplies
