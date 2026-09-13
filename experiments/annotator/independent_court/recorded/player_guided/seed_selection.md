@@ -116,8 +116,10 @@ case comparisons and instructions using the existing frozen input archives.
 ## Decision
 
 Do not adopt this sampler: the control regressions outweigh the partial GX
-coverage gains. Keep the original detector and the saved comparison. Visual
-usability of the new closest frame-5 proposal remains unconfirmed; the earlier
-approval applies only to the complete-search court. That visual check can guide
-the next search experiment, but cannot remove the control regressions here.
+coverage gains. Keep the original detector and the saved comparison. The user
+judged the new closest frame-5 proposal a significant regression from the earlier
+approved complete-search court. No particular edge was identified. The lower
+error relative to the random sample does not establish recovery of the approved
+geometry. The visual comparison is complete; approval remains specific to the
+complete-search court.
 Floor-evidence rejection remains a separate obstacle to accepted GX courts.

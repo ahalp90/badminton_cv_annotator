@@ -84,9 +84,10 @@ accepted controls. The new sample loses the Amateur-2 output and worsens the
 broadcast selected maximum corner error from 10.31 to 54.02 px at 1280×720.
 Do not adopt this rule or combine it with a scorer change on these results.
 
-The user has been asked whether the new closest frame-5 proposal is usable.
-That judgement is pending and must remain separate from approval of the earlier
-complete-search court. Use it to guide the next search question. Missing
+The user judged the new closest frame-5 proposal a significant regression from
+the earlier approved complete-search court. No particular edge was identified.
+The visual comparison is complete; do not treat the numerical coverage gain as
+recovery of the approved geometry. Missing
 far-centre support still does not establish occlusion. No new experiment is queued.
 
 The 9 September session stopped after the single experiment and handover. Seed selection,
