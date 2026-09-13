@@ -112,9 +112,24 @@ pool.
 
 The lost samples are 1, 7, 8, 9, 22 and 23. Raw fragments 0, 62, 84 and 108
 supplied their support. Those fragments have undirected angle differences of
-about 9–13 degrees from the projected short-service line. This identifies the
-excluded evidence. Whether the fragments are genuine support for that marking
-remains unresolved.
+about 9–13 degrees from the projected short-service line.
+
+On 13 September, the user inspected those fragments against the image.
+Fragments 0, 62 and 84 are definitely not court lines; sunlight through windows
+was the suggested explanation. Fragment 108 follows the outer right court line
+with a slight inset. None supports the far short-service marking. The original
+score therefore credited incidental crossings at these six samples. Their loss
+does not justify widening the direction tolerance.
+
+A subsequent fixed-geometry attribution explains the reference's 14/24 versus
+the stripe fit's 11/24 directional samples. Samples 12, 13, 14 and 21 have the
+same nearest compatible fragment, raw 186, for both courts. Their reference
+distances are 3.606, 3, 2 and 3 working pixels; the stripe distances are 5, 5, 5
+and 6.325 pixels. The unchanged limit is four pixels. Sample 2 changes in the
+opposite direction against raw 97, from 4.123 to 3.606 pixels. Four losses and
+one gain explain the net difference of three. This attributes the numerical
+difference to sample placement; it does not establish every retained match's
+identity or show that the marking is hidden.
 
 ### Rejection of the wrong courts has limits
 
@@ -141,11 +156,11 @@ useful and wrong courts mixed.
 Keep this as a diagnostic result. Improved access restores evidence for a usable
 court, but the directional rule also rejects an established good fit.
 
-The next recommended task is to inspect the Amateur-3 fit's excluded
-short-service fragments against the image and projected marking. Determine
-whether they are real support with an angle mismatch or incidental support
-credited by the original score. Resolve that question before changing tolerances
-or comparing searches. This session ends after the present experiment.
+The 13 September visual check resolves the excluded-fragment question: those
+matches were incidental support. The attribution then explains the remaining
+reference-versus-stripe support difference through sample placement. Keep
+geometry, thresholds and the matching result unchanged. The planned seed-selection
+comparison can now proceed separately with the original scorer in both arms.
 
 ## Reproducibility and remaining uncertainty
 

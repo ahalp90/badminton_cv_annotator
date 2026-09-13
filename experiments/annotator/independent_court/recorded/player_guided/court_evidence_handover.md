@@ -10,6 +10,12 @@ The committed and pushed experiment checkpoint is
 
 ## Start here
 
+Update, 13 September: the user inspected the four disputed Amateur-3 fragments.
+Raw 0/62/84 are definitely not court lines, probably sunlight through windows.
+Raw 108 follows the outer right court line with a slight inset. None supports
+the far short-service marking. The old scorer credited incidental crossings;
+these matches do not justify widening the direction tolerance.
+
 Read the mandatory repository instructions and
 [raster court matching](raster_court_matching.md). That report contains the one
 result table, fixed comparison, decisive matches and limitations. Its
@@ -54,21 +60,25 @@ filter is added. The all-fragment pool can lose lines through merging and its ca
   reported top-left undershoot and bottom-right overshoot. The physical refit
   was marginally worse. Neither geometry received the frame-5 usability judgement.
 
-## One recommended next action
+## Next action after the 13 September visual check
 
-In a future session, inspect the rejected Amateur-3 short-service fragments
-against the image and fixed projected court. Use case am3_window_00_frame_0,
-court stripe_legacy_0000_original, interval far_short_service (index 8), sample
-indices 1, 7, 8, 9, 22, 23 and raw fragment IDs 0, 62, 84, 108. The archived
-inspect_matches.py and decisive_matches.json.gz provide the exact coordinates.
+The disputed-fragment question is resolved. The archived inspect_matches.py
+and decisive_matches.json.gz retain the exact coordinates for case
+am3_window_00_frame_0, court stripe_legacy_0000_original, interval
+far_short_service (index 8).
 
-The open question is whether these fragments are real support with an angle
-mismatch or incidental support credited by the original score. Resolve this
-before changing tolerances or comparing searches. A passing old score alone
-does not establish that its individual matches are correct. Likewise, missing
-far-centre support does not establish occlusion; visibility remains unresolved.
+The subsequent attribution also explains the reference's 14/24 directional
+short-service samples versus the stripe fit's 11/24. Four samples move outside
+the four-pixel radius of raw 186; one sample moves inside the radius of raw 97.
+See the updated [result report](raster_court_matching.md) for the distances.
+This explains the numerical difference through sample placement. It does not
+establish every retained match's identity or missing visibility.
 
-This session stops after the single experiment and handover. Seed selection,
+Proceed to the planned fixed-budget seed-selection comparison on GX frames 0
+and 5. Keep the original scorer in both arms to isolate proposal coverage.
+Missing far-centre support still does not establish occlusion.
+
+The 9 September session stopped after the single experiment and handover. Seed selection,
 refitting, paint-width corrections, threshold tuning, graph search and production
 integration were excluded. No automatic continuation into those tasks is queued.
 
