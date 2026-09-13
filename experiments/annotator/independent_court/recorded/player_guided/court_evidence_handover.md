@@ -1,9 +1,13 @@
 # Court evidence investigation: session handover
 
-The single raster-preserving experiment is complete. Its combined evidence-access
-change passes the usable GX frame-5 court and rejects both known wrong courts.
-It also rejects one established good Amateur-3 fit. Keep the result as diagnostic
-evidence; it does not establish a replacement scorer.
+The fixed-budget seed comparison is complete. Keep the original sampler: the
+new rule improves generated coverage on five of seven GX frames, accepts none,
+and regresses on both previously accepted controls. Read
+[seed selection](seed_selection.md) for results and replay instructions.
+
+The earlier raster-preserving experiment passes the usable GX frame-5 court
+and rejects both known wrong courts. It also rejects one established good
+Amateur-3 fit. That result remains diagnostic evidence, not a replacement scorer.
 
 The committed and pushed experiment checkpoint is
 `58b2f47a30c5459bd33fbf80b9228832eb0c3da9` on `fix/court-det`. Production and the original detector remain unchanged.
@@ -60,7 +64,7 @@ filter is added. The all-fragment pool can lose lines through merging and its ca
   reported top-left undershoot and bottom-right overshoot. The physical refit
   was marginally worse. Neither geometry received the frame-5 usability judgement.
 
-## Next action after the 13 September visual check
+## State after the 13 September comparisons
 
 The disputed-fragment question is resolved. The archived inspect_matches.py
 and decisive_matches.json.gz retain the exact coordinates for case
@@ -74,15 +78,29 @@ See the updated [result report](raster_court_matching.md) for the distances.
 This explains the numerical difference through sample placement. It does not
 establish every retained match's identity or missing visibility.
 
-Proceed to the planned fixed-budget seed-selection comparison on GX frames 0
-and 5. Keep the original scorer in both arms to isolate proposal coverage.
-Missing far-centre support still does not establish occlusion.
+The seed comparison kept the original scorer and gates in both arms. The pilot
+on GX frames 0 and 5 was extended unchanged to the other five GX frames and two
+accepted controls. The new sample loses the Amateur-2 output and worsens the
+broadcast selected maximum corner error from 10.31 to 54.02 px at 1280×720.
+Do not adopt this rule or combine it with a scorer change on these results.
+
+The user has been asked whether the new closest frame-5 proposal is usable.
+That judgement is pending and must remain separate from approval of the earlier
+complete-search court. Use it to guide the next search question. Missing
+far-centre support still does not establish occlusion. No new experiment is queued.
 
 The 9 September session stopped after the single experiment and handover. Seed selection,
 refitting, paint-width corrections, threshold tuning, graph search and production
 integration were excluded. No automatic continuation into those tasks is queued.
 
 ## Validation and on-demand history
+
+The seed comparison's scoped lint, synthetic selection checks and completed
+runs passed, exit 0. Original GX counts and final outputs match the seven saved
+baseline traces. Opus reviewed the selector and two-frame pilot; the extension
+and controls were outside its scope. The report records floating-point tie and
+partial-round ordering limitations. Production and original detector code remain
+unchanged. The checks below belong to the earlier raster experiment.
 
 38 relevant tests and scoped lint/types passed, exit 0. Input-byte equality,
 source provenance, saved arithmetic and archive checks passed. The focused
