@@ -28,12 +28,22 @@ establish the cause of the remaining errors.
    an alternative to refitting; SVD is available as a cheap fitting step.
 3. **Check court recovery before changing court ranking or reducing the budget.** Start
    with saved diagnostics on GX0, GX5 and Amateur-2, changing one rule at a time.
-   Promising results then go through the unchanged matcher on all nine varied
-   views. Keep the search budget fixed and use approved courts only to evaluate
-   results. Court ranking and acceptance remain separate checks afterwards.
+   The two specified individual changes then go through the unchanged matcher
+   on all nine varied views. Keep the search budget fixed and use approved courts
+   only to evaluate results. Court ranking and acceptance remain separate checks afterwards.
 
-If the first comparison shows no useful difference, drop the midpoint hypothesis
-and assess group selection using the existing measure. No new annotation is needed.
+A bounded execution specification now fixes the comparisons before any new results:
+replay actual fragment membership, compare the original anchor with the projected
+midpoint of the longest contributing fragment, then compare greedy leaders with
+representatives chosen by agreement inside each leader's suppression group.
+Both individual changes reach the unchanged matcher on all nine views regardless
+of early diagnostic errors. Their combination and fixed-support SVD variants stay
+in the cheap diagnostic comparison. This avoids choosing trials from control-fit
+results. The specification is prepared; these experiments have not run.
+
+If the midpoint comparison gives no useful improvement, retain the existing measure
+for later work. Interpretation follows an independent evidence audit and any needed
+visual inspection. No new annotation or production change is part of this series.
 
 | Planned stage | Status after these experiments | What remains |
 |---|---|---|
