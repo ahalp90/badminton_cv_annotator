@@ -5,6 +5,36 @@ plan. Candidate-retention and paint-ranking experiments were brought forward
 when measured failures justified them. This is progress within the conditional
 plan, rather than completion of five sequential implementation stages.
 
+## Next experiments, in order
+
+First check how line agreement is measured, then use that evidence to improve
+which directions survive. These are untested hypotheses within direction
+retention/refinement. The SVD result below motivates this order but does not
+establish the cause of the remaining errors.
+
+1. **Check agreement where the line is visible.** The current angle is measured
+   from the line's closest point to the image centre, which can lie far from the
+   observed fragment. Compare it with a test anchored at the fragment's midpoint.
+   First confirm which fragments belong to each merged line; compare the tests
+   on the same evidence and candidate directions. Check short fragments and
+   vanishing points close to a fragment. The hypothesis is that the measurement
+   location distorts group membership; a midpoint test may also have weaknesses.
+2. **Separate group coverage from direction precision.** Use additional line
+   coverage to decide which groups deserve space, then geometric agreement to
+   choose a precise direction within each group. Preserve competing alternatives.
+   The hypothesis is that a direction explaining more lines can displace a more
+   accurate one. Test this after checking the agreement measure, so a new ranking
+   does not inherit the same measurement problem. A selection-only change remains
+   an alternative to refitting; SVD is available as a cheap fitting step.
+3. **Check court recovery before changing court ranking or reducing the budget.** Start
+   with saved diagnostics on GX0, GX5 and Amateur-2, changing one rule at a time.
+   Promising results then go through the unchanged matcher on all nine varied
+   views. Keep the search budget fixed and use approved courts only to evaluate
+   results. Court ranking and acceptance remain separate checks afterwards.
+
+If the first comparison shows no useful difference, drop the midpoint hypothesis
+and assess group selection using the existing measure. No new annotation is needed.
+
 | Planned stage | Status after these experiments | What remains |
 |---|---|---|
 | 1. Proposal construction | Direction pruning, synthetic spacing tests, supplied-direction matching and automatic-direction matching are complete as experiments. Useful geometry is recoverable, but the automatic selector loses precise directions. | Redesign direction retention or refinement. General graph search remains optional and untested. |
@@ -44,12 +74,9 @@ lint/types, input-provenance checks and the GX0 baseline replay passed (exit 0).
 [Measurements](svd_fixed_measurements.json.gz) preserve the exact comparators,
 winning fits, conditioning diagnostics and prior bank-fit results.
 
-Next, investigate supporting-line membership and precision-aware retention. Keep
-fitting and support re-selection separate. Selection-only alternatives and different
-geometric fitting objectives remain open. Any promising direction change still
-needs unchanged-matcher evaluation across all nine varied views, preserving the
-existing usable cases. No matcher run, new visual judgement or acceptance change
-followed this diagnostic.
+The sequence above tests line agreement before changing group selection. Keep
+fitting and support re-selection separate, and preserve the existing usable cases.
+No matcher run, new visual judgement or acceptance change followed this diagnostic.
 
 Keep k-nearest-neighbour (kNN) lookup conditional on a measured neighbour-search
 bottleneck. A smaller search budget remains untested; first demonstrate that useful

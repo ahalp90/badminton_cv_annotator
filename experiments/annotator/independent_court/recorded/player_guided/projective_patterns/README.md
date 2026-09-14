@@ -10,6 +10,9 @@ ranking checks against the saved false winners. Production detection is unchange
 A [fixed-group SVD check](followup_status.md#candidate-experiment-svd-direction-refinement)
 now shows cheap, partial improvement in diagnostic fits. Group membership and
 precision retention remain unresolved; nearest-neighbour lookup is conditional.
+The [next experiments](followup_status.md#next-experiments-in-order) first check
+line agreement at the visible fragments, then separate group coverage from the
+choice of a precise direction. Both ideas remain untested.
 
 The experiments progressed through four stages on existing development data:
 
