@@ -68,9 +68,26 @@ It recovers an Amateur-2 frame-28019 paint winner at 22.9 display pixels.
 GX frame 5 (GX5) remains badly displaced: line / paint errors are 705.5 / 588.8 pixels.
 Removing the global cap then introduces the extreme paint winners shown above.
 
-The [comparison gallery](automatic_axes_visual_check.html) separates automatic
-winners from reference-selected diagnostic courts. These new panels remain
-visually unjudged; earlier approvals belong to their original panels.
+## Visual inspection
+
+The [comparison gallery](automatic_axes_visual_check.html) has now been inspected
+across all nine views. [Exact panel judgements](automatic_axes_visual_judgements.md)
+identify usable line-score winners on five views and usable paint winners on four.
+Six views have a usable winner under at least one ranking: Amateur-2 frame150,
+Amateur-3 and all four ShuttleSet views. That combined count requires choosing
+between rankings after inspection; it is not an automatic selection success rate.
+
+GX0, GX5 and Amateur-2 frame28019 have no usable displayed winner. Their nearest-
+control diagnostics are also poor. GX0's visible shear remains unacceptable even
+though its measured corner errors are relatively small. The user prefers its
+line winner to the numerically closer paint winner. Amateur-2 frame150's paint
+winner is described as perfect, with far-end uncertainty; scene19's paint winner
+is rejected as unrelated geometry. A global preference for either score therefore
+remains unsupported.
+
+Approvals apply to these exact candidates. Earlier supplied-direction panels and
+the two observed-bank controls are separate results. Apparent curvature and the
+suspected post/person correspondences remain visual hypotheses about the cause.
 
 ## What the controls establish
 
@@ -104,8 +121,10 @@ before changing ranking or acceptance.
 
 ## Decision and checks
 
-Score tuning cannot restore excluded directions. The existing samples already
-expose these failures, so no new annotations are needed yet. Production and
+Score tuning cannot restore excluded directions. GX0 joins GX5 and Amateur-2
+frame28019 as an explicit visual regression case. The discarded-direction
+controls cover only the latter two; GX0 needs its own diagnosis. The existing
+samples expose these failures, so no new annotations are needed yet. Production and
 annotations remain unchanged.
 
 Validation passed: 22 synthetic tests, scoped lint/type checks, exact final-score

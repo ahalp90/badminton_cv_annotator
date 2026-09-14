@@ -20,6 +20,13 @@ in all eight supplied-direction views that received visual feedback. The ninth
 view's new candidates remain unjudged. Those results test matching capacity;
 they do not establish automatic direction recovery.
 
+The automatic gallery has now been inspected on all nine views. Six have a usable
+winner under at least one ranking, chosen after inspection. GX0, GX5 and
+Amateur-2 frame28019 have poor displayed winners and reference-selected diagnostics.
+The [panel judgements](automatic_axes_visual_judgements.md) show why low corner
+error and either ranking alone do not establish usability. This feedback does
+not judge the earlier supplied-direction scene16 candidates.
+
 Two difficult automatic cases now have a more precise diagnosis. Their full
 image-derived direction banks contain useful directions that selection discards.
 Feeding those observed directions through the unchanged matcher produces close
