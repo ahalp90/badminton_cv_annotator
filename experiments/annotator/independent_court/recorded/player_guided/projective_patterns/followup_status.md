@@ -21,8 +21,17 @@ point for each plausible group, while preserving competing alternatives. Group
 membership needs care: nearby hypotheses can produce materially different courts,
 and background lines can bias the fit.
 
-First compare automatic geometry recovery at the existing search budget across
-the varied amateur and ShuttleSet cases. Approved courts may evaluate the results;
+Start with a saved-record feasibility check on GX0, GX5 and Amateur-2 frame28019,
+before another matcher run. Compare the original 16 retained directions with
+SVD fits using their existing supporting-line groups. Keep group membership fixed
+so fitting and regrouping can be evaluated separately. A control-selected group
+comparison may diagnose membership sensitivity, but does not establish correct
+membership or a best-possible result. Check projected geometry, conditioning and
+whether distinct hypotheses collapse together. A lower algebraic fitting error
+alone does not establish a better court. This check has not been run.
+
+If the diagnostic is promising, compare automatic geometry recovery at the existing
+search budget across the varied amateur and ShuttleSet cases. Approved courts may evaluate the results;
 they must not choose the directions or line groups. Keep the matcher, ranking and
 acceptance rules unchanged for this comparison, and measure runtime alongside
 candidate quality.
