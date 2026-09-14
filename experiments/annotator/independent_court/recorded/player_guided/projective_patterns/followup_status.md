@@ -78,6 +78,16 @@ The sequence above tests line agreement before changing group selection. Keep
 fitting and support re-selection separate, and preserve the existing usable cases.
 No matcher run, new visual judgement or acceptance change followed this diagnostic.
 
+The cheap SVD fits also suggest a later option: fit a larger pool of proposed
+line groups, then pass a better shortlist to the expensive court matcher. This
+could widen the early search while keeping the matcher budget fixed. It requires
+a reliable way to choose groups and judge direction quality first. Sending more
+directions straight to the matcher increases pair counts quickly: 16 directions
+give 240 ordered pairs; 32 give 992. The timings do not establish the cost of
+building a larger pool or selecting from it. Activate this option only after the
+agreement and selection checks; no larger-pool experiment or overall speedup has
+been demonstrated.
+
 The SVD result narrows the possible role of k-nearest-neighbour (kNN) lookup.
 Fitting the 16 directions is already cheap; choosing their supporting lines and
 retaining precise directions remain unresolved. If a later selection method needs
