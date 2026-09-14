@@ -1,17 +1,22 @@
 # Court evidence investigation: handover
 
-The sampling experiments are complete. Keep the original sampler and scorer.
-Covered-length ranking improves all seven GX numerical coverage minima versus
-random, but accepts no GX court. The user rejects its closest frame-5 court as
-a disaster compared with the approved complete-search example.
-The [latest report](evidence_ranked_seeds.md) records all 17 runs and replay.
+The [projective-pattern experiments](projective_patterns/README.md) are complete
+at a direction-selection failure. The spacing matcher produces usable geometry
+with supplied directions, but the automatic selector discards precise observed
+directions. Two label-guided controls confirm that the unchanged matcher can
+recover close courts from those discarded inputs. Larger candidate pools also
+expose false paint-ranking winners.
 
-The next prepared experiment estimates two common line directions, prunes the
-existing merged pools and enumerates their surviving rectangles/templates.
-Rectification and badminton line-pattern matching remain the next branch if
-that smaller test is insufficient. Neither generator change is implemented.
-Production, original detection, fitting code and annotations remain unchanged
-on branch fix/court-det.
+The next useful work is direction retention or refinement, then ranking against
+the saved wrong-court/background examples. The
+[automatic results](projective_patterns/automatic_axes_results.md) contain the
+measurements. [Follow-up status](projective_patterns/followup_status.md) maps the
+work to proposal construction, retention, ranking, temporal evidence and acceptance.
+Production detection, annotations and acceptance rules remain unchanged.
+
+The sections below preserve the preceding sampling evidence and the projective
+experiment's original rationale. The [covered-length report](evidence_ranked_seeds.md)
+records that earlier 17-run comparison.
 
 ## What is established
 
@@ -47,7 +52,7 @@ left and bottom follow the outside of the paint. This approval is specific to
 that court. Frame-0 legacy refit remains useful but imperfect, with top-left
 undershoot and bottom-right overshoot; its physical refit was marginally worse.
 
-## Latest experiment and controls
+## Earlier sampling experiment and controls
 
 Three predeclared covered-length weights ran on GX0/GX5 and two accepted controls
 (12 runs). Only weight 1 qualified for the five-frame GX extension. It improves
@@ -66,14 +71,14 @@ corner error from 10.31 to 54.02 px. Neither sampling rule is adopted.
 The [seed report](evidence_ranked_seeds.md) distinguishes pre-gate coverage,
 emitted controls, independent boundary minima and direct versus traced timings.
 
-## Next experiment: projective patterns
+## Rationale for the completed projective experiment
 
 The useful hypothesis is shared evidence across several lines, not merely a new
 way to construct a quadrilateral. Two observed lines per direction still fit
 any chosen pair of template coordinates exactly. Additional coherent lines,
 spacing and finite marking extents must resolve those aliases.
 
-Use separate stages:
+The projective experiment used these stages:
 
 1. Estimate competing vanishing-point pairs from cached fragments. Prune the
    existing merged families by directional agreement, then enumerate surviving
@@ -116,7 +121,7 @@ not choose automatic proposals. A precise failed-stage diagnosis is a valid resu
 
 ## Replay, validation and history
 
-- [Evidence-ranked seeds](evidence_ranked_seeds.md): latest result and portable
+- [Evidence-ranked seeds](evidence_ranked_seeds.md): covered-length result and portable
   archive, including selection smoke checks and exact seed-loss reconstruction.
 - [Simple spread selection](seed_selection.md): earlier rejected rule and controls.
 - [GX proposal trace](gx_proposal_trace.md): complete-search examples and both
@@ -126,7 +131,7 @@ not choose automatic proposals. A precise failed-stage diagnosis is a valid resu
 - [Finite court matching](fixed_court_matching.md): earlier distance-method
   regression; read only when that comparison is relevant.
 
-Latest experiment runs, scoped lint, synthetic smoke, archive replay and content
+The earlier sampling runs, scoped lint, synthetic smoke, archive replay and content
 checks passed (exit 0). The technical review checked selection source and its
 baseline behaviour; it did not audit the new scoring outputs or seed-loss helper.
 The report records its floating-point ordering limitation. No whole-project

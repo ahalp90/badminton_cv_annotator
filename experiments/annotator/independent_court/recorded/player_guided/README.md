@@ -1,5 +1,11 @@
 # Player-guided court experiment, 8 September 2026
 
+[The projective-pattern experiments](projective_patterns/README.md) are the latest
+checkpoint. Supplied-direction matching produces usable geometry in eight
+inspected views. Automatic selection still discards useful direction precision,
+and expanded candidate pools expose paint-ranking failures. The
+[follow-up status](projective_patterns/followup_status.md) maps the remaining work.
+
 [The fixed-court matching comparison](fixed_court_matching.md) restores hidden
 line evidence and rejects a known wrong broadcast court. It also isolates a
 raster-versus-finite-distance regression on one previously good amateur fit.
@@ -10,12 +16,12 @@ rejection. A useful frame-0 start is rejected by floor support; on frame 5,
 the random rectangle cap removes a close court before scoring. Controlled
 cached-fragment diagnostics also expose evidence lost through angle grouping.
 
-[The additional-footage checkpoint](extension_results.md) records the latest
+[The additional-footage checkpoint](extension_results.md) records the earlier
 post and appearance probes, the broadcast comparison and the new seven-frame
 amateur evaluation. Stripe ranking reaches 16/18 matching broadcast references
 under the historical corner cutoff; junction-first ranking reaches 3/18.
-All seven new amateur frames produce no retained court. Start there for the
-current findings and [broadcast gallery](extension_overlays/broadcast/index.html).
+All seven new amateur frames produce no retained court. The
+[broadcast gallery](extension_overlays/broadcast/index.html) accompanies that comparison.
 
 [The paint-geometry and post-base trial](paint_geometry.md) separates outside
 boundaries from stripe centres. The paired fit results are mixed. Post evidence
