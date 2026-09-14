@@ -78,9 +78,19 @@ The sequence above tests line agreement before changing group selection. Keep
 fitting and support re-selection separate, and preserve the existing usable cases.
 No matcher run, new visual judgement or acceptance change followed this diagnostic.
 
-Keep k-nearest-neighbour (kNN) lookup conditional on a measured neighbour-search
-bottleneck. A smaller search budget remains untested; first demonstrate that useful
-solutions survive automatic selection. No substantial compute saving is established.
+The SVD result narrows the possible role of k-nearest-neighbour (kNN) lookup.
+Fitting the 16 directions is already cheap; choosing their supporting lines and
+retaining precise directions remain unresolved. If a later selection method needs
+to examine nearby direction hypotheses, kNN could speed up finding those neighbours.
+It would not decide which neighbour gives the correct court. First define useful
+proximity for court geometry: treating nearby directions as interchangeable could
+again discard differences that matter to the fit.
+
+The order is therefore: check line agreement, improve group/direction selection,
+measure its runtime, then consider kNN if neighbour lookup is expensive. No separate
+kNN experiment is warranted by the current evidence. Neither an accuracy gain nor
+a substantial compute saving from kNN has been demonstrated. A smaller search
+budget remains untested; first show that useful solutions survive automatic selection.
 
 ## How much closer is the detector?
 
