@@ -123,6 +123,14 @@ probabilities. Floor outcomes are recorded but do not determine these diagnostic
 The supplement does not include the full floor-scoring implementation or all rejected
 candidates. Claims about their mechanisms need additional evidence.
 
+## Calibration per stable camera view
+
+[Temporal assessment evidence](temporal_assessment.md) adds 13 cached frames with
+line observations and existing image links. It also identifies an older three-frame
+shared-court experiment in the committed replay. Camera stability remains unverified;
+no new temporal experiment ran. This evidence supports a separate assessment of
+automatic calibration per view as a practical shortcut.
+
 ## Interpretation limits
 
 These are varied development samples from five videos, with no designated holdouts.
