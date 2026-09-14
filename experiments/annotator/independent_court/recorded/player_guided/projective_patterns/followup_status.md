@@ -13,6 +13,26 @@ plan, rather than completion of five sequential implementation stages.
 | 4. Multiple frames | No new controlled temporal-generation or score-aggregation comparison. The existing ShuttleSet composites are input data, not this experiment. | Activate only after stable-view and complementary-frame evidence is established. |
 | 5. Acceptance and replacement | Original gates remain in place. No replacement acceptance rule or production integration. | First obtain reliable automatic generation and selection, then measure coverage and wrong emissions on positive and negative cases. |
 
+## Candidate experiment: SVD direction refinement
+
+Singular value decomposition (SVD) is an untested option within direction
+retention/refinement. Use supporting image lines to estimate a shared vanishing
+point for each plausible group, while preserving competing alternatives. Group
+membership needs care: nearby hypotheses can produce materially different courts,
+and background lines can bias the fit.
+
+First compare automatic geometry recovery at the existing search budget across
+the varied amateur and ShuttleSet cases. Approved courts may evaluate the results;
+they must not choose the directions or line groups. Keep the matcher, ranking and
+acceptance rules unchanged for this comparison, and measure runtime alongside
+candidate quality.
+
+Consider k-nearest-neighbour (kNN) lookup only if finding neighbouring hypotheses
+is a measured bottleneck. Neighbourhoods must respect perspective geometry;
+proximity alone does not establish a shared court direction. Reduce the search
+budget only after useful solutions survive the refinement. Neither an accuracy
+gain nor a substantial compute saving has been demonstrated for this option.
+
 ## How much closer is the detector?
 
 The main advance is locating the bottleneck. The matcher produces usable courts

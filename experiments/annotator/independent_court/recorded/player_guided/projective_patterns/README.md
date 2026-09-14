@@ -7,6 +7,8 @@ A further GX0 control produces two visually approved, essentially ideal courts
 from discarded observed directions. The next useful change is to direction
 retention or refinement, followed by
 ranking checks against the saved false winners. Production detection is unchanged.
+An untested [SVD refinement option](followup_status.md#candidate-experiment-svd-direction-refinement)
+fits within that next step; nearest-neighbour lookup is a conditional optimisation.
 
 The experiments progressed through four stages on existing development data:
 
