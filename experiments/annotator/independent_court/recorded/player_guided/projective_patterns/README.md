@@ -39,3 +39,7 @@ comparison arms and the first two label-guided direction controls. The subsequen
 [GX0 control measurements](gx0_control_measurements.json.gz) and
 [inspected comparison](gx0_control_visual_check.html) record its separate approval. The galleries use
 shared local images and work without JavaScript.
+
+[Independent assessment evidence](evaluation/README.md) supplies exact method excerpts,
+frozen direction/SVD records and selected ranking examples. It documents the fixed,
+unrun comparison matrix and the fragment-membership evidence still pending replay.
