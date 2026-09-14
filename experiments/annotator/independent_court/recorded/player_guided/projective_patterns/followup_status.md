@@ -27,12 +27,18 @@ The [panel judgements](automatic_axes_visual_judgements.md) show why low corner
 error and either ranking alone do not establish usability. This feedback does
 not judge the earlier supplied-direction scene16 candidates.
 
-Two difficult automatic cases now have a more precise diagnosis. Their full
+Three difficult automatic cases now have a more precise diagnosis. Their full
 image-derived direction banks contain useful directions that selection discards.
 Feeding those observed directions through the unchanged matcher produces close
 courts. GX5's selected line/paint court is 10.58 pixels from the manual reference;
 Amateur-2 frame28019's paint winner is 7.27 pixels away. These are maximum corner
 errors at 1280 × 720, from label-guided controls, not automatic success rates.
+
+A subsequent GX0 control supplies discarded observed directions to the same
+matcher. The user judged its line winner essentially perfect and its paint winner
+perfect. Both are essentially ideal. This resolves the GX0 control visual check
+and strengthens the direction-precision diagnosis. The directions were selected
+using the approved court, so this is not an automatic improvement.
 
 The next change can therefore target direction precision rather than replacing
 the spacing matcher or repeating broad score sweeps. Ranking and acceptance

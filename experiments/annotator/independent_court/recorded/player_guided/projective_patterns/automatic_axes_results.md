@@ -1,9 +1,10 @@
 # Automatic court directions: the selector loses useful precision
 
-The automatic detector needs a direction-selection rethink. Two label-guided
+The automatic detector needs a direction-selection rethink. Three label-guided
 controls found precise directions among the image-derived candidates that the
 automatic selector discarded. The unchanged spacing matcher produced close
-courts when given those directions. Expanding the automatic court pool exposed
+courts when given those directions. The latest GX0 control has visual approval:
+both winners are essentially ideal. Expanding the automatic court pool exposed
 a separate problem: paint ranking can prefer grossly displaced courts.
 
 The next design step follows from that finding. Preserve or refine direction precision first,
@@ -34,8 +35,9 @@ to 256 courts per pair. Three comparisons then used those saved candidate pools:
 
 These are nine generation runs plus 18 rescoring runs.
 The final comparison scored 19,286 camera-eligible candidates across nine views.
-Two additional controls selected observed directions using reference geometry;
-these controls are explicitly label-guided.
+Three additional controls selected observed directions using supplied court
+geometry, including a subsequent GX0 check against a visually approved candidate.
+These controls are explicitly label-guided.
 
 The result metric below is maximum corner distance from the manual reference,
 in pixels at 1280 × 720 display size, allowing a 180-degree corner relabelling.
@@ -86,7 +88,7 @@ is rejected as unrelated geometry. A global preference for either score therefor
 remains unsupported.
 
 Approvals apply to these exact candidates. Earlier supplied-direction panels and
-the two observed-bank controls are separate results. Apparent curvature and the
+the observed-bank controls are separate results. Apparent curvature and the
 suspected post/person correspondences remain visual hypotheses about the cause.
 
 ## What the controls establish
@@ -119,17 +121,53 @@ unavailable. Both extreme winners fail the original floor gate. These examples
 justify preserving the gates and checking wrong-court and background candidates
 before changing ranking or acceptance.
 
+## GX0 follow-up: both control winners are visually approved
+
+The rejected automatic GX0 fits appeared sheared. A bounded follow-up tested
+whether the observed direction bank contained enough precision to recover the
+previously approved supplied-direction line winner89. This comparator is an
+actual generated court, distinct from the manual reference.
+
+Local diagnostic fits tested all 240 retained ordered direction pairs. The best
+tested fit was 6.798 working pixels from approved89 at the worst corner. Selecting
+four directions per axis from all 5,671 observed candidates gave sixteen further
+fits. The best pair, 1183/122, reduced that distance to 0.509 working pixels.
+Direction1183 had been excluded as redundant; direction122 hit the 16-direction
+cap. These fits used the approved court to select directions and are not certified
+optima. Working dimensions are 960 × 540.
+
+One run of the unchanged matcher then used that observed pair. It retained 256
+courts, of which 89 passed the camera check. In the
+[inspected comparison](gx0_control_visual_check.html), approved89 is on the left
+of each row; the two actual matcher winners are on the right:
+
+| New GX0 control | User judgement | Maximum corner distance from approved89, 1280 × 720 pixels |
+| --- | --- | ---: |
+| First: line winner1864 | Essentially perfect; indistinguishable from the approved court apart from a very mild bottom-right inset to the white-line midpoint | 3.121 |
+| Second: paint winner5144 | Perfect | 4.050 |
+
+The user judged both essentially ideal. This establishes visually usable GX0
+matching from observed directions that automatic selection discarded. The
+selection used approved geometry, so automatic recovery remains unresolved.
+Both winners retain floor rejection, as does approved89. The automatic gallery's
+six-view count and its rejected GX0 fits remain unchanged.
+[GX0 measurements](gx0_control_measurements.json.gz) preserve the comparator,
+direction identities, diagnostic fits, winner coordinates and judgements.
+
 ## Decision and checks
 
-Score tuning cannot restore excluded directions. GX0 joins GX5 and Amateur-2
-frame28019 as an explicit visual regression case. The discarded-direction
-controls cover only the latter two; GX0 needs its own diagnosis. The existing
-samples expose these failures, so no new annotations are needed yet. Production and
-annotations remain unchanged.
+Score tuning cannot restore excluded directions. The GX0 follow-up strengthens
+the case for preserving or refining direction precision: its observed bank now
+produces visually approved courts through the unchanged matcher. Test that next
+design automatically across the existing varied amateur and ShuttleSet cases.
+Keep ranking and acceptance as separate checks. No new annotations are needed
+yet; production and annotations remain unchanged.
 
 Validation passed: 22 synthetic tests, scoped lint/type checks, exact final-score
 replays for all 18 rescoring cases, and original global-selection replay for all
 nine views. Technical reviews checked the generator and shared evaluation. The
 [methods](methods.md) record settings, limits and numerical tolerances.
 The [measurement summary](measurements.json.gz) preserves all three automatic
-comparison arms and the two label-guided direction controls.
+comparison arms and the first two label-guided direction controls. The separate
+GX0 diagnosis and matcher both completed with exit 0. Scoped lint/types, source
+provenance checks and gallery controls passed; no algorithm or gate changed.

@@ -3,7 +3,9 @@
 These judgements apply to the [automatic gallery](automatic_axes_visual_check.html)
 from the all-camera-eligible comparison. Candidate IDs below match the saved
 [measurements](measurements.json.gz). They do not apply to the earlier supplied-
-direction gallery or the two label-guided observed-bank controls.
+direction gallery or the label-guided observed-bank controls. The subsequent
+[GX0 control approval](automatic_axes_results.md#gx0-follow-up-both-control-winners-are-visually-approved)
+belongs to two different candidates and leaves these automatic rulings unchanged.
 
 Across nine development views, the user explicitly finds a usable automatic
 line-score winner in five views and a usable paint-ranked winner in four.
@@ -113,9 +115,9 @@ views, including reference-selected diagnostics. Those displayed diagnostics do
 not establish that every candidate in their full pools is unusable.
 
 Preserving direction precision remains the next design question. GX0 now joins
-GX5 and Amateur-2 frame28019 as an explicit visual regression case. The previous
-discarded-direction controls cover only GX5 and Amateur-2 frame28019; they do not
-yet explain GX0. Ranking remains separate: the usable Amateur-2 frame150 paint
+GX5 and Amateur-2 frame28019 as an explicit visual regression case. A subsequent
+GX0 control using discarded observed directions has visual approval for both
+winners; automatic direction selection remains unresolved. Ranking remains separate: the usable Amateur-2 frame150 paint
 winner and rejected ShuttleSet03 scene19 paint winner need opposite choices.
 
 Minor paint-edge differences are acceptable in the named panels. There is no

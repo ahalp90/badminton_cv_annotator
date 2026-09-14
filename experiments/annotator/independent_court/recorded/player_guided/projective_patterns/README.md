@@ -3,7 +3,9 @@
 The spacing matcher produces usable courts when given suitable perspective
 directions. Automatic direction selection still discards useful precision,
 and paint ranking can favour wrong structures when the candidate pool expands.
-The next useful change is to direction retention or refinement, followed by
+A further GX0 control produces two visually approved, essentially ideal courts
+from discarded observed directions. The next useful change is to direction
+retention or refinement, followed by
 ranking checks against the saved false winners. Production detection is unchanged.
 
 The experiments progressed through four stages on existing development data:
@@ -27,5 +29,7 @@ panels inspected; small corner errors do not establish correct internal markings
 [Methods and validation](methods.md) define the comparisons and their limits.
 [Follow-up status](followup_status.md) maps the findings to the staged research
 options. [Measurements](measurements.json.gz) preserve all three automatic
-comparison arms and the two label-guided direction controls. The galleries use
+comparison arms and the first two label-guided direction controls. The subsequent
+[GX0 control measurements](gx0_control_measurements.json.gz) and
+[inspected comparison](gx0_control_visual_check.html) record its separate approval. The galleries use
 shared local images and work without JavaScript.

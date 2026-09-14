@@ -75,11 +75,15 @@ runs. The last arm measures 19,286 candidates with common complete-line and
 paint evidence. Original floor outcomes are recorded but do not select these
 diagnostic winners. No court is emitted from these comparisons.
 
-Separate diagnostics measure losses after generation. Two further controls
+Separate diagnostics measure losses after generation. Three further controls
 reconstruct the full observed direction banks and use supplied geometry to
 select four candidates per axis. Local fits evaluate their sixteen cross-products;
 these are not certified global optima. The best measured pair then supplies
-directions to the unchanged matcher. Both controls are labelled non-automatic.
+directions to the unchanged matcher. All three controls are labelled non-automatic.
+The subsequent GX0 control uses visually approved supplied-direction candidate89
+as its comparator. Its distances from that court are explicitly distinguished
+from manual-reference errors. It also fits all 240 retained ordered pairs for
+comparison before running the unchanged matcher once.
 The measured automatic pools are never replaced by these controls.
 
 ## Validation and limitations
