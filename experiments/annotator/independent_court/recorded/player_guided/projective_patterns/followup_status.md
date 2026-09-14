@@ -15,32 +15,45 @@ plan, rather than completion of five sequential implementation stages.
 
 ## Candidate experiment: SVD direction refinement
 
-Singular value decomposition (SVD) is an untested option within direction
-retention/refinement. Use supporting image lines to estimate a shared vanishing
-point for each plausible group, while preserving competing alternatives. Group
-membership needs care: nearby hypotheses can produce materially different courts,
-and background lines can bias the fit.
+The saved-record feasibility check is complete. Singular value decomposition
+(SVD) improves the best diagnostic fit when applied to the existing support groups,
+with only a small improvement on GX5. It is cheap, but it does not recover the
+precision previously demonstrated by selected observed-bank directions.
 
-Start with a saved-record feasibility check on GX0, GX5 and Amateur-2 frame28019,
-before another matcher run. Compare the original 16 retained directions with
-SVD fits using their existing supporting-line groups. Keep group membership fixed
-so fitting and regrouping can be evaluated separately. A control-selected group
-comparison may diagnose membership sensitivity, but does not establish correct
-membership or a best-possible result. Check projected geometry, conditioning and
-whether distinct hypotheses collapse together. A lower algebraic fitting error
-alone does not establish a better court. This check has not been run.
+Each case keeps 16 directions and evaluates all 240 ordered pairs before and after
+refitting. Line-group membership stays fixed. SVD uses centred/isotropic coordinates
+and unit 2D line normals. Directions use image-derived groups only; the court-fit
+diagnostic uses the existing controls, including approved candidate89 for GX0.
 
-If the diagnostic is promising, compare automatic geometry recovery at the existing
-search budget across the varied amateur and ShuttleSet cases. Approved courts may evaluate the results;
-they must not choose the directions or line groups. Keep the matcher, ranking and
-acceptance rules unchanged for this comparison, and measure runtime alongside
-candidate quality.
+| Case | Original directions | Fixed-group SVD | SVD with control-selected groups |
+| --- | ---: | ---: | ---: |
+| GX frame0 | 6.798 | 3.961 | 0.952 |
+| GX frame5 | 23.800 | 22.502 | 2.540 |
+| Amateur-2 frame28019 | 2.972 | 1.626 | 1.441 |
 
-Consider k-nearest-neighbour (kNN) lookup only if finding neighbouring hypotheses
-is a measured bottleneck. Neighbourhoods must respect perspective geometry;
-proximity alone does not establish a shared court direction. Reduce the search
-budget only after useful solutions survive the refinement. Neither an accuracy
-gain nor a substantial compute saving has been demonstrated for this option.
+Values are maximum corner distances to each case's control, in 960 × 540 pixels.
+They are local diagnostic fits, not generated courts or certified optima. The
+last column uses separate label-guided groups; those groups are not known correct
+memberships or a performance ceiling. Their better fits show membership sensitivity.
+
+All 1,446 pair fits returned finite results; 1,445 converged, including every best
+fit. No directions collapsed to duplicates. The 16 SVD refits took 1.1–1.9 ms per
+case; all three numerical diagnostics took 5.8 seconds in total. These single-run
+timings do not establish an end-to-end speedup. Five synthetic checks, scoped
+lint/types, input-provenance checks and the GX0 baseline replay passed (exit 0).
+[Measurements](svd_fixed_measurements.json.gz) preserve the exact comparators,
+winning fits, conditioning diagnostics and prior bank-fit results.
+
+Next, investigate supporting-line membership and precision-aware retention. Keep
+fitting and support re-selection separate. Selection-only alternatives and different
+geometric fitting objectives remain open. Any promising direction change still
+needs unchanged-matcher evaluation across all nine varied views, preserving the
+existing usable cases. No matcher run, new visual judgement or acceptance change
+followed this diagnostic.
+
+Keep k-nearest-neighbour (kNN) lookup conditional on a measured neighbour-search
+bottleneck. A smaller search budget remains untested; first demonstrate that useful
+solutions survive automatic selection. No substantial compute saving is established.
 
 ## How much closer is the detector?
 
