@@ -1,0 +1,23 @@
+# Working cruft
+__pycache__/
+*.pyc
+.ruff_cache/
+.pyrefly_cache/
+.pytest_cache/
+*.pid
+*.lock
+
+# Private aliases for the remote host, user and absolute paths
+paths.local.sh
+
+# The repository root ignores every runs/ directory (training runs); this one holds the
+# committed experiment records, so re-include it here before the specific exclusions.
+!runs/
+
+# Gigantic record assets stay on disk and are listed with size and MD5 in the manifest:
+# residual matrices, and the full per-candidate court records from the matcher stages.
+runs/**/*.npy.xz
+runs/**/cache/
+runs/**/e4/*/results/
+runs/**/e4/*/camera_first/
+runs/**/e4/*/all_camera/
