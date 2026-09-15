@@ -26,7 +26,8 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
-from common import (
+
+from shared import (
     DIRECTION_RUN,
     LABELS,
     add_helper_paths,
@@ -90,12 +91,28 @@ def nearest_in_record(record: dict, control: np.ndarray, scale: np.ndarray) -> t
     for pair in record['pairs']:
         if pair['status'] != 'matched' or not pair['shortlist']:
             continue
-        corners = np.asarray([entry['corners_px'] for entry in pair['shortlist']], dtype=float) / scale
-        errors = corner_errors(corners, control)
-        index = int(np.argmin(errors))
-        if errors[index] < best[0]:
-            best = (float(errors[index]), pair['pair_id'], pair['shortlist'][index]['candidate_id'])
+        error, candidate = nearest_in_pair(pair, control, scale)
+        if error < best[0]:
+            best = (error, pair['pair_id'], candidate)
     return best
+
+
+def nearest_in_pair(pair: dict, control: np.ndarray, scale: np.ndarray) -> tuple[float, str]:
+    """Nearest shortlisted court of one pair; the shortlist is the per-pair cap's 256 survivors."""
+    corners = np.asarray([entry['corners_px'] for entry in pair['shortlist']], dtype=float) / scale
+    errors = corner_errors(corners, control)
+    index = int(np.argmin(errors))
+    return float(errors[index]), pair['shortlist'][index]['candidate_id']
+
+
+def recorded_combined_nearest(case_id: str, arm: str, pair_id: int) -> float | None:
+    """The pair's nearest court before the masks, from the courts-before-the-gate table (arms M and R only)."""
+    table = Path(__file__).resolve().parent / 'prior_checks' / 'pregate_loss' / 'table.csv'
+    with open(table, newline='') as stream:
+        for row in csv.DictReader(stream):
+            if row['case_id'] == case_id and row['arm'] == arm and int(row['pair_id']) == pair_id:
+                return float(row['nearest_combined_px']) if row['nearest_combined_px'] else None
+    return None
 
 
 def ideal_parameters(basis: np.ndarray, homography: np.ndarray) -> tuple[np.ndarray, float]:
@@ -171,7 +188,9 @@ def replay_pair(case_id: str, arm: str, pair_id: int, record: dict, e3: dict, un
     assert basis is not None and details['status'] == 'valid', details
     np.testing.assert_allclose(basis, pair['role']['basis_working'], rtol=0, atol=1e-9)
 
-    # Both court orientations reproduce the same physical court; keep the one whose chart leaks least.
+    # Both court orientations reproduce the same physical court; keep the one whose chart leaks least. The leak is
+    # near zero by construction (control_fit and basis_for share the direction columns); the exactness gate is the
+    # corner-error assert below, not the leak.
     candidates = [ideal_parameters(basis, homography), ideal_parameters(basis, homography @ SYMMETRY)]
     ideal, leak = min(candidates, key=lambda item: item[1])
     ideal_corners = courts_from(basis, ideal[:1], ideal[1:])
@@ -230,16 +249,29 @@ def replay_pair(case_id: str, arm: str, pair_id: int, record: dict, e3: dict, un
             row[f'best_{step}_score'] = round(float(matches.scores[index]), 4)
         rows.append(row)
 
-    # Second gate: every kept horizontal with every kept vertical must reproduce the record's nearest court.
+    # Gate 4: every kept horizontal with every kept vertical must reproduce the pair's recorded nearest court.
+    # Arms M and R have the pre-mask recording (float32 corners, so 1e-3 px); arm B has only the shortlist,
+    # a subset of the combined courts, so its nearest bounds the replay from above.
     kept_h = matched[0].parameters[matched[0].distinct[:MATCHER_SETTINGS.keep_axes]]
     kept_v = matched[1].parameters[matched[1].distinct[:MATCHER_SETTINGS.keep_axes]]
     best_combined = nearest_over_product(basis, kept_h, kept_v, control)
+    scale = np.asarray([source['dimensions']['width'], source['dimensions']['height']], dtype=float) / np.asarray(size)
+    shortlist_nearest, shortlist_candidate = nearest_in_pair(pair, control, scale)
+    combined_recorded = recorded_combined_nearest(case_id, arm, pair_id)
+    if combined_recorded is not None:
+        assert abs(best_combined - combined_recorded) <= 1e-3, ('gate 4', best_combined, combined_recorded)
+        gate4 = f'equals the recorded pre-mask nearest {combined_recorded:.4f} px (gap {abs(best_combined - combined_recorded):.1e})'
+    else:
+        assert best_combined <= shortlist_nearest + 1e-3, ('gate 4', best_combined, shortlist_nearest)
+        gate4 = f'at or below the pair\'s shortlist nearest {shortlist_nearest:.4f} px ({shortlist_candidate}); no pre-mask recording for this arm'
     # With no per-direction cap: every distinct horizontal matching with every distinct vertical one.
     best_uncapped = (nearest_over_product(basis, matched[0].parameters[matched[0].distinct],
                                           matched[1].parameters[matched[1].distinct], control) if uncapped else None)
     summary = {'case_id': case_id, 'arm': arm, 'pair_id': pair_id, 'pencils': pair['pencils'],
                'direction_fit_px': fit_error, 'chart_leak': leak, 'ideal_parameters': ideal.tolist(),
-               'nearest_kept_by_kept_px_replay': best_combined, 'nearest_distinct_by_distinct_px': best_uncapped}
+               'nearest_kept_by_kept_px_replay': best_combined, 'nearest_distinct_by_distinct_px': best_uncapped,
+               'pair_shortlist_nearest_px': shortlist_nearest, 'pair_shortlist_nearest_candidate': shortlist_candidate,
+               'pair_recorded_combined_nearest_px': combined_recorded, 'gate4': gate4}
     for row in rows:
         row['nearest_kept_by_kept_px_replay'] = round(best_combined, 4)
         row['nearest_distinct_by_distinct_px'] = None if best_uncapped is None else round(best_uncapped, 4)
@@ -292,6 +324,7 @@ def main() -> None:
                   f'cap threshold score {row["cap_threshold_score"]}, kept support counts {row["kept_support_counts"]}; '
                   f'best court with the other direction ideal: {ladder}', flush=True)
         uncapped = summary['nearest_distinct_by_distinct_px']
+        print(f'  GATE 4 kept x kept replay nearest {summary["nearest_kept_by_kept_px_replay"]:.4f} px {summary["gate4"]}', flush=True)
         print(f'  kept x kept replay nearest {summary["nearest_kept_by_kept_px_replay"]:.3f} px; '
               f'distinct x distinct nearest {"not computed" if uncapped is None else f"{uncapped:.3f} px"}; '
               f'direction fit {summary["direction_fit_px"]:.3f}; chart leak {summary["chart_leak"]:.2e}', flush=True)

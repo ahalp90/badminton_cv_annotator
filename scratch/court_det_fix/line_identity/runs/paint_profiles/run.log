@@ -1,52 +1,52 @@
 GX0: 751 fragments
-  edge  ridge contrast n=17 p5 -19 p25 8 p50 15 p75 19 p95 46
-  edge  peak saturation n=17 p5 30 p25 52 p50 63 p75 90 p95 119
-  other ridge contrast n=728 p5 -20 p25 0 p50 9 p75 19 p95 55
-  other peak saturation n=728 p5 16 p25 34 p50 47 p75 61 p95 87
-  row_31 fragment 417: ridge contrast 13.69, peak saturation 48.93, centre 109.16, flank 112.0
-  row_51 fragment 469: ridge contrast 11.47, peak saturation 57.86, centre 214.16, flank 212.72
-  row_61 fragment 499: ridge contrast -6.56, peak saturation 70.94, centre 159.68, flank 180.86
+  marking ridge contrast n=36 p5 -3 p25 14 p50 21 p75 44 p95 65
+  marking peak saturation n=36 p5 27 p25 39 p50 59 p75 85 p95 115
+  other   ridge contrast n=709 p5 -5 p25 4 p50 12 p75 21 p95 55
+  other   peak saturation n=709 p5 16 p25 33 p50 46 p75 60 p95 86
+  row_31 fragment 417: ridge contrast 15.65, peak saturation 48.93, centre 109.16, flank 109.49
+  row_51 fragment 469: ridge contrast 11.47, peak saturation 57.86, centre 214.16, flank 211.92
+  row_61 fragment 499: ridge contrast -2.37, peak saturation 70.94, centre 159.68, flank 179.39
   row_31 fragment 583: ridge contrast 6.76, peak saturation 49.61, centre 107.92, flank 112.36
-  row_31 fragment 584: ridge contrast 5.28, peak saturation 63.32, centre 77.71, flank 84.68
-  row_31 fragment 683: ridge contrast 6.76, peak saturation 61.38, centre 84.54, flank 86.36
+  row_31 fragment 584: ridge contrast 10.5, peak saturation 63.32, centre 77.71, flank 79.3
+  row_31 fragment 683: ridge contrast 7.32, peak saturation 61.38, centre 84.54, flank 86.21
 GX5: 790 fragments
-  edge  ridge contrast n=19 p5 5 p25 12 p50 17 p75 41 p95 51
-  edge  peak saturation n=19 p5 24 p25 51 p50 61 p75 75 p95 122
-  other ridge contrast n=771 p5 -22 p25 0 p50 10 p75 20 p95 65
-  other peak saturation n=771 p5 16 p25 34 p50 48 p75 64 p95 96
+  marking ridge contrast n=40 p5 7 p25 16 p50 22 p75 43 p95 69
+  marking peak saturation n=40 p5 24 p25 33 p50 51 p75 75 p95 116
+  other   ridge contrast n=750 p5 -7 p25 4 p50 12 p75 21 p95 73
+  other   peak saturation n=750 p5 16 p25 34 p50 48 p75 63 p95 96
 Am2-150: 397 fragments
-  edge  ridge contrast n=15 p5 2 p25 41 p50 54 p75 68 p95 80
-  edge  peak saturation n=15 p5 13 p25 20 p50 31 p75 92 p95 103
-  other ridge contrast n=382 p5 -25 p25 1 p50 12 p75 39 p95 90
-  other peak saturation n=382 p5 5 p25 25 p50 49 p75 89 p95 159
+  marking ridge contrast n=36 p5 0 p25 26 p50 51 p75 71 p95 80
+  marking peak saturation n=36 p5 16 p25 27 p50 56 p75 95 p95 110
+  other   ridge contrast n=361 p5 -7 p25 3 p50 16 p75 43 p95 99
+  other   peak saturation n=361 p5 5 p25 24 p50 48 p75 87 p95 164
 Am2-28019: 416 fragments
-  edge  ridge contrast n=18 p5 -5 p25 35 p50 43 p75 64 p95 73
-  edge  peak saturation n=18 p5 18 p25 24 p50 46 p75 91 p95 113
-  other ridge contrast n=398 p5 -18 p25 0 p50 12 p75 36 p95 85
-  other peak saturation n=398 p5 6 p25 27 p50 48 p75 94 p95 176
+  marking ridge contrast n=32 p5 -2 p25 38 p50 45 p75 62 p95 76
+  marking peak saturation n=32 p5 19 p25 26 p50 48 p75 96 p95 127
+  other   ridge contrast n=384 p5 -7 p25 2 p50 18 p75 42 p95 93
+  other   peak saturation n=384 p5 6 p25 27 p50 47 p75 93 p95 177
 Am3-0: 507 fragments
-  edge  ridge contrast n=17 p5 -10 p25 9 p50 30 p75 42 p95 68
-  edge  peak saturation n=17 p5 4 p25 18 p50 30 p75 83 p95 235
-  other ridge contrast n=490 p5 -14 p25 2 p50 7 p75 27 p95 93
-  other peak saturation n=490 p5 13 p25 32 p50 84 p75 116 p95 133
+  marking ridge contrast n=52 p5 7 p25 23 p50 41 p75 49 p95 76
+  marking peak saturation n=52 p5 7 p25 16 p50 26 p75 56 p95 118
+  other   ridge contrast n=455 p5 -4 p25 4 p50 8 p75 19 p95 97
+  other   peak saturation n=455 p5 14 p25 40 p50 92 p75 118 p95 134
 SS03-17: 675 fragments
-  edge  ridge contrast n=14 p5 41 p25 55 p50 80 p75 89 p95 105
-  edge  peak saturation n=14 p5 0 p25 0 p50 0 p75 0 p95 0
-  other ridge contrast n=661 p5 -21 p25 3 p50 19 p75 46 p95 89
-  other peak saturation n=661 p5 0 p25 0 p50 0 p75 0 p95 0
+  marking ridge contrast n=58 p5 22 p25 51 p50 71 p75 82 p95 93
+  marking peak saturation n=58 p5 0 p25 0 p50 0 p75 0 p95 0
+  other   ridge contrast n=617 p5 -3 p25 7 p50 23 p75 50 p95 100
+  other   peak saturation n=617 p5 0 p25 0 p50 0 p75 0 p95 0
 SS03-19: 678 fragments
-  edge  ridge contrast n=19 p5 40 p25 50 p50 79 p75 89 p95 105
-  edge  peak saturation n=19 p5 0 p25 0 p50 0 p75 0 p95 0
-  other ridge contrast n=659 p5 -14 p25 4 p50 18 p75 46 p95 87
-  other peak saturation n=659 p5 0 p25 0 p50 0 p75 0 p95 0
+  marking ridge contrast n=71 p5 3 p25 37 p50 59 p75 81 p95 92
+  marking peak saturation n=71 p5 0 p25 0 p50 0 p75 0 p95 0
+  other   ridge contrast n=607 p5 -3 p25 7 p50 23 p75 52 p95 104
+  other   peak saturation n=607 p5 0 p25 0 p50 0 p75 0 p95 0
 SS03-16: 669 fragments
-  edge  ridge contrast n=16 p5 44 p25 59 p50 82 p75 89 p95 104
-  edge  peak saturation n=16 p5 0 p25 0 p50 0 p75 0 p95 0
-  other ridge contrast n=653 p5 -19 p25 4 p50 19 p75 45 p95 87
-  other peak saturation n=653 p5 0 p25 0 p50 0 p75 0 p95 0
+  marking ridge contrast n=62 p5 3 p25 43 p50 66 p75 81 p95 91
+  marking peak saturation n=62 p5 0 p25 0 p50 0 p75 0 p95 0
+  other   ridge contrast n=607 p5 -4 p25 8 p50 25 p75 52 p95 101
+  other   peak saturation n=607 p5 0 p25 0 p50 0 p75 0 p95 0
 SS21-20: 487 fragments
-  edge  ridge contrast n=18 p5 36 p25 46 p50 62 p75 91 p95 124
-  edge  peak saturation n=18 p5 0 p25 0 p50 0 p75 0 p95 0
-  other ridge contrast n=469 p5 -13 p25 0 p50 17 p75 42 p95 86
-  other peak saturation n=469 p5 0 p25 0 p50 0 p75 0 p95 0
+  marking ridge contrast n=57 p5 28 p25 50 p50 69 p75 89 p95 124
+  marking peak saturation n=57 p5 0 p25 0 p50 0 p75 0 p95 0
+  other   ridge contrast n=430 p5 -3 p25 2 p50 18 p75 43 p95 86
+  other   peak saturation n=430 p5 0 p25 0 p50 0 p75 0 p95 0
 wrote runs/paint_profiles/profiles.csv.gz (5370 rows)
