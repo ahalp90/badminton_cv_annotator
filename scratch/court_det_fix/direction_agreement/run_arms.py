@@ -191,9 +191,14 @@ def build_case(case_id: str, source: dict, saved: dict, output: Path, run: str, 
     gained = (masks_midpoint & ~masks_foot).sum(axis=1)
     lost = (masks_foot & ~masks_midpoint).sum(axis=1)
     change = residuals_midpoint - residuals_foot
+    # Most entries are far outside the 1.5-degree membership band under both anchors; the
+    # band-relevant statistics restrict to entries that are members under at least one anchor.
+    band_relevant = masks_foot | masks_midpoint
     e1_summary = {
         'residual_change_abs_deg': statistics(np.abs(change)),
         'residual_change_abs_deg_finite_only': statistics(np.abs(change[finite_rows])),
+        'residual_change_abs_deg_member_under_either_anchor': statistics(np.abs(change[band_relevant])),
+        'entries_member_under_either_anchor': int(band_relevant.sum()),
         'membership_entries_changed': int((masks_midpoint != masks_foot).sum()),
         'membership_entries_total': int(masks_foot.size),
         'candidates_gaining_support': int((gained > 0).sum()),
@@ -226,11 +231,16 @@ def build_case(case_id: str, source: dict, saved: dict, output: Path, run: str, 
                                    status_midpoint, candidate_ids, candidates, generators, transform, settings.angle_deg)
         representative_timing[arm] = perf_counter() - arm_started
     assert arms['B']['representative_candidate_ids'] == estimator['retained_candidate_ids']
-    assert arms['R']['leader_candidate_ids'] == arms['B']['leader_candidate_ids']
-    assert arms['MR']['leader_candidate_ids'] == arms['M']['leader_candidate_ids']
-    assert [group['bucket_candidate_ids'] for group in arms['R']['groups']] == [group['bucket_candidate_ids'] for group in arms['B']['groups']]
-    assert [group['bucket_candidate_ids'] for group in arms['MR']['groups']] == [group['bucket_candidate_ids'] for group in arms['M']['groups']]
     assert retained_midpoint == [group['leader_row'] for group in arms['M']['groups']]
+    # Candidate IDs understate geometric overlap between arms, so record each direction's
+    # signed-invariant angle to the nearest baseline direction as well.
+    baseline_unit = np.asarray(arms['B']['points_normalised'])
+    baseline_unit /= np.linalg.norm(baseline_unit, axis=1)[:, None]
+    for arm in ('M', 'R', 'MR'):
+        unit = np.asarray(arms[arm]['points_normalised'])
+        unit /= np.linalg.norm(unit, axis=1)[:, None]
+        cosine = np.clip(np.abs(unit @ baseline_unit.T), 0., 1.)
+        arms[arm]['nearest_baseline_direction_deg'] = np.degrees(np.arccos(cosine)).min(axis=1).tolist()
 
     provenance = {'run': run, 'case_id': case_id, 'code_md5': code, 'working_size': list(size),
                   'native_size': [source['dimensions']['width'], source['dimensions']['height']]}
@@ -265,7 +275,8 @@ def build_case(case_id: str, source: dict, saved: dict, output: Path, run: str, 
     write(output / 'e1' / f'{case_id}.json.gz', {
         **provenance, 'schema': 'direction-agreement-e1/1', 'angle_deg': settings.angle_deg,
         'candidate_count': len(candidate_ids), 'finite_candidate_ids': candidate_ids[finite_rows].tolist(),
-        'matrix_rows': 'candidate_ids order', 'matrix_columns': 'direction line IDs 0..127',
+        'matrix_rows': 'candidate_ids order', 'matrix_columns': f'direction line IDs 0..{len(lines) - 1}',
+        'masks_note': 'membership masks are residuals <= angle_deg on the saved matrices; they are not stored separately',
         'anchors': anchors, 'summary': e1_summary, 'largest_residual_changes': top_changes,
         'membership_is_not_ground_truth': True,
     })
@@ -292,14 +303,15 @@ def main() -> None:
     output = run_dir(args.root, args.run)
     code = code_md5(args.root)
     for case_id in args.ids:
-        existing = output / 'e2' / f'{case_id}.json.gz'
-        if args.resume and existing.exists() and read(existing)['code_md5'] == code:
-            print(case_id, 'complete under identical code; skipped', flush=True)
-            continue
         saved_path = args.root / SAVED_ESTIMATORS / f'{case_id}.json.gz'
+        identity = {**code, 'saved_estimator': md5(saved_path)}
+        existing = output / 'e2' / f'{case_id}.json.gz'
+        if args.resume and existing.exists() and read(existing)['code_md5'] == identity:
+            print(case_id, 'complete under identical code and input; skipped', flush=True)
+            continue
         saved = read(saved_path)
         assert saved['case_id'] == case_id
-        summary = build_case(case_id, sources[case_id], saved, output, args.run, {**code, 'saved_estimator': md5(saved_path)})
+        summary = build_case(case_id, sources[case_id], saved, output, args.run, identity)
         print(case_id, 'arms', summary['arms'], 'timing', {name: round(value, 3) for name, value in summary['timing'].items()
                                                             if isinstance(value, float)}, flush=True)
 

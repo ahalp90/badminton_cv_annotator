@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from common import BASELINE_STAGES, STAGES, read, write
-from run_matcher import adapter, run_case
+from run_matcher import adapter, complete, run_case, stage_paths
 
 
 def saved_record(points: list[list[float]]) -> dict:
@@ -47,6 +47,10 @@ def test_identical_directions_reuse_the_saved_baseline(tmp_path: Path) -> None:
         assert record['stage_marker'] == stage and record['arm'] == 'R' and 'identity_reused_from' in record
     proof = read(output / 'e4/R/synthetic_identity.json.gz')
     assert proof['identical_to_baseline_directions'] and proof['points_working'] == points
+    paths = stage_paths(output, 'R', 'synthetic')
+    assert complete(paths, {'x.py': 'md5'}, 'saved-md5', 'e2-md5')
+    assert not complete(paths, {'x.py': 'md5'}, 'saved-md5', 'e2-changed')
+    assert not complete(paths, {'x.py': 'other'}, 'saved-md5', 'e2-md5')
 
 
 def test_ineligible_arm_writes_empty_court_records(tmp_path: Path) -> None:

@@ -29,8 +29,9 @@ from common import (
 from diagnose_automatic import diagnose
 
 REPORTED_ARMS = ('B', *MATCHER_ARMS)
+BASELINE_RUN = 'automatic_axes_20260914'
 COLUMNS = [
-    'case_id', 'arm', 'stage', 'status', 'identity_reused', 'control_source', 'visually_approved',
+    'run', 'arm', 'case_id', 'stage', 'selection_stage', 'status', 'identity_reused', 'control_source', 'visually_approved',
     'pairs_attempted', 'camera_bound_rejected', 'pairs_matched', 'generated', 'geometry_valid', 'geometry_players',
     'per_pair_retained', 'pooled', 'final', 'final_camera_eligible', 'final_floor_pass', 'final_paint_available',
     'line_winner_id', 'paint_winner_id', 'line_control_working_px', 'paint_control_working_px',
@@ -58,7 +59,8 @@ def accounting(case_id: str, arm: str, stage: str, record: dict, diagnosis: dict
         paint_available += entry['profile']['score'] is not None
     winners = diagnosis['winners']
     row = {
-        'case_id': case_id, 'arm': arm, 'stage': stage, 'status': 'diagnosed',
+        'run': record.get('run', BASELINE_RUN), 'arm': arm, 'case_id': case_id, 'stage': stage,
+        'selection_stage': record.get('selection_stage'), 'status': 'diagnosed',
         'identity_reused': 'identity_reused_from' in record,
         'control_source': control['control_source'], 'visually_approved': control['visually_approved'],
         'pairs_attempted': len(record['pairs']), 'camera_bound_rejected': diagnosis['counts']['camera_direction_rejected'],
@@ -84,10 +86,11 @@ def accounting(case_id: str, arm: str, stage: str, record: dict, diagnosis: dict
     return row
 
 
-def missing_row(case_id: str, arm: str, stage: str, control: dict, status: str) -> dict:
+def missing_row(case_id: str, arm: str, stage: str, control: dict, status: str, run: str) -> dict:
     row = dict.fromkeys(COLUMNS)
-    row.update({'case_id': case_id, 'arm': arm, 'stage': stage, 'status': status,
-                'control_source': control['control_source'], 'visually_approved': control['visually_approved']})
+    row.update({'run': BASELINE_RUN if arm == 'B' else run, 'case_id': case_id, 'arm': arm, 'stage': stage,
+                'status': status, 'control_source': control['control_source'],
+                'visually_approved': control['visually_approved']})
     return row
 
 
@@ -106,11 +109,14 @@ def main() -> None:
     parser.add_argument('--root', type=Path, default=Path('.'))
     parser.add_argument('--run', required=True)
     parser.add_argument('--ids', nargs='+', default=list(CASE_IDS))
+    parser.add_argument('--allow-missing', action='store_true',
+                        help='exit 0 even when a case-arm stage record is absent (partial matrix)')
     args = parser.parse_args()
     sources, references = load_sources(args.root)
     output = run_dir(args.root, args.run)
     records = []
     rows = []
+    missing = []
     for case_id in args.ids:
         source = sources[case_id]
         saved = read(args.root / SAVED_ESTIMATORS / f'{case_id}.json.gz')
@@ -123,11 +129,12 @@ def main() -> None:
                 path = (args.root / BASELINE_STAGES[stage] / f'{case_id}.json.gz' if arm == 'B'
                         else output / 'e4' / arm / stage / f'{case_id}.json.gz')
                 if not path.exists():
-                    rows.append(missing_row(case_id, arm, stage, control, 'missing'))
+                    rows.append(missing_row(case_id, arm, stage, control, 'missing', args.run))
+                    missing.append((case_id, arm, stage))
                     continue
                 record = read(path)
                 if 'court_result' in record:
-                    rows.append(missing_row(case_id, arm, stage, control, 'empty_' + record['court_result']['reason']))
+                    rows.append(missing_row(case_id, arm, stage, control, 'empty_' + record['court_result']['reason'], args.run))
                     continue
                 diagnosis = diagnose(source, references[case_id], record, given)
                 row = accounting(case_id, arm, stage, record, diagnosis, control)
@@ -144,6 +151,10 @@ def main() -> None:
                                                  'code_md5': code_md5(args.root), 'label_guided_diagnostics': True,
                                                  'records': records})
     write_csv(output / 'e4' / 'accounting.csv.gz', COLUMNS, [[row[column] for column in COLUMNS] for row in rows])
+    if missing:
+        print('missing case-arm stages:', missing, flush=True)
+        if not args.allow_missing:
+            raise SystemExit(f'{len(missing)} case-arm stage records are missing; the matrix is incomplete')
 
 
 if __name__ == '__main__':

@@ -14,8 +14,11 @@ here=direction_agreement
 out="$here/runs/$run"
 mkdir -p "$out/logs" "$out/receipts" "$out/cache"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+# The stage scripts prove replays with assert; an inherited optimise flag would strip them.
+unset PYTHONOPTIMIZE
 export XDG_CACHE_HOME="$PWD/$out/cache"
-export PYTHONPATH=src:.:vp_pruning_20260914:marking_diagnosis_20260914:axis_matching_20260914:automatic_axes_20260914:automatic_axes_20260914/svd_fixed:$here
+# This folder goes first so no sibling directory can shadow an experiment module.
+export PYTHONPATH=$here:src:.:vp_pruning_20260914:marking_diagnosis_20260914:axis_matching_20260914:automatic_axes_20260914:automatic_axes_20260914/svd_fixed
 python="${REMOTE_PYTHON:-$HOME/.venvs/venv-rtmlib/bin/python}"
 printf '%s\n' "$$" > "$out/receipts/$label.pid"
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)

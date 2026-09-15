@@ -2,19 +2,50 @@
 
 ## Source and input identity
 
-Checked 2026-09-15 before any remote computation. MD5 of every shared module the experiment imports is identical between the local tree `L` and the remote root `R` (43 files: the independent-court package, `courtkeynet/court_corners.py`, the vp_pruning, marking_diagnosis, axis_matching and automatic_axes helpers, and `svd_fixed/run_svd_fixed.py`). The legacy `smoke/legacy/zone_net.py` matches the local copy under the 20260908 tree. The three input packs match their local copies. The run manifest (`runs/<run>/manifest.json.gz`) lists every hash, size and version.
+Checked 2026-09-15 before any remote computation. MD5 of every shared module the experiment imports is identical between the local tree `L` and the remote root `R` (43 files: the independent-court package, `courtkeynet/court_corners.py`, the vp_pruning, marking_diagnosis, axis_matching and automatic_axes helpers, and `svd_fixed/run_svd_fixed.py`). The legacy `smoke/legacy/zone_net.py` matches the local copy under the 20260908 tree. The three input packs match their local copies. The run manifest (`runs/<run>/manifest.json.gz`) lists every hash, size, version and per-case image.
 
 Git: branch `fix/court-det`, HEAD `d0c9a12`, tracked tree clean at start. The packet's scientific checkpoint is `9fcec94`; the four later commits changed documentation only (`git diff --stat 9fcec94 HEAD -- experiments src` lists no Python files).
 
-## Controls
+Remote environment: Python 3.11.13, NumPy 2.4.6, OpenCV 5.0.0, SciPy 1.17.1, one OpenCV thread and single-thread BLAS in every stage script.
+
+## Population
+
+Nine cases, native 1920×1080 (GX and amateur) or 960×540 (ShuttleSet), all at working size 960×540. Saved settings match the packet's expected values in every case (1.5 degrees, 128-line cap, 16 retained directions, IoU 0.8, coverage selection). The merged line count is below the cap for GX0 (106), GX5 (108) and SS03-19 (124).
+
+## Controls (read only at E3, after the E2 records were frozen)
 
 | Case | Control record | Source string | Visually approved |
 | --- | --- | --- | --- |
-| gxBQ_window_00_frame_0 | `R/automatic_axes_20260914/gx0_control/bank_diagnosis.json.gz` | filled from record at E3 | filled at E3 |
-| gxBQ_window_00_frame_5 | `R/automatic_axes_20260914/gx5_bank_diagnosis.json.gz` | | |
-| am2_window_01_frame_28019 | `R/automatic_axes_20260914/am2_far_bank_diagnosis.json.gz` | | |
-| other six | `R/axis_matching_20260914/given_finite/<case>.json.gz`, corners divided by native/working | | |
+| GX0 | `R/automatic_axes_20260914/gx0_control/bank_diagnosis.json.gz` | `visually_approved_GX0_supplied_direction_line_winner_89` | yes |
+| GX5 | `R/automatic_axes_20260914/gx5_bank_diagnosis.json.gz` | `visually_approved_GX5_generated_court` | yes |
+| Am2-150 | `R/axis_matching_20260914/given_finite/am2_window_00_frame_150.json.gz` | `visually_approved_VP_diagnostic_court` | yes |
+| Am2-28019 | `R/automatic_axes_20260914/am2_far_bank_diagnosis.json.gz` | `manual_reference_directions_only` | no |
+| Am3-0 | `R/axis_matching_20260914/given_finite/am3_window_00_frame_0.json.gz` | `manual_reference_directions_only` | no |
+| SS03-17 | `R/axis_matching_20260914/given_finite/shuttleset_03_scene_0017.json.gz` | `manual_reference_directions_only` | no |
+| SS03-19 | `R/axis_matching_20260914/given_finite/shuttleset_03_scene_0019.json.gz` | `visually_approved_automatic_marking_refit` | yes |
+| SS03-16 | `R/axis_matching_20260914/given_finite/shuttleset_03_scene_0016.json.gz` | `visually_approved_automatic_marking_refit` | yes |
+| SS21-20 | `R/axis_matching_20260914/given_finite/shuttleset_21_scene_0020.json.gz` | `visually_approved_automatic_marking_refit` | yes |
 
-## Replays
+The three bank-diagnosis controls are used in working pixels as saved. The other six divide the given record's native corners by the native/working scale. Each E3 record carries the control's corners, source string, record path and MD5.
 
-Filled per stage from the saved records.
+## E0 replays (all nine cases, `runs/<run>/e0/<case>.json.gz`, field `checks`)
+
+1. `merge_lines_with_membership` returns coefficients and order equal to `detector._merge_lines` (`np.array_equal`).
+2. The first 128 merged lines equal the saved `direction_lines` (rtol 0, atol 1e-12).
+3. `vp_pruning.estimate` replayed with the saved settings matches the saved estimator field by field: exact for IDs, counts, statuses, masks, provenance lists and integer counts; rtol 0, atol 1e-12 for lines, points and the transform.
+4. `angular_residuals_at` with the foot anchor equals `vp_pruning.angular_residuals` on the full bank (`np.array_equal`).
+5. Support counts equal the saved `support_counts`.
+6. `retain_pencils_with_buckets` returns the same retained rows and statuses as `vp_pruning.retain_pencils`, and its retained IDs, masks, statuses and points equal the saved record.
+7. Infinity candidates have identical residuals under both anchors.
+8. Arm B's representatives equal the saved retained IDs.
+9. The packet's E0 step 5: `automatic_axes_20260914/check_pool_replays.py` run from `R` printed nine "exact unfiltered selection replay passed" messages, exit 0 (`runs/<run>/logs/pool_replay.log`).
+
+R sharing B's leaders and buckets, and MR sharing M's, hold by construction (both arms are built from the same allocation object), so they are not listed as evidence. The bank is rebuilt with `diagnose_direction_bank.reconstruct_bank`, which asserts the saved candidate IDs. Membership masks are `residuals <= 1.5` on the saved `.npy.xz` matrices and are not stored separately; member fragment lengths can be rebuilt from the E0 member IDs and the input pack.
+
+## E3 replays
+
+For GX0, GX5 and Am2-28019 the B and B+SVD fits reproduce `R/automatic_axes_20260914/svd_fixed/records/<case>.json.gz`: all 240 `max_corner_working_px` values per set differ by 0.0 (tolerance 1e-8), the SVD refit points agree within 1e-8, and the control corners and source strings match.
+
+## What is not evidence
+
+Membership is the merge group assignment; it is not ground truth. Control fits are least-squares diagnostics against a control; they are not generated courts. Nothing in E0-E3 makes a usability claim.

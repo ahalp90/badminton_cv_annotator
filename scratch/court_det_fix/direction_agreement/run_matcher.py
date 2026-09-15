@@ -68,7 +68,9 @@ def stage_paths(output: Path, arm: str, case_id: str) -> dict[str, Path]:
     return {stage: output / 'e4' / arm / stage / f'{case_id}.json.gz' for stage in STAGES}
 
 
-def reuse_baseline(root: Path, output: Path, arm: str, case_id: str, points: np.ndarray, run: str, code: dict) -> None:
+def reuse_baseline(
+    root: Path, output: Path, arm: str, case_id: str, points: np.ndarray, run: str, code: dict, saved_md5: str, e2_md5: str,
+) -> None:
     """Copy the saved baseline stages with a proof that the arm's directions equal the baseline's."""
     paths = stage_paths(output, arm, case_id)
     reused = {}
@@ -76,12 +78,22 @@ def reuse_baseline(root: Path, output: Path, arm: str, case_id: str, points: np.
         source = root / directory / f'{case_id}.json.gz'
         record = read(source)
         record.update({'run': run, 'arm': arm, 'stage': stage, 'identity_reused_from': str(directory / f'{case_id}.json.gz'),
-                       'identity_reused_md5': md5(source), 'experiment_code_md5': code})
+                       'identity_reused_md5': md5(source), 'experiment_code_md5': code,
+                       'source_saved_estimator_md5': saved_md5, 'source_e2_record_md5': e2_md5})
         write(paths[stage], record)
         reused[stage] = {'from': str(directory / f'{case_id}.json.gz'), 'md5': md5(source)}
     write(output / 'e4' / arm / f'{case_id}_identity.json.gz', {
         'case_id': case_id, 'arm': arm, 'identical_to_baseline_directions': True,
-        'points_working': points.tolist(), 'reused': reused, 'experiment_code_md5': code})
+        'points_working': points.tolist(), 'reused': reused, 'experiment_code_md5': code,
+        'source_saved_estimator_md5': saved_md5, 'source_e2_record_md5': e2_md5})
+
+
+def input_identity(record: dict) -> tuple[str | None, str | None]:
+    """The saved-estimator and E2 hashes a stage record was produced from, wherever it stores them."""
+    if 'identity_reused_from' in record:
+        return record.get('source_saved_estimator_md5'), record.get('source_e2_record_md5')
+    estimator = record.get('estimator', {})
+    return estimator.get('source_saved_estimator_md5'), estimator.get('source_e2_record_md5')
 
 
 def run_case(
@@ -98,7 +110,7 @@ def run_case(
     points = np.asarray(arm_record['points_working'], dtype=float)
     baseline_points = np.asarray(saved['estimator']['points_working'], dtype=float)
     if points.shape == baseline_points.shape and np.array_equal(points, baseline_points):
-        reuse_baseline(root, output, arm, case_id, points, run, code)
+        reuse_baseline(root, output, arm, case_id, points, run, code, saved_md5, e2_md5)
         return {'case_id': case_id, 'arm': arm, 'status': 'identity_reused'}
     started = perf_counter()
     result = generate(source, adapter(saved, arm_record, run, saved_md5, e2_md5), zone, root)
@@ -121,8 +133,15 @@ def run_case(
                         (('results', result), ('camera_first', camera_first), ('all_camera', all_camera))}}
 
 
-def complete(paths: dict[str, Path], code: dict) -> bool:
-    return all(path.exists() and read(path).get('experiment_code_md5') == code for path in paths.values())
+def complete(paths: dict[str, Path], code: dict, saved_md5: str, e2_md5: str) -> bool:
+    """A case-arm is complete only under identical experiment code and identical E2 and estimator inputs."""
+    for path in paths.values():
+        if not path.exists():
+            return False
+        record = read(path)
+        if record.get('experiment_code_md5') != code or input_identity(record) != (saved_md5, e2_md5):
+            return False
+    return True
 
 
 def main() -> None:
@@ -140,16 +159,17 @@ def main() -> None:
     output = run_dir(args.root, args.run)
     code = code_md5(args.root)
     for case_id in args.ids:
-        if args.resume and complete(stage_paths(output, args.arm, case_id), code):
-            print(case_id, args.arm, 'complete under identical code; skipped', flush=True)
-            continue
         saved_path = args.root / SAVED_ESTIMATORS / f'{case_id}.json.gz'
         e2_path = output / 'e2' / f'{case_id}.json.gz'
+        saved_md5, e2_md5 = md5(saved_path), md5(e2_path)
+        if args.resume and complete(stage_paths(output, args.arm, case_id), code, saved_md5, e2_md5):
+            print(case_id, args.arm, 'complete under identical code and inputs; skipped', flush=True)
+            continue
         saved = read(saved_path)
         arms_record = read(e2_path)
         assert saved['case_id'] == case_id and arms_record['case_id'] == case_id
         summary = run_case(case_id, sources[case_id], saved, arms_record, args.arm, zone, args.root, output, args.run,
-                           code, md5(saved_path), md5(e2_path))
+                           code, saved_md5, e2_md5)
         print(case_id, args.arm, 'complete', summary, flush=True)
 
 
