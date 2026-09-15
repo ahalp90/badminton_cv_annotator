@@ -4,11 +4,25 @@ Exact commands, hashes, timings and exit codes. `R` is the remote experiment roo
 
 ## Local checks
 
+Run from this folder; `<repo>` is the repository root and `L` the alias above. Rerun after every code change; the last run of each is at the final commit.
+
 ```text
-~/.venvs/badminton-cicd/bin/ruff check --fix .        # 6 fixed, 0 remaining; exit 0
+~/.venvs/badminton-cicd/bin/ruff check .                                  # exit 0
 PYTHONDONTWRITEBYTECODE=1 ~/.venvs/badminton-cicd/bin/pytest tests -q -p no:cacheprovider
-                                                      # 30 passed in 1.43s; exit 0
+                                                                          # 41 passed; exit 0
+~/.venvs/badminton-cicd/bin/pyrefly check *.py tests/*.py -c <repo>/pyrefly.toml \
+  --search-path . --search-path L/automatic_axes/svd_fixed --search-path L/automatic_axes \
+  --search-path L/axis_matching --search-path L/marking_diagnosis --search-path L/vp_pruning \
+  --search-path <repo>/src --search-path <repo>                           # 0 errors
 ```
+
+Local stages (AEST), run with the local Python from `paths.local.sh`:
+
+| Stage | Command | When | Exit | Notes |
+| --- | --- | --- | ---: | --- |
+| summarise | `summarise.py --run-dir runs/<run>` | 17:58, rerun 19:58 after adding the pair-count columns | 0 | 81 matcher rows; writes `summary.md` and `summary.json.gz` |
+| gallery | `PYTHONPATH=<repo>:<repo>/src:. render_gallery.py --run-dir runs/<run>` | 17:59 | 0 | nine sections, candidate joins valid; first attempt without `<repo>/src` on the path failed on the `courtkeynet` import |
+| report audit | `~/.venvs/write-experiment-report/bin/python <skill>/scripts/audit_report.py results.md --allow-terms <cruft>/report/allow_terms.txt --format text` | 16:55 onwards | 0 | mechanical score 68.0 on the first draft, 89.2 after the E0-E3 tidy, 79.8 with the E4 sections |
 
 ## Remote stages
 
@@ -31,7 +45,7 @@ Run name: see `run_name.txt`. Log, PID and exit receipts: `runs/<run>/{logs,rece
 | e4_R_a | `run_matcher --arm R --ids gxBQ_window_00_frame_0 gxBQ_window_00_frame_5` | 06:16:04 | 07:36:36 | 0 | generation 2311 s (GX0), 1842 s (GX5); 8 exact replays |
 | e4_R_b | `run_matcher --arm R --ids am2_window_00_frame_150 am2_window_01_frame_28019 am3_window_00_frame_0 shuttleset_03_scene_0017 shuttleset_03_scene_0019 shuttleset_03_scene_0016 shuttleset_21_scene_0020` | 06:16:06 | 07:53:26 | 0 | generation 1154, 1367, 1231, 216, 200, 216, 146 s in that order; 28 exact replays |
 | diag_partial | `diagnose_matrix --allow-missing --ids gxBQ_window_00_frame_0` | 06:17 | 06:17 | 0 | GX0 only, B and M, R missing; used to test the accounting and gallery on real records; its `e4/diagnosis.json.gz` and `accounting.csv.gz` were deleted locally and are overwritten by the final `diag` run |
-| diag | `diagnose_matrix` | 07:54:20 | 07:55:56 | 0 | full matrix: 81 diagnosed rows (nine cases, B/M/R, three stages), none missing or empty; ran under the pushed `d761d7a` code, so its `code_md5` differs from the E4 records' `experiment_code_md5` (`0caae0a`) in `diagnose_matrix.py`, `summarise.py`, `render_gallery.py` and the tests only; the stage scripts are unchanged between the two |
+| diag | `diagnose_matrix` | 07:54:20 | 07:55:56 | 0 | full matrix: 81 diagnosed rows (nine cases, B/M/R, three stages), none missing or empty; ran under the pushed `d761d7a` code, so its `code_md5` differs from the E4 records' `experiment_code_md5` (`0caae0a`) in `diagnose_matrix.py`, `summarise.py`, `render_gallery.py` and the tests only (`sync.sh` also changed, but `code_md5` hashes `.py` files only); the stage scripts are unchanged between the two |
 
 The launches at 06:11 and 06:16 differ because the first `sync.sh launch` form bound `&` to the whole `cd && nohup` list, so the remote shell waited on the job and the chained launches stalled; the local chain was killed before it could fire them and the three streams were launched with the corrected helper.
 
@@ -41,4 +55,4 @@ Parallelism: the packet asks for sequential remote computation. After the smoke,
 
 Code identity: every stage record carries `code_md5` (MD5 of each module in this folder at run time). After the audit-1 fixes, E0-E3 were regenerated so their records and the E4 records share one code set. The manifest records the shared-module hashes, which did not change.
 
-Audit 1 (Opus 5, medium, read-only, about five minutes): prompt, evidence digest and report are in the session's untracked cruft folder under `audit1/`; the worklog summarises the findings and the fixes.
+Audits (Opus 5, medium, read-only, four to six minutes each): prompts, digests and reports are in the session's untracked cruft folder `scratch/court_det_fix/worklog/claude_session_15092026_14h32m/` under `audit1/`, `audit2/` and `audit3/`; the worklog summarises each audit's findings and the fixes. Audit 3's first two launches produced nothing (a low-memory kill at 18:06 and a session usage-limit refusal at 18:07); the third ran 19:47-19:53.

@@ -152,7 +152,10 @@ def prior_judgement(case_id: str, court: dict) -> str:
             continue
         judged_id, phrase = PRIOR_JUDGEMENTS[(case_id, ranking)]
         if judged_id == candidate_id:
-            rulings.append(f'B {ranking} winner judged earlier: {phrase}')
+            # A ruling made on B's court applies to the same court when another arm also chose it.
+            others = [other for other in ARM_COLOURS if other in court['arms'] and other != 'B']
+            shared = f' (the same court as chosen by {" and ".join(others)})' if others else ''
+            rulings.append(f'B {ranking} winner judged earlier: {phrase}{shared}')
         else:
             rulings.append(f'B {ranking} winner {candidate_id} is not the judged candidate {judged_id}')
     if not rulings:
@@ -225,7 +228,10 @@ def header(run: str, output: Path) -> str:
             '<p>Errors are maximum corner distances allowing the 180-degree relabelling, from the saved diagnosis. '
             'No court here is emitted or accepted, and none received a visual judgement in this run. Baseline (B) '
             f'winners carry the user\'s earlier ruling from <a href="{judgements_href}">the automatic-axes '
-            'judgements</a>, shown only when the candidate ID is the one judged; M and R winners are unjudged.</p></header>'
+            'judgements</a>, shown only when the candidate ID is the one judged; M and R winners are unjudged, except '
+            'where an M or R winner is the same court as a judged B winner, which the panel says. A court chosen by '
+            'several arms is drawn once, in the first arm\'s colour, and stays visible while any of its arms is '
+            'checked.</p></header>'
             '<div class="controls"><label><input id="image" type="checkbox" checked> Image</label>'
             '<label><input id="control" type="checkbox" checked> Control</label>'
             '<label><input id="reference" type="checkbox"> Manual reference</label>'

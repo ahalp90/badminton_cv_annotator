@@ -207,7 +207,8 @@ def markdown(membership: list[dict], allocation: list[dict], fits: list[dict], m
              '', 'Best finite pair converged in every set: '
              + str(all(row[f'{name}_best_finite_converged'] for row in fits for name in SET_NAMES)) + '.']
     if matcher is not None:
-        columns = ['case_id', 'arm', 'stage', 'status', 'pairs_matched', 'basis_failed', 'pooled', 'final',
+        columns = ['case_id', 'arm', 'stage', 'status', 'pairs_attempted', 'camera_bound_rejected', 'pairs_matched',
+                   'basis_failed', 'generated', 'per_pair_retained', 'pooled', 'final',
                    'final_camera_eligible', 'final_floor_pass', 'line_winner_id', 'paint_winner_id',
                    'line_control_working_px', 'paint_control_working_px', 'nearest_pre_global_px',
                    'nearest_pre_global_camera_eligible_px', 'nearest_final_px', 'nearest_final_camera_eligible_px',
