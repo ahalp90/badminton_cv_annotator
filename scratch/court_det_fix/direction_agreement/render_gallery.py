@@ -33,6 +33,30 @@ ARM_LABELS = {'B': 'B: baseline (foot anchor, greedy leader)', 'M': 'M: projecte
 CONTROL_COLOUR = '#0072b2'
 REFERENCE_COLOUR = '#666666'
 CORNER_MATCH_ATOL = 1e-6
+JUDGEMENTS_PATH = REPO / ('experiments/annotator/independent_court/recorded/player_guided/projective_patterns/'
+                          'automatic_axes_visual_judgements.md')
+# The user's earlier rulings on the baseline all-camera winners, keyed by candidate ID so a
+# ruling is shown only for the exact court it was made on. Phrases follow the judgement file.
+PRIOR_JUDGEMENTS = {
+    ('gxBQ_window_00_frame_0', 'line'): ('22:4579', 'not really usable; sheared'),
+    ('gxBQ_window_00_frame_0', 'paint'): ('22:4588', 'worse than the line winner; same shear, wrong bottom-right corner'),
+    ('gxBQ_window_00_frame_5', 'line'): ('181:29836', 'rejected; draws a court on the wall'),
+    ('gxBQ_window_00_frame_5', 'paint'): ('10:1274', 'rejected; draws a court over the seated children'),
+    ('am2_window_00_frame_150', 'line'): ('30:30', 'mistakes the blue mat boundary for the court'),
+    ('am2_window_00_frame_150', 'paint'): ('30:33', 'described as perfect'),
+    ('am2_window_01_frame_28019', 'line'): ('16:1800', 'extends to the mat borders and is sheared; not adequate'),
+    ('am2_window_01_frame_28019', 'paint'): ('184:4123', 'rejected as an incoherent court near the net top'),
+    ('am3_window_00_frame_0', 'line'): ('43:22603', 'essentially perfect'),
+    ('am3_window_00_frame_0', 'paint'): ('43:22627', 'very usable'),
+    ('shuttleset_03_scene_0017', 'line'): ('1:80', 'very usable with slight skew'),
+    ('shuttleset_03_scene_0017', 'paint'): ('1:132', 'similar but worse; far baseline overshoots'),
+    ('shuttleset_03_scene_0019', 'line'): ('1:60', 'usable'),
+    ('shuttleset_03_scene_0019', 'paint'): ('165:6702', 'rejected as an unrelated, hallucinated court'),
+    ('shuttleset_03_scene_0016', 'line'): ('1:60', 'very usable'),
+    ('shuttleset_03_scene_0016', 'paint'): ('1:90', 'usable'),
+    ('shuttleset_21_scene_0020', 'line'): ('0:2', 'very usable'),
+    ('shuttleset_21_scene_0020', 'paint'): ('0:2', 'very usable'),
+}
 STYLE = """body{font:16px system-ui;margin:24px;background:#fafafa;color:#222}header{max-width:1050px}
 .controls{position:sticky;top:0;background:#fff;padding:12px;z-index:1;border-bottom:1px solid #ccc}
 label{margin-right:20px;white-space:nowrap}section{margin:36px 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -42,7 +66,8 @@ table{border-collapse:collapse;font-size:14px}td,th{border:1px solid #ccc;paddin
 details{margin-top:12px}summary{cursor:pointer}
 body:has(#image:not(:checked)) svg image{display:none}
 body:has(#control:not(:checked)) .control{display:none}body:has(#reference:not(:checked)) .reference{display:none}
-body:has(#armB:not(:checked)) .armB{display:none}body:has(#armM:not(:checked)) .armM{display:none}body:has(#armR:not(:checked)) .armR{display:none}
+.court{display:none}
+body:has(#armB:checked) .armB,body:has(#armM:checked) .armM,body:has(#armR:checked) .armR{display:inline}
 @media(max-width:900px){.pair{grid-template-columns:1fr}}"""
 
 
@@ -83,7 +108,11 @@ def panel(title: str, description: str, layers: str, image_href: str) -> str:
 
 
 def distinct_winners(records: list[dict], case_id: str) -> tuple[list[dict], list[str]]:
-    """All-camera winners of B, M and R, merged when two labels share one court."""
+    """All-camera winners of B, M and R, merged when two labels share one court.
+
+    Candidate IDs are local to each arm, so a shared court keeps one ID per label and is
+    drawn in the colour of the first arm that chose it.
+    """
     courts: list[dict] = []
     notes: list[str] = []
     for arm in ARM_COLOURS:
@@ -101,28 +130,46 @@ def distinct_winners(records: list[dict], case_id: str) -> tuple[list[dict], lis
             label = f'{arm} {ranking}'
             for court in courts:
                 if np.allclose(court['corners'], corners, atol=CORNER_MATCH_ATOL, rtol=0):
-                    court['labels'].append(label)
-                    if court['arm'] != arm:
-                        court['arms'].add(arm)
+                    court['ids'][label] = winner['candidate_id']
+                    court['arms'].add(arm)
                     break
             else:
-                courts.append({'arm': arm, 'arms': {arm}, 'labels': [label], 'corners': corners, 'winner': winner,
-                               'candidate_id': winner['candidate_id']})
+                courts.append({'arm': arm, 'arms': {arm}, 'ids': {label: winner['candidate_id']}, 'corners': corners,
+                               'winner': winner})
     return courts, notes
 
 
-def winner_description(court: dict) -> str:
+def court_classes(court: dict) -> str:
+    return 'court ' + ' '.join(f'arm{arm}' for arm in ARM_COLOURS if arm in court['arms'])
+
+
+def prior_judgement(case_id: str, court: dict) -> str:
+    """The earlier ruling on a baseline winner, only when the candidate ID is the one that was judged."""
+    rulings = []
+    for label, candidate_id in court['ids'].items():
+        arm, ranking = label.split()
+        if arm != 'B':
+            continue
+        judged_id, phrase = PRIOR_JUDGEMENTS[(case_id, ranking)]
+        if judged_id == candidate_id:
+            rulings.append(f'B {ranking} winner judged earlier: {phrase}')
+        else:
+            rulings.append(f'B {ranking} winner {candidate_id} is not the judged candidate {judged_id}')
+    if not rulings:
+        return 'No visual judgement in this run.'
+    return html.escape('; '.join(rulings)) + '. No new visual judgement in this run.'
+
+
+def winner_description(case_id: str, court: dict) -> str:
     winner = court['winner']
-    labels = ', '.join(court['labels'])
-    arms = '/'.join(sorted(court['arms']))
-    key = html.escape(f"{arms} candidate {court['candidate_id']}")
+    labels = ', '.join(f'{label} (candidate {candidate_id})' for label, candidate_id in court['ids'].items())
     gates = winner['gates']
     floor = 'passes' if gates['floor_score'] is not None and gates['floor_score'] >= 0 else 'fails'
-    return (f'<b>{html.escape(labels)}</b>; {key}. Control error {winner["control_working"]:.2f} working px; '
+    return (f'<b>{html.escape(labels)}</b>. Control error {winner["control_working"]:.2f} working px; '
             f'manual-reference error {winner["reference_display"]:.2f} px at 1280×720. '
             f'Line score {winner["stripe_score"]:.3f}; paint score {winner["profile_score"]:.3f}; '
             f'camera error {gates["camera_error"]:.4f}; {floor} the original floor gate. '
-            'Not visually judged.')
+            + prior_judgement(case_id, court))
 
 
 def control_description(control: dict) -> str:
@@ -160,9 +207,10 @@ def potential_table(records: list[dict], case_id: str) -> str:
             'control, not generated courts.</p><table><tr><th>set</th><th>best fit</th></tr>' + ''.join(cells) + '</table>')
 
 
-def header(run: str) -> str:
+def header(run: str, output: Path) -> str:
     legend = ''.join(f'<span class="swatch" style="border-color:{colour}"></span>{html.escape(ARM_LABELS[arm])}<br>'
                      for arm, colour in ARM_COLOURS.items())
+    judgements_href = html.escape(os.path.relpath(JUDGEMENTS_PATH, output.parent))
     return (f'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<title>Direction agreement: B, M and R winners</title><style>{STYLE}</style>'
             f'<header><h1>Direction agreement: B, M and R winners</h1>'
@@ -175,7 +223,9 @@ def header(run: str) -> str:
             f'<span class="swatch" style="border-color:{REFERENCE_COLOUR};border-top-style:dashed"></span>'
             'Manual reference (dashed grey), shown only where it differs from the control</p>'
             '<p>Errors are maximum corner distances allowing the 180-degree relabelling, from the saved diagnosis. '
-            'No court here is emitted, accepted or visually judged; this page records the comparison.</p></header>'
+            'No court here is emitted or accepted, and none received a visual judgement in this run. Baseline (B) '
+            f'winners carry the user\'s earlier ruling from <a href="{judgements_href}">the automatic-axes '
+            'judgements</a>, shown only when the candidate ID is the one judged; M and R winners are unjudged.</p></header>'
             '<div class="controls"><label><input id="image" type="checkbox" checked> Image</label>'
             '<label><input id="control" type="checkbox" checked> Control</label>'
             '<label><input id="reference" type="checkbox"> Manual reference</label>'
@@ -188,7 +238,7 @@ def validate_joins(run_dir: Path, case_id: str, courts: list[dict]) -> list[str]
     """Each winner must be the record's own winner with the same corners, or the join is broken."""
     problems = []
     for court in courts:
-        for label in court['labels']:
+        for label, candidate_id in court['ids'].items():
             arm, ranking = label.split()
             path = (BASELINE_ALL_CAMERA / f'{case_id}.json.gz' if arm == 'B'
                     else run_dir / 'e4' / arm / 'all_camera' / f'{case_id}.json.gz')
@@ -197,8 +247,8 @@ def validate_joins(run_dir: Path, case_id: str, courts: list[dict]) -> list[str]
                 continue
             record = read(path)
             winner_id = record[f'{ranking}_winner_id']
-            if winner_id != court['candidate_id']:
-                problems.append(f'{case_id} {label}: diagnosis winner {court["candidate_id"]} but record winner {winner_id}')
+            if winner_id != candidate_id:
+                problems.append(f'{case_id} {label}: diagnosis winner {candidate_id} but record winner {winner_id}')
                 continue
             entry = next(entry for entry in record['entries'] if entry['candidate_id'] == winner_id)
             if not np.allclose(entry['corners_px'], court['corners'], atol=CORNER_MATCH_ATOL, rtol=0):
@@ -219,7 +269,13 @@ def render(run_dir: Path, output: Path) -> None:
     problems = []
     for case_id in CASE_IDS:
         source, reference = sources[case_id], references[case_id]
-        control = next(entry['control'] for entry in records if entry['case_id'] == case_id)
+        case_records = [entry for entry in records if entry['case_id'] == case_id]
+        if not case_records:
+            sections.append(f'<section id="{case_id}"><h2>{html.escape(case_title(case_id))}</h2>'
+                            '<p>No diagnosis record for this case in the run.</p></section>')
+            problems.append(f'{case_id}: absent from the diagnosis')
+            continue
+        control = case_records[0]['control']
         image = background(source)
         frame = cv2.imread(str(image))
         if frame is None:
@@ -235,18 +291,19 @@ def render(run_dir: Path, output: Path) -> None:
         fixed_layers = court_layer(control_corners, scale, 'control', CONTROL_COLOUR, True)
         if not np.allclose(control_corners, reference_corners, atol=1e-3, rtol=0):
             fixed_layers += court_layer(reference_corners, scale, 'reference', REFERENCE_COLOUR, True)
-        overlay = ''.join(court_layer(court['corners'], scale, f'arm{court["arm"]}', ARM_COLOURS[court['arm']], False)
+        overlay = ''.join(court_layer(court['corners'], scale, court_classes(court), ARM_COLOURS[court['arm']], False)
                           for court in courts)
-        panels = [panel('All distinct winners', 'Overlay of every distinct B, M and R winner in the arm colours. '
+        panels = [panel('All distinct winners', 'Overlay of every distinct B, M and R winner in the arm colours; a court '
+                        'chosen by several arms takes the first arm\'s colour. '
                         + ' '.join(html.escape(note) for note in notes), fixed_layers + overlay, href)]
         for court in courts:
-            layer = court_layer(court['corners'], scale, f'arm{court["arm"]}', ARM_COLOURS[court['arm']], False)
-            panels.append(panel(', '.join(court['labels']), winner_description(court), fixed_layers + layer, href))
+            layer = court_layer(court['corners'], scale, court_classes(court), ARM_COLOURS[court['arm']], False)
+            panels.append(panel(', '.join(court['ids']), winner_description(case_id, court), fixed_layers + layer, href))
         details = (f'<details><summary>Diagnostic accounting for {html.escape(case_title(case_id))}</summary>'
                    f'{accounting_table(records, case_id)}{potential_table(records, case_id)}</details>')
         sections.append(f'<section id="{case_id}"><h2>{html.escape(case_title(case_id))}</h2>'
                         f'<p>{control_description(control)}</p><div class="pair">{"".join(panels)}</div>{details}</section>')
-    output.write_text(header(diagnosis['run']) + ''.join(sections) + '</body></html>\n', encoding='utf-8')
+    output.write_text(header(diagnosis['run'], output) + ''.join(sections) + '</body></html>\n', encoding='utf-8')
     print('wrote', output, 'sections', len(sections))
     for problem in problems:
         print('PROBLEM', problem)

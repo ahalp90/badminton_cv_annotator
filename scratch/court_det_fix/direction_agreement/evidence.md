@@ -46,6 +46,10 @@ R sharing B's leaders and buckets, and MR sharing M's, hold by construction (bot
 
 For GX0, GX5 and Am2-28019 the B and B+SVD fits reproduce `R/automatic_axes_20260914/svd_fixed/records/<case>.json.gz`: all 240 `max_corner_working_px` values per set differ by 0.0 (tolerance 1e-8), the SVD refit points agree within 1e-8, and the control corners and source strings match.
 
+## E4 replays and reuse
+
+For every generated case-arm, `rescore_camera_pool.rescore` ran with `replay=True` at both rescoring stages: it re-evaluated the saved final entries and required equality, and reconstructed the previous stage's selection from saved corners and required the same candidate IDs in the same order. One difference from the baseline pipeline: the first rescoring replays against the generation result held in memory rather than read back from its JSON file. JSON round-trips floats exactly and the writer refuses NaN, so the two are equivalent, but the baseline was replayed from disk. No case-arm reused the baseline by direction identity (R changes 5-13 representatives per view and M shares at most 5 leaders), so the identity-reuse path never ran. No resume was needed; the resume identity covers the experiment code, the saved estimator and the E2 record but not the shared helper sources, input packs, legacy zone module or frames, which the manifest hashes separately.
+
 ## What is not evidence
 
 Membership is the merge group assignment; it is not ground truth. Control fits are least-squares diagnostics against a control; they are not generated courts. Nothing in E0-E3 makes a usability claim.

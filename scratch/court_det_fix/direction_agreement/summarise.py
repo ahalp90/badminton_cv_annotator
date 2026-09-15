@@ -104,8 +104,11 @@ def fit_rows(base: Path) -> list[dict]:
                 row[f'{name}_pair'] = None
                 continue
             best = record['summary']['best_finite']
+            converged = record['summary']['best_converged']
             row[name] = best['max_corner_working_px']
             row[f'{name}_pair'] = best['pair_id']
+            row[f'{name}_best_converged'] = converged['max_corner_working_px']
+            row[f'{name}_best_finite_converged'] = bool(best['converged']) and best['pair_id'] == converged['pair_id']
             row[f'{name}_failed'] = record['summary']['failed']
             row[f'{name}_nonconverged'] = record['summary']['attempted'] - record['summary']['converged']
             row[f'{name}_min_separation_deg'] = min(pair['angle_deg'] for pair in record['pair_separations'])
@@ -113,17 +116,26 @@ def fit_rows(base: Path) -> list[dict]:
     return rows
 
 
-def matcher_rows(base: Path) -> list[dict] | None:
+def matcher_rows(base: Path, allow_partial: bool) -> list[dict] | None:
+    """Typed accounting rows; a partial matrix is refused unless explicitly allowed."""
     path = base / 'e4' / 'accounting.csv.gz'
     if not path.exists():
         return None
     with gzip.open(path, 'rt') as stream:
-        return list(csv.DictReader(io.StringIO(stream.read())))
+        rows = [{key: number(value) for key, value in row.items()} for row in csv.DictReader(io.StringIO(stream.read()))]
+    expected = len(CASE_IDS) * 3 * 3
+    complete = len(rows) == expected and all(row['status'] == 'diagnosed' for row in rows)
+    if not complete and not allow_partial:
+        raise SystemExit(f'accounting has {len(rows)} rows, expected {expected} all diagnosed; pass --allow-partial to summarise anyway')
+    return rows
 
 
-def number(value: str) -> float | int | str | None:
+def number(value: str) -> float | int | bool | str | None:
+    """CSV cells back to the types the accounting wrote."""
     if value in ('', 'None'):
         return None
+    if value in ('True', 'False'):
+        return value == 'True'
     try:
         return int(value)
     except ValueError:
@@ -152,12 +164,16 @@ def markdown(membership: list[dict], allocation: list[dict], fits: list[dict], m
              '', '## E3 best finite control fit per set (max corner error, working px)', '',
              table(['case', 'control approved', *SET_NAMES],
                    [[row['case'], 'yes' if row['visually_approved'] else 'no', *[row[name] for name in SET_NAMES]]
-                    for row in fits], align_right_from=2)]
+                    for row in fits], align_right_from=2),
+             '', 'Best finite pair converged in every set: '
+             + str(all(row[f'{name}_best_finite_converged'] for row in fits for name in SET_NAMES)) + '.']
     if matcher is not None:
-        columns = ['case_id', 'arm', 'stage', 'status', 'final', 'final_camera_eligible', 'final_floor_pass', 'line_winner_id',
-                   'paint_winner_id', 'line_control_working_px', 'paint_control_working_px', 'nearest_pre_global_px',
-                   'nearest_pre_global_camera_eligible_px', 'nearest_final_px', 'nearest_final_camera_eligible_px']
-        rows = [[SHORT_CASE.get(row['case_id'], row['case_id']), *[number(row[column]) for column in columns[1:]]]
+        columns = ['case_id', 'arm', 'stage', 'status', 'pairs_matched', 'basis_failed', 'pooled', 'final',
+                   'final_camera_eligible', 'final_floor_pass', 'line_winner_id', 'paint_winner_id',
+                   'line_control_working_px', 'paint_control_working_px', 'nearest_pre_global_px',
+                   'nearest_pre_global_camera_eligible_px', 'nearest_final_px', 'nearest_final_camera_eligible_px',
+                   'identity_reused']
+        rows = [[SHORT_CASE.get(row['case_id'], row['case_id']), *[row[column] for column in columns[1:]]]
                 for row in matcher]
         parts.extend(['', '## E4 accounting (from diagnose_matrix)', '', table(columns, rows, align_right_from=4)])
     return '\n'.join(parts) + '\n'
@@ -166,11 +182,12 @@ def markdown(membership: list[dict], allocation: list[dict], fits: list[dict], m
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-dir', type=Path, required=True)
+    parser.add_argument('--allow-partial', action='store_true', help='summarise an incomplete E4 accounting')
     args = parser.parse_args()
     membership = membership_rows(args.run_dir)
     allocation = allocation_rows(args.run_dir)
     fits = fit_rows(args.run_dir)
-    matcher = matcher_rows(args.run_dir)
+    matcher = matcher_rows(args.run_dir, args.allow_partial)
     write(args.run_dir / 'summary.json.gz', {'schema': 'direction-agreement-summary/1', 'membership': membership,
                                               'allocation': allocation, 'fits': fits, 'matcher': matcher})
     (args.run_dir / 'summary.md').write_text(markdown(membership, allocation, fits, matcher), encoding='utf-8')

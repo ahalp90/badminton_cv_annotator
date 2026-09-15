@@ -32,7 +32,7 @@ REPORTED_ARMS = ('B', *MATCHER_ARMS)
 BASELINE_RUN = 'automatic_axes_20260914'
 COLUMNS = [
     'run', 'arm', 'case_id', 'stage', 'selection_stage', 'status', 'identity_reused', 'control_source', 'visually_approved',
-    'pairs_attempted', 'camera_bound_rejected', 'pairs_matched', 'generated', 'geometry_valid', 'geometry_players',
+    'pairs_attempted', 'camera_bound_rejected', 'pairs_matched', 'basis_failed', 'generated', 'geometry_valid', 'geometry_players',
     'per_pair_retained', 'pooled', 'final', 'final_camera_eligible', 'final_floor_pass', 'final_paint_available',
     'line_winner_id', 'paint_winner_id', 'line_control_working_px', 'paint_control_working_px',
     'line_reference_display_px', 'paint_reference_display_px', 'line_floor_score', 'paint_floor_score',
@@ -65,9 +65,11 @@ def accounting(case_id: str, arm: str, stage: str, record: dict, diagnosis: dict
         'control_source': control['control_source'], 'visually_approved': control['visually_approved'],
         'pairs_attempted': len(record['pairs']), 'camera_bound_rejected': diagnosis['counts']['camera_direction_rejected'],
         'pairs_matched': len(matched),
-        'generated': sum(pair['role']['combined'] for pair in matched),
-        'geometry_valid': sum(pair['role']['geometry_valid'] for pair in matched),
-        'geometry_players': sum(pair['role']['geometry_players'] for pair in matched),
+        # A pair whose basis is degenerate is 'matched' but its role record holds only basis_status.
+        'basis_failed': sum('combined' not in pair['role'] for pair in matched),
+        'generated': sum(pair['role'].get('combined', 0) for pair in matched),
+        'geometry_valid': sum(pair['role'].get('geometry_valid', 0) for pair in matched),
+        'geometry_players': sum(pair['role'].get('geometry_players', 0) for pair in matched),
         'per_pair_retained': sum(len(pair['shortlist']) for pair in matched),
         'pooled': diagnosis['counts']['pooled'], 'final': len(entries), 'final_camera_eligible': len(camera_eligible),
         'final_floor_pass': int(floor_pass), 'final_paint_available': int(paint_available),
