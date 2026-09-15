@@ -33,3 +33,16 @@ PYTHONDONTWRITEBYTECODE=1 ~/.venvs/badminton-cicd/bin/pytest tests -q -p no:cach
 ## Prior checks carried in
 
 `prior_checks/` holds the scripts, tables, notes, gate outputs and job receipts of the three follow-up checks this series continues (cap loss, person-box mask replay, courts before the player gate), copied from the gitignored follow-ups folder with the private paths replaced by `R` and `<follow-ups>`. Their inputs (the packs, the saved direction records and the pulled generation records) stay in the gitignored trees named above; the two copied scripts that resolve the repository root from their own location were adjusted for the new depth and nothing else. `pregate_loss/gate1.py` and `analyse.py` read `records/` beside themselves and `../cap_loss/records/saved/`, which exist only in the original follow-ups folder; rerun them there.
+
+## Compute-host matcher run
+
+Run name in `run_name.txt` (`line_identity_20260915_222437`, UTC). Launch form: `bash sync.sh launch <arm>_<case> run_matcher --arm <arm> --ids <case>`, one detached job per view and arm, `nice -n 10`, single-threaded. Receipts, logs and records under `runs/<run>/`; the three stage records per view and arm are gitignored (`matcher/<arm>/{results,camera_first,all_camera}/`), the accounting is committed.
+
+| Arm | Views | Launched (UTC) | Outcome |
+| --- | --- | --- | --- |
+| paint_observations | 9 | 22:52 to 22:53 | all exit 0; 1.4 to 12.6 min each |
+| person_observations | 9 | 22:52 to 22:53 (SS21-20 at 22:57 after a refused connection) | four ShuttleSet views exit 0; the other five ran alone after 23:44 (see below) |
+| person | 9 | 22:57 and 23:04; relaunched from 23:57 at most six at a time | first launch terminated at 23:44 (exit 143); relaunch outcome below |
+| paint | 5 of 9, then 9 | 23:03 to 23:04; relaunched after the person arm | first launch terminated at 23:44 (exit 143); relaunch outcome below |
+
+Nineteen concurrent jobs stalled the host (45 percent system time, `kcompactd` busy, transparent hugepages always, 4 to 16 GB per process); five concurrent jobs ran at full speed. Keep matcher jobs to about six at a time on this host.
