@@ -13,7 +13,7 @@ import io
 from pathlib import Path
 
 import numpy as np
-from common import ARMS, CASE_IDS, read, write
+from common import ARMS, CASE_IDS, STAGES, read, write
 
 SET_NAMES = tuple(name for arm in ARMS for name in (arm, f'{arm}_svd'))
 SHORT_CASE = {
@@ -145,6 +145,45 @@ def number(value: str) -> float | int | bool | str | None:
             return value
 
 
+def decomposition_rows(fits: list[dict], matcher: list[dict]) -> list[dict]:
+    """One row per case-arm separating direction-fit potential, availability, filtering and ranking.
+
+    Direction-fit potential is E3's best finite ordered-pair fit for the arm. Availability is
+    the nearest pooled court (every matched pair's shortlist, before the global cap); the
+    pool is the same at all three stages, so it is read from the generation stage. The
+    camera-eligible pool exists only from the camera-first stage on. Filtering shows as the
+    nearest court left after each stage's global cap, and ranking as the two winners' errors
+    at each stage. Missing or empty stages leave their cells None.
+    """
+    fit_by_case = {row['case_id']: row for row in fits}
+    stage_rows: dict[tuple[str, str], dict[str, dict]] = {}
+    for row in matcher:
+        stage_rows.setdefault((row['case_id'], row['arm']), {})[row['stage']] = row
+    rows = []
+    for (case_id, arm), stages in stage_rows.items():
+        diagnosed = [row for row in stages.values() if row['status'] == 'diagnosed']
+        pooled_nearest = {row['nearest_pre_global_px'] for row in diagnosed}
+        assert len(pooled_nearest) <= 1, (case_id, arm, pooled_nearest)
+        results = stages.get('results', {})
+        camera_first = stages.get('camera_first', {})
+        row = {
+            'case_id': case_id, 'case': SHORT_CASE.get(case_id, case_id), 'arm': arm,
+            'status': {stage: stages[stage]['status'] for stage in STAGES if stage in stages},
+            'fit_px': fit_by_case[case_id].get(arm), 'fit_svd_px': fit_by_case[case_id].get(f'{arm}_svd'),
+            'pooled': results.get('pooled'), 'pooled_nearest_id': results.get('nearest_pre_global_id'),
+            'pooled_nearest_px': results.get('nearest_pre_global_px'),
+            'pooled_camera_nearest_id': camera_first.get('nearest_pre_global_camera_eligible_id'),
+            'pooled_camera_nearest_px': camera_first.get('nearest_pre_global_camera_eligible_px'),
+        }
+        for stage in STAGES:
+            record = stages.get(stage, {})
+            row[f'final_nearest_{stage}_px'] = record.get('nearest_final_px')
+            row[f'line_{stage}_px'] = record.get('line_control_working_px')
+            row[f'paint_{stage}_px'] = record.get('paint_control_working_px')
+        rows.append(row)
+    return rows
+
+
 def markdown(membership: list[dict], allocation: list[dict], fits: list[dict], matcher: list[dict] | None) -> str:
     parts = ['# Fact packet', '', '## E0-E1 membership and anchors', '',
              table(['case', 'lines', 'groups', 'single-fragment lines', 'candidates', 'membership entries changed',
@@ -176,6 +215,24 @@ def markdown(membership: list[dict], allocation: list[dict], fits: list[dict], m
         rows = [[SHORT_CASE.get(row['case_id'], row['case_id']), *[row[column] for column in columns[1:]]]
                 for row in matcher]
         parts.extend(['', '## E4 accounting (from diagnose_matrix)', '', table(columns, rows, align_right_from=4)])
+        stage_labels = {'results': 'generation', 'camera_first': 'camera-first', 'all_camera': 'all-camera'}
+        header = ['case', 'arm', 'E3 fit', 'E3 fit+SVD', 'pooled', 'nearest pooled', 'nearest camera-eligible pooled',
+                  *[f'nearest final ({label})' for label in stage_labels.values()],
+                  *[f'line winner ({label})' for label in stage_labels.values()],
+                  *[f'paint winner ({label})' for label in stage_labels.values()]]
+        rows = [[row['case'], row['arm'], row['fit_px'], row['fit_svd_px'], row['pooled'], row['pooled_nearest_px'],
+                 row['pooled_camera_nearest_px'], *[row[f'final_nearest_{stage}_px'] for stage in STAGES],
+                 *[row[f'line_{stage}_px'] for stage in STAGES], *[row[f'paint_{stage}_px'] for stage in STAGES]]
+                for row in decomposition_rows(fits, matcher)]
+        explanation = (
+            'E3 fit is direction-fit potential (best finite ordered pair, a least-squares fit to the control, not a '
+            'generated court). Nearest pooled is the closest court in any matched pair\'s shortlist before the global '
+            'cap; the camera-eligible pool exists from the camera-first stage on. Nearest final is the closest court '
+            'kept after each stage\'s global cap. Winners are the courts each stage ranked first by line and by paint '
+            'score.'
+        )
+        parts.extend(['', '## E4 loss decomposition (max corner error to the control, working px)', '', explanation, '',
+                      table(header, rows, align_right_from=2)])
     return '\n'.join(parts) + '\n'
 
 
@@ -188,8 +245,10 @@ def main() -> None:
     allocation = allocation_rows(args.run_dir)
     fits = fit_rows(args.run_dir)
     matcher = matcher_rows(args.run_dir, args.allow_partial)
-    write(args.run_dir / 'summary.json.gz', {'schema': 'direction-agreement-summary/1', 'membership': membership,
-                                              'allocation': allocation, 'fits': fits, 'matcher': matcher})
+    decomposition = None if matcher is None else decomposition_rows(fits, matcher)
+    write(args.run_dir / 'summary.json.gz', {'schema': 'direction-agreement-summary/2', 'membership': membership,
+                                              'allocation': allocation, 'fits': fits, 'matcher': matcher,
+                                              'decomposition': decomposition})
     (args.run_dir / 'summary.md').write_text(markdown(membership, allocation, fits, matcher), encoding='utf-8')
     print('summary written; matcher rows:', None if matcher is None else len(matcher))
 
