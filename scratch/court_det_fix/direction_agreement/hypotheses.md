@@ -18,7 +18,7 @@ E1 evidence (membership, not ground truth):
 
 E3 evidence (best finite control fit of any ordered pair, working px): M against B is 19.7 vs 6.8 on GX0 (worse), 10.6 vs 23.8 on GX5 (better), 1.9 vs 3.3 on Am2-150 (better), 2.3 vs 3.0 on Am2-28019 (better), 4.2 vs 3.7 on Am3-0 (worse), 2.8 vs 2.0 on SS03-17 (worse), 2.29 vs 2.27 on SS03-19 (worse by 0.02), 1.8 vs 1.5 on SS03-16 (worse), 1.03 vs 1.03 on SS21-20 (identical). Direction-fit potential moves in both directions; GX0 and GX5 move oppositely.
 
-E4 evidence: pending.
+E4 evidence (generated courts, paint winner at the generation stage, max corner error to the control in working px, M vs B): 379.3 vs 7.7 on GX0 (worse), 9.9 vs 525.7 on GX5 (better), 8.8 vs 12.4 on Am2-150 (better), 7.0 vs none on Am2-28019 (better; B has no generation-stage winner there and 17.2 at camera-first), 23.8 vs 8.5 on Am3-0 (worse), 8.4 vs 7.6 on SS03-17 (worse), 3.93 vs 3.93 on SS03-19 (same), 3.3 vs 3.9 on SS03-16 (better), 2.0 vs 2.0 on SS21-20 (the same court, identical corners). Availability (nearest pooled court): 33.8 vs 7.7 on GX0, 9.8 vs 23.7 on GX5, 20.5 vs 4.3 on Am3-0; elsewhere within 4 px of B. The direction of change agrees with E3 on seven of nine views (SS03-16 opposite, SS03-19 within 0.03 px under both). M rejects more pairs at the camera bound on six views. The all-camera paint winner fails on SS03-19 under M (702.8) as it does under B (6,297.0). Not established: M helps where its E3 potential improved and hurts where it fell; the net effect over nine views is not an improvement.
 
 ## H2: choosing a precise representative after coverage allocation improves retention
 
@@ -30,7 +30,7 @@ E2 evidence: the precision rule changes the representative in 5-13 of 16 buckets
 
 E3 evidence (R against B, working px): 6.2 vs 6.8 on GX0, 23.2 vs 23.8 on GX5, 2.8 vs 3.3 on Am2-150, 1.4 vs 3.0 on Am2-28019, 4.3 vs 3.7 on Am3-0 (worse), 0.6 vs 2.0 on SS03-17, 1.9 vs 2.3 on SS03-19, 0.6 vs 1.5 on SS03-16, 1.4 vs 1.0 on SS21-20 (worse). Seven of nine improve; the best pair of groups is the same as B's in every case.
 
-E4 evidence: pending.
+E4 evidence (paint winner at the generation stage, working px, R vs B): 13.3 vs 7.7 on GX0 (worse; line winner 10.4 vs 16.5, better), 378.5 vs 525.7 on GX5 (both failures), 12.6 vs 12.4 on Am2-150 (worse by 0.2), 6.1 vs none on Am2-28019 (better; 17.2 at camera-first for B), 58.2 vs 8.5 on Am3-0 (worse), 6.9 vs 7.6 on SS03-17 (better), 3.80 vs 3.93 on SS03-19 (better by 0.13), 3.90 vs 3.94 on SS03-16 (better by 0.04), 2.8 vs 2.0 on SS21-20 (worse). Availability: R's nearest pooled court is 44.2 px on Am3-0 against B's 4.3 and its own E3 fit of 4.3, 8.7 vs 7.7 on GX0, 22.8 vs 23.7 on GX5 (both then removed by the camera bound: nearest camera-eligible 89.3 and 89.9); elsewhere within 1.3 px of B. Only the Am2-28019 and SS03-17 gains exceed half a pixel; both E3 regressions reappear and GX0 is added. Not established: choosing a more precise representative does not carry E3's sub-pixel fit gains into the matcher's winners on these views, and on Am3-0 it removes the court B finds.
 
 ## Fixed-support SVD (diagnostic only)
 

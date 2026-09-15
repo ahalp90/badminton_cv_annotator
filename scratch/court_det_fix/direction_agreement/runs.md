@@ -26,11 +26,12 @@ Run name: see `run_name.txt`. Log, PID and exit receipts: `runs/<run>/{logs,rece
 | arms (rerun) | `run_arms` | 05:23:24 | 05:24:13 | 0 | identical results under the audited code; records now carry the final `code_md5` |
 | fits (rerun) | `run_fits` | 05:24:13 | 05:24:51 | 0 | identical results; replays exact |
 | e4_M_gx0 | `run_matcher --arm M --ids gxBQ_window_00_frame_0` | 05:25:19 | 06:07:58 | 0 | E4 smoke: generation 2145 s, camera-first 52 s, all-camera 340 s; final-evaluation and selection replays exact at both rescoring stages; pooled 29,696, 256 final, 3,265 all-camera |
-| e4_M_a | `run_matcher --arm M --ids gxBQ_window_00_frame_5 am2_window_00_frame_150` | 06:11 | | | |
-| e4_M_b | `run_matcher --arm M --ids am2_window_01_frame_28019 am3_window_00_frame_0 shuttleset_03_scene_0017 shuttleset_03_scene_0019 shuttleset_03_scene_0016 shuttleset_21_scene_0020` | 06:16 | | | |
-| e4_R_a | `run_matcher --arm R --ids gxBQ_window_00_frame_0 gxBQ_window_00_frame_5` | 06:16 | | | |
-| e4_R_b | `run_matcher --arm R --ids am2_window_00_frame_150 am2_window_01_frame_28019 am3_window_00_frame_0 shuttleset_03_scene_0017 shuttleset_03_scene_0019 shuttleset_03_scene_0016 shuttleset_21_scene_0020` | 06:16 | | | |
+| e4_M_a | `run_matcher --arm M --ids gxBQ_window_00_frame_5 am2_window_00_frame_150` | 06:10:44 | 06:59:06 | 0 | generation 1733 s (GX5), 857 s (Am2-150); 8 exact replays |
+| e4_M_b | `run_matcher --arm M --ids am2_window_01_frame_28019 am3_window_00_frame_0 shuttleset_03_scene_0017 shuttleset_03_scene_0019 shuttleset_03_scene_0016 shuttleset_21_scene_0020` | 06:16:03 | 07:33:41 | 0 | generation 1543, 1024, 240, 170, 229, 187 s in that order; 24 exact replays |
+| e4_R_a | `run_matcher --arm R --ids gxBQ_window_00_frame_0 gxBQ_window_00_frame_5` | 06:16:04 | 07:36:36 | 0 | generation 2311 s (GX0), 1842 s (GX5); 8 exact replays |
+| e4_R_b | `run_matcher --arm R --ids am2_window_00_frame_150 am2_window_01_frame_28019 am3_window_00_frame_0 shuttleset_03_scene_0017 shuttleset_03_scene_0019 shuttleset_03_scene_0016 shuttleset_21_scene_0020` | 06:16:06 | 07:53:26 | 0 | generation 1154, 1367, 1231, 216, 200, 216, 146 s in that order; 28 exact replays |
 | diag_partial | `diagnose_matrix --allow-missing --ids gxBQ_window_00_frame_0` | 06:17 | 06:17 | 0 | GX0 only, B and M, R missing; used to test the accounting and gallery on real records; its `e4/diagnosis.json.gz` and `accounting.csv.gz` were deleted locally and are overwritten by the final `diag` run |
+| diag | `diagnose_matrix` | 07:54:20 | 07:55:56 | 0 | full matrix: 81 diagnosed rows (nine cases, B/M/R, three stages), none missing or empty; ran under the pushed `d761d7a` code, so its `code_md5` differs from the E4 records' `experiment_code_md5` (`0caae0a`) in `diagnose_matrix.py`, `summarise.py`, `render_gallery.py` and the tests only; the stage scripts are unchanged between the two |
 
 The launches at 06:11 and 06:16 differ because the first `sync.sh launch` form bound `&` to the whole `cd && nohup` list, so the remote shell waited on the job and the chained launches stalled; the local chain was killed before it could fire them and the three streams were launched with the corrected helper.
 

@@ -1,4 +1,4 @@
-started=2026-09-15T05:23:18Z
-finished=2026-09-15T05:23:24Z
+started=2026-09-15T05:29:05Z
+finished=2026-09-15T05:29:10Z
 script=manifest
-args=--git-head afc23ff --git-branch fix/court-det --git-dirty-files 0 --git-checkpoint 9fcec94 --session-model claude-fable-5-1
+args=--git-head 0caae0a --git-branch fix/court-det --git-dirty-files 0 --git-checkpoint 9fcec94 --session-model claude-fable-5-1
