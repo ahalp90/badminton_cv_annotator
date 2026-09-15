@@ -25,8 +25,10 @@ PYTHONDONTWRITEBYTECODE=1 ~/.venvs/badminton-cicd/bin/pytest tests -q -p no:cach
 
 | Stage | Command | When (AEST) | Exit | Notes |
 | --- | --- | --- | ---: | --- |
-| axis replay | `axis_replay.py --pregate-records <follow-ups>/pregate_loss/records/new --baseline-records <cruft>/baseline_records --output runs/axis_replay --uncapped-combination --pairs gxBQ_window_00_frame_0:M:best am3_window_00_frame_0:R:best am3_window_00_frame_0:R:nearest am3_window_00_frame_0:B:best gxBQ_window_00_frame_0:B:nearest gxBQ_window_00_frame_0:B:best` | 08:05, rerun 08:20 with the uncapped combination | 0 | six pairs; gates in `runs/axis_replay/run.log` |
-| paint profiles | `paint_profiles.py --output runs/paint_profiles` | 08:35, rerun 08:50 with two-sided flanks | 0 | nine views, 5,370 fragments |
+| axis replay | `axis_replay.py --pregate-records <follow-ups>/pregate_loss/records/new --baseline-records <cruft>/baseline_records --output runs/axis_replay --uncapped-combination --pairs gxBQ_window_00_frame_0:M:best am3_window_00_frame_0:R:best am3_window_00_frame_0:R:nearest am3_window_00_frame_0:B:best gxBQ_window_00_frame_0:B:nearest gxBQ_window_00_frame_0:B:best` | 08:00, 08:05 with the uncapped combination, 08:22 with the per-pair fourth gate | 0 | six pairs; gates in `runs/axis_replay/run.log` |
+| paint profiles | `paint_profiles.py --output runs/paint_profiles` | 08:07, 08:10 with two-sided flanks, 08:19 with two flank windows and the marking label | 0 | nine views, 5,370 fragments |
+| filter replay | `filter_replay.py --output runs/filter_replay --uncapped-combination` | 08:22 (first), 08:29 with the marking columns, 08:45 with the observation-only arms and reproducible inputs | 0 | nine views, six direction arms, six axis arms; writes `inputs/<arm>/` |
+| tables | `tabulate.py` | after the replay | 0 | Markdown tables for evidence.md and results.md |
 
 ## Prior checks carried in
 

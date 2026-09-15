@@ -22,7 +22,7 @@ case "$1" in
     label=$2; script=$3; shift 3
     # The braces keep '&' on the nohup command alone; 'cd && nohup ... &' would background the
     # whole list in a subshell that still holds the SSH channel until the job ends.
-    "$HPCSSH" "$REMOTE_HOST" "cd $remote_dir || exit 1; { nohup setsid bash run_remote.sh $run $label $script $* > /dev/null 2>&1 < /dev/null & }; echo launched $label" ;;
+    "$HPCSSH" "$REMOTE_HOST" "cd $remote_dir || exit 1; { nohup setsid nice -n 10 bash run_remote.sh $run $label $script $* > /dev/null 2>&1 < /dev/null & }; echo launched $label" ;;
   status)
     "$HPCSSH" "$REMOTE_HOST" "cd $remote_dir/runs/$run/receipts 2>/dev/null || exit 0; for p in *.pid; do [ -f \"\$p\" ] || continue; pid=\$(cat \"\$p\"); if kill -0 \"\$pid\" 2>/dev/null; then echo \"\$p \$pid alive\"; else echo \"\$p \$pid dead\"; fi; done; for r in *_exit_code.txt; do [ -f \"\$r\" ] && echo \"\$r=\$(cat \"\$r\")\"; done; true" ;;
   tail)

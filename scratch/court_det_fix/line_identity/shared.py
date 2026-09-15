@@ -9,6 +9,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -63,9 +64,11 @@ def read(path: Path) -> Any:
 
 
 def write(path: Path, value: Any) -> None:
+    """Write gzip JSON with a fixed header time and an atomic replace, so identical content hashes identically."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(path, 'wt') as stream:
-        json.dump(value, stream, allow_nan=False)
+    temporary = path.with_name(path.name + '.tmp')
+    temporary.write_bytes(gzip.compress(json.dumps(value, allow_nan=False).encode(), mtime=0))
+    os.replace(temporary, path)
 
 
 def md5(path: Path) -> str:

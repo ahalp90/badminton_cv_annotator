@@ -91,3 +91,30 @@ def test_features_pass_a_ridge_and_fail_a_step():
     assert contrast[2] <= 0, contrast
     assert measured[0, 1] == 30.
     assert flank_near > 1.5
+
+
+def test_control_vanishing_points_and_angles_recover_a_known_homography():
+    import cv2
+    from filter_replay import (
+        angles_to_control,
+        control_vanishing_points,
+        fragment_masks,
+    )
+
+    from experiments.annotator.independent_court import detector
+    size = (960, 540)
+    homography = np.array([[80., 10., 200.], [5., 60., 100.], [0.001, 0.02, 1.]])
+    corners, _ = detector.project(homography[None], detector.CORNER_COURT_M)
+    control_directions = control_vanishing_points(corners[0], size)
+    # The homography's first two columns are the vanishing points; feed them back as selected directions.
+    points = homography[:, :2].T
+    angles = angles_to_control(points, control_directions, size)
+    assert angles.shape == (2,) and angles.max() < 1e-4, angles
+    # A box that covers the first fragment's midpoint and nothing else.
+    frame = np.full((40, 60, 3), 120, dtype=np.uint8)
+    cv2.line(frame, (10, 20), (50, 20), (255, 255, 255), 2)
+    source = {'segments_px': [[10., 20., 50., 20.], [10., 5., 50., 5.]], 'bbox_px': [[20., 15., 40., 25.]]}
+    masks = fragment_masks(source, frame, np.array([1., 1.]))
+    assert masks['person'].tolist() == [False, True]
+    assert masks['paint'].tolist() == [True, False]
+    assert masks['baseline'].all()

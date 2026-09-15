@@ -7,6 +7,13 @@ their distances to the control, counts per filter). The baseline rows come from 
 experiment's `e4/accounting.csv.gz`, so the comparison table reads the baseline as that
 experiment measured it.
 
+Before accounting, a gate checks the inputs each record was generated from: the record's input
+hashes must match the input files in this folder; the case entry must equal the pack's entry in
+every field but the fragment list, and that list must be the pack's fragments at the recorded
+kept indices; the direction record of an observation-only arm must equal the saved baseline
+estimator, and that of an own-direction arm must be what the unchanged selection produces from
+the filtered fragments.
+
 Writes runs/<run>/matcher/accounting.csv.gz, diagnosis.json.gz and comparison.md.
 """
 
@@ -15,6 +22,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import hashlib
 import importlib.util
 import io
 import sys
@@ -38,7 +46,9 @@ from shared import (
 
 add_helper_paths()
 
+import vp_pruning
 from diagnose_automatic import diagnose
+from run_population import prepare
 
 STAGES = ('results', 'camera_first', 'all_camera')
 HERE = Path(__file__).resolve().parent
@@ -60,6 +70,36 @@ def baseline_rows() -> dict[tuple[str, str], dict]:
     with gzip.open(DIRECTION_RUN / 'e4' / 'accounting.csv.gz', 'rt', newline='') as stream:
         rows = list(csv.DictReader(stream))
     return {(row['case_id'], row['stage']): row for row in rows if row['arm'] == 'B'}
+
+
+def md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def gate_inputs(case_id: str, arm: str, source: dict, record: dict) -> None:
+    """The record must come from this folder's inputs, and those inputs must differ from the pack only as stated."""
+    case_path = HERE / 'inputs' / arm / 'cases' / f'{case_id}.json.gz'
+    estimator_path = HERE / 'inputs' / arm / 'estimators' / f'{case_id}.json.gz'
+    assert record['input_case_md5'] == md5(case_path), (case_id, arm, 'case input changed since the run')
+    assert record['input_estimator_md5'] == md5(estimator_path), (case_id, arm, 'direction input changed since the run')
+    filtered, written = read(case_path), read(estimator_path)
+    assert all(filtered[key] == source[key] for key in source if key != 'segments_px'), (case_id, arm, 'case fields differ')
+    kept = written['kept_fragment_ids']
+    assert filtered['segments_px'] == [source['segments_px'][index] for index in kept], (case_id, arm, 'kept fragments differ')
+    assert len(kept) == record['fragments_kept'] <= len(source['segments_px']) == record['fragments_total']
+    saved = load_estimator(case_id)
+    if arm.endswith('_observations'):
+        assert written['estimator'] == saved['estimator'] and written['settings'] == saved['settings'], (case_id, 'baseline directions changed')
+    else:
+        # Own-direction arms: the unchanged selection on the filtered fragments must reproduce the written directions.
+        segments, _, size = prepare(filtered)
+        _, replayed = vp_pruning.estimate(segments, size, vp_pruning.Settings(**saved['settings']))
+        assert replayed['retained_candidate_ids'] == written['estimator']['retained_candidate_ids'], (case_id, arm, 'directions differ')
+        np.testing.assert_allclose(replayed['points_working'], written['estimator']['points_working'], rtol=0, atol=1e-12)
 
 
 def number(value) -> str:
@@ -95,6 +135,7 @@ def main() -> None:
                     missing.append((case_id, arm, stage))
                     continue
                 record = read(path)
+                gate_inputs(case_id, arm, source, record)
                 diagnosis = diagnose(source, reference, record, given)
                 row = matrix.accounting(case_id, arm, stage, record, diagnosis, control)
                 rows.append(row)
@@ -119,7 +160,7 @@ def main() -> None:
                      f"{number(base['nearest_pre_global_px'])} / {number(base['line_control_working_px'])} / {number(base['paint_control_working_px'])}"]
             for arm in args.arms:
                 row = by_key.get((case_id, arm, stage))
-                if row is None or row['status'] != 'complete':
+                if row is None or row['status'] != 'diagnosed':
                     cells.append('missing' if row is None else row['status'])
                     continue
                 cells.append(f"{number(row['nearest_pre_global_px'])} / {number(row['line_control_working_px'])} / {number(row['paint_control_working_px'])}")

@@ -1,0 +1,17 @@
+{
+ "paint_contrast": 20.0,
+ "paint_saturation": 90.0,
+ "sensitivity_contrasts": [
+  15.0,
+  25.0
+ ],
+ "arms": [
+  "baseline",
+  "person",
+  "paint",
+  "paint_person",
+  "paint15",
+  "paint25"
+ ],
+ "edge_px": 6.0
+}

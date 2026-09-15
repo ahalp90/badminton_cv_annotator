@@ -20,10 +20,10 @@ how many fragments on the control's painted markings the filter removed.
 Stage 2, axis matching: for the arm's best-fit direction pair, the axis matching is rerun on the
 filtered observations with no per-direction cap, and the ladder of axis_replay.py is reported
 (best court per direction after each rule, the rank the cap truncates at, the kept-by-kept
-nearest court). One extra arm, paint_observations_only, keeps the baseline directions and its
-best-fit pair and filters only the observations the axis matching sees; its matcher inputs are
-written under the arm name paint_observations (baseline direction record, paint-filtered
-fragments).
+nearest court). Two observation-only arms, paint_observations and person_observations, keep
+the baseline directions and the baseline's best-fit pair and filter only the observations the
+axis matching sees; their matcher inputs carry the saved baseline direction record with the
+filtered fragments.
 
 Writes runs/<out>/table.csv (stage 1), axis_table.csv (stage 2), run.log via the caller, and
 --inputs-dir/<arm>/ (default: inputs/ beside this script) with the filtered pack entries and
@@ -89,9 +89,10 @@ FLOAT_ATOL = 1e-12
 STAGE1_COLUMNS = ['case_id', 'label', 'arm', 'fragments', 'dropped', 'marking_fragments', 'marking_dropped', 'merged_lines',
                   'directions', 'angle_to_control_x_deg', 'angle_to_control_y_deg', 'bound_px', 'best_fit_px',
                   'best_fit_pair', 'best_fit_groups', 'selection_identical_to_baseline']
+OBSERVATION_ARMS = {'paint_observations': 'paint', 'person_observations': 'person'}
 STAGE2_COLUMNS = ['case_id', 'label', 'arm', 'pair_id', 'groups', 'direction_fit_px', 'axis', 'coordinates',
                   'enumerated', 'supported', 'supported_and_players', 'distinct', 'kept', 'cap_threshold_score',
-                  'ideal_markings_supported', 'nearest_kept_by_kept_px', 'nearest_distinct_by_distinct_px',
+                  'nearest_kept_by_kept_px', 'nearest_distinct_by_distinct_px',
                   *[f'best_{step}_px' for step in STEPS], *[f'best_{step}_rank' for step in STEPS]]
 
 
@@ -198,8 +199,7 @@ def axis_stage(case_id: str, arm: str, source: dict, keep: np.ndarray, pair_poin
         row = {'case_id': case_id, 'label': LABELS[case_id], 'arm': arm, 'pair_id': fit['pair_id'],
                'groups': ' '.join(map(str, fit['groups'])), 'direction_fit_px': round(fit['max_corner_working_px'], 4),
                'axis': name, 'coordinates': len(coordinates), **{step: int(mask.sum()) for step, mask in masks.items()},
-               'cap_threshold_score': round(float(matches.scores[kept_ids[-1]]), 4) if len(kept_ids) else None,
-               'ideal_markings_supported': None}
+               'cap_threshold_score': round(float(matches.scores[kept_ids[-1]]), 4) if len(kept_ids) else None}
         for step, mask in masks.items():
             if not mask.any():
                 row[f'best_{step}_px'], row[f'best_{step}_rank'] = None, None
@@ -227,8 +227,10 @@ def write_inputs(inputs_dir: Path, arm: str, case_id: str, source: dict, keep: n
     write(folder / 'estimators' / f'{case_id}.json.gz', {
         'case_id': case_id, 'working_size': list(size), 'settings': asdict(settings), 'estimator': estimator,
         'arm': arm, 'fragments_kept': int(keep.sum()), 'fragments_total': len(keep),
-        'note': ('Baseline directions (the saved estimator) with paint-filtered fragments; see filter_replay.py.'
-                 if arm == 'paint_observations' else
+        # Indices into the pack's segments_px, so a reader can map the filtered list back to raw fragment IDs.
+        'kept_fragment_ids': np.flatnonzero(keep).tolist(),
+        'note': (f'Baseline directions (the saved estimator) with {OBSERVATION_ARMS[arm]}-filtered fragments; see filter_replay.py.'
+                 if arm in OBSERVATION_ARMS else
                  'Directions selected by the unchanged coverage rule from the filtered fragments; see filter_replay.py.')})
 
 
@@ -238,7 +240,8 @@ def main() -> None:
     parser.add_argument('--cases', nargs='+', default=list(CASE_IDS))
     parser.add_argument('--uncapped-combination', action='store_true')
     parser.add_argument('--inputs-dir', type=Path, default=Path(__file__).resolve().parent / 'inputs')
-    parser.add_argument('--axis-arms', nargs='+', default=['baseline', 'paint', 'paint_person', 'paint_observations_only'],
+    parser.add_argument('--axis-arms', nargs='+',
+                        default=['baseline', 'person', 'paint', 'paint_person', 'paint_observations', 'person_observations'],
                         help='arms that also run the axis-matching stage')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -264,8 +267,9 @@ def main() -> None:
             stage1_rows.append(row)
             best_by_arm[arm], points_by_arm[arm] = best, points
             if arm == 'baseline':
-                # The matcher-only arm: the saved baseline directions with the paint-filtered fragments.
-                write_inputs(args.inputs_dir, 'paint_observations', case_id, source, masks['paint'], saved['estimator'], settings, size)
+                # The observation-only arms: the saved baseline directions with the filtered fragments.
+                for observation_arm, filter_arm in OBSERVATION_ARMS.items():
+                    write_inputs(args.inputs_dir, observation_arm, case_id, source, masks[filter_arm], saved['estimator'], settings, size)
             else:
                 write_inputs(args.inputs_dir, arm, case_id, source, masks[arm], estimator, settings, size)
             print(f'  {arm:13s} dropped {row["dropped"]:4d} of {row["fragments"]} (on markings {row["marking_dropped"]} of {row["marking_fragments"]}); '
@@ -273,10 +277,10 @@ def main() -> None:
                   f'bound {row["bound_px"]}; best fit {row["best_fit_px"]} (pair {row["best_fit_pair"]})'
                   f'{"; selection identical to baseline" if row["selection_identical_to_baseline"] else ""}', flush=True)
         for arm in args.axis_arms:
-            if arm == 'paint_observations_only':
+            if arm in OBSERVATION_ARMS:
                 fit = load_direction_record('e3', case_id)['sets']['B']['summary']['best_finite']
                 fit = load_direction_record('e3', case_id)['sets']['B']['fits']['records'][fit['pair_id']]
-                pair_points, keep = points_by_arm['baseline'][fit['groups']], masks['paint']
+                pair_points, keep = points_by_arm['baseline'][fit['groups']], masks[OBSERVATION_ARMS[arm]]
             else:
                 fit = best_by_arm[arm]
                 if fit is None:
