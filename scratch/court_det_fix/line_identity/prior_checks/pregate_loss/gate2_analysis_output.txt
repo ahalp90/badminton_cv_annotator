@@ -1,0 +1,31 @@
+
+== gxBQ_window_00_frame_0 arm M: gate 2 ==
+  GATE 2 PASS: 134 of 134 matched pairs have post-gate corners equal to the combined corners at the usable indices, and record counts equal to the array lengths and mask sums
+cross-check against cap_loss/table.csv: 116 pairs with a nearest usable court; largest gap to the earlier nearest proposed court 0.00e+00 px; every index equal
+
+gxBQ_window_00_frame_0 arm M: control visually_approved_GX0_supplied_direction_line_winner_89; 134 matched pairs, 22400488 combined, 5728494 passed geometry, 3810512 passed players; direction fit 19.7 px
+  nearest combined court (before both masks): 33.822 px  candidate 23:203788  pair 23 (pencils [1, 9]); geometry pass, players pass; player fractions any 1.0000, both halves 1.0000
+    corners (working px): [[103.75, 282.82], [310.65, 272.14], [779.76, 330.03], [512.45, 559.12]]
+  nearest court passing geometry: 33.822 px  candidate 23:203788  pair 23 (pencils [1, 9]); geometry pass, players pass; player fractions any 1.0000, both halves 1.0000
+    corners (working px): [[103.75, 282.82], [310.65, 272.14], [779.76, 330.03], [512.45, 559.12]]
+  nearest usable court: 33.822 px  candidate 23:203788  pair 23 (pencils [1, 9]); geometry pass, players pass; player fractions any 1.0000, both halves 1.0000
+    corners (working px): [[103.75, 282.82], [310.65, 272.14], [779.76, 330.03], [512.45, 559.12]]
+  courts within 5 px of the control: combined 0, passing geometry 0, passing players 0
+  courts within 20 px of the control: combined 0, passing geometry 0, passing players 0
+
+== am3_window_00_frame_0 arm R: gate 2 ==
+  GATE 2 PASS: 100 of 100 matched pairs have post-gate corners equal to the combined corners at the usable indices, and record counts equal to the array lengths and mask sums
+cross-check against cap_loss/table.csv: 95 pairs with a nearest usable court; largest gap to the earlier nearest proposed court 0.00e+00 px; every index equal
+
+am3_window_00_frame_0 arm R: control manual_reference_directions_only; 100 matched pairs, 17066316 combined, 3956934 passed geometry, 2449344 passed players; direction fit 4.3 px
+  nearest combined court (before both masks): 40.140 px  candidate 30:180443  pair 30 (pencils [2, 0]); geometry pass, players pass; player fractions any 1.0000, both halves 0.9677
+    corners (working px): [[33.9, 237.72], [378.83, 236.32], [1116.09, 366.76], [258.98, 548.52]]
+  nearest court passing geometry: 40.140 px  candidate 30:180443  pair 30 (pencils [2, 0]); geometry pass, players pass; player fractions any 1.0000, both halves 0.9677
+    corners (working px): [[33.9, 237.72], [378.83, 236.32], [1116.09, 366.76], [258.98, 548.52]]
+  nearest usable court: 40.140 px  candidate 30:180443  pair 30 (pencils [2, 0]); geometry pass, players pass; player fractions any 1.0000, both halves 0.9677
+    corners (working px): [[33.9, 237.72], [378.83, 236.32], [1116.09, 366.76], [258.98, 548.52]]
+  courts within 5 px of the control: combined 0, passing geometry 0, passing players 0
+  courts within 20 px of the control: combined 0, passing geometry 0, passing players 0
+
+wrote <follow-ups>/pregate_loss/table.csv with 234 rows
+GATE 2 PASS
