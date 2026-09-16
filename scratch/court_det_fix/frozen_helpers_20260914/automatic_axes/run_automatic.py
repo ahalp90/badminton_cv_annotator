@@ -1,0 +1,169 @@
+"""Feed frozen automatically estimated direction pairs into the inspected matcher."""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import sys
+from dataclasses import asdict, replace
+from itertools import permutations
+from pathlib import Path
+from time import perf_counter
+
+import cv2
+import numpy as np
+from inspect_appearance import frame_path, profiles
+from projective_seed import Settings
+from run_diagnosis import gate_evidence, read, write
+from run_given import propose_role
+from run_population import prepare
+from scan_population import retain
+
+from experiments.annotator.independent_court import assignment, detector
+from experiments.annotator.independent_court import stripe_observations as stripes
+
+KEEP_COURTS = 256
+CAMERA_ERROR_LIMIT = .1
+CAMERA_ROUNDING_MARGIN = 1e-6
+
+
+def camera_direction_bound(points: np.ndarray, size: tuple[int, int]) -> float:
+    """Lower-bound the archived camera error without choosing court scale or position."""
+    width, height = size
+    focals = np.geomspace(.4 * width, 4 * width, 200)
+    axes = np.broadcast_to(points, (len(focals), 2, 3)).copy()
+    axes[:, :, :2] -= np.array([width / 2, height / 2]) * axes[:, :, 2:]
+    axes[:, :, :2] /= focals[:, None, None]
+    norms = np.linalg.norm(axes, axis=2)
+    cosine = np.sum(axes[:, 0] * axes[:, 1], axis=1) / np.prod(norms, axis=1)
+    return float(np.abs(cosine).min())
+
+
+def select_pool(candidates: list[detector.Candidate]) -> list[detector.Candidate]:
+    settings = replace(detector.DEFAULT_SETTINGS, keep_candidates=KEEP_COURTS, distinct_corner_distance=2.)
+    return retain(candidates, settings)
+
+
+def evaluate_pool(
+    source: dict, shortlist: list[dict], observations: assignment.Observations,
+    size: tuple[int, int], segments: np.ndarray, families: tuple, zone: object, root: Path,
+) -> list[dict]:
+    """Measure the unchanged stripe, camera, floor and paint evidence for saved courts."""
+    scale = np.array([source['dimensions']['width'], source['dimensions']['height']]) / size
+    weights = stripes.fragment_weights(observations)
+    maps = detector._distance_maps(detector._wide_line_families(segments), size)
+    entries = []
+    started = perf_counter()
+    for position, details in enumerate(shortlist):
+        if len(shortlist) > 256 and position % 512 == 0:
+            print(source['id'], 'full evidence', position, 'of', len(shortlist),
+                  'seconds', perf_counter() - started, flush=True)
+        homography = np.asarray(details['homography_working'])
+        stripe = stripes.score_model(stripes.measure(homography, observations, size), weights, 3)
+        corners = np.asarray(details['corners_px'])
+        gates = gate_evidence(corners, source, scale, size, families, maps, zone)
+        entries.append({**details, 'corners_px': corners.tolist(), 'shortlist_score': details['shortlist_score'],
+                        'stripe': stripe, 'gates': gates})
+    if entries:
+        path = frame_path(source, root)
+        frame = cv2.imread(str(path))
+        if frame is None:
+            raise FileNotFoundError(path)
+        assert frame.shape[:2] == (source['dimensions']['height'], source['dimensions']['width'])
+        frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+        paint = profiles(frame, np.asarray([entry['homography_working'] for entry in entries]))
+        for entry, profile in zip(entries, paint, strict=True):
+            entry['profile'] = profile
+    return entries
+
+
+def winner_ids(entries: list[dict]) -> tuple[str | None, str | None]:
+    """Preserve the two existing rankings within the same camera-eligible pool."""
+    eligible = [entry for entry in entries if entry['gates']['camera_error'] is not None
+                and entry['gates']['camera_error'] <= CAMERA_ERROR_LIMIT and entry['profile']['score'] is not None]
+    line = max(eligible, key=lambda entry: entry['stripe']['exclusive']['score'], default=None)
+    paint = max(eligible, key=lambda entry: (entry['profile']['score'], entry['stripe']['exclusive']['score']), default=None)
+    return (None if line is None else line['candidate_id'], None if paint is None else paint['candidate_id'])
+
+
+def generate(source: dict, saved: dict, zone: object, root: Path) -> dict:
+    """Generate and rank courts using observations and automatic directions only."""
+    started = perf_counter()
+    segments, families, size = prepare(source)
+    assert list(size) == saved['working_size']
+    assert saved['settings']['pencil_selection'] == 'coverage'
+    points = np.asarray(saved['estimator']['points_working'])
+    native_size = (source['dimensions']['width'], source['dimensions']['height'])
+    scale = np.asarray(native_size) / size
+    point_scale = np.append(scale, 1.)
+    feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
+                       for frame in source['all_feet_px']], dtype=float) / scale
+    observations = assignment.prepare_observations(segments, size)
+    settings = Settings(keep_axes=512)
+    pooled, provenance, pair_records = [], {}, []
+    for pair_id, pencil_ids in enumerate(permutations(range(len(points)), 2)):
+        pair_points = points[list(pencil_ids)]
+        bound = camera_direction_bound(pair_points * point_scale, native_size)
+        record = {'pair_id': pair_id, 'pencils': list(pencil_ids), 'camera_direction_bound': bound}
+        if bound > CAMERA_ERROR_LIMIT + CAMERA_ROUNDING_MARGIN:
+            pair_records.append({**record, 'status': 'camera_direction_bound'})
+            continue
+        pair_start = perf_counter()
+        proposed = propose_role(pair_points, observations, feet, size, settings, zone)
+        local_details = {}
+        for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
+            local_details[id(candidate)] = {'candidate_id': f'{pair_id}:{index}', 'pair_id': pair_id, **details}
+        retained = select_pool(proposed.candidates)
+        shortlist = []
+        for candidate in retained:
+            details = local_details[id(candidate)]
+            provenance[id(candidate)] = details
+            shortlist.append({**details, 'corners_px': (candidate.corners_px * scale).tolist(),
+                              'shortlist_score': candidate.score})
+        pooled.extend(retained)
+        record.update({'status': 'matched', 'role': proposed.record, 'shortlist': shortlist,
+                       'elapsed_s': perf_counter() - pair_start})
+        pair_records.append(record)
+        print(source['id'], 'pair', pair_id, list(pencil_ids), 'combined', proposed.record.get('combined', 0),
+              'players', len(proposed.candidates), 'retained', len(retained), 'seconds', record['elapsed_s'], flush=True)
+    retained = select_pool(pooled)
+    shortlist = []
+    for candidate in retained:
+        shortlist.append({**provenance[id(candidate)], 'corners_px': (candidate.corners_px * scale).tolist(),
+                          'shortlist_score': candidate.score})
+    entries = evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
+    line_id, paint_id = winner_ids(entries)
+    return {'schema': 'automatic-directions-axis-matching/1', 'case_id': source['id'],
+            'automatic_directions': True, 'label_guided_generation': False, 'emission_decision': None,
+            'working_size': size, 'settings': asdict(settings), 'keep_per_pair': KEEP_COURTS,
+            'keep_global': KEEP_COURTS, 'estimator_settings': saved['settings'], 'estimator': saved['estimator'],
+            'camera_error_limit': CAMERA_ERROR_LIMIT, 'camera_rounding_margin': CAMERA_ROUNDING_MARGIN,
+            'camera_bound_coordinate_space': 'native',
+            'pairs': pair_records, 'pooled_candidates': len(pooled), 'entries': entries,
+            'raw_groups': [observations.fragment_ids[group].tolist() for group in observations.groups],
+            'line_winner_id': line_id, 'paint_winner_id': paint_id,
+            'elapsed_s': perf_counter() - started}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--inputs', type=Path, required=True)
+    parser.add_argument('--saved', type=Path, required=True)
+    parser.add_argument('--legacy', type=Path, required=True)
+    parser.add_argument('--root', type=Path, default=Path('.'))
+    parser.add_argument('--ids', nargs='+', required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    sys.path.insert(0, str(args.legacy.resolve()))
+    zone = importlib.import_module('zone_net')
+    cv2.setNumThreads(1)
+    sources = {source['id']: source for source in read(args.inputs)['cases']}
+    for case_id in args.ids:
+        result = generate(sources[case_id], read(args.saved / f'{case_id}.json.gz'), zone, args.root)
+        write(args.output / f'{case_id}.json.gz', result)
+        print(case_id, 'complete', result['line_winner_id'], result['paint_winner_id'],
+              'seconds', result['elapsed_s'], flush=True)
+
+
+if __name__ == '__main__':
+    main()

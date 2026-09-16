@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 
 from shared import (
+    BASELINE_GENERATION,
     DIRECTION_RUN,
     LABELS,
     add_helper_paths,
@@ -282,8 +283,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pregate-records', type=Path, required=True,
                         help='folder holding <arm>/results/<case>.json.gz from the courts-before-the-gate run')
-    parser.add_argument('--baseline-records', type=Path, required=True,
-                        help='folder holding the baseline generation records <case>.json.gz')
+    parser.add_argument('--baseline-records', type=Path, default=BASELINE_GENERATION,
+                        help='folder holding the baseline generation records <case>.json.gz (default: frozen_views/baseline_generation)')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--uncapped-combination', action='store_true',
                         help='also combine every distinct matching with every distinct one (millions of courts per pair)')

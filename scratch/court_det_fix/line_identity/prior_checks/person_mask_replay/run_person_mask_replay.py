@@ -24,7 +24,7 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[5]  # this copy lives at scratch/court_det_fix/line_identity/prior_checks/person_mask_replay
 DIRECTION_AGREEMENT = REPO_ROOT / "scratch/court_det_fix/direction_agreement"
-HELPERS = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914"
+HELPERS = REPO_ROOT / "scratch/court_det_fix/frozen_helpers_20260914"  # tracked copy of the player_guided/20260914 helpers
 GX_DIRECTIONS = Path(__file__).resolve().parents[2]  # geometry_certificate.py sits in the line_identity folder
 OUT_DIR = Path(__file__).resolve().parent
 
@@ -44,11 +44,8 @@ from run_svd_fixed import fit_pairs
 
 from experiments.annotator.independent_court import assignment, detector
 
-INPUT_PACK = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/inputs.json.gz"
-SAVED_ESTIMATOR = REPO_ROOT / (
-    "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/vp_pruning/"
-    "coverage/results/gxBQ_window_00_frame_0.json.gz"
-)
+INPUT_PACK = REPO_ROOT / "scratch/court_det_fix/frozen_views/packs/gx_extension_inputs.json.gz"
+SAVED_ESTIMATOR = REPO_ROOT / "scratch/court_det_fix/frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz"
 E3_RECORD = DIRECTION_AGREEMENT / "runs/direction_agreement_20260915_144900/e3/gxBQ_window_00_frame_0.json.gz"
 CASE_ID = "gxBQ_window_00_frame_0"
 ESTIMATE_MERGE_CAP = 300

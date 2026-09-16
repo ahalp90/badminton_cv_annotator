@@ -17,18 +17,22 @@ from typing import Any
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[3]
-CHECKS = REPO / 'scratch/court_det_fix/worklog/checks/independent'
-# The frozen helper sources the direction experiment imports (the packet's local tree L).
-HELPERS = CHECKS / 'player_guided/20260914'
-DIRECTION_AGREEMENT = REPO / 'scratch/court_det_fix/direction_agreement'
+COURT_DET_FIX = REPO / 'scratch/court_det_fix'
+# The frozen helper scripts the experiments import: the tracked copy of the player_guided/20260914
+# tree the direction experiment calls L (code only; see its README.md).
+HELPERS = COURT_DET_FIX / 'frozen_helpers_20260914'
+# The nine views' evidence: packs, native frames, baseline direction records, two baseline matcher records.
+FROZEN_VIEWS = COURT_DET_FIX / 'frozen_views'
+DIRECTION_AGREEMENT = COURT_DET_FIX / 'direction_agreement'
 DIRECTION_RUN = DIRECTION_AGREEMENT / 'runs/direction_agreement_20260915_144900'
-SAVED_ESTIMATORS = HELPERS / 'vp_pruning/coverage/results'
-LEGACY_ZONE = CHECKS / 'player_guided/20260908'
+SAVED_ESTIMATORS = FROZEN_VIEWS / 'baseline_directions'
+BASELINE_GENERATION = FROZEN_VIEWS / 'baseline_generation'
+LEGACY_ZONE = HELPERS / 'legacy'
 
 PACKS = {
-    'gx': CHECKS / 'player_guided/20260909/gx_extension/inputs.json.gz',
-    'amateur': CHECKS / 'player_guided/20260908/marking_refit/marking_inputs.json.gz',
-    'broadcast': CHECKS / 'player_guided/20260909/broadcast_extension/inputs.json.gz',
+    'gx': FROZEN_VIEWS / 'packs/gx_extension_inputs.json.gz',
+    'amateur': FROZEN_VIEWS / 'packs/marking_refit_inputs.json.gz',
+    'broadcast': FROZEN_VIEWS / 'packs/broadcast_extension_inputs.json.gz',
 }
 # The nine frozen views in the direction experiment's order, each with its pack and short label.
 CASES: tuple[tuple[str, str, str], ...] = (
@@ -89,14 +93,14 @@ def load_source(case_id: str) -> dict:
 
 
 def frame_path(source: dict) -> Path:
-    """The native frame the pack's fragments were detected on."""
+    """The native frame the pack's fragments were detected on (frozen_views/frames keeps the packs' layout)."""
     if source['id'].startswith('gxBQ'):
-        return CHECKS / 'player_guided/20260909/gx_extension/people' / source['image']
+        return FROZEN_VIEWS / 'frames/gx' / source['image']
     if source['id'].startswith('shuttleset'):
-        return CHECKS / 'inputs/original' / source['image']
+        return FROZEN_VIEWS / 'frames/original' / source['image']
     video = source['id'].split('_')[0]
     frame = int(source['id'].rsplit('_', 1)[1])
-    return CHECKS / 'inputs/amateur' / video / f'frame_{frame:08d}.png'
+    return FROZEN_VIEWS / 'frames/amateur' / video / f'frame_{frame:08d}.png'
 
 
 def load_estimator(case_id: str) -> dict:
