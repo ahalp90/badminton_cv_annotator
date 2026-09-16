@@ -21,3 +21,5 @@ runs/**/*.npy.xz
 runs/**/cache/
 runs/**/e4/*/results/
 runs/**/matcher/*/results/
+runs/**/matcher/*/camera_first/
+runs/**/matcher/*/all_camera/
