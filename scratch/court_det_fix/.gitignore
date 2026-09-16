@@ -1,1 +1,8 @@
-worklog/
+# The working area stays ignored. Exceptions: the evidence index, and the 2026-09-15 WebUI evaluation
+# returns with the follow-up checks that answered them (their records and the duplicate bundles stay out).
+worklog/*
+!worklog/EVIDENCE_INDEX.md
+!worklog/webui_evaluation_returns_15092026/
+worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/*/records/
+worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/_bundles/
+worklog/**/__pycache__/

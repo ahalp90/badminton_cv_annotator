@@ -1,0 +1,4121 @@
+{
+  "schema": "court-identifiability-extension/1",
+  "commit": "7299ff3f74bf51dc3bc59582c79190dbc81666ca",
+  "purpose": "read-only geometry/assignment audit; no image rescoring, training or detector search",
+  "source_verification": [
+    {
+      "file": "measurements.json.gz",
+      "bytes": 6764,
+      "git_blob_sha": "751132ecceba8277fa7c2fac211896c505ddab3a",
+      "sha256": "df4873126c8a49d73fa5c1dcab32a04cf754b149d60e5caebf7eca32f6f6ddf1",
+      "verified": true
+    },
+    {
+      "file": "gx0_control_measurements.json.gz",
+      "bytes": 1671,
+      "git_blob_sha": "4d4da3984eb6b2d61b2aa0e30ab41cc7ab0d8ff5",
+      "sha256": "04b313ca3f2f7cafba26e2b3db9985f11b67a245a5528bf70a749ee79773774e",
+      "verified": true
+    }
+  ],
+  "partial_rankings_provenance": {
+    "file": "retrieved_ranking_entries.json",
+    "sha256": "e9688e8c066a573020e10f7c540a28c898bc59b110b7dbbb90b46f6c2bc04bee",
+    "scope": "four complete JSON entries from a partially recovered gzip; full ranking archive CRC/blob NOT verified",
+    "cross_checks": [
+      {
+        "identity": [
+          "am2_window_00_frame_150",
+          "automatic_all_camera",
+          "30:30"
+        ],
+        "compact_fields_match": true,
+        "corner_reprojection_max_abs_working_px": 4.547473508864641e-13,
+        "visibility_exact_match": true
+      },
+      {
+        "identity": [
+          "am2_window_00_frame_150",
+          "automatic_all_camera",
+          "30:33"
+        ],
+        "compact_fields_match": true,
+        "corner_reprojection_max_abs_working_px": 3.410605131648481e-13,
+        "visibility_exact_match": true
+      },
+      {
+        "identity": [
+          "am2_window_01_frame_28019",
+          "automatic_all_camera",
+          "16:1800"
+        ],
+        "compact_fields_match": true,
+        "corner_reprojection_max_abs_working_px": 0.0,
+        "visibility_exact_match": true
+      },
+      {
+        "identity": [
+          "am2_window_01_frame_28019",
+          "automatic_all_camera",
+          "184:4123"
+        ],
+        "compact_fields_match": true,
+        "corner_reprojection_max_abs_working_px": 0.0,
+        "visibility_exact_match": true
+      }
+    ]
+  },
+  "scene19": {
+    "identity": [
+      "shuttleset_03_scene_0019",
+      "automatic_all_camera",
+      "165:6702"
+    ],
+    "native_and_working_size": [
+      960,
+      540
+    ],
+    "image_header_only": true,
+    "images_visually_inspected": false,
+    "homography_float64_reconstructed_from_corners": [
+      [
+        66.31852254580022,
+        -916.4191572226372,
+        6197.678782957971
+      ],
+      [
+        85.68549497617889,
+        7.559736352412234,
+        18.539465526537864
+      ],
+      [
+        0.27057698369337835,
+        -3.76123816467343e-17,
+        1.0
+      ]
+    ],
+    "saved_camera_error": 0.06941643378323906,
+    "exact_source_camera_replay_error": 0.06941643378323906,
+    "camera_reconstruction_delta_float64_minus_saved": -9.962964078735759e-09,
+    "baseline_focal_grid_index_zero_based": 188,
+    "baseline_focal_widths": 3.5219534326573867,
+    "cosine_at_fixed_focal": 0.06941242626046575,
+    "log_axis_norm_ratio_at_fixed_focal": 0.0007449675371756088,
+    "fixed_focal_scale_bounds_under_existing_camera_limit": [
+      0.9312378536814415,
+      1.0754406531262668
+    ],
+    "invariant_y0_metres_source_float32": 4.71999979019165,
+    "intervals": [
+      {
+        "interval_index": 0,
+        "interval_name": "left_doubles",
+        "projected_endpoints_working_px": [
+          [
+            6197.678782957971,
+            18.539465526537864
+          ],
+          [
+            -6082.337574239206,
+            119.83992976505131
+          ]
+        ],
+        "observation_state_geometric": "available",
+        "clipped_span_working_px": 959.0326291833275,
+        "clipped_endpoints_working_px": [
+          [
+            959.0,
+            61.754439943006545
+          ],
+          [
+            9.094947017729282e-13,
+            69.66543471524051
+          ]
+        ]
+      },
+      {
+        "interval_index": 1,
+        "interval_name": "left_singles",
+        "projected_endpoints_working_px": [
+          [
+            5538.796678090223,
+            51.53986344980551
+          ],
+          [
+            -5381.962818859569,
+            141.6275290276931
+          ]
+        ],
+        "observation_state_geometric": "available",
+        "clipped_span_working_px": 959.0326291833279,
+        "clipped_endpoints_working_px": [
+          [
+            959.0,
+            89.31957938126143
+          ],
+          [
+            0.0,
+            97.2305741534954
+          ]
+        ]
+      },
+      {
+        "interval_index": 2,
+        "interval_name": "centre_far",
+        "projected_endpoints_working_px": [
+          [
+            3506.3229452984424,
+            153.33719783663165
+          ],
+          [
+            1136.524267999823,
+            172.88617067016276
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 3,
+        "interval_name": "centre_near",
+        "projected_endpoints_working_px": [
+          [
+            -851.6970031138778,
+            189.28743040094986
+          ],
+          [
+            -3221.4954410039986,
+            208.8364012595494
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 4,
+        "interval_name": "right_singles",
+        "projected_endpoints_working_px": [
+          [
+            2601.573381277877,
+            198.6519748096298
+          ],
+          [
+            -2259.769891168453,
+            238.75422842209866
+          ]
+        ],
+        "observation_state_geometric": "available",
+        "clipped_span_working_px": 959.0326291833275,
+        "clipped_endpoints_working_px": [
+          [
+            958.9999999999998,
+            212.20191165248687
+          ],
+          [
+            0.0,
+            220.11290642472085
+          ]
+        ]
+      },
+      {
+        "interval_index": 5,
+        "interval_name": "right_doubles",
+        "projected_endpoints_working_px": [
+          [
+            2490.9160555234876,
+            204.1942952885757
+          ],
+          [
+            -2142.1439959079466,
+            242.4133921043422
+          ]
+        ],
+        "observation_state_geometric": "available",
+        "clipped_span_working_px": 959.0326291833281,
+        "clipped_endpoints_working_px": [
+          [
+            959.0,
+            216.8313963383646
+          ],
+          [
+            0.0,
+            224.7423911105986
+          ]
+        ]
+      },
+      {
+        "interval_index": 6,
+        "interval_name": "far_baseline",
+        "projected_endpoints_working_px": [
+          [
+            6197.678782957971,
+            18.539465526537864
+          ],
+          [
+            2490.9160555234876,
+            204.1942952885757
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 7,
+        "interval_name": "far_long_service",
+        "projected_endpoints_working_px": [
+          [
+            5501.200232208421,
+            24.284865082275896
+          ],
+          [
+            2228.145481259114,
+            206.36194559024653
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 8,
+        "interval_name": "far_short_service",
+        "projected_endpoints_working_px": [
+          [
+            1872.1805531395144,
+            54.22141952382782
+          ],
+          [
+            858.9725411026867,
+            217.65654410105125
+          ]
+        ],
+        "observation_state_geometric": "available",
+        "clipped_span_working_px": 101.3204185789711,
+        "clipped_endpoints_working_px": [
+          [
+            959.0,
+            201.52165372137344
+          ],
+          [
+            858.9725411026867,
+            217.65654410105125
+          ]
+        ]
+      },
+      {
+        "interval_index": 9,
+        "interval_name": "near_short_service",
+        "projected_endpoints_working_px": [
+          [
+            -1756.8397814034531,
+            84.15797937252454
+          ],
+          [
+            -510.2006463539556,
+            228.95114465188794
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 10,
+        "interval_name": "near_long_service",
+        "projected_endpoints_working_px": [
+          [
+            -5385.859678963714,
+            114.09453561645806
+          ],
+          [
+            -1879.373668943788,
+            240.24574384270332
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      },
+      {
+        "interval_index": 11,
+        "interval_name": "near_baseline",
+        "projected_endpoints_working_px": [
+          [
+            -6082.337574239206,
+            119.83992976505131
+          ],
+          [
+            -2142.1439959079466,
+            242.4133921043422
+          ]
+        ],
+        "observation_state_geometric": "no_intersection",
+        "clipped_span_working_px": 0.0,
+        "clipped_endpoints_working_px": null
+      }
+    ],
+    "witnesses": [
+      {
+        "longitudinal_scale_a": 0.95,
+        "homography_working": [
+          [
+            66.31852254580022,
+            -870.5981993615053,
+            5981.403871467048
+          ],
+          [
+            85.68549497617889,
+            7.181749534791622,
+            20.323563226402364
+          ],
+          [
+            0.27057698369337835,
+            -3.573176256439758e-17,
+            1.0
+          ]
+        ],
+        "visibility_mask_exact_match": true,
+        "clipped_endpoint_max_abs_delta_working_px": 9.094947017729282e-13,
+        "corners_working_px": [
+          [
+            5981.403871467048,
+            20.323563226402364
+          ],
+          [
+            2409.3188798024476,
+            204.86740772919947
+          ],
+          [
+            -1992.0881690574151,
+            241.17554970417766
+          ],
+          [
+            -5684.611667870268,
+            116.55900425299012
+          ]
+        ],
+        "max_corner_displacement_working_px": 397.7394386645721,
+        "camera_error_at_unchanged_focal": 0.08675289979885976,
+        "source_float32_camera_grid_min_error": 0.07292995237433661,
+        "positive_corner_denominators": true,
+        "candidate_pool_membership": "not asserted; analytic witness only"
+      },
+      {
+        "longitudinal_scale_a": 1.0,
+        "homography_working": [
+          [
+            66.31852254580022,
+            -916.4191572226372,
+            6197.678782957971
+          ],
+          [
+            85.68549497617889,
+            7.559736352412234,
+            18.539465526537864
+          ],
+          [
+            0.27057698369337835,
+            -3.76123816467343e-17,
+            1.0
+          ]
+        ],
+        "visibility_mask_exact_match": true,
+        "clipped_endpoint_max_abs_delta_working_px": 0.0,
+        "corners_working_px": [
+          [
+            6197.678782957971,
+            18.539465526537864
+          ],
+          [
+            2490.9160555234876,
+            204.1942952885757
+          ],
+          [
+            -2142.1439959079466,
+            242.4133921043422
+          ],
+          [
+            -6082.337574239206,
+            119.83992976505131
+          ]
+        ],
+        "max_corner_displacement_working_px": 0.0,
+        "camera_error_at_unchanged_focal": 0.06941642382027498,
+        "source_float32_camera_grid_min_error": 0.06941643378323906,
+        "positive_corner_denominators": true,
+        "candidate_pool_membership": "not asserted; analytic witness only"
+      },
+      {
+        "longitudinal_scale_a": 1.05,
+        "homography_working": [
+          [
+            66.31852254580022,
+            -962.2401150837691,
+            6413.953694448894
+          ],
+          [
+            85.68549497617889,
+            7.937723170032846,
+            16.755367826673364
+          ],
+          [
+            0.27057698369337835,
+            -3.949300072907102e-17,
+            1.0
+          ]
+        ],
+        "visibility_mask_exact_match": true,
+        "clipped_endpoint_max_abs_delta_working_px": 9.094947017729282e-13,
+        "corners_working_px": [
+          [
+            6413.953694448894,
+            16.755367826673364
+          ],
+          [
+            2572.5132312445276,
+            203.5211828479519
+          ],
+          [
+            -2292.1998227584786,
+            243.65123450450673
+          ],
+          [
+            -6480.063480608142,
+            123.12085527711248
+          ]
+        ],
+        "max_corner_displacement_working_px": 397.73943866456943,
+        "camera_error_at_unchanged_focal": 0.08441816059827874,
+        "source_float32_camera_grid_min_error": 0.06621867859376002,
+        "positive_corner_denominators": true,
+        "candidate_pool_membership": "not asserted; analytic witness only"
+      }
+    ],
+    "ideal_line_constraint_ranks": {
+      "observed_five_supporting_lines": {
+        "rank": 7,
+        "homography_dof_remaining_after_scale": 1,
+        "singular_values": [
+          2.394724391526016,
+          1.6465107240262276,
+          1.2164469392054365,
+          0.23189247002400457,
+          0.11350324154742354,
+          0.08073643911687015,
+          0.03713343907887353,
+          1.542789246486801e-16,
+          1.3629823392175325e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          4,
+          5,
+          8
+        ]
+      },
+      "plus_centre_supporting_line_only_hypothetical": {
+        "rank": 7,
+        "homography_dof_remaining_after_scale": 1,
+        "singular_values": [
+          2.655772933852417,
+          1.8321174495509913,
+          1.2293481970879847,
+          0.23601423946464167,
+          0.11853302186647886,
+          0.08523498837728977,
+          0.04360026877976604,
+          7.207824542442154e-17,
+          3.93567771792882e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          4,
+          5,
+          8,
+          2
+        ]
+      },
+      "plus_second_cross_marking_hypothetical": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          2.7372489826218223,
+          1.6997290305572075,
+          1.225869690451883,
+          0.26002656148766473,
+          0.188391044230043,
+          0.0977944920225451,
+          0.05235141911684969,
+          0.014943221526379067,
+          2.120653412187217e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          4,
+          5,
+          8,
+          11
+        ]
+      },
+      "all_eleven_supporting_lines_hypothetical": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6350505307961316,
+          2.347505639172193,
+          1.7365581361338405,
+          0.3483189946300937,
+          0.25450936999490736,
+          0.20407859328491235,
+          0.14399875890484606,
+          0.10726554060956038,
+          3.02503255129754e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    "limits": [
+      "not pixel-score replay",
+      "not asserted to be saved/generated candidate IDs",
+      "not a player, floor, net or end-to-end gate replay",
+      "rank describes ideal named-line geometry, not independent noise or calibrated evidence"
+    ]
+  },
+  "assignment_audit": [
+    {
+      "identity": [
+        "am2_window_00_frame_150",
+        "automatic_all_camera",
+        "30:30"
+      ],
+      "independent_forward": 0.5588478051941957,
+      "exclusive_forward": 0.5171129315928185,
+      "forward_loss": 0.04173487360137729,
+      "relative_forward_loss": 0.07468021384977025,
+      "per_marking": [
+        {
+          "marking": "left_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.23746449219682103,
+          "exclusive_forward": 0.23684873200016865
+        },
+        {
+          "marking": "left_singles",
+          "profile": 1.0,
+          "independent_forward": 0.2459752899736208,
+          "exclusive_forward": 0.20987902882753226
+        },
+        {
+          "marking": "centre",
+          "profile": 1.0,
+          "independent_forward": 0.678749820571136,
+          "exclusive_forward": 0.6558494053941796
+        },
+        {
+          "marking": "right_singles",
+          "profile": 1.0,
+          "independent_forward": 0.6490646266308289,
+          "exclusive_forward": 0.6431637929871854
+        },
+        {
+          "marking": "right_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.646823511890489,
+          "exclusive_forward": 0.6401721281414972
+        },
+        {
+          "marking": "far_baseline",
+          "profile": 0.0,
+          "independent_forward": 0.6001227552268662,
+          "exclusive_forward": 0.5947076956363933
+        },
+        {
+          "marking": "far_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.36339572326773073,
+          "exclusive_forward": 9.580619958203134e-16
+        },
+        {
+          "marking": "far_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.46421589479330067,
+          "exclusive_forward": 0.46095549287687604
+        },
+        {
+          "marking": "near_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.29999383427747356,
+          "exclusive_forward": 0.2972890938380658
+        },
+        {
+          "marking": "near_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.9646646953600031,
+          "exclusive_forward": 0.9525216648712205
+        },
+        {
+          "marking": "near_baseline",
+          "profile": 0.0,
+          "independent_forward": 0.9968552129478829,
+          "exclusive_forward": 0.9968552129478829
+        }
+      ],
+      "selected_assignment_examples": [],
+      "predicted_line_separation": null
+    },
+    {
+      "identity": [
+        "am2_window_00_frame_150",
+        "automatic_all_camera",
+        "30:33"
+      ],
+      "independent_forward": 0.5419713462976646,
+      "exclusive_forward": 0.5137625981498769,
+      "forward_loss": 0.028208748147787732,
+      "relative_forward_loss": 0.05204841241236905,
+      "per_marking": [
+        {
+          "marking": "left_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.2311606613207753,
+          "exclusive_forward": 0.2240474891281411
+        },
+        {
+          "marking": "left_singles",
+          "profile": 1.0,
+          "independent_forward": 0.23796168122240663,
+          "exclusive_forward": 0.18721427753286418
+        },
+        {
+          "marking": "centre",
+          "profile": 1.0,
+          "independent_forward": 0.6961254100210953,
+          "exclusive_forward": 0.6751324859614241
+        },
+        {
+          "marking": "right_singles",
+          "profile": 1.0,
+          "independent_forward": 0.9428224037811446,
+          "exclusive_forward": 0.9337596187344667
+        },
+        {
+          "marking": "right_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.9122355777214161,
+          "exclusive_forward": 0.9003582422303158
+        },
+        {
+          "marking": "far_baseline",
+          "profile": 1.0,
+          "independent_forward": 0.5365167203786941,
+          "exclusive_forward": 0.535745373735816
+        },
+        {
+          "marking": "far_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.19792691985161237,
+          "exclusive_forward": 2.2514895073836895e-15
+        },
+        {
+          "marking": "far_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.46324784431454846,
+          "exclusive_forward": 0.4602512313229257
+        },
+        {
+          "marking": "near_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.6230859139871178,
+          "exclusive_forward": 0.6164666213923299
+        },
+        {
+          "marking": "near_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.124334710082839,
+          "exclusive_forward": 0.12214627301769886
+        },
+        {
+          "marking": "near_baseline",
+          "profile": 1.0,
+          "independent_forward": 0.9962669665926615,
+          "exclusive_forward": 0.9962669665926615
+        }
+      ],
+      "selected_assignment_examples": [
+        {
+          "assignment_array_index_zero_based": 58,
+          "chosen_marking": "far_baseline",
+          "chosen_position_index": 1,
+          "chosen_reverse_strength": 0.8971866404280892,
+          "alternative_marking": "far_long_service",
+          "alternative_reverse_strength": 0.3296350909634958
+        },
+        {
+          "assignment_array_index_zero_based": 84,
+          "chosen_marking": "far_baseline",
+          "chosen_position_index": 1,
+          "chosen_reverse_strength": 0.7003170898996381,
+          "alternative_marking": "far_long_service",
+          "alternative_reverse_strength": 0.24010168892376055
+        }
+      ],
+      "predicted_line_separation": {
+        "source_interval": "far_long_service",
+        "target_supporting_line": "far_baseline",
+        "clipped_source_endpoints_working_px": [
+          [
+            519.3764688713578,
+            213.29870914778297
+          ],
+          [
+            743.3003029935451,
+            224.7175515784043
+          ]
+        ],
+        "perpendicular_distance_range_working_px": [
+          1.8615469304044554,
+          2.2439383079545183
+        ],
+        "note": "Geometric predicted centre-line spacing, not measured stripe separation in pixels."
+      }
+    },
+    {
+      "identity": [
+        "am2_window_01_frame_28019",
+        "automatic_all_camera",
+        "16:1800"
+      ],
+      "independent_forward": 0.5336631066273858,
+      "exclusive_forward": 0.4947393328284962,
+      "forward_loss": 0.038923773798889616,
+      "relative_forward_loss": 0.07293697712191105,
+      "per_marking": [
+        {
+          "marking": "left_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.7224856991658167,
+          "exclusive_forward": 0.7052414151729658
+        },
+        {
+          "marking": "left_singles",
+          "profile": 1.0,
+          "independent_forward": 0.7551886883261112,
+          "exclusive_forward": 0.6202776411279229
+        },
+        {
+          "marking": "centre",
+          "profile": 1.0,
+          "independent_forward": 0.2184085796780169,
+          "exclusive_forward": 0.21287782071999464
+        },
+        {
+          "marking": "right_singles",
+          "profile": 1.0,
+          "independent_forward": 0.570886424438795,
+          "exclusive_forward": 0.47255878273761404
+        },
+        {
+          "marking": "right_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.5128807269236173,
+          "exclusive_forward": 0.49540283717153066
+        },
+        {
+          "marking": "far_baseline",
+          "profile": 0.0,
+          "independent_forward": 0.1969829453265786,
+          "exclusive_forward": 0.05145226675518336
+        },
+        {
+          "marking": "far_long_service",
+          "profile": 0.0,
+          "independent_forward": 0.4002498380864839,
+          "exclusive_forward": 0.3979894154408573
+        },
+        {
+          "marking": "far_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.4798167423478101,
+          "exclusive_forward": 0.4768590578704535
+        },
+        {
+          "marking": "near_short_service",
+          "profile": 0.0,
+          "independent_forward": 0.035540828212555345,
+          "exclusive_forward": 0.035540828212555345
+        },
+        {
+          "marking": "near_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.9791509345258371,
+          "exclusive_forward": 0.9752298300347586
+        },
+        {
+          "marking": "near_baseline",
+          "profile": 0.0,
+          "independent_forward": 0.9987027658696217,
+          "exclusive_forward": 0.9987027658696217
+        }
+      ],
+      "selected_assignment_examples": [],
+      "predicted_line_separation": null
+    },
+    {
+      "identity": [
+        "am2_window_01_frame_28019",
+        "automatic_all_camera",
+        "184:4123"
+      ],
+      "independent_forward": 0.347866198715918,
+      "exclusive_forward": 0.22218360885029106,
+      "forward_loss": 0.12568258986562694,
+      "relative_forward_loss": 0.36129578076156965,
+      "per_marking": [
+        {
+          "marking": "left_doubles",
+          "profile": 1.0,
+          "independent_forward": 0.021880223111264138,
+          "exclusive_forward": 1.4953463623993063e-06
+        },
+        {
+          "marking": "left_singles",
+          "profile": 1.0,
+          "independent_forward": 0.059134022693031855,
+          "exclusive_forward": 0.0
+        },
+        {
+          "marking": "centre",
+          "profile": 1.0,
+          "independent_forward": 0.24538004544857364,
+          "exclusive_forward": 0.0
+        },
+        {
+          "marking": "right_singles",
+          "profile": 1.0,
+          "independent_forward": 0.16530007773739003,
+          "exclusive_forward": 0.13361437864148834
+        },
+        {
+          "marking": "right_doubles",
+          "profile": 1.0,
+          "independent_forward": 1.8765406460871254e-24,
+          "exclusive_forward": 0.0
+        },
+        {
+          "marking": "far_baseline",
+          "profile": 1.0,
+          "independent_forward": 0.7912215897866051,
+          "exclusive_forward": 0.7671506416958678
+        },
+        {
+          "marking": "far_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.45493765316324397,
+          "exclusive_forward": 0.43066127952177113
+        },
+        {
+          "marking": "far_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.007168476711979761,
+          "exclusive_forward": 3.521848005094194e-21
+        },
+        {
+          "marking": "near_short_service",
+          "profile": 1.0,
+          "independent_forward": 0.43878045866275694,
+          "exclusive_forward": 0.2881156814482676
+        },
+        {
+          "marking": "near_long_service",
+          "profile": 1.0,
+          "independent_forward": 0.835007239561989,
+          "exclusive_forward": 0.8244762206994447
+        },
+        {
+          "marking": "near_baseline",
+          "profile": 1.0,
+          "independent_forward": 0.8077183989982637,
+          "exclusive_forward": 6.269614562753907e-19
+        }
+      ],
+      "selected_assignment_examples": [
+        {
+          "assignment_array_index_zero_based": 133,
+          "chosen_marking": "near_long_service",
+          "chosen_position_index": 1,
+          "chosen_reverse_strength": 0.9971234116494279,
+          "alternative_marking": "near_baseline",
+          "alternative_reverse_strength": 0.9733605228429076
+        },
+        {
+          "assignment_array_index_zero_based": 174,
+          "chosen_marking": "near_long_service",
+          "chosen_position_index": 1,
+          "chosen_reverse_strength": 0.8040646854888762,
+          "alternative_marking": "near_baseline",
+          "alternative_reverse_strength": 0.6967659000410159
+        }
+      ],
+      "predicted_line_separation": {
+        "source_interval": "near_baseline",
+        "target_supporting_line": "near_long_service",
+        "clipped_source_endpoints_working_px": [
+          [
+            846.0523482219083,
+            204.219389880952
+          ],
+          [
+            959.0,
+            213.69084321269145
+          ]
+        ],
+        "perpendicular_distance_range_working_px": [
+          0.37842643865334613,
+          0.45224696291744076
+        ],
+        "note": "Geometric predicted centre-line spacing, not measured stripe separation in pixels."
+      }
+    }
+  ],
+  "nine_candidate_geometry_audit": [
+    {
+      "identity": [
+        "am2_window_00_frame_150",
+        "automatic_all_camera",
+        "30:30"
+      ],
+      "homography_source": "saved detailed ranking record",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              534.8861627472271,
+              211.2398030083651
+            ],
+            [
+              -176.66455528537227,
+              305.6978982866924
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 539.5785862318527,
+          "clipped_endpoints_working_px": [
+            [
+              534.8861627472271,
+              211.2398030083651
+            ],
+            [
+              0.0,
+              282.2457437563888
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              548.4021239248004,
+              211.89420152102633
+            ],
+            [
+              -156.98766716038497,
+              313.08752068167297
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 554.0164428520195,
+          "clipped_endpoints_working_px": [
+            [
+              548.4021239248004,
+              211.89420152102633
+            ],
+            [
+              0.0,
+              290.56649286412164
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              631.1272775501361,
+              215.899482150414
+            ],
+            [
+              572.7589315882767,
+              230.62046757538909
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 60.19610637080805,
+          "clipped_endpoints_working_px": [
+            [
+              631.1272775501361,
+              215.899482150414
+            ],
+            [
+              572.7589315882767,
+              230.62046757538909
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              469.59132946335916,
+              256.640200397747
+            ],
+            [
+              4.828444129039753,
+              373.85729038598464
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 479.31658198897344,
+          "clipped_endpoints_working_px": [
+            [
+              469.59132946335916,
+              256.640200397747
+            ],
+            [
+              4.828444129039781,
+              373.85729038598464
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              727.0586239442948,
+              220.54416332204175
+            ],
+            [
+              374.5241191911715,
+              512.6958822615643
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 457.857187254768,
+          "clipped_endpoints_working_px": [
+            [
+              727.0586239442948,
+              220.54416332204175
+            ],
+            [
+              374.5241191911715,
+              512.6958822615643
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              745.7211628294493,
+              221.4477422483553
+            ],
+            [
+              496.24644505273693,
+              558.4084979679825
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 395.1125648953247,
+          "clipped_endpoints_working_px": [
+            [
+              745.7211628294493,
+              221.4477422483553
+            ],
+            [
+              510.6158618790131,
+              539.0
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              534.8861627472271,
+              211.2398030083651
+            ],
+            [
+              745.7211628294493,
+              221.4477422483553
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 211.08197289962487,
+          "clipped_endpoints_working_px": [
+            [
+              534.8861627472271,
+              211.2398030083651
+            ],
+            [
+              745.7211628294493,
+              221.4477422483553
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              524.1851214311513,
+              212.6603622947165
+            ],
+            [
+              744.0572482950483,
+              223.69515995849966
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 220.14885630212635,
+          "clipped_endpoints_working_px": [
+            [
+              524.1851214311513,
+              212.6603622947165
+            ],
+            [
+              744.0572482950483,
+              223.69515995849966
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              448.5511810957658,
+              222.7007399676231
+            ],
+            [
+              731.4391206985772,
+              240.7382248773229
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 283.4624088562565,
+          "clipped_endpoints_working_px": [
+            [
+              448.5511810957658,
+              222.7007399676231
+            ],
+            [
+              731.4391206985772,
+              240.7382248773229
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              308.375003404672,
+              241.30907583538405
+            ],
+            [
+              703.2170684662321,
+              278.85721397938187
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 396.6233969651287,
+          "clipped_endpoints_working_px": [
+            [
+              308.375003404672,
+              241.30907583538405
+            ],
+            [
+              703.2170684662321,
+              278.85721397938187
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              -40.44249061050317,
+              287.61446946288834
+            ],
+            [
+              583.5583033900573,
+              440.47803178358583
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 600.8134295890242,
+          "clipped_endpoints_working_px": [
+            [
+              0.0,
+              297.5218017023363
+            ],
+            [
+              583.5583033900573,
+              440.47803178358583
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              -176.66455528537227,
+              305.6978982866924
+            ],
+            [
+              496.24644505273693,
+              558.4084979679825
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 474.8823622437635,
+          "clipped_endpoints_working_px": [
+            [
+              0.0,
+              372.04397627644533
+            ],
+            [
+              444.5660177213693,
+              539.0
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6614942562478205,
+          2.2325448634910656,
+          1.731807148842535,
+          1.277786067718709,
+          0.8646788661569189,
+          0.4260358417912088,
+          0.167095583608643,
+          0.14217241010491968,
+          8.373127221592167e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "am2_window_00_frame_150",
+        "automatic_all_camera",
+        "30:33"
+      ],
+      "homography_source": "saved detailed ranking record",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              529.6152399490733,
+              211.93951606501034
+            ],
+            [
+              -49.21249188995034,
+              288.77868389687194
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 534.2614229368488,
+          "clipped_endpoints_working_px": [
+            [
+              529.6152399490733,
+              211.93951606501034
+            ],
+            [
+              0.0,
+              282.2457437563887
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              543.3631677779294,
+              212.6170765952776
+            ],
+            [
+              -26.80091767207936,
+              294.4112803136487
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 548.92589991211,
+          "clipped_endpoints_working_px": [
+            [
+              543.3631677779294,
+              212.6170765952776
+            ],
+            [
+              0.0,
+              290.5664928641215
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              627.6677944071388,
+              216.77199275675
+            ],
+            [
+              572.7589315882767,
+              230.62046757538906
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 56.62829214150021,
+          "clipped_endpoints_working_px": [
+            [
+              627.6677944071388,
+              216.77199275675
+            ],
+            [
+              572.7589315882767,
+              230.62046757538906
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              481.68051217875944,
+              253.59120732418003
+            ],
+            [
+              146.81844240332353,
+              338.0462242911218
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 345.34802108188677,
+          "clipped_endpoints_working_px": [
+            [
+              481.68051217875944,
+              253.59120732418003
+            ],
+            [
+              146.81844240332356,
+              338.0462242911218
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              725.7758687797234,
+              221.60720572287156
+            ],
+            [
+              483.2433153306951,
+              422.5983184610284
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 314.99121715093617,
+          "clipped_endpoints_working_px": [
+            [
+              725.7758687797234,
+              221.60720572287156
+            ],
+            [
+              483.2433153306951,
+              422.5983184610284
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              744.9051009877354,
+              222.54998145459027
+            ],
+            [
+              578.9815519264365,
+              446.65976292518786
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 278.8473028090756,
+          "clipped_endpoints_working_px": [
+            [
+              744.9051009877354,
+              222.54998145459027
+            ],
+            [
+              578.9815519264365,
+              446.65976292518786
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              529.6152399490733,
+              211.93951606501034
+            ],
+            [
+              744.9051009877354,
+              222.54998145459027
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 215.55116850026567,
+          "clipped_endpoints_working_px": [
+            [
+              529.6152399490733,
+              211.93951606501034
+            ],
+            [
+              744.9051009877354,
+              222.54998145459027
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              519.3764688713578,
+              213.29870914778297
+            ],
+            [
+              743.3003029935451,
+              224.7175515784043
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 224.2147931123997,
+          "clipped_endpoints_working_px": [
+            [
+              519.3764688713578,
+              213.29870914778297
+            ],
+            [
+              743.3003029935451,
+              224.7175515784043
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              448.5511810957658,
+              222.70073996762304
+            ],
+            [
+              731.4391206985772,
+              240.73822487732286
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 283.4624088562565,
+          "clipped_endpoints_working_px": [
+            [
+              448.5511810957658,
+              222.70073996762304
+            ],
+            [
+              731.4391206985772,
+              240.73822487732286
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              324.0422591441819,
+              239.22925341670333
+            ],
+            [
+              706.7421829225187,
+              274.09590893903845
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 384.2849402816327,
+          "clipped_endpoints_working_px": [
+            [
+              324.0422591441819,
+              239.22925341670333
+            ],
+            [
+              706.7421829225187,
+              274.09590893903845
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              47.565213292999175,
+              275.9314792418553
+            ],
+            [
+              623.8079087767101,
+              386.1136554276537
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 586.681988855437,
+          "clipped_endpoints_working_px": [
+            [
+              47.565213292999175,
+              275.9314792418553
+            ],
+            [
+              623.8079087767101,
+              386.1136554276537
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              -49.21249188995034,
+              288.77868389687194
+            ],
+            [
+              578.9815519264365,
+              446.65976292518786
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 596.9870961164895,
+          "clipped_endpoints_working_px": [
+            [
+              0.0,
+              301.1470299481258
+            ],
+            [
+              578.9815519264365,
+              446.65976292518786
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": 0.6354166666666666,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6962273836823325,
+          2.235594348880092,
+          1.7327751449600624,
+          1.2264415572792873,
+          0.8344647322762934,
+          0.31372548622906504,
+          0.16780720871559412,
+          0.10216706680588612,
+          3.318520764010828e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "am2_window_01_frame_28019",
+        "automatic_all_camera",
+        "16:1800"
+      ],
+      "homography_source": "saved detailed ranking record",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              526.9618259102559,
+              207.30215625351633
+            ],
+            [
+              -161.42412016524761,
+              309.5960162300945
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 532.7481987099771,
+          "clipped_endpoints_working_px": [
+            [
+              526.9618259102559,
+              207.30215625351633
+            ],
+            [
+              0.0,
+              285.60846035513043
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              541.598478949185,
+              207.83924450269333
+            ],
+            [
+              -142.6088495314464,
+              316.6007560885395
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 548.3984120392627,
+          "clipped_endpoints_working_px": [
+            [
+              541.598478949185,
+              207.83924450269333
+            ],
+            [
+              0.0,
+              293.93167115634316
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              632.1200210982571,
+              211.16090939809934
+            ],
+            [
+              566.8158225471109,
+              228.29530673321977
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 67.51463486123072,
+          "clipped_endpoints_working_px": [
+            [
+              632.1200210982571,
+              211.16090939809934
+            ],
+            [
+              566.8158225471109,
+              228.29530673321977
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              455.53136484149223,
+              257.49392118460264
+            ],
+            [
+              11.53797922418851,
+              373.98810153005144
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 459.02180833406345,
+          "clipped_endpoints_working_px": [
+            [
+              455.53136484149223,
+              257.49392118460264
+            ],
+            [
+              11.537979224188518,
+              373.98810153005144
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              739.1523087844338,
+              215.08843188878654
+            ],
+            [
+              359.8513702755837,
+              503.6617448708335
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 476.5960122778294,
+          "clipped_endpoints_working_px": [
+            [
+              739.1523087844338,
+              215.08843188878654
+            ],
+            [
+              359.8513702755837,
+              503.6617448708335
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              760.2370578382078,
+              215.86213137619728
+            ],
+            [
+              473.37417024413423,
+              545.9251646886399
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 428.1255677846771,
+          "clipped_endpoints_working_px": [
+            [
+              760.2370578382078,
+              215.86213137619728
+            ],
+            [
+              479.39293799195184,
+              539.0
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              526.9618259102559,
+              207.30215625351633
+            ],
+            [
+              760.2370578382078,
+              215.86213137619728
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 233.43223214702087,
+          "clipped_endpoints_working_px": [
+            [
+              526.9618259102559,
+              207.30215625351633
+            ],
+            [
+              760.2370578382078,
+              215.86213137619728
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              515.3043789675163,
+              209.0344479309443
+            ],
+            [
+              757.9999344531159,
+              218.43615458488262
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 242.8775920921287,
+          "clipped_endpoints_working_px": [
+            [
+              515.3043789675163,
+              209.0344479309443
+            ],
+            [
+              757.9999344531159,
+              218.43615458488262
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              434.1726990682602,
+              221.0905811954209
+            ],
+            [
+              741.1990138896936,
+              237.76721148845647
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 307.4788903173037,
+          "clipped_endpoints_working_px": [
+            [
+              434.1726990682602,
+              221.0905811954209
+            ],
+            [
+              741.1990138896936,
+              237.76721148845647
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              289.4248072619431,
+              242.6000566005395
+            ],
+            [
+              704.6413760526424,
+              279.83025051185695
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 416.88234111916495,
+          "clipped_endpoints_working_px": [
+            [
+              289.4248072619431,
+              242.6000566005395
+            ],
+            [
+              704.6413760526424,
+              279.83025051185695
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              -42.014837123249734,
+              291.8518473535528
+            ],
+            [
+              563.7497921972584,
+              441.939416760322
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 580.7957472499719,
+          "clipped_endpoints_working_px": [
+            [
+              0.0,
+              302.2616740050746
+            ],
+            [
+              563.7497921972584,
+              441.939416760322
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              -161.42412016524761,
+              309.5960162300945
+            ],
+            [
+              473.37417024413423,
+              545.9251646886399
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 485.2660562593903,
+          "clipped_endpoints_working_px": [
+            [
+              2.842170943040401e-14,
+              369.69262555574414
+            ],
+            [
+              454.7726446438202,
+              539.0
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6789464561933896,
+          2.251146324726822,
+          1.7325317163698275,
+          1.2272470908254467,
+          0.8163717784598753,
+          0.41598281024751954,
+          0.17029787782783834,
+          0.14623843777985884,
+          7.407082274543352e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "am2_window_01_frame_28019",
+        "automatic_all_camera",
+        "184:4123"
+      ],
+      "homography_source": "saved detailed ranking record",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              397.40209404543054,
+              154.41173243367237
+            ],
+            [
+              846.0523482219083,
+              204.219389880952
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 451.4065277695967,
+          "clipped_endpoints_working_px": [
+            [
+              397.40209404543054,
+              154.41173243367237
+            ],
+            [
+              846.0523482219083,
+              204.219389880952
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              405.6683228078377,
+              154.3322045420008
+            ],
+            [
+              864.6532858971366,
+              205.77920905686238
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 461.85927577091843,
+          "clipped_endpoints_working_px": [
+            [
+              405.6683228078377,
+              154.3322045420008
+            ],
+            [
+              864.6532858971366,
+              205.77920905686238
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              482.6473964477665,
+              153.59160279900806
+            ],
+            [
+              779.5226702446037,
+              190.1276681530771
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 299.11504854069756,
+          "clipped_endpoints_working_px": [
+            [
+              482.6473964477665,
+              153.59160279900806
+            ],
+            [
+              779.5226702446037,
+              190.1276681530771
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              905.2405298230964,
+              205.59960650277213
+            ],
+            [
+              996.6195321451956,
+              216.84550501810145
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 54.16505836215593,
+          "clipped_endpoints_working_px": [
+            [
+              905.2405298230964,
+              205.59960650277213
+            ],
+            [
+              959.0,
+              212.21571666467003
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              751.8942356208232,
+              151.0012276625189
+            ],
+            [
+              1203.3866502871495,
+              234.1843790822335
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 210.59148504306336,
+          "clipped_endpoints_working_px": [
+            [
+              751.8942356208232,
+              151.0012276625189
+            ],
+            [
+              959.0,
+              189.15848036183803
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              890.0835651540043,
+              149.6717331197036
+            ],
+            [
+              1253.0155192635455,
+              238.34610806922
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 70.94364002253279,
+          "clipped_endpoints_working_px": [
+            [
+              890.0835651540043,
+              149.6717331197036
+            ],
+            [
+              959.0,
+              166.50993574837943
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              397.40209404543054,
+              154.41173243367237
+            ],
+            [
+              890.0835651540043,
+              149.6717331197036
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 492.70427191897255,
+          "clipped_endpoints_working_px": [
+            [
+              397.40209404543054,
+              154.41173243367237
+            ],
+            [
+              890.0835651540043,
+              149.6717331197036
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              443.7452116579831,
+              159.5565910526024
+            ],
+            [
+              978.7573599424622,
+              171.33720852971655
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 515.3796842559171,
+          "clipped_endpoints_working_px": [
+            [
+              443.7452116579831,
+              159.5565910526024
+            ],
+            [
+              959.0,
+              170.90216438990376
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              626.3193492762186,
+              179.82536393430593
+            ],
+            [
+              1160.5274535254187,
+              215.74870013433525
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 333.43199639090807,
+          "clipped_endpoints_working_px": [
+            [
+              626.3193492762186,
+              179.82536393430593
+            ],
+            [
+              959.0,
+              202.19679328577823
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              746.8639299073958,
+              193.20782192538496
+            ],
+            [
+              1219.6850002033068,
+              230.20253484304567
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 212.78441640896196,
+          "clipped_endpoints_working_px": [
+            [
+              746.8639299073958,
+              193.20782192538496
+            ],
+            [
+              959.0,
+              209.80588302203847
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              832.4004596947801,
+              202.70380267034008
+            ],
+            [
+              1249.0022988986232,
+              237.36556666644583
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 127.0369731999988,
+          "clipped_endpoints_working_px": [
+            [
+              832.4004596947801,
+              202.70380267034008
+            ],
+            [
+              959.0,
+              213.23703362405146
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              846.0523482219083,
+              204.219389880952
+            ],
+            [
+              1253.0155192635455,
+              238.34610806922
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 113.34407999715012,
+          "clipped_endpoints_working_px": [
+            [
+              846.0523482219083,
+              204.219389880952
+            ],
+            [
+              959.0,
+              213.69084321269145
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.901629966368314,
+          2.3700484752811715,
+          1.746608458978166,
+          0.2570858691720433,
+          0.17177747376485236,
+          0.1015342688298853,
+          0.050449549469707415,
+          0.0325224840780491,
+          5.2034865539954006e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "shuttleset_03_scene_0019",
+        "automatic_all_camera",
+        "1:60"
+      ],
+      "homography_source": "float64 reconstruction from verified saved corners",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              318.0098886521693,
+              217.64678046058046
+            ],
+            [
+              204.87911872726457,
+              493.8766499320875
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 298.4987636357102,
+          "clipped_endpoints_working_px": [
+            [
+              318.0098886521693,
+              217.64678046058046
+            ],
+            [
+              204.87911872726457,
+              493.8766499320875
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              342.33153235750973,
+              217.44614605369298
+            ],
+            [
+              245.92997975350968,
+              493.5380126568275
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 292.437990262662,
+          "clipped_endpoints_working_px": [
+            [
+              342.33153235750973,
+              217.44614605369298
+            ],
+            [
+              245.92997975350968,
+              493.5380126568275
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              479.27295559968684,
+              216.3164871554958
+            ],
+            [
+              478.7347378790767,
+              283.40271122436457
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 67.08838303412332,
+          "clipped_endpoints_working_px": [
+            [
+              479.27295559968684,
+              216.3164871554958
+            ],
+            [
+              478.7347378790767,
+              283.40271122436457
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              478.12122926447586,
+              359.87357944592674
+            ],
+            [
+              477.06416633878814,
+              491.6313376393502
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 131.76199841451066,
+          "clipped_endpoints_working_px": [
+            [
+              478.12122926447586,
+              359.87357944592674
+            ],
+            [
+              477.06416633878814,
+              491.6313376393502
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              616.2143772661217,
+              215.1868282702972
+            ],
+            [
+              708.1983502644777,
+              489.7246626438125
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 289.53768975914346,
+          "clipped_endpoints_working_px": [
+            [
+              616.2143772661217,
+              215.1868282702972
+            ],
+            [
+              708.1983502644777,
+              489.7246626438125
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              640.5360225472044,
+              214.9861938504111
+            ],
+            [
+              749.2492139503119,
+              489.38602534661294
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 295.15051331514337,
+          "clipped_endpoints_working_px": [
+            [
+              640.5360225472044,
+              214.9861938504111
+            ],
+            [
+              749.2492139503119,
+              489.38602534661294
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              318.0098886521693,
+              217.64678046058046
+            ],
+            [
+              640.5360225472044,
+              214.9861938504111
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 322.5371075804896,
+          "clipped_endpoints_working_px": [
+            [
+              318.0098886521693,
+              217.64678046058046
+            ],
+            [
+              640.5360225472044,
+              214.9861938504111
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              314.1183978995437,
+              227.1485807520563
+            ],
+            [
+              644.2755567103187,
+              224.42504419588568
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 330.1683921355527,
+          "clipped_endpoints_working_px": [
+            [
+              314.1183978995437,
+              227.1485807520563
+            ],
+            [
+              644.2755567103187,
+              224.42504419588568
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              290.44320938685706,
+              284.9559680518493
+            ],
+            [
+              667.0262663712963,
+              281.8494543968798
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 376.59586991207686,
+          "clipped_endpoints_working_px": [
+            [
+              290.44320938685706,
+              284.9559680518493
+            ],
+            [
+              667.0262663712963,
+              281.8494543968798
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              259.02024697299856,
+              361.68099000432005
+            ],
+            [
+              697.2222115559533,
+              358.0661688875334
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 438.21687404305584,
+          "clipped_endpoints_working_px": [
+            [
+              259.02024697299856,
+              361.68099000432005
+            ],
+            [
+              697.2222115559533,
+              358.0661688875334
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              215.30224952092618,
+              468.4266325713928
+            ],
+            [
+              739.2330900103518,
+              464.10461574123224
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 523.9486668037588,
+          "clipped_endpoints_working_px": [
+            [
+              215.30224952092618,
+              468.4266325713928
+            ],
+            [
+              739.2330900103518,
+              464.10461574123224
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              204.87911872726457,
+              493.8766499320875
+            ],
+            [
+              749.2492139503119,
+              489.38602534661294
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 544.3886169661497,
+          "clipped_endpoints_working_px": [
+            [
+              204.87911872726457,
+              493.8766499320875
+            ],
+            [
+              749.2492139503119,
+              489.38602534661294
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": 0.9861111111111112,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          2.9013496381616664,
+          2.6020916363497246,
+          1.7652914839241616,
+          1.6379034173840346,
+          1.3636874725414763,
+          0.9571127075331824,
+          0.4444318329445126,
+          0.19768625005810916,
+          7.923144533850524e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "shuttleset_03_scene_0019",
+        "automatic_all_camera",
+        "165:6702"
+      ],
+      "homography_source": "float64 reconstruction from verified saved corners",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              6197.678782957971,
+              18.539465526537864
+            ],
+            [
+              -6082.337574239206,
+              119.83992976505131
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 959.0326291833275,
+          "clipped_endpoints_working_px": [
+            [
+              959.0,
+              61.754439943006545
+            ],
+            [
+              9.094947017729282e-13,
+              69.66543471524051
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              5538.796678090223,
+              51.53986344980551
+            ],
+            [
+              -5381.962818859569,
+              141.6275290276931
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 959.0326291833279,
+          "clipped_endpoints_working_px": [
+            [
+              959.0,
+              89.31957938126143
+            ],
+            [
+              0.0,
+              97.2305741534954
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              3506.3229452984424,
+              153.33719783663165
+            ],
+            [
+              1136.524267999823,
+              172.88617067016276
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              -851.6970031138778,
+              189.28743040094986
+            ],
+            [
+              -3221.4954410039986,
+              208.8364012595494
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              2601.573381277877,
+              198.6519748096298
+            ],
+            [
+              -2259.769891168453,
+              238.75422842209866
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 959.0326291833275,
+          "clipped_endpoints_working_px": [
+            [
+              958.9999999999998,
+              212.20191165248687
+            ],
+            [
+              0.0,
+              220.11290642472085
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              2490.9160555234876,
+              204.1942952885757
+            ],
+            [
+              -2142.1439959079466,
+              242.4133921043422
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 959.0326291833281,
+          "clipped_endpoints_working_px": [
+            [
+              959.0,
+              216.8313963383646
+            ],
+            [
+              0.0,
+              224.7423911105986
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              6197.678782957971,
+              18.539465526537864
+            ],
+            [
+              2490.9160555234876,
+              204.1942952885757
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              5501.200232208421,
+              24.284865082275896
+            ],
+            [
+              2228.145481259114,
+              206.36194559024653
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              1872.1805531395144,
+              54.22141952382782
+            ],
+            [
+              858.9725411026867,
+              217.65654410105125
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 101.3204185789711,
+          "clipped_endpoints_working_px": [
+            [
+              959.0,
+              201.52165372137344
+            ],
+            [
+              858.9725411026867,
+              217.65654410105125
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              -1756.8397814034531,
+              84.15797937252454
+            ],
+            [
+              -510.2006463539556,
+              228.95114465188794
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              -5385.859678963714,
+              114.09453561645806
+            ],
+            [
+              -1879.373668943788,
+              240.24574384270332
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              -6082.337574239206,
+              119.83992976505131
+            ],
+            [
+              -2142.1439959079466,
+              242.4133921043422
+            ]
+          ],
+          "observation_state_geometric": "no_intersection",
+          "clipped_span_working_px": 0.0,
+          "clipped_endpoints_working_px": null
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 7,
+        "homography_dof_remaining_after_scale": 1,
+        "singular_values": [
+          2.394724391526016,
+          1.6465107240262276,
+          1.2164469392054365,
+          0.23189247002400457,
+          0.11350324154742354,
+          0.08073643911687015,
+          0.03713343907887353,
+          1.542789246486801e-16,
+          1.3629823392175325e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          4,
+          5,
+          8
+        ]
+      }
+    },
+    {
+      "identity": [
+        "gxBQ_window_00_frame_0",
+        "GX0 observed-bank control (descriptive namespace)",
+        1864
+      ],
+      "homography_source": "float64 reconstruction from verified GX0 control corners",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              486.24125409292475,
+              580.5476934192636
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 439.178918461898,
+          "clipped_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              428.106594291953,
+              539.0
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              94.7424314917654,
+              282.42010311976463
+            ],
+            [
+              558.241265176502,
+              519.2728800782355
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 520.509756661727,
+          "clipped_endpoints_working_px": [
+            [
+              94.7424314917654,
+              282.42010311976463
+            ],
+            [
+              558.241265176502,
+              519.2728800782355
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              206.97385954664998,
+              276.70629617311585
+            ],
+            [
+              275.4706101695229,
+              290.3487890504267
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 69.84212523827951,
+          "clipped_endpoints_working_px": [
+            [
+              206.97385954664998,
+              276.70629617311585
+            ],
+            [
+              275.4706101695229,
+              290.3487890504267
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              382.9415325261952,
+              311.7537648987166
+            ],
+            [
+              722.5939809540822,
+              379.4023185352351
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 346.3237106121545,
+          "clipped_endpoints_working_px": [
+            [
+              382.9415325261952,
+              311.7537648987166
+            ],
+            [
+              722.5939809540822,
+              379.4023185352351
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              291.2529430867861,
+              272.4155692231448
+            ],
+            [
+              776.6635666197442,
+              333.38699549251635
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 489.22488516016494,
+          "clipped_endpoints_working_px": [
+            [
+              291.2529430867861,
+              272.4155692231448
+            ],
+            [
+              776.6635666197442,
+              333.38699549251635
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              304.0738425000326,
+              271.7628452455628
+            ],
+            [
+              782.6858910039192,
+              328.26176291316165
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 481.93528680798715,
+          "clipped_endpoints_working_px": [
+            [
+              304.0738425000326,
+              271.7628452455628
+            ],
+            [
+              782.6858910039192,
+              328.26176291316165
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              304.0738425000326,
+              271.7628452455628
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 233.57726584019994,
+          "clipped_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              304.0738425000326,
+              271.7628452455628
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              74.19770094828816,
+              286.06830229446587
+            ],
+            [
+              314.8962783843906,
+              273.0404058834627
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 241.0508893670779,
+          "clipped_endpoints_working_px": [
+            [
+              74.19770094828816,
+              286.06830229446587
+            ],
+            [
+              314.8962783843906,
+              273.0404058834627
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              99.6407849814999,
+              304.2519720479573
+            ],
+            [
+              386.88785373732225,
+              281.538825639799
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 288.14365432639767,
+          "clipped_endpoints_working_px": [
+            [
+              99.6407849814999,
+              304.2519720479573
+            ],
+            [
+              386.88785373732225,
+              281.538825639799
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              154.4980192567875,
+              343.45735416081976
+            ],
+            [
+              502.4018629713649,
+              295.17495644254336
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 351.23820179587943,
+          "clipped_endpoints_working_px": [
+            [
+              154.4980192567875,
+              343.45735416081976
+            ],
+            [
+              502.40186297136495,
+              295.17495644254336
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              359.65108252448636,
+              490.07619747822173
+            ],
+            [
+              718.003673997701,
+              320.62619405396606
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 396.3961194008449,
+          "clipped_endpoints_working_px": [
+            [
+              359.65108252448636,
+              490.07619747822173
+            ],
+            [
+              718.003673997701,
+              320.62619405396606
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              486.24125409292475,
+              580.5476934192636
+            ],
+            [
+              782.6858910039192,
+              328.26176291316165
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 325.15931717494817,
+          "clipped_endpoints_working_px": [
+            [
+              535.0612214428877,
+              539.0
+            ],
+            [
+              782.6858910039192,
+              328.26176291316165
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6744392711481106,
+          2.3010146690552618,
+          1.6727052219780014,
+          1.3281596343830089,
+          0.5979049068800751,
+          0.40681369672244044,
+          0.32472654634920817,
+          0.11593864749956821,
+          1.2038713339401524e-16
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "gxBQ_window_00_frame_0",
+        "GX0 observed-bank control (descriptive namespace)",
+        5144
+      ],
+      "homography_source": "float64 reconstruction from verified GX0 control corners",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              486.2412540929246,
+              580.5476934192632
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 439.1789184618982,
+          "clipped_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              428.10659429195334,
+              539.0
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              95.49449181213758,
+              282.3818150256246
+            ],
+            [
+              560.1400094054936,
+              517.6569747962382
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 520.8165299073038,
+          "clipped_endpoints_working_px": [
+            [
+              95.49449181213758,
+              282.3818150256246
+            ],
+            [
+              560.1400094054936,
+              517.6569747962382
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              210.62632976888509,
+              276.52034549878215
+            ],
+            [
+              279.8572736752837,
+              290.0019276154912
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 70.53138769753846,
+          "clipped_endpoints_working_px": [
+            [
+              210.62632976888509,
+              276.52034549878215
+            ],
+            [
+              279.8572736752837,
+              290.0019276154912
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              387.9724453851975,
+              311.0555704408721
+            ],
+            [
+              725.6393227759381,
+              376.8106140495617
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 344.00965952541816,
+          "clipped_endpoints_working_px": [
+            [
+              387.9724453851975,
+              311.0555704408721
+            ],
+            [
+              725.6393227759381,
+              376.8106140495617
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              296.41235703388367,
+              272.1528986346787
+            ],
+            [
+              779.1394041031513,
+              331.27996137716895
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 486.33467028453697,
+          "clipped_endpoints_working_px": [
+            [
+              296.41235703388367,
+              272.1528986346787
+            ],
+            [
+              779.1394041031513,
+              331.27996137716895
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              309.412471727993,
+              271.491050639569
+            ],
+            [
+              785.0698044165289,
+              326.23295976187785
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 478.7970078798818,
+          "clipped_endpoints_working_px": [
+            [
+              309.412471727993,
+              271.491050639569
+            ],
+            [
+              785.0698044165289,
+              326.23295976187785
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              309.412471727993,
+              271.491050639569
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 238.92280924957197,
+          "clipped_endpoints_working_px": [
+            [
+              70.79869666260217,
+              283.6391010490139
+            ],
+            [
+              309.412471727993,
+              271.491050639569
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              74.19770094828817,
+              286.0683022944658
+            ],
+            [
+              320.3228437093481,
+              272.7466910984642
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 246.48539758778725,
+          "clipped_endpoints_working_px": [
+            [
+              74.19770094828817,
+              286.0683022944658
+            ],
+            [
+              320.3228437093481,
+              272.7466910984642
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              99.64078498149992,
+              304.2519720479572
+            ],
+            [
+              392.7149254574349,
+              281.07806851638253
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 293.98891411173787,
+          "clipped_endpoints_working_px": [
+            [
+              99.64078498149992,
+              304.2519720479572
+            ],
+            [
+              392.7149254574349,
+              281.07806851638253
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              154.4980192567876,
+              343.4573541608198
+            ],
+            [
+              508.2055255568887,
+              294.36951910622344
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 357.09748747839615,
+          "clipped_endpoints_working_px": [
+            [
+              154.4980192567876,
+              343.4573541608198
+            ],
+            [
+              508.2055255568887,
+              294.36951910622344
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              359.6510825244863,
+              490.07619747822145
+            ],
+            [
+              721.5952753430769,
+              318.9278754851775
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 400.36901333162103,
+          "clipped_endpoints_working_px": [
+            [
+              359.6510825244863,
+              490.07619747822145
+            ],
+            [
+              721.5952753430769,
+              318.9278754851775
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              486.2412540929246,
+              580.5476934192632
+            ],
+            [
+              785.0698044165289,
+              326.23295976187785
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 328.289666258594,
+          "clipped_endpoints_working_px": [
+            [
+              535.0612214428871,
+              539.0
+            ],
+            [
+              785.0698044165289,
+              326.23295976187785
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.6757959245434346,
+          2.301578400137303,
+          1.6729964600435627,
+          1.3244541922968145,
+          0.5965802678661343,
+          0.405268106892105,
+          0.32364561043748946,
+          0.11518850070124544,
+          5.163196665447752e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "identity": [
+        "gxBQ_window_00_frame_0",
+        "GX0 supplied-direction comparator (descriptive namespace)",
+        89
+      ],
+      "homography_source": "float64 reconstruction from verified GX0 control corners",
+      "intervals": [
+        {
+          "interval_index": 0,
+          "interval_name": "left_doubles",
+          "projected_endpoints_working_px": [
+            [
+              70.69372861108405,
+              283.57787950035794
+            ],
+            [
+              486.3082343144711,
+              580.5813112824605
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 439.31166977201457,
+          "clipped_endpoints_working_px": [
+            [
+              70.69372861108405,
+              283.57787950035794
+            ],
+            [
+              428.12104088218325,
+              539.0
+            ]
+          ]
+        },
+        {
+          "interval_index": 1,
+          "interval_name": "left_singles",
+          "projected_endpoints_working_px": [
+            [
+              94.96417273641278,
+              282.31886513179137
+            ],
+            [
+              558.0525525813509,
+              519.486448257591
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 520.2877185107706,
+          "clipped_endpoints_working_px": [
+            [
+              94.96417273641278,
+              282.31886513179137
+            ],
+            [
+              558.0525525813509,
+              519.486448257591
+            ]
+          ]
+        },
+        {
+          "interval_index": 2,
+          "interval_name": "centre_far",
+          "projected_endpoints_working_px": [
+            [
+              208.48444919045906,
+              276.43007057816646
+            ],
+            [
+              277.5627988069739,
+              290.2749993840243
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 70.45211451319773,
+          "clipped_endpoints_working_px": [
+            [
+              208.48444919045906,
+              276.43007057816646
+            ],
+            [
+              277.5627988069739,
+              290.2749993840243
+            ]
+          ]
+        },
+        {
+          "interval_index": 3,
+          "interval_name": "centre_near",
+          "projected_endpoints_working_px": [
+            [
+              385.451015308452,
+              311.89833990599925
+            ],
+            [
+              722.4981562021213,
+              379.4505280488259
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 343.75001571997177,
+          "clipped_endpoints_working_px": [
+            [
+              385.451015308452,
+              311.89833990599925
+            ],
+            [
+              722.4981562021213,
+              379.4505280488259
+            ]
+          ]
+        },
+        {
+          "interval_index": 4,
+          "interval_name": "right_singles",
+          "projected_endpoints_working_px": [
+            [
+              293.4694604897627,
+              272.0215253621788
+            ],
+            [
+              776.8050358668067,
+              333.2047561943913
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 487.1926376292298,
+          "clipped_endpoints_working_px": [
+            [
+              293.4694604897627,
+              272.0215253621788
+            ],
+            [
+              776.8050358668067,
+              333.2047561943913
+            ]
+          ]
+        },
+        {
+          "interval_index": 5,
+          "interval_name": "right_doubles",
+          "projected_endpoints_working_px": [
+            [
+              306.3781251404358,
+              271.3518963191221
+            ],
+            [
+              782.8601501441516,
+              328.0484401778644
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 479.8433267611084,
+          "clipped_endpoints_working_px": [
+            [
+              306.3781251404358,
+              271.3518963191221
+            ],
+            [
+              782.8601501441516,
+              328.0484401778644
+            ]
+          ]
+        },
+        {
+          "interval_index": 6,
+          "interval_name": "far_baseline",
+          "projected_endpoints_working_px": [
+            [
+              70.69372861108405,
+              283.57787950035794
+            ],
+            [
+              306.3781251404358,
+              271.3518963191221
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 236.00129116628278,
+          "clipped_endpoints_working_px": [
+            [
+              70.69372861108405,
+              283.57787950035794
+            ],
+            [
+              306.3781251404358,
+              271.3518963191221
+            ]
+          ]
+        },
+        {
+          "interval_index": 7,
+          "interval_name": "far_long_service",
+          "projected_endpoints_working_px": [
+            [
+              74.16094369953933,
+              286.0555956673024
+            ],
+            [
+              317.26661685467417,
+              272.64751675312914
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 243.4751422638047,
+          "clipped_endpoints_working_px": [
+            [
+              74.16094369953933,
+              286.0555956673024
+            ],
+            [
+              317.26661685467417,
+              272.64751675312914
+            ]
+          ]
+        },
+        {
+          "interval_index": 8,
+          "interval_name": "far_short_service",
+          "projected_endpoints_working_px": [
+            [
+              100.0789691212356,
+              304.5769475201014
+            ],
+            [
+              389.5618860661871,
+              281.2499229018147
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 290.42126175695165,
+          "clipped_endpoints_working_px": [
+            [
+              100.0789691212356,
+              304.5769475201014
+            ],
+            [
+              389.5618860661871,
+              281.2499229018147
+            ]
+          ]
+        },
+        {
+          "interval_index": 9,
+          "interval_name": "near_short_service",
+          "projected_endpoints_working_px": [
+            [
+              155.74707991815364,
+              344.358090191071
+            ],
+            [
+              505.07234701556376,
+              294.9944999722904
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 352.7958421976719,
+          "clipped_endpoints_working_px": [
+            [
+              155.74707991815364,
+              344.358090191071
+            ],
+            [
+              505.07234701556376,
+              294.9944999722904
+            ]
+          ]
+        },
+        {
+          "interval_index": 10,
+          "interval_name": "near_long_service",
+          "projected_endpoints_working_px": [
+            [
+              361.3863972565377,
+              491.3105716870294
+            ],
+            [
+              719.064386054838,
+              320.45738921080317
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 396.38914419172943,
+          "clipped_endpoints_working_px": [
+            [
+              361.3863972565377,
+              491.3105716870294
+            ],
+            [
+              719.064386054838,
+              320.45738921080317
+            ]
+          ]
+        },
+        {
+          "interval_index": 11,
+          "interval_name": "near_baseline",
+          "projected_endpoints_working_px": [
+            [
+              486.3082343144711,
+              580.5813112824605
+            ],
+            [
+              782.8601501441516,
+              328.0484401778644
+            ]
+          ],
+          "observation_state_geometric": "available",
+          "clipped_span_working_px": 325.37213636832087,
+          "clipped_endpoints_working_px": [
+            [
+              535.1375905467401,
+              539.0
+            ],
+            [
+              782.8601501441516,
+              328.0484401778644
+            ]
+          ]
+        }
+      ],
+      "floor_score_recorded": -1.0,
+      "positive_corner_denominators": true,
+      "ideal_visible_line_constraint_rank": {
+        "rank": 8,
+        "homography_dof_remaining_after_scale": 0,
+        "singular_values": [
+          3.673068942563161,
+          2.300575290395127,
+          1.6723873272982717,
+          1.3317764969074282,
+          0.5991343076108113,
+          0.4084709204559818,
+          0.32568765483462475,
+          0.11630565872868555,
+          4.217643532821282e-17
+        ],
+        "selected_interval_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      }
+    }
+  ],
+  "all_camera_compact_count": 17,
+  "checks_passed": [
+    "Both compact gzip files match committed Git blob SHAs and decompress with valid trailers",
+    "Four detailed entries agree exactly with compact scores, gates and corners",
+    "Four saved homographies reproduce corners within numerical precision",
+    "All four detailed visibility masks match geometry replay",
+    "Scene19 PNG header dimensions are 960x540",
+    "Scene19 false visibility matches all twelve saved flags, with seven no-intersection intervals",
+    "Scene19 source float32 camera error replay equals committed error exactly",
+    "All three analytic witnesses preserve availability and clipped endpoints numerically",
+    "All three witnesses satisfy the existing error bound at the unchanged focal",
+    "Ideal named-line ranks are 7, 7, 8, 8",
+    "Nine-candidate geometry audit includes positive contrary controls"
+  ]
+}

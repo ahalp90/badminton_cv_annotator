@@ -1,0 +1,4 @@
+rule,fragments_dropped,fragments_total,merged_lines_total,direction_lines_used,selected_directions,min_angle_to_control_x_deg,min_angle_to_control_y_deg,set_bound_working_px,best_control_fit_working_px,dropped_fragments_within_6px_of_court_edge,row_31_survives,row_51_survives,row_61_survives
+baseline (no masking),0,724,,,16,0.177489,1.794981,6.022569,6.798367,,True,True,True
+A_both_endpoints,55,724,105,105,16,0.056371,0.618692,6.022569,7.070301,1,True,True,False
+B_midpoint,66,724,105,105,16,0.056371,0.0,1.218743,1.498316,1,True,True,False
