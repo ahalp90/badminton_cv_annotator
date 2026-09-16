@@ -676,8 +676,8 @@ def main() -> None:
     write_csv(table_path, rows)
     witness_path.write_text(json.dumps(witness, indent=2) + '\n')
     args.webui_seed.joinpath('tables').mkdir(parents=True, exist_ok=True)
-    args.webui_seed.joinpath('tables/l1_admission.csv').write_text(table_path.read_text())
-    args.webui_seed.joinpath('l1_admission_witnesses.json').write_text(witness_path.read_text())
+    args.webui_seed.joinpath('tables/l1_admission.csv').write_bytes(table_path.read_bytes())
+    args.webui_seed.joinpath('l1_admission_witnesses.json').write_bytes(witness_path.read_bytes())
     print('wrote', relative_path(table_path), 'and', relative_path(witness_path), flush=True)
     print('runtime_s', round(elapsed, 3), 'peak_rss_mib', round(peak_rss_mib, 1), flush=True)
 

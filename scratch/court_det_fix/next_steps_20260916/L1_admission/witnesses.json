@@ -1,0 +1,2306 @@
+{
+  "schema": "l1-fixed-budget-admission-probe/1",
+  "git_commit_at_run": "f4ef396ff5bda87896ec00d4b326ded6c448a1f8",
+  "prompt": "scratch/court_det_fix/worklog/webui_further_followups_16092026/prompts/L1_fixed_budget_admission_probe.md",
+  "reference_files": {
+    "axis_replay": "scratch/court_det_fix/line_identity/axis_replay.py",
+    "axis_table": "scratch/court_det_fix/line_identity/runs/axis_replay/table.csv",
+    "retention_helper": "scratch/court_det_fix/worklog/webui_further_followups_16092026/helpers/retention_probe_reference.py",
+    "c2_witnesses": "scratch/court_det_fix/next_steps_20260916/C2_traces/witnesses.json"
+  },
+  "matcher_settings": {
+    "angle_deg": 1.5,
+    "max_groups": 128,
+    "keep_axes": 512,
+    "minimum_matches": 3,
+    "batch": 256,
+    "maximum_condition": 100000000.0
+  },
+  "admission_settings": {
+    "keep": 512,
+    "core": 256,
+    "bins": 16
+  },
+  "stages": {
+    "combined": "all admitted horizontal-by-vertical products",
+    "geometry_player": "existing geometry() and zone_net.player_fractions() masks",
+    "per_pair_shortlist": "existing retain() with keep_candidates=256 and distinct_corner_distance=2"
+  },
+  "comparisons": [
+    {
+      "case_id": "am3_window_00_frame_0",
+      "label": "Am3-0",
+      "direction_arm": "R",
+      "pair_id": 43,
+      "pencils": [
+        2,
+        14
+      ],
+      "direction_fit_px": 4.268568115348892,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e4/R/results/am3_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        },
+        "vertical": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e4/R/results/am3_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 23864,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9915848603880351,
+              "score_last": 0.8851038183320539
+            },
+            "vertical": {
+              "distinct_count": 1748,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.7928188444179906,
+              "score_last": 0.544968467342599
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 57742,
+            "geometry_player": 32628,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 46.09975176924483,
+              "axis_ids": [
+                18998,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2547861696060678,
+                  1.735664942588041
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9270517625521434,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7772360520578003
+              },
+              "corners_working_px": [
+                [
+                  29.608216036525207,
+                  234.74170339674018
+                ],
+                [
+                  316.3165540679143,
+                  234.07624591893918
+                ],
+                [
+                  1035.3758465402168,
+                  397.1270067662281
+                ],
+                [
+                  264.7341987927199,
+                  574.6993282115093
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 117415,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 46.09975176924483,
+              "axis_ids": [
+                18998,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2547861696060678,
+                  1.735664942588041
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9270517625521434,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7772360520578003
+              },
+              "corners_working_px": [
+                [
+                  29.608216036525207,
+                  234.74170339674018
+                ],
+                [
+                  316.3165540679143,
+                  234.07624591893918
+                ],
+                [
+                  1035.3758465402168,
+                  397.1270067662281
+                ],
+                [
+                  264.7341987927199,
+                  574.6993282115093
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 117415,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 48.566477925289995,
+              "axis_ids": [
+                22016,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.24937481736123662,
+                  1.7255973113272514
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9053926614051144,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7664065014842858
+              },
+              "corners_working_px": [
+                [
+                  34.66741602853952,
+                  234.7299608625346
+                ],
+                [
+                  314.7658377377344,
+                  234.07984517170232
+                ],
+                [
+                  1032.9528486278866,
+                  397.68531731874947
+                ],
+                [
+                  287.8846099843766,
+                  569.3649782322027
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 77
+            }
+          },
+          "elapsed_s": 41.432324938999955,
+          "original_shortlist_check": "matched"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 23864,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9915848603880351,
+              "score_last": 0.5988187112084326
+            },
+            "vertical": {
+              "distinct_count": 1748,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.7928188444179906,
+              "score_last": 0.461401990317378
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 43291,
+            "geometry_player": 26316,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 46.09975176924483,
+              "axis_ids": [
+                18998,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2547861696060678,
+                  1.735664942588041
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9270517625521434,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7772360520578003
+              },
+              "corners_working_px": [
+                [
+                  29.608216036525207,
+                  234.74170339674018
+                ],
+                [
+                  316.3165540679143,
+                  234.07624591893918
+                ],
+                [
+                  1035.3758465402168,
+                  397.1270067662281
+                ],
+                [
+                  264.7341987927199,
+                  574.6993282115093
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 117415,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 46.09975176924483,
+              "axis_ids": [
+                18998,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2547861696060678,
+                  1.735664942588041
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9270517625521434,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7772360520578003
+              },
+              "corners_working_px": [
+                [
+                  29.608216036525207,
+                  234.74170339674018
+                ],
+                [
+                  316.3165540679143,
+                  234.07624591893918
+                ],
+                [
+                  1035.3758465402168,
+                  397.1270067662281
+                ],
+                [
+                  264.7341987927199,
+                  574.6993282115093
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 117415,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 48.566477925289995,
+              "axis_ids": [
+                22016,
+                9996
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.24937481736123662,
+                  1.7255973113272514
+                ],
+                "vertical": [
+                  0.3420439528983433,
+                  -0.18527005559483725
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9053926614051144,
+                "vertical": 0.6274203415634573,
+                "mean": 0.7664065014842858
+              },
+              "corners_working_px": [
+                [
+                  34.66741602853952,
+                  234.7299608625346
+                ],
+                [
+                  314.7658377377344,
+                  234.07984517170232
+                ],
+                [
+                  1032.9528486278866,
+                  397.68531731874947
+                ],
+                [
+                  287.8846099843766,
+                  569.3649782322027
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 68
+            }
+          },
+          "elapsed_s": 40.201249325999925,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/am3_window_00_frame_0_R_43.png"
+    },
+    {
+      "case_id": "am3_window_00_frame_0",
+      "label": "Am3-0",
+      "direction_arm": "B",
+      "pair_id": 43,
+      "pencils": [
+        2,
+        14
+      ],
+      "direction_fit_px": 3.7492061514952892,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/am3_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        },
+        "vertical": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/am3_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 23758,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9947095617455343,
+              "score_last": 0.8844397068004941
+            },
+            "vertical": {
+              "distinct_count": 1930,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.8164227629924085,
+              "score_last": 0.5406185046865638
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 52960,
+            "geometry_player": 31330,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 4.270799805322243,
+              "axis_ids": [
+                30771,
+                10582
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2993004997966237,
+                  -0.1816604586496815
+                ],
+                "vertical": [
+                  -0.3371694368428488,
+                  4.342118520455021
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9038984010763805,
+                "vertical": 0.7279508793660913,
+                "mean": 0.8159246402212359
+              },
+              "corners_working_px": [
+                [
+                  31.39828607955899,
+                  235.11039585560962
+                ],
+                [
+                  359.4002953359929,
+                  234.87605631900703
+                ],
+                [
+                  1082.016444412805,
+                  383.6037906384902
+                ],
+                [
+                  261.29942416020435,
+                  571.1221235043616
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 187931,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 4.270799805322243,
+              "axis_ids": [
+                30771,
+                10582
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.2993004997966237,
+                  -0.1816604586496815
+                ],
+                "vertical": [
+                  -0.3371694368428488,
+                  4.342118520455021
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9038984010763805,
+                "vertical": 0.7279508793660913,
+                "mean": 0.8159246402212359
+              },
+              "corners_working_px": [
+                [
+                  31.39828607955899,
+                  235.11039585560962
+                ],
+                [
+                  359.4002953359929,
+                  234.87605631900703
+                ],
+                [
+                  1082.016444412805,
+                  383.6037906384902
+                ],
+                [
+                  261.29942416020435,
+                  571.1221235043616
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 187931,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 4.270903089748126,
+              "axis_ids": [
+                30768,
+                10567
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.2993004997966237,
+                  -2.0073934788655663
+                ],
+                "vertical": [
+                  0.3371694368428488,
+                  -0.17595204578159396
+                ]
+              },
+              "scores": {
+                "horizontal": 0.903898677055454,
+                "vertical": 0.7279533142782998,
+                "mean": 0.815925995666877
+              },
+              "corners_working_px": [
+                [
+                  31.398288411838582,
+                  235.11039926435006
+                ],
+                [
+                  359.4003086736172,
+                  234.87605906413617
+                ],
+                [
+                  1082.0165559577858,
+                  383.60381359650506
+                ],
+                [
+                  261.2994887278385,
+                  571.1222178731088
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 4
+            }
+          },
+          "elapsed_s": 40.84947534299954,
+          "original_shortlist_check": "matched"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 23758,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9947095617455343,
+              "score_last": 0.5984611101744528
+            },
+            "vertical": {
+              "distinct_count": 1930,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.8164227629924085,
+              "score_last": 0.45429162220519115
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 40653,
+            "geometry_player": 23517,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 23.248378601670016,
+              "axis_ids": [
+                33068,
+                8131
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.27499957054038027,
+                  -1.882791316330159
+                ],
+                "vertical": [
+                  0.3289274172694481,
+                  -0.17933619116079685
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9309705879652433,
+                "vertical": 0.6399198687072336,
+                "mean": 0.7854452283362385
+              },
+              "corners_working_px": [
+                [
+                  37.86779936109454,
+                  236.7438468404547
+                ],
+                [
+                  347.25486435322006,
+                  236.22458425543655
+                ],
+                [
+                  1057.7606109890667,
+                  389.8534950443708
+                ],
+                [
+                  285.8169205808341,
+                  567.032022761356
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 103528,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 23.248378601670016,
+              "axis_ids": [
+                33068,
+                8131
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.27499957054038027,
+                  -1.882791316330159
+                ],
+                "vertical": [
+                  0.3289274172694481,
+                  -0.17933619116079685
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9309705879652433,
+                "vertical": 0.6399198687072336,
+                "mean": 0.7854452283362385
+              },
+              "corners_working_px": [
+                [
+                  37.86779936109454,
+                  236.7438468404547
+                ],
+                [
+                  347.25486435322006,
+                  236.22458425543655
+                ],
+                [
+                  1057.7606109890667,
+                  389.8534950443708
+                ],
+                [
+                  285.8169205808341,
+                  567.032022761356
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 103528,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 23.248378601670016,
+              "axis_ids": [
+                33068,
+                8131
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.27499957054038027,
+                  -1.882791316330159
+                ],
+                "vertical": [
+                  0.3289274172694481,
+                  -0.17933619116079685
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9309705879652433,
+                "vertical": 0.6399198687072336,
+                "mean": 0.7854452283362385
+              },
+              "corners_working_px": [
+                [
+                  37.86779936109454,
+                  236.7438468404547
+                ],
+                [
+                  347.25486435322006,
+                  236.22458425543655
+                ],
+                [
+                  1057.7606109890667,
+                  389.8534950443708
+                ],
+                [
+                  285.8169205808341,
+                  567.032022761356
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 3
+            }
+          },
+          "elapsed_s": 40.19979249300013,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/am3_window_00_frame_0_B_43.png"
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_0",
+      "label": "GX0",
+      "direction_arm": "B",
+      "pair_id": 143,
+      "pencils": [
+        9,
+        8
+      ],
+      "direction_fit_px": 6.798367053860722,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        },
+        "vertical": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 2344,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9314123832768907,
+              "score_last": 0.5911293151439442
+            },
+            "vertical": {
+              "distinct_count": 1944,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.7796906053365005,
+              "score_last": 0.5256810078532075
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 4358,
+            "geometry_player": 4198,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 34.326758323949285,
+              "axis_ids": [
+                2135,
+                6223
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.5032705869641786,
+                  -0.43801428283244714
+                ],
+                "vertical": [
+                  0.45788857533166416,
+                  -5.5309249847355675
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621297018865,
+                "vertical": 0.5965355643188478,
+                "mean": 0.6406488470103672
+              },
+              "corners_working_px": [
+                [
+                  72.4487502920217,
+                  281.9126986699941
+                ],
+                [
+                  320.57113583306773,
+                  270.2924466100478
+                ],
+                [
+                  784.0199661193129,
+                  326.2729838421638
+                ],
+                [
+                  460.79979377470045,
+                  603.551853249505
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 91898,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 34.326758323949285,
+              "axis_ids": [
+                2135,
+                6223
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.5032705869641786,
+                  -0.43801428283244714
+                ],
+                "vertical": [
+                  0.45788857533166416,
+                  -5.5309249847355675
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621297018865,
+                "vertical": 0.5965355643188478,
+                "mean": 0.6406488470103672
+              },
+              "corners_working_px": [
+                [
+                  72.4487502920217,
+                  281.9126986699941
+                ],
+                [
+                  320.57113583306773,
+                  270.2924466100478
+                ],
+                [
+                  784.0199661193129,
+                  326.2729838421638
+                ],
+                [
+                  460.79979377470045,
+                  603.551853249505
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 91898,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 34.32676742263998,
+              "axis_ids": [
+                2125,
+                6226
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.5032705869641786,
+                  -3.507964800319681
+                ],
+                "vertical": [
+                  -0.45788852907355043,
+                  0.604781750038103
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621745807645,
+                "vertical": 0.5965342127434441,
+                "mean": 0.6406481936621042
+              },
+              "corners_working_px": [
+                [
+                  72.44875370047896,
+                  281.91270302434623
+                ],
+                [
+                  320.5711536465251,
+                  270.2924489025074
+                ],
+                [
+                  784.0199657583197,
+                  326.2729841518469
+                ],
+                [
+                  460.7997868669221,
+                  603.5518591754385
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 3
+            }
+          },
+          "elapsed_s": 42.39459410899963,
+          "original_shortlist_check": "matched"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 2344,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 257,
+              "positive_scale_selected": 255,
+              "score_first": 0.9314123832768907,
+              "score_last": 0.28460255315884886
+            },
+            "vertical": {
+              "distinct_count": 1944,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 255,
+              "positive_scale_selected": 257,
+              "score_first": 0.7796906053365005,
+              "score_last": 0.48805263240340135
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 5525,
+            "geometry_player": 4673,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 34.326758323949285,
+              "axis_ids": [
+                2135,
+                6223
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.5032705869641786,
+                  -0.43801428283244714
+                ],
+                "vertical": [
+                  0.45788857533166416,
+                  -5.5309249847355675
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621297018865,
+                "vertical": 0.5965355643188478,
+                "mean": 0.6406488470103672
+              },
+              "corners_working_px": [
+                [
+                  72.4487502920217,
+                  281.9126986699941
+                ],
+                [
+                  320.57113583306773,
+                  270.2924466100478
+                ],
+                [
+                  784.0199661193129,
+                  326.2729838421638
+                ],
+                [
+                  460.79979377470045,
+                  603.551853249505
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 91898,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 34.326758323949285,
+              "axis_ids": [
+                2135,
+                6223
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.5032705869641786,
+                  -0.43801428283244714
+                ],
+                "vertical": [
+                  0.45788857533166416,
+                  -5.5309249847355675
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621297018865,
+                "vertical": 0.5965355643188478,
+                "mean": 0.6406488470103672
+              },
+              "corners_working_px": [
+                [
+                  72.4487502920217,
+                  281.9126986699941
+                ],
+                [
+                  320.57113583306773,
+                  270.2924466100478
+                ],
+                [
+                  784.0199661193129,
+                  326.2729838421638
+                ],
+                [
+                  460.79979377470045,
+                  603.551853249505
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 91898,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 34.32676742263998,
+              "axis_ids": [
+                2125,
+                6226
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.5032705869641786,
+                  -3.507964800319681
+                ],
+                "vertical": [
+                  -0.45788852907355043,
+                  0.604781750038103
+                ]
+              },
+              "scores": {
+                "horizontal": 0.6847621745807645,
+                "vertical": 0.5965342127434441,
+                "mean": 0.6406481936621042
+              },
+              "corners_working_px": [
+                [
+                  72.44875370047896,
+                  281.91270302434623
+                ],
+                [
+                  320.5711536465251,
+                  270.2924489025074
+                ],
+                [
+                  784.0199657583197,
+                  326.2729841518469
+                ],
+                [
+                  460.7997868669221,
+                  603.5518591754385
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 5
+            }
+          },
+          "elapsed_s": 42.06947078400026,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/gxBQ_window_00_frame_0_B_143.png"
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_0",
+      "label": "GX0",
+      "direction_arm": "B",
+      "pair_id": 22,
+      "pencils": [
+        1,
+        8
+      ],
+      "direction_fit_px": 7.819482101003614,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        },
+        "vertical": {
+          "status": "matched_record_and_table",
+          "saved_record": "scratch/court_det_fix/frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+          "saved_axis_ids_match": true,
+          "saved_parameters_match": true,
+          "saved_diagnostics_match": true,
+          "saved_axis_table_counts_match": true
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 2186,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.791367197454597,
+              "score_last": 0.5609256320040872
+            },
+            "vertical": {
+              "distinct_count": 2238,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.8624768196264637,
+              "score_last": 0.523220170480666
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 8538,
+            "geometry_player": 7654,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 149805,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 149805,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 2
+            }
+          },
+          "elapsed_s": 42.468095270999584,
+          "original_shortlist_check": "matched"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 2186,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.791367197454597,
+              "score_last": 0.41049338347942427
+            },
+            "vertical": {
+              "distinct_count": 2238,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.8624768196264637,
+              "score_last": 0.4849255530873928
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 8830,
+            "geometry_player": 7721,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 148777,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 148777,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 7.662057046439755,
+              "axis_ids": [
+                2072,
+                3064
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.4656871779888714,
+                  -0.47837939408168006
+                ],
+                "vertical": [
+                  0.46451192823066384,
+                  -5.630621644276925
+                ]
+              },
+              "scores": {
+                "horizontal": 0.5880642381790362,
+                "vertical": 0.5819332021358652,
+                "mean": 0.5849987201574507
+              },
+              "corners_working_px": [
+                [
+                  76.90663691428529,
+                  280.7410916760455
+                ],
+                [
+                  310.4048674770492,
+                  269.01828123194036
+                ],
+                [
+                  787.8922066706722,
+                  326.62025670453295
+                ],
+                [
+                  478.9836065190659,
+                  582.8300766863349
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 2
+            }
+          },
+          "elapsed_s": 42.33120831299948,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/gxBQ_window_00_frame_0_B_22.png"
+    },
+    {
+      "case_id": "am2_window_01_frame_28019",
+      "label": "Am2-28019",
+      "direction_arm": "B",
+      "pair_id": 15,
+      "pencils": [
+        1,
+        0
+      ],
+      "direction_fit_px": 2.9721620031633305,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "not_available",
+          "saved_record": null,
+          "saved_axis_ids_match": null,
+          "saved_parameters_match": null,
+          "saved_diagnostics_match": null,
+          "saved_axis_table_counts_match": null
+        },
+        "vertical": {
+          "status": "not_available",
+          "saved_record": null,
+          "saved_axis_ids_match": null,
+          "saved_parameters_match": null,
+          "saved_diagnostics_match": null,
+          "saved_axis_table_counts_match": null
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 7102,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9633978714904969,
+              "score_last": 0.6548579842499835
+            },
+            "vertical": {
+              "distinct_count": 3958,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.8743935353026079,
+              "score_last": 0.6142252883094079
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 11268,
+            "geometry_player": 6402,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 61.62068120909445,
+              "axis_ids": [
+                15355,
+                7694
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.3910887027045171,
+                  1.918109903222465
+                ],
+                "vertical": [
+                  0.7988894344708998,
+                  -11.263517263972794
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8565263600619181,
+                "vertical": 0.637618421712211,
+                "mean": 0.7470723908870645
+              },
+              "corners_working_px": [
+                [
+                  581.7995954569494,
+                  205.08882161490567
+                ],
+                [
+                  752.3011936321718,
+                  210.70395068093288
+                ],
+                [
+                  537.324993994177,
+                  488.37390816526346
+                ],
+                [
+                  -102.94762031368873,
+                  298.29253589875253
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 10072,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 61.62068120909445,
+              "axis_ids": [
+                15355,
+                7694
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.3910887027045171,
+                  1.918109903222465
+                ],
+                "vertical": [
+                  0.7988894344708998,
+                  -11.263517263972794
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8565263600619181,
+                "vertical": 0.637618421712211,
+                "mean": 0.7470723908870645
+              },
+              "corners_working_px": [
+                [
+                  581.7995954569494,
+                  205.08882161490567
+                ],
+                [
+                  752.3011936321718,
+                  210.70395068093288
+                ],
+                [
+                  537.324993994177,
+                  488.37390816526346
+                ],
+                [
+                  -102.94762031368873,
+                  298.29253589875253
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 10072,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 81.26255495659275,
+              "axis_ids": [
+                15345,
+                5478
+              ],
+              "parameters": {
+                "horizontal": [
+                  0.3910887027045171,
+                  -0.46753113432261295
+                ],
+                "vertical": [
+                  -0.3719933719819956,
+                  -0.558399146814871
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8565264026110911,
+                "vertical": 0.62674551738542,
+                "mean": 0.7416359599982556
+              },
+              "corners_working_px": [
+                [
+                  442.74573435880035,
+                  224.01600510405908
+                ],
+                [
+                  729.386180629457,
+                  240.30169300192648
+                ],
+                [
+                  537.324986299139,
+                  488.37390588079313
+                ],
+                [
+                  -102.94762158531583,
+                  298.2925355212372
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 113
+            }
+          },
+          "elapsed_s": 94.96308506300011,
+          "original_shortlist_check": "not_available"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 7102,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.9633978714904969,
+              "score_last": 0.5025334456131083
+            },
+            "vertical": {
+              "distinct_count": 3958,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 257,
+              "positive_scale_selected": 255,
+              "score_first": 0.8743935353026079,
+              "score_last": 0.5279876833915514
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 10846,
+            "geometry_player": 7156,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 7.529112483062323,
+              "axis_ids": [
+                12776,
+                7664
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.39347105982143826,
+                  1.9192057875161286
+                ],
+                "vertical": [
+                  0.5251698933176182,
+                  -7.803702169821169
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9529728442787734,
+                "vertical": 0.6133965546211391,
+                "mean": 0.7831846994499563
+              },
+              "corners_working_px": [
+                [
+                  516.0684580598385,
+                  214.02039749852133
+                ],
+                [
+                  743.6797248329455,
+                  223.90446392628323
+                ],
+                [
+                  579.6386291604063,
+                  445.8760346087533
+                ],
+                [
+                  -46.96831296933402,
+                  290.62450834668385
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 1396,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 7.529112483062323,
+              "axis_ids": [
+                12776,
+                7664
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.39347105982143826,
+                  1.9192057875161286
+                ],
+                "vertical": [
+                  0.5251698933176182,
+                  -7.803702169821169
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9529728442787734,
+                "vertical": 0.6133965546211391,
+                "mean": 0.7831846994499563
+              },
+              "corners_working_px": [
+                [
+                  516.0684580598385,
+                  214.02039749852133
+                ],
+                [
+                  743.6797248329455,
+                  223.90446392628323
+                ],
+                [
+                  579.6386291604063,
+                  445.8760346087533
+                ],
+                [
+                  -46.96831296933402,
+                  290.62450834668385
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 1396,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 7.529112483062323,
+              "axis_ids": [
+                12776,
+                7664
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.39347105982143826,
+                  1.9192057875161286
+                ],
+                "vertical": [
+                  0.5251698933176182,
+                  -7.803702169821169
+                ]
+              },
+              "scores": {
+                "horizontal": 0.9529728442787734,
+                "vertical": 0.6133965546211391,
+                "mean": 0.7831846994499563
+              },
+              "corners_working_px": [
+                [
+                  516.0684580598385,
+                  214.02039749852133
+                ],
+                [
+                  743.6797248329455,
+                  223.90446392628323
+                ],
+                [
+                  579.6386291604063,
+                  445.8760346087533
+                ],
+                [
+                  -46.96831296933402,
+                  290.62450834668385
+                ]
+              ],
+              "rotated_180": false,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 11
+            }
+          },
+          "elapsed_s": 94.619863334,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/am2_window_01_frame_28019_B_15.png"
+    },
+    {
+      "case_id": "shuttleset_03_scene_0019",
+      "label": "SS03-19",
+      "direction_arm": "B",
+      "pair_id": 1,
+      "pencils": [
+        0,
+        2
+      ],
+      "direction_fit_px": 2.2688838662554693,
+      "working_size": [
+        960,
+        540
+      ],
+      "axis_checks": {
+        "horizontal": {
+          "status": "not_available",
+          "saved_record": null,
+          "saved_axis_ids_match": null,
+          "saved_parameters_match": null,
+          "saved_diagnostics_match": null,
+          "saved_axis_table_counts_match": null
+        },
+        "vertical": {
+          "status": "not_available",
+          "saved_record": null,
+          "saved_axis_ids_match": null,
+          "saved_parameters_match": null,
+          "saved_diagnostics_match": null,
+          "saved_axis_table_counts_match": null
+        }
+      },
+      "arms": {
+        "A": {
+          "experimental_arm": "A",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 758,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.914213665345766,
+              "score_last": 0.44784853544251924
+            },
+            "vertical": {
+              "distinct_count": 9469,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.958100698994262,
+              "score_last": 0.7123664312273891
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 109446,
+            "geometry_player": 77558,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 3.1339895224477283,
+              "axis_ids": [
+                2655,
+                8792
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06002501914430824,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.7530405055632133,
+                "mean": 0.7772931993388257
+              },
+              "corners_working_px": [
+                [
+                  318.5649662390703,
+                  218.2146781620754
+                ],
+                [
+                  643.1711213800398,
+                  215.5369330146769
+                ],
+                [
+                  753.3094469636374,
+                  489.3525316217513
+                ],
+                [
+                  206.2111613609481,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 3340,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 3.1339895224477283,
+              "axis_ids": [
+                2655,
+                8792
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06002501914430824,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.7530405055632133,
+                "mean": 0.7772931993388257
+              },
+              "corners_working_px": [
+                [
+                  318.5649662390703,
+                  218.2146781620754
+                ],
+                [
+                  643.1711213800398,
+                  215.5369330146769
+                ],
+                [
+                  753.3094469636374,
+                  489.3525316217513
+                ],
+                [
+                  206.2111613609481,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 3340,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 3.1339895224479752,
+              "axis_ids": [
+                2655,
+                9033
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06023613584666178,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.777599877241658,
+                "mean": 0.7895728851780481
+              },
+              "corners_working_px": [
+                [
+                  318.7990917413825,
+                  217.64027015660443
+                ],
+                [
+                  642.9416125456124,
+                  214.96634962736462
+                ],
+                [
+                  753.3094469636377,
+                  489.3525316217512
+                ],
+                [
+                  206.21116136094815,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 5
+            }
+          },
+          "elapsed_s": 8.393499136000173,
+          "original_shortlist_check": "not_available"
+        },
+        "B": {
+          "experimental_arm": "B",
+          "selection": {
+            "horizontal": {
+              "distinct_count": 758,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 254,
+              "positive_scale_selected": 258,
+              "score_first": 0.914213665345766,
+              "score_last": 0.3775852731953295
+            },
+            "vertical": {
+              "distinct_count": 9469,
+              "selected_count": 512,
+              "core_count": 256,
+              "core_preserved": true,
+              "negative_scale_selected": 256,
+              "positive_scale_selected": 256,
+              "score_first": 0.958100698994262,
+              "score_last": 0.6394941924886698
+            }
+          },
+          "counts": {
+            "combined": 262144,
+            "geometry_valid": 111192,
+            "geometry_player": 79630,
+            "per_pair_shortlist": 256
+          },
+          "minima": {
+            "combined": {
+              "stage": "combined",
+              "corner_error_px": 3.1339895224477283,
+              "axis_ids": [
+                2655,
+                8792
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06002501914430824,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.7530405055632133,
+                "mean": 0.7772931993388257
+              },
+              "corners_working_px": [
+                [
+                  318.5649662390703,
+                  218.2146781620754
+                ],
+                [
+                  643.1711213800398,
+                  215.5369330146769
+                ],
+                [
+                  753.3094469636374,
+                  489.3525316217513
+                ],
+                [
+                  206.2111613609481,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 3340,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "geometry_player": {
+              "stage": "geometry_player",
+              "corner_error_px": 3.1339895224477283,
+              "axis_ids": [
+                2655,
+                8792
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06002501914430824,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.7530405055632133,
+                "mean": 0.7772931993388257
+              },
+              "corners_working_px": [
+                [
+                  318.5649662390703,
+                  218.2146781620754
+                ],
+                [
+                  643.1711213800398,
+                  215.5369330146769
+                ],
+                [
+                  753.3094469636374,
+                  489.3525316217513
+                ],
+                [
+                  206.2111613609481,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 3340,
+              "candidate_id": null,
+              "shortlist_score": null
+            },
+            "per_pair_shortlist": {
+              "stage": "per_pair_shortlist",
+              "corner_error_px": 3.1339895224479752,
+              "axis_ids": [
+                2655,
+                9033
+              ],
+              "parameters": {
+                "horizontal": [
+                  -0.08834790120235163,
+                  -0.1309802428270786
+                ],
+                "vertical": [
+                  0.06023613584666178,
+                  0.09188851558901906
+                ]
+              },
+              "scores": {
+                "horizontal": 0.8015458931144381,
+                "vertical": 0.777599877241658,
+                "mean": 0.7895728851780481
+              },
+              "corners_working_px": [
+                [
+                  318.7990917413825,
+                  217.64027015660443
+                ],
+                [
+                  642.9416125456124,
+                  214.96634962736462
+                ],
+                [
+                  753.3094469636377,
+                  489.3525316217512
+                ],
+                [
+                  206.21116136094815,
+                  493.8656616293644
+                ]
+              ],
+              "rotated_180": true,
+              "product_position": 0,
+              "candidate_id": null,
+              "shortlist_score": null,
+              "shortlist_position": 5
+            }
+          },
+          "elapsed_s": 8.81094169700009,
+          "original_shortlist_check": "not_applicable"
+        }
+      },
+      "overlay": "scratch/court_det_fix/next_steps_20260916/L1_admission/overlays/shuttleset_03_scene_0019_B_1.png"
+    }
+  ],
+  "runtime": {
+    "started_utc": "2026-09-16T23:27:51.285600+00:00",
+    "elapsed_s": 558.0656027750001,
+    "peak_rss_mib": 880.73828125,
+    "processes": 1,
+    "opencv_threads": 1
+  }
+}
