@@ -1,0 +1,4 @@
+started=2026-09-16T00:33:45Z
+finished=2026-09-16T00:35:32Z
+script=run_matcher
+args=--arm paint --ids am3_window_00_frame_0

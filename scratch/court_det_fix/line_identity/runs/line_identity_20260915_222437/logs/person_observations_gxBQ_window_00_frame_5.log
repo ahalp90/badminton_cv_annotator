@@ -1,0 +1,136 @@
+run_automatic from /scratch/ahalperi/court_det_fix/paint_geometry_20260909/automatic_axes_20260914/run_automatic.py
+gxBQ_window_00_frame_5 pair 0 [0, 1] combined 262144 players 35430 retained 256 seconds 31.960906829917803
+gxBQ_window_00_frame_5 pair 2 [0, 3] combined 262144 players 63168 retained 256 seconds 28.691550256917253
+gxBQ_window_00_frame_5 pair 4 [0, 5] combined 60416 players 13382 retained 256 seconds 13.991066319867969
+gxBQ_window_00_frame_5 pair 6 [0, 7] combined 88064 players 2366 retained 256 seconds 15.11280086194165
+gxBQ_window_00_frame_5 pair 7 [0, 8] combined 35840 players 760 retained 256 seconds 10.436212308006361
+gxBQ_window_00_frame_5 pair 9 [0, 10] combined 29696 players 9814 retained 256 seconds 10.265685881022364
+gxBQ_window_00_frame_5 pair 10 [0, 11] combined 228352 players 23396 retained 256 seconds 24.30991076398641
+gxBQ_window_00_frame_5 pair 15 [1, 0] combined 262144 players 37712 retained 256 seconds 23.389807620085776
+gxBQ_window_00_frame_5 pair 16 [1, 2] combined 262144 players 74690 retained 256 seconds 21.173058269079775
+gxBQ_window_00_frame_5 pair 17 [1, 3] combined 262144 players 1682 retained 256 seconds 17.888028885936365
+gxBQ_window_00_frame_5 pair 18 [1, 4] combined 262144 players 58552 retained 256 seconds 20.179812683956698
+gxBQ_window_00_frame_5 pair 19 [1, 5] combined 123904 players 4302 retained 256 seconds 8.688645899062976
+gxBQ_window_00_frame_5 pair 20 [1, 6] combined 189440 players 22404 retained 256 seconds 13.95158308884129
+gxBQ_window_00_frame_5 pair 24 [1, 10] combined 40960 players 636 retained 256 seconds 2.994283206993714
+gxBQ_window_00_frame_5 pair 25 [1, 11] combined 262144 players 2756 retained 256 seconds 19.36624080897309
+gxBQ_window_00_frame_5 pair 26 [1, 12] combined 262144 players 43266 retained 256 seconds 24.915703901089728
+gxBQ_window_00_frame_5 pair 27 [1, 13] combined 262144 players 62274 retained 256 seconds 25.348279136931524
+gxBQ_window_00_frame_5 pair 28 [1, 14] combined 262144 players 57688 retained 256 seconds 25.171807840000838
+gxBQ_window_00_frame_5 pair 29 [1, 15] combined 262144 players 70470 retained 256 seconds 24.536450046813115
+gxBQ_window_00_frame_5 pair 31 [2, 1] combined 262144 players 50262 retained 256 seconds 22.371593073010445
+gxBQ_window_00_frame_5 pair 32 [2, 3] combined 262144 players 79520 retained 256 seconds 23.659823182970285
+gxBQ_window_00_frame_5 pair 34 [2, 5] combined 61440 players 21952 retained 256 seconds 7.0110680961515754
+gxBQ_window_00_frame_5 pair 36 [2, 7] combined 87040 players 1960 retained 256 seconds 8.357883319957182
+gxBQ_window_00_frame_5 pair 37 [2, 8] combined 49152 players 1934 retained 256 seconds 5.54518512589857
+gxBQ_window_00_frame_5 pair 39 [2, 10] combined 23552 players 10404 retained 256 seconds 4.003450601128861
+gxBQ_window_00_frame_5 pair 40 [2, 11] combined 231424 players 41714 retained 256 seconds 19.865232764044777
+gxBQ_window_00_frame_5 pair 45 [3, 0] combined 262144 players 56016 retained 256 seconds 122.75768154812977
+gxBQ_window_00_frame_5 pair 46 [3, 1] combined 262144 players 1960 retained 256 seconds 18.182718289084733
+gxBQ_window_00_frame_5 pair 47 [3, 2] combined 262144 players 81788 retained 256 seconds 21.251362626906484
+gxBQ_window_00_frame_5 pair 48 [3, 4] combined 262144 players 34072 retained 256 seconds 19.72737222793512
+gxBQ_window_00_frame_5 pair 51 [3, 7] combined 76800 players 3002 retained 256 seconds 5.530874744988978
+gxBQ_window_00_frame_5 pair 53 [3, 9] combined 262144 players 16174 retained 256 seconds 18.773432145128027
+gxBQ_window_00_frame_5 pair 56 [3, 12] combined 262144 players 62118 retained 256 seconds 24.370309985009953
+gxBQ_window_00_frame_5 pair 57 [3, 13] combined 262144 players 65896 retained 256 seconds 2288.0485417719465
+gxBQ_window_00_frame_5 pair 58 [3, 14] combined 262144 players 62728 retained 256 seconds 23.571136748883873
+gxBQ_window_00_frame_5 pair 59 [3, 15] combined 262144 players 75466 retained 256 seconds 23.32273361692205
+gxBQ_window_00_frame_5 pair 61 [4, 1] combined 262144 players 20526 retained 256 seconds 19.44415621086955
+gxBQ_window_00_frame_5 pair 63 [4, 3] combined 262144 players 61548 retained 256 seconds 20.678942401893437
+gxBQ_window_00_frame_5 pair 64 [4, 5] combined 66560 players 20260 retained 256 seconds 6.243812497006729
+gxBQ_window_00_frame_5 pair 66 [4, 7] combined 88064 players 46 retained 23 seconds 7.156041553011164
+gxBQ_window_00_frame_5 pair 67 [4, 8] combined 38912 players 530 retained 247 seconds 3.719184360001236
+gxBQ_window_00_frame_5 pair 69 [4, 10] combined 26624 players 9744 retained 256 seconds 3.085656006122008
+gxBQ_window_00_frame_5 pair 70 [4, 11] combined 235520 players 53992 retained 256 seconds 18.539988699834794
+gxBQ_window_00_frame_5 pair 75 [5, 0] combined 31744 players 7030 retained 256 seconds 6.760182007914409
+gxBQ_window_00_frame_5 pair 76 [5, 1] combined 18432 players 4194 retained 256 seconds 1.4666455572005361
+gxBQ_window_00_frame_5 pair 77 [5, 2] combined 32768 players 8906 retained 256 seconds 3.4763868709560484
+gxBQ_window_00_frame_5 pair 79 [5, 4] combined 29696 players 4166 retained 256 seconds 2.7055366078857332
+gxBQ_window_00_frame_5 pair 81 [5, 7] combined 20564 players 818 retained 256 seconds 1.4521857630461454
+gxBQ_window_00_frame_5 pair 82 [5, 8] combined 3680 players 582 retained 256 seconds 0.2911139929201454
+gxBQ_window_00_frame_5 pair 83 [5, 9] combined 31744 players 3654 retained 256 seconds 2.356819767970592
+gxBQ_window_00_frame_5 pair 86 [5, 12] combined 33792 players 7424 retained 256 seconds 6.70748097402975
+gxBQ_window_00_frame_5 pair 87 [5, 13] combined 31744 players 7390 retained 256 seconds 6.66708906297572
+gxBQ_window_00_frame_5 pair 88 [5, 14] combined 31744 players 7506 retained 256 seconds 6.511080462951213
+gxBQ_window_00_frame_5 pair 89 [5, 15] combined 32768 players 8282 retained 256 seconds 5.710555284982547
+gxBQ_window_00_frame_5 pair 91 [6, 1] combined 262144 players 24358 retained 256 seconds 18.994629638036713
+gxBQ_window_00_frame_5 pair 105 [7, 0] combined 115712 players 12662 retained 256 seconds 12.568169933045283
+gxBQ_window_00_frame_5 pair 107 [7, 2] combined 115712 players 1506 retained 256 seconds 9.004905575187877
+gxBQ_window_00_frame_5 pair 108 [7, 3] combined 73728 players 1568 retained 256 seconds 5.077550532994792
+gxBQ_window_00_frame_5 pair 109 [7, 4] combined 116736 players 3160 retained 256 seconds 8.727008561138064
+gxBQ_window_00_frame_5 pair 110 [7, 5] combined 49152 players 360 retained 181 seconds 3.3815144530963153
+gxBQ_window_00_frame_5 pair 114 [7, 10] combined 23920 players 214 retained 110 seconds 1.6419636341743171
+gxBQ_window_00_frame_5 pair 116 [7, 12] combined 114688 players 7224 retained 256 seconds 12.30739514902234
+gxBQ_window_00_frame_5 pair 117 [7, 13] combined 115712 players 8714 retained 256 seconds 12.478367511183023
+gxBQ_window_00_frame_5 pair 118 [7, 14] combined 115712 players 6800 retained 256 seconds 12.15570002910681
+gxBQ_window_00_frame_5 pair 119 [7, 15] combined 114688 players 3542 retained 256 seconds 11.163286617025733
+gxBQ_window_00_frame_5 pair 120 [8, 0] combined 24576 players 218 retained 108 seconds 5.969332276843488
+gxBQ_window_00_frame_5 pair 122 [8, 2] combined 22528 players 94 retained 40 seconds 2.6067586559802294
+gxBQ_window_00_frame_5 pair 124 [8, 4] combined 20480 players 632 retained 256 seconds 1.98485750798136
+gxBQ_window_00_frame_5 pair 125 [8, 5] combined 14036 players 1106 retained 256 seconds 1.0761838490143418
+gxBQ_window_00_frame_5 pair 129 [8, 10] combined 4692 players 96 retained 48 seconds 0.3339483169838786
+gxBQ_window_00_frame_5 pair 131 [8, 12] combined 29696 players 128 retained 60 seconds 6.313761051045731
+gxBQ_window_00_frame_5 pair 132 [8, 13] combined 24576 players 236 retained 117 seconds 5.952920937910676
+gxBQ_window_00_frame_5 pair 133 [8, 14] combined 20480 players 122 retained 61 seconds 5.597846776014194
+gxBQ_window_00_frame_5 pair 134 [8, 15] combined 24576 players 70 retained 35 seconds 4.889920033980161
+gxBQ_window_00_frame_5 pair 138 [9, 3] combined 262144 players 44330 retained 256 seconds 19.152321223868057
+gxBQ_window_00_frame_5 pair 140 [9, 5] combined 79872 players 17078 retained 256 seconds 6.080002513015643
+gxBQ_window_00_frame_5 pair 144 [9, 10] combined 21504 players 6104 retained 256 seconds 1.6936287339776754
+gxBQ_window_00_frame_5 pair 150 [10, 0] combined 26624 players 5366 retained 256 seconds 6.165909006027505
+gxBQ_window_00_frame_5 pair 151 [10, 1] combined 21504 players 1658 retained 256 seconds 1.5949767029378563
+gxBQ_window_00_frame_5 pair 152 [10, 2] combined 22528 players 5420 retained 256 seconds 2.698589202016592
+gxBQ_window_00_frame_5 pair 154 [10, 4] combined 25600 players 2060 retained 256 seconds 2.364668546942994
+gxBQ_window_00_frame_5 pair 157 [10, 7] combined 8448 players 210 retained 104 seconds 0.7019355448428541
+gxBQ_window_00_frame_5 pair 158 [10, 8] combined 1804 players 56 retained 28 seconds 0.13822144106961787
+gxBQ_window_00_frame_5 pair 159 [10, 9] combined 33792 players 3392 retained 256 seconds 2.4296017079614103
+gxBQ_window_00_frame_5 pair 161 [10, 12] combined 26624 players 5462 retained 256 seconds 6.184290702920407
+gxBQ_window_00_frame_5 pair 162 [10, 13] combined 23552 players 4838 retained 256 seconds 5.976627092808485
+gxBQ_window_00_frame_5 pair 163 [10, 14] combined 23552 players 4860 retained 256 seconds 5.994452362880111
+gxBQ_window_00_frame_5 pair 164 [10, 15] combined 22528 players 5102 retained 256 seconds 4.848894542083144
+gxBQ_window_00_frame_5 pair 165 [11, 0] combined 262144 players 15206 retained 256 seconds 22.379085795022547
+gxBQ_window_00_frame_5 pair 166 [11, 1] combined 262144 players 758 retained 256 seconds 17.770853952039033
+gxBQ_window_00_frame_5 pair 167 [11, 2] combined 262144 players 33258 retained 256 seconds 19.612288222881034
+gxBQ_window_00_frame_5 pair 169 [11, 4] combined 262144 players 25422 retained 256 seconds 19.313924523070455
+gxBQ_window_00_frame_5 pair 176 [11, 12] combined 262144 players 18598 retained 256 seconds 22.46291962196119
+gxBQ_window_00_frame_5 pair 177 [11, 13] combined 262144 players 26098 retained 256 seconds 22.649236229946837
+gxBQ_window_00_frame_5 pair 178 [11, 14] combined 262144 players 20008 retained 256 seconds 22.171140777878463
+gxBQ_window_00_frame_5 pair 179 [11, 15] combined 262144 players 14536 retained 256 seconds 21.278960360912606
+gxBQ_window_00_frame_5 pair 181 [12, 1] combined 262144 players 60834 retained 256 seconds 27.208795981947333
+gxBQ_window_00_frame_5 pair 183 [12, 3] combined 262144 players 81620 retained 256 seconds 27.75370167894289
+gxBQ_window_00_frame_5 pair 185 [12, 5] combined 61440 players 15138 retained 256 seconds 12.281018926063552
+gxBQ_window_00_frame_5 pair 187 [12, 7] combined 87040 players 3602 retained 256 seconds 13.990327515872195
+gxBQ_window_00_frame_5 pair 188 [12, 8] combined 36864 players 2600 retained 256 seconds 10.347854170016944
+gxBQ_window_00_frame_5 pair 190 [12, 10] combined 29696 players 10644 retained 256 seconds 9.968637209851295
+gxBQ_window_00_frame_5 pair 191 [12, 11] combined 229376 players 27056 retained 256 seconds 23.82455967995338
+gxBQ_window_00_frame_5 pair 196 [13, 1] combined 262144 players 34194 retained 256 seconds 26.5870322259143
+gxBQ_window_00_frame_5 pair 198 [13, 3] combined 262144 players 69566 retained 256 seconds 27.471263573039323
+gxBQ_window_00_frame_5 pair 200 [13, 5] combined 62464 players 16444 retained 256 seconds 12.700723242945969
+gxBQ_window_00_frame_5 pair 202 [13, 7] combined 88064 players 1528 retained 256 seconds 13.88295330805704
+gxBQ_window_00_frame_5 pair 203 [13, 8] combined 38912 players 634 retained 256 seconds 10.442604060983285
+gxBQ_window_00_frame_5 pair 205 [13, 10] combined 23552 players 8310 retained 256 seconds 9.673130667069927
+gxBQ_window_00_frame_5 pair 206 [13, 11] combined 233472 players 41684 retained 256 seconds 24.653389093000442
+gxBQ_window_00_frame_5 pair 211 [14, 1] combined 262144 players 44870 retained 256 seconds 26.767408268991858
+gxBQ_window_00_frame_5 pair 213 [14, 3] combined 262144 players 78790 retained 256 seconds 27.514016083907336
+gxBQ_window_00_frame_5 pair 215 [14, 5] combined 62464 players 15858 retained 256 seconds 12.170807828893885
+gxBQ_window_00_frame_5 pair 217 [14, 7] combined 88064 players 4140 retained 256 seconds 13.545455719111487
+gxBQ_window_00_frame_5 pair 218 [14, 8] combined 40960 players 3308 retained 256 seconds 10.47625599289313
+gxBQ_window_00_frame_5 pair 220 [14, 10] combined 26624 players 10140 retained 256 seconds 9.878432674799114
+gxBQ_window_00_frame_5 pair 221 [14, 11] combined 229376 players 22260 retained 256 seconds 23.473334283800796
+gxBQ_window_00_frame_5 pair 226 [15, 1] combined 262144 players 40630 retained 256 seconds 25.14370062504895
+gxBQ_window_00_frame_5 pair 228 [15, 3] combined 262144 players 70730 retained 256 seconds 25.518683928065002
+gxBQ_window_00_frame_5 pair 230 [15, 5] combined 61440 players 18442 retained 256 seconds 10.707717990037054
+gxBQ_window_00_frame_5 pair 232 [15, 7] combined 87040 players 350 retained 138 seconds 11.906437255907804
+gxBQ_window_00_frame_5 pair 233 [15, 8] combined 41984 players 664 retained 256 seconds 8.724407008150592
+gxBQ_window_00_frame_5 pair 235 [15, 10] combined 25600 players 9906 retained 256 seconds 7.811334261903539
+gxBQ_window_00_frame_5 pair 236 [15, 11] combined 232448 players 25208 retained 256 seconds 22.232324345968664
+gxBQ_window_00_frame_5 person_observations generated pooled 29460 entries 256 winners None None seconds 4029.8
+gxBQ_window_00_frame_5 exact final-evaluation replay passed
+gxBQ_window_00_frame_5 exact selection replay passed
+gxBQ_window_00_frame_5 exact final-evaluation replay passed
+gxBQ_window_00_frame_5 exact selection replay passed
+gxBQ_window_00_frame_5 full evidence 0 of 2130 seconds 3.974884748458862e-06
+gxBQ_window_00_frame_5 full evidence 512 of 2130 seconds 52.537007356993854
+gxBQ_window_00_frame_5 full evidence 1024 of 2130 seconds 101.572655698983
+gxBQ_window_00_frame_5 full evidence 1536 of 2130 seconds 152.56069996603765
+gxBQ_window_00_frame_5 full evidence 2048 of 2130 seconds 206.07855232688598
+gxBQ_window_00_frame_5 person_observations complete {'case_id': 'gxBQ_window_00_frame_5', 'arm': 'person_observations', 'status': 'generated', 'generation_s': 4029.7501751070376, 'camera_first_s': 51.671090689022094, 'all_camera_s': 243.18870671000332, 'winners': {'results': (None, None), 'camera_first': ('226:417', '226:419'), 'all_camera': ('226:417', '46:1676')}}

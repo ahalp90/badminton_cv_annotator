@@ -1,0 +1,4 @@
+started=2026-09-15T22:53:02Z
+finished=2026-09-15T23:05:37Z
+script=run_matcher
+args=--arm paint_observations --ids gxBQ_window_00_frame_0

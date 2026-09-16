@@ -38,11 +38,13 @@ PYTHONDONTWRITEBYTECODE=1 ~/.venvs/badminton-cicd/bin/pytest tests -q -p no:cach
 
 Run name in `run_name.txt` (`line_identity_20260915_222437`, UTC). Launch form: `bash sync.sh launch <arm>_<case> run_matcher --arm <arm> --ids <case>`, one detached job per view and arm, `nice -n 10`, single-threaded. Receipts, logs and records under `runs/<run>/`; the three stage records per view and arm are gitignored (`matcher/<arm>/{results,camera_first,all_camera}/`), the accounting is committed.
 
-| Arm | Views | Launched (UTC) | Outcome |
+| Arm | Views | Launched (UTC, 2026-09-15/16) | Outcome (receipts under `runs/<run>/receipts/`) |
 | --- | --- | --- | --- |
-| paint_observations | 9 | 22:52 to 22:53 | all exit 0; 1.4 to 12.6 min each |
-| person_observations | 9 | 22:52 to 22:53 (SS21-20 at 22:57 after a refused connection) | four ShuttleSet views exit 0; the other five ran alone after 23:44 (see below) |
-| person | 9 | 22:57 and 23:04; relaunched from 23:57 at most six at a time | first launch terminated at 23:44 (exit 143); relaunch outcome below |
-| paint | 5 of 9, then 9 | 23:03 to 23:04; relaunched after the person arm | first launch terminated at 23:44 (exit 143); relaunch outcome below |
+| paint_observations | 9 | 22:53 | all exit 0, finished by 23:05; 1.4 to 12.6 min each |
+| person_observations | 9 | 22:53 (SS21-20 at 22:57 after a refused connection) | all exit 0, finished by 00:12; 5.2 to 79.3 min, the long ones having sat in the stall below |
+| person | 9 | first 22:57 and 23:04, terminated 23:44 (exit 143); relaunched 23:54 to 00:23 at most six alive | all exit 0, finished by 00:33; 4.8 to 39.1 min |
+| paint | 9 | five first 23:03 to 23:04, terminated 23:44 (exit 143); all nine relaunched 00:26 to 00:37 | all exit 0, finished by 00:46; 1.6 to 17.9 min |
+
+The receipts on disk are the relaunch's; the terminated first launches overwrote nothing that survived (same labels, receipts and logs rewritten). Accounting: `account.py --run <run> --arms paint_observations person_observations person paint`, 10:50 AEST, exit 0 (every record passed the input gate); outputs `runs/<run>/matcher/{accounting.csv.gz,diagnosis.json.gz,comparison.md,account.log}`.
 
 Nineteen concurrent jobs stalled the host (45 percent system time, `kcompactd` busy, transparent hugepages always, 4 to 16 GB per process); five concurrent jobs ran at full speed. Keep matcher jobs to about six at a time on this host.

@@ -1,0 +1,117 @@
+run_automatic from /scratch/ahalperi/court_det_fix/paint_geometry_20260909/automatic_axes_20260914/run_automatic.py
+shuttleset_03_scene_0017 pair 0 [0, 1] combined 262144 players 91660 retained 256 seconds 6.436378858052194
+shuttleset_03_scene_0017 pair 1 [0, 2] combined 98304 players 32476 retained 256 seconds 1.8520810359623283
+shuttleset_03_scene_0017 pair 2 [0, 3] combined 135168 players 45014 retained 256 seconds 2.3182455128990114
+shuttleset_03_scene_0017 pair 3 [0, 4] combined 262144 players 2514 retained 256 seconds 1.7913125441409647
+shuttleset_03_scene_0017 pair 5 [0, 6] combined 31744 players 8214 retained 256 seconds 0.8960875899065286
+shuttleset_03_scene_0017 pair 6 [0, 7] combined 236544 players 9146 retained 256 seconds 1.7964894159231335
+shuttleset_03_scene_0017 pair 8 [0, 9] combined 11264 players 4948 retained 256 seconds 0.7445828109048307
+shuttleset_03_scene_0017 pair 11 [0, 12] combined 11264 players 5198 retained 256 seconds 0.7200936209410429
+shuttleset_03_scene_0017 pair 12 [0, 13] combined 48128 players 3840 retained 256 seconds 0.8367669011931866
+shuttleset_03_scene_0017 pair 13 [0, 14] combined 17408 players 6394 retained 256 seconds 0.7881522381212562
+shuttleset_03_scene_0017 pair 14 [0, 15] combined 66560 players 13772 retained 256 seconds 1.1997389728203416
+shuttleset_03_scene_0017 pair 15 [1, 0] combined 262144 players 107804 retained 256 seconds 4.335900236852467
+shuttleset_03_scene_0017 pair 19 [1, 5] combined 262144 players 82018 retained 256 seconds 3.7390030010137707
+shuttleset_03_scene_0017 pair 20 [1, 6] combined 68608 players 1022 retained 256 seconds 0.4256916078738868
+shuttleset_03_scene_0017 pair 24 [1, 10] combined 35840 players 7752 retained 256 seconds 0.38982558296993375
+shuttleset_03_scene_0017 pair 28 [1, 14] combined 27648 players 8204 retained 256 seconds 0.36507022217847407
+shuttleset_03_scene_0017 pair 29 [1, 15] combined 31744 players 1290 retained 256 seconds 0.2394255311228335
+shuttleset_03_scene_0017 pair 30 [2, 0] combined 116736 players 50510 retained 256 seconds 2.056843942962587
+shuttleset_03_scene_0017 pair 34 [2, 5] combined 128000 players 44502 retained 256 seconds 1.8597852271050215
+shuttleset_03_scene_0017 pair 35 [2, 6] combined 34000 players 512 retained 256 seconds 0.2127701099961996
+shuttleset_03_scene_0017 pair 39 [2, 10] combined 20172 players 4652 retained 256 seconds 0.2219345159828663
+shuttleset_03_scene_0017 pair 45 [3, 0] combined 202752 players 82612 retained 256 seconds 3.3715839479118586
+shuttleset_03_scene_0017 pair 49 [3, 5] combined 197632 players 58836 retained 256 seconds 2.6117395039182156
+shuttleset_03_scene_0017 pair 50 [3, 6] combined 62464 players 1820 retained 256 seconds 0.37445979891344905
+shuttleset_03_scene_0017 pair 54 [3, 10] combined 27504 players 7426 retained 256 seconds 0.34988976805470884
+shuttleset_03_scene_0017 pair 58 [3, 14] combined 13736 players 2542 retained 256 seconds 0.1967202671803534
+shuttleset_03_scene_0017 pair 59 [3, 15] combined 28512 players 1236 retained 256 seconds 0.18827191507443786
+shuttleset_03_scene_0017 pair 60 [4, 0] combined 262144 players 5742 retained 256 seconds 1.6825576887931675
+shuttleset_03_scene_0017 pair 64 [4, 5] combined 262144 players 8130 retained 256 seconds 1.4532475469168276
+shuttleset_03_scene_0017 pair 65 [4, 6] combined 15960 players 2364 retained 256 seconds 0.15930079808458686
+shuttleset_03_scene_0017 pair 67 [4, 8] combined 76760 players 718 retained 256 seconds 0.3816837049089372
+shuttleset_03_scene_0017 pair 69 [4, 10] combined 54272 players 664 retained 256 seconds 0.28920271899551153
+shuttleset_03_scene_0017 pair 76 [5, 1] combined 262144 players 57140 retained 256 seconds 2.7214948530308902
+shuttleset_03_scene_0017 pair 77 [5, 2] combined 99328 players 22078 retained 256 seconds 1.1214753319509327
+shuttleset_03_scene_0017 pair 78 [5, 3] combined 132096 players 31066 retained 256 seconds 1.5461604071315378
+shuttleset_03_scene_0017 pair 79 [5, 4] combined 262144 players 3688 retained 256 seconds 1.3296636180020869
+shuttleset_03_scene_0017 pair 80 [5, 6] combined 30720 players 5014 retained 256 seconds 0.30642436002381146
+shuttleset_03_scene_0017 pair 81 [5, 7] combined 262144 players 5058 retained 256 seconds 1.4000450528692454
+shuttleset_03_scene_0017 pair 83 [5, 9] combined 8192 players 2950 retained 256 seconds 0.16390679008327425
+shuttleset_03_scene_0017 pair 86 [5, 12] combined 16384 players 5902 retained 256 seconds 0.2598843511659652
+shuttleset_03_scene_0017 pair 87 [5, 13] combined 88064 players 2806 retained 256 seconds 0.5656428390648216
+shuttleset_03_scene_0017 pair 88 [5, 14] combined 20480 players 5606 retained 256 seconds 0.2761865840293467
+shuttleset_03_scene_0017 pair 89 [5, 15] combined 29696 players 518 retained 237 seconds 0.2014477839693427
+shuttleset_03_scene_0017 pair 90 [6, 0] combined 37888 players 15686 retained 256 seconds 0.940452580107376
+shuttleset_03_scene_0017 pair 91 [6, 1] combined 95232 players 664 retained 256 seconds 0.4917051640804857
+shuttleset_03_scene_0017 pair 92 [6, 2] combined 27060 players 362 retained 182 seconds 0.1544868079945445
+shuttleset_03_scene_0017 pair 93 [6, 3] combined 57936 players 2108 retained 256 seconds 0.3384213619865477
+shuttleset_03_scene_0017 pair 94 [6, 4] combined 29648 players 3502 retained 256 seconds 0.2388359538745135
+shuttleset_03_scene_0017 pair 95 [6, 5] combined 37888 players 11718 retained 256 seconds 0.5358757919166237
+shuttleset_03_scene_0017 pair 96 [6, 7] combined 35000 players 5616 retained 256 seconds 0.3722879448905587
+shuttleset_03_scene_0017 pair 97 [6, 8] combined 23016 players 7172 retained 256 seconds 0.28267375798895955
+shuttleset_03_scene_0017 pair 98 [6, 9] combined 1504 players 274 retained 137 seconds 0.037840422010049224
+shuttleset_03_scene_0017 pair 100 [6, 11] combined 3780 players 30 retained 15 seconds 0.03501190710812807
+shuttleset_03_scene_0017 pair 101 [6, 12] combined 4224 players 2 retained 1 seconds 0.03439267794601619
+shuttleset_03_scene_0017 pair 102 [6, 13] combined 17484 players 216 retained 104 seconds 0.09847421105951071
+shuttleset_03_scene_0017 pair 105 [7, 0] combined 262144 players 5196 retained 256 seconds 1.6572227929718792
+shuttleset_03_scene_0017 pair 110 [7, 5] combined 262144 players 4564 retained 256 seconds 1.3112318920902908
+shuttleset_03_scene_0017 pair 111 [7, 6] combined 33884 players 4912 retained 256 seconds 0.2818332801107317
+shuttleset_03_scene_0017 pair 114 [7, 10] combined 25216 players 306 retained 153 seconds 0.215576444985345
+shuttleset_03_scene_0017 pair 124 [8, 4] combined 76712 players 1116 retained 256 seconds 0.39082222897559404
+shuttleset_03_scene_0017 pair 126 [8, 6] combined 16520 players 2604 retained 256 seconds 0.158897303044796
+shuttleset_03_scene_0017 pair 128 [8, 9] combined 14144 players 4098 retained 256 seconds 0.17805903521366417
+shuttleset_03_scene_0017 pair 133 [8, 14] combined 23640 players 806 retained 256 seconds 0.151692426064983
+shuttleset_03_scene_0017 pair 135 [9, 0] combined 14336 players 6384 retained 256 seconds 0.621488053817302
+shuttleset_03_scene_0017 pair 140 [9, 5] combined 20480 players 7530 retained 256 seconds 0.30749430414289236
+shuttleset_03_scene_0017 pair 141 [9, 6] combined 1488 players 324 retained 162 seconds 0.04082099604420364
+shuttleset_03_scene_0017 pair 143 [9, 8] combined 20016 players 2262 retained 256 seconds 0.25111107900738716
+shuttleset_03_scene_0017 pair 144 [9, 10] combined 3848 players 470 retained 235 seconds 0.05257863295264542
+shuttleset_03_scene_0017 pair 151 [10, 1] combined 53248 players 15892 retained 256 seconds 0.7036227539647371
+shuttleset_03_scene_0017 pair 152 [10, 2] combined 18972 players 5718 retained 256 seconds 0.23802239005453885
+shuttleset_03_scene_0017 pair 153 [10, 3] combined 27432 players 8650 retained 256 seconds 0.4502941779792309
+shuttleset_03_scene_0017 pair 154 [10, 4] combined 73728 players 3552 retained 256 seconds 0.4361864619422704
+shuttleset_03_scene_0017 pair 157 [10, 7] combined 26912 players 1512 retained 256 seconds 0.17693053698167205
+shuttleset_03_scene_0017 pair 159 [10, 9] combined 3024 players 942 retained 256 seconds 0.05853616516105831
+shuttleset_03_scene_0017 pair 161 [10, 12] combined 1696 players 706 retained 256 seconds 0.047601605067029595
+shuttleset_03_scene_0017 pair 162 [10, 13] combined 20184 players 1514 retained 256 seconds 0.14493964705616236
+shuttleset_03_scene_0017 pair 163 [10, 14] combined 4600 players 468 retained 234 seconds 0.05344324209727347
+shuttleset_03_scene_0017 pair 164 [10, 15] combined 5456 players 22 retained 11 seconds 0.03905164892785251
+shuttleset_03_scene_0017 pair 171 [11, 6] combined 7488 players 24 retained 12 seconds 0.04940290399827063
+shuttleset_03_scene_0017 pair 178 [11, 14] combined 2880 players 176 retained 88 seconds 0.03391203610226512
+shuttleset_03_scene_0017 pair 179 [11, 15] combined 3872 players 20 retained 10 seconds 0.032651669112965465
+shuttleset_03_scene_0017 pair 180 [12, 0] combined 20480 players 9326 retained 256 seconds 0.7143824400845915
+shuttleset_03_scene_0017 pair 185 [12, 5] combined 25600 players 9174 retained 256 seconds 0.3525991109199822
+shuttleset_03_scene_0017 pair 186 [12, 6] combined 5376 players 34 retained 17 seconds 0.044061724096536636
+shuttleset_03_scene_0017 pair 190 [12, 10] combined 2940 players 570 retained 256 seconds 0.0496511310338974
+shuttleset_03_scene_0017 pair 193 [12, 14] combined 1920 players 780 retained 256 seconds 0.13862231303937733
+shuttleset_03_scene_0017 pair 194 [12, 15] combined 2400 players 140 retained 70 seconds 0.030513541074469686
+shuttleset_03_scene_0017 pair 195 [13, 0] combined 34816 players 506 retained 234 seconds 0.46609598002396524
+shuttleset_03_scene_0017 pair 200 [13, 5] combined 36864 players 182 retained 78 seconds 0.20009755087085068
+shuttleset_03_scene_0017 pair 201 [13, 6] combined 30264 players 1046 retained 256 seconds 0.1895448670256883
+shuttleset_03_scene_0017 pair 205 [13, 10] combined 10804 players 1084 retained 256 seconds 0.10072656092233956
+shuttleset_03_scene_0017 pair 210 [14, 0] combined 19456 players 4514 retained 256 seconds 0.50644068303518
+shuttleset_03_scene_0017 pair 211 [14, 1] combined 30720 players 3142 retained 256 seconds 0.2566375460010022
+shuttleset_03_scene_0017 pair 213 [14, 3] combined 13968 players 2340 retained 256 seconds 0.14941075700335205
+shuttleset_03_scene_0017 pair 215 [14, 5] combined 23552 players 3816 retained 256 seconds 0.34592078090645373
+shuttleset_03_scene_0017 pair 218 [14, 8] combined 38976 players 1964 retained 256 seconds 0.23580137290991843
+shuttleset_03_scene_0017 pair 220 [14, 10] combined 4800 players 748 retained 256 seconds 0.06356227304786444
+shuttleset_03_scene_0017 pair 221 [14, 11] combined 8448 players 0 retained 0 seconds 0.04171283193863928
+shuttleset_03_scene_0017 pair 222 [14, 12] combined 1092 players 94 retained 47 seconds 0.02111550187692046
+shuttleset_03_scene_0017 pair 225 [15, 0] combined 5120 players 1560 retained 256 seconds 0.3811372572090477
+shuttleset_03_scene_0017 pair 226 [15, 1] combined 14336 players 114 retained 57 seconds 0.10746545996516943
+shuttleset_03_scene_0017 pair 228 [15, 3] combined 3072 players 78 retained 38 seconds 0.03808015491813421
+shuttleset_03_scene_0017 pair 230 [15, 5] combined 4096 players 1496 retained 256 seconds 0.09380736784078181
+shuttleset_03_scene_0017 pair 235 [15, 10] combined 516 players 132 retained 63 seconds 0.022718228865414858
+shuttleset_03_scene_0017 pair 236 [15, 11] combined 2800 players 74 retained 49 seconds 0.028721163049340248
+shuttleset_03_scene_0017 pair 237 [15, 12] combined 576 players 6 retained 3 seconds 0.01627926016226411
+shuttleset_03_scene_0017 paint generated pooled 22973 entries 256 winners 1:9 1:53 seconds 87.6
+shuttleset_03_scene_0017 exact final-evaluation replay passed
+shuttleset_03_scene_0017 exact selection replay passed
+shuttleset_03_scene_0017 exact final-evaluation replay passed
+shuttleset_03_scene_0017 exact selection replay passed
+shuttleset_03_scene_0017 full evidence 0 of 1577 seconds 4.5138876885175705e-06
+shuttleset_03_scene_0017 full evidence 512 of 1577 seconds 25.645823718048632
+shuttleset_03_scene_0017 full evidence 1024 of 1577 seconds 50.93786199693568
+shuttleset_03_scene_0017 full evidence 1536 of 1577 seconds 75.22331882105209
+shuttleset_03_scene_0017 paint complete {'case_id': 'shuttleset_03_scene_0017', 'arm': 'paint', 'status': 'generated', 'generation_s': 87.6237179019954, 'camera_first_s': 17.410359021043405, 'all_camera_s': 92.64213978894986, 'winners': {'results': ('1:9', '1:53'), 'camera_first': ('1:9', '1:53'), 'all_camera': ('1:9', '1:53')}}
