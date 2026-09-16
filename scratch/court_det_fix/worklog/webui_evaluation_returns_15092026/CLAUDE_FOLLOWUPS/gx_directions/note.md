@@ -20,6 +20,4 @@ Both match the required values to six decimals. Coordinates are correct.
 
 ## Answers
 
-Frame(s) 5111, 77876 keep both control directions within about one degree.
-Frame(s) 689, 77876, 86088 have a set_bound under 3.5 working pixels.
-
+Frames 5111 and 77876 have raw homogeneous-vector comparisons to both control directions within about one degree. Frames 689, 77876 and 86088 have incidence lower bounds relative to GX0's approved control under 3.5 working pixels. These are chart-dependent angle descriptions and lower bounds, not one-degree sufficiency or exclusion tests; attainable fits and generated courts were not measured. Camera equivalence for the later frames is unverified.

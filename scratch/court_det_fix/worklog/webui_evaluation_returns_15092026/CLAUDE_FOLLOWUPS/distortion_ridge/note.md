@@ -55,7 +55,7 @@ positive when the bow points away from the image centre.)
 
 ## Answers to the brief's questions
 
-Because the gate fails, these answers describe what the numbers show, not
+Because the gate fails, these answers describe noisy observations, not
 a confirmed distortion measurement. GX's sagittas (1.77 to 4.81 px) are
 larger than three of ShuttleSet's four control readings (0.32 to 1.03 px),
 about the same as ShuttleSet's worst edge (2.32 px), and smaller than
@@ -63,10 +63,12 @@ Amateur-3's noisiest edge (5.47 px, which is itself a method artefact, not
 a real bow). So GX does not clearly stand out above what the method
 already produces on a control it is supposed to pass. GX's sign is
 consistent on every edge (all four sagittas are positive, meaning every
-edge bows away from the image centre), which is the signature of barrel
+edge bows away from the image centre), which would be compatible with barrel
 distortion rather than pincushion; for comparison, ShuttleSet's four
 sagittas are all negative (a small, consistent pincushion-direction
 signal), while Amateur-3's signs are mixed, matching its noisy readings.
-The largest GX sagitta is 4.81 native pixels, on the far baseline.
+The largest observed GX sagitta is 4.81 native pixels, on the far baseline.
 
-No fix is proposed here.
+These methods therefore establish no validated GX-specific upper bound.
+Further distortion work is deferred for priority reasons, not because the
+explanation has been disproved. No fix is proposed here.

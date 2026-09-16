@@ -19,6 +19,8 @@ Consequently, modern case findings below are **documented repository results**, 
 
 The smallest defensible later-audit comparison is **independent versus cross-frame scoring of the same frozen automatic candidate union**, followed by guarded reuse. Start there rather than changing pooled-line generation or refinement simultaneously. This prioritizes an interpretable test, **not an empirically superior algorithm**. Current evidence cannot rank the options by eventual accuracy or development time. Leave the independent direction experiments unchanged.
 
+**Current scope correction (2026-09-16).** The seven cached GX direction checks are descriptive only. They did not test the proposed calibration frames 30, 60 and 90, the modern score matrix, or independent versus shared scoring on the same automatic candidate union within a verified view. They therefore do not show that neighbouring frames cannot help or that those proposed frames are bad choices. The temporal audit remains deferred, not disproved. A smaller cached-frame pilot may be considered separately; a full stability and reuse framework is not required for this correction.
+
 ## 1. Missing observations are repairable in principle; the diagnosed failures are not all missing-observation failures
 
 **Documented observations.** These cases put distinct constraints on the temporal hypothesis:
@@ -143,9 +145,9 @@ All reads remained pinned to **`d0c9a12fb62eea64e1e4cec523d6f29a42e37a2a`** in `
 
 The entire results gzip remains incompletely recovered, so its whole-file checksum is **not verified**. The full modern 13-frame records and repository images remain uninspected. These access boundaries, including the verified checksums, are recorded in the [recovery manifest](sandbox:/mnt/data/court_extension/results/recovery_checks.json).
 
-**Yes—this yielded a meaningful extension:** a matched independent-versus-shared selection comparison, a stronger mathematical diagnosis of the floor scorer, and a candidate-origin sensitivity check. I ran these calculations locally from the saved numbers; no detector inference, new annotations, manual candidate selection, or acceptance-threshold tuning was involved.
+**Historical extension scope.** This yielded a meaningful conditional extension within the saved older Yellow population: a matched independent-versus-shared selection comparison, a stronger mathematical diagnosis of the floor scorer, and a candidate-origin sensitivity check. I ran these calculations locally from the saved numbers; no detector inference, new annotations, manual candidate selection, or acceptance-threshold tuning was involved.
 
-**Recommendation:** shared-candidate scoring now has a small empirical justification for the later audit, rather than only an architectural justification. But the strongest new negative finding is that **changing the temporal aggregation rule alone cannot rescue the closer Yellow candidate from the saved floor evidence**.
+**Recommendation:** the older Yellow comparison gives a conditional reason to run the later audit, rather than only an architectural reason. Its strongest negative finding is limited to the saved Yellow floor-score matrix: **changing the temporal aggregation rule alone cannot rescue the closer Yellow candidate from that matrix**. It does not establish modern Amateur-2 line- or paint-score dominance, and it does not rule out useful new observations.
 
 ## 1. Holding the candidates and cues fixed, shared scoring does improve selection in the older Yellow case
 
@@ -236,9 +238,9 @@ The closest remaining geometry by **evaluation only** is `yellow_short_frame_156
 
 ## What this changes for the practical route
 
-The original shared-court headline table remains confounded. **This extension adds a genuinely different, conditional comparison from its saved records:** sharing observations improves selection on Yellow, while a dominance certificate explains why floor-only aggregation still cannot select its closer geometry.
+The original shared-court headline table remains confounded. **This extension adds a genuinely different, conditional comparison from its saved records:** sharing observations improves selection on Yellow, while a dominance certificate explains why floor-only aggregation still cannot select its closer geometry in that saved matrix. The result does not establish modern Amateur-2 line- or paint-score dominance, and the proposed modern audit remains unexecuted.
 
-That is enough to strengthen the case for the proposed **fixed-candidate scoring audit**. It is not enough to rank pooled-line generation against shared scoring in the modern pipeline, verify camera stability, or claim an accepted CourtKeyNet-free detector.
+That is enough to keep the proposed **fixed-candidate scoring audit** open. It is not enough to rank pooled-line generation against shared scoring in the modern pipeline, verify camera stability, or claim an accepted CourtKeyNet-free detector.
 
 The minimum consequential modern observation remains: **one automatically generated geometry receives discriminating support across independently established same-view observations, a fixed shared ranker improves on the same-pool independent comparator, and the already-good Amateur-3 case does not regress.** Amateur-3’s `43:22603` remains an explicit regression control, not a success newly established here.
 

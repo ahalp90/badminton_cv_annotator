@@ -1,6 +1,6 @@
 # Follow-up schedule
 
-Written 2026-09-15. A fresh session should read this file first, then `status.md` in this folder, then the remote receipts named below.
+Written 2026-09-15. A fresh session should read this file first, then `status.md` in this folder, then the remote receipts named below. Status correction 2026-09-16: the per-view audit in this file is unexecuted. This is a historical planning schedule, not an exact implementation of the WebUI protocol.
 
 Decision on 2026-09-15 evening: run the three local checks plus two added checks, "where the close courts vanish inside the matcher" and "lens distortion on GX". Hold the per-view audit until those answer. The reasoning is in the conversation summary at the top of `status.md`.
 
@@ -16,9 +16,9 @@ On three view-arms the direction fit is within 5 px of the control yet the pool 
 
 Line bowing has no verified cause. Use the merged rows with many member fragments spanning a long extent, fit a straight line and a quadratic to the member endpoints, and report the sagitta and its sign relative to the image centre. A consistent outward sagitta that grows with radius means barrel distortion. Run the same test on the amateur and ShuttleSet views as controls. Brief: `briefs/distortion.md`.
 
-## Part two is on hold
+## Part two is on hold and unexecuted
 
-The per-view audit below stays written down and unrun until the GX direction check and the two added checks report.
+The per-view audit below remains written down and unrun. The proposed frame sample, stability guard and reuse machinery have not been executed, and this schedule does not by itself establish the WebUI protocol's modern same-union comparison.
 
 ## Where things live
 
@@ -70,19 +70,19 @@ Method: draw the member fragments of rows 31, 51 and 61 on the native frame in o
 
 Output: `gx0_rows/overlay.png`, `gx0_rows/row_31.png`, `row_51.png`, `row_61.png`, and `gx0_rows/note.md` with the read and its source. The read is a visual judgement by the session; say so.
 
-Decides: whether GX0's loss comes from a wrong structure in the merge or from a wrong orientation on real paint. Only the second could ever respond to an anchor or score change.
+Planned question: whether GX0's loss comes from a wrong structure in the merge or from a wrong orientation on real paint. The later visual read is a session judgement only; no direct anchor or score intervention was run, so it does not establish that either intervention can or cannot repair the loss.
 
 ### Do later GX frames keep the precise directions
 
-The per-view route can only help GX if some automatic selection along the video keeps directions close to the control pair.
+The per-view route remains open. Some cached automatic selections are descriptively closer to the control pair, but the check did not measure attainable fits, generated courts or cross-frame scoring.
 
 Inputs: `experiments/annotator/independent_court/recorded/player_guided/projective_patterns/evaluation/temporal_records.json.gz` at commit `d0c9a12`. Each of the seven GX rows carries `direction_estimator.points_working`, the 16 selected directions in working homogeneous coordinates, and `direction_estimator.retained_candidate_ids`. The control pair's points come from the WebUI bundle `badminton_direction_audit_7299ff3.zip`, file `gx0_reconstructed_analysis.json`, or from replaying the bank with `automatic_axes/diagnose_direction_bank.reconstruct_bank` on the GX0 lines; the E2 record's `points_working` for B gives the coordinate convention.
 
-Method: for each GX frame and each of its 16 directions, compute the angle between the normalised 3-vectors to candidate 1183 and to candidate 122 and keep the minimum per control direction. Also compute the WebUI's incidence bound `max(Lx(U), Ly(V))` from `geometry_certificate.py` against GX0's approved control corners for the best pair in each frame. Label the bound as valid for frame 5 and indicative for later frames, because the camera may have moved.
+Method: for each GX frame and each of its 16 directions, compute the angle between the normalised 3-vectors to candidate 1183 and to candidate 122 and keep the minimum per control direction. Also compute the WebUI's incidence lower bound `max(Lx(U), Ly(V))` from `geometry_certificate.py` against GX0's approved control corners for the best pair in each frame. Label the bound as valid for frame 5 and indicative for later frames, because the camera may have moved. The angles are chart-dependent descriptions, not a one-degree sufficiency or exclusion test; the bound is not an attained fit or generated court.
 
 Output: `gx_directions/table.csv` with one row per frame, and `gx_directions/note.md`.
 
-Decides: if no frame keeps both control directions within about a degree, pooling automatic selections cannot repair GX and the GX views need a different lever. If some frame does, the per-view audit has a real chance on GX.
+This check does not decide whether pooling or neighbouring frames can repair GX. It did not test the prescribed calibration frames 30, 60 and 90, a shared score matrix, or independent and shared selection on the same automatic candidate union within a verified view. Those questions remain for a separate, bounded audit or cached-frame pilot.
 
 ### Identity diagnostics on the exported winners
 
@@ -94,9 +94,9 @@ Output: `identity_diagnostics/table.csv` and `identity_diagnostics/note.md`.
 
 Decides: whether "unconstrained extent" and "aliased markings" show up on the other false winners and stay absent on the approved courts. This is a pattern check, not a rule. The WebUI already showed neither measure vetoes on its own.
 
-## Part two: the per-view audit on the compute host
+## Part two: the unexecuted per-view audit on the compute host
 
-The question: with directions and the matcher frozen at the baseline, does scoring one union of automatically generated courts across several frames of the same view choose a better court than scoring on the evaluation frame alone?
+The question: with directions and the matcher frozen at the baseline, does scoring one union of automatically generated courts across several frames of the same verified view choose a better court than scoring on the evaluation frame alone? This is the decisive modern comparison; it has not been run.
 
 ### Fixed choices, written before anything runs
 

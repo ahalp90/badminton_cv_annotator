@@ -395,9 +395,9 @@ def write_note(baseline_bound, baseline_best_fit, baseline_angles_x, baseline_an
         f"directions lands on almost exactly the same direction as the approved control's y-axis candidate "
         f"(0.000 degrees away, against 1.795 at baseline), and both distance measures fall a long way: set_bound "
         f"to {result_b['set_bound_working_px']:.3f} working px and the best control fit to "
-        f"{result_b['best_control_fit_working_px']:.3f} working px. That improvement comes from which candidate "
-        f"the greedy allocation happens to pick as a leader once the fragment mix changes, not from removing row "
-        f"61 specifically, since row 61's own direction was never close to the control axes."
+        f"{result_b['best_control_fit_working_px']:.3f} working px. Both rules remove row 61, but only the "
+        f"midpoint-in-box rule improves the fit. The replay shows a changed allocation after the fragment set "
+        f"changes; it does not isolate row 61's effect or establish a complete greedy-allocation trace."
     )
     lines.append("")
     note_path = OUT_DIR / "note.md"

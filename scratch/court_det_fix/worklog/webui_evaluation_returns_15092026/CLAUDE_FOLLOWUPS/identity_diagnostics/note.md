@@ -92,7 +92,13 @@ several run long. Candidate89 has "no ruling recorded" — it was not itself
 inspected in the gallery; it is the approved court the two GX0 controls are
 measured and judged against.
 
-## Answers
+## Answers: descriptive diagnostics only
+
+The rank and spacing columns are warnings conditional on named-line
+correspondence. They are not implemented or validated free rejection or
+abstention gates. Rank eight is not court identity, and a sub-pixel spacing
+observation is not a universal threshold: genuinely foreshortened or cropped
+courts can also be ambiguous.
 
 **Does every approved or usable court have rank 8?**
 
