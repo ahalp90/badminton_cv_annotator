@@ -1,0 +1,51 @@
+{
+  "source_revision": "b36402f1c994f2b000044589cdb6b001f190d0dd",
+  "source_path": "scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json",
+  "method": "Measure all four corner distances and keep the largest. Repeat with labels turned 180 degrees; use the smaller result.",
+  "gx": [
+    {
+      "name": "baseline_pair143_proxy",
+      "candidate_id": null,
+      "recomputed_error": 34.32675832394928,
+      "direct": 34.32675832394928,
+      "rotated": 714.6028218894771,
+      "reported_error": 34.326758323949285
+    },
+    {
+      "name": "baseline_pre_global_pool",
+      "candidate_id": "22:4588",
+      "recomputed_error": 7.662057046439755,
+      "direct": 7.662057046439755,
+      "rotated": 718.4889026048878,
+      "reported_error": 7.662057046439755
+    },
+    {
+      "name": "paint_pair143_proxy",
+      "candidate_id": "143:228",
+      "recomputed_error": 12.577456034696572,
+      "direct": 12.577456034696572,
+      "rotated": 704.4674883769163,
+      "reported_error": 12.57745603469657
+    },
+    {
+      "name": "paint_pre_global_pool",
+      "candidate_id": "22:232",
+      "recomputed_error": 9.035950374380407,
+      "direct": 9.035950374380407,
+      "rotated": 712.5838946248113,
+      "reported_error": 9.035950374380407
+    }
+  ],
+  "proxy_delta_px": -21.749302289252704,
+  "pre_global_delta_px": 1.3738933279406522,
+  "am3_score_order_in_supplied_witnesses": [
+    18981,
+    29665,
+    29686,
+    30886
+  ],
+  "same_key_representative_in_supplied_witnesses": 29665,
+  "representative_score_advantage": 0.12653515691433959,
+  "am3_error_recalculated": false,
+  "boundaries": "The GX errors were calculated again from the copied corners. This did not repeat the full search or check every rank. The Am3 comparison checks assignment IDs and scores, not the reported corner errors."
+}

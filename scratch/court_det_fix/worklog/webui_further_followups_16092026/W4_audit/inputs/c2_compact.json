@@ -1,0 +1,22 @@
+{
+  "revision": "b36402f1c994f2b000044589cdb6b001f190d0dd",
+  "source_path": "scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json",
+  "source_blob": "505bae3fbdfbab74d88f0fbf4d745ed0e89af71c",
+  "extraction": "Numeric fields transcribed from explicit-ref GitHub connector reads. These are saved-record witnesses, not a newly generated population.",
+  "working_size": [960,540],
+  "control_kind": "visually approved GX0 supplied-direction candidate 89, not a new automatic entrant",
+  "gx_control": [[70.69372861108405,283.57787950035794],[306.3781251404358,271.3518963191221],[782.8601501441515,328.04844017786434],[486.30823431447186,580.5813112824602]],
+  "gx_rows": [
+    {"name":"baseline_pair143_proxy","candidate_id":null,"corners":[[72.4487502920217,281.9126986699941],[320.57113583306773,270.2924466100478],[784.0199661193129,326.2729838421638],[460.79979377470045,603.551853249505]],"reported_error":34.326758323949285},
+    {"name":"baseline_pre_global_pool","candidate_id":"22:4588","corners":[[76.90663691428529,280.7410916760455],[310.4048674770492,269.01828123194036],[787.8922066706722,326.62025670453295],[478.9836065190659,582.8300766863349]],"reported_error":7.662057046439755},
+    {"name":"paint_pair143_proxy","candidate_id":"143:228","corners":[[82.21290608956934,284.7278046452777],[318.12396786180034,272.71153911586117],[773.510306179229,331.77850683528237],[473.8354356986591,578.962146376064]],"reported_error":12.57745603469657},
+    {"name":"paint_pre_global_pool","candidate_id":"22:232","corners":[[79.69945100809032,282.83939234655963],[306.596768349427,270.8231524782502],[781.6439259274487,331.80260152637106],[478.98360651906546,582.8300766863343]],"reported_error":9.035950374380407}
+  ],
+  "am3_control_kind": "manual reference; horizontal diagnostic holds the other fitted axis fixed; not an approved full court",
+  "am3_rows": [
+    {"id":29686,"assignment":[7,197,32,3,19],"parameters":[0.2906439518217148,0.17954469715399546],"score":0.6579144844236781,"reported_error":4.278292785177043,"distinct_rank":null},
+    {"id":29665,"assignment":[7,197,32,3,19],"parameters":[0.29649577053989423,0.17685286049480156],"score":0.7844496413380176,"reported_error":8.54048938896365,"distinct_rank":1936},
+    {"id":30886,"assignment":[6,10,32,3,19],"parameters":[0.28933039657502335,0.1875573840335432],"score":0.5810709477473055,"reported_error":6.240893270774599,"distinct_rank":11518},
+    {"id":18981,"assignment":[7,132,41,254,172],"parameters":[0.2547861696060678,0.18146933228932985],"score":0.9270519806922565,"reported_error":49.64724226225529,"distinct_rank":228}
+  ]
+}
