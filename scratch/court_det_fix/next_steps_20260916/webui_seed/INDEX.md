@@ -1,8 +1,9 @@
 # C2 WebUI seed
 
 This is a small, uploadable evidence seed for the two C2 traces. It records
-the raw-record verdicts without bundling the multi-million-court arrays, native
-frames or the 530 MB courts-before-the-gate side files.
+the raw-record verdicts without bundling the multi-million-court arrays or the
+530 MB courts-before-the-gate side files. It includes the nine native views
+used by the surrounding court-detector comparison for visual context.
 
 ## Start here
 
@@ -16,6 +17,8 @@ frames or the 530 MB courts-before-the-gate side files.
 - `source/`: the frozen matcher and directly relevant producer, observation,
   detector and replay sources. `source/SOURCE_MAP.md` gives original paths and
   line ranges.
+- `frames/`: nine byte-identical native views copied from the tracked frozen
+  inputs. Their layout follows the original pack paths.
 - `tables/`: compact saved axis-replay and filter-replay tables.
 - `reports/`: the corrected line-identity reports and the small WebUI/follow-up assessments.
 
