@@ -8,6 +8,7 @@ used by the surrounding court-detector comparison for visual context.
 ## Start here
 
 - `findings.md`: bounded verdict, four Check A rows, and the corrected Check B survivor chain.
+- `L2_scoring/README.md`: expanded L2 handoff for the realised candidate-access versus rescoring scope.
 - `witnesses.json`: exact source paths, MD5s, control corners, scales, candidate identities and replay gates.
 - `ranking_panel.json`: 17 distinct automatic winners, observed-bank controls 1864 and 5144, and candidate 89 as a separately labelled comparator. Original visual-ruling text is retained.
 - `check_traces.py`: the single-process local check that produced the witnesses. It expects the repository-relative raw inputs named in the witnesses.
@@ -20,6 +21,7 @@ used by the surrounding court-detector comparison for visual context.
 - `frames/`: nine byte-identical native views copied from the tracked frozen
   inputs. Their layout follows the original pack paths.
 - `tables/`: compact saved axis-replay and filter-replay tables.
+- `L2_scoring/`: the expanded L2 result, comparison table, selected witnesses, replay script and four native diagnostic overlays.
 - `reports/`: the corrected line-identity reports and the small WebUI/follow-up assessments.
 
 Distances in the findings use working pixels at 960 by 540. Native dimensions

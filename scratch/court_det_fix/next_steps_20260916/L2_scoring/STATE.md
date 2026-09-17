@@ -5,8 +5,9 @@
   producing helpers under `next_steps_20260916/webui_seed/source/`, and the four original
   diagnostic case frames.
 - Outputs: `next_steps_20260916/L2_scoring/` contains the runnable comparison, `comparison.csv`,
-  selected-candidate `witnesses.json`, four diagnostic image witnesses, and `result.md`. The
-  WebUI handoff adds only `webui_seed/L2_scoring/result.md` and those four images.
+  selected-candidate `witnesses.json`, four diagnostic image witnesses, and `result.md`. After
+  review, the WebUI handoff is intentionally expanded to include those small/medium artefacts,
+  a replay-script copy, and a scope README alongside the result and four images.
 - Completed: the replay uses shared S0/S1 stripe caches, preserves G0/G1/U order and origin keys,
   and calls the existing paint-profile function alongside the detailed trace. The exact four-case
   run completed on Carmack with one worker against the existing saved records. No new extraction
@@ -21,4 +22,5 @@
   changes the G0 line winners on GX0, Am2-150 and Am3-0. These are development-population effects,
   not held-out evaluation or physical court-line ownership. The appended resource clarification
   permits this specified remote computation and does not expand the case scope or extraction work.
-- The L2 package is committed on `fix/court-det`; no further L2 command is pending.
+- The expanded handoff is prepared. Next command: run the focused packaging checks and commit the
+  follow-up on `fix/court-det`.
