@@ -41,4 +41,4 @@ No dirty user files existed at the initial checkpoint.
   the one static-feature registration diagnostic.
 - Gate: Python compile green; scoped Ruff green; Serena/Pyrefly diagnostics `{}`; one
   process completed with panel 30, common 30, frames 7, six registration pairs `ok`.
-- Commit: close-out commit to be recorded in Git history.
+- Commit: `17e8873 Measure cross-frame court evidence on cached GX views`.
