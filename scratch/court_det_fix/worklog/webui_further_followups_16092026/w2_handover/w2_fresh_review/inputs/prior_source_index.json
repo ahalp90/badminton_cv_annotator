@@ -1,0 +1,193 @@
+{
+  "repository": "ahalp90/badminton_cv_annotator",
+  "branch_resolved": "fix/court-det",
+  "revision_read": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+  "branch_commit_date_utc": "2026-09-17T02:47:11Z",
+  "earlier_user_comparison": {
+    "baseline": "d0c9a12fb62eea64e1e4cec523d6f29a42e37a2a",
+    "then_head": "872ea806c5b69a195f32e9f60b5840294eefb6cd",
+    "re_audited_here": false
+  },
+  "local_attachment_found": false,
+  "local_dirty_run_identity": null,
+  "producing_scopes": {
+    "W_reported_audit": "7299ff3f74bf51dc3bc59582c79190dbc81666ca",
+    "C2_git_commit_at_check": "d92979bcffee197e0748118ad452093b27a453d4",
+    "L2_producing_commit": "not established; packaging revision must not be substituted",
+    "L2_dirty_inventory": "not established"
+  },
+  "C2_reported_producer_md5s": {
+    "projective_seed.py": "4cdb8e863318d5a8982a56f68005a1dc",
+    "axis_replay.py": "298fea2247a08bce69b6f6a3ee9bcdd7",
+    "filter_replay.py": "8bd356d4b66f43a4b7bb18312ff815ca",
+    "run_automatic.py": "bd4bf47184445ae4849b17a151967826",
+    "run_given.py": "5c98d2f7ff2a5abd6acb398d88012cd5"
+  },
+  "sources": [
+    {
+      "key": "R2",
+      "path": "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/can_available_evidence_separate_court_from_false_match.md",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "9a8a2e22df019f4414242fa6005aeb532c022ac8",
+      "access": "Read through appended audit; earlier numerical conclusions not independently recomputed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/can_available_evidence_separate_court_from_false_match.md"
+    },
+    {
+      "key": "R3",
+      "path": "scratch/court_det_fix/frozen_helpers_20260914/axis_matching/inspect_appearance.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "4a65a9281e89be4a1ac2fbf77585b457c25500dc",
+      "access": "Complete source read; same blob as seed snapshot.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/frozen_helpers_20260914/axis_matching/inspect_appearance.py"
+    },
+    {
+      "key": "R4",
+      "path": "experiments/annotator/independent_court/detector.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "1a4624973b1bd724c7eb23dca50424a20522a0dc",
+      "access": "Read lines 1-175 and 222-285.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/experiments/annotator/independent_court/detector.py"
+    },
+    {
+      "key": "R5",
+      "path": "experiments/annotator/independent_court/assignment.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "0c0048adaad38345de8b6d12edfa5530699a2f76",
+      "access": "Read lines 1-140.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/experiments/annotator/independent_court/assignment.py"
+    },
+    {
+      "key": "R6",
+      "path": "experiments/annotator/independent_court/stripe_observations.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "db9c546a56a81748c7a0f92b41e0d11ead11263b",
+      "access": "Complete source read.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/experiments/annotator/independent_court/stripe_observations.py"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/L2_scoring/run_l2_scoring.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "1e5c948ff813306421819d9bcfd9d07eff0cd99d",
+      "access": "Read source through main; same blob as webui_seed copy.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/L2_scoring/run_l2_scoring.py"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/comparison.csv",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "7b1716becb2fae350a41935600fcd343efdb20af",
+      "access": "Complete 4171-byte local copy verified by Git blob SHA-1; new calculation executed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/comparison.csv"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/result.md",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "ad874151084de7aba4617fdf5264adf6ed3c05d9",
+      "access": "Complete narrative result read; checked against table and source.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/result.md"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_automatic.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "256705adf4d3a62c775e25e2e3b694d3110f7933",
+      "access": "Read lines 1-135 including actual winner_ids.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_automatic.py"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/SOURCE_MAP.md",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "bde14b51a354dd50a7a665e9622e2be1b864b0e4",
+      "access": "Complete map read.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/source/SOURCE_MAP.md"
+    },
+    {
+      "key": "R8",
+      "path": "scratch/court_det_fix/line_identity/filter_replay.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "c139236ed2d15e0fad08a1f87ecb30248681bd82",
+      "access": "Read lines 1-235.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/line_identity/filter_replay.py"
+    },
+    {
+      "key": "R9",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "505bae3fbdfbab74d88f0fbf4d745ed0e89af71c",
+      "access": "Read lines 1-150: C2 provenance and GX0 control.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/ranking_panel.json",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "2b622684e921ba08a15d79249da71ea12dd1699f",
+      "access": "ACCESS LIMIT: 1262999 bytes; not recovered.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/ranking_panel.json"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witnesses.json",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "739af3d1dacc7f3fedb551eab01a2b4bad94fd06",
+      "access": "ACCESS LIMIT: 3990921 bytes; not recovered; optional code not run on real input.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witnesses.json"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_am2_window_00_frame_150_30_33.png",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "4794ae460ceb0756b2a03ad70e755fa204268fd9",
+      "access": "Metadata only, 487391 bytes; pixels not viewed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_am2_window_00_frame_150_30_33.png"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_am2_window_01_frame_28019_184_4123.png",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "1178607016e1c71d3c5d89ab853cdccc027d34c8",
+      "access": "Metadata only, 306349 bytes; pixels not viewed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_am2_window_01_frame_28019_184_4123.png"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_shuttleset_03_scene_0019_165_6702.png",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "8710bc5a4204a35aba24274d3c94aeab5b673ec0",
+      "access": "Metadata only, 384768 bytes; pixels not viewed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_shuttleset_03_scene_0019_165_6702.png"
+    },
+    {
+      "key": "R10",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_shuttleset_03_scene_0019_1_60.png",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "1030f3ff686de3d487ba018904faa96a064857e8",
+      "access": "Metadata only, 254745 bytes; pixels not viewed.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witness_shuttleset_03_scene_0019_1_60.png"
+    },
+    {
+      "key": "R7",
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_population.py",
+      "revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+      "git_blob_sha1": "e7d16fb0633848387d07f7acbffe4b393b90c191",
+      "access": "Read lines 1-50 including scaling-only prepare; fragment list order preserved.",
+      "immutable_url": "https://github.com/ahalp90/badminton_cv_annotator/blob/bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68/scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_population.py"
+    }
+  ],
+  "executed_here": [
+    "w2_probe.py default: real L2 table arithmetic, constructed profile tests, constructed exact rank test",
+    "Python compile check",
+    "Optional trace reader exercised against an artificial schema fixture only; wrong hash rejected"
+  ],
+  "not_executed_here": [
+    "original detector or matcher",
+    "L2 replay",
+    "real-pixel profile sampling",
+    "optional reader on real L2 diagnostic traces"
+  ],
+  "pixels_viewed": false,
+  "repository_changes": false
+}

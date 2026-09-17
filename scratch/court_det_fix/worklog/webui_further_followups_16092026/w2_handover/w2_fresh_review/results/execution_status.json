@@ -1,0 +1,20 @@
+{
+  "fresh_csv_arithmetic": "EXECUTED: 48 rows validated; all numerical results in results/fresh_analysis.json",
+  "tests": "EXECUTED: 10 passed; four tests use the real uploaded CSV, six use constructed images",
+  "syntax_check": "EXECUTED: analyze_fresh.py and build_pair_atlas.py compile",
+  "real_saved_pixel_trace_replay_in_this_session": "NOT EXECUTED: original witnesses.json was not attached",
+  "real_pixels_viewed_in_this_session": false,
+  "followup_real_frame_run": "EXECUTED: four fixed intervals replayed from pinned native frames",
+  "followup_output": "w2_pair_atlas/",
+  "repository_write_or_remote_execution": "local pinned-input replay; no repository source modification",
+  "local_csv_producing_commit_dirty_state": "not provided by the uploaded CSV; user reports local w2_probe.py --witnesses run",
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "numpy": "2.3.5",
+    "opencv": "4.13.0"
+  },
+  "upstream_probe_sha256": "81e454e5e7876bbae4f7347c0feead3895ae764230edf4b64e73cfe932439d48",
+  "fresh_csv_sha256": "41fd27c0387d5dc9864bde9cd0031a04b8669c37698fca7e5173aaaa15644e61",
+  "repository_head_rechecked": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+  "new_analysis_scope": "derived real-data CSV arithmetic only; synthetic code tests separately labelled"
+}

@@ -1,0 +1,5 @@
+case_id,candidate_id,label,measured_intervals,unavailable_intervals,observed_pass_stations,stations_with_any_measured_offset,unknown_offset_tests,legacy_passing_intervals,run_ge_10_lower_intervals,run_ge_10_upper_intervals,legacy_profile,mean_hit_fraction,mean_run_lower_fraction,mean_run_upper_fraction,dropin_run_profile_lower,dropin_run_profile_upper,diagnostic_not_acceptance
+am2_window_01_frame_28019,184:4123,Am2-28019 false,12,0,202,288,7,12,6,6,1.0,0.6837121212121212,0.42045454545454547,0.42234848484848486,0.5,0.5,True
+am2_window_00_frame_150,30:33,Am2-150 approved,12,0,199,285,15,12,6,6,1.0,0.6912878787878788,0.48674242424242425,0.4943181818181818,0.45454545454545453,0.45454545454545453,True
+shuttleset_03_scene_0019,165:6702,SS03-19 false,5,7,66,116,22,5,0,0,1.0,0.55,0.23333333333333334,0.23333333333333334,0.0,0.0,True
+shuttleset_03_scene_0019,1:60,SS03-19 usable,12,0,261,288,0,11,11,11,0.9090909090909091,0.9034090909090909,0.8106060606060606,0.8106060606060606,0.9090909090909091,0.9090909090909091,True
