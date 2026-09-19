@@ -607,6 +607,8 @@ def candidate_review(candidate: dict) -> dict:
         "kind": candidate["kind"],
         "parent_origin_key": candidate.get("parent_origin_key"),
         "source": candidate.get("source"),
+        "expected_ruling": candidate.get("expected_ruling"),
+        "in_automatic_pool": candidate.get("in_automatic_pool"),
         "corners_px": candidate.get("corners_px"),
         "homography_working": candidate.get("homography_working"),
         "hard_valid": candidate.get("hard_valid", False),

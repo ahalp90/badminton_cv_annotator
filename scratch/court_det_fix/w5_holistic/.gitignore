@@ -18,3 +18,9 @@ runs/**/logs/
 runs/**/receipts/
 runs/**/*.npz
 runs/**/*.npy.xz
+
+# Gallery: only the crops are tracked. Full frames and reference overlays stay on disk.
+runs/**/gallery/*__full.png
+runs/**/gallery/*__reference.png
+# The refit attempt table is tens of MB; track it compressed.
+runs/**/fit_attempts.csv

@@ -1,0 +1,144 @@
+{
+  "schema": "w5-manifest/1",
+  "run_id": "w5_stage2_20260920",
+  "cases": [
+    "gxBQ_window_00_frame_0",
+    "am2_window_00_frame_150",
+    "am2_window_01_frame_28019",
+    "am3_window_00_frame_0",
+    "shuttleset_03_scene_0019"
+  ],
+  "global_parameters": {
+    "working_size": [
+      960,
+      540
+    ],
+    "camera_error_limit_historical": 0.1,
+    "physical_centres": "paint_geometry.CENTRE_SEGMENTS_M",
+    "photometric_offsets_working_px": [
+      -4.0,
+      -2.0,
+      0.0,
+      2.0,
+      4.0
+    ],
+    "photometric_side_distance_working_px": 6.0,
+    "photometric_probe_threshold_historical": 10.0,
+    "refit_max_evaluations": 100,
+    "workers": 5
+  },
+  "source_stage": {
+    "G0": "frozen_views/baseline_generation when present, otherwise automatic_axes_20260914/all_camera with L2 selection replay",
+    "G1": "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results",
+    "automatic_path_reference_fields": false
+  },
+  "imported_helper_paths": {
+    "run_automatic": "next_steps_20260916/webui_seed/source/run_automatic.py",
+    "run_given": "next_steps_20260916/webui_seed/source/run_given.py",
+    "run_population": "next_steps_20260916/webui_seed/source/run_population.py",
+    "run_diagnosis": "marking_diagnosis_20260914/run_diagnosis.py",
+    "zone_net": "smoke/legacy/zone_net.py"
+  },
+  "view_provenance": {
+    "gxBQ_window_00_frame_0": {
+      "case_id": "gxBQ_window_00_frame_0",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        1920,
+        1080
+      ],
+      "frame_path": "gx_extension/people/images/gxBQ_window_00_frame_00000000.png",
+      "image_kind": "source_frame",
+      "g0_source": "direct:frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+      "same_image_mask_available": true,
+      "photometry_occlusion_aware": true,
+      "player_foot_source": "rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.zip",
+      "chosen_bbox_frame": 0,
+      "anchor_frame": 0
+    },
+    "am2_window_00_frame_150": {
+      "case_id": "am2_window_00_frame_150",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        1920,
+        1080
+      ],
+      "frame_path": "axis_matching_20260914/images/am2/frame_00000150.png",
+      "image_kind": "source_frame",
+      "g0_source": "replayed:automatic_axes_20260914/all_camera/am2_window_00_frame_150.json.gz",
+      "same_image_mask_available": true,
+      "photometry_occlusion_aware": true,
+      "player_foot_source": "frozen_pack_all_feet_px",
+      "chosen_bbox_frame": 150,
+      "anchor_frame": 150
+    },
+    "am2_window_01_frame_28019": {
+      "case_id": "am2_window_01_frame_28019",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        1920,
+        1080
+      ],
+      "frame_path": "axis_matching_20260914/images/am2/frame_00028019.png",
+      "image_kind": "source_frame",
+      "g0_source": "replayed:automatic_axes_20260914/all_camera/am2_window_01_frame_28019.json.gz",
+      "same_image_mask_available": true,
+      "photometry_occlusion_aware": true,
+      "player_foot_source": "frozen_pack_all_feet_px",
+      "chosen_bbox_frame": 28019,
+      "anchor_frame": 28019
+    },
+    "am3_window_00_frame_0": {
+      "case_id": "am3_window_00_frame_0",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        1920,
+        1080
+      ],
+      "frame_path": "axis_matching_20260914/images/am3/frame_00000000.png",
+      "image_kind": "source_frame",
+      "g0_source": "direct:frozen_views/baseline_generation/am3_window_00_frame_0.json.gz",
+      "same_image_mask_available": true,
+      "photometry_occlusion_aware": true,
+      "player_foot_source": "frozen_pack_all_feet_px",
+      "chosen_bbox_frame": 0,
+      "anchor_frame": 0
+    },
+    "shuttleset_03_scene_0019": {
+      "case_id": "shuttleset_03_scene_0019",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        960,
+        540
+      ],
+      "frame_path": "original/video_03/scene_0019_frame_00040691_cached_view.png",
+      "image_kind": "cached_median_view_thumbnail",
+      "g0_source": "replayed:automatic_axes_20260914/all_camera/shuttleset_03_scene_0019.json.gz",
+      "same_image_mask_available": false,
+      "photometry_occlusion_aware": false,
+      "player_foot_source": "cached_original_pose",
+      "chosen_bbox_frame": 40691,
+      "anchor_frame": null
+    }
+  },
+  "steering_rule_revision": {
+    "status": "initial W5 provisional reduction",
+    "changed_global_rule": null,
+    "expensive_geometry_rerun": true
+  }
+}

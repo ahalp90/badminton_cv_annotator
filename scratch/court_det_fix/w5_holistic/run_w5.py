@@ -764,7 +764,7 @@ def write_fit_attempts(path: Path, case_results: list[dict]) -> None:
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for result in case_results:
             for row in result["fit_rows"]:
@@ -859,7 +859,7 @@ def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: 
         "determinism_match", "controls",
     ]
     with (run_dir / "per_view.csv").open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=per_view_fields)
+        writer = csv.DictWriter(stream, fieldnames=per_view_fields, lineterminator="\n")
         writer.writeheader()
         for result in case_results:
             provenance = result["provenance"]
@@ -887,6 +887,34 @@ def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: 
 
 
 def write_result(path: Path, case_results: list[dict]) -> None:
+    controls = [
+        (result["label"], control)
+        for result in case_results
+        for control in result["diagnostic_controls"]
+    ]
+    positive_controls = [
+        control for _, control in controls
+        if str(control.get("expected_ruling", "")).startswith("positive")
+    ]
+    negative_controls = [
+        control for _, control in controls
+        if str(control.get("expected_ruling", "")).startswith("negative")
+    ]
+    positive_geometry = [control.get("q_geom") for control in positive_controls]
+    negative_geometry = [control.get("q_geom") for control in negative_controls]
+    positive_paint = [control.get("q_paint10") for control in positive_controls]
+    negative_paint = [control.get("q_paint10") for control in negative_controls]
+    controls_directionally_consistent = all(
+        values and all(value is not None for value in values)
+        for values in (positive_geometry, negative_geometry, positive_paint, negative_paint)
+    ) and (
+        min(positive_geometry) > max(negative_geometry)
+        and min(positive_paint) > max(negative_paint)
+    )
+
+    def metric_text(value: float | None) -> str:
+        return "unknown" if value is None else f"{value:.6g}"
+
     lines = [
         "# W5 holistic court-detector pilot",
         "",
@@ -908,7 +936,28 @@ def write_result(path: Path, case_results: list[dict]) -> None:
         "",
         "## Known diagnostic controls",
         "",
-        "All four named controls were measured through the W5 evidence pass. They remain diagnostic records and were not added to the automatic union or used as an automatic gate. That is the expected first-pass handling under the contract.",
+        (
+            "The positive and negative controls are directionally separated in the saved "
+            "two-direction Q readouts, which is consistent with their prior rulings. "
+            "This is a diagnostic result only: no threshold or automatic pass/fail was "
+            "applied."
+            if controls_directionally_consistent else
+            "The control readouts do not show a consistent positive-versus-negative "
+            "separation in both two-direction Q measures. This is a diagnostic result "
+            "only: no threshold or automatic pass/fail was applied."
+        ),
+        "",
+        "| view | control | expected role | automatic pool | hard-valid | Q_geom | Q_paint10 | status |",
+        "| --- | --- | --- | --- | --- | ---: | ---: | --- |",
+    ])
+    for label, control in controls:
+        lines.append(
+            f"| {label} | {control['candidate_id']} | {control.get('expected_ruling', 'unspecified')} | "
+            f"{'yes' if control.get('in_automatic_pool') else 'no'} | "
+            f"{'yes' if control.get('hard_valid') else 'no'} | {metric_text(control.get('q_geom'))} | "
+            f"{metric_text(control.get('q_paint10'))} | diagnostic-only; no gate |"
+        )
+    lines.extend([
         "",
         "## Notes",
         "",

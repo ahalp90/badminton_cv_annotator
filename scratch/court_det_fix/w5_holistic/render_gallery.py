@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -16,6 +17,7 @@ def import_verifier(root: Path):
     sys.path.insert(0, str(root / "w5_holistic"))
     from verifier import (
         CASE_IDS,
+        CASE_LABELS,
         CASE_PACKS,
         PACK_OF,
         frame_path,
@@ -25,6 +27,7 @@ def import_verifier(root: Path):
 
     return {
         "CASE_IDS": CASE_IDS,
+        "CASE_LABELS": CASE_LABELS,
         "CASE_PACKS": CASE_PACKS,
         "PACK_OF": PACK_OF,
         "frame_path": frame_path,
@@ -70,7 +73,7 @@ def render_prediction(
     scale = native_size / working_size
     homography = np.asarray(candidate["homography_working"], dtype=float)
     paint_working, _ = detector.project(homography[None], paint_geometry.CENTRE_SEGMENTS_M)
-    paint_native = paint_working[0] * scale
+    paint_native = paint_working[0].reshape(-1, 2, 2) * scale
     corners = np.asarray(candidate["corners_px"], dtype=float)
     cv2.polylines(canvas, [np.rint(corners).astype(int)], True, (255, 255, 255), 3, cv2.LINE_AA)
     for interval_index, segment in enumerate(paint_native):
@@ -217,6 +220,7 @@ def main() -> None:
         case_packet["A"] = reviews[case_id]["A"]
         case_packet["B"] = case_packet["rankings"]["B"]
         case_packet["C"] = case_packet["rankings"]["C"]
+        case_packet["label"] = verifier["CASE_LABELS"][case_id]
         case_packet["diagnostic_controls"] = reviews[case_id]["diagnostic_controls"]
         case_packet["reference_near"] = reviews[case_id].get("reference_near")
         rendered_cases.append(render_case(root, run_dir, case_id, case_packet, verifier))
