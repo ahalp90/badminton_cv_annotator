@@ -137,9 +137,15 @@ def render_case(root: Path, run_dir: Path, case_id: str, packet: dict, verifier:
             continue
         by_origin.setdefault(candidate["origin_key"], []).append(role)
     for rank_name in ("B", "C"):
-        for rank_index, origin_key in enumerate(packet[rank_name]["provisional_rank"][:3]):
+        ranking = packet[rank_name]
+        rank_keys = ranking["provisional_rank"] or ranking.get("ungated_provisional_rank", [])
+        ungated = not ranking["provisional_rank"] and bool(rank_keys)
+        for rank_index, origin_key in enumerate(rank_keys[:3]):
             if origin_key in candidates:
-                role = rank_name if rank_index == 0 else f"{rank_name}-alternative-{rank_index + 1}"
+                if rank_index == 0 and ungated:
+                    role = f"{rank_name}-ungated"
+                else:
+                    role = rank_name if rank_index == 0 else f"{rank_name}-alternative-{rank_index + 1}"
                 by_origin.setdefault(origin_key, []).append(role)
     reference_near = packet.get("reference_near")
     if reference_near and reference_near["origin_key"] in candidates:
@@ -169,6 +175,9 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
         "| --- | --- | --- | --- | --- |",
     ]
     for case in rendered_cases:
+        if case.get("stopped_reason"):
+            lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — |")
+            continue
         links_by_origin = case["rendered"]
         role_links = {role: [] for role in ("A_paint", "B", "C", "control")}
         for origin, rendered in links_by_origin.items():
@@ -208,8 +217,9 @@ def main() -> None:
     root = args.root.resolve()
     run_dir = root / "w5_holistic/runs" / args.run
     verifier = import_verifier(root)
+    manifest = json.loads((run_dir / "manifest.json").read_text())
     packet = {}
-    for case_id in args.cases or verifier["CASE_IDS"]:
+    for case_id in args.cases or manifest["cases"]:
         packet_path = run_dir / "case_records" / f"{case_id}.json.gz"
         case_record = verifier["read_json_gz"](packet_path)
         packet[case_id] = case_record
@@ -224,6 +234,13 @@ def main() -> None:
         case_packet["diagnostic_controls"] = reviews[case_id]["diagnostic_controls"]
         case_packet["reference_near"] = reviews[case_id].get("reference_near")
         rendered_cases.append(render_case(root, run_dir, case_id, case_packet, verifier))
+    for stopped in manifest.get("stopped_views", []):
+        rendered_cases.append({
+            "case_id": stopped["case_id"],
+            "label": verifier["CASE_LABELS"].get(stopped["case_id"], stopped["case_id"]),
+            "stopped_reason": stopped["reason"],
+            "rendered": {},
+        })
     write_index(run_dir, rendered_cases)
 
 

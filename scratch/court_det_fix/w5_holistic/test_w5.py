@@ -2,7 +2,9 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -11,9 +13,10 @@ from verifier import (
     permutation_determinism,
     photometric_samples,
     rank_candidates,
+    raw_junctions,
 )
 
-from experiments.annotator.independent_court import junction_observations
+from experiments.annotator.independent_court import detector, junction_observations
 from experiments.annotator.independent_court.assignment import prepare_observations
 from experiments.annotator.independent_court.detector import SEGMENTS_M
 from experiments.annotator.independent_court.paint_geometry import CENTRE_SEGMENTS_M
@@ -26,10 +29,13 @@ def candidate(origin_key: str, score: float, source_order: int, origin_index: in
         "origin_index": origin_index,
         "kind_order": 0,
         "hard_valid": True,
+        "gates": {"camera_error": 0.05},
         "historical": {"historical_fullcourt": True, "historical_camera": True},
         "evidence": {
             "q_geom": score,
             "q_paint10": score,
+            "q_geom_span_weighted": score,
+            "q_paint10_span_weighted": score,
             "exclusive_reverse": score,
         },
     }
@@ -51,10 +57,30 @@ def test_ranker_reports_sparse_evidence_without_a_gate() -> None:
     sparse = candidate("G0:0", 0.5, 0, 0)
     sparse["evidence"]["q_paint10"] = None
     sparse["evidence"]["q_geom"] = None
+    sparse["evidence"]["q_paint10_span_weighted"] = None
+    sparse["evidence"]["q_geom_span_weighted"] = None
     result = rank_candidates([sparse])
     assert result["status"] == "evidence_sparse"
     assert result["selected_origin_key"] is None
     assert result["historical_camera_subset_rank"] == []
+
+
+def test_ranker_applies_camera_limit_and_span_weighting() -> None:
+    short_marking = candidate("G0:short", 0.8, 0, 0)
+    long_marking = candidate("G0:long", 0.7, 0, 1)
+    short_marking["evidence"].update({"q_paint10": 0.9, "q_paint10_span_weighted": 0.2})
+    long_marking["evidence"].update({"q_paint10": 0.8, "q_paint10_span_weighted": 0.8})
+    ranking = rank_candidates([short_marking, long_marking])
+    assert ranking["r1_paint10_rank"] == ["G0:short", "G0:long"]
+    assert ranking["r2_spanw_paint10_rank"] == ["G0:long", "G0:short"]
+    assert ranking["provisional_rank"] == ["G0:long", "G0:short"]
+
+    no_camera = candidate("G0:no-camera", 0.9, 0, 2)
+    no_camera["gates"]["camera_error"] = 0.11
+    result = rank_candidates([no_camera])
+    assert result["status"] == "no_plausible_camera"
+    assert result["selected_origin_key"] is None
+    assert result["ungated_provisional_rank"] == ["G0:no-camera"]
 
 
 def test_photometry_keeps_raw_contrast_and_masks_unknown_samples() -> None:
@@ -85,3 +111,41 @@ def test_junction_helpers_accept_physical_centres() -> None:
         (960, 540),
         centres=CENTRE_SEGMENTS_M,
     )["usable_sites"] == 0
+
+
+def test_raw_junctions_use_projected_arm_direction() -> None:
+    homography = cv2.getPerspectiveTransform(
+        detector.CORNER_COURT_M.astype(np.float32),
+        np.array([[100, 100], [850, 250], [780, 500], [180, 450]], dtype=np.float32),
+    )
+    physical = CENTRE_SEGMENTS_M
+    junction_m = np.array([physical[2, 0, 0], physical[6, 0, 1]])
+    court_arm = np.array([1.0, 0.0])
+    along = np.linspace(
+        junction_observations.ARM_START_M,
+        junction_observations.ARM_END_M,
+        junction_observations.ARM_SAMPLES,
+    )
+    court_samples = junction_m + along[:, None] * court_arm
+    projected_samples, _ = detector.project(homography[None], court_samples)
+    projected_samples = projected_samples[0]
+    projected_direction = projected_samples[-1] - projected_samples[0]
+    projected_direction /= np.linalg.norm(projected_direction)
+    assert np.degrees(np.arccos(np.clip(court_arm @ projected_direction, -1.0, 1.0))) > 5.0
+
+    observations = prepare_observations(
+        projected_samples[[0, -1]].reshape(1, 4),
+        (960, 540),
+    )
+    context = SimpleNamespace(
+        observations=observations,
+        mask_boxes=np.empty((0, 4)),
+        size=(960, 540),
+        frame=np.full((540, 960, 3), 20, dtype=np.uint8),
+        same_image_mask_available=False,
+    )
+    result = raw_junctions(context, homography, {"exclusive": {"reverse": 0.0}})
+
+    support = result["sites"][0]["arms"]["right"]["positions"][0]["fragment_support_mean"]
+    assert support is not None
+    assert support > 0.99

@@ -10,14 +10,29 @@ remote_dir="$REMOTE_ROOT/w5_holistic"
 
 case "$1" in
   push)
-    "$HPCRSYNC" -a --delete \
+    "$HPCRSYNC" -ai --delete \
       --exclude runs/ --exclude __pycache__/ --exclude .ruff_cache/ --exclude .pytest_cache/ \
       --exclude .pyrefly_cache/ --exclude paths.local.sh "$here/" "$REMOTE_HOST:$remote_dir/"
-    "$HPCRSYNC" -a --delete "$LOCAL_EXPERIMENTS/" "$REMOTE_HOST:$REMOTE_ROOT/experiments/annotator/independent_court/"
+    "$HPCRSYNC" -ai --delete "$LOCAL_EXPERIMENTS/" "$REMOTE_HOST:$REMOTE_ROOT/experiments/annotator/independent_court/"
     "$HPCSSH" "$REMOTE_HOST" "seed_dir=$REMOTE_ROOT/next_steps_20260916/webui_seed/source; if [ -L \"\$seed_dir\" ]; then mv \"\$seed_dir\" \"\$seed_dir.automatic_axes_link\"; fi; mkdir -p \"\$seed_dir\""
-    "$HPCRSYNC" -a --delete "$LOCAL_SEED/" "$REMOTE_HOST:$REMOTE_ROOT/next_steps_20260916/webui_seed/source/"
-    "$HPCRSYNC" -a --delete "$LOCAL_G0/" "$REMOTE_HOST:$REMOTE_ROOT/automatic_axes_20260914/all_camera/"
-    "$HPCRSYNC" -a --delete "$LOCAL_BASELINE/" "$REMOTE_HOST:$REMOTE_ROOT/frozen_views/baseline_generation/"
+    "$HPCRSYNC" -ai --delete "$LOCAL_SEED/" "$REMOTE_HOST:$REMOTE_ROOT/next_steps_20260916/webui_seed/source/"
+    for frozen_input in \
+      "$LOCAL_G0|$REMOTE_ROOT/automatic_axes_20260914/all_camera|automatic_axes_20260914/all_camera" \
+      "$LOCAL_BASELINE|$REMOTE_ROOT/frozen_views/baseline_generation|frozen_views/baseline_generation"; do
+      IFS='|' read -r local_path remote_path label <<< "$frozen_input"
+      if "$HPCSSH" "$REMOTE_HOST" "[ -d \"$remote_path\" ]"; then
+        changes=$("$HPCRSYNC" -aic --delete --omit-dir-times --dry-run --itemize-changes \
+          "$local_path/" "$REMOTE_HOST:$remote_path/" | awk '$1 != ".f" && $1 != ".d" {print}')
+        if [ -n "$changes" ]; then
+          printf 'Frozen input differs: %s\n%s\n' "$label" "$changes" >&2
+          exit 1
+        fi
+        printf 'Frozen input matches: %s\n' "$label"
+      else
+        printf 'Frozen input was absent; copying: %s\n' "$label"
+        "$HPCRSYNC" -ai "$local_path/" "$REMOTE_HOST:$remote_path/"
+      fi
+    done
     ;;
   launch)
     label=$2

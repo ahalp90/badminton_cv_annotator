@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
+import hashlib
 import importlib
 import os
+import re
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -57,7 +60,7 @@ def import_runtime(root: Path) -> dict[str, Any]:
 def load_verifier(root: Path):
     sys.path.insert(0, str(root / "w5_holistic"))
     from verifier import (
-        CAMERA_ERROR_LIMIT,
+        CAMERA_LIMIT,
         CASE_IDS,
         CASE_LABELS,
         CASE_ORDER,
@@ -67,6 +70,7 @@ def load_verifier(root: Path):
         PHOTO_SIDE_DISTANCE_PX,
         WORKING_SIZE,
         ViewContext,
+        camera_eligible,
         candidate_review,
         convex_corners,
         frame_path,
@@ -93,12 +97,13 @@ def load_verifier(root: Path):
         "CASE_ORDER": CASE_ORDER,
         "CASE_PACKS": CASE_PACKS,
         "PACK_OF": PACK_OF,
-        "CAMERA_ERROR_LIMIT": CAMERA_ERROR_LIMIT,
+        "CAMERA_LIMIT": CAMERA_LIMIT,
         "PHOTO_CENTRE_OFFSETS_PX": PHOTO_CENTRE_OFFSETS_PX,
         "PHOTO_SIDE_DISTANCE_PX": PHOTO_SIDE_DISTANCE_PX,
         "WORKING_SIZE": WORKING_SIZE,
         "ViewContext": ViewContext,
         "candidate_review": candidate_review,
+        "camera_eligible": camera_eligible,
         "convex_corners": convex_corners,
         "frame_path": frame_path,
         "hard_validity": hard_validity,
@@ -155,14 +160,16 @@ def load_runtime(root: Path) -> dict[str, Any]:
     return {"verifier": load_verifier(root), **import_runtime(root)}
 
 
-def reconstruct_generation_entries(record: dict, select_pool, detector) -> list[dict]:
+def reconstruct_generation_entries(record: dict, native_size: tuple[int, int], select_pool, detector) -> list[dict]:
     """Replay L2's unchanged global selection from its saved per-pair shortlists."""
+    working_size = np.asarray(record["working_size"], dtype=float)
+    native_scale = np.asarray(native_size, dtype=float) / working_size
     candidates = []
     provenance: dict[int, dict] = {}
     for pair in record["pairs"]:
         for entry in pair.get("shortlist", []):
             candidate = detector.Candidate(
-                np.asarray(entry["corners_px"], dtype=float),
+                np.asarray(entry["corners_px"], dtype=float) / native_scale,
                 float(entry["shortlist_score"]),
                 (0.0, 0.0),
                 (0, 0),
@@ -185,7 +192,12 @@ def load_g0(root: Path, context, runtime: dict[str, Any]) -> tuple[list[dict], s
     if not record_path.exists():
         raise FileNotFoundError(record_path)
     record = verifier["read_json_gz"](record_path)
-    shortlist = reconstruct_generation_entries(record, runtime["select_pool"], import_detector())
+    shortlist = reconstruct_generation_entries(
+        record,
+        context.native_size,
+        runtime["select_pool"],
+        import_detector(),
+    )
     run_automatic = import_run_automatic()
     original_frame_path = run_automatic.frame_path
     run_automatic.frame_path = lambda source, _root: verifier["frame_path"](root, source)
@@ -396,6 +408,7 @@ def make_parent_record(
     valid, reason = verifier["hard_validity"](entry)
     candidate["hard_valid"] = valid
     candidate["hard_validity_reason"] = reason
+    candidate["camera_eligible"] = verifier["camera_eligible"](candidate)
     if not valid:
         return candidate, None
     evidence, arrays = verifier["measure_candidate"](context, entry, cache)
@@ -532,6 +545,7 @@ def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -
         "homography_working": child_homography.tolist(),
         "gates": child_gates,
         "historical": verifier["historical_predicates"](child_gates),
+        "camera_eligible": verifier["camera_eligible"]({"gates": child_gates}),
         "hard_valid": True,
         "hard_validity_reason": None,
         "evidence": child_evidence,
@@ -578,6 +592,10 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
     verifier = runtime["verifier"]
     context = verifier["prepare_view"](root, case_id)
     g0, g1, sources = load_populations(root, context, runtime)
+    g0_ids = {entry["candidate_id"] for entry in g0}
+    g1_ids = {entry["candidate_id"] for entry in g1}
+    collisions = sorted(g0_ids & g1_ids)
+    assert not collisions, f"{case_id}: G0/G1 candidate-ID collision: {collisions}"
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]] = {}
     parents = []
     all_arrays: dict[str, np.ndarray] = {}
@@ -604,7 +622,7 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
     determinism = verifier["permutation_determinism"](c_candidates)
     if not determinism["match"]:
         raise RuntimeError(f"{case_id}: W5 ranker is not permutation-deterministic")
-    controls = []
+    control_candidates = []
     for control_id, expected in KNOWN_CONTROLS.get(case_id, {}).items():
         entry = load_control_entry(root, case_id, control_id, verifier)
         control, _ = make_parent_record(context, entry, "diagnostic", 2, 0, runtime, cache)
@@ -612,7 +630,26 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
         control["candidate_id"] = control_id
         control["expected_ruling"] = expected
         control["in_automatic_pool"] = any(parent["candidate_id"] == control_id for parent in parents)
-        controls.append(verifier["candidate_review"](control))
+        control_candidates.append(control)
+    controls = []
+    for control in control_candidates:
+        ranking_with_control = verifier["rank_candidates"](c_candidates + [control])
+
+        control_ranks = {}
+        for name in ("ungated_provisional_rank", "r1_paint10_rank", "provisional_rank"):
+            ranking = ranking_with_control[name]
+            control_ranks[name] = (
+                ranking.index(control["origin_key"]) + 1
+                if control["origin_key"] in ranking else None
+            )
+
+        review = verifier["candidate_review"](control)
+        review["ranks"] = {
+            "pilot": control_ranks["ungated_provisional_rank"],
+            "r1": control_ranks["r1_paint10_rank"],
+            "r2": control_ranks["provisional_rank"],
+        }
+        controls.append(review)
     provenance = verifier["source_provenance"](context, sources["G0"])
     public_parents = [public_candidate(parent) for parent in parents]
     public_children = [public_candidate(child) for child in children]
@@ -763,7 +800,7 @@ def write_fit_attempts(path: Path, case_results: list[dict]) -> None:
         "assignment_strengths", "near_selected_strengths", "attempted_corners_native", "child_origin_key",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as stream:
+    with gzip.open(path, "wt", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for result in case_results:
@@ -782,17 +819,191 @@ def json_text(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), allow_nan=False)
 
 
-def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: dict[str, Any], runtime_paths: dict) -> None:
+def probe_paint_evidence(candidate: dict, arrays: Any, probe: float) -> dict:
+    q_values = []
+    markings = candidate.get("markings", [])
+    for marking_index, marking in enumerate(markings):
+        support = np.asarray(
+            arrays[f"{candidate['origin_key']}::marking_{marking_index}_c_support"],
+            dtype=float,
+        )
+        ridge = np.asarray(
+            arrays[f"{candidate['origin_key']}::marking_{marking_index}_ridge_contrast"],
+            dtype=float,
+        )
+        known = np.isfinite(ridge)
+        q_values.append(float(np.mean(support[known] * (ridge[known] >= probe))) if known.any() else None)
+
+    def plain_mean(indices: range) -> float | None:
+        values = [q_values[index] for index in indices if q_values[index] is not None]
+        return float(np.mean(values)) if values else None
+
+    def span_mean(indices: range) -> float | None:
+        weighted = []
+        total_span = 0.0
+        for index in indices:
+            value = q_values[index]
+            span = float(markings[index].get("projected_visible_span_px") or 0.0)
+            if value is None or span <= 0.0:
+                continue
+            weighted.append(value * span)
+            total_span += span
+        return sum(weighted) / total_span if total_span else None
+
+    lengthwise = plain_mean(range(5))
+    transverse = plain_mean(range(5, 11))
+    lengthwise_span = span_mean(range(5))
+    transverse_span = span_mean(range(5, 11))
+    return {
+        "q_paint10": min(lengthwise, transverse) if lengthwise is not None and transverse is not None else None,
+        "q_paint10_span_weighted": (
+            min(lengthwise_span, transverse_span)
+            if lengthwise_span is not None and transverse_span is not None else None
+        ),
+        "directional": {
+            "lengthwise_q_paint10": lengthwise,
+            "transverse_q_paint10": transverse,
+            "lengthwise_q_paint10_span_weighted": lengthwise_span,
+            "transverse_q_paint10_span_weighted": transverse_span,
+        },
+    }
+
+
+def sensitivity_candidate(candidate: dict, arrays: Any, probe: float) -> dict:
+    evidence = probe_paint_evidence(candidate, arrays, probe)
+    evidence.update({
+        "q_geom": candidate.get("q_geom"),
+        "q_geom_span_weighted": candidate.get("q_geom_span_weighted"),
+        "exclusive_reverse": candidate.get("exclusive_reverse"),
+    })
+    return {
+        "origin_key": candidate["origin_key"],
+        "source_order": candidate.get("source_order"),
+        "origin_index": candidate.get("origin_index"),
+        "kind_order": candidate.get("kind_order"),
+        "hard_valid": candidate.get("hard_valid", False),
+        "gates": candidate.get("gates", {}),
+        "historical": candidate.get("historical", {}),
+        "evidence": evidence,
+    }
+
+
+def sensitivity_target(root: Path, case_id: str, context, verifier: dict[str, Any]) -> tuple[np.ndarray | None, str | None]:
+    supplied = load_supplied_control(root, case_id, verifier)
+    if supplied and supplied.get("corners_working_px"):
+        scale = np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float)
+        return np.asarray(supplied["corners_working_px"], dtype=float) * scale, "approved_supplied_direction_control"
+    reference = load_reference(root, case_id, verifier)
+    if reference.get("corners_px"):
+        return np.asarray(reference["corners_px"], dtype=float), "frozen_case_reference"
+    return None, None
+
+
+def write_sensitivity(root: Path, run_dir: Path, case_results: list[dict], verifier: dict[str, Any]) -> dict:
+    probes = (5.0, 10.0, 15.0, 20.0)
+    sensitivity = {"schema": "w5-p10-sensitivity/1", "probes": list(probes), "cases": {}}
+    for result in case_results:
+        context = verifier["prepare_view"](root, result["case_id"])
+        target, target_kind = sensitivity_target(root, result["case_id"], context, verifier)
+        candidates = list(result["review_candidates"].values())
+        array_path = run_dir / result["array_file"]
+        with np.load(array_path, allow_pickle=False) as arrays:
+            probe_records = {}
+            for probe in probes:
+                ranked_candidates = [
+                    sensitivity_candidate(candidate, arrays, probe)
+                    for candidate in candidates
+                ]
+                ranking = verifier["rank_candidates"](ranked_candidates)
+                origin_key = ranking["selected_origin_key"]
+                ungated = False
+                if origin_key is None and ranking["ungated_provisional_rank"]:
+                    origin_key = ranking["ungated_provisional_rank"][0]
+                    ungated = True
+                control_error = None
+                if origin_key is not None and target is not None:
+                    selected = next(candidate for candidate in candidates if candidate["origin_key"] == origin_key)
+                    control_error = verifier["reference_corner_error"](
+                        np.asarray(selected["corners_px"], dtype=float), target,
+                    )
+                probe_records[str(int(probe))] = {
+                    "rank1_origin_key": origin_key,
+                    "rank1_was_ungated": ungated,
+                    "status": ranking["status"],
+                    "r1_paint10_rank": ranking["r1_paint10_rank"],
+                    "r2_spanw_paint10_rank": ranking["r2_spanw_paint10_rank"],
+                    "provisional_rank": ranking["provisional_rank"],
+                    "control_error": control_error,
+                }
+        sensitivity["cases"][result["case_id"]] = {
+            "target_kind": target_kind,
+            "probes": probe_records,
+        }
+    (run_dir / "p10_sensitivity.json").write_text(
+        __import__("json").dumps(verifier["jsonable"](sensitivity), indent=2) + "\n"
+    )
+    return sensitivity
+
+
+def helper_hashes(root: Path, runtime_paths: dict[str, str]) -> dict:
+    imported = {}
+    for module_name, relative in sorted(runtime_paths.items()):
+        path = root / relative
+        imported[module_name] = {
+            "path": relative,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    readme_relative = "frozen_helpers_20260914/README.md"
+    readme_path = root / readme_relative
+    if not readme_path.exists():
+        return {
+            "imported": imported,
+            "readme": {"path": readme_relative, "available": False, "hash_checks": []},
+        }
+    checks = []
+    pattern = re.compile(r"^\| `([^`]+)` \| [0-9,]+ \| `([0-9a-f]+)` \|$")
+    for line in readme_path.read_text().splitlines():
+        match = pattern.match(line)
+        if match is None:
+            continue
+        relative = f"frozen_helpers_20260914/{match.group(1)}"
+        path = root / relative
+        actual_md5 = hashlib.md5(path.read_bytes()).hexdigest()
+        checks.append({
+            "path": relative,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "readme_md5": match.group(2),
+            "readme_md5_matches": actual_md5 == match.group(2),
+        })
+    return {
+        "imported": imported,
+        "readme": {"path": readme_relative, "available": True, "hash_checks": checks},
+    }
+
+
+def write_packet(
+    root: Path,
+    run_dir: Path,
+    case_results: list[dict],
+    verifier: dict[str, Any],
+    runtime_paths: dict,
+    stopped_views: list[dict] | None = None,
+) -> None:
     case_results = sorted(case_results, key=lambda result: verifier["CASE_IDS"].index(result["case_id"]))
+    stopped_views = stopped_views or []
     packets = {result["case_id"]: result for result in case_results}
-    refs = reference_diagnostics(root, case_results, verifier)
+    sensitivity = write_sensitivity(root, run_dir, case_results, verifier)
     add_reference_near_candidates(root, case_results, packets, verifier)
     review = {}
     for result in case_results:
         candidates = dict(result["review_candidates"])
         keys = set()
         for arm in ("B", "C"):
-            keys.update(result[arm]["provisional_rank"][:3])
+            for rank_name in (
+                "provisional_rank", "ungated_provisional_rank", "r1_paint10_rank", "r2_spanw_paint10_rank",
+            ):
+                keys.update(result[arm][rank_name][:3])
             if result[arm].get("selected_origin_key"):
                 keys.add(result[arm]["selected_origin_key"])
         candidate_ids = {result["A"].get("line"), result["A"].get("paint")}
@@ -829,9 +1040,11 @@ def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: 
         "schema": "w5-manifest/1",
         "run_id": run_dir.name,
         "cases": [result["case_id"] for result in case_results],
+        "stopped_views": stopped_views,
         "global_parameters": {
             "working_size": list(verifier["WORKING_SIZE"]),
-            "camera_error_limit_historical": verifier["CAMERA_ERROR_LIMIT"],
+            "camera_limit": verifier["CAMERA_LIMIT"],
+            "camera_error_limit_historical": verifier["CAMERA_LIMIT"],
             "physical_centres": "paint_geometry.CENTRE_SEGMENTS_M",
             "photometric_offsets_working_px": verifier["PHOTO_CENTRE_OFFSETS_PX"].tolist(),
             "photometric_side_distance_working_px": verifier["PHOTO_SIDE_DISTANCE_PX"],
@@ -845,17 +1058,21 @@ def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: 
             "automatic_path_reference_fields": False,
         },
         "imported_helper_paths": runtime_paths,
+        "imported_helper_hashes": helper_hashes(root, runtime_paths),
         "view_provenance": {result["case_id"]: result["provenance"] for result in case_results},
         "steering_rule_revision": {
-            "status": "initial W5 provisional reduction",
-            "changed_global_rule": None,
+            "status": "R1 camera eligibility + R2 span-weighted directional means",
+            "changed_global_rule": "R1 and R2 from steering_record.md",
+            "source": "scratch/court_det_fix/w5_holistic/steering_record.md",
             "expensive_geometry_rerun": True,
         },
     }
     per_view_fields = [
-        "case_id", "label", "g0_source", "working_width", "working_height", "image_kind",
+        "case_id", "label", "view_status", "g0_source", "working_width", "working_height", "image_kind",
         "same_image_mask_available", "G0_count", "G1_count", "A_line", "A_paint", "A_eligible_count",
-        "B_status", "B_selected", "C_status", "C_selected", "valid_children", "fit_attempts",
+        "B_status", "B_selected", "B_r1_selected", "B_r2_selected", "B_pilot_selected",
+        "C_status", "C_selected", "C_r1_selected", "C_r2_selected", "C_pilot_selected",
+        "valid_children", "fit_attempts",
         "determinism_match", "controls",
     ]
     with (run_dir / "per_view.csv").open("w", newline="") as stream:
@@ -865,28 +1082,51 @@ def write_packet(root: Path, run_dir: Path, case_results: list[dict], verifier: 
             provenance = result["provenance"]
             writer.writerow({
                 "case_id": result["case_id"], "label": result["label"], "g0_source": provenance["g0_source"],
+                "view_status": "completed",
                 "working_width": provenance["working_dimensions"][0], "working_height": provenance["working_dimensions"][1],
                 "image_kind": provenance["image_kind"], "same_image_mask_available": provenance["same_image_mask_available"],
                 "G0_count": result["population_counts"]["G0"], "G1_count": result["population_counts"]["G1"],
                 "A_line": result["A"]["line"], "A_paint": result["A"]["paint"],
                 "A_eligible_count": result["A"]["eligible_count"], "B_status": result["B"]["status"],
-                "B_selected": result["B"]["selected_origin_key"], "C_status": result["C"]["status"],
-                "C_selected": result["C"]["selected_origin_key"], "valid_children": result["valid_child_count"],
+                "B_selected": result["B"]["selected_origin_key"],
+                "B_r1_selected": result["B"]["r1_selected_origin_key"],
+                "B_r2_selected": result["B"]["r2_selected_origin_key"],
+                "B_pilot_selected": (result["B"]["ungated_provisional_rank"] or [None])[0],
+                "C_status": result["C"]["status"], "C_selected": result["C"]["selected_origin_key"],
+                "C_r1_selected": result["C"]["r1_selected_origin_key"],
+                "C_r2_selected": result["C"]["r2_selected_origin_key"],
+                "C_pilot_selected": (result["C"]["ungated_provisional_rank"] or [None])[0],
+                "valid_children": result["valid_child_count"],
                 "fit_attempts": result["fit_attempt_count"], "determinism_match": result["determinism"]["match"],
                 "controls": ";".join(control["origin_key"] for control in result["diagnostic_controls"]),
             })
-    verifier["write_json_gz"](run_dir / "reference_diagnostics.json.gz", refs)
+        for stopped in stopped_views:
+            writer.writerow({
+                "case_id": stopped["case_id"],
+                "label": verifier["CASE_LABELS"].get(stopped["case_id"], stopped["case_id"]),
+                "view_status": "stopped",
+                "B_status": stopped["reason"],
+            })
     (run_dir / "manifest.json").write_text(__import__("json").dumps(verifier["jsonable"](manifest), indent=2) + "\n")
     (run_dir / "rankings.json").write_text(__import__("json").dumps(verifier["jsonable"](rankings), indent=2) + "\n")
+    refs = reference_diagnostics(root, case_results, verifier)
+    verifier["write_json_gz"](run_dir / "reference_diagnostics.json.gz", refs)
     (run_dir / "review_candidates.json").write_text(__import__("json").dumps(verifier["jsonable"](review), indent=2) + "\n")
     (run_dir / "visual_rulings.json").write_text(
         '{"schema":"w5-visual-rulings/1","status":"pending_review","rulings":[]}\n'
     )
-    write_fit_attempts(run_dir / "fit_attempts.csv", case_results)
-    write_result(run_dir / "result.md", case_results)
+    write_fit_attempts(run_dir / "fit_attempts.csv.gz", case_results)
+    write_result(run_dir / "result.md", case_results, sensitivity, refs, stopped_views)
 
 
-def write_result(path: Path, case_results: list[dict]) -> None:
+def write_result(
+    path: Path,
+    case_results: list[dict],
+    sensitivity: dict,
+    references: dict,
+    stopped_views: list[dict] | None = None,
+) -> None:
+    stopped_views = stopped_views or []
     controls = [
         (result["label"], control)
         for result in case_results
@@ -922,15 +1162,43 @@ def write_result(path: Path, case_results: list[dict]) -> None:
         "",
         "## Completed views",
         "",
-        "| view | A paint-first | B provisional | C provisional | children | determinism |",
-        "| --- | --- | --- | --- | ---: | --- |",
+        "| view | A paint-first | C pilot | C R1 | C R2 | C status | children | determinism |",
+        "| --- | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for result in case_results:
         lines.append(
             f"| {result['label']} | {result['A']['paint'] or 'none'} | "
-            f"{result['B']['selected_origin_key'] or 'none'} ({result['B']['status']}) | "
-            f"{result['C']['selected_origin_key'] or 'none'} ({result['C']['status']}) | "
+            f"{(result['C']['ungated_provisional_rank'] or [None])[0] or 'none'} | "
+            f"{result['C']['r1_selected_origin_key'] or 'none'} | "
+            f"{result['C']['selected_origin_key'] or 'none'} | "
+            f"{result['C']['status']} | "
             f"{result['valid_child_count']} | {'pass' if result['determinism']['match'] else 'FAIL'} |"
+        )
+    if stopped_views:
+        lines.extend([
+            "",
+            "## Stopped views",
+            "",
+            "The following view stopped before scoring because the required candidate-ID collision assertion fired. No candidate IDs were remapped.",
+            "",
+            "| view | reason |",
+            "| --- | --- |",
+        ])
+        for stopped in stopped_views:
+            lines.append(f"| {stopped['case_id']} | {stopped['reason']} |")
+    lines.extend([
+        "",
+        "## R1 and R2 rank-1 selections",
+        "",
+        "The C pool contains parents and valid children. R1 is the camera-eligible plain-mean paint order. R2 is the camera-eligible span-weighted order, with the span-weighted geometry fallback when needed.",
+        "",
+        "| view | R1 rank-1 | R2 rank-1 | status |",
+        "| --- | --- | --- | --- |",
+    ])
+    for result in case_results:
+        lines.append(
+            f"| {result['label']} | {result['C']['r1_selected_origin_key'] or 'none'} | "
+            f"{result['C']['selected_origin_key'] or 'none'} | {result['C']['status']} |"
         )
     lines.extend([
         "",
@@ -947,16 +1215,60 @@ def write_result(path: Path, case_results: list[dict]) -> None:
             "only: no threshold or automatic pass/fail was applied."
         ),
         "",
-        "| view | control | expected role | automatic pool | hard-valid | Q_geom | Q_paint10 | status |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | --- |",
+        "| view | control | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ])
     for label, control in controls:
         lines.append(
             f"| {label} | {control['candidate_id']} | {control.get('expected_ruling', 'unspecified')} | "
             f"{'yes' if control.get('in_automatic_pool') else 'no'} | "
-            f"{'yes' if control.get('hard_valid') else 'no'} | {metric_text(control.get('q_geom'))} | "
+            f"{'yes' if control.get('hard_valid') else 'no'} | "
+            f"{'yes' if control.get('camera_eligible') else 'no'} | "
+            f"{control.get('ranks', {}).get('pilot') or '—'} | {control.get('ranks', {}).get('r1') or '—'} | "
+            f"{control.get('ranks', {}).get('r2') or '—'} | {metric_text(control.get('q_geom'))} | "
             f"{metric_text(control.get('q_paint10'))} | diagnostic-only; no gate |"
         )
+    lines.extend([
+        "",
+        "## Contrast-probe sensitivity",
+        "",
+        "Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. Probe 10 remains the named pilot setting.",
+        "",
+        "| view | probe | rank-1 origin | status | control target | control error |",
+        "| --- | ---: | --- | --- | --- | ---: |",
+    ])
+    for result in case_results:
+        case_sensitivity = sensitivity["cases"][result["case_id"]]
+        target_kind = case_sensitivity.get("target_kind") or "none"
+        for probe in sensitivity["probes"]:
+            record = case_sensitivity["probes"][str(int(probe))]
+            error = record.get("control_error")
+            maximum = error.get("maximum") if error else None
+            lines.append(
+                f"| {result['label']} | {int(probe)} | {record.get('rank1_origin_key') or 'none'} | "
+                f"{record['status']}{' (ungated)' if record.get('rank1_was_ungated') else ''} | "
+                f"{target_kind} | {metric_text(maximum)} |"
+            )
+    lines.extend([
+        "",
+        "## Reference diagnostics after ranking lock",
+        "",
+        "Reference metrics were joined after the automatic rankings and sensitivity orders were written.",
+        "",
+        "| view | origin | supplied-control error | frozen-reference error | visible-landmark max error |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ])
+    for result in case_results:
+        reference = references.get(result["case_id"], {})
+        for origin_key, metrics in reference.get("candidates", {}).items():
+            supplied = metrics.get("approved_supplied_direction_control", {}).get("maximum")
+            frozen = metrics.get("frozen_case_reference", {}).get("maximum")
+            landmarks = metrics.get("visible_landmarks", [])
+            landmark_max = max((item["error_px"] for item in landmarks), default=None)
+            lines.append(
+                f"| {result['label']} | {origin_key} | {metric_text(supplied)} | {metric_text(frozen)} | "
+                f"{metric_text(landmark_max)} |"
+            )
     lines.extend([
         "",
         "## Notes",
@@ -982,11 +1294,20 @@ def run_pilot(root: Path, run_dir: Path, cases: list[str], workers: int) -> list
     with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(process_case, root, case_id, run_dir) for case_id in cases]
         results = []
-        for future in futures:
-            result = future.result()
+        stopped_views = []
+        for case_id, future in zip(cases, futures, strict=True):
+            try:
+                result = future.result()
+            except AssertionError as error:
+                reason = str(error)
+                if "G0/G1 candidate-ID collision" not in reason:
+                    raise
+                stopped_views.append({"case_id": case_id, "reason": reason})
+                print(case_id, "stopped", reason, flush=True)
+                continue
             results.append(result)
             print(result["case_id"], "complete", result["B"]["selected_origin_key"], result["C"]["selected_origin_key"], flush=True)
-    write_packet(root, run_dir, results, verifier, runtime["paths"])
+    write_packet(root, run_dir, results, verifier, runtime["paths"], stopped_views)
     return results
 
 

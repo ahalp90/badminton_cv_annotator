@@ -25,7 +25,7 @@ from experiments.annotator.independent_court import (
 )
 
 WORKING_SIZE = (960, 540)
-CAMERA_ERROR_LIMIT = 0.1
+CAMERA_LIMIT = 0.1
 PHOTO_CENTRE_OFFSETS_PX = np.array([-4.0, -2.0, 0.0, 2.0, 4.0])
 PHOTO_SIDE_DISTANCE_PX = 6.0
 Q_DIRECTION_LENGTHWISE = (0, 1, 2, 3, 4)
@@ -122,7 +122,9 @@ def frame_path(root: Path, source: dict) -> Path:
 
 
 def image_kind(source: dict) -> str:
-    provenance = source.get("provenance", {})
+    provenance = source.get("provenance") or {}
+    if source.get("image_kind"):
+        return str(source["image_kind"])
     if provenance.get("image_kind"):
         return str(provenance["image_kind"])
     return "source_frame"
@@ -131,12 +133,16 @@ def image_kind(source: dict) -> str:
 def has_same_image_boxes(source: dict) -> bool:
     """Return whether the selected boxes describe the exact image being measured."""
     case_id = source["id"]
-    if case_id.startswith("shuttleset"):
+    provenance = source.get("provenance") or {}
+    if image_kind(source) != "source_frame":
         return False
-    provenance = source.get("provenance", {})
     if case_id.startswith("gxBQ"):
         return provenance.get("anchor_frame_index") == provenance.get("chosen_bbox_frame")
-    return source.get("anchor_frame_index") == source.get("bbox_frame_index")
+    if case_id.startswith(("am2_", "am3_")):
+        return source.get("anchor_frame_index") == source.get("bbox_frame_index")
+    if case_id.startswith("shuttleset"):
+        return provenance.get("anchor_frame_index") == provenance.get("chosen_bbox_frame")
+    raise ValueError(f"unsupported W5 case prefix: {case_id}")
 
 
 def mask_boxes_working(source: dict, size: tuple[int, int]) -> np.ndarray:
@@ -243,7 +249,7 @@ def hard_validity(entry: dict) -> tuple[bool, str | None]:
 
 def historical_predicates(gates: dict) -> dict[str, bool]:
     camera_error = gates.get("camera_error")
-    camera_valid = camera_error is not None and camera_error <= CAMERA_ERROR_LIMIT
+    camera_valid = camera_error is not None and camera_error <= CAMERA_LIMIT
     geometry_valid = bool(gates.get("geometry_valid", False))
     fractions = gates.get("player_fractions", [None, None])
     one_player = fractions[0] if len(fractions) > 0 else None
@@ -397,9 +403,31 @@ def physical_marking_evidence(
     transverse = [value for value in q_geom_values[5:] if value is not None]
     lengthwise_paint = [value for value in q_paint_values[:5] if value is not None]
     transverse_paint = [value for value in q_paint_values[5:] if value is not None]
+
+    def span_weighted(values: list[float | None], marking_indices: Sequence[int]) -> tuple[float | None, int]:
+        weighted_values = []
+        total_span = 0.0
+        for value, marking_index in zip(values, marking_indices, strict=True):
+            span = float(marking_records[marking_index]["projected_visible_span_px"])
+            if value is None or span <= 0.0:
+                continue
+            weighted_values.append(float(value) * span)
+            total_span += span
+        if not total_span:
+            return None, 0
+        return sum(weighted_values) / total_span, len(weighted_values)
+
+    lengthwise_geom_span, lengthwise_geom_count = span_weighted(q_geom_values[:5], range(5))
+    transverse_geom_span, transverse_geom_count = span_weighted(q_geom_values[5:], range(5, 11))
+    lengthwise_paint_span, lengthwise_paint_count = span_weighted(q_paint_values[:5], range(5))
+    transverse_paint_span, transverse_paint_count = span_weighted(q_paint_values[5:], range(5, 11))
     q_geom = min(float(np.mean(lengthwise)), float(np.mean(transverse))) if lengthwise and transverse else None
     q_paint = (min(float(np.mean(lengthwise_paint)), float(np.mean(transverse_paint)))
                if lengthwise_paint and transverse_paint else None)
+    q_geom_span = (min(lengthwise_geom_span, transverse_geom_span)
+                   if lengthwise_geom_span is not None and transverse_geom_span is not None else None)
+    q_paint_span = (min(lengthwise_paint_span, transverse_paint_span)
+                    if lengthwise_paint_span is not None and transverse_paint_span is not None else None)
     evidence = {
         "markings": marking_records,
         "directional": {
@@ -411,9 +439,19 @@ def physical_marking_evidence(
             "transverse_markings_geom": len(transverse),
             "lengthwise_markings_paint10": len(lengthwise_paint),
             "transverse_markings_paint10": len(transverse_paint),
+            "lengthwise_q_geom_span_weighted": lengthwise_geom_span,
+            "transverse_q_geom_span_weighted": transverse_geom_span,
+            "lengthwise_q_paint10_span_weighted": lengthwise_paint_span,
+            "transverse_q_paint10_span_weighted": transverse_paint_span,
+            "lengthwise_markings_geom_span_weighted": lengthwise_geom_count,
+            "transverse_markings_geom_span_weighted": transverse_geom_count,
+            "lengthwise_markings_paint10_span_weighted": lengthwise_paint_count,
+            "transverse_markings_paint10_span_weighted": transverse_paint_count,
         },
         "q_geom": q_geom,
         "q_paint10": q_paint,
+        "q_geom_span_weighted": q_geom_span,
+        "q_paint10_span_weighted": q_paint_span,
         "photometry_occlusion_aware": context.same_image_mask_available,
         "exclusive_reverse": float(stripe_score["exclusive"]["reverse"]),
         "exclusive_score": float(stripe_score["exclusive"]["score"]),
@@ -460,8 +498,12 @@ def raw_junctions(context: ViewContext, homography: np.ndarray, stripe_score: di
             for position_samples in queries:
                 usable = observable_points(position_samples, context.size, context.mask_boxes)
                 visible_samples = position_samples[usable]
-                support = support_samples(visible_samples, direction, context.observations)
-                ridge, p10 = photometric_samples(context.frame, visible_samples, direction, context.mask_boxes)
+                projected_direction = position_samples[-1] - position_samples[0]
+                projected_direction /= np.linalg.norm(projected_direction)
+                support = support_samples(visible_samples, projected_direction, context.observations)
+                ridge, p10 = photometric_samples(
+                    context.frame, visible_samples, projected_direction, context.mask_boxes,
+                )
                 position_records.append({
                     "usable_samples": int(usable.sum()),
                     "projected_span_px": (float(np.linalg.norm(visible_samples[-1] - visible_samples[0]))
@@ -536,6 +578,11 @@ def origin_sort_key(candidate: dict) -> tuple[int, int, int, str]:
             str(candidate["origin_key"]))
 
 
+def camera_eligible(candidate: dict) -> bool:
+    camera_error = candidate.get("gates", {}).get("camera_error")
+    return camera_error is not None and camera_error <= CAMERA_LIMIT
+
+
 def order_candidates(candidates: Sequence[dict], score_name: str) -> list[dict]:
     eligible = [candidate for candidate in candidates if candidate.get("hard_valid") and
                 candidate.get("evidence", {}).get(score_name) is not None]
@@ -557,7 +604,7 @@ def provisional_order(candidates: Sequence[dict]) -> tuple[str, list[dict]]:
 def legacy_winners(entries: Sequence[dict]) -> dict:
     eligible = [entry for entry in entries
                 if entry.get("gates", {}).get("camera_error") is not None
-                and entry["gates"]["camera_error"] <= CAMERA_ERROR_LIMIT
+                and entry["gates"]["camera_error"] <= CAMERA_LIMIT
                 and entry.get("profile", {}).get("score") is not None]
     line = max(eligible, key=lambda entry: entry["stripe"]["exclusive"]["score"], default=None)
     paint = max(eligible, key=lambda entry: (entry["profile"]["score"], entry["stripe"]["exclusive"]["score"]),
@@ -569,15 +616,85 @@ def legacy_winners(entries: Sequence[dict]) -> dict:
     }
 
 
+def sparse_fallbacks(candidates: Sequence[dict]) -> dict:
+    eligible = [candidate for candidate in candidates if candidate.get("hard_valid") and camera_eligible(candidate)]
+
+    def best(score_name: str) -> dict | None:
+        ranked = [candidate for candidate in eligible if candidate.get("evidence", {}).get(score_name) is not None]
+        if not ranked:
+            return None
+        winner = min(
+            ranked,
+            key=lambda candidate: (-float(candidate["evidence"][score_name]),
+                                  -float(candidate["evidence"].get("exclusive_reverse", 0.0)),
+                                  *origin_sort_key(candidate)),
+        )
+        return {"origin_key": winner["origin_key"], "score": winner["evidence"][score_name]}
+
+    def best_direction(direction: str) -> dict | None:
+        score_names = (
+            f"{direction}_q_paint10_span_weighted",
+            f"{direction}_q_paint10",
+            f"{direction}_q_geom_span_weighted",
+            f"{direction}_q_geom",
+        )
+        for score_name in score_names:
+            ranked = [
+                candidate for candidate in eligible
+                if candidate.get("evidence", {}).get("directional", {}).get(score_name) is not None
+            ]
+            if ranked:
+                winner = min(
+                    ranked,
+                    key=lambda candidate: (
+                        -float(candidate["evidence"]["directional"][score_name]),
+                        -float(candidate["evidence"].get("exclusive_reverse", 0.0)),
+                        *origin_sort_key(candidate),
+                    ),
+                )
+                return {
+                    "origin_key": winner["origin_key"],
+                    "score": winner["evidence"]["directional"][score_name],
+                    "score_name": score_name,
+                }
+        return None
+
+    return {
+        "lengthwise": best_direction("lengthwise"),
+        "transverse": best_direction("transverse"),
+        "q_geom": best("q_geom"),
+        "q_paint10": best("q_paint10"),
+        "exclusive_reverse": best("exclusive_reverse"),
+    }
+
+
 def rank_candidates(candidates: Sequence[dict]) -> dict:
     hard_valid = [candidate for candidate in candidates if candidate.get("hard_valid")]
     q_geom = order_candidates(hard_valid, "q_geom")
     q_paint = order_candidates(hard_valid, "q_paint10")
-    criterion, provisional = provisional_order(hard_valid)
+    ungated_criterion, ungated_provisional = provisional_order(hard_valid)
     exclusive = sorted(hard_valid, key=lambda candidate: (-float(candidate["evidence"].get("exclusive_reverse", 0.0)),
                                                           *origin_sort_key(candidate)))
-    fullcourt = [candidate for candidate in provisional if candidate["historical"]["historical_fullcourt"]]
-    camera = [candidate for candidate in provisional if candidate["historical"]["historical_camera"]]
+    fullcourt = [candidate for candidate in ungated_provisional if candidate["historical"]["historical_fullcourt"]]
+    camera = [candidate for candidate in ungated_provisional if candidate["historical"]["historical_camera"]]
+    camera_pool = [candidate for candidate in hard_valid if camera_eligible(candidate)]
+    r1_paint = order_candidates(camera_pool, "q_paint10")
+    r2_paint = order_candidates(camera_pool, "q_paint10_span_weighted")
+    r2_geom = order_candidates(camera_pool, "q_geom_span_weighted")
+    if r2_paint:
+        r2_criterion, provisional = "q_paint10_span_weighted", r2_paint
+    elif r2_geom:
+        r2_criterion, provisional = "q_geom_span_weighted", r2_geom
+    else:
+        r2_criterion, provisional = None, []
+    if not hard_valid:
+        status = "no_valid_candidate"
+    elif not camera_pool:
+        status = "no_plausible_camera"
+    elif not provisional:
+        status = "evidence_sparse"
+    else:
+        status = "provisional_for_review"
     return {
         "q_geom_rank": [candidate["origin_key"] for candidate in q_geom],
         "q_paint10_rank": [candidate["origin_key"] for candidate in q_paint],
@@ -585,10 +702,17 @@ def rank_candidates(candidates: Sequence[dict]) -> dict:
         "exclusive_reverse_rank": [candidate["origin_key"] for candidate in exclusive],
         "historical_fullcourt_subset_rank": [candidate["origin_key"] for candidate in fullcourt],
         "historical_camera_subset_rank": [candidate["origin_key"] for candidate in camera],
-        "criterion": criterion,
-        "status": ("no_valid_candidate" if not hard_valid else
-                    "evidence_sparse" if not provisional else "provisional_for_review"),
+        "r1_paint10_rank": [candidate["origin_key"] for candidate in r1_paint],
+        "r2_spanw_paint10_rank": [candidate["origin_key"] for candidate in r2_paint],
+        "ungated_provisional_rank": [candidate["origin_key"] for candidate in ungated_provisional],
+        "criterion": ungated_criterion,
+        "r1_criterion": "q_paint10" if r1_paint else None,
+        "r2_criterion": r2_criterion,
+        "status": status,
         "selected_origin_key": provisional[0]["origin_key"] if provisional else None,
+        "r1_selected_origin_key": r1_paint[0]["origin_key"] if r1_paint else None,
+        "r2_selected_origin_key": provisional[0]["origin_key"] if provisional else None,
+        "sparse_fallbacks": sparse_fallbacks(hard_valid) if status == "evidence_sparse" else {},
     }
 
 
@@ -607,16 +731,22 @@ def candidate_review(candidate: dict) -> dict:
         "kind": candidate["kind"],
         "parent_origin_key": candidate.get("parent_origin_key"),
         "source": candidate.get("source"),
+        "source_order": candidate.get("source_order"),
+        "origin_index": candidate.get("origin_index"),
+        "kind_order": candidate.get("kind_order"),
         "expected_ruling": candidate.get("expected_ruling"),
         "in_automatic_pool": candidate.get("in_automatic_pool"),
         "corners_px": candidate.get("corners_px"),
         "homography_working": candidate.get("homography_working"),
         "hard_valid": candidate.get("hard_valid", False),
         "hard_validity_reason": candidate.get("hard_validity_reason"),
+        "camera_eligible": camera_eligible(candidate),
         "gates": candidate.get("gates"),
         "historical": candidate.get("historical"),
         "q_geom": evidence.get("q_geom"),
         "q_paint10": evidence.get("q_paint10"),
+        "q_geom_span_weighted": evidence.get("q_geom_span_weighted"),
+        "q_paint10_span_weighted": evidence.get("q_paint10_span_weighted"),
         "exclusive_reverse": evidence.get("exclusive_reverse"),
         "exclusive_score": evidence.get("exclusive_score"),
         "directional": evidence.get("directional"),
