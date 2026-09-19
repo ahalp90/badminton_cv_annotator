@@ -67,13 +67,13 @@ def arm_support(
     return max(supports) if supports else None
 
 
-def expected_vertical_arms(junction_y: float) -> dict[str, bool]:
+def expected_vertical_arms(junction_y: float, centres: np.ndarray = SEGMENTS_M) -> dict[str, bool]:
     """Read painted intervals from the metric template, not detector endpoints."""
     expected = {}
     for name, sign in (("far", -1), ("near", 1)):
         query_y = junction_y + sign * (ARM_START_M + ARM_END_M) / 2
         painted = False
-        for segment in SEGMENTS_M[[2, 3]]:
+        for segment in centres[[2, 3]]:
             painted |= bool(segment[:, 1].min() < query_y < segment[:, 1].max())
         expected[name] = painted
     return expected
@@ -99,15 +99,16 @@ def classify_site(arms: dict[str, float | None], expected: dict[str, bool]) -> d
 
 def measure(
     homography: np.ndarray, observations: Observations, boxes: np.ndarray, size: tuple[int, int],
+    centres: np.ndarray = SEGMENTS_M,
 ) -> dict:
     """Inspect all six named centre-line junctions without changing the candidate."""
     sites = []
-    for name, transverse in zip(SITE_NAMES, SEGMENTS_M[6:]):
-        junction_m = np.array([SEGMENTS_M[2, 0, 0], transverse[0, 1]])
+    for name, transverse in zip(SITE_NAMES, centres[6:]):
+        junction_m = np.array([centres[2, 0, 0], transverse[0, 1]])
         arms = {}
         for arm, direction in ARM_DIRECTIONS.items():
             arms[arm] = arm_support(homography, junction_m, np.asarray(direction), observations, boxes, size)
-        expected = expected_vertical_arms(float(junction_m[1]))
+        expected = expected_vertical_arms(float(junction_m[1]), centres)
         sites.append({"marking": name, "arms": arms, "expected": expected, **classify_site(arms, expected)})
     return {"sites": sites, "usable_sites": sum(site["usable"] for site in sites),
             "disagreements": sum(len(site["disagreements"]) for site in sites)}
