@@ -149,6 +149,9 @@ def render_case(root: Path, run_dir: Path, case_id: str, packet: dict, verifier:
     reference_near = packet.get("reference_near")
     if reference_near and reference_near["origin_key"] in candidates:
         by_origin.setdefault(reference_near["origin_key"], []).append("reference-near")
+    for role, origin_key in packet.get("previous_stage5_anchor", {}).get("selected", {}).items():
+        if origin_key in candidates:
+            by_origin.setdefault(origin_key, []).append(f"previous-stage5-{role}")
     for candidate in packet["diagnostic_controls"]:
         by_origin.setdefault(candidate["origin_key"], []).append("control")
     for origin_key, roles in by_origin.items():
@@ -186,16 +189,16 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
         "",
         (
             "| view | legacy paint-first | original candidates | original + adjusted candidates | "
-            "diagnostic controls | reference-near |"
+            "diagnostic controls | reference-near | previous stage-5 C anchor |"
         ),
-        "| --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for case in rendered_cases:
         if case.get("stopped_reason"):
-            lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — | — |")
+            lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — | — | — |")
             continue
         links_by_origin = case["rendered"]
-        role_links = {role: [] for role in ("A_paint", "B", "C", "control", "reference-near")}
+        role_links = {role: [] for role in ("A_paint", "B", "C", "control", "reference-near", "previous-stage5")}
         for origin, rendered in links_by_origin.items():
             links = rendered["links"]
             label = safe_name(origin)
@@ -212,11 +215,15 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
                 role_links["control"].append((0, link))
             if "reference-near" in roles:
                 role_links["reference-near"].append((0, link))
+            previous_roles = [role for role in roles if role.startswith("previous-stage5-")]
+            for previous_role in previous_roles:
+                role_links["previous-stage5"].append((0, link))
 
         lines.append(
             f"| {case['label']} | {format_role_links(role_links, 'A_paint')} | "
             f"{format_role_links(role_links, 'B')} | {format_role_links(role_links, 'C')} | "
-            f"{format_role_links(role_links, 'control')} | {format_role_links(role_links, 'reference-near')} |"
+            f"{format_role_links(role_links, 'control')} | {format_role_links(role_links, 'reference-near')} | "
+            f"{format_role_links(role_links, 'previous-stage5')} |"
         )
     index = run_dir / "gallery/index.md"
     index.parent.mkdir(parents=True, exist_ok=True)
@@ -252,6 +259,7 @@ def main() -> None:
         case_packet["label"] = verifier["CASE_LABELS"][case_id]
         case_packet["diagnostic_controls"] = reviews[case_id]["diagnostic_controls"]
         case_packet["reference_near"] = reviews[case_id].get("reference_near")
+        case_packet["previous_stage5_anchor"] = reviews[case_id].get("previous_stage5_anchor", {})
         rendered_cases.append(render_case(root, run_dir, case_id, case_packet, verifier))
     for stopped in manifest.get("stopped_views", []):
         rendered_cases.append({

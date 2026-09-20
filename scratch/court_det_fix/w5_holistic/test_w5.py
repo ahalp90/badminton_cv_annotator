@@ -10,8 +10,19 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from line_template_source import (
+    attach_w5_gates,
+    geometry_and_support,
+    union_distance_map,
+    vector_camera_errors,
+)
 from render_gallery import write_index
-from run_w5 import ViewAmbiguity, canonicalise_populations
+from run_w5 import (
+    ViewAmbiguity,
+    canonicalise_populations,
+    preflight_determinism,
+    previous_stage5_anchors,
+)
 from verifier import (
     legacy_winners,
     permutation_determinism,
@@ -181,6 +192,123 @@ def test_merged_legacy_ties_keep_original_source_order() -> None:
     assert ranking["paint_occurrence_key"] == "G0:0:7"
 
 
+def test_line_template_three_way_dedup_and_legacy_isolation() -> None:
+    g0 = population_entry("g0")
+    g1 = population_entry("g1")
+    line_template = population_entry("rectangle_12:template_3")
+    line_template["pair_id"] = 999
+    line_template.update({"proposal_id": "rectangle_12:template_3", "rectangle_id": 12,
+                          "rectangle_order": 4, "template_index": 3})
+    line_template["line_template"] = {"admission_score": 0.9}
+    line_template.pop("profile")
+    line_template.pop("stripe")
+
+    records, resolution = canonicalise_populations([g0], [g1], [line_template])
+
+    assert len(records) == 1
+    assert records[0]["source_memberships"] == ["G0", "G1", "line_template"]
+    assert resolution["source_occurrence_counts"] == {"G0": 1, "G1": 1, "line_template": 1}
+    assert len(records[0]["_legacy_occurrences"]) == 2
+    assert records[0]["source_occurrences"][2]["candidate_id"] == "rectangle_12:template_3"
+    assert records[0]["source_occurrences"][2]["rectangle_id"] == 12
+    assert records[0]["source_occurrences"][2]["line_template"] == {"admission_score": 0.9}
+    assert legacy_winners(records)["eligible_count"] == 2
+
+
+def test_raw_id_collisions_include_line_template_source() -> None:
+    line_template = population_entry("shared", homography_offset=1.0)
+    records, resolution = canonicalise_populations([population_entry("shared")], [], [line_template])
+
+    assert len(records) == 2
+    assert resolution["raw_id_collisions"] == ["shared"]
+    assert resolution["raw_id_collision_sources"] == {"shared": ["G0", "line_template"]}
+
+
+def test_line_template_duplicate_requires_full_w5_gate_match() -> None:
+    left = population_entry("legacy")
+    line_template = population_entry("rectangle_1:template_1")
+    left["gates"] = {"geometry_valid": True, "camera_error": 0.05, "player_fractions": [1.0, 0.5]}
+    line_template["gates"] = {"geometry_valid": True, "camera_error": 0.05, "player_fractions": [0.8, 0.5]}
+
+    with pytest.raises(ViewAmbiguity, match="differing W5 gates"):
+        canonicalise_populations([left], [], [line_template])
+
+
+def test_line_template_full_w5_gates_are_attached_with_raw_maps() -> None:
+    segments = np.asarray([[10, 10, 90, 10], [10, 90, 90, 90], [10, 10, 10, 90], [90, 10, 90, 90]], dtype=float)
+    context = SimpleNamespace(
+        source={"id": "synthetic"},
+        segments=segments,
+        families=(segments, segments),
+        size=(100, 100),
+    )
+    calls = []
+
+    def gate_evidence(corners, source, scale, size, families, maps, zone):
+        calls.append((corners, source, scale, size, families, maps, zone))
+        return {
+            "geometry_valid": True,
+            "player_fractions": [1.0, 0.5],
+            "floor_score": 0.8,
+            "family_support": [0.9, 0.8],
+            "line_counts": [5, 5],
+            "camera_error": 0.04,
+        }
+
+    entry = {"corners_px": [[10, 10], [90, 10], [90, 90], [10, 90]], "gates": {"camera_error": 0.2}}
+    attach_w5_gates([entry], context, {"gate_evidence": gate_evidence, "zone": object()}, detector, np.ones(2))
+
+    assert len(calls) == 1
+    assert calls[0][5].shape == (2, 100, 100)
+    assert entry["gates"]["player_fractions"] == [1.0, 0.5]
+    assert entry["gates"]["line_counts"] == [5, 5]
+
+
+def test_preflight_determinism_orders_all_sources() -> None:
+    result = preflight_determinism({"permutation_determinism": permutation_determinism})
+
+    assert result["match"]
+    assert result["original"][:6] == [
+        "G0:0", "G0:1", "G1:0", "G1:1", "line_template:0", "line_template:1",
+    ]
+    assert result["original"][-3:] == ["G0:2", "G1:2", "line_template:2"]
+
+
+def test_previous_stage5_anchor_keeps_only_final_c_selection(tmp_path: Path) -> None:
+    path = tmp_path / "w5_holistic/runs/w5_stage5_20260920/review_candidates.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(__import__("json").dumps({
+        "case": {
+            "selected": {"B": "b", "C": "c"},
+            "A": {"line": "a", "paint": "a2"},
+            "candidates": {"a": {}, "a2": {}, "b": {}, "c": {}},
+        }
+    }))
+
+    anchors = previous_stage5_anchors(tmp_path, "case")
+
+    assert anchors["selected"] == {"C": "c"}
+    assert list(anchors["candidates"]) == ["c"]
+
+
+def test_line_template_union_map_keeps_working_image_shape() -> None:
+    segments = np.asarray([[10, 10, 90, 10], [10, 90, 90, 90], [10, 10, 10, 90], [90, 10, 90, 90]], dtype=float)
+    distance_map = union_distance_map(segments, (100, 100))
+    assert distance_map.shape == (100, 100)
+    corners = np.asarray([[10, 10], [90, 10], [90, 90], [10, 90]], dtype=np.float32)
+    homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M.astype(np.float32), corners)
+    projected, means, valid, visibility = geometry_and_support(
+        homography[None], distance_map, (100, 100), detector,
+    )
+    assert valid.shape == (1,)
+    assert len(projected) == len(means) == len(visibility)
+
+
+def test_line_template_camera_vector_matches_flat_homography() -> None:
+    homography = np.eye(3, dtype=float)[None]
+    assert abs(vector_camera_errors(homography, (100, 100))[0]) < 1e-12
+
+
 def test_ranker_uses_stable_origin_order_for_ties() -> None:
     candidates = [
         candidate("G1:1", 0.8, 1, 1),
@@ -243,7 +371,7 @@ def test_gallery_index_orders_ranked_links_and_stopped_cells(tmp_path: Path) -> 
     ordered = next(line for line in lines if line.startswith("| Ordered |"))
     assert ordered.index("b1__crop.png") < ordered.index("b2__crop.png")
     assert ordered.index("c1__crop.png") < ordered.index("c3__crop.png")
-    assert "| Stopped | stopped: ambiguous | — | — | — | — |" in lines
+    assert "| Stopped | stopped: ambiguous | — | — | — | — | — |" in lines
 
 
 def test_photometry_keeps_raw_contrast_and_masks_unknown_samples() -> None:

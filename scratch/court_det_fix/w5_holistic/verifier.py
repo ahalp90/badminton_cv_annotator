@@ -613,7 +613,7 @@ def legacy_winners(entries: Sequence[dict]) -> dict:
                 }
                 for occurrence in entry["_legacy_occurrences"]
             )
-        else:
+        elif entry.get("source") in (None, "G0", "G1"):
             occurrences.append({**entry, "_legacy_input_order": entry_index})
 
     occurrences.sort(key=lambda occurrence: (
@@ -776,6 +776,12 @@ def candidate_review(candidate: dict) -> dict:
         "kind": candidate["kind"],
         "parent_origin_key": candidate.get("parent_origin_key"),
         "source": candidate.get("source"),
+        "proposal_id": candidate.get("proposal_id"),
+        "rectangle_id": candidate.get("rectangle_id"),
+        "rectangle_order": candidate.get("rectangle_order"),
+        "template_index": candidate.get("template_index"),
+        "line_template": candidate.get("line_template"),
+        "line_template_provenance": candidate.get("line_template_provenance", []),
         "source_order": candidate.get("source_order"),
         "origin_index": candidate.get("origin_index"),
         "kind_order": candidate.get("kind_order"),
