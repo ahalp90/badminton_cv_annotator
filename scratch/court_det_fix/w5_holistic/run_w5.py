@@ -316,6 +316,7 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
     }
     if results["case_ids"] != [case_id for case_id, _, _ in verifier["CASE_ORDER"]]:
         results["failures"].append("case ID order does not match the W5 contract")
+    populations = {}
     for case_id in verifier["CASE_IDS"]:
         context = verifier["prepare_view"](root, case_id)
         results["working_dimensions"][case_id] = list(context.size)
@@ -336,9 +337,18 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
             replay_path = root / "automatic_axes_20260914/all_camera" / f"{case_id}.json.gz"
             g0_source = "replayed:" + verifier["relative_path"](replay_path, root)
         results["g0_source"][case_id] = g0_source
+        g0, g1, sources = load_populations(root, context, runtime)
+        populations[case_id] = (g0, g1, sources)
+        automatic_entries = g0 + g1
+        forbidden = []
+        for index, entry in enumerate(automatic_entries):
+            forbidden.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
+        results["automatic_reference_fields"][case_id] = {"match": not forbidden, "fields": forbidden}
+        if forbidden:
+            results["failures"].append(f"{case_id}: automatic candidate path contains reference fields")
     for case_id in L2_COMPARISON_CASES:
         context = verifier["prepare_view"](root, case_id)
-        g0, g1, sources = load_populations(root, context, runtime)
+        g0, g1, sources = populations[case_id]
         actual_g0 = verifier["legacy_winners"](g0)
         actual_g1 = verifier["legacy_winners"](g1)
         expected_g0 = expected_legacy_winners(root, case_id, verifier)
@@ -361,13 +371,6 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
             })
             if not all(match.values()):
                 results["failures"].append(f"{case_id} {label}: legacy winner identity mismatch")
-        automatic_entries = g0 + g1
-        forbidden = []
-        for index, entry in enumerate(automatic_entries):
-            forbidden.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
-        results["automatic_reference_fields"][case_id] = {"match": not forbidden, "fields": forbidden}
-        if forbidden:
-            results["failures"].append(f"{case_id}: automatic candidate path contains reference fields")
     if not results["determinism"]["match"]:
         results["failures"].append("ranker permutation determinism check failed")
     results["status"] = "passed" if not results["failures"] else "failed"

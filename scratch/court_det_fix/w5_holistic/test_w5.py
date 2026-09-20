@@ -138,7 +138,7 @@ def test_source_qualified_identity_set_is_order_independent() -> None:
 
 
 def test_unexpected_duplicate_geometry_stops_instead_of_shrinking_pool() -> None:
-    with pytest.raises(AssertionError, match="duplicate geometry"):
+    with pytest.raises(ViewAmbiguity, match="duplicate geometry"):
         canonicalise_populations([population_entry("0:7"), population_entry("0:8")], [])
 
 
