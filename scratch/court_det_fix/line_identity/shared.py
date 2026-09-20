@@ -21,7 +21,7 @@ COURT_DET_FIX = REPO / 'scratch/court_det_fix'
 # The frozen helper scripts the experiments import: the tracked copy of the player_guided/20260914
 # tree the direction experiment calls L (code only; see its README.md).
 HELPERS = COURT_DET_FIX / 'frozen_helpers_20260914'
-# The nine views' evidence: packs, native frames, baseline direction records, two baseline matcher records.
+# Frozen view evidence: source packs, native frames and baseline direction/matcher records.
 FROZEN_VIEWS = COURT_DET_FIX / 'frozen_views'
 DIRECTION_AGREEMENT = COURT_DET_FIX / 'direction_agreement'
 DIRECTION_RUN = DIRECTION_AGREEMENT / 'runs/direction_agreement_20260915_144900'
@@ -34,8 +34,8 @@ PACKS = {
     'amateur': FROZEN_VIEWS / 'packs/marking_refit_inputs.json.gz',
     'broadcast': FROZEN_VIEWS / 'packs/broadcast_extension_inputs.json.gz',
 }
-# The nine frozen views in the direction experiment's order, each with its pack and short label.
-CASES: tuple[tuple[str, str, str], ...] = (
+# The nine regression views in the direction experiment's order, each with its pack and short label.
+REGRESSION_CASES: tuple[tuple[str, str, str], ...] = (
     ('gxBQ_window_00_frame_0', 'gx', 'GX0'),
     ('gxBQ_window_00_frame_5', 'gx', 'GX5'),
     ('am2_window_00_frame_150', 'amateur', 'Am2-150'),
@@ -46,9 +46,34 @@ CASES: tuple[tuple[str, str, str], ...] = (
     ('shuttleset_03_scene_0016', 'broadcast', 'SS03-16'),
     ('shuttleset_21_scene_0020', 'broadcast', 'SS21-20'),
 )
-CASE_IDS = tuple(case_id for case_id, _, _ in CASES)
-LABELS = {case_id: label for case_id, _, label in CASES}
-PACK_OF = {case_id: pack for case_id, pack, _ in CASES}
+UNUSED_CASES: tuple[tuple[str, str, str], ...] = (
+    ('gxBQ_window_00_frame_689', 'gx', 'gxBQ_window_00_frame_689'),
+    ('gxBQ_window_01_frame_5111', 'gx', 'gxBQ_window_01_frame_5111'),
+    ('gxBQ_window_02_frame_5766', 'gx', 'gxBQ_window_02_frame_5766'),
+    ('gxBQ_window_03_frame_77876', 'gx', 'gxBQ_window_03_frame_77876'),
+    ('gxBQ_window_04_frame_86088', 'gx', 'gxBQ_window_04_frame_86088'),
+    ('yellow_short_frame_14', 'amateur', 'yellow_short_frame_14'),
+    ('letterboxed_short_frame_45', 'amateur', 'letterboxed_short_frame_45'),
+    ('centre_short_frame_36', 'amateur', 'centre_short_frame_36'),
+    ('am1_window_00_frame_54', 'amateur', 'am1_window_00_frame_54'),
+    ('am3_window_01_frame_10514', 'amateur', 'am3_window_01_frame_10514'),
+    ('am4_window_00_frame_0', 'amateur', 'am4_window_00_frame_0'),
+    ('am4_window_01_frame_13782', 'amateur', 'am4_window_01_frame_13782'),
+    ('shuttleset_03_scene_0029', 'broadcast', 'shuttleset_03_scene_0029'),
+    ('shuttleset_03_scene_0034', 'broadcast', 'shuttleset_03_scene_0034'),
+    ('shuttleset_03_scene_0038', 'broadcast', 'shuttleset_03_scene_0038'),
+    ('shuttleset_21_scene_0000', 'broadcast', 'shuttleset_21_scene_0000'),
+    ('shuttleset_21_scene_0010', 'broadcast', 'shuttleset_21_scene_0010'),
+    ('shuttleset_21_scene_0039', 'broadcast', 'shuttleset_21_scene_0039'),
+)
+ALL_CASES: tuple[tuple[str, str, str], ...] = REGRESSION_CASES + UNUSED_CASES
+REGRESSION_CASE_IDS = tuple(case_id for case_id, _, _ in REGRESSION_CASES)
+UNUSED_CASE_IDS = tuple(case_id for case_id, _, _ in UNUSED_CASES)
+ALL_CASE_IDS = tuple(case_id for case_id, _, _ in ALL_CASES)
+CASES: tuple[tuple[str, str, str], ...] = REGRESSION_CASES
+CASE_IDS = REGRESSION_CASE_IDS
+LABELS = {case_id: label for case_id, _, label in ALL_CASES}
+PACK_OF = {case_id: pack for case_id, pack, _ in ALL_CASES}
 FLOAT_ATOL = 1e-12
 
 

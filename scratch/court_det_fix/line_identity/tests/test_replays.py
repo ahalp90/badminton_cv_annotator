@@ -23,7 +23,16 @@ from paint_profiles import (
     profile_offsets,
 )
 
-from shared import corner_errors
+from shared import (
+    ALL_CASE_IDS,
+    ALL_CASES,
+    CASE_IDS,
+    CASES,
+    LABELS,
+    PACK_OF,
+    REGRESSION_CASES,
+    corner_errors,
+)
 
 
 def random_basis(seed: int) -> np.ndarray:
@@ -118,3 +127,13 @@ def test_control_vanishing_points_and_angles_recover_a_known_homography():
     assert masks['person'].tolist() == [False, True]
     assert masks['paint'].tolist() == [True, False]
     assert masks['baseline'].all()
+
+
+def test_unused_cases_are_explicit_without_changing_regression_defaults():
+    assert CASES == REGRESSION_CASES
+    assert CASE_IDS == tuple(case_id for case_id, _, _ in REGRESSION_CASES)
+    assert len(ALL_CASES) == 27
+    assert len(ALL_CASE_IDS) == 27
+    assert 'gxBQ_window_00_frame_689' in ALL_CASE_IDS
+    assert PACK_OF['gxBQ_window_00_frame_689'] == 'gx'
+    assert LABELS['gxBQ_window_00_frame_689'] == 'gxBQ_window_00_frame_689'

@@ -1,5 +1,6 @@
 """Focused unit checks for the W5 evidence and ranking helpers."""
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,10 +12,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 
 from line_template_source import (
+    _empty_metadata,
     attach_w5_gates,
     geometry_and_support,
+    select_with_visibility_floor,
     union_distance_map,
     vector_camera_errors,
+    visibility_eligible,
 )
 from render_gallery import write_index
 from run_w5 import (
@@ -22,8 +26,11 @@ from run_w5 import (
     canonicalise_populations,
     preflight_determinism,
     previous_stage5_anchors,
+    run_pilot,
 )
 from verifier import (
+    CASE_ORDER,
+    REGRESSION_CASE_ORDER,
     legacy_winners,
     permutation_determinism,
     photometric_samples,
@@ -302,6 +309,122 @@ def test_line_template_union_map_keeps_working_image_shape() -> None:
     )
     assert valid.shape == (1,)
     assert len(projected) == len(means) == len(visibility)
+
+
+def test_visibility_floor_requires_both_directions_inclusively() -> None:
+    visibility = np.asarray([[3, 4], [3, 2], [2, 4]], dtype=np.int16)
+    np.testing.assert_array_equal(visibility_eligible(visibility, 3), [True, False, False])
+
+
+def test_visibility_floor_zero_preserves_old_admission_semantics() -> None:
+    visibility = np.asarray([[0, 0], [1, 0], [0, 1]], dtype=np.int16)
+    np.testing.assert_array_equal(visibility_eligible(visibility, 0), [True, True, True])
+
+
+def test_visibility_filter_before_diversity_allows_later_refill() -> None:
+    visibility = np.asarray([[0, 1], [1, 1], [1, 1]], dtype=np.int16)
+    corners = np.asarray(
+        [
+            [[0.0, 0.0]] * 4,
+            [[30.0, 0.0]] * 4,
+            [[60.0, 0.0]] * 4,
+        ]
+    )
+    scores = np.asarray([0.9, 0.8, 0.7])
+    camera_eligible = np.asarray([True, True, True])
+    rectangle_ids = np.asarray([0, 1, 2])
+    templates = np.asarray([0, 0, 0])
+    selection = select_with_visibility_floor(
+        scores,
+        camera_eligible,
+        rectangle_ids,
+        templates,
+        corners,
+        visibility,
+        1,
+        cap=2,
+    )
+    np.testing.assert_array_equal(selection.selected, [1, 2])
+    np.testing.assert_array_equal(selection.floor_zero_selected, [0, 1])
+    np.testing.assert_array_equal(selection.newly_admitted, [2])
+    assert len(selection.newly_admitted) == 1
+    zero_selection = select_with_visibility_floor(
+        scores,
+        camera_eligible,
+        rectangle_ids,
+        templates,
+        corners,
+        visibility,
+        0,
+        cap=2,
+    )
+    np.testing.assert_array_equal(zero_selection.selected, zero_selection.floor_zero_selected)
+    assert len(zero_selection.newly_admitted) == 0
+    assert zero_selection.scanned == zero_selection.floor_zero_scanned
+
+
+def test_line_template_empty_metadata_records_visibility_floor_and_counts() -> None:
+    metadata = _empty_metadata({"min_visible_markings": 4}, 0.0, "empty")
+    assert metadata["settings"]["min_visible_markings"] == 4
+    assert metadata["generation"]["visibility_admission"] == {
+        "min_visible_markings": 4,
+        "hypotheses_before": 0,
+        "hypotheses_after": 0,
+        "hypotheses_rejected": 0,
+        "floor_zero_scanned_for_proposal_cap": 0,
+        "floor_zero_selected_count": 0,
+        "scanned_for_proposal_cap": 0,
+        "removed_from_floor_zero_count": 0,
+        "refilled_proposal_count": 0,
+        "newly_admitted_indices": [],
+        "newly_admitted_proposal_ids": [],
+        "removed_from_floor_zero_indices": [],
+        "removed_from_floor_zero_proposal_ids": [],
+    }
+
+
+def test_pilot_rejects_preflight_case_identity_or_floor_mismatch(tmp_path: Path, monkeypatch) -> None:
+    verifier = {
+        "REGRESSION_CASE_IDS": ("case_a", "case_b"),
+        "ALL_CASE_IDS": ("case_a", "case_b"),
+    }
+    monkeypatch.setattr(
+        "run_w5.load_runtime",
+        lambda root: {"verifier": verifier, "paths": {}},
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "preflight.json").write_text(
+        json.dumps({"status": "passed", "case_ids": ["case_a", "case_b"], "min_visible_markings": 3})
+    )
+    with pytest.raises(RuntimeError, match="do not match preflight order"):
+        run_pilot(tmp_path, run_dir, ["case_b", "case_a"], 1, 3)
+    (run_dir / "preflight.json").write_text(
+        json.dumps({"status": "passed", "case_ids": ["case_a", "case_a"], "min_visible_markings": 3})
+    )
+    with pytest.raises(RuntimeError, match="case list is invalid"):
+        run_pilot(tmp_path, run_dir, ["case_a", "case_b"], 1, 3)
+    (run_dir / "preflight.json").write_text(
+        json.dumps({"status": "passed", "case_ids": ["case_a", "case_b"], "min_visible_markings": 3})
+    )
+    with pytest.raises(RuntimeError, match="floor is not covered"):
+        run_pilot(tmp_path, run_dir, ["case_a", "case_b"], 1, 4)
+
+
+def test_original_regression_case_order_remains_explicit() -> None:
+    expected = (
+        "gxBQ_window_00_frame_0",
+        "gxBQ_window_00_frame_5",
+        "am2_window_00_frame_150",
+        "am2_window_01_frame_28019",
+        "am3_window_00_frame_0",
+        "shuttleset_03_scene_0017",
+        "shuttleset_03_scene_0019",
+        "shuttleset_03_scene_0016",
+        "shuttleset_21_scene_0020",
+    )
+    assert tuple(case_id for case_id, _, _ in CASE_ORDER) == expected
+    assert REGRESSION_CASE_ORDER == CASE_ORDER
 
 
 def test_line_template_camera_vector_matches_flat_homography() -> None:

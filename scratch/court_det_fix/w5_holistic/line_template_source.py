@@ -27,6 +27,19 @@ class Generation:
     metadata: dict
 
 
+@dataclass(frozen=True)
+class AdmissionSelection:
+    """Selection results for one visibility floor and its floor-zero baseline."""
+
+    selected: np.ndarray
+    scanned: int
+    visibility_admitted: np.ndarray
+    floor_zero_selected: np.ndarray
+    floor_zero_scanned: int
+    newly_admitted: np.ndarray
+    removed_from_floor_zero: np.ndarray
+
+
 def union_distance_map(segments: np.ndarray, size: tuple[int, int]) -> np.ndarray:
     """Build one distance map from every cached working-image fragment."""
     width, height = size
@@ -143,6 +156,73 @@ def greedy_diverse(
     return np.asarray(retained, dtype=np.int64), scanned
 
 
+def _validate_min_visible_markings(min_visible_markings: int) -> int:
+    if isinstance(min_visible_markings, bool) or not isinstance(min_visible_markings, (int, np.integer)):
+        raise TypeError("min_visible_markings must be an integer")
+    if min_visible_markings < 0:
+        raise ValueError("min_visible_markings must be non-negative")
+    return int(min_visible_markings)
+
+
+def visibility_eligible(visibility: np.ndarray, min_visible_markings: int) -> np.ndarray:
+    """Return hypotheses whose two marking directions meet the inclusive floor."""
+    min_visible_markings = _validate_min_visible_markings(min_visible_markings)
+    if visibility.ndim != 2 or visibility.shape[1] != 2:
+        raise ValueError("visibility must have shape (hypotheses, 2)")
+    return np.all(visibility >= min_visible_markings, axis=1)
+
+
+def select_with_visibility_floor(
+    scores: np.ndarray,
+    camera_eligible: np.ndarray,
+    rectangle_ids: np.ndarray,
+    templates: np.ndarray,
+    corners: np.ndarray,
+    visibility: np.ndarray,
+    min_visible_markings: int,
+    cap: int = PROPOSAL_CAP,
+    radius: float = DIVERSITY_RADIUS,
+) -> AdmissionSelection:
+    """Admit by visibility before score ordering, then compare with the camera-only pool."""
+    visibility_admitted = visibility_eligible(visibility, min_visible_markings)
+    eligible_indices = np.flatnonzero(camera_eligible & visibility_admitted)
+    score_order = np.lexsort(
+        (templates[eligible_indices], rectangle_ids[eligible_indices], -scores[eligible_indices])
+    )
+    admitted_order = eligible_indices[score_order]
+    camera_indices = np.flatnonzero(camera_eligible)
+    camera_score_order = np.lexsort(
+        (templates[camera_indices], rectangle_ids[camera_indices], -scores[camera_indices])
+    )
+    camera_order = camera_indices[camera_score_order]
+    floor_zero_selected, floor_zero_scanned = greedy_diverse(
+        camera_order,
+        corners,
+        cap=cap,
+        radius=radius,
+    )
+    selected, scanned = greedy_diverse(admitted_order, corners, cap=cap, radius=radius)
+    floor_zero_set = {int(index) for index in floor_zero_selected}
+    selected_set = {int(index) for index in selected}
+    newly_admitted = np.asarray(
+        [index for index in selected if int(index) not in floor_zero_set],
+        dtype=np.int64,
+    )
+    removed_from_floor_zero = np.asarray(
+        [index for index in floor_zero_selected if int(index) not in selected_set],
+        dtype=np.int64,
+    )
+    return AdmissionSelection(
+        selected=selected,
+        scanned=scanned,
+        visibility_admitted=visibility_admitted,
+        floor_zero_selected=floor_zero_selected,
+        floor_zero_scanned=floor_zero_scanned,
+        newly_admitted=newly_admitted,
+        removed_from_floor_zero=removed_from_floor_zero,
+    )
+
+
 def _ranked_records(
     selected: np.ndarray,
     scores: np.ndarray,
@@ -210,7 +290,24 @@ def _empty_metadata(settings: dict, started: float, reason: str) -> dict:
                 "template geometry",
             ],
         },
-        "generation": {"elapsed_seconds": perf_counter() - started},
+        "generation": {
+            "visibility_admission": {
+                "min_visible_markings": int(settings["min_visible_markings"]),
+                "hypotheses_before": 0,
+                "hypotheses_after": 0,
+                "hypotheses_rejected": 0,
+                "floor_zero_scanned_for_proposal_cap": 0,
+                "floor_zero_selected_count": 0,
+                "scanned_for_proposal_cap": 0,
+                "removed_from_floor_zero_count": 0,
+                "refilled_proposal_count": 0,
+                "newly_admitted_indices": [],
+                "newly_admitted_proposal_ids": [],
+                "removed_from_floor_zero_indices": [],
+                "removed_from_floor_zero_proposal_ids": [],
+            },
+            "elapsed_seconds": perf_counter() - started,
+        },
         "proposal_count": 0,
     }
 
@@ -231,8 +328,9 @@ def attach_w5_gates(entries: list[dict], context, runtime: dict, detector, nativ
         )
 
 
-def generate(context, runtime: dict, detector) -> Generation:
+def generate(context, runtime: dict, detector, min_visible_markings: int = 0) -> Generation:
     """Generate the audited line/template source for one prepared W5 view."""
+    min_visible_markings = _validate_min_visible_markings(min_visible_markings)
     started = perf_counter()
     settings = {
         "wide_families": True,
@@ -250,6 +348,7 @@ def generate(context, runtime: dict, detector) -> Generation:
         "rectangle_order": "frozen coverage VP round-robin order",
         "global_rectangle_cap": RECTANGLE_CAP,
         "proposal_cap": PROPOSAL_CAP,
+        "min_visible_markings": min_visible_markings,
         "corner_diversity_radius": DIVERSITY_RADIUS,
         "camera_limit": CAMERA_LIMIT,
         "camera_gate": "frozen W5 camera error <= 0.1 before admission ordering",
@@ -349,10 +448,17 @@ def generate(context, runtime: dict, detector) -> Generation:
     templates = np.concatenate(all_templates)
     scores = means.min(axis=1)
     camera_eligible = camera_errors <= CAMERA_LIMIT
-    eligible_indices = np.flatnonzero(camera_eligible)
-    score_order = np.lexsort((templates[eligible_indices], rectangle_ids[eligible_indices], -scores[eligible_indices]))
-    order = eligible_indices[score_order]
-    selected, scanned = greedy_diverse(order, corners)
+    admission = select_with_visibility_floor(
+        scores,
+        camera_eligible,
+        rectangle_ids,
+        templates,
+        corners,
+        visibility,
+        min_visible_markings,
+    )
+    selected = admission.selected
+    scanned = admission.scanned
     entries = _ranked_records(
         selected,
         scores,
@@ -392,7 +498,31 @@ def generate(context, runtime: dict, detector) -> Generation:
         "generation": {
             "rectangle_template_hypotheses": int(len(rectangles_array) * TEMPLATE_COUNT),
             "valid_geometry_hypotheses": len(corners),
-            "camera_eligible_hypotheses": len(order),
+            "camera_eligible_hypotheses": int(camera_eligible.sum()),
+            "visibility_admission": {
+                "min_visible_markings": min_visible_markings,
+                "hypotheses_before": len(visibility),
+                "hypotheses_after": int(admission.visibility_admitted.sum()),
+                "hypotheses_rejected": int((~admission.visibility_admitted).sum()),
+                "floor_zero_scanned_for_proposal_cap": admission.floor_zero_scanned,
+                "floor_zero_selected_count": len(admission.floor_zero_selected),
+                "scanned_for_proposal_cap": admission.scanned,
+                "removed_from_floor_zero_count": len(admission.removed_from_floor_zero),
+                "refilled_proposal_count": len(admission.newly_admitted),
+                "newly_admitted_indices": admission.newly_admitted.tolist(),
+                "newly_admitted_proposal_ids": [
+                    f"rectangle_{int(rectangle_ids[index])}:template_{int(templates[index])}"
+                    for index in admission.newly_admitted
+                ],
+                "removed_from_floor_zero_indices": admission.removed_from_floor_zero.tolist(),
+                "removed_from_floor_zero_proposal_ids": [
+                    f"rectangle_{int(rectangle_ids[index])}:template_{int(templates[index])}"
+                    for index in admission.removed_from_floor_zero
+                ],
+            },
+            "combined_admission_hypotheses": int(
+                np.count_nonzero(camera_eligible & admission.visibility_admitted)
+            ),
             "camera_scalar_recheck_count": int(scalar_recheck_count),
             "camera_vector_scalar_max_abs_diff": float(vector_scalar_max_abs_diff),
             "scanned_for_proposal_cap": int(scanned),

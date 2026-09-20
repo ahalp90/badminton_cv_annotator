@@ -63,6 +63,7 @@ def import_runtime(root: Path) -> dict[str, Any]:
 def load_verifier(root: Path):
     sys.path.insert(0, str(root / "w5_holistic"))
     from verifier import (
+        ALL_CASE_IDS,
         CAMERA_LIMIT,
         CASE_IDS,
         CASE_LABELS,
@@ -71,6 +72,8 @@ def load_verifier(root: Path):
         PACK_OF,
         PHOTO_CENTRE_OFFSETS_PX,
         PHOTO_SIDE_DISTANCE_PX,
+        REGRESSION_CASE_IDS,
+        UNUSED_CASE_IDS,
         WORKING_SIZE,
         ViewContext,
         camera_eligible,
@@ -96,10 +99,13 @@ def load_verifier(root: Path):
     )
     return {
         "CASE_IDS": CASE_IDS,
+        "ALL_CASE_IDS": ALL_CASE_IDS,
         "CASE_LABELS": CASE_LABELS,
         "CASE_ORDER": CASE_ORDER,
         "CASE_PACKS": CASE_PACKS,
         "PACK_OF": PACK_OF,
+        "REGRESSION_CASE_IDS": REGRESSION_CASE_IDS,
+        "UNUSED_CASE_IDS": UNUSED_CASE_IDS,
         "CAMERA_LIMIT": CAMERA_LIMIT,
         "PHOTO_CENTRE_OFFSETS_PX": PHOTO_CENTRE_OFFSETS_PX,
         "PHOTO_SIDE_DISTANCE_PX": PHOTO_SIDE_DISTANCE_PX,
@@ -165,6 +171,39 @@ EXPECTED_MASKS = {
 
 def load_runtime(root: Path) -> dict[str, Any]:
     return {"verifier": load_verifier(root), **import_runtime(root)}
+
+
+def validate_min_visible_markings(value: int) -> int:
+    """Validate the explicit line-template admission floor at a run boundary."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise TypeError("min_visible_markings must be an integer")
+    if value < 0:
+        raise ValueError("min_visible_markings must be non-negative")
+    return int(value)
+
+
+def nonnegative_int(value: str) -> int:
+    """Parse a non-negative integer argparse value."""
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
+def resolve_case_ids(verifier: dict[str, Any], cases: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Return a validated, ordered case list for one scoped W5 run."""
+    requested = list(cases) if cases is not None else list(verifier["REGRESSION_CASE_IDS"])
+    if not requested:
+        raise ValueError("at least one case ID is required")
+    unknown = sorted(set(requested) - set(verifier["ALL_CASE_IDS"]))
+    if unknown:
+        raise ValueError(f"Unknown case IDs: {unknown}")
+    if len(requested) != len(set(requested)):
+        raise ValueError("case IDs must be unique")
+    return requested
 
 
 def reconstruct_generation_entries(record: dict, native_size: tuple[int, int], select_pool, detector) -> list[dict]:
@@ -253,11 +292,17 @@ def load_populations(
     runtime: dict[str, Any],
     *,
     include_line_template: bool = True,
+    min_visible_markings: int = 0,
 ) -> tuple[list[dict], list[dict], list[dict], dict]:
     g0, g0_source = load_g0(root, context, runtime)
     g1, g1_source = load_g1(root, context, runtime["verifier"])
     if include_line_template:
-        generated = runtime["line_template"](context, runtime, import_detector())
+        generated = runtime["line_template"](
+            context,
+            runtime,
+            import_detector(),
+            min_visible_markings=min_visible_markings,
+        )
         line_template = list(generated.entries)
         line_template_source = generated.metadata
     else:
@@ -329,13 +374,24 @@ def preflight_determinism(verifier: dict[str, Any]) -> dict:
     return verifier["permutation_determinism"](candidates)
 
 
-def run_preflight(root: Path, run_dir: Path) -> dict:
+def run_preflight(
+    root: Path,
+    run_dir: Path,
+    cases: list[str] | tuple[str, ...] | None = None,
+    min_visible_markings: int = 0,
+) -> dict:
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
+    min_visible_markings = validate_min_visible_markings(min_visible_markings)
+    case_ids = resolve_case_ids(verifier, cases)
+    regression_case_ids = list(verifier["REGRESSION_CASE_IDS"])
     results = {
         "schema": "w5-preflight/1",
         "status": "passed",
-        "case_ids": list(verifier["CASE_IDS"]),
+        "case_ids": case_ids,
+        "regression_case_ids": regression_case_ids,
+        "unused_case_ids": list(verifier["UNUSED_CASE_IDS"]),
+        "min_visible_markings": min_visible_markings,
         "module_paths": runtime["paths"],
         "working_dimensions": {},
         "g0_source": {},
@@ -344,24 +400,30 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
         "mask_availability": {},
         "automatic_reference_fields": {},
         "l2_replay": [],
+        "l2_skipped_case_ids": [case_id for case_id in L2_COMPARISON_CASES if case_id not in case_ids],
         "determinism": preflight_determinism(verifier),
         "failures": [],
     }
-    if results["case_ids"] != [case_id for case_id, _, _ in verifier["CASE_ORDER"]]:
-        results["failures"].append("case ID order does not match the W5 contract")
+    if regression_case_ids != [case_id for case_id, _, _ in verifier["CASE_ORDER"]]:
+        results["failures"].append("regression case ID order does not match the W5 contract")
+    results["regression_contract"] = {
+        "case_ids": regression_case_ids,
+        "requested": case_ids == regression_case_ids,
+    }
     populations = {}
-    for case_id in verifier["CASE_IDS"]:
+    for case_id in case_ids:
         context = verifier["prepare_view"](root, case_id)
         results["working_dimensions"][case_id] = list(context.size)
         if context.size != verifier["WORKING_SIZE"]:
             results["failures"].append(f"{case_id}: working dimensions {context.size}")
         actual_mask = context.same_image_mask_available
+        expected_mask = EXPECTED_MASKS.get(case_id)
         results["mask_availability"][case_id] = {
             "actual": actual_mask,
-            "expected": EXPECTED_MASKS[case_id],
-            "match": actual_mask == EXPECTED_MASKS[case_id],
+            "expected": expected_mask,
+            "match": expected_mask is None or actual_mask == expected_mask,
         }
-        if actual_mask != EXPECTED_MASKS[case_id]:
+        if expected_mask is not None and actual_mask != expected_mask:
             results["failures"].append(f"{case_id}: same-image mask provenance differs")
         g0_path = root / "frozen_views/baseline_generation" / f"{case_id}.json.gz"
         if g0_path.exists():
@@ -370,7 +432,12 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
             replay_path = root / "automatic_axes_20260914/all_camera" / f"{case_id}.json.gz"
             g0_source = "replayed:" + verifier["relative_path"](replay_path, root)
         results["g0_source"][case_id] = g0_source
-        g0, g1, line_template, sources = load_populations(root, context, runtime)
+        g0, g1, line_template, sources = load_populations(
+            root,
+            context,
+            runtime,
+            min_visible_markings=min_visible_markings,
+        )
         populations[case_id] = (g0, g1, line_template, sources)
         results["line_template_source"][case_id] = sources["line_template"]
         results["population_counts"][case_id] = {
@@ -384,6 +451,8 @@ def run_preflight(root: Path, run_dir: Path) -> dict:
         if forbidden:
             results["failures"].append(f"{case_id}: automatic candidate path contains reference fields")
     for case_id in L2_COMPARISON_CASES:
+        if case_id not in case_ids:
+            continue
         context = verifier["prepare_view"](root, case_id)
         g0, g1, _, sources = populations[case_id]
         actual_g0 = verifier["legacy_winners"](g0)
@@ -850,12 +919,18 @@ def has_source_occurrence(candidate: dict, source: str, candidate_id: str) -> bo
     )
 
 
-def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
+def process_case(root: Path, case_id: str, run_dir: Path, min_visible_markings: int = 0) -> dict:
     cv2.setNumThreads(1)
+    min_visible_markings = validate_min_visible_markings(min_visible_markings)
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
     context = verifier["prepare_view"](root, case_id)
-    g0, g1, line_template, sources = load_populations(root, context, runtime)
+    g0, g1, line_template, sources = load_populations(
+        root,
+        context,
+        runtime,
+        min_visible_markings=min_visible_markings,
+    )
     automatic_entries = g0 + g1 + line_template
     contamination_fields = []
     for index, entry in enumerate(automatic_entries):
@@ -937,6 +1012,7 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
     full_record = {
         "schema": "w5-case-evidence/1",
         "case_id": case_id,
+        "min_visible_markings": min_visible_markings,
         "provenance": provenance,
         "population_sources": sources,
         "population_counts": {
@@ -960,6 +1036,7 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
     return {
         "schema": "w5-case-result/1",
         "case_id": case_id,
+        "min_visible_markings": min_visible_markings,
         "label": verifier["CASE_LABELS"][case_id],
         "provenance": provenance,
         "population_sources": sources,
@@ -1295,16 +1372,25 @@ def write_packet(
     verifier: dict[str, Any],
     runtime_paths: dict,
     stopped_views: list[dict] | None = None,
+    min_visible_markings: int | None = None,
 ) -> None:
-    case_results = sorted(case_results, key=lambda result: verifier["CASE_IDS"].index(result["case_id"]))
+    case_order = verifier.get("ALL_CASE_IDS", verifier["CASE_IDS"])
+    case_results = sorted(case_results, key=lambda result: case_order.index(result["case_id"]))
     stopped_views = stopped_views or []
     packets = {result["case_id"]: result for result in case_results}
     sensitivity = write_sensitivity(root, run_dir, case_results, verifier)
     add_reference_near_candidates(root, case_results, packets, verifier)
     preflight = __import__("json").loads((run_dir / "preflight.json").read_text())
+    preflight_floor = validate_min_visible_markings(preflight["min_visible_markings"])
+    if min_visible_markings is None:
+        min_visible_markings = preflight_floor
+    else:
+        min_visible_markings = validate_min_visible_markings(min_visible_markings)
+        if min_visible_markings != preflight_floor:
+            raise RuntimeError("W5 pilot floor differs from its preflight floor")
     automatic_reference_checks = preflight["automatic_reference_fields"]
     preflight_path_free_of_reference_fields = (
-        set(automatic_reference_checks) == set(verifier["CASE_IDS"])
+        set(automatic_reference_checks) == set(preflight["case_ids"])
         and all(check["match"] for check in automatic_reference_checks.values())
     )
     full_run_contamination_checks = {
@@ -1368,10 +1454,13 @@ def write_packet(
         "schema": "w5-manifest/1",
         "run_id": run_dir.name,
         "cases": [result["case_id"] for result in case_results],
+        "requested_cases": preflight["case_ids"],
+        "min_visible_markings": min_visible_markings,
         "stopped_views": stopped_views,
         "global_parameters": {
             "working_size": list(verifier["WORKING_SIZE"]),
             "camera_limit": verifier["CAMERA_LIMIT"],
+            "min_visible_markings": min_visible_markings,
             "camera_error_limit_historical": verifier["CAMERA_LIMIT"],
             "physical_centres": "paint_geometry.CENTRE_SEGMENTS_M",
             "photometric_offsets_working_px": verifier["PHOTO_CENTRE_OFFSETS_PX"].tolist(),
@@ -1395,6 +1484,15 @@ def write_packet(
         "line_template_sources": {
             result["case_id"]: result["population_sources"].get("line_template")
             for result in case_results
+        },
+        "line_template_admission": {
+            "min_visible_markings": min_visible_markings,
+            "cases": {
+                result["case_id"]: result["population_sources"].get("line_template", {}).get(
+                    "generation", {}
+                ).get("visibility_admission", {})
+                for result in case_results
+            },
         },
         "candidate_identity": {
             "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when W5-relevant gates agree",
@@ -1691,20 +1789,48 @@ def write_result(
     path.write_text("\n".join(lines))
 
 
-def run_pilot(root: Path, run_dir: Path, cases: list[str], workers: int) -> list[dict]:
+def run_pilot(
+    root: Path,
+    run_dir: Path,
+    cases: list[str],
+    workers: int,
+    min_visible_markings: int = 0,
+) -> list[dict]:
+    min_visible_markings = validate_min_visible_markings(min_visible_markings)
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
+    cases = resolve_case_ids(verifier, cases)
     preflight_path = run_dir / "preflight.json"
     if not preflight_path.exists():
         raise FileNotFoundError(f"preflight result is required before Stage 2: {preflight_path}")
     preflight = __import__("json").loads(preflight_path.read_text())
     if preflight.get("status") != "passed":
         raise RuntimeError("Stage 2 is blocked by a failed W5 preflight")
+    persisted_case_ids = preflight.get("case_ids")
+    if persisted_case_ids is None:
+        raise RuntimeError("W5 preflight does not record its case list")
+    try:
+        preflight_cases = resolve_case_ids(verifier, persisted_case_ids)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("W5 preflight case list is invalid") from error
+    if preflight_cases != cases:
+        raise RuntimeError(
+            f"W5 pilot cases do not match preflight order: pilot={cases}, preflight={preflight_cases}"
+        )
+    preflight_floor = preflight.get("min_visible_markings")
+    if preflight_floor is None or validate_min_visible_markings(preflight_floor) != min_visible_markings:
+        raise RuntimeError(
+            "W5 pilot floor is not covered by preflight: "
+            f"pilot={min_visible_markings}, preflight={preflight_floor}"
+        )
     workers = max(1, min(int(workers), 10, len(cases)))
     os.environ["W5_WORKERS"] = str(workers)
     print(f"W5 pilot cases={cases} workers={workers}", flush=True)
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(process_case, root, case_id, run_dir) for case_id in cases]
+        futures = [
+            pool.submit(process_case, root, case_id, run_dir, min_visible_markings)
+            for case_id in cases
+        ]
         results = []
         stopped_views = []
         for case_id, future in zip(cases, futures, strict=True):
@@ -1717,7 +1843,15 @@ def run_pilot(root: Path, run_dir: Path, cases: list[str], workers: int) -> list
                 continue
             results.append(result)
             print(result["case_id"], "complete", result["B"]["selected_origin_key"], result["C"]["selected_origin_key"], flush=True)
-    write_packet(root, run_dir, results, verifier, runtime["paths"], stopped_views)
+    write_packet(
+        root,
+        run_dir,
+        results,
+        verifier,
+        runtime["paths"],
+        stopped_views,
+        min_visible_markings,
+    )
     return results
 
 
@@ -1727,6 +1861,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run", required=True)
     parser.add_argument("--stage", choices=("preflight", "pilot"), required=True)
     parser.add_argument("--cases", nargs="+", default=None)
+    parser.add_argument("--min-visible-markings", type=nonnegative_int, default=0)
     parser.add_argument("--workers", type=int, default=6)
     return parser.parse_args()
 
@@ -1736,22 +1871,13 @@ def main() -> None:
     root = args.root.resolve()
     run_dir = root / "w5_holistic/runs" / args.run
     run_dir.mkdir(parents=True, exist_ok=True)
+    verifier = load_verifier(root)
+    cases = resolve_case_ids(verifier, args.cases)
     if args.stage == "preflight":
-        run_preflight(root, run_dir)
+        run_preflight(root, run_dir, cases, args.min_visible_markings)
         print("W5 preflight passed", flush=True)
         return
-    verifier = load_verifier(root)
-    cases = args.cases or [
-        "gxBQ_window_00_frame_0",
-        "am2_window_00_frame_150",
-        "am2_window_01_frame_28019",
-        "am3_window_00_frame_0",
-        "shuttleset_03_scene_0019",
-    ]
-    unknown = sorted(set(cases) - set(verifier["CASE_IDS"]))
-    if unknown:
-        raise ValueError(f"Unknown case IDs: {unknown}")
-    run_pilot(root, run_dir, cases, args.workers)
+    run_pilot(root, run_dir, cases, args.workers, args.min_visible_markings)
     print("W5 pilot packet written", run_dir, flush=True)
 
 
