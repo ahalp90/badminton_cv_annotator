@@ -1,0 +1,109 @@
+{
+  "schema": "w5-manifest/1",
+  "run_id": "w5_stage4_20260920",
+  "cases": [
+    "gxBQ_window_00_frame_5"
+  ],
+  "stopped_views": [
+    {
+      "case_id": "shuttleset_03_scene_0017",
+      "reason": "shuttleset_03_scene_0017: G0/G1 candidate-ID collision: ['1:80']"
+    },
+    {
+      "case_id": "shuttleset_03_scene_0016",
+      "reason": "shuttleset_03_scene_0016: G0/G1 candidate-ID collision: ['1:14', '1:149', '1:167', '1:31', '1:913']"
+    },
+    {
+      "case_id": "shuttleset_21_scene_0020",
+      "reason": "shuttleset_21_scene_0020: G0/G1 candidate-ID collision: ['0:133', '0:2', '0:208', '0:38', '0:71']"
+    }
+  ],
+  "global_parameters": {
+    "working_size": [
+      960,
+      540
+    ],
+    "camera_limit": 0.1,
+    "camera_error_limit_historical": 0.1,
+    "physical_centres": "paint_geometry.CENTRE_SEGMENTS_M",
+    "photometric_offsets_working_px": [
+      -4.0,
+      -2.0,
+      0.0,
+      2.0,
+      4.0
+    ],
+    "photometric_side_distance_working_px": 6.0,
+    "photometric_probe_threshold_historical": 10.0,
+    "refit_max_evaluations": 100,
+    "workers": 4
+  },
+  "source_stage": {
+    "G0": "frozen_views/baseline_generation when present, otherwise automatic_axes_20260914/all_camera with L2 selection replay",
+    "G1": "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results",
+    "automatic_path_reference_fields": false
+  },
+  "imported_helper_paths": {
+    "run_automatic": "next_steps_20260916/webui_seed/source/run_automatic.py",
+    "run_given": "next_steps_20260916/webui_seed/source/run_given.py",
+    "run_population": "next_steps_20260916/webui_seed/source/run_population.py",
+    "run_diagnosis": "marking_diagnosis_20260914/run_diagnosis.py",
+    "zone_net": "smoke/legacy/zone_net.py"
+  },
+  "imported_helper_hashes": {
+    "imported": {
+      "run_automatic": {
+        "path": "next_steps_20260916/webui_seed/source/run_automatic.py",
+        "sha256": "283fbf43f6b09bf724152cf54055e559dfd3f8c971b512550f386f49ee752fd8"
+      },
+      "run_diagnosis": {
+        "path": "marking_diagnosis_20260914/run_diagnosis.py",
+        "sha256": "979efaf491c8924876ff20ce7db29a734046e7bf16dc4a9cefd7fd4339d6380a"
+      },
+      "run_given": {
+        "path": "next_steps_20260916/webui_seed/source/run_given.py",
+        "sha256": "c8e44bc60fc7df513d0f38972d7b53431b54e8a3147e3481fda2ab7393cc13ea"
+      },
+      "run_population": {
+        "path": "next_steps_20260916/webui_seed/source/run_population.py",
+        "sha256": "3e93f49cabad10d82cf715f0ca156afa04a75761f3ff3bed240cdfd8e1b943a0"
+      },
+      "zone_net": {
+        "path": "smoke/legacy/zone_net.py",
+        "sha256": "2d3d042f06bdd48f03cf082ed67a805c6b21a3098ff379e5c509eb970ccf4148"
+      }
+    },
+    "readme": {
+      "path": "frozen_helpers_20260914/README.md",
+      "available": false,
+      "hash_checks": []
+    }
+  },
+  "view_provenance": {
+    "gxBQ_window_00_frame_5": {
+      "case_id": "gxBQ_window_00_frame_5",
+      "working_dimensions": [
+        960,
+        540
+      ],
+      "native_dimensions": [
+        1920,
+        1080
+      ],
+      "frame_path": "gx_extension/people/images/gxBQ_window_00_frame_00000005.png",
+      "image_kind": "source_frame",
+      "g0_source": "replayed:automatic_axes_20260914/all_camera/gxBQ_window_00_frame_5.json.gz",
+      "same_image_mask_available": false,
+      "photometry_occlusion_aware": false,
+      "player_foot_source": "rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.zip",
+      "chosen_bbox_frame": 6,
+      "anchor_frame": 5
+    }
+  },
+  "steering_rule_revision": {
+    "status": "R1 camera eligibility + R2 span-weighted directional means",
+    "changed_global_rule": "R1 and R2 from steering_record.md",
+    "source": "scratch/court_det_fix/w5_holistic/steering_record.md",
+    "expensive_geometry_rerun": true
+  }
+}

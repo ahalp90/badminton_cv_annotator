@@ -1,0 +1,5 @@
+case_id,label,view_status,g0_source,working_width,working_height,image_kind,same_image_mask_available,G0_count,G1_count,A_line,A_paint,A_eligible_count,B_status,B_selected,B_r1_selected,B_r2_selected,B_pilot_selected,C_status,C_selected,C_r1_selected,C_r2_selected,C_pilot_selected,valid_children,fit_attempts,determinism_match,controls
+gxBQ_window_00_frame_5,GX5,completed,replayed:automatic_axes_20260914/all_camera/gxBQ_window_00_frame_5.json.gz,960,540,source_frame,False,256,256,181:1029,181:973,12,provisional_for_review,G0:181:996,G0:196:366,G0:181:996,G0:0:21005,provisional_for_review,G0:181:948/child,G0:181:948/child,G0:181:948/child,G0:0:21005,410,512,True,
+shuttleset_03_scene_0017,SS03-17,stopped,,,,,,,,,,,shuttleset_03_scene_0017: G0/G1 candidate-ID collision: ['1:80'],,,,,,,,,,,,,
+shuttleset_03_scene_0016,SS03-16,stopped,,,,,,,,,,,"shuttleset_03_scene_0016: G0/G1 candidate-ID collision: ['1:14', '1:149', '1:167', '1:31', '1:913']",,,,,,,,,,,,,
+shuttleset_21_scene_0020,SS21-20,stopped,,,,,,,,,,,"shuttleset_21_scene_0020: G0/G1 candidate-ID collision: ['0:133', '0:2', '0:208', '0:38', '0:71']",,,,,,,,,,,,,
