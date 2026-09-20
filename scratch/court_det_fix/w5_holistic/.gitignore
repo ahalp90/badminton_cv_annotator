@@ -18,6 +18,7 @@ runs/**/logs/
 runs/**/receipts/
 runs/**/*.npz
 runs/**/*.npy.xz
+runs/**/preflight.json.gz
 
 # Gallery: only the crops are tracked. Full frames and reference overlays stay on disk.
 runs/**/gallery/*__full.png

@@ -1,0 +1,86 @@
+{
+  "schema": "w5-player-coverage-sensitivity/1",
+  "status": "post_hoc_diagnostic",
+  "eligibility": {
+    "geometry_valid": true,
+    "camera_error_max": 0.1,
+    "one_player_fraction": 1.0,
+    "two_half_fraction_min": 0.5
+  },
+  "ranking": "filter each saved C.r2_spanw_paint10_rank by historical_fullcourt, preserving order",
+  "warning": "Development-panel result only. This gate was inspected after the visual rulings, couples court detection to player tracking, and is a secondary comparison rather than an adopted rule.",
+  "cases": {
+    "gxBQ_window_00_frame_0": {
+      "current_selected": "line_template:rectangle_19114:template_134/child",
+      "current_ruling": "wrong_court",
+      "current_player_fractions": [0.06666666666666667, 0.0],
+      "diagnostic_selected": "G0:22:4580/child",
+      "eligible_count": 72,
+      "previous_stage5_selected": "G0:22:4580/child"
+    },
+    "gxBQ_window_00_frame_5": {
+      "current_selected": "line_template:rectangle_85795:template_72/child",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "line_template:rectangle_85795:template_72/child",
+      "eligible_count": 41,
+      "previous_stage5_selected": "G0:181:948/child"
+    },
+    "am2_window_00_frame_150": {
+      "current_selected": "G1:30:137/child",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "G1:30:137/child",
+      "eligible_count": 300,
+      "previous_stage5_selected": "G1:30:137/child"
+    },
+    "am2_window_01_frame_28019": {
+      "current_selected": "line_template:rectangle_210761:template_48",
+      "current_ruling": "wrong_court",
+      "current_player_fractions": [0.5862068965517241, 0.0],
+      "diagnostic_selected": "G1:15:164/child",
+      "eligible_count": 230,
+      "previous_stage5_selected": "G1:15:164/child"
+    },
+    "am3_window_00_frame_0": {
+      "current_selected": "G1:43:299/child",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 0.9354838709677419],
+      "diagnostic_selected": "G1:43:299/child",
+      "eligible_count": 579,
+      "previous_stage5_selected": "G1:43:299/child"
+    },
+    "shuttleset_03_scene_0017": {
+      "current_selected": "G1:1:1308/child",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "G1:1:1308/child",
+      "eligible_count": 1106,
+      "previous_stage5_selected": "G1:1:1308/child"
+    },
+    "shuttleset_03_scene_0019": {
+      "current_selected": "G1:1:533/child",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "G1:1:533/child",
+      "eligible_count": 1069,
+      "previous_stage5_selected": "G1:1:533/child"
+    },
+    "shuttleset_03_scene_0016": {
+      "current_selected": "G0:1:31",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "G0:1:31",
+      "eligible_count": 1054,
+      "previous_stage5_selected": "G0:1:31"
+    },
+    "shuttleset_21_scene_0020": {
+      "current_selected": "G1:0:1970",
+      "current_ruling": "usable",
+      "current_player_fractions": [1.0, 1.0],
+      "diagnostic_selected": "G1:0:1970",
+      "eligible_count": 1081,
+      "previous_stage5_selected": "G1:0:1970"
+    }
+  }
+}

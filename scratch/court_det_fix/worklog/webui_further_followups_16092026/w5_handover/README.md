@@ -1,27 +1,31 @@
 # W5 handover — holistic court detector pilot
 
-## Status: closed
+## Status: closed; next experiment chosen
 
-W5 closed on 2026-09-20. The reviewed legacy, original-only and
-original-plus-adjusted results are in the
-[final stage-5 packet](../../../w5_holistic/runs/w5_stage5_20260920/). The branch decision
-and next-session direction are in the
+The line-template candidate-source regression is complete. Its reviewed packet is in
+[`line_template_regression_20260920`](../../../w5_holistic/runs/line_template_regression_20260920/).
+The full decision history is in the
 [steering record](../../../w5_holistic/steering_record.md).
 
-The collision repair did not change a scientific conclusion. The final method, which
-scores original and locally adjusted candidates together, selects a usable court on eight
-of nine stress views. On GX5, the current search never generates a usable foreground-court
-candidate. The next experiment is therefore to add the existing independent 2D
-line/template search as one bounded source. Keep the camera plausibility filter,
-visible-span weighting and the rest of the final scoring rule fixed. Then rerun the same
-nine regression views. The unused-scene check and guarded annotator integration remain
-deferred.
+The collision repair did not change a scientific conclusion. The new source generates a
+usable foreground court for GX5, resolving the proposal failure. Under the unchanged
+ranker it also selects wrong courts on GX0 and Am2-28019. The direct pooled result is
+therefore rejected: seven of nine final selections are usable, down from eight of nine.
 
-The rest of this pack records the completed W5 contract. It is background for the new
-candidate-generation experiment, not an instruction to rerun W5 unchanged.
+The remaining blocker is admission. The two new wrong winners were scored from too few
+visible court markings. The next experiment is narrow: require a minimum number of
+visible markings in each direction before the line-template source's 256-candidate cap.
+Test thresholds 3 through 6, refill the pool, and rerun the nine views plus unused scenes.
+Keep proposal generation, refit and the final paint score fixed. A post-hoc saved-pool
+check restores usable selections on all nine views at thresholds 4, 5 and 6, but it is not
+yet an adopted rule. The player-coverage check stays a secondary comparison. Guarded
+annotator integration remains deferred.
+
+The rest of this pack records the completed W5 contract. It is background for the decision
+history and the next admission experiment, not an instruction to rerun W5 unchanged.
 
 This pack drove the next step after the line-only court-detector experiments on `fix/court-det`.
-The branch head reviewed here is `82d3b871bfb784f91b283761148eaa0d6501c732`.
+The line-template implementation reviewed here is commit `e603e79`.
 
 The central question is simple:
 

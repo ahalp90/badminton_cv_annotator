@@ -1,0 +1,48 @@
+{
+  "schema": "w5-visual-rulings/1",
+  "status": "reviewed",
+  "reviewer": "W5 steering review, using the crop, full-frame and reference overlays after the automatic rankings were saved",
+  "vocabulary": [
+    "usable",
+    "needs_correction",
+    "wrong_court",
+    "unclear"
+  ],
+  "rulings": [
+    {"case_id": "gxBQ_window_00_frame_0", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G0:22:4588", "ruling": "usable", "note": "Foreground court."},
+    {"case_id": "gxBQ_window_00_frame_0", "arm": "B", "role": "original_only", "selected_origin_key": "line_template:rectangle_19114:template_134", "ruling": "wrong_court", "note": "Upper-left hall structure."},
+    {"case_id": "gxBQ_window_00_frame_0", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "line_template:rectangle_19114:template_134/child", "ruling": "wrong_court", "note": "Upper-left hall structure."},
+
+    {"case_id": "gxBQ_window_00_frame_5", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G0:181:973", "ruling": "wrong_court", "note": "Rear court and wall structure."},
+    {"case_id": "gxBQ_window_00_frame_5", "arm": "B", "role": "original_only", "selected_origin_key": "line_template:rectangle_85795:template_72", "ruling": "usable", "note": "Foreground court."},
+    {"case_id": "gxBQ_window_00_frame_5", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "line_template:rectangle_85795:template_72/child", "ruling": "usable", "note": "Foreground court."},
+
+    {"case_id": "am2_window_00_frame_150", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G0:30:33", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "am2_window_00_frame_150", "arm": "B", "role": "original_only", "selected_origin_key": "G0:30:148", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "am2_window_00_frame_150", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G1:30:137/child", "ruling": "usable", "note": "Correct court."},
+
+    {"case_id": "am2_window_01_frame_28019", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G1:15:168", "ruling": "usable", "note": "Target court."},
+    {"case_id": "am2_window_01_frame_28019", "arm": "B", "role": "original_only", "selected_origin_key": "line_template:rectangle_210761:template_48", "ruling": "wrong_court", "note": "Adjacent right-hand court."},
+    {"case_id": "am2_window_01_frame_28019", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "line_template:rectangle_210761:template_48", "ruling": "wrong_court", "note": "Adjacent right-hand court."},
+
+    {"case_id": "am3_window_00_frame_0", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G1:43:296", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "am3_window_00_frame_0", "arm": "B", "role": "original_only", "selected_origin_key": "G1:43:299", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "am3_window_00_frame_0", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G1:43:299/child", "ruling": "usable", "note": "Correct court."},
+
+    {"case_id": "shuttleset_03_scene_0017", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G1:1:71", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0017", "arm": "B", "role": "original_only", "selected_origin_key": "G1:1:5355", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0017", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G1:1:1308/child", "ruling": "usable", "note": "Correct court."},
+
+    {"case_id": "shuttleset_03_scene_0019", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G0:1:60", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0019", "arm": "B", "role": "original_only", "selected_origin_key": "line_template:rectangle_164603:template_55", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0019", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G1:1:533/child", "ruling": "usable", "note": "Correct court."},
+
+    {"case_id": "shuttleset_03_scene_0016", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G0:1:31", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0016", "arm": "B", "role": "original_only", "selected_origin_key": "G0:1:31", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_03_scene_0016", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G0:1:31", "ruling": "usable", "note": "Correct court."},
+
+    {"case_id": "shuttleset_21_scene_0020", "arm": "A", "role": "legacy_paint_first", "selected_origin_key": "G1:0:2", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_21_scene_0020", "arm": "B", "role": "original_only", "selected_origin_key": "G1:0:1970", "ruling": "usable", "note": "Correct court."},
+    {"case_id": "shuttleset_21_scene_0020", "arm": "C", "role": "original_plus_adjusted", "selected_origin_key": "G1:0:1970", "ruling": "usable", "note": "Correct court."}
+  ]
+}

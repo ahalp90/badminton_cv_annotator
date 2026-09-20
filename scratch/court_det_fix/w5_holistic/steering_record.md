@@ -159,7 +159,7 @@ evidence and all three selected geometries stay unchanged. Two diagnostic ranks 
 the duplicate entries above them disappeared. The collision repair also lets the five
 previously stopped views complete. These changes do not reverse any W5 finding.
 
-### Remaining blocker and next branch
+### Remaining blocker and next experiment
 
 The remaining blocker is **proposal**. GX5 has no usable foreground court in the bounded
 population, including the saved material from before global retention. Ranking cannot
@@ -179,7 +179,55 @@ Do not run another W5 recompute before adding that candidate source. Keep the un
 check and guarded reuse/shadow integration for later; neither answers the current failure
 to generate the foreground-court candidate.
 
+## Line-template candidate-source regression (run `line_template_regression_20260920`)
+
+The added line-template source generates the missing GX5 foreground court. The final
+original-plus-adjusted selection is now usable on GX5. The same source outranks usable
+existing candidates with wrong courts on GX0 and Am2-28019. Direct pooling therefore
+drops the final result from eight usable views to seven of nine.
+
+| view | stage-5 final | line-template run final | ruling | old final's new rank |
+| --- | --- | --- | --- | ---: |
+| GX0 | `G0:22:4580/child` | `line_template:rectangle_19114:template_134/child` | wrong_court | 4 |
+| GX5 | `G0:181:948/child` | `line_template:rectangle_85795:template_72/child` | usable | 40 |
+| Am2-28019 | `G1:15:164/child` | `line_template:rectangle_210761:template_48` | wrong_court | 2 |
+
+The other six final selections stay usable. Preflight and full-run source settings,
+ordering, counts, contamination checks and proposal totals match on all nine views;
+elapsed times differ. The stage-5 selections keep identical corners, homographies, gates
+and ranking evidence. The legacy selections are also identical. This confirms again that
+the collision repair changed identity and provenance handling, not a scientific
+conclusion.
+
+### Remaining blocker and next experiment
+
+The remaining blocker is **admission**. GX0 and Am2-28019 both retain usable candidates
+near the top of the final order, so the immediate symptom is misranking. The wrong
+line-template candidates entered the pool with support measured from too little of the
+court: 3 and 2 visible markings per direction on GX0, and 3 and 6 on Am2-28019. The
+correct new GX5 candidate has 6 and 6. This is a source-admission weakness before it is a
+general ranking problem. The line-template source has solved the GX5 proposal failure,
+and refit does not explain either regression.
+
+Filtering the saved final order so line-template parents and children need at least four
+visible markings in each direction selects the visually usable court on all nine
+development views. Thresholds 4, 5 and 6 give the same nine winners; threshold 3 still
+fails Am2-28019. This uses source visibility only and leaves the final score order intact.
+The result is in
+`runs/line_template_regression_20260920/line_visibility_sensitivity.json`.
+
+Run one bounded follow-up on the line-template admission floor. Test thresholds 3 through
+6 before the 256-candidate cap, refill the pool, and rerun the nine views plus unused
+scenes. Keep proposal generation, refit and the final paint score fixed. The saved-pool
+check is post-hoc and cannot show which later hypotheses will refill the pool.
+
+The separate player-coverage diagnostic also selects the usable court on all nine saved
+pools. Keep it as a secondary comparison. It was chosen after the visual rulings and it
+couples court detection to player tracking, while the source-visibility rule addresses the
+same failures directly.
+
 ## History
 
 - 2026-09-20: pilot run `w5_stage2_20260920` ruled; junction fix, camera filter and visible-span weighting issued for seance 2.
 - 2026-09-20: final run `w5_stage5_20260920` ruled; collision work accepted; new 2D candidate source chosen as the next experiment.
+- 2026-09-21: line-template source regression ruled; GX5 proposal fixed, direct pooling rejected, line-visibility admission experiment chosen next.
