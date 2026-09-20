@@ -1,1 +1,203 @@
-{"schema":"w5-visual-rulings/1","status":"pending_review","rulings":[]}
+{
+  "schema": "w5-visual-rulings/1",
+  "status": "reviewed",
+  "reviewer": "W5 steering review, using the prediction, crop and full-frame overlays; references were consulted only after the automatic rankings were saved",
+  "vocabulary": [
+    "usable",
+    "needs_correction",
+    "wrong_court",
+    "unclear"
+  ],
+  "rulings": [
+    {
+      "case_id": "gxBQ_window_00_frame_0",
+      "arm": "A",
+      "selected_origin_key": "G0:22:4588",
+      "ruling": "usable",
+      "note": "The visible near-half paint aligns; the extrapolated far boundary is consistent."
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_0",
+      "arm": "B",
+      "selected_origin_key": "G1:22:270",
+      "ruling": "usable",
+      "note": "The court outline follows the played court and visible paint."
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_0",
+      "arm": "C",
+      "selected_origin_key": "G0:22:4580/child",
+      "ruling": "usable",
+      "note": "The refitted court follows the visible paint and keeps the correct court identity."
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_5",
+      "arm": "A",
+      "selected_origin_key": "G0:181:973",
+      "ruling": "wrong_court",
+      "note": "The outline follows rear court and hall structure instead of the foreground court."
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_5",
+      "arm": "B",
+      "selected_origin_key": "G0:181:996",
+      "ruling": "wrong_court",
+      "note": "The outline follows rear court and hall structure instead of the foreground court."
+    },
+    {
+      "case_id": "gxBQ_window_00_frame_5",
+      "arm": "C",
+      "selected_origin_key": "G0:181:948/child",
+      "ruling": "wrong_court",
+      "note": "Refitting tightens the same wrong rear-court hypothesis."
+    },
+    {
+      "case_id": "am2_window_00_frame_150",
+      "arm": "A",
+      "selected_origin_key": "G0:30:33",
+      "ruling": "usable",
+      "note": "The outline is on the played court with tolerable boundary drift."
+    },
+    {
+      "case_id": "am2_window_00_frame_150",
+      "arm": "B",
+      "selected_origin_key": "G0:30:148",
+      "ruling": "usable",
+      "note": "The court identity and visible paint alignment are usable."
+    },
+    {
+      "case_id": "am2_window_00_frame_150",
+      "arm": "C",
+      "selected_origin_key": "G1:30:137/child",
+      "ruling": "usable",
+      "note": "The span-weighted rule selects the correct court and the child aligns closely."
+    },
+    {
+      "case_id": "am2_window_01_frame_28019",
+      "arm": "A",
+      "selected_origin_key": "G1:15:168",
+      "ruling": "usable",
+      "note": "The played court and visible paint are correctly identified."
+    },
+    {
+      "case_id": "am2_window_01_frame_28019",
+      "arm": "B",
+      "selected_origin_key": "G1:15:3024",
+      "ruling": "needs_correction",
+      "note": "The right court is identified, but the boundaries retain visible offset."
+    },
+    {
+      "case_id": "am2_window_01_frame_28019",
+      "arm": "C",
+      "selected_origin_key": "G1:15:164/child",
+      "ruling": "usable",
+      "note": "The refitted court follows the played court and visible paint."
+    },
+    {
+      "case_id": "am3_window_00_frame_0",
+      "arm": "A",
+      "selected_origin_key": "G1:43:296",
+      "ruling": "usable",
+      "note": "The outline follows the played court in both directions."
+    },
+    {
+      "case_id": "am3_window_00_frame_0",
+      "arm": "B",
+      "selected_origin_key": "G1:43:299",
+      "ruling": "usable",
+      "note": "The selected parent follows the correct court and visible paint."
+    },
+    {
+      "case_id": "am3_window_00_frame_0",
+      "arm": "C",
+      "selected_origin_key": "G1:43:299/child",
+      "ruling": "usable",
+      "note": "The child preserves the correct identity and improves local alignment."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0017",
+      "arm": "A",
+      "selected_origin_key": "G1:1:71",
+      "ruling": "usable",
+      "note": "The broadcast court and visible paint are correctly identified."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0017",
+      "arm": "B",
+      "selected_origin_key": "G1:1:5355",
+      "ruling": "usable",
+      "note": "The selected parent remains on the played court."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0017",
+      "arm": "C",
+      "selected_origin_key": "G1:1:1308/child",
+      "ruling": "usable",
+      "note": "The selected child follows the played court and visible paint."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0019",
+      "arm": "A",
+      "selected_origin_key": "G0:1:60",
+      "ruling": "usable",
+      "note": "The broadcast court and visible paint are correctly identified."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0019",
+      "arm": "B",
+      "selected_origin_key": "G0:1:74",
+      "ruling": "usable",
+      "note": "The selected parent is within a few pixels of the approved control."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0019",
+      "arm": "C",
+      "selected_origin_key": "G1:1:533/child",
+      "ruling": "usable",
+      "note": "The selected child follows the played court and visible paint."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0016",
+      "arm": "A",
+      "selected_origin_key": "G0:1:31",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0016",
+      "arm": "B",
+      "selected_origin_key": "G0:1:31",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    },
+    {
+      "case_id": "shuttleset_03_scene_0016",
+      "arm": "C",
+      "selected_origin_key": "G0:1:31",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    },
+    {
+      "case_id": "shuttleset_21_scene_0020",
+      "arm": "A",
+      "selected_origin_key": "G1:0:2",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    },
+    {
+      "case_id": "shuttleset_21_scene_0020",
+      "arm": "B",
+      "selected_origin_key": "G1:0:1970",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    },
+    {
+      "case_id": "shuttleset_21_scene_0020",
+      "arm": "C",
+      "selected_origin_key": "G1:0:1970",
+      "ruling": "usable",
+      "note": "The selected court follows the visible broadcast-court paint."
+    }
+  ],
+  "escalated_to_human": []
+}

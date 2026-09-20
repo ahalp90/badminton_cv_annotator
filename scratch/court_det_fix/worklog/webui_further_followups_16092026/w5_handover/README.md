@@ -1,6 +1,23 @@
 # W5 handover — holistic court detector pilot
 
-This pack is for the next step after the line-only court-detector experiments on `fix/court-det`.
+## Status: closed
+
+W5 closed on 2026-09-20. The reviewed A/B/C calls are in the
+[final stage-5 packet](../../../w5_holistic/runs/w5_stage5_20260920/). The branch decision
+and next-session direction are in the
+[steering record](../../../w5_holistic/steering_record.md).
+
+The collision repair did not change a scientific conclusion. Arm C is usable on eight of
+nine stress views. GX5 remains a proposal failure because no useful foreground-court
+geometry reaches the bounded population. The next experiment is **Branch P**: add the
+existing independent 2D line/template proposer as a bounded source, keep the W5 evidence
+pass and R1+R2 judge fixed, and rerun the same nine regression views. D1 and D2 stay
+deferred.
+
+The rest of this pack records the completed W5 contract. It is background for Branch P,
+not an instruction to rerun W5.
+
+This pack drove the next step after the line-only court-detector experiments on `fix/court-det`.
 The branch head reviewed here is `82d3b871bfb784f91b283761148eaa0d6501c732`.
 
 The central question is simple:
@@ -11,7 +28,7 @@ The proposed answer is to keep the existing direction-based work as a **candidat
 
 The important change in this revision is how W5 treats thresholds. The first pass is an **evidence census**, not an acceptance test. Historical cutoffs from earlier experiments are retained as useful reference probes, but they do not get to eliminate a plausible court merely because they were convenient in one earlier camera regime. Hard rejection is reserved for genuinely invalid geometry, numerical failure or broken provenance. The frontier model sees the raw evidence, the historical readouts and the visual controls, then decides how the global rule should reduce them.
 
-## Which file to read
+## Files in the completed W5 pack
 
 - **[W5_STEERING_PROMPT.md](W5_STEERING_PROMPT.md)** — give this to the frontier model first. Its job is to supervise the pilot, review the evidence, make the non-local decisions and decide what Luna Max should do next.
 - **[W5_EXECUTOR_PROMPT.md](W5_EXECUTOR_PROMPT.md)** — the implementation contract for Luna Max. It tells Luna what to measure, what may be rejected outright, what must remain visible for steering, and how to return enough evidence for cheap re-ranking without rerunning expensive geometry.
@@ -19,7 +36,9 @@ The important change in this revision is how W5 treats thresholds. The first pas
 - **[DEFERRED_BRANCHES.md](DEFERRED_BRANCHES.md)** — two later engineering branches that are worth preserving because W5 may not naturally remind us to run them: a fresh-scene reality check and guarded reuse/shadow integration. They are optional and frontier-activated, not W5 gates.
 - **[SOURCE_LEDGER.md](SOURCE_LEDGER.md)** — where the claims and frozen inputs come from. It records source paths and the producer/import distinctions that actually matter.
 
-## How to use the pack
+## Original W5 launch sequence (complete)
+
+This sequence is retained for provenance. Do not repeat it before starting Branch P.
 
 1. Give the frontier model `W5_STEERING_PROMPT.md`, `W5_REVIEW.md` and `SOURCE_LEDGER.md`.
 2. The frontier model gives Luna Max `W5_EXECUTOR_PROMPT.md` and supervises the five-view evidence pilot.

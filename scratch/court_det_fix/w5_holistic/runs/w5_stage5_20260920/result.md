@@ -167,4 +167,7 @@ Reference metrics were joined after the automatic rankings and sensitivity order
 ## Notes
 
 The packet keeps historical player/camera subsets, raw junction continuation evidence and refit attempts visible. It makes no claim beyond this development corpus.
-Visual review is still pending: `visual_rulings.json` has status `pending_review` and no rulings have been applied.
+Visual review is complete. Arm C is usable on eight of nine views. GX5 is `wrong_court`
+because the bounded proposal population does not contain useful foreground-court geometry.
+The full A/B/C rulings are in `visual_rulings.json`; the branch decision is in
+`../../steering_record.md`.

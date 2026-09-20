@@ -124,6 +124,57 @@ The paint-backed readout uses the historical contrast probe of 10. Seance 2 rera
 R1 + R2 with the probe at 5, 10, 15 and 20 from the saved raw ridge arrays and reports the
 rank-1 candidate per view. The probe stays at 10 unless that table shows a reversal.
 
+## Final close-out (run `w5_stage5_20260920`)
+
+W5 closes with Arm C usable on eight of nine stress views. GX5 is the only failed view.
+Its A, B and C winners all follow rear court or hall structure instead of the foreground
+court. No visual call needs human escalation.
+
+| view | A selection / ruling | B selection / ruling | C selection / ruling | C failure |
+|---|---|---|---|---|
+| GX0 | `G0:22:4588` / usable | `G1:22:270` / usable | `G0:22:4580/child` / usable | — |
+| GX5 | `G0:181:973` / wrong_court | `G0:181:996` / wrong_court | `G0:181:948/child` / wrong_court | missing |
+| Am2-150 | `G0:30:33` / usable | `G0:30:148` / usable | `G1:30:137/child` / usable | — |
+| Am2-28019 | `G1:15:168` / usable | `G1:15:3024` / needs_correction | `G1:15:164/child` / usable | — |
+| Am3-0 | `G1:43:296` / usable | `G1:43:299` / usable | `G1:43:299/child` / usable | — |
+| SS03-17 | `G1:1:71` / usable | `G1:1:5355` / usable | `G1:1:1308/child` / usable | — |
+| SS03-19 | `G0:1:60` / usable | `G0:1:74` / usable | `G1:1:533/child` / usable | — |
+| SS03-16 | `G0:1:31` / usable | `G0:1:31` / usable | `G0:1:31` / usable | — |
+| SS21-20 | `G1:0:2` / usable | `G1:0:1970` / usable | `G1:0:1970` / usable | — |
+
+### Collision ruling
+
+The collision work changed identity and provenance handling, not a scientific conclusion.
+The final packet contains 4,608 source occurrences, 268 exact cross-source duplicate
+groups, 4,340 canonical parents and 3,667 valid children. Every duplicate group contains
+one G0 and one G1 occurrence with matching W5 gates.
+
+GX0, Am3 and GX5 keep the same common-candidate evidence and selections as the earlier
+packets. Am2-150 removes one exact duplicate parent and its child. Its shared-candidate
+evidence and selected A/B/C geometries stay unchanged. Two diagnostic ranks move because
+the duplicate entries above them disappeared. The collision repair also lets the five
+previously stopped views complete. These changes do not reverse any W5 finding.
+
+### Remaining blocker and next branch
+
+The remaining blocker is **proposal**. GX5 has no usable foreground court in the bounded
+population, including the saved material from before global retention. Ranking cannot
+select geometry that was never proposed. Admission and refit are therefore downstream of
+the failure. The earlier GX5 source audit in
+[`automatic_axes_results.md`](../../../experiments/annotator/independent_court/recorded/player_guided/projective_patterns/automatic_axes_results.md)
+found that the closest camera-eligible candidate was still 89.94 working pixels from the
+control. It also found that the useful observed directions were lost during proposal.
+
+Take **Branch P** next. Add the existing independent 2D line/template proposer as one
+bounded source. Use cached lines and broad families, then feed its candidates through the
+unchanged W5 evidence pass and R1+R2 judge. Run the same nine views as regression cases.
+Only revisit line extraction if the cached fragments cannot represent the required paint.
+
+Do not run another W5 recompute before that proposal change. Keep the unused-scene check
+(D1) and guarded reuse/shadow integration (D2) for later; neither answers the current
+proposal failure.
+
 ## History
 
 - 2026-09-20: pilot run `w5_stage2_20260920` ruled; R0 fix, R1 and R2 issued for seance 2.
+- 2026-09-20: final run `w5_stage5_20260920` ruled; collision work accepted; Branch P issued.
