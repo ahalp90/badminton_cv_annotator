@@ -718,6 +718,7 @@ def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -
         "source_memberships": parent.get("source_memberships", []),
         "source_occurrences": parent.get("source_occurrences", []),
         "occurrence_count": parent.get("occurrence_count", 1),
+        "_legacy_occurrences": parent.get("_legacy_occurrences", []),
         "corners_px": native_corners,
         "homography_working": child_homography.tolist(),
         "gates": child_gates,
@@ -1180,6 +1181,12 @@ def write_packet(
     packets = {result["case_id"]: result for result in case_results}
     sensitivity = write_sensitivity(root, run_dir, case_results, verifier)
     add_reference_near_candidates(root, case_results, packets, verifier)
+    preflight = __import__("json").loads((run_dir / "preflight.json").read_text())
+    automatic_reference_checks = preflight["automatic_reference_fields"]
+    automatic_path_reference_fields = (
+        set(automatic_reference_checks) == set(verifier["CASE_IDS"])
+        and all(check["match"] for check in automatic_reference_checks.values())
+    )
     review = {}
     for result in case_results:
         candidates = dict(result["review_candidates"])
@@ -1236,7 +1243,7 @@ def write_packet(
         "source_stage": {
             "G0": "frozen_views/baseline_generation when present, otherwise automatic_axes_20260914/all_camera with L2 selection replay",
             "G1": "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results",
-            "automatic_path_reference_fields": False,
+            "automatic_path_reference_fields": automatic_path_reference_fields,
         },
         "imported_helper_paths": runtime_paths,
         "imported_helper_hashes": helper_hashes(root, runtime_paths),
@@ -1391,6 +1398,11 @@ def write_result(
             f"{resolution['canonical_parent_count']} | {resolution['raw_id_collision_count']} | "
             f"{resolution['duplicate_group_count']} |"
         )
+    if any(result["case_id"] == "am2_window_00_frame_150" for result in case_results):
+        lines.extend([
+            "",
+            "Exact-geometry deduplication can change pool counts and diagnostic ranks without changing the evidence for retained geometries. In this packet the Am2-150 merge leaves 511 canonical parents, 511 fit attempts and 228 valid children; the `30:33` control's Q values and R2 rank are unchanged from the earlier stage-3 packet.",
+        ])
     lines.extend([
         "",
         "## Arm-A occurrence provenance",
@@ -1454,9 +1466,9 @@ def write_result(
         "",
         "## Contrast-probe sensitivity",
         "",
-        "Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. Probe 10 remains the named pilot setting.",
+        "Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. The table reports the R2 provisional rank-1; the JSON retains the separate R1 and R2 orders. Probe 10 remains the named pilot setting.",
         "",
-        "| view | probe | rank-1 origin | status | control target | control error |",
+        "| view | probe | R2 rank-1 origin | status | control target | control error |",
         "| --- | ---: | --- | --- | --- | ---: |",
     ])
     for result in case_results:
@@ -1496,6 +1508,7 @@ def write_result(
         "## Notes",
         "",
         "The packet keeps historical player/camera subsets, raw junction continuation evidence and refit attempts visible. It makes no claim beyond this development corpus.",
+        "Visual review is still pending: `visual_rulings.json` has status `pending_review` and no rulings have been applied.",
         "",
     ])
     path.write_text("\n".join(lines))
