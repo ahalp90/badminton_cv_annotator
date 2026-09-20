@@ -6,10 +6,13 @@ from types import SimpleNamespace
 
 import cv2
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from run_w5 import canonicalise_populations
 from verifier import (
+    legacy_winners,
     permutation_determinism,
     photometric_samples,
     rank_candidates,
@@ -39,6 +42,82 @@ def candidate(origin_key: str, score: float, source_order: int, origin_index: in
             "exclusive_reverse": score,
         },
     }
+
+
+def population_entry(
+    candidate_id: str,
+    homography_offset: float = 0.0,
+    profile_score: float = 0.5,
+) -> dict:
+    return {
+        "candidate_id": candidate_id,
+        "corners_px": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]],
+        "homography_working": [
+            [1.0, 0.0, homography_offset],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        "gates": {"camera_error": 0.05},
+        "profile": {"score": profile_score},
+        "stripe": {"exclusive": {"score": profile_score, "reverse": profile_score}},
+    }
+
+
+def test_source_qualified_identity_keeps_distinct_raw_id_collisions() -> None:
+    records, resolution = canonicalise_populations(
+        [population_entry("0:7")],
+        [population_entry("0:7", homography_offset=1.0)],
+    )
+
+    assert [record["origin_key"] for record in records] == ["G0:0:7", "G1:0:7"]
+    assert resolution["raw_id_collisions"] == ["0:7"]
+    assert resolution["duplicate_group_count"] == 0
+    by_origin = {record["origin_key"]: record for record in records}
+    assert len(by_origin) == 2
+    assert by_origin["G0:0:7"]["source_memberships"] == ["G0"]
+    assert by_origin["G1:0:7"]["source_memberships"] == ["G1"]
+
+
+def test_exact_geometry_duplicate_preserves_occurrences() -> None:
+    records, resolution = canonicalise_populations(
+        [population_entry("0:7")],
+        [population_entry("3:99", profile_score=0.9)],
+    )
+
+    assert len(records) == 1
+    assert records[0]["origin_key"] == "G0:0:7"
+    assert records[0]["source_memberships"] == ["G0", "G1"]
+    assert records[0]["occurrence_count"] == 2
+    assert [item["candidate_id"] for item in records[0]["source_occurrences"]] == ["0:7", "3:99"]
+    ranking = legacy_winners(records)
+    assert ranking["eligible_count"] == 2
+    assert ranking["paint"] == "G0:0:7"
+    assert resolution["duplicate_group_count"] == 1
+
+
+def test_source_qualified_identity_set_is_order_independent() -> None:
+    g0 = [population_entry("0:7"), population_entry("0:8", homography_offset=1.0)]
+    g1 = [population_entry("0:7", homography_offset=2.0), population_entry("0:8", homography_offset=3.0)]
+    records, _ = canonicalise_populations(g0, g1)
+    permuted, _ = canonicalise_populations(list(reversed(g0)), list(reversed(g1)))
+
+    assert sorted(record["origin_key"] for record in records) == sorted(
+        record["origin_key"] for record in permuted
+    )
+
+
+def test_unexpected_duplicate_geometry_stops_instead_of_shrinking_pool() -> None:
+    with pytest.raises(AssertionError, match="duplicate geometry"):
+        canonicalise_populations([population_entry("0:7"), population_entry("0:8")], [])
+
+
+def test_cross_source_duplicate_with_differing_gates_stops() -> None:
+    left = population_entry("0:7")
+    right = population_entry("3:99")
+    right["gates"] = {"camera_error": 0.06}
+
+    with pytest.raises(AssertionError, match="differing gates"):
+        canonicalise_populations([left], [right])
 
 
 def test_ranker_uses_stable_origin_order_for_ties() -> None:

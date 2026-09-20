@@ -602,16 +602,40 @@ def provisional_order(candidates: Sequence[dict]) -> tuple[str, list[dict]]:
 
 
 def legacy_winners(entries: Sequence[dict]) -> dict:
-    eligible = [entry for entry in entries
+    occurrences = []
+    for entry in entries:
+        if entry.get("_legacy_occurrences"):
+            occurrences.extend(
+                {**occurrence, "origin_key": entry["origin_key"]}
+                for occurrence in entry["_legacy_occurrences"]
+            )
+        else:
+            occurrences.append(entry)
+
+    def legacy_value(entry: dict, name: str):
+        if "legacy" in entry:
+            return entry["legacy"].get(name)
+        if name == "profile_score":
+            return entry.get("profile", {}).get("score")
+        if name == "stripe_exclusive_score":
+            return entry.get("stripe", {}).get("exclusive", {}).get("score")
+        return entry.get("stripe", {}).get("exclusive", {}).get("reverse")
+
+    eligible = [entry for entry in occurrences
                 if entry.get("gates", {}).get("camera_error") is not None
                 and entry["gates"]["camera_error"] <= CAMERA_LIMIT
-                and entry.get("profile", {}).get("score") is not None]
-    line = max(eligible, key=lambda entry: entry["stripe"]["exclusive"]["score"], default=None)
-    paint = max(eligible, key=lambda entry: (entry["profile"]["score"], entry["stripe"]["exclusive"]["score"]),
-                default=None)
+                and legacy_value(entry, "profile_score") is not None]
+    line = max(eligible, key=lambda entry: legacy_value(entry, "stripe_exclusive_score"), default=None)
+    paint = max(eligible, key=lambda entry: (
+        legacy_value(entry, "profile_score"), legacy_value(entry, "stripe_exclusive_score")
+    ), default=None)
+
+    def identity(entry: dict) -> str | None:
+        return None if entry is None else entry.get("origin_key", entry.get("candidate_id"))
+
     return {
-        "line": None if line is None else line["candidate_id"],
-        "paint": None if paint is None else paint["candidate_id"],
+        "line": identity(line),
+        "paint": identity(paint),
         "eligible_count": len(eligible),
     }
 
@@ -728,12 +752,20 @@ def candidate_review(candidate: dict) -> dict:
     return {
         "origin_key": candidate["origin_key"],
         "candidate_id": candidate["candidate_id"],
+        "candidate_id_scope": "source-local",
         "kind": candidate["kind"],
         "parent_origin_key": candidate.get("parent_origin_key"),
         "source": candidate.get("source"),
         "source_order": candidate.get("source_order"),
         "origin_index": candidate.get("origin_index"),
         "kind_order": candidate.get("kind_order"),
+        "source_memberships": candidate.get("source_memberships", []),
+        "source_occurrences": candidate.get("source_occurrences", []),
+        "occurrence_count": candidate.get("occurrence_count", 1),
+        "legacy_occurrences": (
+            candidate.get("_legacy_occurrences", [])
+            if candidate.get("occurrence_count", 1) > 1 else []
+        ),
         "expected_ruling": candidate.get("expected_ruling"),
         "in_automatic_pool": candidate.get("in_automatic_pool"),
         "corners_px": candidate.get("corners_px"),

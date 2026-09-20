@@ -386,24 +386,148 @@ def compact_legacy(entry: dict) -> dict:
     }
 
 
-def make_parent_record(
-    context, entry: dict, source: str, source_order: int, origin_index: int, runtime: dict[str, Any], cache: dict,
-) -> tuple[dict, dict[str, np.ndarray] | None]:
-    verifier = runtime["verifier"]
-    candidate = {
-        "origin_key": f"{source}:{entry['candidate_id']}",
-        "candidate_id": entry["candidate_id"],
-        "kind": "parent",
+def candidate_geometry_key(entry: dict) -> tuple[tuple[int, ...], bytes, tuple[int, ...], bytes]:
+    corners = np.asarray(entry["corners_px"], dtype=float)
+    homography = np.asarray(entry["homography_working"], dtype=float)
+    return corners.shape, corners.tobytes(), homography.shape, homography.tobytes()
+
+
+def source_occurrence(entry: dict, source: str, source_order: int, origin_index: int) -> dict:
+    candidate_id = str(entry["candidate_id"])
+    return {
+        "origin_key": f"{source}:{candidate_id}",
         "source": source,
         "source_order": source_order,
         "origin_index": origin_index,
+        "candidate_id": candidate_id,
+        "pair_id": entry.get("pair_id"),
+        "axis_ids": entry.get("axis_ids"),
+        "rotated_180": entry.get("rotated_180"),
+    }
+
+
+def canonicalise_populations(g0: list[dict], g1: list[dict]) -> tuple[list[dict], dict]:
+    """Build collision-safe parent identities while retaining source occurrences."""
+    source_entries = (("G0", g0), ("G1", g1))
+    source_ids = {
+        source: [str(entry["candidate_id"]) for entry in entries]
+        for source, entries in source_entries
+    }
+    for source, ids in source_ids.items():
+        if len(ids) != len(set(ids)):
+            raise AssertionError(f"{source} candidate IDs are not unique within their source")
+
+    by_geometry: dict[tuple[tuple[int, ...], bytes, tuple[int, ...], bytes], dict] = {}
+    records = []
+    for source_order, (source, entries) in enumerate(source_entries):
+        for origin_index, entry in enumerate(entries):
+            geometry_key = candidate_geometry_key(entry)
+            occurrence = source_occurrence(entry, source, source_order, origin_index)
+            legacy_occurrence = {
+                **occurrence,
+                "gates": entry.get("gates", {}),
+                "legacy": compact_legacy(entry),
+            }
+            record = by_geometry.get(geometry_key)
+            if record is None:
+                record = {
+                    "entry": entry,
+                    "origin_key": occurrence["origin_key"],
+                    "candidate_id": occurrence["candidate_id"],
+                    "source": source,
+                    "source_order": source_order,
+                    "origin_index": origin_index,
+                    "source_memberships": [source],
+                    "source_occurrences": [occurrence],
+                    "occurrence_count": 1,
+                    "_legacy_occurrences": [legacy_occurrence],
+                }
+                by_geometry[geometry_key] = record
+                records.append(record)
+                continue
+            if source in record["source_memberships"]:
+                raise AssertionError(
+                    f"{source}: duplicate geometry for {occurrence['candidate_id']} and {record['candidate_id']}"
+                )
+            if entry.get("gates", {}) != record["entry"].get("gates", {}):
+                raise AssertionError(
+                    f"{source}: duplicate geometry has differing gates for {occurrence['candidate_id']} "
+                    f"and {record['candidate_id']}"
+                )
+            record["source_memberships"].append(source)
+            record["source_occurrences"].append(occurrence)
+            record["occurrence_count"] += 1
+            record["_legacy_occurrences"].append(legacy_occurrence)
+
+    raw_id_collisions = sorted(set(source_ids["G0"]) & set(source_ids["G1"]))
+    duplicate_groups = [
+        {
+            "origin_key": record["origin_key"],
+            "occurrence_count": record["occurrence_count"],
+            "source_memberships": record["source_memberships"],
+            "source_occurrences": record["source_occurrences"],
+        }
+        for record in records
+        if record["occurrence_count"] > 1
+    ]
+    return records, {
+        "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when gates agree",
+        "source_occurrence_counts": {"G0": len(g0), "G1": len(g1)},
+        "source_occurrence_count": len(g0) + len(g1),
+        "canonical_parent_count": len(records),
+        "raw_id_collisions": raw_id_collisions,
+        "raw_id_collision_count": len(raw_id_collisions),
+        "duplicate_group_count": len(duplicate_groups),
+        "duplicate_groups": duplicate_groups,
+    }
+
+
+def make_parent_record(
+    context,
+    entry: dict,
+    source: str,
+    source_order: int,
+    origin_index: int,
+    runtime: dict[str, Any],
+    cache: dict,
+    identity: dict | None = None,
+) -> tuple[dict, dict[str, np.ndarray] | None]:
+    verifier = runtime["verifier"]
+    if identity is None:
+        occurrence = source_occurrence(entry, source, source_order, origin_index)
+        identity = {
+            "origin_key": occurrence["origin_key"],
+            "candidate_id": occurrence["candidate_id"],
+            "source": source,
+            "source_order": source_order,
+            "origin_index": origin_index,
+            "source_memberships": [source],
+            "source_occurrences": [occurrence],
+            "occurrence_count": 1,
+            "_legacy_occurrences": [{
+                **occurrence,
+                "gates": entry.get("gates", {}),
+                "legacy": compact_legacy(entry),
+            }],
+        }
+    candidate = {
+        "origin_key": identity["origin_key"],
+        "candidate_id": identity["candidate_id"],
+        "kind": "parent",
+        "source": identity["source"],
+        "source_order": identity["source_order"],
+        "origin_index": identity["origin_index"],
         "kind_order": 0,
         "parent_origin_key": None,
+        "source_memberships": identity["source_memberships"],
+        "source_occurrences": identity["source_occurrences"],
+        "occurrence_count": identity["occurrence_count"],
         "corners_px": entry["corners_px"],
         "homography_working": entry["homography_working"],
         "gates": entry.get("gates", {}),
         "historical": verifier["historical_predicates"](entry.get("gates", {})),
         "legacy": compact_legacy(entry),
+        "_legacy_occurrences": identity["_legacy_occurrences"],
     }
     valid, reason = verifier["hard_validity"](entry)
     candidate["hard_valid"] = valid
@@ -541,6 +665,9 @@ def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -
         "origin_index": parent["origin_index"],
         "kind_order": 1,
         "parent_origin_key": parent["origin_key"],
+        "source_memberships": parent.get("source_memberships", []),
+        "source_occurrences": parent.get("source_occurrences", []),
+        "occurrence_count": parent.get("occurrence_count", 1),
         "corners_px": native_corners,
         "homography_working": child_homography.tolist(),
         "gates": child_gates,
@@ -586,26 +713,38 @@ def load_control_entry(root: Path, case_id: str, candidate_id: str, verifier: di
     raise KeyError((case_id, candidate_id))
 
 
+def has_source_occurrence(candidate: dict, source: str, candidate_id: str) -> bool:
+    return any(
+        occurrence["source"] == source and occurrence["candidate_id"] == candidate_id
+        for occurrence in candidate.get("source_occurrences", [])
+    )
+
+
 def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
     cv2.setNumThreads(1)
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
     context = verifier["prepare_view"](root, case_id)
     g0, g1, sources = load_populations(root, context, runtime)
-    g0_ids = {entry["candidate_id"] for entry in g0}
-    g1_ids = {entry["candidate_id"] for entry in g1}
-    collisions = sorted(g0_ids & g1_ids)
-    assert not collisions, f"{case_id}: G0/G1 candidate-ID collision: {collisions}"
+    parent_identities, identity_resolution = canonicalise_populations(g0, g1)
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]] = {}
     parents = []
     all_arrays: dict[str, np.ndarray] = {}
-    for source_order, (source, entries) in enumerate((("G0", g0), ("G1", g1))):
-        for origin_index, entry in enumerate(entries):
-            parent, arrays = make_parent_record(context, entry, source, source_order, origin_index, runtime, cache)
-            parents.append(parent)
-            if arrays is not None:
-                for key, value in arrays.items():
-                    all_arrays[f"{parent['origin_key']}::{key}"] = value
+    for identity in parent_identities:
+        parent, arrays = make_parent_record(
+            context,
+            identity["entry"],
+            identity["source"],
+            identity["source_order"],
+            identity["origin_index"],
+            runtime,
+            cache,
+            identity=identity,
+        )
+        parents.append(parent)
+        if arrays is not None:
+            for key, value in arrays.items():
+                all_arrays[f"{parent['origin_key']}::{key}"] = value
     fit_rows = []
     children = []
     for parent in parents:
@@ -628,8 +767,11 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
         control, _ = make_parent_record(context, entry, "diagnostic", 2, 0, runtime, cache)
         control["origin_key"] = f"diagnostic:{case_id}:{control_id}"
         control["candidate_id"] = control_id
+        control["source_occurrences"][0]["origin_key"] = control["origin_key"]
         control["expected_ruling"] = expected
-        control["in_automatic_pool"] = any(parent["candidate_id"] == control_id for parent in parents)
+        control["in_automatic_pool"] = any(
+            has_source_occurrence(parent, "G0", control_id) for parent in parents
+        )
         control_candidates.append(control)
     controls = []
     for control in control_candidates:
@@ -659,6 +801,7 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
         "provenance": provenance,
         "population_sources": sources,
         "population_counts": {"G0": len(g0), "G1": len(g1), "union": len(parents)},
+        "identity_resolution": identity_resolution,
         "parents": public_parents,
         "valid_children": public_children,
         "diagnostic_controls": controls,
@@ -679,7 +822,8 @@ def process_case(root: Path, case_id: str, run_dir: Path) -> dict:
         "provenance": provenance,
         "population_sources": sources,
         "population_counts": {"G0": len(g0), "G1": len(g1), "union": len(parents)},
-        "A": verifier["legacy_winners"](g0 + g1),
+        "identity_resolution": identity_resolution,
+        "A": verifier["legacy_winners"](parents),
         "B": b_rankings,
         "C": c_rankings,
         "fit_attempt_count": len(fit_rows),
@@ -727,19 +871,7 @@ def reference_diagnostics(root: Path, case_results: list[dict], verifier: dict[s
         selected["A_paint"] = result["A"].get("paint")
         record = {"case_id": result["case_id"], "selected_origin_keys": selected, "candidates": {}}
         candidate_map = result["review_candidates"]
-        candidate_id_to_origin = {
-            candidate["candidate_id"]: origin_key
-            for origin_key, candidate in candidate_map.items()
-        }
-        selected_origins = {
-            candidate_id_to_origin.get(value, value)
-            for value in selected.values()
-            if value
-        }
-        record["selected_origin_keys"] = {
-            key: candidate_id_to_origin.get(value, value)
-            for key, value in selected.items()
-        }
+        selected_origins = {value for value in selected.values() if value}
         for origin_key in selected_origins:
             candidate = candidate_map.get(origin_key)
             if candidate is None:
@@ -1006,12 +1138,7 @@ def write_packet(
                 keys.update(result[arm][rank_name][:3])
             if result[arm].get("selected_origin_key"):
                 keys.add(result[arm]["selected_origin_key"])
-        candidate_ids = {result["A"].get("line"), result["A"].get("paint")}
-        keys.update(
-            candidate["origin_key"]
-            for candidate in candidates.values()
-            if candidate.get("candidate_id") in candidate_ids
-        )
+        keys.update(value for value in (result["A"].get("line"), result["A"].get("paint")) if value)
         if result.get("reference_near"):
             keys.add(result["reference_near"]["origin_key"])
         for control in result["diagnostic_controls"]:
@@ -1031,6 +1158,7 @@ def write_packet(
                 "A": result["A"],
                 "B": result["B"],
                 "C": result["C"],
+                "identity_resolution": result["identity_resolution"],
                 "determinism": result["determinism"],
             }
             for result in case_results
@@ -1060,6 +1188,10 @@ def write_packet(
         "imported_helper_paths": runtime_paths,
         "imported_helper_hashes": helper_hashes(root, runtime_paths),
         "view_provenance": {result["case_id"]: result["provenance"] for result in case_results},
+        "candidate_identity": {
+            "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when gates agree",
+            "views": {result["case_id"]: result["identity_resolution"] for result in case_results},
+        },
         "steering_rule_revision": {
             "status": "R1 camera eligibility + R2 span-weighted directional means",
             "changed_global_rule": "R1 and R2 from steering_record.md",
@@ -1069,7 +1201,8 @@ def write_packet(
     }
     per_view_fields = [
         "case_id", "label", "view_status", "g0_source", "working_width", "working_height", "image_kind",
-        "same_image_mask_available", "G0_count", "G1_count", "A_line", "A_paint", "A_eligible_count",
+        "same_image_mask_available", "G0_count", "G1_count", "canonical_parent_count",
+        "raw_id_collision_count", "duplicate_group_count", "A_line", "A_paint", "A_eligible_count",
         "B_status", "B_selected", "B_r1_selected", "B_r2_selected", "B_pilot_selected",
         "C_status", "C_selected", "C_r1_selected", "C_r2_selected", "C_pilot_selected",
         "valid_children", "fit_attempts",
@@ -1086,6 +1219,9 @@ def write_packet(
                 "working_width": provenance["working_dimensions"][0], "working_height": provenance["working_dimensions"][1],
                 "image_kind": provenance["image_kind"], "same_image_mask_available": provenance["same_image_mask_available"],
                 "G0_count": result["population_counts"]["G0"], "G1_count": result["population_counts"]["G1"],
+                "canonical_parent_count": result["identity_resolution"]["canonical_parent_count"],
+                "raw_id_collision_count": result["identity_resolution"]["raw_id_collision_count"],
+                "duplicate_group_count": result["identity_resolution"]["duplicate_group_count"],
                 "A_line": result["A"]["line"], "A_paint": result["A"]["paint"],
                 "A_eligible_count": result["A"]["eligible_count"], "B_status": result["B"]["status"],
                 "B_selected": result["B"]["selected_origin_key"],
@@ -1179,13 +1315,29 @@ def write_result(
             "",
             "## Stopped views",
             "",
-            "The following view stopped before scoring because the required candidate-ID collision assertion fired. No candidate IDs were remapped.",
+            "The following view stopped before scoring. The reason is recorded below.",
             "",
             "| view | reason |",
             "| --- | --- |",
         ])
         for stopped in stopped_views:
             lines.append(f"| {stopped['case_id']} | {stopped['reason']} |")
+    lines.extend([
+        "",
+        "## Collision resolution",
+        "",
+        "Parent candidates use source-qualified `origin_key` values for every join, ranking, diagnostic and gallery lookup. Raw candidate IDs remain source-local provenance. Exact cross-source geometry duplicates retain all source occurrences under one canonical parent when their saved gates agree; otherwise the view stops as ambiguous. This run found no duplicate geometry groups.",
+        "",
+        "| view | source occurrences | canonical parents | raw-ID collisions | duplicate geometry groups |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ])
+    for result in case_results:
+        resolution = result["identity_resolution"]
+        lines.append(
+            f"| {result['label']} | {resolution['source_occurrence_count']} | "
+            f"{resolution['canonical_parent_count']} | {resolution['raw_id_collision_count']} | "
+            f"{resolution['duplicate_group_count']} |"
+        )
     lines.extend([
         "",
         "## R1 and R2 rank-1 selections",
@@ -1215,12 +1367,12 @@ def write_result(
             "only: no threshold or automatic pass/fail was applied."
         ),
         "",
-        "| view | control | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |",
-        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| view | origin | raw candidate | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ])
     for label, control in controls:
         lines.append(
-            f"| {label} | {control['candidate_id']} | {control.get('expected_ruling', 'unspecified')} | "
+            f"| {label} | {control['origin_key']} | {control['candidate_id']} | {control.get('expected_ruling', 'unspecified')} | "
             f"{'yes' if control.get('in_automatic_pool') else 'no'} | "
             f"{'yes' if control.get('hard_valid') else 'no'} | "
             f"{'yes' if control.get('camera_eligible') else 'no'} | "

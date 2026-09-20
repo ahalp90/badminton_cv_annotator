@@ -124,9 +124,8 @@ def render_case(root: Path, run_dir: Path, case_id: str, packet: dict, verifier:
     reference_pack = verifier["read_json_gz"](root / verifier["CASE_PACKS"][verifier["PACK_OF"][case_id]])
     reference = reference_pack.get("references", {}).get(case_id)
     candidates = packet["review_candidates"]
-    by_candidate_id = {candidate["candidate_id"]: candidate for candidate in candidates.values()}
     selections = {
-        "A_paint": by_candidate_id.get(packet["A"].get("paint")),
+        "A_paint": candidates.get(packet["A"].get("paint")),
         "B": candidates.get(packet["B"].get("selected_origin_key")),
         "C": candidates.get(packet["C"].get("selected_origin_key")),
     }
