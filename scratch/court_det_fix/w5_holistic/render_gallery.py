@@ -170,15 +170,15 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
         "",
         "Prediction overlays show the automatic outside boundary and physical finite paint template. Reference overlays are separate files where frozen references exist.",
         "",
-        "| view | A paint-first | B provisional | C provisional | diagnostic controls |",
-        "| --- | --- | --- | --- | --- |",
+        "| view | A paint-first | B provisional | C provisional | diagnostic controls | reference-near |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for case in rendered_cases:
         if case.get("stopped_reason"):
             lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — |")
             continue
         links_by_origin = case["rendered"]
-        role_links = {role: [] for role in ("A_paint", "B", "C", "control")}
+        role_links = {role: [] for role in ("A_paint", "B", "C", "control", "reference-near")}
         for origin, rendered in links_by_origin.items():
             links = rendered["links"]
             label = safe_name(origin)
@@ -191,12 +191,14 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
                 role_links["B"].append(link)
             if any(role == "C" or role.startswith("C-") for role in roles):
                 role_links["C"].append(link)
-            if any(role in ("control", "reference-near") for role in roles):
+            if "control" in roles:
                 role_links["control"].append(link)
+            if "reference-near" in roles:
+                role_links["reference-near"].append(link)
         lines.append(
             f"| {case['label']} | {'; '.join(role_links['A_paint']) or '—'} | "
             f"{'/'.join(role_links['B']) or '—'} | {'/'.join(role_links['C']) or '—'} | "
-            f"{'/'.join(role_links['control']) or '—'} |"
+            f"{'/'.join(role_links['control']) or '—'} | {'/'.join(role_links['reference-near']) or '—'} |"
         )
     index = run_dir / "gallery/index.md"
     index.parent.mkdir(parents=True, exist_ok=True)
