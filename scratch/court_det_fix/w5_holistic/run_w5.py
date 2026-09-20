@@ -1393,6 +1393,23 @@ def write_result(
         )
     lines.extend([
         "",
+        "## Arm-A occurrence provenance",
+        "",
+        "Arm A reports the canonical parent used for joins, rankings, diagnostics and gallery lookups. For an exact-geometry merge, the occurrence column identifies the source record that supplied the winning legacy score. Both parent and occurrence identities remain available in the packet records.",
+        "",
+        "| view | line parent | line occurrence | paint parent | paint occurrence |",
+        "| --- | --- | --- | --- | --- |",
+    ])
+    for result in case_results:
+        arm_a = result["A"]
+        lines.append(
+            f"| {result['label']} | {arm_a.get('line') or 'none'} | "
+            f"{arm_a.get('line_occurrence_key') or 'none'} | "
+            f"{arm_a.get('paint') or 'none'} | "
+            f"{arm_a.get('paint_occurrence_key') or 'none'} |"
+        )
+    lines.extend([
+        "",
         "## R1 and R2 rank-1 selections",
         "",
         "The C pool contains parents and valid children. R1 is the camera-eligible plain-mean paint order. R2 is the camera-eligible span-weighted order, with the span-weighted geometry fallback when needed.",
