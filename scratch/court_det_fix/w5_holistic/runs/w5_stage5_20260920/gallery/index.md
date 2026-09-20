@@ -2,7 +2,7 @@
 
 Prediction overlays show the automatic outside boundary and physical finite paint template. Reference overlays are separate files where frozen references exist.
 
-| view | A paint-first | B provisional | C provisional | diagnostic controls | reference-near |
+| view | legacy paint-first | original candidates | original + adjusted candidates | diagnostic controls | reference-near |
 | --- | --- | --- | --- | --- | --- |
 | GX0 | [G0_22_4588](gxBQ_window_00_frame_0__G0_22_4588__crop.png) | [G1_22_270](gxBQ_window_00_frame_0__G1_22_270__crop.png)/[G1_22_137](gxBQ_window_00_frame_0__G1_22_137__crop.png)/[G1_22_126](gxBQ_window_00_frame_0__G1_22_126__crop.png) | [G0_22_4580_child](gxBQ_window_00_frame_0__G0_22_4580_child__crop.png)/[G0_22_4579_child](gxBQ_window_00_frame_0__G0_22_4579_child__crop.png)/[G0_22_4594_child](gxBQ_window_00_frame_0__G0_22_4594_child__crop.png) | — | [G0_22_4588_child](gxBQ_window_00_frame_0__G0_22_4588_child__crop.png) |
 | GX5 | [G0_181_973](gxBQ_window_00_frame_5__G0_181_973__crop.png) | [G0_181_996](gxBQ_window_00_frame_5__G0_181_996__crop.png)/[G0_196_366](gxBQ_window_00_frame_5__G0_196_366__crop.png)/[G0_181_1029](gxBQ_window_00_frame_5__G0_181_1029__crop.png) | [G0_181_948_child](gxBQ_window_00_frame_5__G0_181_948_child__crop.png)/[G0_181_8372_child](gxBQ_window_00_frame_5__G0_181_8372_child__crop.png)/[G0_181_8440_child](gxBQ_window_00_frame_5__G0_181_8440_child__crop.png) | — | [G1_211_2312_child](gxBQ_window_00_frame_5__G1_211_2312_child__crop.png) |

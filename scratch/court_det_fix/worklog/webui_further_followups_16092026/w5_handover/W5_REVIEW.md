@@ -178,7 +178,11 @@ There is one practical occlusion wrinkle worth keeping in view. The frozen recor
 
 The existing full-court diagnosis used a strict player/camera eligibility rule: valid geometry, at least one player supported throughout the sampled window, two-player support in at least half the samples, and camera error at or below the existing 0.1 limit.
 
-That historical predicate is useful evidence about what the branch has already tried. W5 preserves the raw player fractions, camera error and the historical pass/fail result, but it does **not** make that predicate the first-pass B/C gate. A visibly correct court should not disappear before we have learned whether the player or camera clue is actually reliable across these views.
+That historical predicate is useful evidence about what the branch has already tried. W5
+preserves the raw player fractions, camera error and the historical pass/fail result. It
+does **not** use that predicate to filter the initial whole-court candidate comparisons. A
+visibly correct court should not disappear before we have learned whether the player or
+camera clue is reliable across these views.
 
 The camera error comes from a simplified pinhole-camera model. It may become a useful discriminator, but it is conditional on those camera assumptions. The same is true of player coverage: it is a useful ground-truth-free clue when detections are good, not a certificate that the court geometry is correct.
 
@@ -245,10 +249,12 @@ Two useful later questions do not reliably reveal themselves as W5 failure modes
 
 Those are preserved, without making them part of the make-or-break pilot, in [DEFERRED_BRANCHES.md](DEFERRED_BRANCHES.md):
 
-- **D1 — fresh-scene engineering reality check:** a small varied batch of unused views, no new labels, current global rule frozen for the batch;
-- **D2 — guarded reuse and shadow integration:** stop stale homographies crossing camera changes, then exercise automatic proposals beside the annotator before automatic replacement.
+- **Check the rule on unused scenes:** use a small varied batch, add no new labels, and
+  freeze the current global rule for the batch
+- **Guard court reuse and test annotator integration:** stop stale homographies crossing
+  camera changes, then exercise automatic proposals beside the annotator before automatic
+  replacement
 
 The frontier model decides whether either branch is worth activating after W5. Luna does not infer that decision from success alone.
 
 The full operational sequence and next-branch rules are in [W5_STEERING_PROMPT.md](W5_STEERING_PROMPT.md). The implementation contract is in [W5_EXECUTOR_PROMPT.md](W5_EXECUTOR_PROMPT.md).
-

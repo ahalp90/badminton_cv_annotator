@@ -1,4 +1,4 @@
-# Deferred branches — useful later, not part of the W5 pilot
+# Deferred experiments — useful later, not part of the W5 pilot
 
 This file preserves two follow-ups that are easy to forget precisely because a successful W5 run may not force them back into view.
 
@@ -6,7 +6,7 @@ They are **not extra W5 gates**. Luna should not start either branch merely beca
 
 The point is to preserve useful engineering questions without turning them into ceremony.
 
-## How these branches fit the operating model
+## How these experiments fit the operating model
 
 The division of labour stays the same:
 
@@ -18,9 +18,9 @@ Do not pre-build these experiments during W5. Do not make W5 wait for them. Pres
 
 ---
 
-# D1 — Fresh-scene engineering reality check
+# Check the rule on unused scenes
 
-## Why keep this branch
+## Why keep this experiment
 
 The nine W5 views are development/stress cases. They can tell us whether the holistic design is worth pursuing and help fit a global rule, but they cannot tell us whether that rule has merely become comfortable on the scenes that shaped it.
 
@@ -30,13 +30,13 @@ It is **not** a scientific holdout programme and does not require new ground-tru
 
 ## When the frontier model should activate it
 
-Consider D1 when all of the following are true:
+Run this check when all of the following are true:
 
 - W5 has produced a single global rule worth carrying forward;
 - the remaining W5 failures are understood well enough that another pass over the same nine views is unlikely to teach much;
 - the project is about to rely on the detector beyond the scenes that shaped that rule, or wants a sanity check before further integration work.
 
-Do not activate D1 just to make the experiment look more rigorous.
+Do not run it just to make the work look more rigorous.
 
 If there is no useful pool of unused scenes, say so and keep the limitation explicit. Do not create a new labelling project merely to satisfy this branch.
 
@@ -70,7 +70,9 @@ Review the batch as an engineering reality check:
 
 Do not reduce this to a success percentage. The useful question is whether the rule still behaves like the same understandable global mechanism outside the scenes that shaped it.
 
-If one **dominant, coherent** failure appears, the frontier model may authorize one targeted global correction and have Luna rerun the **same whole batch plus the nine regressions**. Do not turn D1 into an endless succession of newly selected showcase frames.
+If one **dominant, coherent** failure appears, the frontier model may authorise one targeted
+global correction and have Luna rerun the **same whole batch plus the nine regressions**.
+Do not turn the check into an endless succession of newly selected showcase frames.
 
 Possible outcomes are simple:
 
@@ -78,13 +80,13 @@ Possible outcomes are simple:
 - **one global repair is justified** — a repeated failure has a clear mechanism worth fixing once;
 - **scene dependence is still too strong** — return to the relevant proposal/admission/ranking mechanism rather than claiming broad robustness.
 
-D1 supports an engineering decision. It is not a universal reliability certificate.
+This check supports an engineering decision. It is not a universal reliability certificate.
 
 ---
 
-# D2 — Guarded reuse and shadow integration
+# Guard court reuse and test annotator integration
 
-## Why keep this branch
+## Why keep this experiment
 
 A good single-frame detector does not automatically make continuous reuse safe.
 
@@ -94,7 +96,8 @@ Those problems may not announce themselves during W5 at all. They often appear o
 
 ## When the frontier model should activate it
 
-Consider D2 when the current single-view detector is useful enough that the project is seriously considering either:
+Run this experiment when the current single-view detector is useful enough that the
+project is seriously considering either:
 
 - reusing a detected court across frames / a scene; or
 - feeding automatic court proposals into the annotator workflow.
@@ -148,7 +151,7 @@ The frontier model then chooses among:
 - promote the detector into the normal automatic path while preserving manual/approved precedence;
 - stop integration because the operational failure cost is not justified by the detector gain.
 
-## What not to add around D2
+## What not to add
 
 Do not use this branch as an excuse for:
 
@@ -163,11 +166,12 @@ The goal is simply to stop a promising detector being undermined by predictable 
 
 # The activation hook
 
-At the end of W5, the frontier model should make one short deferred-branch call:
+At the end of W5, the frontier model should make one short call:
 
-- **D1 now** — an unused-scene reality check would materially reduce the next engineering risk;
-- **D2 now** — the project is ready to test reuse or shadow integration;
+- **check unused scenes now** — this check would materially reduce the next engineering risk;
+- **test reuse and annotator integration now** — the project is ready for that experiment;
 - **later** — preserve the branch, but it does not answer the current question;
 - **not relevant** — the project direction has changed enough that this branch no longer applies.
 
-That call is a scope decision. Luna should never infer it from a generic instruction such as “carry forward W5”.
+That call is a scope decision. Luna should never infer it from a generic instruction such
+as “carry forward W5”.

@@ -8,7 +8,7 @@ Reviewed branch head: `82d3b871bfb784f91b283761148eaa0d6501c732`
 
 Links below are pinned to that revision. The important reproducibility distinction is **which producer/path/stage was used**, especially where several scripts share a basename.
 
-## R1 — independent 2D court proposals
+## Independent 2D court proposals
 
 - [`experiments/annotator/independent_court/detector.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/detector.py)
 - [`experiments/annotator/independent_court/README.md`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/README.md)
@@ -20,7 +20,7 @@ What it establishes:
 - Its acceptance/scoring is experimental; it is useful as a proposal source, not as an independent voter in W5.
 - The historical evaluator sometimes reports at 1280×720. W5 works at 960×540 and must not mix those coordinate conventions.
 
-## R2 — fragment ownership and stripe evidence
+## Fragment ownership and stripe evidence
 
 - [`experiments/annotator/independent_court/stripe_observations.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/stripe_observations.py)
 - [`experiments/annotator/independent_court/assignment.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/assignment.py)
@@ -33,7 +33,7 @@ What it establishes:
 - The existing aggregate score averages forward and reverse evidence. W5 reuses the assignments but keeps both sample-level fragment support and raw photometric evidence so the steering model can decide how to combine them.
 - Inherited constants include 64 marking samples, 16 fragment samples, 2 px distance sigma and 5 px fitting support distance. These are implementation settings, not universal accuracy thresholds.
 
-## R3 — physical paint geometry
+## Physical paint geometry
 
 - [`experiments/annotator/independent_court/paint_geometry.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/paint_geometry.py)
 
@@ -41,9 +41,10 @@ What it establishes:
 
 - 40 mm stripe width and the physical stripe-centre/edge convention measured from the outside court boundary.
 - The physical stripe centres are not identical to the older nominal `detector.SEGMENTS_M` template.
-- W5 B/C should pass `CENTRE_SEGMENTS_M` explicitly; legacy A should remain unchanged for faithful replay.
+- Both whole-court candidate comparisons should pass `CENTRE_SEGMENTS_M` explicitly. The
+  legacy baseline should remain unchanged for faithful replay.
 
-## R4 — existing fixed-identity whole-court refit
+## Existing fixed-identity whole-court adjustment
 
 - [`experiments/annotator/independent_court/fixed_stripe_refit.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/fixed_stripe_refit.py)
 - [`scratch/court_det_fix/frozen_helpers_20260914/marking_diagnosis/run_diagnosis.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/frozen_helpers_20260914/marking_diagnosis/run_diagnosis.py)
@@ -55,7 +56,7 @@ What it establishes:
 - It is local. A smaller objective does not prove the court identity is correct.
 - The existing solver budget is 100 evaluations.
 
-## R5 — C2: candidate-population and representative-selection witnesses
+## C2: candidate-population and representative-selection witnesses
 
 - [`scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/webui_seed/witnesses.json)
 
@@ -66,7 +67,7 @@ What it establishes:
 - In the Am3 trace, the score-maximising representative for the same axis assignment can be considerably farther from the approved control than another representative.
 - The witness records which older producers created the traces. Those paths matter when two `run_automatic.py` files are present; W5 does not need to rebuild every historical producer.
 
-## R6 — L1 admission and the actual axis matcher
+## L1 admission and the actual axis matcher
 
 - [`scratch/court_det_fix/next_steps_20260916/L1_admission/comparison.csv`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L1_admission/comparison.csv)
 - [`scratch/court_det_fix/next_steps_20260916/L1_admission/run_l1_admission.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L1_admission/run_l1_admission.py)
@@ -80,7 +81,7 @@ What it establishes:
 - Coverage/diversity operates on direction-support sets, not verified court marking identities.
 - This evidence is why a later “good court missing” diagnosis should distinguish **retention** from **scoring**.
 
-## R7 — L2 scoring, winner eligibility and saved visual controls
+## L2 scoring, winner eligibility and saved visual controls
 
 - [`scratch/court_det_fix/next_steps_20260916/L2_scoring/run_l2_scoring.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L2_scoring/run_l2_scoring.py)
 - [`scratch/court_det_fix/next_steps_20260916/L2_scoring/comparison.csv`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L2_scoring/comparison.csv)
@@ -97,7 +98,7 @@ What it establishes:
   - Am2-28019 `184:4123` — rejected false paint winner
   - SS03-19 `165:6702` — rejected false/hallucinated paint winner
 
-## R8 — L3 temporal pilot
+## L3 temporal pilot
 
 - [`scratch/court_det_fix/next_steps_20260916/L3_temporal/run_l3_temporal.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L3_temporal/run_l3_temporal.py)
 - [`scratch/court_det_fix/next_steps_20260916/L3_temporal/score_matrix.csv`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/L3_temporal/score_matrix.csv)
@@ -110,7 +111,7 @@ What it establishes:
 - Its 30-court panel over seven frames selected a median-line winner that the saved reference says is extremely poor, while other candidates had stronger paint/reverse evidence.
 - L3 reference errors are manual-reference metrics and should not be mixed with C2/L2's GX0 approved-control distances.
 
-## R9 — junction semantics
+## Junction semantics
 
 - [`experiments/annotator/independent_court/junction_observations.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/junction_observations.py)
 - [`tests/test_independent_court_junctions.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/tests/test_independent_court_junctions.py)
@@ -123,7 +124,7 @@ What it establishes:
 - Existing fragment thresholds are `PRESENT_SUPPORT = 0.55`, `ABSENT_SUPPORT = 0.20`; 16 arm samples are used and the historical classifier requires at least 8 usable samples.
 - W5 keeps those historical classifications for comparison but records the raw arm support, sample availability and photometric continuation evidence. The initial W5 pass does not treat the old thresholds as a hard veto.
 
-## R10 — player and camera assumptions
+## Player and camera assumptions
 
 - [`experiments/annotator/independent_court/player_guided.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/player_guided.py)
 - [`experiments/annotator/independent_court/temporal.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/experiments/annotator/independent_court/temporal.py)
@@ -136,7 +137,7 @@ What it establishes:
 - The stricter historical full-court eligibility is: valid geometry, one-player fraction 1.0, two-player fraction at least 0.5, and camera error at most 0.1. W5 preserves this as a diagnostic subset rather than assuming it should gate the first-pass holistic ranking.
 - The camera model assumes square pixels, centred principal point and a searched focal length. Its error is useful but conditional.
 
-## R11 — why temporal/scene consensus is gated
+## Why temporal and scene consensus comes later
 
 - [`src/courtkeynet/court_corners.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/src/courtkeynet/court_corners.py) — historical `consensus_repair`
 - [`docs/courtkeynet/fallback_evaluation/README.md`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/docs/courtkeynet/fallback_evaluation/README.md)
@@ -148,7 +149,7 @@ What it establishes:
 - Historical scene repair found whole-video replacement unsafe without donor agreement, target-frame paint and fresh player checks.
 - W5 therefore delays temporal pooling until the single-view global judge can reject known aliases.
 
-## R12 — frozen case loading and helper resolution
+## Frozen case loading and helper resolution
 
 - [`scratch/court_det_fix/line_identity/shared.py`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/line_identity/shared.py)
 - [`scratch/court_det_fix/next_steps_20260916/webui_seed/source/SOURCE_MAP.md`](https://github.com/ahalp90/badminton_cv_annotator/blob/82d3b871bfb784f91b283761148eaa0d6501c732/scratch/court_det_fix/next_steps_20260916/webui_seed/source/SOURCE_MAP.md)

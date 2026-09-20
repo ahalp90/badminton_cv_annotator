@@ -9,9 +9,9 @@ automatic rankings were saved.
 
 Visual rulings are in `runs/w5_stage2_20260920/visual_rulings.json`.
 
-| view | A | B | C | failure class |
+| view | legacy baseline | original candidates | original + adjusted candidates | failure class |
 |---|---|---|---|---|
-| GX0 | usable | wrong_court | usable | B misranked, camera clue |
+| GX0 | usable | wrong_court | usable | original-candidate ranking failed on camera plausibility |
 | Am2-150 | usable | needs_correction | needs_correction | misranked, shifted alias; paint spread clue |
 | Am2-28019 | usable | wrong_court | wrong_court | misranked, camera clue |
 | Am3-0 | usable | wrong_court | wrong_court | misranked, camera clue |
@@ -28,8 +28,9 @@ What the false winners share:
 - large parts of the court outside the frame, so a few tiny spans (65 to 92 px) carry the
   paint readout while whole markings at zero support hide behind the per-marking mean.
 
-Am2-150 is different. Its B winner has camera error 0.043 and is the right court family,
-shifted sideways. Camera plausibility cannot separate it; the paint evidence must.
+Am2-150 is different. The winner among original candidates has camera error 0.043 and is
+the right court family, shifted sideways. Camera plausibility cannot separate it; the
+paint evidence must.
 
 Refit: children improved every good parent on GX0, Am2-150, Am2-28019 and SS03-19. On
 Am3-0 children damaged 14 of 49 parents within 25 px and improved 4. Refit is kept for
@@ -39,19 +40,19 @@ diagnosis and is not revised in this round.
 
 A contract audit of the seance-1 code found one bug and several hygiene gaps.
 
-- R0, bug: `verifier.raw_junctions` passed the court-space arm direction to the image-space
+- Junction-direction bug: `verifier.raw_junctions` passed the court-space arm direction to the image-space
   support and photometry tests. On the perspective views (all pilot views except SS03-19)
   the raw arm support, arm ridge contrast and contradiction records did not measure the
-  arms. Junction evidence feeds no ranking, so the A/B/C selections stand. Fix: derive the
+  arms. Junction evidence feeds no ranking, so the three comparison selections stand. Fix: derive the
   direction from the projected samples, as `junction_observations.measure` does.
 - Replay: `reconstruct_generation_entries` passed native corners to `select_pool`, where
   L2 divides by the native/working scale first. Replaying both ways gave identical 256-ID
   orders on the three replayed pilot views. Conform to L2 anyway.
 - `sync.sh` pushed the frozen G0 records and baseline generation onto the host with
   `rsync --delete`. Frozen host inputs are compared, never overwritten.
-- Arm A ranks the G0 union half by its S0 stripe scores and the G1 half by S1 scores,
+- The legacy baseline ranks the G0 union half by its S0 stripe scores and the G1 half by S1 scores,
   where L2's union cells rescored both under one observation set. Ruling: keep. The
-  contract asks A to preserve each source's filtered-observation legacy replay, and the
+  contract asks the legacy baseline to preserve each source's filtered-observation replay, and the
   mix only touches the stripe tie-break behind `profile.score`.
 - `evidence_sparse` fallbacks from contract section 13 were not implemented. Not triggered
   in the pilot; implement.
@@ -59,7 +60,7 @@ A contract audit of the seance-1 code found one bug and several hygiene gaps.
 
 ## Rule revisions for seance 2
 
-### R1: camera plausibility as eligibility
+### Reject implausible camera geometry
 
 Change: a parent or child is eligible for the automatic ranking only when its saved
 `camera_error` is present and at most 0.1. Ineligible candidates keep their full evidence
@@ -86,10 +87,10 @@ value 0.1 sits in the flat region and was not tuned on these views.
 Tension with the W5 operating assumption: this turns an inherited cutoff back into a hard
 eligibility test. It is kept hard, with an explicit status, because a soft penalty would
 need a new scale parameter with no better provenance. The negative control SS03-19
-165:6702 has camera error 0.069 and passes R1, so the paint reduction, not the gate, must
+165:6702 has camera error 0.069 and passes this filter, so the paint reduction, not the filter, must
 keep it below the positive control 1:60. Watch that row.
 
-### R2: span-weighted directional means
+### Weight paint evidence by visible line length
 
 Change: each direction's mean of the per-marking paint-backed readout `q_paint10` (and of
 `q_geom` for the fallback) is weighted by that marking's projected visible span in pixels.
@@ -106,31 +107,34 @@ Effect from the saved evidence, rank-1 control error, parents then parents+child
 | reduction | GX0 | Am2-150 | Am2-28019 | Am3-0 | SS03-19 |
 |---|---|---|---|---|---|
 | pilot rule | 838 / 11 | 17 / 39 | 511636 / 6562 | 579 / 579 | 4 / 3 |
-| R1 only | 33 / 11 | 17 / 39 | 37 / 18 | 24 / 19 | 4 / 3 |
-| R1 + R2 | 33 / 11 | 17 / 8 | 37 / 18 | 19 / 19 | 4 / 3 |
-| R2 without R1 | 720 / 11 | 17 / 8 | 320 / 326 | 19 / 19 | 4 / 3 |
+| camera filter only | 33 / 11 | 17 / 39 | 37 / 18 | 24 / 19 | 4 / 3 |
+| camera filter + visible-span weighting | 33 / 11 | 17 / 8 | 37 / 18 | 19 / 19 | 4 / 3 |
+| visible-span weighting without camera filter | 720 / 11 | 17 / 8 | 320 / 326 | 19 / 19 | 4 / 3 |
 
-R2 alone does not replace R1: GX0 and Am2-28019 still pick implausible cameras. R1 alone
-leaves the Am2-150 child ranking wrong. Together they answer both named failures. Children
-are ranked with parents throughout; the C column is the operative one.
+Visible-span weighting does not replace the camera filter: GX0 and Am2-28019 still pick
+implausible cameras without it. The camera filter alone leaves the Am2-150 adjusted
+candidate ranking wrong. Together they answer both named failures. The final result ranks
+original and locally adjusted candidates together.
 
-Expected rulings after R1 + R2, to be confirmed visually: GX0 usable, Am2-150 usable,
+Expected rulings after both changes, to be confirmed visually: GX0 usable, Am2-150 usable,
 Am2-28019 usable or needs_correction (18 px native on a scale-2 view), Am3-0 usable or
 needs_correction (19 px), SS03-19 usable.
 
-### Sensitivity to run with R2
+### Contrast sensitivity after both scoring changes
 
-The paint-backed readout uses the historical contrast probe of 10. Seance 2 reranks under
-R1 + R2 with the probe at 5, 10, 15 and 20 from the saved raw ridge arrays and reports the
-rank-1 candidate per view. The probe stays at 10 unless that table shows a reversal.
+The paint-backed readout uses the historical contrast probe of 10. Seance 2 reranks after
+the camera filter and visible-span weighting with the probe at 5, 10, 15 and 20. It uses
+the saved raw ridge arrays and reports the top candidate per view. The probe stays at 10
+unless that table shows a reversal.
 
 ## Final close-out (run `w5_stage5_20260920`)
 
-W5 closes with Arm C usable on eight of nine stress views. GX5 is the only failed view.
-Its A, B and C winners all follow rear court or hall structure instead of the foreground
-court. No visual call needs human escalation.
+W5 closes with the final original-plus-adjusted ranking usable on eight of nine stress
+views. GX5 is the only failed view. Its legacy, original-only and
+original-plus-adjusted winners all follow rear court or hall structure instead of the
+foreground court. No visual call needs human escalation.
 
-| view | A selection / ruling | B selection / ruling | C selection / ruling | C failure |
+| view | legacy selection / ruling | original-only selection / ruling | original-plus-adjusted selection / ruling | final failure |
 |---|---|---|---|---|
 | GX0 | `G0:22:4588` / usable | `G1:22:270` / usable | `G0:22:4580/child` / usable | — |
 | GX5 | `G0:181:973` / wrong_court | `G0:181:996` / wrong_court | `G0:181:948/child` / wrong_court | missing |
@@ -151,7 +155,7 @@ one G0 and one G1 occurrence with matching W5 gates.
 
 GX0, Am3 and GX5 keep the same common-candidate evidence and selections as the earlier
 packets. Am2-150 removes one exact duplicate parent and its child. Its shared-candidate
-evidence and selected A/B/C geometries stay unchanged. Two diagnostic ranks move because
+evidence and all three selected geometries stay unchanged. Two diagnostic ranks move because
 the duplicate entries above them disappeared. The collision repair also lets the five
 previously stopped views complete. These changes do not reverse any W5 finding.
 
@@ -165,16 +169,17 @@ the failure. The earlier GX5 source audit in
 found that the closest camera-eligible candidate was still 89.94 working pixels from the
 control. It also found that the useful observed directions were lost during proposal.
 
-Take **Branch P** next. Add the existing independent 2D line/template proposer as one
-bounded source. Use cached lines and broad families, then feed its candidates through the
-unchanged W5 evidence pass and R1+R2 judge. Run the same nine views as regression cases.
-Only revisit line extraction if the cached fragments cannot represent the required paint.
+Next, add the existing independent 2D line/template search as one bounded candidate
+source. Use cached lines and broad families. Feed the resulting candidates through the
+unchanged W5 evidence pass, camera filter and visible-span weighting. Run the same nine
+views as regression cases. Only revisit line extraction if the cached fragments cannot
+represent the required paint.
 
-Do not run another W5 recompute before that proposal change. Keep the unused-scene check
-(D1) and guarded reuse/shadow integration (D2) for later; neither answers the current
-proposal failure.
+Do not run another W5 recompute before adding that candidate source. Keep the unused-scene
+check and guarded reuse/shadow integration for later; neither answers the current failure
+to generate the foreground-court candidate.
 
 ## History
 
-- 2026-09-20: pilot run `w5_stage2_20260920` ruled; R0 fix, R1 and R2 issued for seance 2.
-- 2026-09-20: final run `w5_stage5_20260920` ruled; collision work accepted; Branch P issued.
+- 2026-09-20: pilot run `w5_stage2_20260920` ruled; junction fix, camera filter and visible-span weighting issued for seance 2.
+- 2026-09-20: final run `w5_stage5_20260920` ruled; collision work accepted; new 2D candidate source chosen as the next experiment.

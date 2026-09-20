@@ -184,7 +184,10 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
         "",
         "Prediction overlays show the automatic outside boundary and physical finite paint template. Reference overlays are separate files where frozen references exist.",
         "",
-        "| view | A paint-first | B provisional | C provisional | diagnostic controls | reference-near |",
+        (
+            "| view | legacy paint-first | original candidates | original + adjusted candidates | "
+            "diagnostic controls | reference-near |"
+        ),
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for case in rendered_cases:

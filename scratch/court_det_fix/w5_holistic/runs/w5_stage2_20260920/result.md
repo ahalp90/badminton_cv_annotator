@@ -1,10 +1,13 @@
 # W5 holistic court-detector pilot
 
-This is a development/fit packet on the frozen corpus. The B and C orders are provisional readouts, not an acceptance rule.
+This is a development/fit packet on the frozen corpus. It compares the legacy paint-first
+baseline, whole-court scoring of original candidates, and the same scoring over original
+plus locally adjusted candidates. The JSON and CSV retain `A`, `B` and `C` as historical
+field names.
 
 ## Completed views
 
-| view | A paint-first | B provisional | C provisional | children | determinism |
+| view | legacy paint-first | original candidates | original + adjusted candidates | adjusted candidates | determinism |
 | --- | --- | --- | --- | ---: | --- |
 | GX0 | 22:4588 | G1:143:273 (provisional_for_review) | G0:22:4580/child (provisional_for_review) | 486 | pass |
 | Am2-150 | 30:33 | G0:32:3188 (provisional_for_review) | G1:30:9149/child (provisional_for_review) | 229 | pass |

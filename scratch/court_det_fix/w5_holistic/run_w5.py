@@ -1256,8 +1256,8 @@ def write_packet(
             "views": {result["case_id"]: result["identity_resolution"] for result in case_results},
         },
         "steering_rule_revision": {
-            "status": "R1 camera eligibility + R2 span-weighted directional means",
-            "changed_global_rule": "R1 and R2 from steering_record.md",
+            "status": "camera plausibility filter + visible-span weighting",
+            "changed_global_rule": "camera plausibility filter and visible-span weighting from steering_record.md",
             "source": "scratch/court_det_fix/w5_holistic/steering_record.md",
             "expensive_geometry_rerun": True,
         },
@@ -1357,11 +1357,18 @@ def write_result(
     lines = [
         "# W5 holistic court-detector pilot",
         "",
-        "This is a development/fit packet on the frozen corpus. The B and C orders are provisional readouts, not an acceptance rule.",
+        (
+            "This is a development/fit packet on the frozen corpus. It compares the legacy paint-first baseline, "
+            "whole-court scoring of original candidates, and the same scoring over original plus locally adjusted "
+            "candidates. The JSON and CSV retain `A`, `B` and `C` as historical field names."
+        ),
         "",
         "## Completed views",
         "",
-        "| view | A paint-first | C pilot | C R1 | C R2 | C status | children | determinism |",
+        (
+            "| view | legacy paint-first | original + adjusted: initial | original + adjusted: camera-filtered | "
+            "original + adjusted: span-weighted | final status | adjusted candidates | determinism |"
+        ),
         "| --- | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for result in case_results:
@@ -1404,13 +1411,22 @@ def write_result(
     if any(result["case_id"] == "am2_window_00_frame_150" for result in case_results):
         lines.extend([
             "",
-            "Exact-geometry deduplication can change pool counts and diagnostic ranks without changing the evidence for retained geometries. In this packet the Am2-150 merge leaves 511 canonical parents, 511 fit attempts and 228 valid children; the `30:33` control's Q values and R2 rank are unchanged from the earlier stage-3 packet.",
+            (
+                "Exact-geometry deduplication can change pool counts and diagnostic ranks without changing the "
+                "evidence for retained geometries. In this packet the Am2-150 merge leaves 511 canonical parents, "
+                "511 fit attempts and 228 valid children; the `30:33` control's Q values and span-weighted rank are "
+                "unchanged from the earlier stage-3 packet."
+            ),
         ])
     lines.extend([
         "",
-        "## Arm-A occurrence provenance",
+        "## Legacy baseline source provenance",
         "",
-        "Arm A reports the canonical parent used for joins, rankings, diagnostics and gallery lookups. For an exact-geometry merge, the occurrence column identifies the source record that supplied the winning legacy score. Both parent and occurrence identities remain available in the packet records.",
+        (
+            "The legacy baseline reports the canonical parent used for joins, rankings, diagnostics and gallery "
+            "lookups. For an exact-geometry merge, the occurrence column identifies the source record that supplied "
+            "the winning legacy score. Both parent and occurrence identities remain available in the packet records."
+        ),
         "",
         "| view | line parent | line occurrence | paint parent | paint occurrence |",
         "| --- | --- | --- | --- | --- |",
@@ -1425,11 +1441,15 @@ def write_result(
         )
     lines.extend([
         "",
-        "## R1 and R2 rank-1 selections",
+        "## Top candidates after each scoring change",
         "",
-        "The C pool contains parents and valid children. R1 is the camera-eligible plain-mean paint order. R2 is the camera-eligible span-weighted order, with the span-weighted geometry fallback when needed.",
+        (
+            "This pool contains original and valid locally adjusted candidates. The first order rejects implausible "
+            "camera geometry and uses the plain mean of each marking's paint evidence. The final order weights each "
+            "marking by its visible span, with the same weighting applied to the geometry fallback when needed."
+        ),
         "",
-        "| view | R1 rank-1 | R2 rank-1 | status |",
+        "| view | camera-filtered top candidate | span-weighted top candidate | status |",
         "| --- | --- | --- | --- |",
     ])
     for result in case_results:
@@ -1452,7 +1472,10 @@ def write_result(
             "only: no threshold or automatic pass/fail was applied."
         ),
         "",
-        "| view | origin | raw candidate | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |",
+        (
+            "| view | origin | raw candidate | expected role | automatic pool | hard-valid | camera eligible | "
+            "initial rank | camera-filtered rank | span-weighted rank | Q_geom | Q_paint10 | status |"
+        ),
         "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ])
     for label, control in controls:
@@ -1469,9 +1492,13 @@ def write_result(
         "",
         "## Contrast-probe sensitivity",
         "",
-        "Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. The table reports the R2 provisional rank-1; the JSON retains the separate R1 and R2 orders. Probe 10 remains the named pilot setting.",
+        (
+            "Each row reranks the original-plus-adjusted pool with the camera filter and visible-span weighting, "
+            "using the saved raw ridge arrays. The table reports the top span-weighted candidate. The JSON retains "
+            "the separate historical `r1` and `r2` orders for compatibility. Probe 10 remains the named pilot setting."
+        ),
         "",
-        "| view | probe | R2 rank-1 origin | status | control target | control error |",
+        "| view | probe | span-weighted top candidate | status | control target | control error |",
         "| --- | ---: | --- | --- | --- | ---: |",
     ])
     for result in case_results:

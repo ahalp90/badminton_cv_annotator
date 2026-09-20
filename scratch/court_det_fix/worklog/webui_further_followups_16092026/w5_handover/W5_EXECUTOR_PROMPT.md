@@ -12,9 +12,9 @@ Run three arms over the same bounded automatic proposal union:
 
 | Arm | What it means | What it isolates |
 | --- | --- | --- |
-| **A — legacy** | Existing nominal geometry and historical line/paint ranking | The saved baseline on the same proposal union |
-| **B — evidence + provisional rank** | Keep each parent geometry fixed and measure the complete court using physical paint, fragment ownership, both directions, junctions, players and camera diagnostics | Whether the combined evidence contains a cross-view ranking signal without prematurely hard-gating it |
-| **C — refit + evidence** | Attempt one existing fixed-identity whole-court refit for each parent; measure valid children alongside parents with B's evidence pass | Whether that local refit adds value without erasing a good parent |
+| **Legacy baseline** | Existing nominal geometry and historical line/paint ranking | The saved baseline on the same proposal union |
+| **Whole-court scoring of original candidates** | Keep each parent geometry fixed and measure the complete court using physical paint, fragment ownership, both directions, junctions, players and camera diagnostics | Whether the combined evidence contains a cross-view ranking signal without prematurely hard-gating it |
+| **Whole-court scoring of original plus locally adjusted candidates** | Attempt one existing fixed-identity whole-court adjustment for each parent, then measure valid adjusted candidates with the same evidence pass | Whether local adjustment adds value without erasing a good original candidate |
 
 This is research code only. Do not change production court behaviour, saved approvals, manual annotations or historical experiment records. Do not run CourtKeyNet inference.
 
@@ -80,6 +80,14 @@ Evidence models:
 - **legacy profile** — historical coarse pixel paint test used by L2
 - **exclusive stripe support** — fragment-to-marking evidence from `stripe_observations.py`
 - **W5 evidence pass** — the sample-level fragment, photometric, junction, player and camera readouts defined below; the first-run reduction is provisional
+
+The output files retain the historical field keys `A`, `B` and `C` for compatibility:
+
+- `A` — faithful legacy baseline
+- `B` — whole-court scoring of original candidates
+- `C` — the same scoring over original plus locally adjusted candidates
+
+The rest of this prompt uses the descriptive names.
 
 ## 4. The nine views
 
@@ -155,7 +163,10 @@ Use the saved generation-stage `paint_observations` population from:
 I/runs/line_identity_20260915_222437/matcher/paint_observations
 ```
 
-Use the exact generation-stage loading logic from the L2 script. Preserve the filtered-observation source for legacy replay, but W5 B/C must measure against the **original raw observations** so a line rejected by the earlier paint filter is not permanently lost.
+Use the exact generation-stage loading logic from the L2 script. Preserve the
+filtered-observation source for legacy replay. Both whole-court candidate comparisons must
+measure against the **original raw observations** so a line rejected by the earlier paint
+filter is not permanently lost.
 
 ### Union
 
@@ -216,9 +227,9 @@ A small floating-point difference is not interesting if population membership, e
 
 Run the W5 ranker once more after permuting parent input order. After applying the explicit tie key above, the ordered IDs must match. Compare the ID sequence directly.
 
-## 8. Arm A — faithful legacy baseline
+## 8. Faithful legacy baseline
 
-A must preserve L2's historical behaviour on the G0+G1 union.
+The legacy baseline must preserve L2's historical behaviour on the G0+G1 union.
 
 Legacy eligibility is exactly:
 
@@ -233,15 +244,18 @@ Report both:
 - line winner: maximise `stripe.exclusive.score`
 - paint-first winner: maximise `(profile.score, stripe.exclusive.score)`
 
-The **paint-first winner is A's primary comparator** for every view. The line winner is secondary context. Never choose whichever legacy rule looks better after seeing the reference.
+The **paint-first winner is the primary legacy comparator** for every view. The line winner
+is secondary context. Never choose whichever legacy rule looks better after seeing the
+reference.
 
-A uses the old nominal `detector.SEGMENTS_M` convention exactly as the replayed historical code expects.
+The legacy baseline uses the old nominal `detector.SEGMENTS_M` convention exactly as the
+replayed historical code expects.
 
-## 9. B/C geometry and physical paint convention
+## 9. Geometry and physical paint for whole-court scoring
 
 Use 960×540 working coordinates. Scale to/from native images explicitly. Output outside-boundary corners in TL/TR/BR/BL order.
 
-For B and C pass:
+For both whole-court candidate comparisons, pass:
 
 ```text
 paint_geometry.CENTRE_SEGMENTS_M
@@ -251,11 +265,14 @@ through stripe measurement, junction measurement and refitting.
 
 There are 12 finite intervals representing 11 named floor markings. The centre line is one marking split into two finite intervals by the unpainted net gap. The net itself is not a floor marking.
 
-Use the 40 mm paint convention and the existing centre/edge offsets from `paint_geometry.py`. Do not mix the physical centres with the old nominal template inside one B/C calculation.
+Use the 40 mm paint convention and the existing centre/edge offsets from
+`paint_geometry.py`. Do not mix the physical centres with the old nominal template inside
+one whole-court calculation.
 
-## 10. B/C hard validity and historical diagnostics
+## 10. Hard validity and historical diagnostics for whole-court scoring
 
-For B/C, do not turn the earlier full-court predicate into a new admission gate.
+Do not turn the earlier full-court predicate into a new admission gate for the whole-court
+candidate comparisons.
 
 A parent remains in the W5 evidence table whenever its court geometry is valid enough for the existing downstream measurements to run. A child has the additional numerical/refit validity requirements in section 14. Hard rejection is for things such as non-finite projection, invalid quadrilateral/projective geometry, failed source provenance or an invalid refit — not for weak empirical evidence.
 
@@ -286,9 +303,11 @@ camera_error is not None
 camera_error <= 0.1
 ```
 
-These subsets are diagnostic comparisons. They let the steering model see whether the old player/camera assumptions would have removed a useful court. They do **not** remove the candidate from the initial B/C evidence census.
+These subsets are diagnostic comparisons. They let the steering model see whether the old
+player/camera assumptions would have removed a useful court. They do **not** remove the
+candidate from the initial whole-court evidence census.
 
-Do not require the legacy pixel profile for B/C.
+Do not require the legacy pixel profile for whole-court scoring.
 
 The camera error comes from a simplified camera model. Player fractions and camera error are clues about a complete court, not physical certification. Keep their raw values visible.
 
@@ -452,11 +471,12 @@ Missing expected paint is not negative evidence by itself. Weak, clipped or mask
 
 There is **no hard junction veto in the initial W5 pass**. If the five-view controls show a clean, cross-scene separation, the steering model may later promote some form of this cue into the global ranker and request an appropriate sensitivity check.
 
-## 13. B provisional rankings and statuses
+## 13. Provisional whole-court ranking of original candidates
 
 For each hard-valid parent, save the complete evidence record before reducing it to a single order.
 
-The first run needs one deterministic B pick for the gallery, but that pick is explicitly provisional:
+The first run needs one deterministic original-candidate pick for the gallery, but that
+pick is explicitly provisional:
 
 1. candidates with `Q_paint10` available in both directions sort by `Q_paint10` descending;
 2. if no candidate in the view has `Q_paint10`, fall back to candidates with `Q_geom`, sorted by `Q_geom` descending;
@@ -479,7 +499,7 @@ Never emit `approved` automatically.
 
 For `evidence_sparse`, still save the strongest one-direction and per-cue candidates so the steering model can decide whether the problem is missing evidence, a poor reduction or a missing proposal.
 
-## 14. Arm C — one fixed-identity refit
+## 14. Add one locally adjusted version per original candidate
 
 For every parent, use its physical stripe evidence and exclusive assignment to prepare:
 
@@ -535,11 +555,16 @@ For a valid child, recompute from scratch:
 
 Do not inherit the parent's scores, diagnostics or human ruling.
 
-Rank parents and valid children together using the same provisional B ordering. A parent is never replaced merely because its child converged.
+Rank original and valid adjusted candidates together using the same provisional
+whole-court ordering. An original candidate is never replaced merely because its adjusted
+version converged.
 
 ## 15. Diagnostic rankings that must be saved
 
-For B and C, save enough alternative orderings that the steering model can tell whether a result is driven by geometry, the historical paint cutoff or an inherited whole-court heuristic without rerunning the expensive evidence calculation.
+For the original-only and original-plus-adjusted candidate pools, save enough alternative
+orderings that the steering model can tell whether a result is driven by geometry, the
+historical paint cutoff or an inherited whole-court heuristic without rerunning the
+expensive evidence calculation.
 
 At minimum save, per view:
 
@@ -572,9 +597,9 @@ Complete and save all label-free rankings before joining any references.
 
 Then generate one compact gallery with one row per view:
 
-- A primary paint-first winner
-- B provisional winner/status
-- C provisional winner/status
+- primary legacy paint-first winner
+- provisional winner and status from original candidates
+- provisional winner and status from original plus locally adjusted candidates
 
 Show:
 
@@ -584,7 +609,8 @@ Show:
 - uncluttered prediction by default
 - reference overlay available separately/toggleably
 
-Where A/B/C select the same geometry, reuse the image instead of creating duplicate panels.
+Where the three comparisons select the same geometry, reuse the image instead of creating
+duplicate panels.
 
 For failed/ambiguous rows, provide top-three diagnostic links rather than showing every candidate.
 
@@ -660,7 +686,8 @@ gallery/index.html   # or another compact browsable gallery
 `result.md` should be short. State:
 
 - which cases completed
-- A/B/C selected IDs and statuses
+- selected IDs and statuses for the legacy, original-only and
+  original-plus-adjusted comparisons
 - whether known positive/negative controls behaved as expected
 - obvious missing/misranking/threshold-sensitivity/refit failures
 - no claim beyond this development corpus

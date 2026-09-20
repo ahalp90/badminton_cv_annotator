@@ -2,20 +2,23 @@
 
 ## Status: closed
 
-W5 closed on 2026-09-20. The reviewed A/B/C calls are in the
+W5 closed on 2026-09-20. The reviewed legacy, original-only and
+original-plus-adjusted results are in the
 [final stage-5 packet](../../../w5_holistic/runs/w5_stage5_20260920/). The branch decision
 and next-session direction are in the
 [steering record](../../../w5_holistic/steering_record.md).
 
-The collision repair did not change a scientific conclusion. Arm C is usable on eight of
-nine stress views. GX5 remains a proposal failure because no useful foreground-court
-geometry reaches the bounded population. The next experiment is **Branch P**: add the
-existing independent 2D line/template proposer as a bounded source, keep the W5 evidence
-pass and R1+R2 judge fixed, and rerun the same nine regression views. D1 and D2 stay
+The collision repair did not change a scientific conclusion. The final method, which
+scores original and locally adjusted candidates together, selects a usable court on eight
+of nine stress views. On GX5, the current search never generates a usable foreground-court
+candidate. The next experiment is therefore to add the existing independent 2D
+line/template search as one bounded source. Keep the camera plausibility filter,
+visible-span weighting and the rest of the final scoring rule fixed. Then rerun the same
+nine regression views. The unused-scene check and guarded annotator integration remain
 deferred.
 
-The rest of this pack records the completed W5 contract. It is background for Branch P,
-not an instruction to rerun W5.
+The rest of this pack records the completed W5 contract. It is background for the new
+candidate-generation experiment, not an instruction to rerun W5 unchanged.
 
 This pack drove the next step after the line-only court-detector experiments on `fix/court-det`.
 The branch head reviewed here is `82d3b871bfb784f91b283761148eaa0d6501c732`.
@@ -38,7 +41,8 @@ The important change in this revision is how W5 treats thresholds. The first pas
 
 ## Original W5 launch sequence (complete)
 
-This sequence is retained for provenance. Do not repeat it before starting Branch P.
+This sequence is retained for provenance. Do not repeat it before adding the new court
+candidate source.
 
 1. Give the frontier model `W5_STEERING_PROMPT.md`, `W5_REVIEW.md` and `SOURCE_LEDGER.md`.
 2. The frontier model gives Luna Max `W5_EXECUTOR_PROMPT.md` and supervises the five-view evidence pilot.

@@ -101,8 +101,8 @@
     }
   },
   "steering_rule_revision": {
-    "status": "R1 camera eligibility + R2 span-weighted directional means",
-    "changed_global_rule": "R1 and R2 from steering_record.md",
+    "status": "camera plausibility filter + visible-span weighting",
+    "changed_global_rule": "camera plausibility filter and visible-span weighting from steering_record.md",
     "source": "scratch/court_det_fix/w5_holistic/steering_record.md",
     "expensive_geometry_rerun": true
   }

@@ -1,10 +1,13 @@
 # W5 holistic court-detector pilot
 
-This is a development/fit packet on the frozen corpus. The B and C orders are provisional readouts, not an acceptance rule.
+This is a development/fit packet on the frozen corpus. It compares the legacy paint-first
+baseline, whole-court scoring of original candidates, and the same scoring over original
+plus locally adjusted candidates. The JSON and CSV retain `A`, `B` and `C` as historical
+field names.
 
 ## Completed views
 
-| view | A paint-first | C pilot | C R1 | C R2 | C status | children | determinism |
+| view | legacy paint-first | original + adjusted: initial | original + adjusted: camera-filtered | original + adjusted: span-weighted | final status | adjusted candidates | determinism |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
 | GX5 | 181:973 | G0:0:21005 | G0:181:948/child | G0:181:948/child | provisional_for_review | 410 | pass |
 
@@ -18,11 +21,14 @@ The following view stopped before scoring because the required candidate-ID coll
 | shuttleset_03_scene_0016 | shuttleset_03_scene_0016: G0/G1 candidate-ID collision: ['1:14', '1:149', '1:167', '1:31', '1:913'] |
 | shuttleset_21_scene_0020 | shuttleset_21_scene_0020: G0/G1 candidate-ID collision: ['0:133', '0:2', '0:208', '0:38', '0:71'] |
 
-## R1 and R2 rank-1 selections
+## Top candidates after each scoring change
 
-The C pool contains parents and valid children. R1 is the camera-eligible plain-mean paint order. R2 is the camera-eligible span-weighted order, with the span-weighted geometry fallback when needed.
+This pool contains original and valid locally adjusted candidates. The first order rejects
+implausible camera geometry and uses the plain mean of each marking's paint evidence. The
+final order weights each marking by its visible span. It applies the same weighting to the
+geometry fallback when needed.
 
-| view | R1 rank-1 | R2 rank-1 | status |
+| view | camera-filtered top candidate | span-weighted top candidate | status |
 | --- | --- | --- | --- |
 | GX5 | G0:181:948/child | G0:181:948/child | provisional_for_review |
 
@@ -30,14 +36,15 @@ The C pool contains parents and valid children. R1 is the camera-eligible plain-
 
 The control readouts do not show a consistent positive-versus-negative separation in both two-direction Q measures. This is a diagnostic result only: no threshold or automatic pass/fail was applied.
 
-| view | control | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |
+| view | control | expected role | automatic pool | hard-valid | camera eligible | initial rank | camera-filtered rank | span-weighted rank | Q_geom | Q_paint10 | status |
 | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
 
 ## Contrast-probe sensitivity
 
-Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. Probe 10 remains the named pilot setting.
+Each row reranks the original-plus-adjusted pool with the camera filter and visible-span
+weighting, using the saved raw ridge arrays. Probe 10 remains the named pilot setting.
 
-| view | probe | rank-1 origin | status | control target | control error |
+| view | probe | span-weighted top candidate | status | control target | control error |
 | --- | ---: | --- | --- | --- | ---: |
 | GX5 | 5 | G0:181:948/child | provisional_for_review | approved_supplied_direction_control | 1060.33 |
 | GX5 | 10 | G0:181:948/child | provisional_for_review | approved_supplied_direction_control | 1060.33 |

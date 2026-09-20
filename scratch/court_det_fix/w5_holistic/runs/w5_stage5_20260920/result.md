@@ -1,10 +1,13 @@
 # W5 holistic court-detector pilot
 
-This is a development/fit packet on the frozen corpus. The B and C orders are provisional readouts, not an acceptance rule.
+This is a development/fit packet on the frozen corpus. It compares the legacy paint-first
+baseline, whole-court scoring of original candidates, and the same scoring over original
+plus locally adjusted candidates. The JSON and CSV retain `A`, `B` and `C` as historical
+field names.
 
 ## Completed views
 
-| view | A paint-first | C pilot | C R1 | C R2 | C status | children | determinism |
+| view | legacy paint-first | original + adjusted: initial | original + adjusted: camera-filtered | original + adjusted: span-weighted | final status | adjusted candidates | determinism |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
 | GX0 | G0:22:4588 | G0:22:4580/child | G0:22:4580/child | G0:22:4580/child | provisional_for_review | 486 | pass |
 | GX5 | G0:181:973 | G0:0:21005 | G0:181:948/child | G0:181:948/child | provisional_for_review | 410 | pass |
@@ -32,11 +35,17 @@ Parent candidates use source-qualified `origin_key` values for every join, ranki
 | SS03-16 | 512 | 427 | 5 | 85 |
 | SS21-20 | 512 | 435 | 5 | 77 |
 
-Exact-geometry deduplication can change pool counts and diagnostic ranks without changing the evidence for retained geometries. In this packet the Am2-150 merge leaves 511 canonical parents, 511 fit attempts and 228 valid children; the `30:33` control's Q values and R2 rank are unchanged from the earlier stage-3 packet.
+Exact-geometry deduplication can change pool counts and diagnostic ranks without changing
+the evidence for retained geometries. In this packet the Am2-150 merge leaves 511
+canonical parents, 511 fit attempts and 228 valid children. The `30:33` control's Q values
+and span-weighted rank are unchanged from the earlier stage-3 packet.
 
-## Arm-A occurrence provenance
+## Legacy baseline source provenance
 
-Arm A reports the canonical parent used for joins, rankings, diagnostics and gallery lookups. For an exact-geometry merge, the occurrence column identifies the source record that supplied the winning legacy score. Both parent and occurrence identities remain available in the packet records.
+The legacy baseline reports the canonical parent used for joins, rankings, diagnostics and
+gallery lookups. For an exact-geometry merge, the occurrence column identifies the source
+record that supplied the winning legacy score. Both parent and occurrence identities
+remain available in the packet records.
 
 | view | line parent | line occurrence | paint parent | paint occurrence |
 | --- | --- | --- | --- | --- |
@@ -50,11 +59,14 @@ Arm A reports the canonical parent used for joins, rankings, diagnostics and gal
 | SS03-16 | G0:1:60 | G1:1:20 | G0:1:31 | G1:1:13 |
 | SS21-20 | G1:0:2 | G1:0:2 | G1:0:2 | G1:0:2 |
 
-## R1 and R2 rank-1 selections
+## Top candidates after each scoring change
 
-The C pool contains parents and valid children. R1 is the camera-eligible plain-mean paint order. R2 is the camera-eligible span-weighted order, with the span-weighted geometry fallback when needed.
+This pool contains original and valid locally adjusted candidates. The first order rejects
+implausible camera geometry and uses the plain mean of each marking's paint evidence. The
+final order weights each marking by its visible span. It applies the same weighting to the
+geometry fallback when needed.
 
-| view | R1 rank-1 | R2 rank-1 | status |
+| view | camera-filtered top candidate | span-weighted top candidate | status |
 | --- | --- | --- | --- |
 | GX0 | G0:22:4580/child | G0:22:4580/child | provisional_for_review |
 | GX5 | G0:181:948/child | G0:181:948/child | provisional_for_review |
@@ -70,7 +82,7 @@ The C pool contains parents and valid children. R1 is the camera-eligible plain-
 
 The positive and negative controls are directionally separated in the saved two-direction Q readouts, which is consistent with their prior rulings. This is a diagnostic result only: no threshold or automatic pass/fail was applied.
 
-| view | origin | raw candidate | expected role | automatic pool | hard-valid | camera eligible | pilot rank | R1 rank | R2 rank | Q_geom | Q_paint10 | status |
+| view | origin | raw candidate | expected role | automatic pool | hard-valid | camera eligible | initial rank | camera-filtered rank | span-weighted rank | Q_geom | Q_paint10 | status |
 | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | Am2-150 | diagnostic:am2_window_00_frame_150:30:33 | 30:33 | positive_approved | yes | yes | yes | 43 | 31 | 24 | 0.459007 | 0.324535 | diagnostic-only; no gate |
 | Am2-28019 | diagnostic:am2_window_01_frame_28019:184:4123 | 184:4123 | negative_rejected_false_paint | no | yes | yes | 827 | 22 | 22 | 0.0251343 | 6.91502e-07 | diagnostic-only; no gate |
@@ -79,9 +91,12 @@ The positive and negative controls are directionally separated in the saved two-
 
 ## Contrast-probe sensitivity
 
-Each row reranks the C pool under the same R1 + R2 rules from the saved raw ridge arrays. The table reports the R2 provisional rank-1; the JSON retains the separate R1 and R2 orders. Probe 10 remains the named pilot setting.
+Each row reranks the original-plus-adjusted pool with the camera filter and visible-span
+weighting, using the saved raw ridge arrays. The table reports the top span-weighted
+candidate. The JSON retains the separate historical `r1` and `r2` orders for compatibility.
+Probe 10 remains the named pilot setting.
 
-| view | probe | R2 rank-1 origin | status | control target | control error |
+| view | probe | span-weighted top candidate | status | control target | control error |
 | --- | ---: | --- | --- | --- | ---: |
 | GX0 | 5 | G0:22:4579/child | provisional_for_review | approved_supplied_direction_control | 24.6564 |
 | GX0 | 10 | G0:22:4580/child | provisional_for_review | approved_supplied_direction_control | 10.9798 |
@@ -167,7 +182,9 @@ Reference metrics were joined after the automatic rankings and sensitivity order
 ## Notes
 
 The packet keeps historical player/camera subsets, raw junction continuation evidence and refit attempts visible. It makes no claim beyond this development corpus.
-Visual review is complete. Arm C is usable on eight of nine views. GX5 is `wrong_court`
-because the bounded proposal population does not contain useful foreground-court geometry.
-The full A/B/C rulings are in `visual_rulings.json`; the branch decision is in
+Visual review is complete. The final original-plus-adjusted ranking is usable on eight of
+nine views. GX5 is `wrong_court` because the bounded candidate population does not contain
+useful foreground-court geometry.
+The full rulings for all three comparisons are in `visual_rulings.json`; the next
+experiment is recorded in
 `../../steering_record.md`.

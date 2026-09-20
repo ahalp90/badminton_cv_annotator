@@ -46,8 +46,9 @@ Use the executor contract in [W5_EXECUTOR_PROMPT.md](W5_EXECUTOR_PROMPT.md). The
 
 - branch/revision basis: `fix/court-det` at `82d3b871bfb784f91b283761148eaa0d6501c732`
 - initial proposal pool: saved G0 + G1, preserving every retained origin
-- three comparison arms: faithful legacy A, fixed-parent evidence pass B, one-refit-plus-evidence pass C
-- physical paint geometry for B/C
+- three comparisons: the faithful legacy baseline, whole-court scoring of original
+  candidates, and the same scoring over original plus locally adjusted candidates
+- physical paint geometry for both whole-court comparisons
 - exact extraction of the underlying sample-level cues, including raw ridge contrast and exclusive fragment support
 - hard rejection only for invalid geometry, numerical failure or unusable provenance
 - historical player/camera, paint and junction cutoffs retained as **reference readouts**, not assumed W5 truth
@@ -82,7 +83,7 @@ If one historical replay differs for an understood reason that does not change m
 
 ### Stage 2 — five-view evidence pilot
 
-Run A/B/C first on these five views:
+Run all three comparisons first on these five views:
 
 ```text
 gxBQ_window_00_frame_0
@@ -106,7 +107,7 @@ Have Luna produce the gallery, raw cue distributions, historical-threshold reado
 
 You are the default W5 reviewer. Inspect the predicted overlays, not just the numerical corner errors.
 
-For each A/B/C winner, assign exactly one of:
+For each legacy, original-only and original-plus-adjusted winner, assign exactly one of:
 
 - `usable`
 - `needs_correction`
@@ -171,7 +172,8 @@ Because parents and children are both retained, this should be easy to see.
 - good parent, better child → refit is useful on this case
 - good parent, bad child → keep the parent; diagnose fixed assignments / conditioning / finite endpoints
 - bad parent, slightly lower fit objective but still bad court → ignore the objective improvement
-- B improves selection and C does not → prefer B and drop refitting from the next implementation step
+- scoring the original candidates improves selection but adding adjusted candidates does
+  not → keep the original-only result and drop local adjustment from the next step
 
 A lower least-squares objective is never enough to call the refit useful.
 
@@ -215,9 +217,9 @@ Do not invent a required rescue count. The known positive and negative controls,
 
 ## What to do after the nine-view run
 
-Choose **one** next branch.
+Choose **one** next experiment.
 
-### Branch R — ranking is the bottleneck
+### Fix how surviving candidates are scored
 
 Take this branch when usable candidates are already present but lose.
 
@@ -230,25 +232,25 @@ Keep the proposal pool fixed. Inspect named-marking evidence and change the spec
 
 Do not add temporal consensus yet if the single-view judge still prefers a known alias.
 
-### Branch A — admission/retention is the bottleneck
+### Keep useful candidates through the global cap
 
 Take this branch when good candidates are visible before the global cap but disappear from G0/G1.
 
 The job is to keep **different geometric explanations**, not just more high-scoring near-duplicates. Revisit the fixed-budget admission/diversity work and preserve representatives across direction/assignment families. Measure whether the known good candidate survives; do not judge success by raw candidate count.
 
-### Branch P — proposal generation is the bottleneck
+### Generate court shapes that are currently missing
 
 Take this branch when useful geometry is absent even before global retention.
 
 Add the existing independent 2D line/template proposer as a bounded source using cached lines and broad families. Feed its proposals through the same W5 evidence pass and current global judge. Only consider fresh line extraction if the cached fragments visibly fail to represent necessary paint.
 
-### Branch F — local refitting is the bottleneck/opportunity
+### Improve local adjustment of a correct court
 
 Take this branch only when the correct parent is present and the current fixed-identity refit is the main thing separating success from failure.
 
 Keep parent and child. Investigate assignment stability, finite endpoints and conditioning before adding iterative assignment/refit loops.
 
-### Branch T — temporal evidence
+### Combine evidence across same-camera frames
 
 Take this branch only after the single-view global judge can distinguish the known false courts.
 
@@ -267,11 +269,13 @@ The fresh-scene branch does not require new labels and is not a scientific holdo
 Do not hand back a giant run diary. Return a compact decision packet containing:
 
 - one paragraph: what worked / what did not
-- a nine-row table with A/B/C visual rulings and selected IDs
+- a nine-row table with the legacy, original-only and original-plus-adjusted visual
+  rulings and selected IDs
 - the dominant failure class for each non-usable row: `missing`, `misranked`, `photometry_sensitive`, `player_clue`, `camera_clue`, `junction_clue`, `refit_damage`, or `unclear`
 - at most three images that genuinely need human judgement
-- the one next branch you recommend pursuing
-- a one-line deferred-branch call from [DEFERRED_BRANCHES.md](DEFERRED_BRANCHES.md): `D1 now`, `D2 now`, `later`, or `not relevant`
+- the one next experiment you recommend pursuing
+- a one-line call from [DEFERRED_BRANCHES.md](DEFERRED_BRANCHES.md): `check unused
+  scenes now`, `test reuse and annotator integration now`, `later`, or `not relevant`
 - the small change history for any global rule revisions, including any sensitivity check that materially affected the decision
 
 The source records and detailed arrays can remain in the run directory for later debugging.
@@ -285,4 +289,3 @@ Three choices have been made to protect the owner's time without handicapping th
 3. W5 is adaptive development work: historical thresholds are starting probes, not commitments, and the frontier model may revise the **global** evidence reduction when the pilot shows a coherent reason.
 
 The owner has already indicated that the third assumption is intentional. Do not ask for a new human decision merely because a historical cutoff is being questioned. Escalate only a genuine project-intent conflict or a consequential visual ambiguity.
-
