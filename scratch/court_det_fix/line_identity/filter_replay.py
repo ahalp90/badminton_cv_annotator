@@ -90,6 +90,7 @@ STAGE1_COLUMNS = ['case_id', 'label', 'arm', 'fragments', 'dropped', 'marking_fr
                   'directions', 'angle_to_control_x_deg', 'angle_to_control_y_deg', 'bound_px', 'best_fit_px',
                   'best_fit_pair', 'best_fit_groups', 'selection_identical_to_baseline']
 OBSERVATION_ARMS = {'paint_observations': 'paint', 'person_observations': 'person'}
+DEFAULT_AXIS_ARMS = ['baseline', 'person', 'paint', 'paint_person', 'paint_observations', 'person_observations']
 STAGE2_COLUMNS = ['case_id', 'label', 'arm', 'pair_id', 'groups', 'direction_fit_px', 'axis', 'coordinates',
                   'enumerated', 'supported', 'supported_and_players', 'distinct', 'kept', 'cap_threshold_score',
                   'nearest_kept_by_kept_px', 'nearest_distinct_by_distinct_px',
@@ -143,6 +144,28 @@ def gate_baseline(segments: np.ndarray, size: tuple[int, int], saved: dict) -> v
     np.testing.assert_allclose(replayed['points_working'], estimator['points_working'], rtol=0, atol=FLOAT_ATOL)
     assert replayed['retained_support_masks'] == estimator['retained_support_masks'], 'support masks differ'
     return settings
+
+
+def load_case_inputs(case_id: str) -> tuple[dict, np.ndarray, np.ndarray, tuple[int, int], dict, vp_pruning.Settings]:
+    """Load one pack entry and its saved baseline coverage inputs."""
+    source = read(PACKS[PACK_OF[case_id]])
+    source = next(case for case in source['cases'] if case['id'] == case_id)
+    image_path = frame_path(source)
+    frame = cv2.imread(str(image_path))
+    assert frame is not None, image_path
+    segments, _, size = prepare(source)
+    saved = load_estimator(case_id)
+    settings = gate_baseline(segments, size, saved)
+    return source, frame, segments, size, saved, settings
+
+
+def write_observation_inputs_only(case_ids: list[str], inputs_dir: Path) -> None:
+    """Write paint-observation matcher inputs without reading control or diagnostic records."""
+    for case_id in case_ids:
+        source, frame, _, size, saved, settings = load_case_inputs(case_id)
+        scale = np.asarray([source['dimensions']['width'], source['dimensions']['height']], dtype=float) / size
+        masks = fragment_masks(source, frame, scale)
+        write_inputs(inputs_dir, 'paint_observations', case_id, source, masks['paint'], saved['estimator'], settings, size)
 
 
 def stage_one(case_id: str, arm: str, source: dict, keep: np.ndarray, settings: vp_pruning.Settings, control: np.ndarray,
@@ -234,30 +257,50 @@ def write_inputs(inputs_dir: Path, arm: str, case_id: str, source: dict, keep: n
                  'Directions selected by the unchanged coverage rule from the filtered fragments; see filter_replay.py.')})
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--cases', nargs='+', default=list(CASE_IDS))
+    parser.add_argument('--output', type=Path,
+                        help='directory for the full replay tables; not used by input-only mode')
+    parser.add_argument('--cases', nargs='+',
+                        help='case IDs; input-only mode requires this option explicitly')
     parser.add_argument('--uncapped-combination', action='store_true')
     parser.add_argument('--inputs-dir', type=Path, default=Path(__file__).resolve().parent / 'inputs')
     parser.add_argument('--axis-arms', nargs='+',
-                        default=['baseline', 'person', 'paint', 'paint_person', 'paint_observations', 'person_observations'],
                         help='arms that also run the axis-matching stage')
-    args = parser.parse_args()
+    parser.add_argument('--write-observation-inputs-only', action='store_true',
+                        help='write paint_observations inputs for explicitly named cases and stop')
+    args = parser.parse_args(argv)
+    if args.write_observation_inputs_only:
+        if args.cases is None:
+            parser.error('--write-observation-inputs-only requires explicit --cases')
+        if args.axis_arms is not None and args.axis_arms != ['paint_observations']:
+            parser.error('--write-observation-inputs-only only accepts --axis-arms paint_observations')
+        if args.uncapped_combination:
+            parser.error('--uncapped-combination is only valid for the full replay')
+    elif args.output is None:
+        parser.error('--output is required for the full replay')
+    args.cases = list(CASE_IDS) if args.cases is None else args.cases
+    if args.write_observation_inputs_only:
+        args.axis_arms = ['paint_observations'] if args.axis_arms is None else args.axis_arms
+    else:
+        args.axis_arms = list(DEFAULT_AXIS_ARMS) if args.axis_arms is None else args.axis_arms
+    return args
+
+
+def main() -> None:
+    args = parse_args()
+    if args.write_observation_inputs_only:
+        write_observation_inputs_only(args.cases, args.inputs_dir)
+        return
+
     args.output.mkdir(parents=True, exist_ok=True)
     stage1_rows, stage2_rows = [], []
     for case_id in args.cases:
-        source = read(PACKS[PACK_OF[case_id]])
-        source = next(case for case in source['cases'] if case['id'] == case_id)
-        frame = cv2.imread(str(frame_path(source)))
-        assert frame is not None, frame_path(source)
-        segments, _, size = prepare(source)
-        scale = np.asarray([source['dimensions']['width'], source['dimensions']['height']], dtype=float) / size
-        saved = load_estimator(case_id)
-        settings = gate_baseline(segments, size, saved)
+        source, frame, segments, size, saved, settings = load_case_inputs(case_id)
         control, _ = control_corners(case_id)
         control_directions = control_vanishing_points(control, size)
         baseline_ids = saved['estimator']['retained_candidate_ids']
+        scale = np.asarray([source['dimensions']['width'], source['dimensions']['height']], dtype=float) / size
         masks = fragment_masks(source, frame, scale)
         print(f'{LABELS[case_id]}: gate passed (unfiltered replay equals the saved direction record); '
               f'{len(segments)} fragments, {len(source["bbox_px"])} person boxes', flush=True)

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -33,6 +34,120 @@ from shared import (
     REGRESSION_CASES,
     corner_errors,
 )
+
+
+def mocked_filter_replay(monkeypatch, tmp_path: Path, case_id: str = 'mock_case'):
+    import filter_replay
+    import vp_pruning
+
+    source = {
+        'id': case_id,
+        'segments_px': [[0., 1., 8., 1.], [0., 8., 8., 8.]],
+        'bbox_px': [],
+        'dimensions': {'width': 8, 'height': 8},
+    }
+    settings = vp_pruning.Settings()
+    saved = {
+        'case_id': case_id,
+        'working_size': [8, 8],
+        'settings': {},
+        'estimator': {'retained_candidate_ids': [0], 'points_working': [[1., 0., 1.]],
+                      'retained_support_masks': [], 'direction_lines': []},
+    }
+    masks = {arm: np.array([True, False]) for arm in filter_replay.ARMS}
+    masks.update({'baseline': np.array([True, True]), 'person': np.array([True, False]),
+                  'paint': np.array([True, False]), 'paint_person': np.array([True, False])})
+    gate_calls = []
+    mask_calls = []
+
+    monkeypatch.setattr(filter_replay, 'CASE_IDS', (case_id,))
+    monkeypatch.setattr(filter_replay, 'LABELS', {case_id: 'Mock'})
+    monkeypatch.setattr(filter_replay, 'PACK_OF', {case_id: 'mock'})
+    monkeypatch.setattr(filter_replay, 'PACKS', {'mock': tmp_path / 'pack.json.gz'})
+    monkeypatch.setattr(filter_replay, 'read', lambda _path: {'cases': [source]})
+    monkeypatch.setattr(filter_replay, 'frame_path', lambda _source: tmp_path / 'frame.png')
+    monkeypatch.setattr(filter_replay.cv2, 'imread', lambda _path: np.zeros((8, 8, 3), dtype=np.uint8))
+    monkeypatch.setattr(filter_replay, 'prepare', lambda _source: (np.asarray(source['segments_px']), None, (8, 8)))
+    monkeypatch.setattr(filter_replay, 'load_estimator', lambda _case_id: saved)
+
+    def fake_gate(segments, size, record):
+        gate_calls.append((segments, size, record))
+        return settings
+
+    def fake_masks(case_source, frame, scale):
+        mask_calls.append((case_source, frame, scale))
+        return masks
+
+    monkeypatch.setattr(filter_replay, 'gate_baseline', fake_gate)
+    monkeypatch.setattr(filter_replay, 'fragment_masks', fake_masks)
+    return filter_replay, case_id, saved, gate_calls, mask_calls
+
+
+def install_normal_route_stubs(monkeypatch, filter_replay, saved):
+    def fake_stage_one(case_id, arm, source, keep, settings, control, control_directions, baseline_ids):
+        row = dict.fromkeys(filter_replay.STAGE1_COLUMNS)
+        row.update({'case_id': case_id, 'label': 'Mock', 'arm': arm, 'fragments': int(keep.sum()), 'dropped': int((~keep).sum()),
+                    'marking_fragments': 0, 'marking_dropped': 0, 'merged_lines': 0, 'directions': 0,
+                    'selection_identical_to_baseline': True})
+        best = {'pair_id': 0, 'groups': [0, 1], 'max_corner_working_px': 0.}
+        return row, saved['estimator'], np.zeros((2, 3)), best
+
+    monkeypatch.setattr(filter_replay, 'stage_one', fake_stage_one)
+    monkeypatch.setattr(filter_replay, 'axis_stage', lambda *args: [])
+    monkeypatch.setattr(filter_replay, 'control_corners', lambda _case_id: (np.zeros((4, 2)), {}))
+    monkeypatch.setattr(filter_replay, 'control_vanishing_points', lambda _control, _size: np.zeros((2, 3)))
+
+
+def test_observation_inputs_only_does_not_load_control_or_e3(monkeypatch, tmp_path):
+    filter_replay, case_id, _, gate_calls, mask_calls = mocked_filter_replay(monkeypatch, tmp_path)
+
+    def records_are_not_allowed(*args):
+        raise AssertionError(f'unexpected diagnostic/control load: {args}')
+
+    monkeypatch.setattr(filter_replay, 'control_corners', records_are_not_allowed)
+    monkeypatch.setattr(filter_replay, 'load_direction_record', records_are_not_allowed)
+    filter_replay.write_observation_inputs_only([case_id], tmp_path / 'inputs')
+
+    assert len(gate_calls) == 1
+    assert len(mask_calls) == 1
+    assert (tmp_path / 'inputs' / 'paint_observations' / 'cases' / f'{case_id}.json.gz').exists()
+    assert (tmp_path / 'inputs' / 'paint_observations' / 'estimators' / f'{case_id}.json.gz').exists()
+
+
+def test_observation_inputs_only_match_normal_route_bytes(monkeypatch, tmp_path):
+    filter_replay, case_id, saved, _, _ = mocked_filter_replay(monkeypatch, tmp_path)
+    install_normal_route_stubs(monkeypatch, filter_replay, saved)
+    normal_inputs = tmp_path / 'normal_inputs'
+    monkeypatch.setattr(sys, 'argv', ['filter_replay.py', '--output', str(tmp_path / 'run'), '--cases', case_id,
+                                      '--inputs-dir', str(normal_inputs), '--axis-arms', 'baseline'])
+    filter_replay.main()
+
+    def records_are_not_allowed(*args):
+        raise AssertionError(f'unexpected diagnostic/control load: {args}')
+
+    monkeypatch.setattr(filter_replay, 'control_corners', records_are_not_allowed)
+    monkeypatch.setattr(filter_replay, 'load_direction_record', records_are_not_allowed)
+    observation_inputs = tmp_path / 'observation_inputs'
+    monkeypatch.setattr(sys, 'argv', ['filter_replay.py', '--write-observation-inputs-only', '--cases', case_id,
+                                      '--inputs-dir', str(observation_inputs)])
+    filter_replay.main()
+
+    normal_files = {path.relative_to(normal_inputs / 'paint_observations'): path.read_bytes()
+                    for path in (normal_inputs / 'paint_observations').rglob('*') if path.is_file()}
+    observation_files = {path.relative_to(observation_inputs / 'paint_observations'): path.read_bytes()
+                         for path in (observation_inputs / 'paint_observations').rglob('*') if path.is_file()}
+    assert observation_files == normal_files
+
+
+def test_parse_defaults_remain_full_replay_defaults():
+    from filter_replay import DEFAULT_AXIS_ARMS, parse_args
+
+    args = parse_args(['--output', 'run'])
+    assert args.cases == list(CASE_IDS)
+    assert args.axis_arms == DEFAULT_AXIS_ARMS
+    assert not args.write_observation_inputs_only
+    with pytest.raises(SystemExit):
+        parse_args(['--write-observation-inputs-only', '--cases', CASE_IDS[0], '--axis-arms', 'baseline'])
 
 
 def random_basis(seed: int) -> np.ndarray:
