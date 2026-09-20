@@ -926,6 +926,8 @@ def reference_diagnostics(root: Path, case_results: list[dict], verifier: dict[s
         record = {"case_id": result["case_id"], "selected_origin_keys": selected, "candidates": {}}
         candidate_map = result["review_candidates"]
         selected_origins = {value for value in selected.values() if value}
+        if result.get("reference_near"):
+            selected_origins.add(result["reference_near"]["origin_key"])
         for origin_key in selected_origins:
             candidate = candidate_map.get(origin_key)
             if candidate is None:
@@ -1183,7 +1185,7 @@ def write_packet(
     add_reference_near_candidates(root, case_results, packets, verifier)
     preflight = __import__("json").loads((run_dir / "preflight.json").read_text())
     automatic_reference_checks = preflight["automatic_reference_fields"]
-    automatic_path_reference_fields = (
+    automatic_path_free_of_reference_fields = (
         set(automatic_reference_checks) == set(verifier["CASE_IDS"])
         and all(check["match"] for check in automatic_reference_checks.values())
     )
@@ -1243,7 +1245,8 @@ def write_packet(
         "source_stage": {
             "G0": "frozen_views/baseline_generation when present, otherwise automatic_axes_20260914/all_camera with L2 selection replay",
             "G1": "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results",
-            "automatic_path_reference_fields": automatic_path_reference_fields,
+            "automatic_path_reference_fields": not automatic_path_free_of_reference_fields,
+            "automatic_path_free_of_reference_fields": automatic_path_free_of_reference_fields,
         },
         "imported_helper_paths": runtime_paths,
         "imported_helper_hashes": helper_hashes(root, runtime_paths),
@@ -1489,18 +1492,19 @@ def write_result(
         "",
         "Reference metrics were joined after the automatic rankings and sensitivity orders were written.",
         "",
-        "| view | origin | supplied-control error | frozen-reference error | visible-landmark max error |",
-        "| --- | --- | ---: | ---: | ---: |",
+        "| view | role | origin | supplied-control error | frozen-reference error | visible-landmark max error |",
+        "| --- | --- | --- | ---: | ---: | ---: |",
     ])
     for result in case_results:
         reference = references.get(result["case_id"], {})
         for origin_key, metrics in reference.get("candidates", {}).items():
+            role = "reference-near" if result.get("reference_near", {}).get("origin_key") == origin_key else "ranked"
             supplied = metrics.get("approved_supplied_direction_control", {}).get("maximum")
             frozen = metrics.get("frozen_case_reference", {}).get("maximum")
             landmarks = metrics.get("visible_landmarks", [])
             landmark_max = max((item["error_px"] for item in landmarks), default=None)
             lines.append(
-                f"| {result['label']} | {origin_key} | {metric_text(supplied)} | {metric_text(frozen)} | "
+                f"| {result['label']} | {role} | {origin_key} | {metric_text(supplied)} | {metric_text(frozen)} | "
                 f"{metric_text(landmark_max)} |"
             )
     lines.extend([

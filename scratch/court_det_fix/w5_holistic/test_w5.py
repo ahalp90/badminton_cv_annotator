@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from render_gallery import write_index
 from run_w5 import ViewAmbiguity, canonicalise_populations
 from verifier import (
     legacy_winners,
@@ -220,6 +221,29 @@ def test_ranker_applies_camera_limit_and_span_weighting() -> None:
     assert result["status"] == "no_plausible_camera"
     assert result["selected_origin_key"] is None
     assert result["ungated_provisional_rank"] == ["G0:no-camera"]
+
+
+def test_gallery_index_orders_ranked_links_and_stopped_cells(tmp_path: Path) -> None:
+    rendered_cases = [
+        {
+            "label": "Ordered",
+            "rendered": {
+                "a": {"links": ["a__crop.png"], "roles": ["A_paint"]},
+                "b2": {"links": ["b2__crop.png"], "roles": ["B-alternative-2"]},
+                "b1": {"links": ["b1__crop.png"], "roles": ["B"]},
+                "c3": {"links": ["c3__crop.png"], "roles": ["C-alternative-3"]},
+                "c1": {"links": ["c1__crop.png"], "roles": ["C"]},
+            },
+        },
+        {"label": "Stopped", "stopped_reason": "ambiguous", "rendered": {}},
+    ]
+
+    write_index(tmp_path, rendered_cases)
+    lines = (tmp_path / "gallery/index.md").read_text().splitlines()
+    ordered = next(line for line in lines if line.startswith("| Ordered |"))
+    assert ordered.index("b1__crop.png") < ordered.index("b2__crop.png")
+    assert ordered.index("c1__crop.png") < ordered.index("c3__crop.png")
+    assert "| Stopped | stopped: ambiguous | — | — | — | — |" in lines
 
 
 def test_photometry_keeps_raw_contrast_and_masks_unknown_samples() -> None:

@@ -164,6 +164,20 @@ def render_case(root: Path, run_dir: Path, case_id: str, packet: dict, verifier:
     return {"case_id": case_id, "label": packet["label"], "rendered": rendered, "selections": selections}
 
 
+def ranking_position(roles: list[str], prefix: str) -> int:
+    positions = []
+    for role in roles:
+        if role in (prefix, f"{prefix}-ungated"):
+            positions.append(0)
+        elif role.startswith(f"{prefix}-alternative-"):
+            positions.append(int(role.rsplit("-", 1)[-1]))
+    return min(positions, default=10_000)
+
+
+def format_role_links(role_links: dict[str, list[tuple[int, str]]], role: str) -> str:
+    return "/".join(link for _, link in sorted(role_links[role])) or "—"
+
+
 def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
     lines = [
         "# W5 pilot gallery",
@@ -175,7 +189,7 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
     ]
     for case in rendered_cases:
         if case.get("stopped_reason"):
-            lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — |")
+            lines.append(f"| {case['label']} | stopped: {case['stopped_reason']} | — | — | — | — |")
             continue
         links_by_origin = case["rendered"]
         role_links = {role: [] for role in ("A_paint", "B", "C", "control", "reference-near")}
@@ -186,19 +200,20 @@ def write_index(run_dir: Path, rendered_cases: list[dict]) -> None:
             link = f"[{label}]({crop})"
             roles = rendered["roles"]
             if any(role == "A_paint" for role in roles):
-                role_links["A_paint"].append(link)
+                role_links["A_paint"].append((0, link))
             if any(role == "B" or role.startswith("B-") for role in roles):
-                role_links["B"].append(link)
+                role_links["B"].append((ranking_position(roles, "B"), link))
             if any(role == "C" or role.startswith("C-") for role in roles):
-                role_links["C"].append(link)
+                role_links["C"].append((ranking_position(roles, "C"), link))
             if "control" in roles:
-                role_links["control"].append(link)
+                role_links["control"].append((0, link))
             if "reference-near" in roles:
-                role_links["reference-near"].append(link)
+                role_links["reference-near"].append((0, link))
+
         lines.append(
-            f"| {case['label']} | {'; '.join(role_links['A_paint']) or '—'} | "
-            f"{'/'.join(role_links['B']) or '—'} | {'/'.join(role_links['C']) or '—'} | "
-            f"{'/'.join(role_links['control']) or '—'} | {'/'.join(role_links['reference-near']) or '—'} |"
+            f"| {case['label']} | {format_role_links(role_links, 'A_paint')} | "
+            f"{format_role_links(role_links, 'B')} | {format_role_links(role_links, 'C')} | "
+            f"{format_role_links(role_links, 'control')} | {format_role_links(role_links, 'reference-near')} |"
         )
     index = run_dir / "gallery/index.md"
     index.parent.mkdir(parents=True, exist_ok=True)
