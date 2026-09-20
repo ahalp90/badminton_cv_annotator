@@ -27,7 +27,6 @@ def add_helper_paths(root: Path) -> None:
         root / "frozen_helpers_20260914/vp_pruning",
         root / "frozen_helpers_20260914/axis_matching",
         root / "frozen_helpers_20260914/legacy",
-        root / "worklog/checks/independent/player_guided/20260908",
         root / "src",
         root,
     )
