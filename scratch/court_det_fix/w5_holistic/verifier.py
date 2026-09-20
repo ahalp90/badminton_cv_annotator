@@ -603,14 +603,23 @@ def provisional_order(candidates: Sequence[dict]) -> tuple[str, list[dict]]:
 
 def legacy_winners(entries: Sequence[dict]) -> dict:
     occurrences = []
-    for entry in entries:
+    for entry_index, entry in enumerate(entries):
         if entry.get("_legacy_occurrences"):
             occurrences.extend(
-                {**occurrence, "origin_key": entry["origin_key"]}
+                {
+                    **occurrence,
+                    "parent_origin_key": entry["origin_key"],
+                    "_legacy_input_order": entry_index,
+                }
                 for occurrence in entry["_legacy_occurrences"]
             )
         else:
-            occurrences.append(entry)
+            occurrences.append({**entry, "_legacy_input_order": entry_index})
+
+    occurrences.sort(key=lambda occurrence: (
+        occurrence.get("source_order", 0),
+        occurrence.get("origin_index", occurrence["_legacy_input_order"]),
+    ))
 
     def legacy_value(entry: dict, name: str):
         if "legacy" in entry:
@@ -630,12 +639,23 @@ def legacy_winners(entries: Sequence[dict]) -> dict:
         legacy_value(entry, "profile_score"), legacy_value(entry, "stripe_exclusive_score")
     ), default=None)
 
-    def identity(entry: dict) -> str | None:
-        return None if entry is None else entry.get("origin_key", entry.get("candidate_id"))
+    def parent_identity(entry: dict) -> str | None:
+        if entry is None:
+            return None
+        return entry.get("parent_origin_key", entry.get("origin_key", entry.get("candidate_id")))
+
+    def occurrence_identity(entry: dict) -> str | None:
+        if entry is None:
+            return None
+        return entry.get("origin_key", entry.get("candidate_id"))
 
     return {
-        "line": identity(line),
-        "paint": identity(paint),
+        "line": parent_identity(line),
+        "paint": parent_identity(paint),
+        "line_occurrence_key": occurrence_identity(line),
+        "paint_occurrence_key": occurrence_identity(paint),
+        "line_parent_origin_key": parent_identity(line),
+        "paint_parent_origin_key": parent_identity(paint),
         "eligible_count": len(eligible),
     }
 

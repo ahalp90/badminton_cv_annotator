@@ -7,6 +7,7 @@ import csv
 import gzip
 import hashlib
 import importlib
+import math
 import os
 import re
 import sys
@@ -137,6 +138,10 @@ KNOWN_CONTROLS = {
         "184:4123": "negative_rejected_false_paint",
     },
 }
+
+
+class ViewAmbiguity(AssertionError):
+    """A candidate identity conflict makes one view unsafe to score."""
 L2_COMPARISON_CASES = (
     "gxBQ_window_00_frame_0",
     "am2_window_00_frame_150",
@@ -386,10 +391,29 @@ def compact_legacy(entry: dict) -> dict:
     }
 
 
-def candidate_geometry_key(entry: dict) -> tuple[tuple[int, ...], bytes, tuple[int, ...], bytes]:
-    corners = np.asarray(entry["corners_px"], dtype=float)
+def candidate_geometry_key(entry: dict) -> tuple[tuple[int, ...], bytes]:
     homography = np.asarray(entry["homography_working"], dtype=float)
-    return corners.shape, corners.tobytes(), homography.shape, homography.tobytes()
+    return homography.shape, homography.tobytes()
+
+
+def values_equal_with_nan(left: Any, right: Any) -> bool:
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            values_equal_with_nan(left_item, right_item)
+            for left_item, right_item in zip(left, right, strict=True)
+        )
+    if isinstance(left, float) and isinstance(right, float):
+        return left == right or (math.isnan(left) and math.isnan(right))
+    return left == right
+
+
+def w5_gate_fields(entry: dict) -> tuple[Any, Any, Any]:
+    gates = entry.get("gates", {})
+    return (
+        gates.get("geometry_valid"),
+        gates.get("camera_error"),
+        gates.get("player_fractions"),
+    )
 
 
 def source_occurrence(entry: dict, source: str, source_order: int, origin_index: int) -> dict:
@@ -415,9 +439,9 @@ def canonicalise_populations(g0: list[dict], g1: list[dict]) -> tuple[list[dict]
     }
     for source, ids in source_ids.items():
         if len(ids) != len(set(ids)):
-            raise AssertionError(f"{source} candidate IDs are not unique within their source")
+            raise ViewAmbiguity(f"{source} candidate IDs are not unique within their source")
 
-    by_geometry: dict[tuple[tuple[int, ...], bytes, tuple[int, ...], bytes], dict] = {}
+    by_geometry: dict[tuple[tuple[int, ...], bytes], dict] = {}
     records = []
     for source_order, (source, entries) in enumerate(source_entries):
         for origin_index, entry in enumerate(entries):
@@ -446,18 +470,40 @@ def canonicalise_populations(g0: list[dict], g1: list[dict]) -> tuple[list[dict]
                 records.append(record)
                 continue
             if source in record["source_memberships"]:
-                raise AssertionError(
+                raise ViewAmbiguity(
                     f"{source}: duplicate geometry for {occurrence['candidate_id']} and {record['candidate_id']}"
                 )
-            if entry.get("gates", {}) != record["entry"].get("gates", {}):
-                raise AssertionError(
-                    f"{source}: duplicate geometry has differing gates for {occurrence['candidate_id']} "
-                    f"and {record['candidate_id']}"
+            reference_entry = record["entry"]
+            if not np.array_equal(
+                np.asarray(entry["corners_px"], dtype=float),
+                np.asarray(reference_entry["corners_px"], dtype=float),
+            ):
+                raise ViewAmbiguity(
+                    f"{source}: duplicate homography has differing corners for "
+                    f"{occurrence['candidate_id']} and {record['candidate_id']}"
+                )
+            for field in ("pair_id", "rotated_180"):
+                if entry.get(field) != reference_entry.get(field):
+                    raise ViewAmbiguity(
+                        f"{source}: duplicate homography has differing {field} for "
+                        f"{occurrence['candidate_id']} and {record['candidate_id']}"
+                    )
+            if not all(
+                values_equal_with_nan(left, right)
+                for left, right in zip(w5_gate_fields(entry), w5_gate_fields(reference_entry), strict=True)
+            ):
+                raise ViewAmbiguity(
+                    f"{source}: duplicate geometry has differing W5 gates for "
+                    f"{occurrence['candidate_id']} and {record['candidate_id']}"
                 )
             record["source_memberships"].append(source)
             record["source_occurrences"].append(occurrence)
             record["occurrence_count"] += 1
             record["_legacy_occurrences"].append(legacy_occurrence)
+
+    for record in records:
+        for occurrence in record["_legacy_occurrences"]:
+            occurrence["parent_origin_key"] = record["origin_key"]
 
     raw_id_collisions = sorted(set(source_ids["G0"]) & set(source_ids["G1"]))
     duplicate_groups = [
@@ -466,12 +512,13 @@ def canonicalise_populations(g0: list[dict], g1: list[dict]) -> tuple[list[dict]
             "occurrence_count": record["occurrence_count"],
             "source_memberships": record["source_memberships"],
             "source_occurrences": record["source_occurrences"],
+            "legacy_occurrences": record["_legacy_occurrences"],
         }
         for record in records
         if record["occurrence_count"] > 1
     ]
     return records, {
-        "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when gates agree",
+        "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when W5-relevant gates agree",
         "source_occurrence_counts": {"G0": len(g0), "G1": len(g1)},
         "source_occurrence_count": len(g0) + len(g1),
         "canonical_parent_count": len(records),
@@ -701,7 +748,10 @@ def import_paint_geometry():
 
 
 def public_candidate(candidate: dict) -> dict:
-    return {key: value for key, value in candidate.items() if not key.startswith("_")}
+    public = {key: value for key, value in candidate.items() if not key.startswith("_")}
+    if candidate.get("occurrence_count", 1) > 1:
+        public["legacy_occurrences"] = candidate.get("_legacy_occurrences", [])
+    return public
 
 
 def load_control_entry(root: Path, case_id: str, candidate_id: str, verifier: dict[str, Any]) -> dict:
@@ -1189,7 +1239,7 @@ def write_packet(
         "imported_helper_hashes": helper_hashes(root, runtime_paths),
         "view_provenance": {result["case_id"]: result["provenance"] for result in case_results},
         "candidate_identity": {
-            "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when gates agree",
+            "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when W5-relevant gates agree",
             "views": {result["case_id"]: result["identity_resolution"] for result in case_results},
         },
         "steering_rule_revision": {
@@ -1326,7 +1376,7 @@ def write_result(
         "",
         "## Collision resolution",
         "",
-        "Parent candidates use source-qualified `origin_key` values for every join, ranking, diagnostic and gallery lookup. Raw candidate IDs remain source-local provenance. Exact cross-source geometry duplicates retain all source occurrences under one canonical parent when their saved gates agree; otherwise the view stops as ambiguous. This run found no duplicate geometry groups.",
+        "Parent candidates use source-qualified `origin_key` values for every join, ranking, diagnostic and gallery lookup. Raw candidate IDs remain source-local provenance. Exact cross-source geometry duplicates retain all source occurrences under one canonical parent when their W5-relevant gates agree; legacy-only source metadata stays attached to each occurrence. A same-source geometry duplicate, metadata mismatch or W5-gate mismatch stops that view as ambiguous.",
         "",
         "| view | source occurrences | canonical parents | raw-ID collisions | duplicate geometry groups |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -1450,10 +1500,8 @@ def run_pilot(root: Path, run_dir: Path, cases: list[str], workers: int) -> list
         for case_id, future in zip(cases, futures, strict=True):
             try:
                 result = future.result()
-            except AssertionError as error:
+            except ViewAmbiguity as error:
                 reason = str(error)
-                if "G0/G1 candidate-ID collision" not in reason:
-                    raise
                 stopped_views.append({"case_id": case_id, "reason": reason})
                 print(case_id, "stopped", reason, flush=True)
                 continue

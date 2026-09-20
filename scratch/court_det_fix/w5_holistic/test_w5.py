@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from run_w5 import canonicalise_populations
+from run_w5 import ViewAmbiguity, canonicalise_populations
 from verifier import (
     legacy_winners,
     permutation_determinism,
@@ -32,7 +32,14 @@ def candidate(origin_key: str, score: float, source_order: int, origin_index: in
         "origin_index": origin_index,
         "kind_order": 0,
         "hard_valid": True,
-        "gates": {"camera_error": 0.05},
+        "gates": {
+            "camera_error": 0.05,
+            "geometry_valid": True,
+            "player_fractions": [1.0, 1.0],
+            "family_support": [0.5, 0.5],
+            "floor_score": 0.0,
+            "line_counts": [1, 1],
+        },
         "historical": {"historical_fullcourt": True, "historical_camera": True},
         "evidence": {
             "q_geom": score,
@@ -78,6 +85,11 @@ def test_source_qualified_identity_keeps_distinct_raw_id_collisions() -> None:
     assert by_origin["G1:0:7"]["source_memberships"] == ["G1"]
 
 
+def test_same_source_raw_id_collision_stops() -> None:
+    with pytest.raises(ViewAmbiguity, match="candidate IDs are not unique"):
+        canonicalise_populations([population_entry("0:7"), population_entry("0:7")], [])
+
+
 def test_exact_geometry_duplicate_preserves_occurrences() -> None:
     records, resolution = canonicalise_populations(
         [population_entry("0:7")],
@@ -92,7 +104,26 @@ def test_exact_geometry_duplicate_preserves_occurrences() -> None:
     ranking = legacy_winners(records)
     assert ranking["eligible_count"] == 2
     assert ranking["paint"] == "G0:0:7"
+    assert ranking["paint_occurrence_key"] == "G1:3:99"
+    assert records[0]["_legacy_occurrences"][0]["parent_origin_key"] == "G0:0:7"
     assert resolution["duplicate_group_count"] == 1
+
+
+def test_exact_geometry_duplicate_keeps_legacy_only_gate_differences() -> None:
+    left = population_entry("0:7", profile_score=0.1)
+    right = population_entry("3:99", profile_score=0.9)
+    right["gates"].update({"family_support": [0.1, 0.2], "floor_score": -1.0, "line_counts": [2, 0]})
+
+    records, _ = canonicalise_populations([left], [right])
+
+    assert len(records) == 1
+    assert records[0]["origin_key"] == "G0:0:7"
+    assert records[0]["_legacy_occurrences"][1]["candidate_id"] == "3:99"
+    assert records[0]["_legacy_occurrences"][1]["gates"] == right["gates"]
+    ranking = legacy_winners(records)
+    assert ranking["paint"] == "G0:0:7"
+    assert ranking["paint_occurrence_key"] == "G1:3:99"
+    assert ranking["paint_parent_origin_key"] == "G0:0:7"
 
 
 def test_source_qualified_identity_set_is_order_independent() -> None:
@@ -111,13 +142,42 @@ def test_unexpected_duplicate_geometry_stops_instead_of_shrinking_pool() -> None
         canonicalise_populations([population_entry("0:7"), population_entry("0:8")], [])
 
 
-def test_cross_source_duplicate_with_differing_gates_stops() -> None:
+def test_cross_source_duplicate_with_differing_w5_gates_stops() -> None:
     left = population_entry("0:7")
     right = population_entry("3:99")
     right["gates"] = {"camera_error": 0.06}
 
-    with pytest.raises(AssertionError, match="differing gates"):
+    with pytest.raises(ViewAmbiguity, match="differing W5 gates"):
         canonicalise_populations([left], [right])
+
+
+def test_cross_source_duplicate_with_differing_pair_metadata_stops() -> None:
+    left = population_entry("0:7")
+    right = population_entry("3:99")
+    right["pair_id"] = 4
+
+    with pytest.raises(ViewAmbiguity, match="differing pair_id"):
+        canonicalise_populations([left], [right])
+
+
+def test_cross_source_duplicate_with_differing_corners_stops() -> None:
+    left = population_entry("0:7")
+    right = population_entry("3:99")
+    right["corners_px"][0][0] = 1.0
+
+    with pytest.raises(ViewAmbiguity, match="differing corners"):
+        canonicalise_populations([left], [right])
+
+
+def test_merged_legacy_ties_keep_original_source_order() -> None:
+    g0 = [population_entry("0:7"), population_entry("0:8", homography_offset=1.0)]
+    g1 = [population_entry("3:99")]
+
+    records, _ = canonicalise_populations(g0, g1)
+    ranking = legacy_winners(records)
+
+    assert ranking["paint"] == "G0:0:7"
+    assert ranking["paint_occurrence_key"] == "G0:0:7"
 
 
 def test_ranker_uses_stable_origin_order_for_ties() -> None:
