@@ -21,16 +21,20 @@ from line_template_source import (
     vector_camera_errors,
     visibility_eligible,
 )
-from render_gallery import write_index
+from render_gallery import load_native_frame, write_index
 from run_w5 import (
+    EXPECTED_MODULE_PATHS,
+    KNOWN_CONTROLS,
     VISIBILITY_FLOOR_ARMS,
     ViewAmbiguity,
     canonicalise_populations,
+    load_g0,
     parse_args,
     preflight_determinism,
     previous_stage5_anchors,
     run_pilot,
     run_preflight,
+    validate_generation_record,
     validate_visibility_floor,
     validate_visibility_floors,
 )
@@ -413,6 +417,7 @@ def test_line_template_empty_metadata_records_visibility_floor_and_counts() -> N
         "hypotheses_rejected": 0,
         "floor_zero_scanned_for_proposal_cap": 0,
         "floor_zero_selected_count": 0,
+        "floor_zero_proposal_ids": [],
         "scanned_for_proposal_cap": 0,
         "removed_from_floor_zero_count": 0,
         "refilled_proposal_count": 0,
@@ -429,11 +434,14 @@ def test_preflight_persists_both_directional_floors(tmp_path: Path, monkeypatch)
         "UNUSED_CASE_IDS": (),
         "ALL_CASE_IDS": ("case_a",),
         "CASE_ORDER": (("case_a", "Case A", "pack"),),
+        "CASE_PACKS": {"pack": "frozen_views/packs/case_a.json.gz"},
+        "PACK_OF": {"case_a": "pack"},
         "WORKING_SIZE": (1280, 720),
         "prepare_view": lambda root, case_id: SimpleNamespace(
             case_id=case_id,
             size=(1280, 720),
             same_image_mask_available=False,
+            frame_relative_path="frozen_views/frames/case_a.png",
         ),
         "relative_path": lambda path, root: str(path),
         "write_json_gz": lambda path, value: None,
@@ -441,7 +449,7 @@ def test_preflight_persists_both_directional_floors(tmp_path: Path, monkeypatch)
     }
     monkeypatch.setattr(
         "run_w5.load_runtime",
-        lambda root: {"verifier": verifier, "paths": {}},
+        lambda root: {"verifier": verifier, "paths": dict(EXPECTED_MODULE_PATHS)},
     )
     monkeypatch.setattr(
         "run_w5.load_populations",
@@ -449,12 +457,22 @@ def test_preflight_persists_both_directional_floors(tmp_path: Path, monkeypatch)
             [],
             [],
             [],
-            {"line_template": {"settings": {"min_visible_lengthwise": 4}}},
+            {
+                "G0": "direct:g0/case_a.json.gz",
+                "G1": "g1/case_a.json.gz",
+                "line_template": {"settings": {"min_visible_lengthwise": 4}},
+            },
         ),
     )
     monkeypatch.setattr(
         "run_w5.preflight_determinism",
         lambda verifier: {"match": True},
+    )
+    opened_controls = []
+    monkeypatch.setitem(KNOWN_CONTROLS, "case_a", {"control:1": "positive_approved"})
+    monkeypatch.setattr(
+        "run_w5.load_control_entry",
+        lambda root, case_id, control_id, verifier: opened_controls.append(control_id),
     )
     (tmp_path / "run").mkdir()
     result = run_preflight(
@@ -470,6 +488,30 @@ def test_preflight_persists_both_directional_floors(tmp_path: Path, monkeypatch)
     assert persisted["min_visible_lengthwise"] == 4
     assert persisted["min_visible_cross_court"] == 3
     assert "min_visible_markings" not in persisted
+    assert persisted["module_resolution"]["match"] is True
+    assert persisted["source_packs"] == {
+        "case_a": "frozen_views/packs/case_a.json.gz"
+    }
+    assert persisted["frame_paths"] == {
+        "case_a": "frozen_views/frames/case_a.png"
+    }
+    assert persisted["g0_source"] == {"case_a": "direct:g0/case_a.json.gz"}
+    assert persisted["g1_source"] == {"case_a": "g1/case_a.json.gz"}
+    assert persisted["diagnostic_controls"] == {"case_a": ["control:1"]}
+    assert opened_controls == ["control:1"]
+
+    monkeypatch.setattr(
+        "run_w5.load_runtime",
+        lambda root: {"verifier": verifier, "paths": {"run_automatic": "wrong.py"}},
+    )
+    with pytest.raises(RuntimeError, match="preflight failed"):
+        run_preflight(
+            tmp_path,
+            tmp_path / "run",
+            ["case_a"],
+            min_visible_lengthwise=4,
+            min_visible_cross_court=3,
+        )
 
 
 def test_visibility_floor_validation_rejects_non_integer_and_negative_values() -> None:
@@ -484,7 +526,7 @@ def test_visibility_floor_validation_rejects_non_integer_and_negative_values() -
 
 
 def test_planned_visibility_floor_arms_are_fixed() -> None:
-    assert VISIBILITY_FLOOR_ARMS == ((0, 0), (3, 3), (4, 3), (5, 3))
+    assert VISIBILITY_FLOOR_ARMS == ((3, 3), (4, 3), (5, 3))
 
 
 def test_pilot_rejects_preflight_case_identity_or_floor_mismatch(tmp_path: Path, monkeypatch) -> None:
@@ -843,6 +885,96 @@ def test_amateur_frame_path_rejects_mismatched_typed_frame() -> None:
 
     with pytest.raises(ValueError, match="amateur frame path uses frame 150"):
         frame_path(Path("/tmp/root"), source, provenance)
+
+
+def test_gallery_passes_typed_provenance_to_frame_resolution(tmp_path: Path) -> None:
+    image_path = tmp_path / "frame.png"
+    assert cv2.imwrite(str(image_path), np.zeros((8, 12, 3), dtype=np.uint8))
+    source = {"id": "case_a", "dimensions": {"width": 12, "height": 8}}
+    provenance = object()
+    received = []
+    verifier = {
+        "frame_path": lambda root, actual_source, actual_provenance: (
+            received.append((actual_source, actual_provenance)) or image_path
+        ),
+    }
+
+    frame = load_native_frame(tmp_path, source, provenance, verifier)
+
+    assert frame.shape == (8, 12, 3)
+    assert received == [(source, provenance)]
+
+
+def test_g0_replay_passes_typed_provenance_to_frame_resolution(
+    tmp_path: Path, monkeypatch
+) -> None:
+    case_id = "case_a"
+    replay_path = tmp_path / "automatic_axes_20260914/all_camera" / f"{case_id}.json.gz"
+    replay_path.parent.mkdir(parents=True)
+    replay_path.write_bytes(b"saved record")
+    provenance = object()
+    context = SimpleNamespace(
+        case_id=case_id,
+        native_size=(12, 8),
+        source={"id": case_id},
+        observations=object(),
+        size=(12, 8),
+        segments=object(),
+        families=object(),
+        provenance=provenance,
+    )
+    saved = {
+        "schema": "automatic-directions-axis-matching/1",
+        "case_id": case_id,
+        "pairs": [],
+    }
+    received = []
+    verifier = {
+        "read_json_gz": lambda path: saved,
+        "frame_path": lambda root, source, actual_provenance: received.append(actual_provenance),
+        "relative_path": lambda path, root: path.relative_to(root).as_posix(),
+    }
+    run_automatic = SimpleNamespace(frame_path=lambda source, root: None)
+    entries = [{"candidate_id": f"candidate-{index}"} for index in range(256)]
+
+    def evaluate_pool(*args):
+        run_automatic.frame_path(context.source, tmp_path)
+        return entries
+
+    runtime = {
+        "verifier": verifier,
+        "select_pool": object(),
+        "evaluate_pool": evaluate_pool,
+        "zone": object(),
+    }
+    monkeypatch.setattr("run_w5.reconstruct_generation_entries", lambda *args: [])
+    monkeypatch.setattr("run_w5.import_run_automatic", lambda: run_automatic)
+
+    actual_entries, source = load_g0(tmp_path, context, runtime)
+
+    assert actual_entries == entries
+    assert source == f"replayed:automatic_axes_20260914/all_camera/{case_id}.json.gz"
+    assert received == [provenance]
+
+
+def test_saved_population_validation_rejects_swapped_or_unknown_membership() -> None:
+    record = {
+        "schema": "automatic-directions-axis-matching/1",
+        "case_id": "case_a",
+        "stage": "results",
+        "pairs": [],
+        "entries": [{"candidate_id": f"candidate-{index}"} for index in range(256)],
+        "line_winner_id": "candidate-0",
+        "paint_winner_id": "candidate-1",
+    }
+    validate_generation_record(record, "case_a", "saved G1", expected_stage="results")
+
+    with pytest.raises(ValueError, match="case identity"):
+        validate_generation_record(record, "case_b", "saved G1", expected_stage="results")
+
+    record["paint_winner_id"] = "unknown"
+    with pytest.raises(ValueError, match="outside its entries"):
+        validate_generation_record(record, "case_a", "saved G1", expected_stage="results")
 
 
 def test_unavailable_masks_do_not_read_boxes_but_available_masks_require_them() -> None:

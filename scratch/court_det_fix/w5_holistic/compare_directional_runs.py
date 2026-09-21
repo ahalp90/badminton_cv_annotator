@@ -1,4 +1,4 @@
-"""Validate and compare the four directional W5 visibility-floor runs.
+"""Validate and compare the three directional W5 visibility-floor runs.
 
 The comparator is deliberately local. It reads completed run directories, validates
 their shared contract and writes a small JSON/Markdown comparison plus contact sheets
@@ -21,10 +21,9 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
-ARM_IDS = ("0_0", "3_3", "4_3", "5_3")
-ARM_FLOORS = ((0, 0), (3, 3), (4, 3), (5, 3))
+ARM_IDS = ("3_3", "4_3", "5_3")
+ARM_FLOORS = ((3, 3), (4, 3), (5, 3))
 ARM_LABELS = {
-    "0_0": "(0,0)",
     "3_3": "(3,3)",
     "4_3": "(4,3)",
     "5_3": "(5,3)",
@@ -83,6 +82,7 @@ ADMISSION_FIELDS = (
     "hypotheses_rejected",
     "floor_zero_scanned_for_proposal_cap",
     "floor_zero_selected_count",
+    "floor_zero_proposal_ids",
     "scanned_for_proposal_cap",
     "removed_from_floor_zero_count",
     "refilled_proposal_count",
@@ -311,6 +311,19 @@ def _validate_admission(
     if zero_selected > zero_scanned or scanned < 0:
         _fail(f"{context}: proposal-cap scan counts are inconsistent")
 
+    floor_zero_ids = _validate_list(
+        admission["floor_zero_proposal_ids"],
+        f"{context}.floor_zero_proposal_ids",
+        item_type=str,
+    )
+    if len(floor_zero_ids) != zero_selected:
+        _fail(
+            f"{context}: floor-zero proposal ledger length does not match "
+            "floor_zero_selected_count"
+        )
+    if len(set(floor_zero_ids)) != len(floor_zero_ids):
+        _fail(f"{context}: floor_zero_proposal_ids contain duplicates")
+
     new_indices = _validate_list(
         admission["newly_admitted_indices"],
         f"{context}.newly_admitted_indices",
@@ -416,17 +429,18 @@ def _validate_admission(
         ):
             _fail(f"{context}: empty source has admission proposal IDs")
 
-    if floor == (0, 0):
-        if rejected != 0 or after != before or removed_count != 0 or refill_count != 0:
-            _fail(
-                f"{context}: (0,0) must have no visibility rejection, removal or refill"
-            )
-        if new_indices or new_ids or removed_indices or removed_ids:
-            _fail(f"{context}: (0,0) must have empty refill/removal ID lists")
-        if zero_selected != proposal_count or scanned != zero_scanned:
-            _fail(
-                f"{context}: (0,0) final pool does not match the recorded floor-zero selection"
-            )
+    floor_zero_set = set(floor_zero_ids)
+    cap_set = set(cap_ids)
+    expected_new_ids = [proposal_id for proposal_id in cap_ids if proposal_id not in floor_zero_set]
+    expected_removed_ids = [
+        proposal_id for proposal_id in floor_zero_ids if proposal_id not in cap_set
+    ]
+    if new_ids != expected_new_ids:
+        _fail(f"{context}: refill IDs do not match the arm's floor-zero ledger")
+    if removed_ids != expected_removed_ids:
+        _fail(f"{context}: removal IDs do not match the arm's floor-zero ledger")
+    if refill_count != len(expected_new_ids) or removed_count != len(expected_removed_ids):
+        _fail(f"{context}: admission counts do not match the arm's floor-zero ledger")
 
     return {
         "status": status,
@@ -439,6 +453,7 @@ def _validate_admission(
         "hypotheses_rejected": rejected,
         "floor_zero_scanned_for_proposal_cap": zero_scanned,
         "floor_zero_selected_count": zero_selected,
+        "floor_zero_proposal_ids": floor_zero_ids,
         "scanned_for_proposal_cap": scanned,
         "refilled_proposal_count": refill_count,
         "removed_from_floor_zero_count": removed_count,
@@ -475,18 +490,16 @@ def _validate_cross_arm_admission(
     admissions: dict[str, dict[str, dict[str, Any]]],
 ) -> None:
     for case_id in EXPECTED_CASES:
-        baseline_arm = arms[0]
-        baseline_source = _stable_line_template_source(
-            baseline_arm.manifest["line_template_sources"][case_id]
+        reference_arm = arms[0]
+        reference_source = _stable_line_template_source(
+            reference_arm.manifest["line_template_sources"][case_id]
         )
-        baseline = admissions[baseline_arm.arm_id][case_id]
-        baseline_cap_ids = baseline["caps"]["256"]["proposal_ids"]
-        baseline_cap_set = set(baseline_cap_ids)
+        reference = admissions[reference_arm.arm_id][case_id]
         for arm in arms[1:]:
             source = _stable_line_template_source(
                 arm.manifest["line_template_sources"][case_id]
             )
-            if source != baseline_source:
+            if source != reference_source:
                 _fail(
                     f"{arm.arm_id}/{case_id}: stable line-template source fields differ"
                 )
@@ -495,31 +508,12 @@ def _validate_cross_arm_admission(
                 "hypotheses_before",
                 "floor_zero_scanned_for_proposal_cap",
                 "floor_zero_selected_count",
+                "floor_zero_proposal_ids",
             ):
-                if current[field] != baseline[field]:
+                if current[field] != reference[field]:
                     _fail(
-                        f"{arm.arm_id}/{case_id}: {field} differs from the (0,0) baseline"
+                        f"{arm.arm_id}/{case_id}: {field} differs from the reference arm"
                     )
-            current_cap_ids = current["caps"]["256"]["proposal_ids"]
-            current_cap_set = set(current_cap_ids)
-            expected_new = [
-                proposal_id
-                for proposal_id in current_cap_ids
-                if proposal_id not in baseline_cap_set
-            ]
-            expected_removed = [
-                proposal_id
-                for proposal_id in baseline_cap_ids
-                if proposal_id not in current_cap_set
-            ]
-            if current["newly_admitted_proposal_ids"] != expected_new:
-                _fail(
-                    f"{arm.arm_id}/{case_id}: refill IDs do not match gated cap order"
-                )
-            if current["removed_from_floor_zero_proposal_ids"] != expected_removed:
-                _fail(
-                    f"{arm.arm_id}/{case_id}: removal IDs do not match baseline cap order"
-                )
 
 
 def _validate_case_ordered_mapping(
@@ -638,7 +632,7 @@ def _validate_arm(arm_id: str, path: Path, floor: tuple[int, int]) -> ArmRun:
             f"{arm_id}: cases and requested_cases must be the exact ordered 27-case list"
         )
     if _required(manifest, "stopped_views", arm_id) != []:
-        _fail(f"{arm_id}: stopped views are not allowed in a four-arm comparison")
+        _fail(f"{arm_id}: stopped views are not allowed in a three-arm comparison")
     if _pair(manifest, arm_id) != floor:
         _fail(f"{arm_id}: manifest visibility floor does not match its arm")
     _validate_columns(
@@ -775,6 +769,7 @@ def _arm_case_rows(
                     "floor_zero_scanned_for_proposal_cap"
                 ],
                 "floor_zero_selected_count": admission["floor_zero_selected_count"],
+                "floor_zero_proposal_ids": admission["floor_zero_proposal_ids"],
                 "scanned_for_proposal_cap": admission["scanned_for_proposal_cap"],
                 "proposal_count": admission["proposal_count"],
                 "cap_256_count": admission["cap_256_count"],
@@ -795,24 +790,24 @@ def _arm_case_rows(
 def validate_runs(
     run_paths: dict[str, Path],
 ) -> tuple[tuple[ArmRun, ...], dict[str, Any]]:
-    """Validate all four packets before any comparison output is created."""
+    """Validate all three packets before any comparison output is created."""
     if tuple(run_paths) != ARM_IDS:
         _fail(f"run paths must be supplied in exact arm order {ARM_IDS}")
     arms = tuple(
         _validate_arm(arm_id, run_paths[arm_id], floor)
         for arm_id, floor in zip(ARM_IDS, ARM_FLOORS, strict=True)
     )
-    baseline = _scrub_manifest_for_arm_comparison(arms[0].manifest)
+    reference_manifest = _scrub_manifest_for_arm_comparison(arms[0].manifest)
     for arm in arms[1:]:
         if arm.manifest.get("imported_helper_hashes") != arms[0].manifest.get(
             "imported_helper_hashes"
         ):
-            _fail(f"{arm.arm_id}: imported helper hashes differ from the (0,0) arm")
+            _fail(f"{arm.arm_id}: imported helper hashes differ from the reference arm")
         if arm.manifest.get("imported_helper_paths") != arms[0].manifest.get(
             "imported_helper_paths"
         ):
-            _fail(f"{arm.arm_id}: imported helper paths differ from the (0,0) arm")
-        if _scrub_manifest_for_arm_comparison(arm.manifest) != baseline:
+            _fail(f"{arm.arm_id}: imported helper paths differ from the reference arm")
+        if _scrub_manifest_for_arm_comparison(arm.manifest) != reference_manifest:
             _fail(
                 f"{arm.arm_id}: non-floor scorer/refit/global manifest parameters differ"
             )
@@ -873,6 +868,9 @@ def validate_runs(
                 "floor_zero_selected_count": admissions[arm.arm_id][case_id][
                     "floor_zero_selected_count"
                 ],
+                "floor_zero_proposal_ids": admissions[arm.arm_id][case_id][
+                    "floor_zero_proposal_ids"
+                ],
                 "scanned_for_proposal_cap": admissions[arm.arm_id][case_id][
                     "scanned_for_proposal_cap"
                 ],
@@ -916,7 +914,7 @@ def _markdown(comparison: dict[str, Any]) -> str:
         "# Directional W5 arm comparison",
         "",
         (
-            "The four arms use projected visibility of six lengthwise pieces and six cross-court pieces. "
+            "The three arms use projected visibility of six lengthwise pieces and six cross-court pieces. "
             "The downstream scorer may merge the two centre halves into five line identities."
         ),
         "",
@@ -927,8 +925,8 @@ def _markdown(comparison: dict[str, Any]) -> str:
             "(`proposal_count`/`caps['256'].count`) and visibility rejection/refill/depletion counts."
         ),
         "",
-        "| case | (0,0) | (3,3) | (4,3) | (5,3) |",
-        "| --- | --- | --- | --- | --- |",
+        "| case | (3,3) | (4,3) | (5,3) |",
+        "| --- | --- | --- | --- |",
     ]
     for row in comparison["cases"]:
         lines.append(
@@ -966,7 +964,7 @@ def _markdown(comparison: dict[str, Any]) -> str:
             "## Contact sheets",
             "",
             (
-                "Each sheet is ordered left-to-right as `(0,0)`, `(3,3)`, `(4,3)`, `(5,3)`. "
+                "Each sheet is ordered left-to-right as `(3,3)`, `(4,3)`, `(5,3)`. "
                 "Arm labels are printed on every panel, so colour is not needed to interpret the comparison."
             ),
             "",
@@ -981,7 +979,6 @@ def _markdown(comparison: dict[str, Any]) -> str:
 PANEL_SIZE = (420, 300)
 CONTACT_HEADER_HEIGHT = 38
 ARM_COLOURS = {
-    "0_0": (31, 119, 180),
     "3_3": (230, 126, 34),
     "4_3": (106, 61, 154),
     "5_3": (0, 158, 115),
@@ -1060,7 +1057,7 @@ def write_outputs(
 
 
 def compare_runs(run_paths: dict[str, Path], output_dir: Path) -> dict[str, Any]:
-    """Validate four runs and atomically write their comparison outputs."""
+    """Validate three runs and atomically write their comparison outputs."""
     arms, comparison = validate_runs(run_paths)
     write_outputs(output_dir, comparison, arms)
     return comparison
@@ -1068,9 +1065,6 @@ def compare_runs(run_paths: dict[str, Path], output_dir: Path) -> dict[str, Any]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--run-00", type=Path, required=True, help="Completed (0,0) run directory"
-    )
     parser.add_argument(
         "--run-33", type=Path, required=True, help="Completed (3,3) run directory"
     )
@@ -1087,7 +1081,6 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     run_paths = {
-        "0_0": args.run_00,
         "3_3": args.run_33,
         "4_3": args.run_43,
         "5_3": args.run_53,

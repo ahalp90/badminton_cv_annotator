@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Run one W5 stage from the remote experiment root with durable receipts.
-set -u
+set -uo pipefail
+if (( $# < 3 )); then
+  printf 'usage: %s RUN LABEL SCRIPT [ARGS...]\n' "$0" >&2
+  exit 2
+fi
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 run=$1
 label=$2
@@ -13,7 +17,11 @@ export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NU
 unset PYTHONOPTIMIZE
 export XDG_CACHE_HOME="$PWD/$out/cache"
 export PYTHONPATH=$here:next_steps_20260916/webui_seed/source:frozen_helpers_20260914/marking_diagnosis:frozen_helpers_20260914/vp_pruning:frozen_helpers_20260914/axis_matching:frozen_helpers_20260914/legacy:src:.
-python="${REMOTE_PYTHON:-$HOME/.venvs/venv-rtmlib/bin/python}"
+python="${REMOTE_PYTHON:-$HOME/.venvs/venv-pipeline/bin/python}"
+home_prefix="\$HOME/"
+if [[ "$python" == "$home_prefix"* ]]; then
+  python="$HOME/${python#\$HOME/}"
+fi
 printf '%s\n' "$$" > "$out/receipts/$label.pid"
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 "$python" "$here/$script.py" --root . --run "$run" "$@" > "$out/logs/$label.log" 2>&1

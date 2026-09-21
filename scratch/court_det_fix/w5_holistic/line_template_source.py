@@ -335,6 +335,7 @@ def _empty_metadata(settings: dict, started: float, reason: str) -> dict:
                 "hypotheses_rejected": 0,
                 "floor_zero_scanned_for_proposal_cap": 0,
                 "floor_zero_selected_count": 0,
+                "floor_zero_proposal_ids": [],
                 "scanned_for_proposal_cap": 0,
                 "removed_from_floor_zero_count": 0,
                 "refilled_proposal_count": 0,
@@ -558,6 +559,10 @@ def generate(
                 "hypotheses_rejected": int((~admission.visibility_admitted).sum()),
                 "floor_zero_scanned_for_proposal_cap": admission.floor_zero_scanned,
                 "floor_zero_selected_count": len(admission.floor_zero_selected),
+                "floor_zero_proposal_ids": [
+                    f"rectangle_{int(rectangle_ids[index])}:template_{int(templates[index])}"
+                    for index in admission.floor_zero_selected
+                ],
                 "scanned_for_proposal_cap": admission.scanned,
                 "removed_from_floor_zero_count": len(admission.removed_from_floor_zero),
                 "refilled_proposal_count": len(admission.newly_admitted),

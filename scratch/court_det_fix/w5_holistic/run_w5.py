@@ -36,7 +36,15 @@ def add_helper_paths(root: Path) -> None:
 
 
 def module_paths(root: Path) -> dict[str, str]:
-    names = ("run_automatic", "run_given", "run_population", "run_diagnosis", "zone_net", "line_template_source")
+    names = (
+        "run_automatic",
+        "run_given",
+        "run_population",
+        "run_diagnosis",
+        "zone_net",
+        "camera_diagnostic",
+        "line_template_source",
+    )
     paths = {}
     for name in names:
         module = importlib.import_module(name)
@@ -47,6 +55,10 @@ def module_paths(root: Path) -> dict[str, str]:
 def import_runtime(root: Path) -> dict[str, Any]:
     add_helper_paths(root)
     from line_template_source import generate
+
+    # run_diagnosis prepends its sibling snapshot while importing. Pin this
+    # byte-identical seed helper first so module provenance stays deterministic.
+    importlib.import_module("run_population")
     from run_automatic import evaluate_pool, select_pool
     from run_diagnosis import gate_evidence
 
@@ -84,6 +96,7 @@ def load_verifier(root: Path):
         historical_predicates,
         jsonable,
         legacy_winners,
+        load_case_provenance,
         load_source,
         measure_candidate,
         permutation_determinism,
@@ -118,6 +131,7 @@ def load_verifier(root: Path):
         "hard_validity": hard_validity,
         "historical_predicates": historical_predicates,
         "legacy_winners": legacy_winners,
+        "load_case_provenance": load_case_provenance,
         "load_source": load_source,
         "measure_candidate": measure_candidate,
         "permutation_determinism": permutation_determinism,
@@ -156,7 +170,17 @@ VISIBILITY_COLUMNS = {
     "lengthwise": "first six projected court-template pieces (x-family): sidelines plus split centre",
     "cross_court": "second six projected court-template pieces (y-family): baselines and service lines",
 }
-VISIBILITY_FLOOR_ARMS = ((0, 0), (3, 3), (4, 3), (5, 3))
+VISIBILITY_FLOOR_ARMS = ((3, 3), (4, 3), (5, 3))
+
+EXPECTED_MODULE_PATHS = {
+    "run_automatic": "next_steps_20260916/webui_seed/source/run_automatic.py",
+    "run_given": "next_steps_20260916/webui_seed/source/run_given.py",
+    "run_population": "next_steps_20260916/webui_seed/source/run_population.py",
+    "run_diagnosis": "frozen_helpers_20260914/marking_diagnosis/run_diagnosis.py",
+    "zone_net": "frozen_helpers_20260914/legacy/zone_net.py",
+    "camera_diagnostic": "frozen_helpers_20260914/legacy/camera_diagnostic.py",
+    "line_template_source": "w5_holistic/line_template_source.py",
+}
 
 
 L2_COMPARISON_CASES = (
@@ -246,18 +270,69 @@ def reconstruct_generation_entries(record: dict, native_size: tuple[int, int], s
     return [provenance[id(candidate)] for candidate in retained]
 
 
+def validate_population_entries(entries: Any, case_id: str, source: str) -> list[dict]:
+    """Validate the candidate identities used by one frozen population."""
+    if not isinstance(entries, list):
+        raise TypeError(f"{case_id}: {source} entries must be a list")
+    if len(entries) != 256:
+        raise ValueError(f"{case_id}: {source} has {len(entries)} entries")
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise ValueError(f"{case_id}: {source} entries must be objects")
+    candidate_ids = [entry.get("candidate_id") for entry in entries]
+    if not all(isinstance(candidate_id, str) and candidate_id for candidate_id in candidate_ids):
+        raise ValueError(f"{case_id}: {source} has an invalid candidate ID")
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ValueError(f"{case_id}: {source} candidate IDs are not unique")
+    return entries
+
+
+def validate_generation_record(
+    record: Any,
+    case_id: str,
+    source: str,
+    *,
+    expected_stage: str | None = None,
+    validate_entries: bool = True,
+) -> dict:
+    """Validate the saved identity and membership used by a G0 or G1 population."""
+    if not isinstance(record, dict):
+        raise TypeError(f"{case_id}: {source} record must be an object")
+    if record.get("schema") != "automatic-directions-axis-matching/1":
+        raise ValueError(f"{case_id}: {source} has an unsupported schema")
+    if record.get("case_id") != case_id:
+        raise ValueError(f"{case_id}: {source} case identity does not match")
+    if expected_stage is not None and record.get("stage") != expected_stage:
+        raise ValueError(f"{case_id}: {source} stage is not {expected_stage}")
+    if not isinstance(record.get("pairs"), list):
+        raise TypeError(f"{case_id}: {source} generation pairs must be a list")
+    if validate_entries:
+        entries = validate_population_entries(record.get("entries"), case_id, source)
+        candidate_ids = {entry["candidate_id"] for entry in entries}
+        for winner_name in ("line_winner_id", "paint_winner_id"):
+            winner_id = record.get(winner_name)
+            if winner_id is not None and winner_id not in candidate_ids:
+                raise ValueError(f"{case_id}: {source} {winner_name} is outside its entries")
+    return record
+
+
 def load_g0(root: Path, context, runtime: dict[str, Any]) -> tuple[list[dict], str]:
     verifier = runtime["verifier"]
     direct = root / "frozen_views/baseline_generation" / f"{context.case_id}.json.gz"
     if direct.exists():
-        entries = verifier["read_json_gz"](direct)["entries"]
-        if len(entries) != 256:
-            raise ValueError(f"{context.case_id}: direct G0 has {len(entries)} entries")
+        record = validate_generation_record(
+            verifier["read_json_gz"](direct), context.case_id, "direct G0"
+        )
+        entries = record["entries"]
         return entries, "direct:" + verifier["relative_path"](direct, root)
     record_path = root / "automatic_axes_20260914/all_camera" / f"{context.case_id}.json.gz"
     if not record_path.exists():
         raise FileNotFoundError(record_path)
-    record = verifier["read_json_gz"](record_path)
+    record = validate_generation_record(
+        verifier["read_json_gz"](record_path),
+        context.case_id,
+        "automatic G0 replay input",
+        validate_entries=False,
+    )
     shortlist = reconstruct_generation_entries(
         record,
         context.native_size,
@@ -266,7 +341,9 @@ def load_g0(root: Path, context, runtime: dict[str, Any]) -> tuple[list[dict], s
     )
     run_automatic = import_run_automatic()
     original_frame_path = run_automatic.frame_path
-    run_automatic.frame_path = lambda source, _root: verifier["frame_path"](root, source)
+    run_automatic.frame_path = lambda source, _root: verifier["frame_path"](
+        root, source, context.provenance
+    )
     try:
         entries = runtime["evaluate_pool"](
             context.source,
@@ -280,8 +357,7 @@ def load_g0(root: Path, context, runtime: dict[str, Any]) -> tuple[list[dict], s
         )
     finally:
         run_automatic.frame_path = original_frame_path
-    if len(entries) != 256:
-        raise ValueError(f"{context.case_id}: replayed G0 has {len(entries)} entries")
+    validate_population_entries(entries, context.case_id, "replayed G0")
     return entries, "replayed:" + verifier["relative_path"](record_path, root)
 
 
@@ -299,10 +375,10 @@ def load_g1(root: Path, context, verifier: dict[str, Any]) -> tuple[list[dict], 
     path = root / "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results" / (
         f"{context.case_id}.json.gz"
     )
-    record = verifier["read_json_gz"](path)
+    record = validate_generation_record(
+        verifier["read_json_gz"](path), context.case_id, "saved G1", expected_stage="results"
+    )
     entries = record["entries"]
-    if len(entries) != 256:
-        raise ValueError(f"{context.case_id}: saved G1 has {len(entries)} entries")
     return entries, verifier["relative_path"](path, root)
 
 
@@ -422,9 +498,18 @@ def run_preflight(
         "min_visible_cross_court": min_visible_cross_court,
         "visibility_columns": dict(VISIBILITY_COLUMNS),
         "module_paths": runtime["paths"],
+        "module_resolution": {
+            "expected": dict(EXPECTED_MODULE_PATHS),
+            "actual": runtime["paths"],
+            "match": runtime["paths"] == EXPECTED_MODULE_PATHS,
+        },
         "working_dimensions": {},
+        "source_packs": {},
+        "frame_paths": {},
         "g0_source": {},
+        "g1_source": {},
         "line_template_source": {},
+        "diagnostic_controls": {},
         "population_counts": {},
         "mask_availability": {},
         "automatic_reference_fields": {},
@@ -435,6 +520,8 @@ def run_preflight(
     }
     if regression_case_ids != [case_id for case_id, _, _ in verifier["CASE_ORDER"]]:
         results["failures"].append("regression case ID order does not match the W5 contract")
+    if not results["module_resolution"]["match"]:
+        results["failures"].append("runtime modules do not resolve to the frozen W5 sources")
     results["regression_contract"] = {
         "case_ids": regression_case_ids,
         "requested": case_ids == regression_case_ids,
@@ -442,6 +529,8 @@ def run_preflight(
     populations = {}
     for case_id in case_ids:
         context = verifier["prepare_view"](root, case_id)
+        results["source_packs"][case_id] = verifier["CASE_PACKS"][verifier["PACK_OF"][case_id]]
+        results["frame_paths"][case_id] = context.frame_relative_path
         results["working_dimensions"][case_id] = list(context.size)
         if context.size != verifier["WORKING_SIZE"]:
             results["failures"].append(f"{case_id}: working dimensions {context.size}")
@@ -454,13 +543,6 @@ def run_preflight(
         }
         if expected_mask is not None and actual_mask != expected_mask:
             results["failures"].append(f"{case_id}: same-image mask provenance differs")
-        g0_path = root / "frozen_views/baseline_generation" / f"{case_id}.json.gz"
-        if g0_path.exists():
-            g0_source = "direct:" + verifier["relative_path"](g0_path, root)
-        else:
-            replay_path = root / "automatic_axes_20260914/all_camera" / f"{case_id}.json.gz"
-            g0_source = "replayed:" + verifier["relative_path"](replay_path, root)
-        results["g0_source"][case_id] = g0_source
         g0, g1, line_template, sources = load_populations(
             root,
             context,
@@ -469,6 +551,8 @@ def run_preflight(
             min_visible_cross_court=min_visible_cross_court,
         )
         populations[case_id] = (g0, g1, line_template, sources)
+        results["g0_source"][case_id] = sources["G0"]
+        results["g1_source"][case_id] = sources["G1"]
         results["line_template_source"][case_id] = sources["line_template"]
         results["population_counts"][case_id] = {
             "G0": len(g0), "G1": len(g1), "line_template": len(line_template),
@@ -480,6 +564,10 @@ def run_preflight(
         results["automatic_reference_fields"][case_id] = {"match": not forbidden, "fields": forbidden}
         if forbidden:
             results["failures"].append(f"{case_id}: automatic candidate path contains reference fields")
+        control_ids = list(KNOWN_CONTROLS.get(case_id, {}))
+        for control_id in control_ids:
+            load_control_entry(root, case_id, control_id, verifier)
+        results["diagnostic_controls"][case_id] = control_ids
     for case_id in L2_COMPARISON_CASES:
         if case_id not in case_ids:
             continue
@@ -935,8 +1023,21 @@ def public_candidate(candidate: dict) -> dict:
 
 def load_control_entry(root: Path, case_id: str, candidate_id: str, verifier: dict[str, Any]) -> dict:
     path = root / "automatic_axes_20260914/all_camera" / f"{case_id}.json.gz"
-    record = verifier["read_json_gz"](path)
-    for entry in record.get("entries", []):
+    record = validate_generation_record(
+        verifier["read_json_gz"](path),
+        case_id,
+        "diagnostic control source",
+        validate_entries=False,
+    )
+    entries = record.get("entries")
+    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+        raise ValueError(f"{case_id}: diagnostic control entries must be objects")
+    candidate_ids = [entry.get("candidate_id") for entry in entries]
+    if not all(isinstance(saved_id, str) and saved_id for saved_id in candidate_ids):
+        raise ValueError(f"{case_id}: diagnostic control source has an invalid candidate ID")
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ValueError(f"{case_id}: diagnostic control candidate IDs are not unique")
+    for entry in entries:
         if entry["candidate_id"] == candidate_id:
             return entry
     raise KeyError((case_id, candidate_id))

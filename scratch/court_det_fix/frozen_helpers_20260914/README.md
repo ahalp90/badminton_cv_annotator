@@ -1,6 +1,6 @@
 # Frozen helper scripts of 14 September 2026
 
-Code-only copy, made 2026-09-16, of the `.py` files under the gitignored `scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/` tree that the direction experiment and the line-identity series import (the tree their documents call L), plus `legacy/zone_net.py` from the 20260908 tree (the player-zone module the matcher's player mask uses). Records, images and caches of that tree are not copied. The compute host holds its own copy under the remote experiment root; `../direction_agreement/evidence.md` records that the 43 shared modules were byte-identical between the two on 2026-09-15.
+Code-only copy, made 2026-09-16, of the `.py` files under the gitignored `scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/` tree that the direction experiment and the line-identity series import (the tree their documents call L), plus `legacy/zone_net.py` and its `camera_diagnostic.py` dependency from the 20260908 tree. Records, images and caches of that tree are not copied. The compute host holds its own copy under the remote experiment root; `../direction_agreement/evidence.md` records that the 43 shared modules were byte-identical between the two on 2026-09-15.
 
 Import roots the experiments put on `sys.path`: `vp_pruning/`, `marking_diagnosis/`, `axis_matching/`, `automatic_axes/`, `automatic_axes/svd_fixed/`, and `legacy/` for `zone_net`.
 
@@ -35,6 +35,7 @@ Import roots the experiments put on `sys.path`: `vp_pruning/`, `marking_diagnosi
 | `axis_matching/render_axis_check.py` | 5,609 | `4b3c3d3342df3c6c7666fc965592b877` |
 | `axis_matching/run_given.py` | 13,684 | `5df2ee73f71ea408e1c5567fc6f61c8c` |
 | `axis_matching/test_projective_seed.py` | 6,387 | `0f086767f21cff70a3960875a6cf6073` |
+| `legacy/camera_diagnostic.py` | 2,579 | `fc3472445860c212a7ac9b477c72df79` |
 | `legacy/zone_net.py` | 8,325 | `de55928ecc99f62480e9dc43885b8f6b` |
 | `marking_diagnosis/render_followup.py` | 6,264 | `b5f1464c550f6870d2ece83e0581d5d1` |
 | `marking_diagnosis/run_diagnosis.py` | 12,133 | `1bc56f6bd592e6cb49b687e51d2bf7bf` |

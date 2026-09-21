@@ -24,12 +24,11 @@ from PIL import Image
 
 
 def _admission(floor: tuple[int, int]) -> dict:
-    is_zero = floor == (0, 0)
     before = 300
-    after = before if is_zero else 260
-    rejected = 0 if is_zero else 40
-    new_count = 0 if is_zero else 2
-    removed_count = 0 if is_zero else 2
+    after = 260
+    rejected = 40
+    new_count = 2
+    removed_count = 2
     return {
         "min_visible_lengthwise": floor[0],
         "min_visible_cross_court": floor[1],
@@ -39,24 +38,21 @@ def _admission(floor: tuple[int, int]) -> dict:
         "hypotheses_rejected": rejected,
         "floor_zero_scanned_for_proposal_cap": 256,
         "floor_zero_selected_count": 256,
-        "scanned_for_proposal_cap": 256 if is_zero else 258,
+        "floor_zero_proposal_ids": [f"proposal-{index}" for index in range(256)],
+        "scanned_for_proposal_cap": 258,
         "removed_from_floor_zero_count": removed_count,
         "refilled_proposal_count": new_count,
-        "newly_admitted_indices": [] if is_zero else [260, 261],
-        "newly_admitted_proposal_ids": [] if is_zero else ["new-260", "new-261"],
-        "removed_from_floor_zero_indices": [] if is_zero else [254, 255],
-        "removed_from_floor_zero_proposal_ids": (
-            [] if is_zero else ["proposal-254", "proposal-255"]
-        ),
+        "newly_admitted_indices": [260, 261],
+        "newly_admitted_proposal_ids": ["new-260", "new-261"],
+        "removed_from_floor_zero_indices": [254, 255],
+        "removed_from_floor_zero_proposal_ids": ["proposal-254", "proposal-255"],
     }
 
 
 def _line_source(floor: tuple[int, int]) -> tuple[dict, dict]:
     admission = _admission(floor)
-    is_zero = floor == (0, 0)
-    proposal_ids = [f"proposal-{index}" for index in range(254 if not is_zero else 256)]
-    if not is_zero:
-        proposal_ids.extend(("new-260", "new-261"))
+    proposal_ids = [f"proposal-{index}" for index in range(254)]
+    proposal_ids.extend(("new-260", "new-261"))
     source = {
         "name": "line_template",
         "status": "generated",
@@ -71,7 +67,7 @@ def _line_source(floor: tuple[int, int]) -> tuple[dict, dict]:
         },
         "generation": {
             "visibility_admission": admission,
-            "combined_admission_hypotheses": 300 if is_zero else 260,
+            "combined_admission_hypotheses": 260,
         },
         "caps": {
             "256": {
@@ -232,6 +228,7 @@ def _make_empty_case(run_set: dict[str, Path], case_id: str) -> None:
         ):
             admission[field] = 0
         for field in (
+            "floor_zero_proposal_ids",
             "newly_admitted_indices",
             "newly_admitted_proposal_ids",
             "removed_from_floor_zero_indices",
@@ -295,6 +292,9 @@ def test_comparison_writes_validated_json_markdown_and_contact_sheets(
     arm_record = comparison["cases"][0]["arms"]["3_3"]
     assert arm_record["floor_zero_scanned_for_proposal_cap"] == 256
     assert arm_record["floor_zero_selected_count"] == 256
+    assert arm_record["floor_zero_proposal_ids"] == [
+        f"proposal-{index}" for index in range(256)
+    ]
     assert arm_record["scanned_for_proposal_cap"] == 258
     assert arm_record["caps"]["256"]["proposal_ids"][-2:] == ["new-260", "new-261"]
     assert "six lengthwise" in (output_dir / "comparison.md").read_text()
@@ -314,6 +314,7 @@ def test_empty_line_template_metadata_is_accepted(
         assert record["proposal_count"] == 0
         assert record["cap_256_count"] == 0
         assert record["combined_admission_hypotheses"] == 0
+        assert record["floor_zero_proposal_ids"] == []
         assert record["caps"]["256"]["proposal_ids"] == []
 
 
@@ -352,6 +353,9 @@ def test_mid_write_failure_removes_partial_output_and_temp_directory(
         ("contamination", "contamination check"),
         ("refill", "refill list lengths"),
         ("wrong_refill_id", "refill IDs"),
+        ("missing_floor_zero_ledger", "visibility_admission missing"),
+        ("wrong_floor_zero_ledger", "arm's floor-zero ledger"),
+        ("unstable_floor_zero_ledger", "differs from the reference arm"),
         ("stable_source", "stable line-template source"),
         ("missing_per_view_floor", "per_view is missing"),
         ("join", "source-qualified"),
@@ -402,6 +406,40 @@ def test_comparison_rejects_unsafe_packets(
             "proposal_ids"
         ]
         cap_ids[0] = "new-wrong-id"
+        (target / "manifest.json").write_text(json.dumps(manifest))
+    elif mutation == "missing_floor_zero_ledger":
+        manifest = json.loads((target / "manifest.json").read_text())
+        case_id = EXPECTED_CASES[0]
+        source_admission = manifest["line_template_sources"][case_id]["generation"][
+            "visibility_admission"
+        ]
+        source_admission.pop("floor_zero_proposal_ids")
+        (target / "manifest.json").write_text(json.dumps(manifest))
+    elif mutation == "wrong_floor_zero_ledger":
+        manifest = json.loads((target / "manifest.json").read_text())
+        case_id = EXPECTED_CASES[0]
+        source_admission = manifest["line_template_sources"][case_id]["generation"][
+            "visibility_admission"
+        ]
+        source_admission["floor_zero_proposal_ids"][0] = "proposal-not-in-cap"
+        manifest["line_template_admission"]["cases"][case_id][
+            "floor_zero_proposal_ids"
+        ][0] = "proposal-not-in-cap"
+        (target / "manifest.json").write_text(json.dumps(manifest))
+    elif mutation == "unstable_floor_zero_ledger":
+        target = run_set["4_3"]
+        manifest = json.loads((target / "manifest.json").read_text())
+        case_id = EXPECTED_CASES[0]
+        source_admission = manifest["line_template_sources"][case_id]["generation"][
+            "visibility_admission"
+        ]
+        source_admission["floor_zero_proposal_ids"][:2] = [
+            "proposal-1",
+            "proposal-0",
+        ]
+        manifest["line_template_admission"]["cases"][case_id][
+            "floor_zero_proposal_ids"
+        ][:2] = ["proposal-1", "proposal-0"]
         (target / "manifest.json").write_text(json.dumps(manifest))
     elif mutation == "stable_source":
         manifest = json.loads((target / "manifest.json").read_text())

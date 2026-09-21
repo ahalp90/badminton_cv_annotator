@@ -201,9 +201,14 @@ def _load_provenance_pack(pack_path: Path) -> Mapping[str, CaseProvenance]:
     return load_frozen_case_provenance(pack_path)
 
 
+def load_case_provenance(root: Path, case_id: str) -> CaseProvenance:
+    """Load one case's typed provenance from its frozen input pack."""
+    return _load_provenance_pack(root / CASE_PACKS[PACK_OF[case_id]])[case_id]
+
+
 def prepare_view(root: Path, case_id: str) -> ViewContext:
     source = load_source(root, case_id)
-    provenance = _load_provenance_pack(root / CASE_PACKS[PACK_OF[case_id]])[case_id]
+    provenance = load_case_provenance(root, case_id)
     segments, families, size = prepare_segments(source)
     observations = assignment.prepare_observations(segments, size)
     frame_file = frame_path(root, source, provenance)

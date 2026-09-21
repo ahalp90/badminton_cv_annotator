@@ -21,6 +21,7 @@ def import_verifier(root: Path):
         CASE_PACKS,
         PACK_OF,
         frame_path,
+        load_case_provenance,
         load_source,
         read_json_gz,
     )
@@ -31,6 +32,7 @@ def import_verifier(root: Path):
         "CASE_PACKS": CASE_PACKS,
         "PACK_OF": PACK_OF,
         "frame_path": frame_path,
+        "load_case_provenance": load_case_provenance,
         "load_source": load_source,
         "read_json_gz": read_json_gz,
     }
@@ -40,8 +42,8 @@ def safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
 
 
-def load_native_frame(root: Path, source: dict, verifier: dict) -> np.ndarray:
-    path = verifier["frame_path"](root, source)
+def load_native_frame(root: Path, source: dict, provenance: object, verifier: dict) -> np.ndarray:
+    path = verifier["frame_path"](root, source, provenance)
     frame = cv2.imread(str(path))
     if frame is None:
         raise FileNotFoundError(path)
@@ -115,7 +117,8 @@ def render_prediction(
 
 def render_case(root: Path, run_dir: Path, case_id: str, packet: dict, verifier: dict) -> dict:
     source = verifier["load_source"](root, case_id)
-    frame = load_native_frame(root, source, verifier)
+    provenance = verifier["load_case_provenance"](root, case_id)
+    frame = load_native_frame(root, source, provenance, verifier)
     context = {
         "id": case_id,
         "dimensions": source["dimensions"],
