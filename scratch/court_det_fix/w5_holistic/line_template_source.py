@@ -380,6 +380,7 @@ def generate(
         min_visible_cross_court,
     )
     started = perf_counter()
+    print(f"[{context.case_id}] line-template: preparing rectangles", flush=True)
     settings = {
         "wide_families": True,
         "family_line_cap": 32,
@@ -457,7 +458,15 @@ def generate(
     scalar_recheck_count = 0
     vector_scalar_max_abs_diff = 0.0
     batch_rectangles = max(1, 1024 // TEMPLATE_COUNT)
+    last_progress = perf_counter()
     for offset in range(0, len(rectangles_array), batch_rectangles):
+        if perf_counter() - last_progress >= 30:
+            print(
+                f"[{context.case_id}] line-template: rectangles {offset}/{len(rectangles_array)} "
+                f"(+{perf_counter() - started:.0f}s)",
+                flush=True,
+            )
+            last_progress = perf_counter()
         rectangle_batch = rectangles_array[offset:offset + batch_rectangles]
         homographies = (rectangle_batch[:, None] @ detector.TEMPLATE_TRANSFORMS).reshape(-1, 3, 3)
         corners, means, valid, visibility = geometry_and_support(

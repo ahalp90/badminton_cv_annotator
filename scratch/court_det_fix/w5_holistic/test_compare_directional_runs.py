@@ -112,7 +112,6 @@ def _write_run(root: Path, arm_id: str, floor: tuple[int, int]) -> Path:
         },
         "source_stage": {
             "automatic_path_free_of_reference_fields": True,
-            "preflight_path_free_of_reference_fields": True,
             "full_run_contamination_checks": checks,
         },
         "imported_helper_paths": {"helper": "frozen/helper.py"},
@@ -351,6 +350,8 @@ def test_mid_write_failure_removes_partial_output_and_temp_directory(
         ("floor", "visibility floor"),
         ("stopped", "stopped views"),
         ("contamination", "contamination check"),
+        ("missing_contamination_case", "exact ordered case list"),
+        ("contamination_fields", "contamination check"),
         ("refill", "refill list lengths"),
         ("wrong_refill_id", "refill IDs"),
         ("missing_floor_zero_ledger", "visibility_admission missing"),
@@ -389,6 +390,14 @@ def test_comparison_rejects_unsafe_packets(
         manifest["source_stage"]["full_run_contamination_checks"][EXPECTED_CASES[0]][
             "match"
         ] = False
+        (target / "manifest.json").write_text(json.dumps(manifest))
+    elif mutation == "missing_contamination_case":
+        manifest = json.loads((target / "manifest.json").read_text())
+        manifest["source_stage"]["full_run_contamination_checks"].pop(EXPECTED_CASES[0])
+        (target / "manifest.json").write_text(json.dumps(manifest))
+    elif mutation == "contamination_fields":
+        manifest = json.loads((target / "manifest.json").read_text())
+        manifest["source_stage"]["full_run_contamination_checks"][EXPECTED_CASES[0]]["fields"] = ["reference"]
         (target / "manifest.json").write_text(json.dumps(manifest))
     elif mutation == "refill":
         manifest = json.loads((target / "manifest.json").read_text())

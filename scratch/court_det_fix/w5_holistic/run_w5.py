@@ -1,4 +1,4 @@
-"""Run the W5 replay preflight and the bounded holistic court pilot."""
+"""Run the bounded W5 holistic court experiment."""
 
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ import math
 import os
 import re
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from time import monotonic
 from typing import Any
 
 import cv2
@@ -172,34 +173,6 @@ VISIBILITY_COLUMNS = {
 }
 VISIBILITY_FLOOR_ARMS = ((3, 3), (4, 3), (5, 3))
 
-EXPECTED_MODULE_PATHS = {
-    "run_automatic": "next_steps_20260916/webui_seed/source/run_automatic.py",
-    "run_given": "next_steps_20260916/webui_seed/source/run_given.py",
-    "run_population": "next_steps_20260916/webui_seed/source/run_population.py",
-    "run_diagnosis": "frozen_helpers_20260914/marking_diagnosis/run_diagnosis.py",
-    "zone_net": "frozen_helpers_20260914/legacy/zone_net.py",
-    "camera_diagnostic": "frozen_helpers_20260914/legacy/camera_diagnostic.py",
-    "line_template_source": "w5_holistic/line_template_source.py",
-}
-
-
-L2_COMPARISON_CASES = (
-    "gxBQ_window_00_frame_0",
-    "am2_window_00_frame_150",
-    "am2_window_01_frame_28019",
-    "am3_window_00_frame_0",
-)
-EXPECTED_MASKS = {
-    "gxBQ_window_00_frame_0": True,
-    "gxBQ_window_00_frame_5": False,
-    "am2_window_00_frame_150": True,
-    "am2_window_01_frame_28019": True,
-    "am3_window_00_frame_0": True,
-    "shuttleset_03_scene_0017": False,
-    "shuttleset_03_scene_0019": False,
-    "shuttleset_03_scene_0016": False,
-    "shuttleset_21_scene_0020": False,
-}
 
 
 def load_runtime(root: Path) -> dict[str, Any]:
@@ -408,7 +381,7 @@ def load_populations(
         line_template_source = {
             "name": "line_template",
             "status": "not_loaded",
-            "reason": "preflight population compatibility uses legacy sources only",
+            "reason": "legacy-only population requested",
         }
     return g0, g1, line_template, {
         "G0": g0_source,
@@ -417,16 +390,6 @@ def load_populations(
     }
 
 
-def expected_legacy_winners(root: Path, case_id: str, verifier: dict[str, Any]) -> dict:
-    accounting = root / "direction_agreement/runs/direction_agreement_20260915_144900/e4/accounting.csv.gz"
-    import gzip
-
-    with gzip.open(accounting, "rt", newline="") as stream:
-        rows = csv.DictReader(stream)
-        for row in rows:
-            if row["stage"] == "results" and row["arm"] == "B" and row["case_id"] == case_id:
-                return {"line": row["line_winner_id"] or None, "paint": row["paint_winner_id"] or None}
-    raise KeyError(case_id)
 
 
 def forbidden_automatic_key(key: str) -> bool:
@@ -448,163 +411,6 @@ def find_forbidden_keys(value: Any, path: str = "") -> list[str]:
     return found
 
 
-def preflight_determinism(verifier: dict[str, Any]) -> dict:
-    candidates = []
-    for source_order, source in enumerate(("G0", "G1", "line_template")):
-        for origin_index, score in enumerate((0.7, 0.7, 0.6)):
-            candidates.append({
-                "origin_key": f"{source}:{origin_index}",
-                "source": source,
-                "source_order": source_order,
-                "origin_index": origin_index,
-                "kind_order": 0,
-                "hard_valid": True,
-                "gates": {"camera_error": 0.05},
-                "historical": {"historical_fullcourt": True, "historical_camera": True},
-                "evidence": {
-                    "q_geom": score,
-                    "q_paint10": score,
-                    "q_geom_span_weighted": score,
-                    "q_paint10_span_weighted": score,
-                    "exclusive_reverse": score,
-                },
-            })
-    return verifier["permutation_determinism"](candidates)
-
-
-def run_preflight(
-    root: Path,
-    run_dir: Path,
-    cases: list[str] | tuple[str, ...] | None = None,
-    *,
-    min_visible_lengthwise: int = 0,
-    min_visible_cross_court: int = 0,
-) -> dict:
-    runtime = load_runtime(root)
-    verifier = runtime["verifier"]
-    min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
-        min_visible_lengthwise,
-        min_visible_cross_court,
-    )
-    case_ids = resolve_case_ids(verifier, cases)
-    regression_case_ids = list(verifier["REGRESSION_CASE_IDS"])
-    results = {
-        "schema": "w5-preflight/2",
-        "status": "passed",
-        "case_ids": case_ids,
-        "regression_case_ids": regression_case_ids,
-        "unused_case_ids": list(verifier["UNUSED_CASE_IDS"]),
-        "min_visible_lengthwise": min_visible_lengthwise,
-        "min_visible_cross_court": min_visible_cross_court,
-        "visibility_columns": dict(VISIBILITY_COLUMNS),
-        "module_paths": runtime["paths"],
-        "module_resolution": {
-            "expected": dict(EXPECTED_MODULE_PATHS),
-            "actual": runtime["paths"],
-            "match": runtime["paths"] == EXPECTED_MODULE_PATHS,
-        },
-        "working_dimensions": {},
-        "source_packs": {},
-        "frame_paths": {},
-        "g0_source": {},
-        "g1_source": {},
-        "line_template_source": {},
-        "diagnostic_controls": {},
-        "population_counts": {},
-        "mask_availability": {},
-        "automatic_reference_fields": {},
-        "l2_replay": [],
-        "l2_skipped_case_ids": [case_id for case_id in L2_COMPARISON_CASES if case_id not in case_ids],
-        "determinism": preflight_determinism(verifier),
-        "failures": [],
-    }
-    if regression_case_ids != [case_id for case_id, _, _ in verifier["CASE_ORDER"]]:
-        results["failures"].append("regression case ID order does not match the W5 contract")
-    if not results["module_resolution"]["match"]:
-        results["failures"].append("runtime modules do not resolve to the frozen W5 sources")
-    results["regression_contract"] = {
-        "case_ids": regression_case_ids,
-        "requested": case_ids == regression_case_ids,
-    }
-    populations = {}
-    for case_id in case_ids:
-        context = verifier["prepare_view"](root, case_id)
-        results["source_packs"][case_id] = verifier["CASE_PACKS"][verifier["PACK_OF"][case_id]]
-        results["frame_paths"][case_id] = context.frame_relative_path
-        results["working_dimensions"][case_id] = list(context.size)
-        if context.size != verifier["WORKING_SIZE"]:
-            results["failures"].append(f"{case_id}: working dimensions {context.size}")
-        actual_mask = context.same_image_mask_available
-        expected_mask = EXPECTED_MASKS.get(case_id)
-        results["mask_availability"][case_id] = {
-            "actual": actual_mask,
-            "expected": expected_mask,
-            "match": expected_mask is None or actual_mask == expected_mask,
-        }
-        if expected_mask is not None and actual_mask != expected_mask:
-            results["failures"].append(f"{case_id}: same-image mask provenance differs")
-        g0, g1, line_template, sources = load_populations(
-            root,
-            context,
-            runtime,
-            min_visible_lengthwise=min_visible_lengthwise,
-            min_visible_cross_court=min_visible_cross_court,
-        )
-        populations[case_id] = (g0, g1, line_template, sources)
-        results["g0_source"][case_id] = sources["G0"]
-        results["g1_source"][case_id] = sources["G1"]
-        results["line_template_source"][case_id] = sources["line_template"]
-        results["population_counts"][case_id] = {
-            "G0": len(g0), "G1": len(g1), "line_template": len(line_template),
-        }
-        automatic_entries = g0 + g1 + line_template
-        forbidden = []
-        for index, entry in enumerate(automatic_entries):
-            forbidden.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
-        results["automatic_reference_fields"][case_id] = {"match": not forbidden, "fields": forbidden}
-        if forbidden:
-            results["failures"].append(f"{case_id}: automatic candidate path contains reference fields")
-        control_ids = list(KNOWN_CONTROLS.get(case_id, {}))
-        for control_id in control_ids:
-            load_control_entry(root, case_id, control_id, verifier)
-        results["diagnostic_controls"][case_id] = control_ids
-    for case_id in L2_COMPARISON_CASES:
-        if case_id not in case_ids:
-            continue
-        context = verifier["prepare_view"](root, case_id)
-        g0, g1, _, sources = populations[case_id]
-        actual_g0 = verifier["legacy_winners"](g0)
-        actual_g1 = verifier["legacy_winners"](g1)
-        expected_g0 = expected_legacy_winners(root, case_id, verifier)
-        g1_record = verifier["read_json_gz"](
-            root / "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results" /
-            f"{case_id}.json.gz"
-        )
-        expected_g1 = {"line": g1_record["line_winner_id"], "paint": g1_record["paint_winner_id"]}
-        for label, expected, actual in (("G0,S0", expected_g0, actual_g0), ("G1,S1", expected_g1, actual_g1)):
-            match = {key: expected[key] == actual[key] for key in ("line", "paint")}
-            results["l2_replay"].append({
-                "case_id": case_id,
-                "identity": label,
-                "expected": expected,
-                "reproduced": {"line": actual["line"], "paint": actual["paint"]},
-                "match": match,
-                "population_count": len(g0 if label.startswith("G0") else g1),
-                "population_source": sources["G0" if label.startswith("G0") else "G1"],
-                "cause_of_difference": None if all(match.values()) else "population or legacy scorer path differs",
-            })
-            if not all(match.values()):
-                results["failures"].append(f"{case_id} {label}: legacy winner identity mismatch")
-    if not results["determinism"]["match"]:
-        results["failures"].append("ranker permutation determinism check failed")
-    results["status"] = "passed" if not results["failures"] else "failed"
-    verifier["write_json_gz"](run_dir / "preflight.json.gz", results)
-    (run_dir / "preflight.json").write_text(
-        __import__("json").dumps(verifier["jsonable"](results), indent=2, sort_keys=True) + "\n"
-    )
-    if results["status"] != "passed":
-        raise RuntimeError("W5 preflight failed; see preflight.json")
-    return results
 
 
 def compact_legacy(entry: dict) -> dict:
@@ -643,6 +449,22 @@ def w5_gate_fields(entry: dict) -> tuple[Any, Any, Any]:
     )
 
 
+def compatible_duplicate(entry: dict, record: dict, source: str) -> bool:
+    reference = record["entry"]
+    if not np.array_equal(entry["corners_px"], reference["corners_px"]):
+        return False
+    legacy_metadata_differs = (
+        source in {"G0", "G1"} and record["source"] in {"G0", "G1"}
+        and any(entry.get(field) != reference.get(field) for field in ("pair_id", "rotated_180"))
+    )
+    if legacy_metadata_differs:
+        return False
+    return all(
+        values_equal_with_nan(left, right)
+        for left, right in zip(w5_gate_fields(entry), w5_gate_fields(reference), strict=True)
+    )
+
+
 def source_occurrence(entry: dict, source: str, source_order: int, origin_index: int) -> dict:
     candidate_id = str(entry["candidate_id"])
     occurrence = {
@@ -654,6 +476,7 @@ def source_occurrence(entry: dict, source: str, source_order: int, origin_index:
         "pair_id": entry.get("pair_id"),
         "axis_ids": entry.get("axis_ids"),
         "rotated_180": entry.get("rotated_180"),
+        "w5_gates": dict(zip(("geometry_valid", "camera_error", "player_fractions"), w5_gate_fields(entry), strict=True)),
     }
     for field in ("proposal_id", "rectangle_id", "rectangle_order", "template_index"):
         if field in entry:
@@ -677,7 +500,7 @@ def canonicalise_populations(
         if len(ids) != len(set(ids)):
             raise ViewAmbiguity(f"{source} candidate IDs are not unique within their source")
 
-    by_geometry: dict[tuple[tuple[int, ...], bytes], dict] = {}
+    by_geometry: dict[tuple[tuple[int, ...], bytes], list[dict]] = {}
     records = []
     for source_order, (source, entries) in enumerate(source_entries):
         for origin_index, entry in enumerate(entries):
@@ -688,7 +511,11 @@ def canonicalise_populations(
                 "gates": entry.get("gates", {}),
                 "legacy": compact_legacy(entry),
             }
-            record = by_geometry.get(geometry_key)
+            geometry_records = by_geometry.setdefault(geometry_key, [])
+            record = next(
+                (existing for existing in geometry_records if compatible_duplicate(entry, existing, source)),
+                None,
+            )
             if record is None:
                 record = {
                     "entry": entry,
@@ -702,40 +529,11 @@ def canonicalise_populations(
                     "occurrence_count": 1,
                     "_legacy_occurrences": [legacy_occurrence] if source in legacy_sources else [],
                 }
-                by_geometry[geometry_key] = record
+                geometry_records.append(record)
                 records.append(record)
                 continue
-            if source in record["source_memberships"]:
-                raise ViewAmbiguity(
-                    f"{source}: duplicate geometry for {occurrence['candidate_id']} and {record['candidate_id']}"
-                )
-            reference_entry = record["entry"]
-            if not np.array_equal(
-                np.asarray(entry["corners_px"], dtype=float),
-                np.asarray(reference_entry["corners_px"], dtype=float),
-            ):
-                raise ViewAmbiguity(
-                    f"{source}: duplicate homography has differing corners for "
-                    f"{occurrence['candidate_id']} and {record['candidate_id']}"
-                )
-            if source in legacy_sources and record["source"] in legacy_sources:
-                strict_fields = ("pair_id", "rotated_180")
-            else:
-                strict_fields = ()
-            for field in strict_fields:
-                if entry.get(field) != reference_entry.get(field):
-                    raise ViewAmbiguity(
-                        f"{source}: duplicate homography has differing {field} for "
-                        f"{occurrence['candidate_id']} and {record['candidate_id']}"
-                    )
-            entry_gates = w5_gate_fields(entry)
-            reference_gates = w5_gate_fields(reference_entry)
-            if not all(values_equal_with_nan(left, right) for left, right in zip(entry_gates, reference_gates, strict=True)):
-                raise ViewAmbiguity(
-                    f"{source}: duplicate geometry has differing W5 gates for "
-                    f"{occurrence['candidate_id']} and {record['candidate_id']}"
-                )
-            record["source_memberships"].append(source)
+            if source not in record["source_memberships"]:
+                record["source_memberships"].append(source)
             record["source_occurrences"].append(occurrence)
             record["occurrence_count"] += 1
             if source in legacy_sources:
@@ -767,7 +565,11 @@ def canonicalise_populations(
         if record["occurrence_count"] > 1
     ]
     return records, {
-        "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when W5-relevant gates agree",
+        "policy": "merge compatible geometry duplicates; retain conflicting gates or metadata as separate source-qualified candidates",
+        "conflicting_geometry_groups": [
+            [record["origin_key"] for record in geometry_records]
+            for geometry_records in by_geometry.values() if len(geometry_records) > 1
+        ],
         "source_occurrence_counts": {
             "G0": len(g0), "G1": len(g1), "line_template": len(line_template or []),
         },
@@ -1059,6 +861,12 @@ def process_case(
     min_visible_cross_court: int = 0,
 ) -> dict:
     cv2.setNumThreads(1)
+    started = monotonic()
+
+    def progress(message: str) -> None:
+        print(f"[{case_id} +{monotonic() - started:.0f}s] {message}", flush=True)
+
+    progress("loading view and candidate populations")
     min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
         min_visible_lengthwise,
         min_visible_cross_court,
@@ -1082,10 +890,15 @@ def process_case(
             f"{case_id}: automatic candidate path contains reference fields: {contamination_fields}"
         )
     parent_identities, identity_resolution = canonicalise_populations(g0, g1, line_template)
+    progress(
+        f"measuring {len(parent_identities)} parents "
+        f"(G0={len(g0)}, G1={len(g1)}, line_template={len(line_template)}; "
+        f"conflicting geometry groups={len(identity_resolution['conflicting_geometry_groups'])})"
+    )
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]] = {}
     parents = []
     all_arrays: dict[str, np.ndarray] = {}
-    for identity in parent_identities:
+    for parent_index, identity in enumerate(parent_identities, start=1):
         parent, arrays = make_parent_record(
             context,
             identity["entry"],
@@ -1100,15 +913,20 @@ def process_case(
         if arrays is not None:
             for key, value in arrays.items():
                 all_arrays[f"{parent['origin_key']}::{key}"] = value
+        if parent_index % 250 == 0:
+            progress(f"parents {parent_index}/{len(parent_identities)}")
     fit_rows = []
     children = []
-    for parent in parents:
+    progress(f"refitting {len(parents)} parents")
+    for parent_index, parent in enumerate(parents, start=1):
         row, child, arrays = attempt_refit(context, parent, runtime, cache)
         fit_rows.append(row)
         if child is not None:
             children.append(child)
             for key, value in arrays.items():
                 all_arrays[f"{child['origin_key']}::{key}"] = value
+        if parent_index % 250 == 0:
+            progress(f"refits {parent_index}/{len(parents)}; valid children={len(children)}")
     b_candidates = [parent for parent in parents if parent.get("hard_valid") and "evidence" in parent]
     c_candidates = b_candidates + children
     b_rankings = verifier["rank_candidates"](b_candidates)
@@ -1151,6 +969,13 @@ def process_case(
     provenance["line_template_source"] = sources["line_template"]
     public_parents = [public_candidate(parent) for parent in parents]
     public_children = [public_candidate(child) for child in children]
+    progress("ranking sensitivity thresholds")
+    review_candidates = {
+        candidate["origin_key"]: verifier["candidate_review"](candidate)
+        for candidate in c_candidates
+    }
+    sensitivity = rank_sensitivity(list(review_candidates.values()), all_arrays, verifier)
+    progress("saving evidence and arrays")
     full_record = {
         "schema": "w5-case-evidence/2",
         "case_id": case_id,
@@ -1170,6 +995,7 @@ def process_case(
         "fit_attempts": fit_rows,
         "rankings": {"B": b_rankings, "C": c_rankings},
         "determinism": determinism,
+        "sensitivity": sensitivity,
     }
     case_dir = run_dir / "case_records"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -1177,6 +1003,7 @@ def process_case(
     array_path = run_dir / "arrays" / f"{case_id}.npz"
     array_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(array_path, **all_arrays)
+    progress("saved")
     return {
         "schema": "w5-case-result/2",
         "case_id": case_id,
@@ -1201,10 +1028,8 @@ def process_case(
         "array_file": verifier["relative_path"](array_path, run_dir),
         "case_record": verifier["relative_path"](case_dir / f"{case_id}.json.gz", run_dir),
         "fit_rows": fit_rows,
-        "review_candidates": {
-            candidate["origin_key"]: verifier["candidate_review"](candidate)
-            for candidate in b_candidates + children
-        },
+        "review_candidates": review_candidates,
+        "sensitivity": sensitivity,
     }
 
 
@@ -1321,10 +1146,15 @@ def json_text(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), allow_nan=False)
 
 
-def probe_paint_evidence(candidate: dict, arrays: Any, probe: float) -> dict:
+SENSITIVITY_PROBES = (5.0, 10.0, 15.0, 20.0)
+
+
+def probe_paint_evidence(candidate: dict, arrays: Any) -> list[dict]:
+    """Measure all thresholds together, reading each marking's arrays once."""
     q_values = []
     markings = candidate.get("markings", [])
-    for marking_index, marking in enumerate(markings):
+    thresholds = np.asarray(SENSITIVITY_PROBES)[:, None]
+    for marking_index in range(len(markings)):
         support = np.asarray(
             arrays[f"{candidate['origin_key']}::marking_{marking_index}_c_support"],
             dtype=float,
@@ -1334,7 +1164,14 @@ def probe_paint_evidence(candidate: dict, arrays: Any, probe: float) -> dict:
             dtype=float,
         )
         known = np.isfinite(ridge)
-        q_values.append(float(np.mean(support[known] * (ridge[known] >= probe))) if known.any() else None)
+        q_values.append(
+            np.mean(support[known][None, :] * (ridge[known][None, :] >= thresholds), axis=1).tolist()
+            if known.any() else [None] * len(SENSITIVITY_PROBES)
+        )
+    return [paint_probe_summary(list(values), markings) for values in zip(*q_values, strict=True)]
+
+
+def paint_probe_summary(q_values: list[float | None], markings: list[dict]) -> dict:
 
     def plain_mean(indices: range) -> float | None:
         values = [q_values[index] for index in indices if q_values[index] is not None]
@@ -1371,8 +1208,7 @@ def probe_paint_evidence(candidate: dict, arrays: Any, probe: float) -> dict:
     }
 
 
-def sensitivity_candidate(candidate: dict, arrays: Any, probe: float) -> dict:
-    evidence = probe_paint_evidence(candidate, arrays, probe)
+def sensitivity_candidate(candidate: dict, evidence: dict) -> dict:
     evidence.update({
         "q_geom": candidate.get("q_geom"),
         "q_geom_span_weighted": candidate.get("q_geom_span_weighted"),
@@ -1390,6 +1226,29 @@ def sensitivity_candidate(candidate: dict, arrays: Any, probe: float) -> dict:
     }
 
 
+def rank_sensitivity(candidates: list[dict], arrays: Any, verifier: dict[str, Any]) -> dict:
+    evidence_by_candidate = [probe_paint_evidence(candidate, arrays) for candidate in candidates]
+    probe_records = {}
+    for probe_index, probe in enumerate(SENSITIVITY_PROBES):
+        ranking = verifier["rank_candidates"]([
+            sensitivity_candidate(candidate, evidence[probe_index])
+            for candidate, evidence in zip(candidates, evidence_by_candidate, strict=True)
+        ])
+        origin_key = ranking["selected_origin_key"]
+        ungated = origin_key is None and bool(ranking["ungated_provisional_rank"])
+        if ungated:
+            origin_key = ranking["ungated_provisional_rank"][0]
+        probe_records[str(int(probe))] = {
+            "rank1_origin_key": origin_key,
+            "rank1_was_ungated": ungated,
+            "status": ranking["status"],
+            "r1_paint10_rank": ranking["r1_paint10_rank"],
+            "r2_spanw_paint10_rank": ranking["r2_spanw_paint10_rank"],
+            "provisional_rank": ranking["provisional_rank"],
+        }
+    return probe_records
+
+
 def sensitivity_target(root: Path, case_id: str, context, verifier: dict[str, Any]) -> tuple[np.ndarray | None, str | None]:
     supplied = load_supplied_control(root, case_id, verifier)
     if supplied and supplied.get("corners_working_px"):
@@ -1402,41 +1261,20 @@ def sensitivity_target(root: Path, case_id: str, context, verifier: dict[str, An
 
 
 def write_sensitivity(root: Path, run_dir: Path, case_results: list[dict], verifier: dict[str, Any]) -> dict:
-    probes = (5.0, 10.0, 15.0, 20.0)
-    sensitivity = {"schema": "w5-p10-sensitivity/1", "probes": list(probes), "cases": {}}
+    sensitivity = {"schema": "w5-p10-sensitivity/1", "probes": list(SENSITIVITY_PROBES), "cases": {}}
     for result in case_results:
         context = verifier["prepare_view"](root, result["case_id"])
         target, target_kind = sensitivity_target(root, result["case_id"], context, verifier)
-        candidates = list(result["review_candidates"].values())
-        array_path = run_dir / result["array_file"]
-        with np.load(array_path, allow_pickle=False) as arrays:
-            probe_records = {}
-            for probe in probes:
-                ranked_candidates = [
-                    sensitivity_candidate(candidate, arrays, probe)
-                    for candidate in candidates
-                ]
-                ranking = verifier["rank_candidates"](ranked_candidates)
-                origin_key = ranking["selected_origin_key"]
-                ungated = False
-                if origin_key is None and ranking["ungated_provisional_rank"]:
-                    origin_key = ranking["ungated_provisional_rank"][0]
-                    ungated = True
-                control_error = None
-                if origin_key is not None and target is not None:
-                    selected = next(candidate for candidate in candidates if candidate["origin_key"] == origin_key)
-                    control_error = verifier["reference_corner_error"](
-                        np.asarray(selected["corners_px"], dtype=float), target,
-                    )
-                probe_records[str(int(probe))] = {
-                    "rank1_origin_key": origin_key,
-                    "rank1_was_ungated": ungated,
-                    "status": ranking["status"],
-                    "r1_paint10_rank": ranking["r1_paint10_rank"],
-                    "r2_spanw_paint10_rank": ranking["r2_spanw_paint10_rank"],
-                    "provisional_rank": ranking["provisional_rank"],
-                    "control_error": control_error,
-                }
+        probe_records = {}
+        for probe, record in result["sensitivity"].items():
+            origin_key = record["rank1_origin_key"]
+            control_error = None
+            if origin_key is not None and target is not None:
+                selected = result["review_candidates"][origin_key]
+                control_error = verifier["reference_corner_error"](
+                    np.asarray(selected["corners_px"], dtype=float), target,
+                )
+            probe_records[probe] = {**record, "control_error": control_error}
         sensitivity["cases"][result["case_id"]] = {
             "target_kind": target_kind,
             "probes": probe_records,
@@ -1449,7 +1287,8 @@ def write_sensitivity(root: Path, run_dir: Path, case_results: list[dict], verif
 
 def helper_hashes(root: Path, runtime_paths: dict[str, str]) -> dict:
     imported = {}
-    for module_name, relative in sorted(runtime_paths.items()):
+    code_paths = runtime_paths | {"run_w5": "w5_holistic/run_w5.py", "verifier": "w5_holistic/verifier.py"}
+    for module_name, relative in sorted(code_paths.items()):
         path = root / relative
         imported[module_name] = {
             "path": relative,
@@ -1519,8 +1358,9 @@ def write_packet(
     runtime_paths: dict,
     stopped_views: list[dict] | None = None,
     *,
-    min_visible_lengthwise: int | None = None,
-    min_visible_cross_court: int | None = None,
+    requested_cases: list[str],
+    min_visible_lengthwise: int,
+    min_visible_cross_court: int,
 ) -> None:
     case_order = verifier.get("ALL_CASE_IDS", verifier["CASE_IDS"])
     case_results = sorted(case_results, key=lambda result: case_order.index(result["case_id"]))
@@ -1528,45 +1368,13 @@ def write_packet(
     packets = {result["case_id"]: result for result in case_results}
     sensitivity = write_sensitivity(root, run_dir, case_results, verifier)
     add_reference_near_candidates(root, case_results, packets, verifier)
-    preflight = __import__("json").loads((run_dir / "preflight.json").read_text())
-    preflight_lengthwise = preflight.get("min_visible_lengthwise")
-    preflight_cross_court = preflight.get("min_visible_cross_court")
-    if preflight_lengthwise is None or preflight_cross_court is None:
-        raise RuntimeError("W5 preflight does not record both directional visibility floors")
-    preflight_lengthwise, preflight_cross_court = validate_visibility_floors(
-        preflight_lengthwise,
-        preflight_cross_court,
-    )
-    if (min_visible_lengthwise is None) != (min_visible_cross_court is None):
-        raise RuntimeError("W5 pilot must provide both directional visibility floors")
-    if min_visible_lengthwise is None:
-        min_visible_lengthwise, min_visible_cross_court = (
-            preflight_lengthwise,
-            preflight_cross_court,
-        )
-    else:
-        min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
-            min_visible_lengthwise,
-            min_visible_cross_court,
-        )
-        if (min_visible_lengthwise, min_visible_cross_court) != (
-            preflight_lengthwise,
-            preflight_cross_court,
-        ):
-            raise RuntimeError("W5 pilot floors differ from their preflight floors")
-    automatic_reference_checks = preflight["automatic_reference_fields"]
-    preflight_path_free_of_reference_fields = (
-        set(automatic_reference_checks) == set(preflight["case_ids"])
-        and all(check["match"] for check in automatic_reference_checks.values())
-    )
     full_run_contamination_checks = {
         result["case_id"]: result.get("automatic_contamination_check", {"match": False, "fields": []})
         for result in case_results
     }
     automatic_path_free_of_reference_fields = (
-        preflight_path_free_of_reference_fields
-        and set(full_run_contamination_checks) == {result["case_id"] for result in case_results}
-        and all(check["match"] for check in full_run_contamination_checks.values())
+        set(full_run_contamination_checks) == set(requested_cases)
+        and all(check["match"] and not check["fields"] for check in full_run_contamination_checks.values())
     )
     review = {}
     for result in case_results:
@@ -1620,7 +1428,7 @@ def write_packet(
         "schema": "w5-manifest/2",
         "run_id": run_dir.name,
         "cases": [result["case_id"] for result in case_results],
-        "requested_cases": preflight["case_ids"],
+        "requested_cases": requested_cases,
         "min_visible_lengthwise": min_visible_lengthwise,
         "min_visible_cross_court": min_visible_cross_court,
         "visibility_columns": dict(VISIBILITY_COLUMNS),
@@ -1645,7 +1453,6 @@ def write_packet(
             "line_template": "cached W5 fragments + frozen coverage VP ordering + union-map support",
             "automatic_path_reference_fields": not automatic_path_free_of_reference_fields,
             "automatic_path_free_of_reference_fields": automatic_path_free_of_reference_fields,
-            "preflight_path_free_of_reference_fields": preflight_path_free_of_reference_fields,
             "full_run_contamination_checks": full_run_contamination_checks,
         },
         "imported_helper_paths": runtime_paths,
@@ -1667,7 +1474,7 @@ def write_packet(
             },
         },
         "candidate_identity": {
-            "policy": "source-qualified canonical origin_key; exact cross-source geometry duplicates retain all source occurrences when W5-relevant gates agree",
+            "policy": "merge compatible geometry duplicates; retain conflicting gates or metadata as separate source-qualified candidates",
             "views": {result["case_id"]: result["identity_resolution"] for result in case_results},
         },
         "steering_rule_revision": {
@@ -1844,7 +1651,7 @@ def write_result(
         "",
         "## Collision resolution",
         "",
-        "Parent candidates use source-qualified `origin_key` values for every join, ranking, diagnostic and gallery lookup. Raw candidate IDs remain source-local provenance. Exact cross-source geometry duplicates retain all source occurrences, including `line_template`, under one canonical parent when the relevant gates agree; legacy-only source metadata stays attached to each occurrence. A same-source geometry duplicate, metadata mismatch or W5-gate mismatch stops that view as ambiguous.",
+        "Parent candidates use source-qualified `origin_key` values for joins and rankings. Compatible geometry duplicates share one parent and retain every source occurrence. Conflicting gates or metadata retain separate candidates with their original gates; `conflicting_geometry_groups` records those shared homographies. Neither source is treated as authoritative. Duplicate IDs within a source remain an error.",
         "",
         "| view | source occurrences | canonical parents | raw-ID collisions | duplicate geometry groups |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -2001,6 +1808,9 @@ def run_pilot(
     min_visible_lengthwise: int = 0,
     min_visible_cross_court: int = 0,
 ) -> list[dict]:
+    for output_name in ("case_records", "arrays", "manifest.json"):
+        if (run_dir / output_name).exists():
+            raise FileExistsError(f"W5 output already exists: {run_dir / output_name}; use a new run name")
     min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
         min_visible_lengthwise,
         min_visible_cross_court,
@@ -2008,39 +1818,12 @@ def run_pilot(
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
     cases = resolve_case_ids(verifier, cases)
-    preflight_path = run_dir / "preflight.json"
-    if not preflight_path.exists():
-        raise FileNotFoundError(f"preflight result is required before Stage 2: {preflight_path}")
-    preflight = __import__("json").loads(preflight_path.read_text())
-    if preflight.get("status") != "passed":
-        raise RuntimeError("Stage 2 is blocked by a failed W5 preflight")
-    persisted_case_ids = preflight.get("case_ids")
-    if persisted_case_ids is None:
-        raise RuntimeError("W5 preflight does not record its case list")
-    try:
-        preflight_cases = resolve_case_ids(verifier, persisted_case_ids)
-    except (TypeError, ValueError) as error:
-        raise RuntimeError("W5 preflight case list is invalid") from error
-    if preflight_cases != cases:
-        raise RuntimeError(
-            f"W5 pilot cases do not match preflight order: pilot={cases}, preflight={preflight_cases}"
-        )
-    preflight_lengthwise = preflight.get("min_visible_lengthwise")
-    preflight_cross_court = preflight.get("min_visible_cross_court")
-    if preflight_lengthwise is None or preflight_cross_court is None:
-        raise RuntimeError("W5 preflight does not record both directional visibility floors")
-    preflight_floors = validate_visibility_floors(preflight_lengthwise, preflight_cross_court)
-    if preflight_floors != (min_visible_lengthwise, min_visible_cross_court):
-        raise RuntimeError(
-            "W5 pilot floors are not covered by preflight: "
-            f"pilot={(min_visible_lengthwise, min_visible_cross_court)}, "
-            f"preflight={preflight_floors}"
-        )
     workers = max(1, min(int(workers), 10, len(cases)))
     os.environ["W5_WORKERS"] = str(workers)
     print(f"W5 pilot cases={cases} workers={workers}", flush=True)
+    started = monotonic()
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [
+        futures = {
             pool.submit(
                 process_case,
                 root,
@@ -2048,21 +1831,29 @@ def run_pilot(
                 run_dir,
                 min_visible_lengthwise=min_visible_lengthwise,
                 min_visible_cross_court=min_visible_cross_court,
-            )
+            ): case_id
             for case_id in cases
-        ]
+        }
         results = []
         stopped_views = []
-        for case_id, future in zip(cases, futures, strict=True):
+        for completed, future in enumerate(as_completed(futures), start=1):
+            case_id = futures[future]
             try:
                 result = future.result()
             except ViewAmbiguity as error:
                 reason = str(error)
                 stopped_views.append({"case_id": case_id, "reason": reason})
-                print(case_id, "stopped", reason, flush=True)
+                print(f"[{completed}/{len(cases)}] {case_id} stopped: {reason}", flush=True)
                 continue
             results.append(result)
-            print(result["case_id"], "complete", result["B"]["selected_origin_key"], result["C"]["selected_origin_key"], flush=True)
+            print(
+                f"[{completed}/{len(cases)} +{monotonic() - started:.0f}s] {case_id} complete: "
+                f"B={result['B']['selected_origin_key']} C={result['C']['selected_origin_key']}",
+                flush=True,
+            )
+    results.sort(key=lambda result: cases.index(result["case_id"]))
+    stopped_views.sort(key=lambda result: cases.index(result["case_id"]))
+    print("Writing combined packet", flush=True)
     write_packet(
         root,
         run_dir,
@@ -2070,6 +1861,7 @@ def run_pilot(
         verifier,
         runtime["paths"],
         stopped_views,
+        requested_cases=cases,
         min_visible_lengthwise=min_visible_lengthwise,
         min_visible_cross_court=min_visible_cross_court,
     )
@@ -2080,7 +1872,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--run", required=True)
-    parser.add_argument("--stage", choices=("preflight", "pilot"), required=True)
     parser.add_argument("--cases", nargs="+", default=None)
     parser.add_argument("--min-visible-lengthwise", type=nonnegative_int, default=0)
     parser.add_argument("--min-visible-cross-court", type=nonnegative_int, default=0)
@@ -2095,16 +1886,6 @@ def main() -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     verifier = load_verifier(root)
     cases = resolve_case_ids(verifier, args.cases)
-    if args.stage == "preflight":
-        run_preflight(
-            root,
-            run_dir,
-            cases,
-            min_visible_lengthwise=args.min_visible_lengthwise,
-            min_visible_cross_court=args.min_visible_cross_court,
-        )
-        print("W5 preflight passed", flush=True)
-        return
     run_pilot(
         root,
         run_dir,

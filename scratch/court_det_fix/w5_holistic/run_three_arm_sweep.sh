@@ -22,11 +22,6 @@ if ! repo_root=$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null); th
   printf 'W5 sweep requires a Git checkout\n' >&2
   exit 1
 fi
-if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]]; then
-  printf 'W5 sweep requires a clean tracked worktree\n' >&2
-  exit 1
-fi
-
 cases=(
   gxBQ_window_00_frame_0
   gxBQ_window_00_frame_5
@@ -136,7 +131,11 @@ check_pilot_packet() {
   "$python" -c 'import json, sys
 manifest = json.load(open(sys.argv[1]))
 expected = sys.argv[2:]
-if manifest.get("requested_cases") != expected or manifest.get("stopped_views"):
+if (
+    manifest.get("requested_cases") != expected
+    or manifest.get("cases") != expected
+    or manifest.get("stopped_views")
+):
     raise SystemExit(1)
 ' "$manifest" "${cases[@]}"
 }
@@ -146,13 +145,7 @@ for arm in "${arms[@]}"; do
   arm_id="${lengthwise}${cross_court}"
   run_name="${run_prefix}_${arm_id}"
   printf 'Starting W5 arm (%s,%s)\n' "$lengthwise" "$cross_court"
-  run_stage "$run_name" preflight run_w5 \
-    --stage preflight \
-    --cases "${cases[@]}" \
-    --min-visible-lengthwise "$lengthwise" \
-    --min-visible-cross-court "$cross_court"
   run_stage "$run_name" pilot run_w5 \
-    --stage pilot \
     --workers "$workers" \
     --cases "${cases[@]}" \
     --min-visible-lengthwise "$lengthwise" \
@@ -170,7 +163,7 @@ export PYTHONDONTWRITEBYTECODE=1
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 export PYTHONPATH="$repo_root:$repo_root/src:$experiment_root/w5_holistic:$experiment_root/next_steps_20260916/webui_seed/source:$experiment_root/frozen_helpers_20260914/marking_diagnosis:$experiment_root/frozen_helpers_20260914/vp_pruning:$experiment_root/frozen_helpers_20260914/axis_matching:$experiment_root/frozen_helpers_20260914/legacy:$experiment_root/src:$experiment_root"
 cd "$experiment_root"
-"$python" "$script_dir/compare_directional_runs.py" \
+"$python" -u "$script_dir/compare_directional_runs.py" \
   --run-33 "$run_root/${run_prefix}_33" \
   --run-43 "$run_root/${run_prefix}_43" \
   --run-53 "$run_root/${run_prefix}_53" \

@@ -213,12 +213,9 @@ def _validate_contamination(
     source_stage = _required(manifest, "source_stage", context)
     if not isinstance(source_stage, dict):
         _fail(f"{context}.source_stage: expected an object")
-    for field in (
-        "automatic_path_free_of_reference_fields",
-        "preflight_path_free_of_reference_fields",
-    ):
-        if _required(source_stage, field, context) is not True:
-            _fail(f"{context}.source_stage.{field}: contamination check did not pass")
+    field = "automatic_path_free_of_reference_fields"
+    if _required(source_stage, field, context) is not True:
+        _fail(f"{context}.source_stage.{field}: contamination check did not pass")
     checks = _required(source_stage, "full_run_contamination_checks", context)
     if not isinstance(checks, dict) or tuple(checks) != cases:
         _fail(

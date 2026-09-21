@@ -12,6 +12,10 @@ script=$3
 shift 3
 here=w5_holistic
 out="$here/runs/$run"
+if [[ -e "$out/logs/$label.log" ]]; then
+  printf 'W5 stage log already exists: %s; use a new run name\n' "$out/logs/$label.log" >&2
+  exit 1
+fi
 repo_root="$(git -C "$here" rev-parse --show-toplevel)"
 mkdir -p "$out/logs" "$out/receipts" "$out/cache"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
@@ -25,8 +29,12 @@ if [[ "$python" == "$home_prefix"* ]]; then
 fi
 printf '%s\n' "$$" > "$out/receipts/$label.pid"
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-"$python" "$here/$script.py" --root . --run "$run" "$@" > "$out/logs/$label.log" 2>&1
-status=$?
+"$python" -u "$here/$script.py" --root . --run "$run" "$@" 2>&1 | tee "$out/logs/$label.log"
+pipeline_status=("${PIPESTATUS[@]}")
+status=${pipeline_status[0]}
+if (( status == 0 )); then
+  status=${pipeline_status[1]}
+fi
 finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 printf '%s\n' "$status" > "$out/receipts/${label}_exit_code.txt"
 printf 'started=%s\nfinished=%s\nscript=%s\nargs=%s\n' "$started" "$finished" "$script" "$*" > "$out/receipts/${label}_times.txt"
