@@ -291,7 +291,11 @@ def process_case(
     paint_observations = prepare_observations(painted, prepared["size"])
 
     historical = measure_orders(
-        record, prepared, observations, paint_observations, np.asarray(case["bbox_px"], dtype=float),
+        record,
+        prepared,
+        observations,
+        paint_observations,
+        np.asarray(case["bbox_px"], dtype=float) / prepared["native_scale"],
     )
     validate_historical_orders(case["id"], historical, record["junction_orders"])
     policies = {
@@ -300,7 +304,11 @@ def process_case(
         ),
         "median_two_of_three": attach_winners(
             measure_orders(
-                record, prepared, observations, paint_observations, median_two_of_three_boxes(case),
+                record,
+                prepared,
+                observations,
+                paint_observations,
+                median_two_of_three_boxes(case) / prepared["native_scale"],
             ),
             record,
         ),
