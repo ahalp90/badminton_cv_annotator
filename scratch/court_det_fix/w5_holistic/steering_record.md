@@ -226,6 +226,19 @@ pools. Keep it as a secondary comparison. It was chosen after the visual rulings
 couples court detection to player tracking, while the source-visibility rule addresses the
 same failures directly.
 
+## Directional admission sweep: decision rule
+
+Compare `(0,0)`, `(3,3)`, `(4,3)` and `(5,3)` under identical proposal, refit and scoring
+settings over the exact nine original regression cases plus 18 added scenes. An arm is safe
+only if it leaves a usable final selection on every original case, rejects the known weak
+admissions on GX0 and Am2-28019, and retains the useful GX5 admission.
+
+Visually review every changed winner across all 18 added scenes using the four-arm contact
+sheets. Among safe arms, choose the least restrictive visibility floor. If `(4,3)` and
+`(5,3)` are otherwise tied, choose `(4,3)`. Any unexplained regression rejects the arm; it
+must not prompt a patch or a case-specific exception. Record the selected arm, changed
+winners and visual rulings in the comparison packet.
+
 ## History
 
 - 2026-09-20: pilot run `w5_stage2_20260920` ruled; junction fix, camera filter and visible-span weighting issued for seance 2.
