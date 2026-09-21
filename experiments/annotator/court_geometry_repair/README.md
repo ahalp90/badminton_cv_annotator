@@ -1,6 +1,6 @@
 # Court geometry repair: evidence and reproduction
 
-This bundle makes the [issue #148 results report](../../../docs/courtkeynet/fallback_evaluation/scene_geometry_repair.md)
+This bundle makes the [issue #148 results report](../../../scratch/court_det_fix/evidence/retirement/README.md)
 checkable from saved outputs. It includes both sides of the comparison, the
 geometry controls and the frozen contact model. No models were retrained or
 tuned for these results.
@@ -164,4 +164,4 @@ person-voting and rally pipeline on videos 3 and 21. The two ShuttleSet22 runs
 are development checks on known failures.
 
 Grouping repeated matching views and evaluating partial courts remain next
-steps, as described in the [investigation trail](../../../docs/courtkeynet/fallback_evaluation/scene_geometry_repair_worklog.md).
+steps, as described in the [investigation trail](../../../scratch/court_det_fix/evidence/retirement/README.md).

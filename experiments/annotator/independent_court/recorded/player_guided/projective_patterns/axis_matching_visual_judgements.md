@@ -57,5 +57,5 @@ projective segments. The physical cause remains unverified; no curved model,
 camera recalibration or annotation edit is implied by this feedback.
 
 Small reference errors do not substitute for these panel-specific visual
-judgements. The subsequent [automatic-direction report](automatic_axes_results.md)
+judgements. The subsequent [automatic-direction report](../../../../../../scratch/court_det_fix/evidence/direction_search/README.md)
 records the completed follow-up.

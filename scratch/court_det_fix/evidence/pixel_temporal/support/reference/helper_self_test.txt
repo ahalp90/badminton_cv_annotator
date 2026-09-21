@@ -1,0 +1,4 @@
+PASS: synthetic budget, baseline-core, determinism, index, ordering, tie and immutability checks.
+No real-court experiment or effectiveness check has been run by this helper.
+
+These are synthetic implementation checks, not measurements on the repository.

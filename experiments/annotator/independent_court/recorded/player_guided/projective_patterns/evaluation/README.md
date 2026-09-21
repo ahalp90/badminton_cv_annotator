@@ -46,7 +46,7 @@ approved generated candidate89. These controls are used in diagnostic fitting, n
 in automatic selection. `control_selected_svd` is label-guided and does not establish
 known correct membership or a performance ceiling. `control_fit` minimises coordinate
 residuals with a bounded local solver; its reported maximum corner error is neither
-the optimisation objective nor a certified optimum. See [the SVD result](../followup_status.md#candidate-experiment-svd-direction-refinement).
+the optimisation objective nor a certified optimum. See [the SVD result](../../../../../../../scratch/court_det_fix/evidence/direction_search/README.md).
 
 ### Fixed, unrun comparison
 
@@ -97,7 +97,7 @@ homographies map court metres to working pixels. Entries retain the full saved s
 paint-profile and gate evidence. These are selected examples, not the full candidate
 population or a new set of independently labelled negatives.
 
-Read [automatic results](../automatic_axes_results.md),
+Read [automatic results](../../../../../../../scratch/court_det_fix/evidence/direction_search/README.md),
 [exact visual judgements](../automatic_axes_visual_judgements.md), and the corresponding
 [gallery](../automatic_axes_visual_check.html). The separate
 [GX0 control](../gx0_control_visual_check.html) has two essentially ideal winners,

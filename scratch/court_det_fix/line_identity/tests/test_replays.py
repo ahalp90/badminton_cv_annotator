@@ -240,33 +240,33 @@ def test_matcher_person_arms_are_quarantined_before_generation(monkeypatch, tmp_
     from shared import add_helper_paths
 
     add_helper_paths()
-    import run_matcher
+    import line_run_matcher
 
-    monkeypatch.setattr(run_matcher, 'case_provenance', lambda _case_id: 'unsafe')
+    monkeypatch.setattr(line_run_matcher, 'case_provenance', lambda _case_id: 'unsafe')
 
     def reject(_record):
         raise ValueError('same-image person boxes unavailable')
 
-    monkeypatch.setattr(run_matcher, 'require_same_image_boxes', reject)
+    monkeypatch.setattr(line_run_matcher, 'require_same_image_boxes', reject)
     monkeypatch.setattr(
-        run_matcher,
+        line_run_matcher,
         'read',
         lambda _path: (_ for _ in ()).throw(AssertionError('input read before provenance gate')),
     )
     with pytest.raises(ValueError, match='same-image person boxes unavailable'):
-        run_matcher.run_case('case', 'person_observations', object(), tmp_path, tmp_path, 'run', {})
+        line_run_matcher.run_case('case', 'person_observations', object(), tmp_path, tmp_path, 'run', {})
     assert not (tmp_path / 'matcher').exists()
-    run_matcher.preflight_person_input('case', 'paint')
+    line_run_matcher.preflight_person_input('case', 'paint')
 
 
 def test_matcher_preflights_all_ids_before_any_generation(monkeypatch):
     from shared import add_helper_paths
 
     add_helper_paths()
-    import run_matcher
+    import line_run_matcher
 
     checked = []
-    monkeypatch.setattr(run_matcher, 'case_provenance', lambda case_id: case_id)
+    monkeypatch.setattr(line_run_matcher, 'case_provenance', lambda case_id: case_id)
 
     def require(record):
         checked.append(record)
@@ -274,24 +274,24 @@ def test_matcher_preflights_all_ids_before_any_generation(monkeypatch):
             raise ValueError('same-image person boxes unavailable')
         return record
 
-    monkeypatch.setattr(run_matcher, 'require_same_image_boxes', require)
+    monkeypatch.setattr(line_run_matcher, 'require_same_image_boxes', require)
     monkeypatch.setattr(
-        run_matcher.importlib,
+        line_run_matcher.importlib,
         'import_module',
         lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before provenance preflight')),
     )
     monkeypatch.setattr(
-        run_matcher,
+        line_run_matcher,
         'run_case',
         lambda *_args: (_ for _ in ()).throw(AssertionError('generation started before provenance preflight')),
     )
     monkeypatch.setattr(
         sys,
         'argv',
-        ['run_matcher.py', '--run', 'test', '--arm', 'person', '--ids', 'safe', 'unsafe'],
+        ['line_run_matcher.py', '--run', 'test', '--arm', 'person', '--ids', 'safe', 'unsafe'],
     )
     with pytest.raises(ValueError, match='same-image person boxes unavailable'):
-        run_matcher.main()
+        line_run_matcher.main()
     assert checked == ['safe', 'unsafe']
 
 
@@ -504,24 +504,24 @@ def test_repair_matcher_preflights_the_whole_batch_before_zone_import(monkeypatc
     from shared import add_helper_paths
 
     add_helper_paths()
-    import run_matcher
+    import line_run_matcher
 
     calls = []
-    monkeypatch.setattr(run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
-    monkeypatch.setattr(run_matcher.repair_inputs, 'validate_repair_inputs',
+    monkeypatch.setattr(line_run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
+    monkeypatch.setattr(line_run_matcher.repair_inputs, 'validate_repair_inputs',
                         lambda ids, inputs, manifest: calls.append((ids, inputs, manifest)))
     monkeypatch.setattr(
-        run_matcher.importlib,
+        line_run_matcher.importlib,
         'import_module',
         lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before repair preflight')),
     )
     monkeypatch.setattr(sys, 'argv', [
-        'run_matcher.py', '--run', 'test', '--arm', 'person_observations',
+        'line_run_matcher.py', '--run', 'test', '--arm', 'person_observations',
         '--ids', 'first', 'second', '--inputs-dir', str(Path('/tmp/repair-inputs')),
         '--repair-manifest', '/tmp/repair-manifest.json.gz',
     ])
     with pytest.raises(AssertionError, match='zone imported'):
-        run_matcher.main()
+        line_run_matcher.main()
     assert calls == [(['first', 'second'], Path('/tmp/repair-inputs'), {'manifest': True})]
 
 
@@ -529,26 +529,26 @@ def test_repair_matcher_rejects_existing_stage_before_zone_import(monkeypatch, t
     from shared import add_helper_paths
 
     add_helper_paths()
-    import run_matcher
+    import line_run_matcher
 
     output = tmp_path / 'runs' / 'test'
     existing = output / 'matcher' / 'person_observations' / 'results' / 'first.json.gz'
     existing.parent.mkdir(parents=True)
     existing.write_bytes(b'old result')
-    monkeypatch.setattr(run_matcher, 'HERE', tmp_path)
-    monkeypatch.setattr(run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
-    monkeypatch.setattr(run_matcher.repair_inputs, 'validate_repair_inputs', lambda *_args: None)
+    monkeypatch.setattr(line_run_matcher, 'HERE', tmp_path)
+    monkeypatch.setattr(line_run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
+    monkeypatch.setattr(line_run_matcher.repair_inputs, 'validate_repair_inputs', lambda *_args: None)
     monkeypatch.setattr(
-        run_matcher.importlib,
+        line_run_matcher.importlib,
         'import_module',
         lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before output preflight')),
     )
     monkeypatch.setattr(sys, 'argv', [
-        'run_matcher.py', '--run', 'test', '--arm', 'person_observations', '--ids', 'first', 'second',
+        'line_run_matcher.py', '--run', 'test', '--arm', 'person_observations', '--ids', 'first', 'second',
         '--inputs-dir', str(tmp_path / 'inputs'), '--repair-manifest', str(tmp_path / 'manifest.json.gz'),
     ])
     with pytest.raises(FileExistsError, match='repair output paths already exist'):
-        run_matcher.main()
+        line_run_matcher.main()
 
 
 def test_repair_validation_rejects_tampered_fragments_and_manifest(monkeypatch, tmp_path):

@@ -1,0 +1,25 @@
+{
+  "all_real_candidates": 317746,
+  "camera_limit": 0.1,
+  "case_id": "gxBQ_window_00_frame_5",
+  "max_abs_difference": 3.194422690633303e-05,
+  "native_size": [
+    1920,
+    1080
+  ],
+  "near_cutoff_sample_count": 263,
+  "p99_abs_difference": 2.503421806174803e-06,
+  "sample_count": 690,
+  "scalar_eligible_count": 282,
+  "scalar_reconstruction": "original proposal homography projected to float32 native corners, matching W5 gate",
+  "source": "cached ungated GX5 audit arrays; no references used",
+  "target_in_sample": true,
+  "target_scalar_error": 0.00953184688264241,
+  "target_vector_error": 0.009531846365582236,
+  "threshold_crossings": 0,
+  "vector_eligible_count": 282,
+  "working_size": [
+    960,
+    540
+  ]
+}

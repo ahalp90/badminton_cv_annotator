@@ -4,7 +4,7 @@ These judgements apply to the [automatic gallery](automatic_axes_visual_check.ht
 from the all-camera-eligible comparison. Candidate IDs below match the saved
 [measurements](measurements.json.gz). They do not apply to the earlier supplied-
 direction gallery or the label-guided observed-bank controls. The subsequent
-[GX0 control approval](automatic_axes_results.md#gx0-follow-up-both-control-winners-are-visually-approved)
+[GX0 control approval](../../../../../../scratch/court_det_fix/evidence/direction_search/README.md)
 belongs to two different candidates and leaves these automatic rulings unchanged.
 
 Across nine development views, the user explicitly finds a usable automatic

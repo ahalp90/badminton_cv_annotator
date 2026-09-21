@@ -45,7 +45,7 @@ was run. No group in this export has a verified shared projection.
 
 ## An earlier shared-court experiment already exists
 
-The [earlier player-guided report](../../README.md#replayed-short-clip-comparison) describes
+The [earlier player-guided report](../../../../../../../scratch/court_det_fix/evidence/independent_proposals/README.md) describes
 one court chosen across three frames for each of three short clips. Its committed
 [replay archive](../../replay.zip) is about 281 KB and already contains the observations,
 proposals, references, code and complete saved results. Do not duplicate or rerun it for

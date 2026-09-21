@@ -1,0 +1,51 @@
+{
+  "implementation": "bundled reviewed source extracts at 94bc9cc",
+  "opencv_version": "4.13.0",
+  "actual_video53_scene334": {
+    "nn_shape_flags": [],
+    "saved_fallback_shape_flags": [
+      "non_convex",
+      "bad_corner_order"
+    ],
+    "saved_tr_peak": 0.015122944489121437,
+    "corner_peak_floor": 0.02,
+    "nn_tr_px": [
+      1254.916015625,
+      417.02679443359375
+    ],
+    "fallback_tr_px": [
+      1515.9818115234375,
+      1080.2900390625
+    ],
+    "tr_displacement_px": 712.792724609375,
+    "saved_line_residual_px": 3.6618212922309112,
+    "saved_anchor_residual_px": 2.0388492082890544,
+    "saved_normalised_residuals_pass_reviewed_thresholds": true,
+    "reconstructed_H_denominators_at_court_vertices": [
+      1.0,
+      -4.9634834640848755,
+      -5.4007242344174795,
+      0.5627592296673967
+    ],
+    "reconstructed_H_has_pole_through_court": true
+  },
+  "synthetic_camera_change_not_video17_replay": {
+    "all_input_quads_shape_clean": true,
+    "flagged": [
+      false,
+      false,
+      false,
+      true
+    ],
+    "valid_alternate_view_replaced": true
+  },
+  "synthetic_scale_sensitivity": {
+    "40px_shift_flagged": false,
+    "same_geometry_at_1_5x_scale_flagged": true
+  },
+  "limitations": [
+    "No neural-network, Hough extraction, tracking, contact, or rally rerun.",
+    "The reconstructed H is calculated from stored final corners, not the internal fit.",
+    "The camera-change example is synthetic, not a replay of video 17."
+  ]
+}

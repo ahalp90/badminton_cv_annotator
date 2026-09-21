@@ -125,7 +125,7 @@ observations also expose substantial marking errors in detector-accepted outputs
 Four detector acceptances therefore cannot be reported as four visually usable
 courts. Small maximum corner errors are insufficient evidence of marking accuracy.
 
-These findings motivated the subsequent [marking diagnosis](marking_diagnosis_results.md),
+These findings motivated the subsequent [marking diagnosis](../../../../../../scratch/court_det_fix/evidence/direction_search/README.md),
 which distinguishes wrong marking identity from poor geometry. Neither the best
 corner-error candidate nor these selected panels establish whether better
 candidates exist elsewhere in the population.

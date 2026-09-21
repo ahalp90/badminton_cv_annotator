@@ -1,0 +1,8 @@
+# These retain the previous private-data boundary during consolidation.
+**/__pycache__/
+holistic_admission/measurements/
+holistic_admission/figures/
+holistic_admission/source_admission/results*/
+independent_proposals/development/
+independent_proposals/refit_audit/
+direction_search/diagnostics/*/records/

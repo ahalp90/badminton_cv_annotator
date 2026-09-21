@@ -1,6 +1,6 @@
 # Frozen helper scripts of 14 September 2026
 
-Code-only copy, made 2026-09-16, of the `.py` files under the gitignored `scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/` tree that the direction experiment and the line-identity series import (the tree their documents call L), plus `legacy/zone_net.py` and its `camera_diagnostic.py` dependency from the 20260908 tree. Records, images and caches of that tree are not copied. The compute host holds its own copy under the remote experiment root; `../direction_agreement/evidence.md` records that the 43 shared modules were byte-identical between the two on 2026-09-15.
+Code-only copy, made 2026-09-16, of the `.py` files under the gitignored `scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/` tree that the direction experiment and the line-identity series import (the tree their documents call L), plus `legacy/zone_net.py` and its `camera_diagnostic.py` dependency from the 20260908 tree. Records, images and caches of that tree are not copied. The compute host holds its own copy under the remote experiment root; `../evidence/direction_search/README.md` records that the 43 shared modules were byte-identical between the two on 2026-09-15.
 
 Import roots the experiments put on `sys.path`: `vp_pruning/`, `marking_diagnosis/`, `axis_matching/`, `automatic_axes/`, `automatic_axes/svd_fixed/`, and `legacy/` for `zone_net`.
 
