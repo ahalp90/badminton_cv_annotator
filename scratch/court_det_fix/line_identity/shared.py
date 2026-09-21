@@ -1,7 +1,7 @@
 """Shared local paths, loaders and the frozen population for the line-identity experiments.
 
-Everything here resolves inside the repository checkout, so the committed scripts carry no
-private paths. Remote work goes through run_remote.sh and the gitignored paths.local.sh.
+Paths are resolved from this module's experiment root, so the committed scripts carry no private
+paths. Remote work goes through run_remote.sh and the gitignored paths.local.sh.
 """
 
 from __future__ import annotations
@@ -21,8 +21,18 @@ import numpy as np
 if TYPE_CHECKING:
     from experiments.annotator.independent_court.case_provenance import CaseProvenance
 
-REPO = Path(__file__).resolve().parents[3]
-COURT_DET_FIX = REPO / 'scratch/court_det_fix'
+
+def _resolve_roots(line_identity: Path) -> tuple[Path, Path]:
+    """Return the project root and experiment root for either supported checkout layout."""
+    court_det_fix = line_identity.resolve().parent
+    for project_root in (court_det_fix, *court_det_fix.parents):
+        if (project_root / 'src').is_dir():
+            return project_root, court_det_fix
+    raise RuntimeError(f'Could not locate project root above {court_det_fix}; expected src/')
+
+
+LINE_IDENTITY = Path(__file__).resolve().parent
+REPO, COURT_DET_FIX = _resolve_roots(LINE_IDENTITY)
 # The frozen helper scripts the experiments import: the tracked copy of the player_guided/20260914
 # tree the direction experiment calls L (code only; see its README.md).
 HELPERS = COURT_DET_FIX / 'frozen_helpers_20260914'
@@ -87,7 +97,7 @@ def add_helper_paths() -> None:
     for path in (
         REPO, REPO / 'src', HELPERS / 'vp_pruning', HELPERS / 'marking_diagnosis',
         HELPERS / 'axis_matching', HELPERS / 'automatic_axes', HELPERS / 'automatic_axes/svd_fixed',
-        DIRECTION_AGREEMENT, Path(__file__).resolve().parent,
+        DIRECTION_AGREEMENT, LINE_IDENTITY,
     ):
         sys.path.insert(0, str(path))
 
