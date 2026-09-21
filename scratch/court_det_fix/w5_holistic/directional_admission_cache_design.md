@@ -70,17 +70,21 @@ sequence. Empty banks still need their source metadata and exact reason, such as
 
 ## Provenance and invalidation
 
-Write the bank and a small manifest atomically. The manifest should record:
+Write the bank and one small manifest atomically. Derive one cache key from:
 
-- schema version and case ID;
-- source-pack repository-relative path and SHA-256;
-- working and native image dimensions, array shapes and data types;
-- external runtime settings that are not fixed in the hashed producer code;
-- repository-relative paths and file hashes for the pre-floor builder,
-  `detector.py`, `assignment.py`, the imported `vp_pruning.py` and the legacy
-  camera helper;
-- NumPy and OpenCV versions and the single-thread setting;
-- one SHA-256 for the complete archive.
+- the schema version and case ID;
+- one source-pack digest;
+- one producer digest covering the pre-floor builder, `detector.py`,
+  `assignment.py`, the imported `vp_pruning.py` and the legacy camera helper;
+- external runtime settings, NumPy and OpenCV versions, and the single-thread
+  setting.
+
+The manifest also records working and native dimensions, array shapes and data
+types so the loader can reject a malformed bank. Keep the component paths and
+digests in this one manifest for diagnosis. Arm packets and reports record only
+the resulting cache key. Do not repeat component hashes or add per-array hashes;
+the behavioural equivalence gate is the evidence that the cache preserved the
+experiment.
 
 Store the bank outside individual arm run directories. Each arm must record the
 same cache key in its line-template metadata. The comparator must reject arms
