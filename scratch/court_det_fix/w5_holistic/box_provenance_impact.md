@@ -270,11 +270,12 @@ because of this box-provenance fault.
 ## Why the mismatch escaped review
 
 This was mainly the coordinator's mistake. The coordinator gave a Luna Max
-executor, not a low-capacity executor, a brief that asked for box availability
-and population readiness. The brief did not ask whether each box described the
+executor, not a low-capacity executor, a separate mapping brief that asked for
+box availability and population readiness. Unlike the tracked W5 executor
+contract, that earlier mapping brief did not ask whether each box described the
 image that a later consumer would measure, especially when that image was a
-multi-frame median. The mapper completed that narrower task. The coordinator
-then accepted it without checking the result against the existing W5 rule that
+multi-frame median. The mapper completed the narrower task. The coordinator
+then accepted it without checking the mapped inputs against the W5 rule that
 permits masking only with reliable same-image boxes.
 
 The missing acceptance check matters more than the model choice. A stronger
