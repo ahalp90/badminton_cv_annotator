@@ -62,3 +62,7 @@ entry document.
 
 The current project-quality and deployment account is in
 `local_scratch/campaigns/w5-line-admission/PROJECT_STATE.md`.
+
+The complete move, consolidation and proposed-deletion plan is
+[`TIDY_PLAN.md`](../../../TIDY_PLAN.md). Nothing in that plan has been moved
+or deleted yet.
