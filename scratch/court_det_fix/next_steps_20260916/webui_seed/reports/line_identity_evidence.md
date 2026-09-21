@@ -5,6 +5,10 @@ or `prior_checks/`, produced by the script named beside it. The C2 identity
 trace below comes from the saved raw records and its dedicated replay in
 `../next_steps_20260916/C2_traces/`.
 
+**Superseded copy.** Read the
+[canonical evidence record](../../../line_identity/evidence.md), which carries
+the current warning. This snapshot remains only for its old handover link.
+
 ## Inputs and their identity
 
 - Nine frozen views, packs and native frames as the direction experiment used them (`shared.CASES`, `shared.frame_path`); their MD5s are in the direction experiment's run manifest (`../direction_agreement/runs/direction_agreement_20260915_144900/manifest.json.gz`).

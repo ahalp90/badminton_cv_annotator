@@ -177,6 +177,58 @@ is byte-identical and needs the same caveat. Its source copy,
 [`filter_replay.py`](../next_steps_20260916/webui_seed/source/filter_replay.py),
 also masks with `bbox_px`.
 
+## Repair by decision value
+
+The mismatch does not justify rerunning every affected artefact. Correct the
+results that could reopen or close a live detector branch, in this order:
+
+| Priority | Smallest useful repair | Decision it can change |
+| ---: | --- | --- |
+| 1 | Recompute the two broadcast junction-first orders on the nineteen cached median cases with both no mask and a two-of-three-frame person mask, then rebuild the eighteen-reference summary and overlays | Whether junction-first ranking is genuinely poor on broadcast footage |
+| 2 | Use same-image boxes for GX5 and the same composite mask for SS03-17, SS03-19, SS03-16 and SS21-20; rerun `person_observations` and rebuild its nine-view tables | Whether person-filtered observations remain a useful axis-matching option |
+| 3 | Recompute the junction measurements for yellow14, letterboxed58, centre64, centre71 and am4-319; merge them with the fifteen valid cases; rebuild the full junction rankings | Whether junction contradictions add a useful clue across the marking population |
+| 4 | Rerun the separate appearance-contradiction records for those five cases | Whether its exact population totals and “only two selections changed” claim survive |
+| 5 | Rerun `direct_occlusion` and `bidirectional_occlusion` on those same five marking cases | Whether the historical masked marking-refit arms deserve further attention |
+
+The first repair is a clean, high-value comparison because the broadcast stripe
+result remains valid while every scored junction result used invalid masks. Run
+one arm with no spatial mask. Run a second arm that masks a pixel when person
+boxes cover it in at least two of the three frames used to make the median. The
+pack already stores all three sets of boxes at the median image's 960 by 540
+scale. This pair tests junction-first ranking both without occlusion handling and
+with a mask that matches the composite image. Reuse the saved candidates and
+change only the junction measurement, ordering and dependent summaries. The
+existing junction runner always expects one set of boxes, so both arms need an
+explicit composite-image path rather than an unchanged invocation.
+
+The second repair is narrower than the original experiment. GX5 needs boxes
+measured on its actual line image. The four broadcast cases can reuse the
+two-of-three composite mask above. Rerun `person_observations` because it tests
+the still-live idea of filtering the fragments seen by axis matching while
+holding the chosen directions fixed. Replacing an invalid mask with no mask
+would merely duplicate the baseline.
+
+Do not rerun the direction-changing `person` and `paint_person` arms merely to
+recount their failures. Valid same-image results already show that direction
+selection becomes unstable: `person` badly regresses Am2-150 and Am3-0, while
+the box-free `paint` arm shows the same broader failure pattern. Corrected boxes
+could change the GX5 and broadcast numbers, but they cannot rescue that design
+decision.
+
+The marking junction and appearance probes use different sample populations.
+They may share corrected mask provenance or a new measurement cache, but they
+are separate reruns. The appearance totals rank below the junction selection
+because their cautious conclusion still has support from the two unaffected
+same-image winner changes. The masked marking-refit arms can wait until a
+higher-priority rerun gives a reason to revisit spatial person masking.
+
+Do not rerun the three saved cross-frame masked summaries or the embedded
+paired-paint occlusion diagnostics merely to restore old numbers. The published
+cross-frame table is unmasked, the paired-paint winners are box-independent and
+both live conclusions remain supported. Keep the affected diagnostic rows
+labelled unsafe. W5, line-template admission, stripe-only, temporal-feet,
+proposal and camera results need no repair.
+
 ## Results that remain valid
 
 - No mismatched box reached any produced W5 measurement. Some broadcast views

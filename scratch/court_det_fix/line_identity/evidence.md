@@ -5,6 +5,12 @@ or `prior_checks/`, produced by the script named beside it. The C2 identity
 trace below comes from the saved raw records and its dedicated replay in
 `../next_steps_20260916/C2_traces/`.
 
+**Historical evidence warning.** Person-box figures for GX5 and all four
+ShuttleSet views are unsafe because `bbox_px` does not describe the measured
+image. The affected arms are `person`, `person_observations` and
+`paint_person`. See the
+[box-provenance impact review](../w5_holistic/box_provenance_impact.md).
+
 ## Inputs and their identity
 
 - Nine frozen views, packs and native frames as the direction experiment used them (`shared.CASES`, `shared.frame_path`); their MD5s are in the direction experiment's run manifest (`../direction_agreement/runs/direction_agreement_20260915_144900/manifest.json.gz`).
@@ -59,7 +65,7 @@ Descriptive only; the labels come from the control and are not used by any filte
 
 Gate: on every view the unfiltered replay reproduces the saved baseline direction record exactly (retained candidate IDs, working points, support masks; `run.log`, "gate passed" per view). The baseline arm's selection is then identical to the saved one by construction (`selection_identical_to_baseline` true in `table.csv`).
 
-Arms and rules: person (drop a fragment whose midpoint lies inside any person box in the pack; the pack's boxes come from every sampled frame of a three-second window, so a fragment is masked wherever any player stood in that window), paint (keep a fragment with ridge contrast at least 20 and peak saturation at most 90), paint_person (both), paint at contrast 15 and 25, and two observation-only arms (paint_observations, person_observations) that keep the baseline directions and filter only the fragments the axis matching sees. How the paint rule was arrived at: the contrast measure went through three versions, each changed after reading GX0 results (the study's numbers for the tan strip, then a GX0 smoke replay of the filter that lost the y-direction); the thresholds were then read off the study's quantiles, which use control-derived labels on the same nine views (GX0's six offending fragments measure at most 16; marking medians sit at 21 and above). No view is held out, GX0 shaped the measure, and the rule was fixed before the nine-view replay and not changed after it.
+Arms and rules: person (drop a fragment whose midpoint lies inside any person box in the case's single stored `bbox_px` set; the replay does not union boxes from every sample in the three-second window), paint (keep a fragment with ridge contrast at least 20 and peak saturation at most 90), paint_person (both), paint at contrast 15 and 25, and two observation-only arms (paint_observations, person_observations) that keep the baseline directions and filter only the fragments the axis matching sees. How the paint rule was arrived at: the contrast measure went through three versions, each changed after reading GX0 results (the study's numbers for the tan strip, then a GX0 smoke replay of the filter that lost the y-direction); the thresholds were then read off the study's quantiles, which use control-derived labels on the same nine views (GX0's six offending fragments measure at most 16; marking medians sit at 21 and above). No view is held out, GX0 shaped the measure, and the rule was fixed before the nine-view replay and not changed after it.
 
 Stage 1, direction selection. The incidence bound (`set_bound`) and the best direction fit (`fit_pairs`, best finite ordered pair) against the control, working px:
 

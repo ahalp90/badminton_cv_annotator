@@ -2,6 +2,14 @@
 
 Run `line_identity_20260915_222437` on `fix/court-det`. Written for a colleague who knows the court-detection work but has not followed this branch. The aim was to learn two things about the automatic court detector. First, which step inside its matcher loses a court that the selected directions could support. Second, whether removing fragments that are not white paint, or that lie inside a person box, before any geometry is fitted, recovers it. Nothing here decides production readiness.
 
+**Historical evidence warning.** The `person`, `person_observations` and
+`paint_person` arms used boxes from the wrong frame or one source frame of a
+composite image on GX5 and all four ShuttleSet views. Their figures and the
+claims that person filtering repairs both GX views or breaks a stated number of
+other views are unsafe. Same-image person results on GX0, Am2-150, Am2-28019
+and Am3-0 remain valid. Paint-only arms are unaffected. See the
+[box-provenance impact review](../w5_holistic/box_provenance_impact.md).
+
 **Result.** On the traced cases the matcher loses close courts at one named step: the per-direction cap of its axis matching, which keeps the 512 best-scoring line-to-marking matchings per direction out of tens of thousands and scores tightly aligned clutter above the court's own markings. The masks and the per-pair cap behind it are cleared on the two view-selection pairs where they were instrumented (GX0 under M, Amateur-3 under R), and the cap's effect is measured on six direction pairs. Removing non-paint or in-person-box fragments before direction selection is a lottery: it repairs the two GX views and breaks four others, because the coverage rule reacts to which fragments exist rather than to how much clutter goes. Passing filtered fragments with the baseline directions kept changes the local axis-stage proxy where the cap had cut the court (GX0 from 34.3 to 12.6 px, Amateur-2 frame 28019 from 61.6 to 7.6), but it also changes the evidence prepared for downstream scoring. The full-pool matcher can therefore move differently from the one-pair proxy; on GX0 the reported proxy improves 34.3 to 12.6 while the reported full-pool nearest worsens 7.7 to 9.0. The compute-host matcher run (table below) says how far those mixed effects reach the ranked winners.
 
 ## Terms

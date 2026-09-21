@@ -1,5 +1,11 @@
 # Court fitting on additional footage
 
+**Historical evidence warning.** The two broadcast junction-first rows used
+source-frame person boxes on cached median images. Their 3/18 figures, unchanged
+winner claim, scene-17 error and resulting junction-ranking conclusion are
+unsafe. The 16/18 stripe result and GX temporal-feet result remain valid. See
+the [box-provenance impact review](../../../../../scratch/court_det_fix/w5_holistic/box_provenance_impact.md).
+
 **The wider checks expose two unresolved problems: junction-first ranking often
 chooses the wrong broadcast court, and the newest amateur video produces no
 retained courts.** Filtering out floor texture repairs one reviewed amateur
