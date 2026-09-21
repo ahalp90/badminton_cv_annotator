@@ -239,6 +239,12 @@ sheets. Among safe arms, choose the least restrictive visibility floor. If `(4,3
 must not prompt a patch or a case-specific exception. Record the selected arm, changed
 winners and visual rulings in the comparison packet.
 
+This decision selects an admission rule; it does not approve integration. Before
+integration, benchmark the production-only path on ordinary hardware with
+player detections supplied. HPC time spent comparing arms is development cost
+and must not be reported as deployed inference speed. The cache design speeds
+future comparisons but does not reduce the cost of building one hypothesis bank.
+
 ## History
 
 - 2026-09-20: pilot run `w5_stage2_20260920` ruled; junction fix, camera filter and visible-span weighting issued for seance 2.

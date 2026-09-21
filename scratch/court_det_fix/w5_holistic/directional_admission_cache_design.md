@@ -13,6 +13,10 @@ selection or evidence. The current four-arm sweep remains the reference run;
 the cache should be implemented and checked against it before it drives another
 decision.
 
+This cache improves experiment turnaround, not deployed inference time. A
+deployed detector still has to build the bank once. Production readiness needs
+a separate benchmark of the single-run path with player detections supplied.
+
 ## Safe split
 
 The split sits inside
