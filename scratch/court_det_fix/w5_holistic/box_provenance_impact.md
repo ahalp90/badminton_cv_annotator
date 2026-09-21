@@ -267,6 +267,31 @@ mismatched spatial boxes. It remains valid as a diagnostic. It remains a
 secondary rule because it would couple court admission to player tracking, not
 because of this box-provenance fault.
 
+## Why the mismatch escaped review
+
+This was mainly the coordinator's mistake. The coordinator gave a Luna Max
+executor, not a low-capacity executor, a brief that asked for box availability
+and population readiness. The brief did not ask whether each box described the
+image that a later consumer would measure, especially when that image was a
+multi-frame median. The mapper completed that narrower task. The coordinator
+then accepted it without checking the result against the existing W5 rule that
+permits masking only with reliable same-image boxes.
+
+The missing acceptance check matters more than the model choice. A stronger
+executor could have noticed the unstated conflict, but the task did not require
+that audit. Sending the same brief to a more capable model would not make the
+result reliably safe. The later Carmack executor shows the expected executor
+behaviour: it stopped before running invalid G1 work when its helper snapshot
+disagreed with the frozen contract, then continued only after the mismatch was
+resolved.
+
+Future routing should keep tightly bounded, linear mapping and execution with
+Luna. Cross-stage provenance work needs an explicit integration review owned by
+the coordinator or a separate Sol Medium reviewer on the normal tier. That
+review must check the measured image, the box source frame, the meaning of any
+composite image, and every consumer that uses the boxes spatially. This is a
+change to the task and acceptance criteria, not merely a change of executor.
+
 ## Corrective action
 
 1. Bind every frozen case to explicit image and box provenance without changing
