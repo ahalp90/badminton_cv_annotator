@@ -19,8 +19,9 @@ cached-fragment diagnostics also expose evidence lost through angle grouping.
 [The additional-footage checkpoint](extension_results.md) records the earlier
 post and appearance probes, the broadcast comparison and the new seven-frame
 amateur evaluation. Stripe ranking reaches 16/18 matching broadcast references
-under the historical corner cutoff. The junction-first figure is unsafe; the
-linked report now explains why.
+under the historical corner cutoff. The old junction-first figure was unsafe;
+a corrected replay scores 1/18 with both no mask and a two-of-three-frame mask.
+The linked report explains the repair.
 All seven new amateur frames produce no retained court. The
 [broadcast gallery](extension_overlays/broadcast/index.html) accompanies that comparison.
 

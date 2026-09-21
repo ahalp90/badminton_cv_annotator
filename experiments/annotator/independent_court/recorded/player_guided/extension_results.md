@@ -1,10 +1,12 @@
 # Court fitting on additional footage
 
-**Historical evidence warning.** The two broadcast junction-first rows used
-source-frame person boxes on cached median images. Their 3/18 figures, unchanged
-winner claim, scene-17 error and resulting junction-ranking conclusion are
-unsafe. The 16/18 stripe result and GX temporal-feet result remain valid. See
-the [box-provenance impact review](../../../../../scratch/court_det_fix/w5_holistic/box_provenance_impact.md).
+**Corrected evidence.** The original two broadcast junction-first rows used
+source-frame person boxes on cached median images. A controlled replay with no
+mask and a two-of-three-frame composite mask scores 1/18 under both policies.
+The old 3/18 figure is superseded; the conclusion that junction-first performs
+poorly survives. The 16/18 stripe result and GX temporal-feet result remain
+valid. See the [repair result](../../../../../scratch/court_det_fix/w5_holistic/runs/broadcast_junction_box_repair_20260921/result.md)
+and [box-provenance impact review](../../../../../scratch/court_det_fix/w5_holistic/box_provenance_impact.md).
 
 **The wider checks expose two unresolved problems: junction-first ranking often
 chooses the wrong broadcast court, and the newest amateur video produces no
@@ -60,22 +62,25 @@ and changes no geometry or eligibility checks.
 | --- | ---: |
 | Legacy paint, stripe ranking | 16/18 |
 | Physical paint, stripe ranking | 16/18 |
-| Legacy paint, original junction-first ranking | 3/18 |
-| Legacy paint, paint-qualified junction-first ranking | 3/18 |
+| Corrected junction-first, no mask (both observation orders) | 1/18 |
+| Corrected junction-first, two-of-three mask (both observation orders) | 1/18 |
 
 Every scoreable broadcast image has retained candidates. The two stripe failures
 are `shuttleset_03_scene_0016` and `shuttleset_21_scene_0020`.
 Their physical-paint maximum corner errors are 105.99 and 43.34 pixels.
-Paint qualification leaves every broadcast junction winner unchanged.
-It therefore does not repair junction-first selection on this population.
+The original and paint-qualified rankings are identical in all nineteen
+non-empty cases under both corrected masks. Paint qualification therefore does
+not repair junction-first selection on this population.
 
 ![Broadcast source and three selected courts](extension_overlays/broadcast/shuttleset_03_scene_0017.png)
 
 For scene 0017, the legacy and physical stripe selections have maximum corner
 errors of 7.75 and 7.23 pixels. The junction selection has 194.27 pixels of error
 and extends into the audience. Magenta outlines show the selected outside
-boundary. [All twenty broadcast comparisons](extension_overlays/broadcast/index.html)
-include the two unverified references without error measurements.
+boundary. The [historical twenty-case gallery](extension_overlays/broadcast/index.html)
+includes the two unverified references without error measurements. Its stripe
+selections remain valid, but three junction overlays preserve superseded
+mismatched-box winners; use the repair packet for current junction results.
 
 Visual review identifies the same two stripe-ranked failures as severely broken
 fits. The other sixteen matching-view cases look good, with a slight preference
@@ -213,9 +218,9 @@ Fresh local assignments therefore do not resolve these cases within this trial.
 ## Checkpoint and review questions
 
 The completed comparisons justify investigating proposal coverage and rejection
-before extending post fitting. Junction-first ranking needs a broader rethink
-given its broadcast losses. Appearance qualification remains a useful local
-observation, rather than a sufficient general selection rule.
+before extending post fitting. Corrected junction-first ranking reaches only
+1/18 and needs a broader rethink. Appearance qualification remains a useful
+local observation, rather than a sufficient general selection rule.
 
 Useful review questions include whether the current line evidence represents
 the visible court under strong perspective, and which useful proposals disappear

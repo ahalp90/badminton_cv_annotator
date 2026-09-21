@@ -3,10 +3,12 @@
 ## Bottom line
 
 Some historical person-mask and junction results used bounding boxes from a
-different frame than the image being measured. Every produced broadcast
-junction measurement used source-frame boxes on cached median images. Those
-measurements cannot support exact performance claims until they are rerun with
-matched boxes or no person mask.
+different frame than the image being measured. Every original broadcast
+junction measurement used source-frame boxes on cached median images. That
+broadcast result has now been repaired with both no spatial mask and a mask
+supported by at least two of the three median-image frames. Both corrected arms
+score 1/18, down from the invalid 3/18. The mismatch made junction-first ranking
+look better; it did not cause the poor result.
 
 The fault is bounded. Paint-only scoring, temporal player-foot gates, stripe
 scoring, proposal generation, direction agreement and the W5 rankings remain
@@ -52,7 +54,7 @@ already disclosed the frame-offset limitation.
 | Marking-refit cross-frame masked outputs | 3 of 3 windows (4 mismatched frames) | Label the saved masked summaries unsafe; keep the published unmasked table |
 | Junction diagnostics and junction-first rankings | 5 of 20 | Rerun junction measurement and dependent summaries |
 | Paired paint-refit result | 5 of 20 diagnostic cases | Relabel embedded occlusion diagnostics; retain paint winners and boundary metrics |
-| Broadcast extension junction-first results | 19 box-consuming cases; 18 scored | Unsafe until measured with matched evidence or no mask |
+| Broadcast extension junction-first results | 19 box-consuming cases; 18 scored | Repaired: both no-mask and two-of-three-mask arms score 1/18 |
 | Appearance contradiction probe | 5 of 20 | Rerun before retaining population totals |
 | Line-identity person arms | 5 of 9 | Rerun or label those case-arm rows unsafe |
 | W5 stages and line-template regression | 0 of 9 | No mismatched box reached any produced W5 measurement; some broadcast views stopped or were absent in earlier stages; final conclusion 0 affected |
@@ -123,16 +125,25 @@ valid.
 
 ### Broadcast extension
 
-The broadcast junction-first replay had nineteen box-consuming cases.
-`shuttleset_21_scene_0010` had zero eligible geometries, so it produced no
-junction measurement; the scored denominator is eighteen. The replay applies
-first-frame boxes to cached median images for the nineteen cases. The following
-claims are unsafe:
+The original broadcast junction-first replay had nineteen box-consuming cases.
+SS21-10 and SS21-39 lack verified references, so the scored denominator is
+eighteen. SS21-10 also had zero eligible geometries and produced no junction
+measurement. That replay applied first-frame boxes to cached median images for
+the nineteen cases.
 
-- junction-first 3/18 for both original and paint-qualified observations;
-- “winners unchanged”;
-- the 194.27 px scene-17 junction error;
-- the conclusion that junction-first needs rethinking.
+The [corrected replay](runs/broadcast_junction_box_repair_20260921/result.md)
+first reproduces every historical order, then remeasures the saved candidates
+with no spatial mask and with a mask supported by at least two of the three
+median-image frames. Both arms produce the same winners and score 1/18 for both
+original and paint-qualified observations. Paint qualification changes no full
+ranking. Three winners change from the invalid run: SS03-38, SS03-16 and
+SS21-29. Two previously accurate winners become wrong, so the mismatched box
+inputs inflated the old 3/18 result.
+
+The 194.27 px scene-17 winner remains unchanged and now has valid support. The
+exact historical aggregate and its blanket “winners unchanged” claim remain
+invalid. The broader conclusion survives: junction-first needs rethinking for
+broadcast footage.
 
 The broadcast stripe result of 16/18 and its two failures remain valid. The GX
 result of 0/7 retained also remains valid because it uses temporal feet rather
@@ -184,22 +195,18 @@ results that could reopen or close a live detector branch, in this order:
 
 | Priority | Smallest useful repair | Decision it can change |
 | ---: | --- | --- |
-| 1 | Recompute the two broadcast junction-first orders on the nineteen cached median cases with both no mask and a two-of-three-frame person mask, then rebuild the eighteen-reference summary and overlays | Whether junction-first ranking is genuinely poor on broadcast footage |
+| 1 | **Complete:** recomputed both broadcast junction-first orders on the nineteen cached median cases with no mask and a two-of-three-frame person mask; rebuilt the eighteen-reference summary | Junction-first remains poor at 1/18 under both masks |
 | 2 | Use same-image boxes for GX5 and the same composite mask for SS03-17, SS03-19, SS03-16 and SS21-20; rerun `person_observations` and rebuild its nine-view tables | Whether person-filtered observations remain a useful axis-matching option |
 | 3 | Recompute the junction measurements for yellow14, letterboxed58, centre64, centre71 and am4-319; merge them with the fifteen valid cases; rebuild the full junction rankings | Whether junction contradictions add a useful clue across the marking population |
 | 4 | Rerun the separate appearance-contradiction records for those five cases | Whether its exact population totals and “only two selections changed” claim survive |
 | 5 | Rerun `direct_occlusion` and `bidirectional_occlusion` on those same five marking cases | Whether the historical masked marking-refit arms deserve further attention |
 
-The first repair is a clean, high-value comparison because the broadcast stripe
-result remains valid while every scored junction result used invalid masks. Run
-one arm with no spatial mask. Run a second arm that masks a pixel when person
-boxes cover it in at least two of the three frames used to make the median. The
-pack already stores all three sets of boxes at the median image's 960 by 540
-scale. This pair tests junction-first ranking both without occlusion handling and
-with a mask that matches the composite image. Reuse the saved candidates and
-change only the junction measurement, ordering and dependent summaries. The
-existing junction runner always expects one set of boxes, so both arms need an
-explicit composite-image path rather than an unchanged invocation.
+The first repair reused the saved candidates and changed only the junction
+measurement, ordering and dependent summaries. One arm used no spatial mask.
+The second masked a pixel when person boxes covered it in at least two of the
+three frames used to make the median. Both arms produced the same winners, so
+occlusion handling does not explain the failed broadcast selections. The
+machine-readable packet retains the lower-order differences for inspection.
 
 The second repair is narrower than the original experiment. GX5 needs boxes
 measured on its actual line image. The four broadcast cases can reuse the
