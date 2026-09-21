@@ -1,214 +1,201 @@
-# Court-detector tidy plan
+# Court-detector consolidation and deletion plan
 
-## Decision requested
+## Bottom line
 
-Approve, amend or reject the disposition rows below. This document is the only
-tidy plan. Nothing has moved or been deleted.
+The court-detector investigation is unfinished. Its history contains several
+competing approaches whose useful results are scattered across reports, run
+directories and session records. Moving all of that into an archive would keep
+the evidence hidden and preserve the same navigation problem.
 
-Before execution, create one recoverable `tar.gz` snapshot under
-`local_scratch`. Worklogs remain intact. Every deletion requires approval of
-the named row.
+This tidy will first compile the competing approaches into one decision ledger.
+It will retain the smallest evidence pack that supports each live approach and
+the data that would avoid an expensive rerun. Everything else will leave the
+current workspace after a recoverable backup.
 
-## Inventory summary
+Nothing has moved or been deleted. Every deletion still needs approval.
 
-The whole scoped workspace occupies 7.6 GB. The tracked
-`scratch/court_det_fix` subtree accounts for 6.0 GB, 6,640 files, 267 Markdown
-files and 358 Python files. The rest is split across repository documentation,
-reusable experiment code and four ignored working areas created on 20--21
-September.
+## Scope
 
-| Area | Size | Files | Main contents |
-| --- | ---: | ---: | --- |
-| `worklog/` | 3.3 GB | 5,068 | historical checks, Web UI sessions, reviews, source media and worklogs |
-| `w5_holistic/` | 1.2 GB | 726 | active W5 code plus six run directories |
-| `line_identity/` | 826 MB | 457 | active matcher/replay code plus one large run |
-| `direction_agreement/` | 745 MB | 200 | completed experiment and its run |
-| `next_steps_20260916/` | 43 MB | 93 | completed C1/C2/L1/L2/L3 work and the W5 seed source |
-| `frozen_views/` | 33 MB | 25 | live frozen packs, frames and provenance |
-| `frozen_helpers_20260914/` | 796 KB | 70 | live helper snapshot, currently missing one dependency |
-| `docs/courtkeynet/fallback_evaluation/` | 5.8 MB | 14 | five result narratives, one worklog, a check script, recorded inputs and figures |
-| `experiments/annotator/independent_court/` | 171 MB | — | reusable experiment code and recorded evidence |
-| `local_scratch/add_missing_court_candidates_20260920/` | 78 MB | 42 | yesterday's admission audit, scripts and raw arrays |
-| `local_scratch/campaigns/w5-line-admission/` | 1.4 GB | — | today's live campaign; 1.3 GB is a clean nested Git worktree |
-| `local_scratch/runs/broadcast_junction_box_repair_20260921/` | 40 KB | 1 | byte-identical copy of a tracked repair result |
-| relevant `local_scratch/external_delegate/2026092{0,1}-*/` | 1.4 MB | — | launch wrappers and review returns from yesterday and today |
+The scoped workspace occupies 7.6 GB.
 
-Thirteen files under `experiments/annotator/independent_court/` changed on this
-branch. The fallback-evaluation documentation predates the branch, but it is
-part of the same investigation history and contributes to the current
-navigation problem. It is therefore in scope. Other repository documentation
-and older unrelated `local_scratch` work remain out of scope.
+| Area | Size | What is mixed together |
+| --- | ---: | --- |
+| `scratch/court_det_fix/` | 6.0 GB | active code, results, raw runs, worklogs, reviews and source media |
+| `local_scratch/campaigns/w5-line-admission/` | 1.4 GB | the live campaign and a 1.3 GB nested worktree |
+| `experiments/annotator/independent_court/` | 171 MB | reusable experiment code and recorded evidence |
+| `local_scratch/add_missing_court_candidates_20260920/` | 78 MB | proposal-source audit code, results and reusable arrays |
+| `docs/courtkeynet/fallback_evaluation/` | 5.8 MB | five overlapping result narratives, a worklog, figures and a runnable check |
+| relevant `local_scratch/external_delegate/2026092{0,1}-*/` | 1.4 MB | review results mixed with launch wrappers |
+| `local_scratch/runs/broadcast_junction_box_repair_20260921/` | 40 KB | duplicate of a tracked repair result |
 
-## Target structure
+Other repository documentation and older unrelated `local_scratch` work are
+out of scope.
 
-Keep the two active code paths stable. Remove run data and historical session
-material from their live surface.
+## The record this tidy must produce
+
+Create `scratch/court_det_fix/DETECTOR_DECISIONS.md` as the central account.
+It will compare these approach families:
+
+| Approach family | Main question | Evidence currently scattered across |
+| --- | --- | --- |
+| Existing model and scene repair | How far can CourtKeyNet, consensus repair and repeated-camera sharing carry the current pipeline? | `docs/courtkeynet/fallback_evaluation/` |
+| Independent line proposals | Can OpenCV, DeepLSD, LINEA and projective/player-guided proposals recover partly visible courts without CourtKeyNet? | fallback docs, `experiments/annotator/independent_court/`, historical checks |
+| Direction recovery | Which direction grouping, representative and anchor rules preserve viable court lines? | `direction_agreement/`, C1/L1 records |
+| Line identity and search allocation | Which fragments should survive, and where do ordering and per-direction caps discard good courts? | `line_identity/`, C2/L2 records |
+| Holistic scoring and admission | Can whole-court scoring, line-template proposals and visibility floors choose usable courts with sane compute? | `w5_holistic/`, the W5 campaign and the admission audit |
+
+Player-box provenance, camera assumptions and compute cost are cross-cutting
+columns rather than separate approaches.
+
+For every approach, the ledger must state:
+
+- the change being tested and the pipeline stage it affects;
+- the strongest result and known failure cases on the shared corpus;
+- whether the player-box wiring error weakens the result;
+- quality, search cost and expected deployment cost;
+- which code or data remains reusable;
+- the next experiment that would separate it from the competing approaches;
+- a link to one compact evidence pack;
+- a verdict: active contender, useful component, superseded, rejected or
+  unresolved.
+
+The ledger is a synthesis, not another chronological worklog. A context-naive
+reader should be able to see what has been learned, what still competes and why
+the next experiment is worth running.
+
+## Retention rule
+
+A file remains visible only when it satisfies at least one of these tests:
+
+1. It is active detector code or a test of active behaviour.
+2. It is needed to compare or finish an unresolved approach.
+3. It is an expensive-to-recreate input or intermediate that a likely next
+   experiment can reuse.
+4. It is the smallest surviving evidence for a settled claim.
+5. It is the current pickup or remote-run contract.
+
+Being historically interesting is not enough. Git preserves tracked history.
+The pre-tidy backup preserves ignored material. Worklogs remain intact in that
+backup; they do not need to remain in the current checkout.
+
+## Target surface
+
+Keep active code paths stable until the detector decision is resolved. Remove
+the bulky and chronological material around them.
 
 ```text
 scratch/court_det_fix/
-├── INDEX.md                       one thin entry point
-├── pickup.md                      the only live state note
-├── w5_holistic/                   active code, tests and current decisions only
-├── line_identity/                 active code and tests only
-├── frozen_views/                  immutable inputs
-├── frozen_helpers_20260914/       immutable helper snapshot
-├── data/
-│   ├── w5_runs/
-│   ├── line_identity_runs/
-│   ├── direction_agreement_run/
-│   ├── historical_checks/
-│   └── webui_followup_records/
-├── archive/
-│   ├── direction_agreement/
-│   ├── next_steps_20260916/
-│   ├── worklogs/
-│   ├── sessions/
-│   └── handovers/
+├── INDEX.md                       short entry point
+├── pickup.md                      current state and next action
+├── DETECTOR_DECISIONS.md          comparison of every live approach
+├── w5_holistic/                   active code, tests and current decision only
+├── line_identity/                 active code and tests while still needed
+├── frozen_views/                  one shared case corpus
+├── frozen_helpers_20260914/       one runnable helper snapshot
+├── evidence/
+│   ├── model_scene_repair/
+│   ├── independent_proposals/
+│   ├── direction_recovery/
+│   ├── line_identity/
+│   └── holistic_admission/
 └── scripts/                       reusable measurement and migration tools
-
-docs/courtkeynet/fallback_evaluation/
-├── README.md                     short durable overview and sole entry point
-├── evidence/                     the five existing result records, intact
-├── archive/                      the historical worklog
-└── figures/                      figures referenced by the evidence
-
-local_scratch/campaigns/w5-line-admission/
-├── RESUME.md                     live pickup note until campaign close
-├── PROJECT_STATE.md              compact state and deployment account
-├── W5_GO.md                      current remote authority
-├── w5_launch_packet.md           current launch contract
-├── evidence/                     unique ignored inputs and compact results
-└── archive/                      closed remote handoffs and review records
 ```
 
-Every `data/` subdirectory gets a short README naming its producer, date,
-machine, source inputs, rerun command where known, and whether it is safely
-regenerable. `archive/ARCHIVE_MAP.md` maps every old path to its new home.
+Each evidence pack contains only:
 
-## Disposition manifest
+- one plain-language result note;
+- one manifest naming inputs and code;
+- compact metrics and candidate records needed for comparison;
+- a few representative success and failure images;
+- expensive reusable intermediates, when retaining them is cheaper than
+  regenerating them;
+- the shortest known rerun or rescore command.
 
-### Active code and current evidence
+There will be no general `archive/` dumping ground in the tracked tree.
 
-| ID | Current path | Disposition | Target or consolidation | Gate |
-| --- | --- | --- | --- | --- |
-| A01 | `w5_holistic/*.py`, `*.sh`, tests | Keep | Keep at the current path while W5 remains active | focused tests and reference grep |
-| A02 | `w5_holistic/steering_record.md` | Keep | Current W5 decision record | W5 result incorporated |
-| A03 | `w5_holistic/box_provenance_impact.md` | Keep | Historical-impact record | repaired player matcher and final Opus ruling incorporated |
-| A04 | `w5_holistic/directional_admission_cache_design.md` | Archive | `archive/handovers/w5/` as an unimplemented design | confirm no open task depends on it |
-| A05 | `line_identity/*.py`, tests | Keep | Keep at the current path until the repaired five-case matcher closes | focused tests and reference grep |
-| A06 | `line_identity/results.md`, `evidence.md` | Consolidate | one `line_identity/README.md` for current result and interface; originals move intact to `archive/line_identity/` | claim-by-claim extraction check |
-| A07 | `line_identity/worklog.md`, `runs.md` | Archive intact | `archive/worklogs/line_identity/` | extract every open item first |
-| A08 | `line_identity/prior_checks/` | Archive | `archive/line_identity/prior_checks/` | inbound-reference rewrite |
-| A09 | `line_identity/inputs/` | Move | `data/line_identity_inputs/` | update configured paths and smoke input loading |
-| A10 | `frozen_views/` | Keep | Current path | exact pack/frame/provenance tests |
-| A11 | `frozen_helpers_20260914/` | Keep then freeze | Current path; add the missing camera helper before declaring complete | import smoke and helper inventory |
+## Disposition plan
 
-### Run data
+### Central record and live code
 
-| ID | Current path | Size | Disposition | Target | Gate |
-| --- | --- | ---: | --- | --- | --- |
-| D01 | `w5_holistic/runs/line_template_regression_20260920/` | 514 MB | Move, retain | `data/w5_runs/` | result, manifest, rulings and gallery open after move |
-| D02 | `w5_holistic/runs/w5_stage2_20260920/` | 314 MB | Move, retain | `data/w5_runs/legacy_stages/` | record its surviving claim in data README |
-| D03 | `w5_holistic/runs/w5_stage3_20260920/` | 115 MB | Move, retain | `data/w5_runs/legacy_stages/` | same |
-| D04 | `w5_holistic/runs/w5_stage4_20260920/` | 41 MB | Move, retain | `data/w5_runs/legacy_stages/` | same |
-| D05 | `w5_holistic/runs/w5_stage5_20260920/` | 233 MB | Move, retain | `data/w5_runs/legacy_stages/` | same |
-| D06 | `w5_holistic/runs/broadcast_junction_box_repair_20260921/` | 764 KB | Move, retain | `data/w5_runs/repairs/` | link from historical-impact record |
-| D07 | future three-arm W5 runs | unknown | Move after interpretation | `data/w5_runs/directional_admission/` | final comparison and receipt complete |
-| D08 | `line_identity/runs/line_identity_20260915_222437/` | 821 MB | Move, retain | `data/line_identity_runs/` | repaired five-case comparison complete |
-| D09 | `line_identity/runs/{paint_profiles,filter_replay,axis_replay}/` | 208 KB | Move, retain | `data/line_identity_runs/diagnostics/` | result links updated |
-| D10 | `direction_agreement/runs/direction_agreement_20260915_144900/` | 744 MB | Move, retain and compress | `data/direction_agreement_run/` | preserve manifest, summaries and rerun notes uncompressed |
+| ID | Current material | Action | Gate |
+| --- | --- | --- | --- |
+| A01 | all result notes and decision records | Extract claims into `DETECTOR_DECISIONS.md`, with one evidence link per claim | each approach has a result, limit and next decision |
+| A02 | `w5_holistic/` source and tests | Keep at the current path while W5 is live; remove old run directories under W rows below | focused tests and W5 close-out |
+| A03 | `line_identity/` source and tests | Keep while the repaired player matcher and allocation question remain live | repaired matcher and ledger verdict |
+| A04 | `direction_agreement/` source | Keep only code reused by a live branch; otherwise remove after its result is compiled | import and caller check |
+| A05 | `frozen_views/` | Keep and make it the single shared case source | cases, frames, controls and provenance reconcile |
+| A06 | `frozen_helpers_20260914/` | Complete the missing camera helper, then freeze | import smoke and helper inventory |
+| A07 | reusable scripts under `worklog/tools/` and completed experiment folders | Promote only scripts named by an evidence pack | caller or rerun instruction exists |
 
-### Completed experiments and coordination records
+### Competing experiment evidence
 
-| ID | Current path | Disposition | Target or consolidation | Gate |
-| --- | --- | --- | --- | --- |
-| C01 | `direction_agreement/` excluding `runs/` | Archive intact | `archive/direction_agreement/` | extract its settled conclusion into `INDEX.md`; rewrite 18 inbound references |
-| C02 | `next_steps_20260916/{C1_corrections,C2_traces,L1_admission,L2_scoring,L3_temporal}/` | Archive intact | `archive/next_steps_20260916/` | confirm each `STATE.md` has no live item |
-| C03 | `next_steps_20260916/webui_seed/source/` | Consolidate after W5 | copy the exact live helper subset into `frozen_helpers_20260914/`; archive the source tree | helper-content comparison and W5 smoke |
-| C04 | remaining `next_steps_20260916/webui_seed/` | Archive intact | `archive/next_steps_20260916/webui_seed/` | extract any still-live report claim |
-| C05 | `worklog/WORKLOG.md` and all other worklogs | Archive intact | `archive/worklogs/` | never trim or merge |
-| C06 | `worklog/{START_HERE.md,HANDOVER.md,RUNBOOK.md,viable_followups*.md,EVIDENCE_INDEX.md,CLAUDE_DIRECTION_EXPERIMENTS.md}` | Archive intact | `archive/handovers/early_campaign/` | all live tasks must exist in `pickup.md` first |
-| C07 | `worklog/claude_session_*` and `worklog/w5_seances/` | Archive intact | `archive/sessions/` | record model/date and retain outputs |
-| C08 | `worklog/webui_further_followups_16092026/` | Archive by packet | `archive/handovers/webui_followups/` | current W5 handover closes and open items move to `pickup.md` |
-| C09 | `worklog/webui_evaluation_returns_15092026/` documentation | Archive intact | `archive/sessions/webui_evaluation_15092026/` | heavy records split under E02 below |
-| C10 | `worklog/archive/` | Relocate intact | `archive/worklogs/prior_archives/` | preserve existing tombstones and snapshot notes |
-| C11 | `worklog/tools/` | Promote useful scripts | `scripts/` | each retained script gets a one-line rerun instruction; obsolete scripts become deletion candidates |
-| C12 | new `INDEX.md` and `pickup.md` | Create last | root | fresh-agent re-entry test, two hops maximum |
+| ID | Current material | Keep visible | Remove from the current tree after extraction |
+| --- | --- | --- | --- |
+| B01 | `docs/courtkeynet/fallback_evaluation/` | one model/scene-repair evidence note, one independent-proposals note, compact recorded inputs and referenced figures | the five overlapping narratives, chronological worklog and standalone script at their old paths |
+| B02 | `experiments/annotator/independent_court/` | reusable detector/evaluator code, tests and unique recorded inputs used by a live approach | duplicate archives, generated views and evidence copied elsewhere |
+| B03 | `direction_agreement/` | compact metrics, representative cases and the surviving lesson for direction rules | the 744 MB raw run and chronology once no likely rescore needs it |
+| B04 | `line_identity/` | pair traces, candidate identifiers and any pools needed to test ordering or caps without rerunning generation | duplicated full-pool results and obsolete diagnostics after repaired comparison |
+| B05 | `next_steps_20260916/` | unresolved decisions and reusable scripts folded into the relevant evidence packs | state files, handoffs and duplicated seed tree |
+| B06 | `w5_holistic/` | current code, final comparison packet, manifest and representative gallery | superseded stages, duplicate galleries and raw outputs with no planned consumer |
+| B07 | `worklog/checks/` | unique shared inputs and expensive intermediates with a named likely consumer | generated outputs, repeated copies and method variants that teach no surviving lesson |
+| B08 | Web UI and Claude session records | accepted findings and final independent-review rulings | prompts, launch scaffolding, repeated context and conversational returns |
 
-### Historical bulk evidence
+### Large tracked material
 
-| ID | Current path | Size | Disposition | Target | Gate |
-| --- | --- | ---: | --- | --- | --- |
-| E01 | `worklog/checks/independent/player_guided/` | 762 MB | Move, retain | `data/historical_checks/player_guided/` | map every cited result and frozen helper source |
-| E02 | `worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/{pregate_loss,cap_loss}/` | 665 MB | Move, retain and compress raw pools | `data/webui_followup_records/` | keep compact assessments and producer commands visible |
-| E03 | `worklog/checks/independent/examples_updated/` | 409 MB | Move, retain pending ruling | `data/historical_checks/examples_updated/` | user rules whether the 419 MB video is irreplaceable |
-| E04 | `worklog/checks/independent/source_videos/` | 149 MB | Split | completed sources to `data/source_media/`; incomplete `.part` files become deletion row X02 | source provenance README |
-| E05 | `worklog/checks/independent/inputs/` | 53 MB | Move, retain | `data/historical_checks/inputs/` | producer and consumers recorded |
-| E06 | `worklog/checks/independent/control_checkpoints/` | 50 MB | Move, retain | `data/historical_checks/control_checkpoints/` | consumer grep |
-| E07 | remaining named `worklog/checks/*` result folders | about 1.1 GB | Move by experiment family | `data/historical_checks/` | per-family README and claim pointer |
-| E08 | `worklog/checks/README.md` | Consolidate | content becomes the `data/historical_checks/README.md`; original archives intact | path verification |
+| ID | Current path | Size | Decision |
+| --- | --- | ---: | --- |
+| W01 | `w5_holistic/runs/w5_stage{2,3,4,5}_20260920/` | 703 MB | compile the progression and final lesson, retain only evidence cited by the ledger, then remove the raw runs |
+| W02 | `w5_holistic/runs/line_template_regression_20260920/` | 514 MB | retain the result, manifest, selected gallery and candidate records needed by W5; remove uncited bulk |
+| W03 | `direction_agreement/runs/direction_agreement_20260915_144900/` | 744 MB | retain reusable direction inputs only if a named next experiment consumes them; otherwise remove after B03 |
+| W04 | `line_identity/runs/line_identity_20260915_222437/` | 821 MB | retain the smallest pools needed for cap/order rescoring; remove redundant matcher outputs after the repaired comparison |
+| W05 | `worklog/checks/independent/` | 2.1 GB | deduplicate shared frames, controls, people and candidate inputs into the corpus; remove output copies and dead method branches |
+| W06 | `worklog/webui_evaluation_returns_15092026/` | 679 MB | retain compact assessments and any unique reusable pools; remove the session-shaped record |
+| W07 | remaining `worklog/` bulk | about 500 MB | retain only unique live inputs; remove chronology and generated output after ledger extraction |
 
-### Related repository material
-
-| ID | Current path | Disposition | Target or consolidation | Gate |
-| --- | --- | --- | --- | --- |
-| R01 | `experiments/annotator/independent_court/*.py` | Keep | This is reusable experiment code, not scratch material | tests and import references |
-| R02 | `case_provenance.py`, `export_people.py` | Keep as live | provenance boundary used by the repaired pipeline | focused tests |
-| R03 | `check_paint_control.py`, `render_paint_refit.py`, `run_assignment.py`, `run_junction_selection.py`, `run_junctions.py`, `run_paint_refit.py`, `run_refit_selection.py`, `run_stripes.py` | Consolidate navigation | keep files; index them by pipeline stage in the experiment README | CLI smoke and inbound-reference check |
-| R04 | `recorded/player_guided/{README.md,extension_results.md,paint_geometry.md}` | Consolidate navigation | keep evidence docs; make `README.md` the sole entry and label the other two as evidence records | link check |
-| R05 | `recorded/player_guided/` binary archives | Keep | already in the correct recorded-data location | provenance and consumer check |
-| R06 | `docs/courtkeynet/fallback_evaluation/README.md` | Rewrite and keep | sole durable entry point; summarise the settled result and point to current `scratch/court_det_fix/INDEX.md` | every surviving claim links to evidence |
-| R07 | `independent_detector.md`, `neural_lines.md`, `scene_geometry_repair.md`, `scene_grouping.md` | Move intact | `docs/courtkeynet/fallback_evaluation/evidence/` | rewrite inbound links; do not merge away experimental limits |
-| R08 | `scene_geometry_repair_worklog.md` | Archive intact | `docs/courtkeynet/fallback_evaluation/archive/` | open items copied to `pickup.md` or marked closed |
-| R09 | `check_consensus_repair.py` and `recorded_inputs/` | Move together | `experiments/annotator/independent_court/recorded/fallback_evaluation/` | reproduce the recorded check from its new path |
-| R10 | `figures/independent/` | Keep | figures remain beside the docs that use them | all image links resolve |
-| R11 | all other repository `docs/` | Out | unrelated to this detector investigation | none |
+W03--W06 need a consumer-and-regeneration audit before deletion. The question is
+practical: would a likely next comparison use this file, and would deleting it
+force hours of recomputation? If neither answer is yes, the file goes.
 
 ### Ignored work from 20--21 September
 
-The live campaign directory stays at its current path until the visible Carmack
-worker and the three-arm W5 run have finished. This is the only part of the tidy
-that must wait for remote work.
+The live campaign stays at its current path until the visible Carmack job and
+the three-arm W5 run finish. No other part of the tidy waits for them.
 
-| ID | Current path | Disposition | Target or consolidation | Gate |
-| --- | --- | --- | --- | --- |
-| L01 | `local_scratch/campaigns/w5-line-admission/{RESUME.md,PROJECT_STATE.md,W5_GO.md,w5_launch_packet.md}` | Keep while live | keep as the four-file campaign entry; archive together at campaign close | final G1 and W5 results recorded |
-| L02 | campaign `contract.md`, `plan.md`, `worklog.md` and `campaign.yaml` | Archive intact | `local_scratch/campaigns/w5-line-admission/archive/campaign/` after close | all unfinished work appears in tracked `pickup.md` |
-| L03 | `REMOTE_*.md`, `G1_VALIDATOR_READY.md`, `stages/` and `workers/` | Archive intact | `local_scratch/campaigns/w5-line-admission/archive/remote/` | no local or Carmack process still reads them |
-| L04 | `reviews/` and the six review briefs at campaign root | Consolidate | retain final `result.md` files under `archive/reviews/`; move their accepted findings into tracked evidence; remove duplicated launch wrappers under X11 | claim-by-claim review map |
-| L05 | `repairs/` | Consolidate | retain the six-case detector packet, marking replay and `person_observations_v3/` under `evidence/repairs/` | G1 result and historical-impact ruling complete |
-| L06 | `b2_staging/` | Split | retain the accepted r3 input receipt and logs under `evidence/remote_receipts/`; failed and superseded staging becomes X10 | canonical G1 result promoted |
-| L07 | `worktrees/g1-layout-r1/` | Remove after use | no target: it is a clean 1.3 GB checkout; its only tip commit is patch-equivalent to tracked commit `c298203` | remote process ended, clean status rechecked and patch equivalence rechecked |
-| L08 | `local_scratch/add_missing_court_candidates_20260920/` | Consolidate | plans, findings, decisions, reusable scripts and compact results to campaign `archive/admission_audit_20260920/`; raw arrays become X12 | every cited result remains reproducible or recorded |
-| L09 | `local_scratch/runs/broadcast_junction_box_repair_20260921/result.json.gz` | Remove after snapshot | no target: it is byte-identical to the tracked result under `w5_holistic/runs/` | equality rechecked immediately before removal |
-| L10 | named `local_scratch/external_delegate/20260920-*` and `20260921-*` jobs listed under X11 | Consolidate then remove | final review results to campaign `archive/reviews/`; discard launch scaffolding | every successful return is mapped; failed empty returns are named |
-| L11 | future G1 and W5 remote returns | Import once | compact results and receipts to campaign `evidence/remote_results/`; final conclusions to tracked reports | accounting and content validation pass |
+| ID | Current path | Action | Gate |
+| --- | --- | --- | --- |
+| L01 | campaign `RESUME.md`, `PROJECT_STATE.md`, `W5_GO.md` and `w5_launch_packet.md` | keep as the live entry; compile the result into tracked records at close | G1 and W5 complete |
+| L02 | campaign plans, worklog, remote go files, stages and workers | preserve in the backup, then remove after open work reaches `pickup.md` | no process reads them |
+| L03 | campaign `reviews/` and root review briefs | retain each final ruling once; remove briefs and launch wrappers | accepted findings mapped to tracked claims |
+| L04 | campaign `repairs/` | keep the six-case detector packet, marking replay and v3 person observations until historical accounting closes; remove superseded versions | repaired G1 result and audit complete |
+| L05 | campaign `b2_staging/` | retain the accepted r3 receipt and any costly reusable inputs; remove failed and superseded staging | canonical G1 promoted |
+| L06 | `worktrees/g1-layout-r1/` | remove with `git worktree remove`; it is a clean 1.3 GB duplicate whose tip is patch-equivalent to tracked code | remote process ended and clean/equivalent state rechecked |
+| L07 | `add_missing_court_candidates_20260920/` | fold findings and reusable scripts into the proposal evidence pack; retain its 69 MB arrays if they avoid a likely generation rerun | W5 evidence pack names consumers |
+| L08 | duplicate broadcast repair result | remove | equality with tracked result rechecked |
+| L09 | 18 relevant external-delegate directories | retain final rulings once, then remove every wrapper directory | review map complete |
+| L10 | future G1 and W5 returns | import compact results and reusable inputs once | accounting and content validation pass |
 
-## Proposed deletion list
+## Proposed deletion classes
 
-These rows are candidates only. The snapshot and applicable extraction gate
-must pass first.
+These are candidates, not approval to delete them.
 
-| ID | Exact class | Approximate size | Reason | Approval condition |
-| --- | --- | ---: | --- | --- |
-| X01 | every `__pycache__/`, `.ruff_cache/`, `.pytest_cache/`, `.pyrefly_cache/` under the scoped trees | 3.7 MB | regenerated caches | approve as one class after snapshot |
-| X02 | nine `worklog/checks/independent/source_videos/*.part` files | about 155 MB | incomplete downloads, not valid source media | user confirms no partial file is the only surviving source |
-| X03 | duplicate `worklog/WEBUI_EVALUATION_PROMPTS.md` after retaining the byte-identical copy under the archived Web UI session | 22 KB | exact duplicate | archive map names retained copy |
-| X04 | `worklog/archive/2026-09-14-published-checkpoint/pre-tidy-snapshot.tar.gz` | 35 MB | superseded snapshot | new full snapshot exists and user approves old snapshot removal |
-| X05 | stale temporary outputs identified by `.tmp`, failed staging or zero-byte receipt naming during execution | unknown | incomplete generated output | list every exact path before approval |
-| X06 | large W5/line-identity raw arrays and case records duplicated by a validated compact result | unknown | potentially regenerable bulk | per-run proof that the compact result preserves every cited claim; exact paths listed |
-| X07 | obsolete one-off scripts under `worklog/tools/` | unknown | no remaining caller or rerun value | static/dynamic reference check and exact filename list |
-| X08 | clean nested worktree `local_scratch/campaigns/w5-line-admission/worktrees/g1-layout-r1/` | 1.3 GB | full duplicate checkout | L07 gate passes; remove with `git worktree remove`, not a filesystem delete |
-| X09 | `local_scratch/runs/broadcast_junction_box_repair_20260921/result.json.gz` | 32 KB | exact duplicate of the tracked result | L09 equality gate passes |
-| X10 | campaign `repairs/person_observations/`, `repairs/person_observations_v2/`, five-case detector packet and superseded or failed `b2_staging/` content | about 3 MB | replaced by the validated six-case packet, v3 inputs and r3 staging | remote result proves which generation was used; exact staging paths listed before removal |
-| X11 | the 18 delegate job directories listed below | 1.4 MB | duplicated briefs, launch wrappers and returned text | L04 and L10 review map passes |
-| X12 | `local_scratch/add_missing_court_candidates_20260920/admission_audit/results_{gx5,gx5_camera,w5_camera}/*.npz` | about 69 MB | bulky intermediate arrays | compact JSON, decision record and rerun command preserve every cited result |
+| ID | Material | Approximate reclaim | Required proof |
+| --- | --- | ---: | --- |
+| X01 | caches under every scoped tree | 4 MB | generated cache class only |
+| X02 | nine incomplete `source_videos/*.part` files | 155 MB | no partial file is the only surviving source |
+| X03 | byte-identical prompt and result copies | under 1 MB | one canonical copy named |
+| X04 | superseded 35 MB pre-tidy snapshot | 35 MB | new backup opens correctly |
+| X05 | nested `g1-layout-r1` worktree | 1.3 GB | L06 gate passes |
+| X06 | W5 stages 2--5 bulk | up to 703 MB | W01 extraction passes |
+| X07 | uncited line-template bulk | likely hundreds of MB | W02 retained packet reproduces the comparison |
+| X08 | direction-agreement raw run | up to 744 MB | no named next experiment consumes it |
+| X09 | redundant line-identity matcher outputs | likely hundreds of MB | repaired comparison and retained rescore pools pass |
+| X10 | historical-check and Web UI outputs with no consumer | likely 1--3 GB | W05--W07 consumer audit passes |
+| X11 | failed and superseded campaign staging and repair versions | about 3 MB | canonical G1 result names the accepted generation |
+| X12 | 18 named 20--21 September delegate directories | 1.4 MB | final rulings retained once |
+| X13 | duplicate local broadcast repair result | 32 KB | byte equality rechecked |
+| X14 | obsolete one-off scripts | unknown | no caller, rerun instruction or unique method remains |
 
-No unique historical run, source video, worklog, review result, manifest,
-visual ruling or frozen input is currently proposed for deletion. X11 removes
-delegate wrappers only after their unique review results have been retained.
-
-X11 covers these exact directories:
+X12 covers these exact directories under `local_scratch/external_delegate/`:
 
 ```text
 20260920-w5-collision-audit
@@ -231,35 +218,43 @@ X11 covers these exact directories:
 20260921-marking-repair-result-opus
 ```
 
+The likely reduction is 5.5--6.5 GB. The exact amount depends on which candidate
+pools and source inputs would save a likely future HPC run. Those are useful
+working data, not posterity, and should be retained once rather than regenerated.
+
 ## Execution order
 
-1. Approve or amend this manifest
-2. Create `local_scratch/court-detector-tidy-backup-20260921.tar.gz` from all
-   unique ignored material plus the tracked diff and commit record. Exclude the
-   clean nested worktree because Git can reproduce it exactly.
-3. List the backup and open a sample of its files before changing paths.
-4. Tidy the closed documentation, completed experiments and historical data.
-   This work does not wait for Carmack.
-5. Delete only approved cache, duplicate and incomplete-output rows whose gates
-   have passed.
-6. After G1 and W5 finish, close and consolidate the live campaign directory.
-7. Create `data/`, move run data and write provenance READMEs.
-8. Move completed experiments and worklogs into `archive/` with tombstones.
-9. Consolidate live line-identity, experiment and fallback-doc navigation.
-10. Update every inbound and outbound reference.
-11. Create `INDEX.md`, `pickup.md` and `archive/ARCHIVE_MAP.md` last.
-12. Run reference-integrity checks across the whole repository.
-13. Give a fresh agent only `INDEX.md` and require correct orientation within
-    5,000 tokens, with evidence and rerun answers reachable in two hops
-14. Present any further exact deletion candidates for a separate ruling.
+1. Approve or amend this plan and its deletion classes.
+2. Create one `local_scratch/court-detector-tidy-backup-20260921.tar.gz` from
+   unique ignored material, the tracked diff and a Git commit record. Do not
+   duplicate the clean nested worktree in the backup.
+3. List the backup and open representative files.
+4. Draft `DETECTOR_DECISIONS.md` from the current records before moving or
+   deleting their sources.
+5. Build the five compact evidence packs and the deduplicated shared corpus.
+6. Check every large input and intermediate for a named likely consumer and
+   record its regeneration cost.
+7. Present the resulting exact path-level delete list for approval.
+8. Delete approved tracked material from the current branch. Git remains its
+   historical archive.
+9. Delete approved ignored material from `local_scratch` after its backup gate.
+10. Close the live campaign after G1 and W5 finish.
+11. Rewrite all surviving links and add short tombstones only where an external
+    reference would otherwise break.
+12. Create `INDEX.md` and `pickup.md` last.
+13. Give a fresh agent only `INDEX.md` and require it to identify the competing
+    approaches, evidence, current blocker and next experiment within 5,000
+    tokens and two link hops.
 
-## House rules for the finished tree
+## Finished-tree rules
 
-- `pickup.md` is the only live state note
-- update state notes by rewriting them, not appending session history
-- worklogs archive intact
-- heavy outputs go under `data/<experiment>/` with a provenance README
-- completed session material moves to `archive/` in the same session
-- `INDEX.md` stays a thin map, not another history document
-- no document points into a section of the rewritable pickup note
-- new deletion candidates are listed explicitly and require approval
+- `DETECTOR_DECISIONS.md` owns the experiment comparison.
+- `pickup.md` owns live state and the next action.
+- `INDEX.md` only routes readers to those records, active code and evidence.
+- Each result exists in one evidence pack.
+- Expensive reusable intermediates name their next likely consumer.
+- Session transcripts, launch scaffolding and chronological worklogs stay in
+  the backup or Git history, not the current tree.
+- Completed runs are reduced to their decision-bearing packet in the same
+  session.
+- New deletion candidates require approval.
