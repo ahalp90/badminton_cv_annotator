@@ -30,7 +30,7 @@ def test_median_mask_uses_two_frames_and_filters_low_scores() -> None:
         "provenance": {"person_score_cutoff": 0.2},
         "pose_samples": [
             _sample(1, [[0, 0, 10, 10], [40, 40, 60, 60]], [0.9, 0.1]),
-            _sample(2, [[5, 0, 15, 10]], [0.8]),
+            _sample(2, [[5, 0, 15, 10], [30, 30, 35, 35]], [0.8, 0.2]),
             _sample(3, [[5, 5, 10, 15]], [0.7]),
         ],
     }

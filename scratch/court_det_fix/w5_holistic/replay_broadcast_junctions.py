@@ -80,7 +80,7 @@ def _sample_boxes(sample: dict[str, Any], score_cutoff: float) -> np.ndarray:
     scores = np.asarray(sample["scores"], dtype=float)
     if len(scores) != len(boxes):
         raise ValueError(f"Pose sample {sample['frame_index']} has different box and score counts")
-    return boxes[scores >= score_cutoff]
+    return boxes[scores > score_cutoff]
 
 
 def _validate_image_scale(boxes: np.ndarray, dimensions: dict[str, int], case_id: str) -> None:
