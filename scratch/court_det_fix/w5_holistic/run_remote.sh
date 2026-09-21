@@ -12,11 +12,12 @@ script=$3
 shift 3
 here=w5_holistic
 out="$here/runs/$run"
+repo_root="$(git -C "$here" rev-parse --show-toplevel)"
 mkdir -p "$out/logs" "$out/receipts" "$out/cache"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 unset PYTHONOPTIMIZE
 export XDG_CACHE_HOME="$PWD/$out/cache"
-export PYTHONPATH=$here:next_steps_20260916/webui_seed/source:frozen_helpers_20260914/marking_diagnosis:frozen_helpers_20260914/vp_pruning:frozen_helpers_20260914/axis_matching:frozen_helpers_20260914/legacy:src:.
+export PYTHONPATH="$repo_root:$repo_root/src:$PWD/$here:$PWD/next_steps_20260916/webui_seed/source:$PWD/frozen_helpers_20260914/marking_diagnosis:$PWD/frozen_helpers_20260914/vp_pruning:$PWD/frozen_helpers_20260914/axis_matching:$PWD/frozen_helpers_20260914/legacy:$PWD/src:$PWD"
 python="${REMOTE_PYTHON:-$HOME/.venvs/venv-pipeline/bin/python}"
 home_prefix="\$HOME/"
 if [[ "$python" == "$home_prefix"* ]]; then

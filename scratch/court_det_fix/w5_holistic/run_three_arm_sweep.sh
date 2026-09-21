@@ -168,7 +168,7 @@ done
 
 export PYTHONDONTWRITEBYTECODE=1
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-export PYTHONPATH="$experiment_root/w5_holistic:$experiment_root/next_steps_20260916/webui_seed/source:$experiment_root/frozen_helpers_20260914/marking_diagnosis:$experiment_root/frozen_helpers_20260914/vp_pruning:$experiment_root/frozen_helpers_20260914/axis_matching:$experiment_root/frozen_helpers_20260914/legacy:$experiment_root/src:$experiment_root"
+export PYTHONPATH="$repo_root:$repo_root/src:$experiment_root/w5_holistic:$experiment_root/next_steps_20260916/webui_seed/source:$experiment_root/frozen_helpers_20260914/marking_diagnosis:$experiment_root/frozen_helpers_20260914/vp_pruning:$experiment_root/frozen_helpers_20260914/axis_matching:$experiment_root/frozen_helpers_20260914/legacy:$experiment_root/src:$experiment_root"
 cd "$experiment_root"
 "$python" "$script_dir/compare_directional_runs.py" \
   --run-33 "$run_root/${run_prefix}_33" \
