@@ -32,3 +32,23 @@ Byte-identical copies, made 2026-09-16, of the gitignored originals under `scrat
 | `packs/broadcast_extension_inputs.json.gz` | 367,839 | `cf71a4e217f2ce7dee2b3e81f0ec845c` |
 | `packs/gx_extension_inputs.json.gz` | 376,138 | `45bea3597cece373f2653da17c38e8d7` |
 | `packs/marking_refit_inputs.json.gz` | 470,329 | `82c710ce0c8c082cdfd3aeecb4d5f144` |
+
+## Case image and person-box provenance
+
+`case_provenance.json.gz` is the deterministic provenance sidecar for the
+three legacy packs. It binds each pack entry to the exact compressed pack MD5
+above and to the complete case-ID set. The loader also pins the compressed
+sidecar itself (`c1893e6217065d6038cc9b8f05cd1b98`) before parsing it. This
+bidirectional binding refuses a changed pack or sidecar, missing case, extra
+case, malformed frame data, or unknown provenance value.
+
+The frozen population has 47 cases: 17 same-image source-frame box sets, 10
+nearby source-frame box sets, and 20 cached composite images with source-frame
+boxes. The sidecar records image kind and frame indices plus the selected box
+frame; the relation is derived from those fields. Consumers should use
+`experiments.annotator.independent_court.case_provenance` rather than infer
+provenance from case-name prefixes.
+
+This adapter is intentionally limited to the legacy packs. Any future
+embedded exporter provenance needs its own explicit contract; these frozen
+packs remain bound to this sidecar.

@@ -154,3 +154,18 @@ def test_saved_baseline_boundary_and_candidate_order() -> None:
     changed[0]["corners_px"][0][0] += 1
     with pytest.raises(ValueError, match="Baseline geometry or eligibility differs"):
         run_stripes.run_case(case, changed, baseline["records"][0])
+
+
+def test_stripe_only_measurement_does_not_read_person_boxes() -> None:
+    class UnreadableBoxes:
+        def __iter__(self):
+            raise AssertionError("stripe-only measurement read person boxes")
+
+    root = Path(__file__).resolve().parents[1] / "experiments/annotator/independent_court/recorded/player_guided"
+    packed, saved = read_replay(root / "marking_refit_replay.zip")
+    baseline = json.loads(gzip.decompress((root / "assignment_results.json.gz").read_bytes()))
+    case = deepcopy(packed["cases"][0])
+    case["bbox_px"] = UnreadableBoxes()
+    entries = [entry for entry in frozen_entries(saved["records"][0]) if entry["eligible"]][:1]
+    result = run_stripes.run_case(case, entries, baseline["records"][0])
+    assert result["id"] == case["id"]

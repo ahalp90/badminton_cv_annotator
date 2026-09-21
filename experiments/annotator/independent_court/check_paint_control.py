@@ -23,7 +23,7 @@ import scipy
 from . import stripe_observations as stripes
 from .assignment import Observations, prepare_observations
 from .detector import CORNER_COURT_M
-from .run_paint_refit import PROJECTION_ROUNDOFF_PX
+from .run_paint_refit import PROJECTION_ROUNDOFF_PX, validate_result_provenance
 
 HISTORICAL_MODULE_NAME = "experiments.annotator.independent_court._historical_stripes"
 ZERO_TOLERANCE_PX = 0.0
@@ -327,8 +327,13 @@ def main() -> None:
     args = parser.parse_args()
 
     results = json.loads(gzip.decompress(args.results.read_bytes()))
+    replay_path = args.recorded / "marking_refit_replay.zip"
+    replay_bytes = replay_path.read_bytes()
+    with ZipFile(args.recorded / "stripe_diagnostics.zip") as archive:
+        control_bytes = archive.read("refit_selection_v2.json.gz")
+    validate_result_provenance(results, replay_bytes=replay_bytes, control_bytes=control_bytes)
     historical = load_historical_stripes(args.historical_stripes)
-    with ZipFile(args.recorded / "marking_refit_replay.zip") as archive:
+    with ZipFile(replay_path) as archive:
         marking = read_member(archive, "marking_inputs.json.gz")
     with ZipFile(args.recorded / "stripe_diagnostics.zip") as archive:
         fixed = read_member(archive, "fixed_refit_v2.json.gz")

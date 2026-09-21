@@ -24,6 +24,10 @@ from paint_profiles import (
     profile_offsets,
 )
 
+from experiments.annotator.independent_court.case_provenance import (
+    CaseProvenance,
+    ImageKind,
+)
 from shared import (
     ALL_CASE_IDS,
     ALL_CASES,
@@ -33,6 +37,7 @@ from shared import (
     PACK_OF,
     REGRESSION_CASES,
     corner_errors,
+    frame_path,
 )
 
 
@@ -80,7 +85,10 @@ def mocked_filter_replay(monkeypatch, tmp_path: Path, case_id: str = 'mock_case'
 
     monkeypatch.setattr(filter_replay, 'gate_baseline', fake_gate)
     monkeypatch.setattr(filter_replay, 'fragment_masks', fake_masks)
-    return filter_replay, case_id, saved, gate_calls, mask_calls
+    monkeypatch.setattr(filter_replay, 'paint_masks', fake_masks)
+    monkeypatch.setattr(filter_replay, 'case_provenance', lambda _case_id: object())
+    monkeypatch.setattr(filter_replay, 'require_same_image_boxes', lambda record: record)
+    return filter_replay, case_id, saved, gate_calls, mask_calls, source
 
 
 def install_normal_route_stubs(monkeypatch, filter_replay, saved):
@@ -99,7 +107,7 @@ def install_normal_route_stubs(monkeypatch, filter_replay, saved):
 
 
 def test_observation_inputs_only_does_not_load_control_or_e3(monkeypatch, tmp_path):
-    filter_replay, case_id, _, gate_calls, mask_calls = mocked_filter_replay(monkeypatch, tmp_path)
+    filter_replay, case_id, _, gate_calls, mask_calls, _ = mocked_filter_replay(monkeypatch, tmp_path)
 
     def records_are_not_allowed(*args):
         raise AssertionError(f'unexpected diagnostic/control load: {args}')
@@ -115,7 +123,7 @@ def test_observation_inputs_only_does_not_load_control_or_e3(monkeypatch, tmp_pa
 
 
 def test_observation_inputs_only_match_normal_route_bytes(monkeypatch, tmp_path):
-    filter_replay, case_id, saved, _, _ = mocked_filter_replay(monkeypatch, tmp_path)
+    filter_replay, case_id, saved, _, _, _ = mocked_filter_replay(monkeypatch, tmp_path)
     install_normal_route_stubs(monkeypatch, filter_replay, saved)
     normal_inputs = tmp_path / 'normal_inputs'
     monkeypatch.setattr(sys, 'argv', ['filter_replay.py', '--output', str(tmp_path / 'run'), '--cases', case_id,
@@ -139,6 +147,19 @@ def test_observation_inputs_only_match_normal_route_bytes(monkeypatch, tmp_path)
     assert observation_files == normal_files
 
 
+def test_observation_inputs_only_does_not_need_boxes_or_provenance(monkeypatch, tmp_path):
+    filter_replay, case_id, _, _, _, source = mocked_filter_replay(monkeypatch, tmp_path)
+    source.pop('bbox_px')
+
+    def forbidden(*_args):
+        raise AssertionError('paint-only input generation resolved person provenance')
+
+    monkeypatch.setattr(filter_replay, 'case_provenance', forbidden)
+    monkeypatch.setattr(filter_replay, 'person_mask', forbidden)
+    filter_replay.write_observation_inputs_only([case_id], tmp_path / 'inputs')
+    assert (tmp_path / 'inputs' / 'paint_observations' / 'cases' / f'{case_id}.json.gz').exists()
+
+
 def test_parse_defaults_remain_full_replay_defaults():
     from filter_replay import DEFAULT_AXIS_ARMS, parse_args
 
@@ -148,6 +169,130 @@ def test_parse_defaults_remain_full_replay_defaults():
     assert not args.write_observation_inputs_only
     with pytest.raises(SystemExit):
         parse_args(['--write-observation-inputs-only', '--cases', CASE_IDS[0], '--axis-arms', 'baseline'])
+
+
+def test_full_replay_preflights_every_case_before_creating_output(monkeypatch, tmp_path):
+    import filter_replay
+
+    checked = []
+
+    def require(record):
+        checked.append(record)
+        if record == 'unsafe':
+            raise ValueError('same-image person boxes unavailable')
+        return record
+
+    monkeypatch.setattr(filter_replay, 'case_provenance', lambda case_id: case_id)
+    monkeypatch.setattr(filter_replay, 'require_same_image_boxes', require)
+    monkeypatch.setattr(
+        filter_replay,
+        'load_case_inputs',
+        lambda _case_id: (_ for _ in ()).throw(AssertionError('measurement started before preflight')),
+    )
+    output = tmp_path / 'run'
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['filter_replay.py', '--output', str(output), '--cases', 'safe', 'unsafe'],
+    )
+    with pytest.raises(ValueError, match='same-image person boxes unavailable'):
+        filter_replay.main()
+    assert checked == ['safe', 'unsafe']
+    assert not output.exists()
+
+
+def test_matcher_person_arms_are_quarantined_before_generation(monkeypatch, tmp_path):
+    from shared import add_helper_paths
+
+    add_helper_paths()
+    import run_matcher
+
+    monkeypatch.setattr(run_matcher, 'case_provenance', lambda _case_id: 'unsafe')
+
+    def reject(_record):
+        raise ValueError('same-image person boxes unavailable')
+
+    monkeypatch.setattr(run_matcher, 'require_same_image_boxes', reject)
+    monkeypatch.setattr(
+        run_matcher,
+        'read',
+        lambda _path: (_ for _ in ()).throw(AssertionError('input read before provenance gate')),
+    )
+    with pytest.raises(ValueError, match='same-image person boxes unavailable'):
+        run_matcher.run_case('case', 'person_observations', object(), tmp_path, tmp_path, 'run', {})
+    assert not (tmp_path / 'matcher').exists()
+    run_matcher.preflight_person_input('case', 'paint')
+
+
+def test_matcher_preflights_all_ids_before_any_generation(monkeypatch):
+    from shared import add_helper_paths
+
+    add_helper_paths()
+    import run_matcher
+
+    checked = []
+    monkeypatch.setattr(run_matcher, 'case_provenance', lambda case_id: case_id)
+
+    def require(record):
+        checked.append(record)
+        if record == 'unsafe':
+            raise ValueError('same-image person boxes unavailable')
+        return record
+
+    monkeypatch.setattr(run_matcher, 'require_same_image_boxes', require)
+    monkeypatch.setattr(
+        run_matcher.importlib,
+        'import_module',
+        lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before provenance preflight')),
+    )
+    monkeypatch.setattr(
+        run_matcher,
+        'run_case',
+        lambda *_args: (_ for _ in ()).throw(AssertionError('generation started before provenance preflight')),
+    )
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['run_matcher.py', '--run', 'test', '--arm', 'person', '--ids', 'safe', 'unsafe'],
+    )
+    with pytest.raises(ValueError, match='same-image person boxes unavailable'):
+        run_matcher.main()
+    assert checked == ['safe', 'unsafe']
+
+
+def test_account_quarantines_person_arms_before_measurement(monkeypatch):
+    from shared import add_helper_paths
+
+    add_helper_paths()
+    import account
+
+    checked = []
+    monkeypatch.setattr(account, 'case_provenance', lambda case_id: case_id)
+
+    def require(record):
+        checked.append(record)
+        if record == 'unsafe':
+            raise ValueError('same-image person boxes unavailable')
+        return record
+
+    monkeypatch.setattr(account, 'require_same_image_boxes', require)
+    monkeypatch.setattr(
+        account,
+        'direction_experiment_module',
+        lambda _name: (_ for _ in ()).throw(AssertionError('measurement setup started before provenance gate')),
+    )
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['account.py', '--run', 'test', '--arms', 'paint_person', '--cases', 'safe', 'unsafe'],
+    )
+    with pytest.raises(ValueError, match='same-image person boxes unavailable'):
+        account.main()
+    assert checked == ['safe', 'unsafe']
+
+    checked.clear()
+    account.preflight_person_inputs(['unsafe'], ['paint'])
+    assert checked == []
 
 
 def random_basis(seed: int) -> np.ndarray:
@@ -237,7 +382,8 @@ def test_control_vanishing_points_and_angles_recover_a_known_homography():
     # A box that covers the first fragment's midpoint and nothing else.
     frame = np.full((40, 60, 3), 120, dtype=np.uint8)
     cv2.line(frame, (10, 20), (50, 20), (255, 255, 255), 2)
-    source = {'segments_px': [[10., 20., 50., 20.], [10., 5., 50., 5.]], 'bbox_px': [[20., 15., 40., 25.]]}
+    source = {'id': 'gxBQ_window_00_frame_0', 'segments_px': [[10., 20., 50., 20.], [10., 5., 50., 5.]],
+              'bbox_px': [[20., 15., 40., 25.]]}
     masks = fragment_masks(source, frame, np.array([1., 1.]))
     assert masks['person'].tolist() == [False, True]
     assert masks['paint'].tolist() == [True, False]
@@ -252,3 +398,14 @@ def test_unused_cases_are_explicit_without_changing_regression_defaults():
     assert 'gxBQ_window_00_frame_689' in ALL_CASE_IDS
     assert PACK_OF['gxBQ_window_00_frame_689'] == 'gx'
     assert LABELS['gxBQ_window_00_frame_689'] == 'gxBQ_window_00_frame_689'
+
+
+def test_amateur_frame_path_rejects_mismatched_typed_frame(monkeypatch):
+    import shared
+
+    source = {'id': 'am2_window_00_frame_150'}
+    provenance = CaseProvenance(source['id'], ImageKind.SOURCE_FRAME, (151,), 151)
+    monkeypatch.setattr(shared, 'case_provenance', lambda _case_id: provenance)
+
+    with pytest.raises(ValueError, match='amateur frame path uses frame 150'):
+        frame_path(source)

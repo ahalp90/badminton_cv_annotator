@@ -10,6 +10,7 @@ import gzip
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,10 @@ from experiments.annotator.independent_court import (
     junction_observations,
     paint_geometry,
     stripe_observations,
+)
+from experiments.annotator.independent_court.case_provenance import (
+    CaseProvenance,
+    load_frozen_case_provenance,
 )
 
 WORKING_SIZE = (960, 540)
@@ -90,8 +95,10 @@ class ViewContext:
     observations: assignment.Observations
     weights: np.ndarray
     frame: np.ndarray
+    provenance: CaseProvenance
     mask_boxes: np.ndarray
     same_image_mask_available: bool
+    person_mask_unavailable_reason: str | None
     image_kind: str
     frame_relative_path: str
 
@@ -135,7 +142,7 @@ def load_source(root: Path, case_id: str) -> dict:
     return next(source for source in source_pack["cases"] if source["id"] == case_id)
 
 
-def frame_path(root: Path, source: dict) -> Path:
+def frame_path(root: Path, source: dict, provenance: CaseProvenance) -> Path:
     case_id = source["id"]
     if case_id.startswith("gxBQ"):
         return root / "frozen_views/frames/gx" / source["image"]
@@ -143,37 +150,34 @@ def frame_path(root: Path, source: dict) -> Path:
         return root / "frozen_views/frames/original" / source["image"]
     video = case_id.split("_", 1)[0]
     frame = int(case_id.rsplit("_", 1)[1])
+    if provenance.image_kind.value != "source_frame" or provenance.image_frame_indices != (frame,):
+        raise ValueError(
+            f"{case_id}: amateur frame path uses frame {frame}, but provenance identifies "
+            f"{provenance.image_kind.value} frames {provenance.image_frame_indices}"
+        )
     return root / "frozen_views/frames/amateur" / video / f"frame_{frame:08d}.png"
 
 
-def image_kind(source: dict) -> str:
-    provenance = source.get("provenance") or {}
-    if source.get("image_kind"):
-        return str(source["image_kind"])
-    if provenance.get("image_kind"):
-        return str(provenance["image_kind"])
-    return "source_frame"
+def image_kind(provenance: CaseProvenance) -> str:
+    """Return the image kind from the validated frozen provenance record."""
+    if not isinstance(provenance, CaseProvenance):
+        raise TypeError("provenance must be a CaseProvenance")
+    return provenance.image_kind.value
 
 
-def has_same_image_boxes(source: dict) -> bool:
+def has_same_image_boxes(provenance: CaseProvenance) -> bool:
     """Return whether the selected boxes describe the exact image being measured."""
-    case_id = source["id"]
-    provenance = source.get("provenance") or {}
-    if image_kind(source) != "source_frame":
-        return False
-    if case_id.startswith("gxBQ"):
-        return provenance.get("anchor_frame_index") == provenance.get("chosen_bbox_frame")
-    if case_id.startswith(("am2_", "am3_")):
-        return source.get("anchor_frame_index") == source.get("bbox_frame_index")
-    if case_id.startswith("shuttleset"):
-        return provenance.get("anchor_frame_index") == provenance.get("chosen_bbox_frame")
-    raise ValueError(f"unsupported W5 case prefix: {case_id}")
+    if not isinstance(provenance, CaseProvenance):
+        raise TypeError("provenance must be a CaseProvenance")
+    return provenance.has_same_image_boxes
 
 
-def mask_boxes_working(source: dict, size: tuple[int, int]) -> np.ndarray:
-    if not has_same_image_boxes(source):
+def mask_boxes_working(
+    source: dict, size: tuple[int, int], provenance: CaseProvenance,
+) -> np.ndarray:
+    if not has_same_image_boxes(provenance):
         return np.empty((0, 4), dtype=float)
-    boxes = np.asarray(source.get("bbox_px", []), dtype=float).reshape(-1, 4)
+    boxes = np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4)
     native_size = np.asarray([source["dimensions"]["width"], source["dimensions"]["height"]], dtype=float)
     scale = native_size / np.asarray(size, dtype=float)
     return boxes / np.tile(scale, 2)
@@ -192,11 +196,17 @@ def prepare_segments(source: dict) -> tuple[np.ndarray, tuple[np.ndarray, np.nda
     return segments, families, size
 
 
+@lru_cache(maxsize=3)
+def _load_provenance_pack(pack_path: Path) -> Mapping[str, CaseProvenance]:
+    return load_frozen_case_provenance(pack_path)
+
+
 def prepare_view(root: Path, case_id: str) -> ViewContext:
     source = load_source(root, case_id)
+    provenance = _load_provenance_pack(root / CASE_PACKS[PACK_OF[case_id]])[case_id]
     segments, families, size = prepare_segments(source)
     observations = assignment.prepare_observations(segments, size)
-    frame_file = frame_path(root, source)
+    frame_file = frame_path(root, source, provenance)
     frame = cv2.imread(str(frame_file))
     if frame is None:
         raise FileNotFoundError(frame_file)
@@ -216,9 +226,11 @@ def prepare_view(root: Path, case_id: str) -> ViewContext:
         observations=observations,
         weights=stripe_observations.fragment_weights(observations),
         frame=frame,
-        mask_boxes=mask_boxes_working(source, size),
-        same_image_mask_available=has_same_image_boxes(source),
-        image_kind=image_kind(source),
+        provenance=provenance,
+        mask_boxes=mask_boxes_working(source, size, provenance),
+        same_image_mask_available=provenance.has_same_image_boxes,
+        person_mask_unavailable_reason=provenance.unavailable_reason,
+        image_kind=image_kind(provenance),
         frame_relative_path=relative_path(frame_file, root),
     )
 
@@ -226,6 +238,7 @@ def prepare_view(root: Path, case_id: str) -> ViewContext:
 def source_provenance(context: ViewContext, g0_source: str) -> dict:
     source = context.source
     provenance = source.get("provenance", {})
+    typed = context.provenance
     return {
         "case_id": context.case_id,
         "working_dimensions": list(context.size),
@@ -236,8 +249,12 @@ def source_provenance(context: ViewContext, g0_source: str) -> dict:
         "same_image_mask_available": context.same_image_mask_available,
         "photometry_occlusion_aware": context.same_image_mask_available,
         "player_foot_source": provenance.get("people_source", "frozen_pack_all_feet_px"),
-        "chosen_bbox_frame": provenance.get("chosen_bbox_frame", source.get("bbox_frame_index")),
-        "anchor_frame": provenance.get("anchor_frame_index", source.get("anchor_frame_index")),
+        "chosen_bbox_frame": typed.box_frame_index,
+        "anchor_frame": (typed.image_frame_indices[0] if typed.image_kind.value == "source_frame" else None),
+        "image_frame_indices": list(typed.image_frame_indices),
+        "box_frame_index": typed.box_frame_index,
+        "box_relation": typed.box_relation.value,
+        "person_mask_unavailable_reason": context.person_mask_unavailable_reason,
     }
 
 

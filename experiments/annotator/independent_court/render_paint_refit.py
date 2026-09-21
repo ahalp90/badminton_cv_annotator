@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from .render_stripe_overlays import draw_lines
+from .run_paint_refit import validate_result_provenance
 
 SIZE = (1280, 720)
 HEADER_HEIGHT = 110
@@ -154,6 +155,7 @@ def main() -> None:
     args = parser.parse_args()
 
     results = read_gzip_json(args.results)
+    validate_result_provenance(results, replay_bytes=args.references.read_bytes())
     references = read_references(args.references)
     records = {record["id"]: record for record in results["records"]}
     picks = {pick["id"]: pick for pick in results["picks"]}

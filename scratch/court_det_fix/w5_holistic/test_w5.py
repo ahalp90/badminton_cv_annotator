@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 
 from line_template_source import (
+    VISIBILITY_COLUMN_LABELS,
     _empty_metadata,
     attach_w5_gates,
     geometry_and_support,
@@ -22,24 +23,40 @@ from line_template_source import (
 )
 from render_gallery import write_index
 from run_w5 import (
+    VISIBILITY_FLOOR_ARMS,
     ViewAmbiguity,
     canonicalise_populations,
+    parse_args,
     preflight_determinism,
     previous_stage5_anchors,
     run_pilot,
+    run_preflight,
+    validate_visibility_floor,
+    validate_visibility_floors,
 )
 from verifier import (
     CASE_ORDER,
+    CASE_PACKS,
     REGRESSION_CASE_ORDER,
+    frame_path,
+    has_same_image_boxes,
     legacy_winners,
+    mask_boxes_working,
     permutation_determinism,
     photometric_samples,
+    prepare_view,
     rank_candidates,
     raw_junctions,
+    source_provenance,
 )
 
 from experiments.annotator.independent_court import detector, junction_observations
 from experiments.annotator.independent_court.assignment import prepare_observations
+from experiments.annotator.independent_court.case_provenance import (
+    CaseProvenance,
+    ImageKind,
+    load_frozen_case_provenance,
+)
 from experiments.annotator.independent_court.detector import SEGMENTS_M
 from experiments.annotator.independent_court.paint_geometry import CENTRE_SEGMENTS_M
 
@@ -311,14 +328,25 @@ def test_line_template_union_map_keeps_working_image_shape() -> None:
     assert len(projected) == len(means) == len(visibility)
 
 
-def test_visibility_floor_requires_both_directions_inclusively() -> None:
-    visibility = np.asarray([[3, 4], [3, 2], [2, 4]], dtype=np.int16)
-    np.testing.assert_array_equal(visibility_eligible(visibility, 3), [True, False, False])
+def test_visibility_floor_names_and_columns_are_asymmetric_and_inclusive() -> None:
+    visibility = np.asarray([[3, 4], [3, 2], [2, 4], [5, 3]], dtype=np.int16)
+    np.testing.assert_array_equal(
+        visibility_eligible(visibility, 3, 3),
+        [True, False, False, True],
+    )
+    np.testing.assert_array_equal(
+        visibility_eligible(visibility, 4, 3),
+        [False, False, False, True],
+    )
+    assert VISIBILITY_COLUMN_LABELS == {
+        "lengthwise": "first six projected court-template pieces (x-family): sidelines plus split centre",
+        "cross_court": "second six projected court-template pieces (y-family): baselines and service lines",
+    }
 
 
 def test_visibility_floor_zero_preserves_old_admission_semantics() -> None:
     visibility = np.asarray([[0, 0], [1, 0], [0, 1]], dtype=np.int16)
-    np.testing.assert_array_equal(visibility_eligible(visibility, 0), [True, True, True])
+    np.testing.assert_array_equal(visibility_eligible(visibility, 0, 0), [True, True, True])
 
 
 def test_visibility_filter_before_diversity_allows_later_refill() -> None:
@@ -342,6 +370,7 @@ def test_visibility_filter_before_diversity_allows_later_refill() -> None:
         corners,
         visibility,
         1,
+        1,
         cap=2,
     )
     np.testing.assert_array_equal(selection.selected, [1, 2])
@@ -356,6 +385,7 @@ def test_visibility_filter_before_diversity_allows_later_refill() -> None:
         corners,
         visibility,
         0,
+        0,
         cap=2,
     )
     np.testing.assert_array_equal(zero_selection.selected, zero_selection.floor_zero_selected)
@@ -364,10 +394,20 @@ def test_visibility_filter_before_diversity_allows_later_refill() -> None:
 
 
 def test_line_template_empty_metadata_records_visibility_floor_and_counts() -> None:
-    metadata = _empty_metadata({"min_visible_markings": 4}, 0.0, "empty")
-    assert metadata["settings"]["min_visible_markings"] == 4
+    metadata = _empty_metadata(
+        {
+            "min_visible_lengthwise": 4,
+            "min_visible_cross_court": 3,
+        },
+        0.0,
+        "empty",
+    )
+    assert metadata["settings"]["min_visible_lengthwise"] == 4
+    assert metadata["settings"]["min_visible_cross_court"] == 3
     assert metadata["generation"]["visibility_admission"] == {
-        "min_visible_markings": 4,
+        "min_visible_lengthwise": 4,
+        "min_visible_cross_court": 3,
+        "visibility_columns": VISIBILITY_COLUMN_LABELS,
         "hypotheses_before": 0,
         "hypotheses_after": 0,
         "hypotheses_rejected": 0,
@@ -383,6 +423,70 @@ def test_line_template_empty_metadata_records_visibility_floor_and_counts() -> N
     }
 
 
+def test_preflight_persists_both_directional_floors(tmp_path: Path, monkeypatch) -> None:
+    verifier = {
+        "REGRESSION_CASE_IDS": ("case_a",),
+        "UNUSED_CASE_IDS": (),
+        "ALL_CASE_IDS": ("case_a",),
+        "CASE_ORDER": (("case_a", "Case A", "pack"),),
+        "WORKING_SIZE": (1280, 720),
+        "prepare_view": lambda root, case_id: SimpleNamespace(
+            case_id=case_id,
+            size=(1280, 720),
+            same_image_mask_available=False,
+        ),
+        "relative_path": lambda path, root: str(path),
+        "write_json_gz": lambda path, value: None,
+        "jsonable": lambda value: value,
+    }
+    monkeypatch.setattr(
+        "run_w5.load_runtime",
+        lambda root: {"verifier": verifier, "paths": {}},
+    )
+    monkeypatch.setattr(
+        "run_w5.load_populations",
+        lambda *args, **kwargs: (
+            [],
+            [],
+            [],
+            {"line_template": {"settings": {"min_visible_lengthwise": 4}}},
+        ),
+    )
+    monkeypatch.setattr(
+        "run_w5.preflight_determinism",
+        lambda verifier: {"match": True},
+    )
+    (tmp_path / "run").mkdir()
+    result = run_preflight(
+        tmp_path,
+        tmp_path / "run",
+        ["case_a"],
+        min_visible_lengthwise=4,
+        min_visible_cross_court=3,
+    )
+    persisted = json.loads((tmp_path / "run" / "preflight.json").read_text())
+    assert result["min_visible_lengthwise"] == 4
+    assert result["min_visible_cross_court"] == 3
+    assert persisted["min_visible_lengthwise"] == 4
+    assert persisted["min_visible_cross_court"] == 3
+    assert "min_visible_markings" not in persisted
+
+
+def test_visibility_floor_validation_rejects_non_integer_and_negative_values() -> None:
+    with pytest.raises(TypeError, match="min_visible_lengthwise"):
+        validate_visibility_floor(True, "min_visible_lengthwise")
+    with pytest.raises(TypeError, match="min_visible_cross_court"):
+        validate_visibility_floors(3, 2.5)
+    with pytest.raises(ValueError, match="min_visible_lengthwise"):
+        validate_visibility_floor(-1, "min_visible_lengthwise")
+    with pytest.raises(ValueError, match="min_visible_cross_court"):
+        validate_visibility_floors(3, -1)
+
+
+def test_planned_visibility_floor_arms_are_fixed() -> None:
+    assert VISIBILITY_FLOOR_ARMS == ((0, 0), (3, 3), (4, 3), (5, 3))
+
+
 def test_pilot_rejects_preflight_case_identity_or_floor_mismatch(tmp_path: Path, monkeypatch) -> None:
     verifier = {
         "REGRESSION_CASE_IDS": ("case_a", "case_b"),
@@ -395,20 +499,208 @@ def test_pilot_rejects_preflight_case_identity_or_floor_mismatch(tmp_path: Path,
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "preflight.json").write_text(
-        json.dumps({"status": "passed", "case_ids": ["case_a", "case_b"], "min_visible_markings": 3})
+        json.dumps(
+            {
+                "status": "passed",
+                "case_ids": ["case_a", "case_b"],
+                "min_visible_lengthwise": 3,
+                "min_visible_cross_court": 3,
+            }
+        )
     )
     with pytest.raises(RuntimeError, match="do not match preflight order"):
-        run_pilot(tmp_path, run_dir, ["case_b", "case_a"], 1, 3)
+        run_pilot(
+            tmp_path,
+            run_dir,
+            ["case_b", "case_a"],
+            1,
+            min_visible_lengthwise=3,
+            min_visible_cross_court=3,
+        )
     (run_dir / "preflight.json").write_text(
-        json.dumps({"status": "passed", "case_ids": ["case_a", "case_a"], "min_visible_markings": 3})
+        json.dumps(
+            {
+                "status": "passed",
+                "case_ids": ["case_a", "case_a"],
+                "min_visible_lengthwise": 3,
+                "min_visible_cross_court": 3,
+            }
+        )
     )
     with pytest.raises(RuntimeError, match="case list is invalid"):
-        run_pilot(tmp_path, run_dir, ["case_a", "case_b"], 1, 3)
+        run_pilot(
+            tmp_path,
+            run_dir,
+            ["case_a", "case_b"],
+            1,
+            min_visible_lengthwise=3,
+            min_visible_cross_court=3,
+        )
     (run_dir / "preflight.json").write_text(
-        json.dumps({"status": "passed", "case_ids": ["case_a", "case_b"], "min_visible_markings": 3})
+        json.dumps(
+            {
+                "status": "passed",
+                "case_ids": ["case_a", "case_b"],
+                "min_visible_lengthwise": 3,
+                "min_visible_cross_court": 3,
+            }
+        )
     )
-    with pytest.raises(RuntimeError, match="floor is not covered"):
-        run_pilot(tmp_path, run_dir, ["case_a", "case_b"], 1, 4)
+    with pytest.raises(RuntimeError, match="floors are not covered"):
+        run_pilot(
+            tmp_path,
+            run_dir,
+            ["case_a", "case_b"],
+            1,
+            min_visible_lengthwise=4,
+            min_visible_cross_court=3,
+        )
+    with pytest.raises(RuntimeError, match="floors are not covered"):
+        run_pilot(
+            tmp_path,
+            run_dir,
+            ["case_a", "case_b"],
+            1,
+            min_visible_lengthwise=3,
+            min_visible_cross_court=4,
+        )
+
+
+def test_pilot_rejects_scalar_preflight_metadata_without_mapping(tmp_path: Path, monkeypatch) -> None:
+    verifier = {
+        "REGRESSION_CASE_IDS": ("case_a",),
+        "ALL_CASE_IDS": ("case_a",),
+    }
+    monkeypatch.setattr(
+        "run_w5.load_runtime",
+        lambda root: {"verifier": verifier, "paths": {}},
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "preflight.json").write_text(
+        json.dumps({"status": "passed", "case_ids": ["case_a"], "min_visible_markings": 3})
+    )
+    with pytest.raises(RuntimeError, match="both directional visibility floors"):
+        run_pilot(
+            tmp_path,
+            run_dir,
+            ["case_a"],
+            1,
+            min_visible_lengthwise=3,
+            min_visible_cross_court=3,
+        )
+
+
+def test_pilot_dispatches_both_floors_to_each_process(tmp_path: Path, monkeypatch) -> None:
+    verifier = {"ALL_CASE_IDS": ("case_a",)}
+    monkeypatch.setattr(
+        "run_w5.load_runtime",
+        lambda root: {"verifier": verifier, "paths": {}},
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "preflight.json").write_text(
+        json.dumps(
+            {
+                "status": "passed",
+                "case_ids": ["case_a"],
+                "min_visible_lengthwise": 4,
+                "min_visible_cross_court": 3,
+            }
+        )
+    )
+    dispatches = []
+    packet = {}
+
+    def fake_process_case(*args, **kwargs):
+        dispatches.append((args, kwargs))
+        return {
+            "case_id": "case_a",
+            "B": {"selected_origin_key": "B"},
+            "C": {"selected_origin_key": "C"},
+        }
+
+    class ImmediateFuture:
+        def __init__(self, value):
+            self.value = value
+
+        def result(self):
+            return self.value
+
+    class ImmediatePool:
+        def __init__(self, max_workers):
+            self.workers = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def submit(self, function, *args, **kwargs):
+            dispatches.append((function, args, kwargs))
+            return ImmediateFuture(function(*args, **kwargs))
+
+    monkeypatch.setattr("run_w5.process_case", fake_process_case)
+    monkeypatch.setattr("run_w5.ProcessPoolExecutor", ImmediatePool)
+    monkeypatch.setattr(
+        "run_w5.write_packet",
+        lambda *args, **kwargs: packet.update(kwargs),
+    )
+    run_pilot(
+        tmp_path,
+        run_dir,
+        ["case_a"],
+        1,
+        min_visible_lengthwise=4,
+        min_visible_cross_court=3,
+    )
+    assert dispatches[0][2] == {
+        "min_visible_lengthwise": 4,
+        "min_visible_cross_court": 3,
+    }
+    assert packet["min_visible_lengthwise"] == 4
+    assert packet["min_visible_cross_court"] == 3
+
+
+def test_cli_rejects_old_scalar_floor_option(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_w5.py",
+            "--run",
+            "test",
+            "--stage",
+            "preflight",
+            "--min-visible-markings",
+            "3",
+        ],
+    )
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+    assert error.value.code == 2
+
+
+def test_cli_accepts_directional_floor_options(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_w5.py",
+            "--run",
+            "test",
+            "--stage",
+            "preflight",
+            "--min-visible-lengthwise",
+            "4",
+            "--min-visible-cross-court",
+            "3",
+        ],
+    )
+    args = parse_args()
+    assert args.min_visible_lengthwise == 4
+    assert args.min_visible_cross_court == 3
 
 
 def test_original_regression_case_order_remains_explicit() -> None:
@@ -525,6 +817,43 @@ def test_junction_helpers_accept_physical_centres() -> None:
         (960, 540),
         centres=CENTRE_SEGMENTS_M,
     )["usable_sites"] == 0
+
+
+def test_original_nine_use_typed_provenance_for_exactly_four_masks() -> None:
+    root = Path(__file__).resolve().parents[1]
+    expected = [True, False, True, True, True, False, False, False, False]
+    contexts = [prepare_view(root, case_id) for case_id, _, _ in CASE_ORDER]
+    assert [context.same_image_mask_available for context in contexts] == expected
+    assert sum(expected) == 4
+    assert sum(not available for available in expected) == 5
+    marking = load_frozen_case_provenance(root / CASE_PACKS["amateur"])
+    assert not has_same_image_boxes(marking["yellow_short_frame_14"])
+
+    unavailable = [context for context in contexts if not context.same_image_mask_available]
+    metadata = [source_provenance(context, "test") for context in unavailable]
+    assert all(item["person_mask_unavailable_reason"] for item in metadata)
+    assert [item["box_relation"] for item in metadata] == ["nearby_source_frame"] + ["composite"] * 4
+    assert metadata[0]["anchor_frame"] == 5
+    assert all(item["anchor_frame"] is None for item in metadata[1:])
+
+
+def test_amateur_frame_path_rejects_mismatched_typed_frame() -> None:
+    source = {"id": "am2_window_00_frame_150"}
+    provenance = CaseProvenance(source["id"], ImageKind.SOURCE_FRAME, (151,), 151)
+
+    with pytest.raises(ValueError, match="amateur frame path uses frame 150"):
+        frame_path(Path("/tmp/root"), source, provenance)
+
+
+def test_unavailable_masks_do_not_read_boxes_but_available_masks_require_them() -> None:
+    composite = CaseProvenance("composite", ImageKind.COMPOSITE, (1, 2, 3), 1)
+    source = {"dimensions": {"width": 8, "height": 8}}
+    assert mask_boxes_working(source, (8, 8), composite).shape == (0, 4)
+
+    same_image = CaseProvenance("same", ImageKind.SOURCE_FRAME, (1,), 1)
+    with pytest.raises(KeyError, match="bbox_px"):
+        mask_boxes_working(source, (8, 8), same_image)
+    assert has_same_image_boxes(composite) is False
 
 
 def test_raw_junctions_use_projected_arm_direction() -> None:

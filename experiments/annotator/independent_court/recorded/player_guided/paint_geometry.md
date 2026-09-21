@@ -35,6 +35,14 @@ against every winner in that gallery. Generation and the existing floor, player
 and camera gates were held unchanged. The new model has not been applied across
 the complete detector.
 
+The saved result also carries a legacy occlusion diagnostic that used person
+boxes. Five cases used boxes from a nearby frame, so those embedded occlusion
+values are unsafe. They do not enter the paired paint ranking: eligibility uses
+the original unmasked gate, and the saved order uses stripe and net scores. The
+headline winners and boundary measurements below therefore remain valid. Current
+readers reject this old unbound result when a provenance-safe replay is required.
+See the [historical provenance audit](../../../../../scratch/court_det_fix/w5_holistic/box_provenance_impact.md).
+
 Reference labels were used after ranking. The main measurement is the root mean
 square (RMS) distance from clicked outer-boundary landmarks to the corresponding
 finite projected court side. RMS gives larger misses more weight.
@@ -192,6 +200,7 @@ from the repository root:
 ```bash
 PYTHONPATH=src:. python -m experiments.annotator.independent_court.run_paint_refit \
   --recorded experiments/annotator/independent_court/recorded/player_guided \
+  --provenance-pack scratch/court_det_fix/frozen_views/packs/marking_refit_inputs.json.gz \
   --annotations data/amateur_court_corners \
   --output /tmp/court-paint-replay
 ```

@@ -11,10 +11,15 @@ import hashlib
 import json
 import os
 import sys
+from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from experiments.annotator.independent_court.case_provenance import CaseProvenance
 
 REPO = Path(__file__).resolve().parents[3]
 COURT_DET_FIX = REPO / 'scratch/court_det_fix'
@@ -117,6 +122,31 @@ def load_source(case_id: str) -> dict:
     raise KeyError(case_id)
 
 
+@lru_cache(maxsize=3)
+def _load_pack_provenance(pack_path: Path) -> Mapping[str, CaseProvenance]:
+    """Load one frozen pack's validated provenance mapping once per process."""
+    from experiments.annotator.independent_court.case_provenance import (
+        load_frozen_case_provenance,
+    )
+
+    return load_frozen_case_provenance(pack_path)
+
+
+def case_provenance(case_id: str) -> CaseProvenance:
+    """Return the validated image/box provenance for one frozen line case."""
+    pack_name = PACK_OF[case_id]
+    return _load_pack_provenance(PACKS[pack_name])[case_id]
+
+
+def require_same_image_boxes(case: CaseProvenance) -> CaseProvenance:
+    """Apply the central guard without importing the contract before helper paths are ready."""
+    from experiments.annotator.independent_court.case_provenance import (
+        require_same_image_boxes as require,
+    )
+
+    return require(case)
+
+
 def frame_path(source: dict) -> Path:
     """The native frame the pack's fragments were detected on (frozen_views/frames keeps the packs' layout)."""
     if source['id'].startswith('gxBQ'):
@@ -125,6 +155,12 @@ def frame_path(source: dict) -> Path:
         return FROZEN_VIEWS / 'frames/original' / source['image']
     video = source['id'].split('_')[0]
     frame = int(source['id'].rsplit('_', 1)[1])
+    provenance = case_provenance(source['id'])
+    if provenance.image_kind.value != 'source_frame' or provenance.image_frame_indices != (frame,):
+        raise ValueError(
+            f"{source['id']}: amateur frame path uses frame {frame}, but provenance identifies "
+            f"{provenance.image_kind.value} frames {provenance.image_frame_indices}"
+        )
     return FROZEN_VIEWS / 'frames/amateur' / video / f'frame_{frame:08d}.png'
 
 

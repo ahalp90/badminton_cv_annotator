@@ -46,7 +46,7 @@ def test_export_keeps_scheduled_indices_and_empty_samples(tmp_path: Path) -> Non
             "video": "clip.avi",
             "start_frame": 2,
             "end_frame": 9,
-            "anchor_frames": [3, 8],
+            "anchor_frames": [3, 4, 8],
         },
         tmp_path,
         output,
@@ -58,7 +58,13 @@ def test_export_keeps_scheduled_indices_and_empty_samples(tmp_path: Path) -> Non
     assert [sample["frame_index"] for sample in record["samples"]] == [2, 4, 7]
     assert all(sample["bboxes"] == [] and sample["scores"] == [] for sample in record["samples"])
     assert detector_calls == len(record["samples"]) == 3
-    assert [anchor["frame_index"] for anchor in record["anchor_images"]] == [3, 8]
+    assert [anchor["frame_index"] for anchor in record["anchor_images"]] == [3, 4, 8]
+    assert [anchor["kind"] for anchor in record["anchor_images"]] == ["source_frame"] * 3
+    assert record["median_image"] == "images/case-a_median.png"
+    assert record["median_image_provenance"] == {
+        "kind": "composite",
+        "frame_indices": [2, 4, 7],
+    }
     assert record["video"] == "clip.avi"
     assert record["dimensions"] == {"width": 20, "height": 12}
     assert cv2.imread(str(output / record["median_image"])).shape == (12, 20, 3)
@@ -80,8 +86,16 @@ def test_line_manifests_use_relative_images(tmp_path: Path) -> None:
     record = {
         "id": "case-a",
         "median_image": "images/case-a_median.png",
+        "median_image_provenance": {
+            "kind": "composite",
+            "frame_indices": [2, 4, 7],
+        },
         "anchor_images": [
-            {"frame_index": 8, "image": "images/case-a_frame_00000008.png"}
+            {
+                "kind": "source_frame",
+                "frame_index": 8,
+                "image": "images/case-a_frame_00000008.png",
+            }
         ],
     }
     _write_manifests(tmp_path, [record])
@@ -97,11 +111,19 @@ def test_line_manifests_use_relative_images(tmp_path: Path) -> None:
                     "id": "case-a_median",
                     "image": "images/case-a_median.png",
                     "reference_status": "unlabelled",
+                    "image_provenance": {
+                        "kind": "composite",
+                        "frame_indices": [2, 4, 7],
+                    },
                 },
                 {
                     "id": "case-a_frame_8",
                     "image": "images/case-a_frame_00000008.png",
                     "reference_status": "unlabelled",
+                    "image_provenance": {
+                        "kind": "source_frame",
+                        "frame_index": 8,
+                    },
                 },
             ]
         }

@@ -17,6 +17,10 @@ DIVERSITY_RADIUS = 12.0
 CAMERA_LIMIT = 0.1
 CAMERA_RECHECK_MARGIN = 1e-3
 FULL_RECTANGLE_ORDER = 10**9
+VISIBILITY_COLUMN_LABELS = {
+    "lengthwise": "first six projected court-template pieces (x-family): sidelines plus split centre",
+    "cross_court": "second six projected court-template pieces (y-family): baselines and service lines",
+}
 
 
 @dataclass(frozen=True)
@@ -55,7 +59,12 @@ def geometry_and_support(
     size: tuple[int, int],
     detector,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Apply the inherited geometry tests and score the two court directions."""
+    """Score two directions and count projected pieces retained after clipping.
+
+    The first six projected pieces are the lengthwise x-family. The second six
+    are the cross-court y-family. A piece is visible when at least 12
+    projected pixels remain in the working image.
+    """
     corners, denominators = detector.project(homographies, detector.CORNER_COURT_M)
     valid = np.isfinite(corners).all(axis=(1, 2)) & np.all(denominators > 1e-6, axis=1)
     edges = np.roll(corners, -1, axis=1) - corners
@@ -156,20 +165,40 @@ def greedy_diverse(
     return np.asarray(retained, dtype=np.int64), scanned
 
 
-def _validate_min_visible_markings(min_visible_markings: int) -> int:
-    if isinstance(min_visible_markings, bool) or not isinstance(min_visible_markings, (int, np.integer)):
-        raise TypeError("min_visible_markings must be an integer")
-    if min_visible_markings < 0:
-        raise ValueError("min_visible_markings must be non-negative")
-    return int(min_visible_markings)
+def _validate_visibility_floor(value: int, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise TypeError(f"{name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
 
 
-def visibility_eligible(visibility: np.ndarray, min_visible_markings: int) -> np.ndarray:
-    """Return hypotheses whose two marking directions meet the inclusive floor."""
-    min_visible_markings = _validate_min_visible_markings(min_visible_markings)
+def _validate_visibility_floors(
+    min_visible_lengthwise: int,
+    min_visible_cross_court: int,
+) -> tuple[int, int]:
+    return (
+        _validate_visibility_floor(min_visible_lengthwise, "min_visible_lengthwise"),
+        _validate_visibility_floor(min_visible_cross_court, "min_visible_cross_court"),
+    )
+
+
+def visibility_eligible(
+    visibility: np.ndarray,
+    min_visible_lengthwise: int,
+    min_visible_cross_court: int,
+) -> np.ndarray:
+    """Return hypotheses whose two projected court-template floors are met."""
+    min_visible_lengthwise, min_visible_cross_court = _validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     if visibility.ndim != 2 or visibility.shape[1] != 2:
         raise ValueError("visibility must have shape (hypotheses, 2)")
-    return np.all(visibility >= min_visible_markings, axis=1)
+    return (
+        (visibility[:, 0] >= min_visible_lengthwise)
+        & (visibility[:, 1] >= min_visible_cross_court)
+    )
 
 
 def select_with_visibility_floor(
@@ -179,12 +208,17 @@ def select_with_visibility_floor(
     templates: np.ndarray,
     corners: np.ndarray,
     visibility: np.ndarray,
-    min_visible_markings: int,
+    min_visible_lengthwise: int,
+    min_visible_cross_court: int,
     cap: int = PROPOSAL_CAP,
     radius: float = DIVERSITY_RADIUS,
 ) -> AdmissionSelection:
     """Admit by visibility before score ordering, then compare with the camera-only pool."""
-    visibility_admitted = visibility_eligible(visibility, min_visible_markings)
+    visibility_admitted = visibility_eligible(
+        visibility,
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     eligible_indices = np.flatnonzero(camera_eligible & visibility_admitted)
     score_order = np.lexsort(
         (templates[eligible_indices], rectangle_ids[eligible_indices], -scores[eligible_indices])
@@ -265,7 +299,8 @@ def _ranked_records(
                 "line_template": {
                     "admission_score": float(scores[index]),
                     "direction_means": [float(value) for value in means[index]],
-                    "visible_direction_samples": [int(value) for value in visibility[index]],
+                    "visible_lengthwise_pieces": int(visibility[index, 0]),
+                    "visible_cross_court_pieces": int(visibility[index, 1]),
                     "camera_error_before_w5_gates": float(camera_errors[index]),
                     "geometry_valid_before_w5_gates": True,
                 },
@@ -292,7 +327,9 @@ def _empty_metadata(settings: dict, started: float, reason: str) -> dict:
         },
         "generation": {
             "visibility_admission": {
-                "min_visible_markings": int(settings["min_visible_markings"]),
+                "min_visible_lengthwise": int(settings["min_visible_lengthwise"]),
+                "min_visible_cross_court": int(settings["min_visible_cross_court"]),
+                "visibility_columns": dict(VISIBILITY_COLUMN_LABELS),
                 "hypotheses_before": 0,
                 "hypotheses_after": 0,
                 "hypotheses_rejected": 0,
@@ -328,9 +365,19 @@ def attach_w5_gates(entries: list[dict], context, runtime: dict, detector, nativ
         )
 
 
-def generate(context, runtime: dict, detector, min_visible_markings: int = 0) -> Generation:
+def generate(
+    context,
+    runtime: dict,
+    detector,
+    *,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
+) -> Generation:
     """Generate the audited line/template source for one prepared W5 view."""
-    min_visible_markings = _validate_min_visible_markings(min_visible_markings)
+    min_visible_lengthwise, min_visible_cross_court = _validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     started = perf_counter()
     settings = {
         "wide_families": True,
@@ -348,7 +395,9 @@ def generate(context, runtime: dict, detector, min_visible_markings: int = 0) ->
         "rectangle_order": "frozen coverage VP round-robin order",
         "global_rectangle_cap": RECTANGLE_CAP,
         "proposal_cap": PROPOSAL_CAP,
-        "min_visible_markings": min_visible_markings,
+        "min_visible_lengthwise": min_visible_lengthwise,
+        "min_visible_cross_court": min_visible_cross_court,
+        "visibility_columns": dict(VISIBILITY_COLUMN_LABELS),
         "corner_diversity_radius": DIVERSITY_RADIUS,
         "camera_limit": CAMERA_LIMIT,
         "camera_gate": "frozen W5 camera error <= 0.1 before admission ordering",
@@ -455,7 +504,8 @@ def generate(context, runtime: dict, detector, min_visible_markings: int = 0) ->
         templates,
         corners,
         visibility,
-        min_visible_markings,
+        min_visible_lengthwise,
+        min_visible_cross_court,
     )
     selected = admission.selected
     scanned = admission.scanned
@@ -500,7 +550,9 @@ def generate(context, runtime: dict, detector, min_visible_markings: int = 0) ->
             "valid_geometry_hypotheses": len(corners),
             "camera_eligible_hypotheses": int(camera_eligible.sum()),
             "visibility_admission": {
-                "min_visible_markings": min_visible_markings,
+                "min_visible_lengthwise": min_visible_lengthwise,
+                "min_visible_cross_court": min_visible_cross_court,
+                "visibility_columns": dict(VISIBILITY_COLUMN_LABELS),
                 "hypotheses_before": len(visibility),
                 "hypotheses_after": int(admission.visibility_admitted.sum()),
                 "hypotheses_rejected": int((~admission.visibility_admitted).sum()),

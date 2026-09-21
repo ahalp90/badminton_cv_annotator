@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import io
 import json
 from pathlib import Path
 from time import perf_counter
@@ -137,7 +138,12 @@ def summarise(records: list[dict]) -> dict:
 
 
 def read_replay(path: Path) -> tuple[dict, dict]:
-    with ZipFile(path) as archive:
+    return read_replay_bytes(path.read_bytes())
+
+
+def read_replay_bytes(replay_bytes: bytes) -> tuple[dict, dict]:
+    """Read replay inputs and results from one exact archive byte string."""
+    with ZipFile(io.BytesIO(replay_bytes)) as archive:
         inputs = json.loads(gzip.decompress(archive.read("marking_inputs.json.gz")))
         results = json.loads(gzip.decompress(archive.read("reverse_results.json.gz")))
     return inputs, results

@@ -7,6 +7,7 @@ import gzip
 import importlib
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
@@ -17,13 +18,30 @@ import numpy as np
 from . import junction_observations as junctions
 from . import stripe_observations as stripes
 from .assignment import prepare_observations
+from .case_provenance import (
+    CaseProvenance,
+    load_frozen_case_provenance,
+    require_same_image_boxes,
+)
 from .detector import CORNER_COURT_M
-from .run_assignment import ACCURATE_PX, attach_metrics, frozen_entries, read_replay
+from .run_assignment import (
+    ACCURATE_PX,
+    attach_metrics,
+    frozen_entries,
+    read_replay_bytes,
+)
 from .run_fixed_refit import MODELS
 from .run_junction_selection import rank
+from .run_junctions import (
+    bytes_md5,
+    provenance_binding,
+    require_replay_pack,
+    validate_stripe_provenance,
+)
 
 POOLS = ("starts", *MODELS)
 SELECTORS = ("stripe_exclusive", "complete_agreements_first")
+OUTPUT_SCHEMA = "renewed-fixed-refit-selection/2"
 
 
 def eligible(evidence: dict) -> bool:
@@ -40,8 +58,17 @@ def rank_pools(entries: list[dict]) -> dict:
     return orders
 
 
-def verify_starts(case: dict, frozen: dict, saved: dict, legacy: ModuleType) -> tuple[dict, dict]:
+def verify_starts(
+    case: dict,
+    frozen: dict,
+    saved: dict,
+    legacy: ModuleType,
+    provenance: CaseProvenance,
+) -> tuple[dict, dict]:
     """Verify all archived gates and net scores before expensive refinement scoring."""
+    if provenance.case_id != case["id"]:
+        raise ValueError(f"provenance case {provenance.case_id!r} does not match {case['id']!r}")
+    require_same_image_boxes(provenance)
     prepared = legacy.prepare_case(case)
     old = {entry["id"]: entry for entry in saved["entries"]}
     renewed = {}
@@ -57,10 +84,44 @@ def verify_starts(case: dict, frozen: dict, saved: dict, legacy: ModuleType) -> 
     return prepared, renewed
 
 
+def preflight_cases(
+    inputs: dict,
+    stripe_results: dict,
+    provenance: Mapping[str, CaseProvenance],
+    binding: dict[str, str],
+) -> None:
+    """Validate the stripe/replay join and every box source before any refit work."""
+    validate_stripe_provenance(stripe_results, binding)
+    input_ids = [case["id"] for case in inputs["cases"]]
+    stripe_ids = [record["id"] for record in stripe_results["records"]]
+    if len(input_ids) != len(set(input_ids)):
+        raise ValueError("Replay contains duplicate case IDs")
+    if len(stripe_ids) != len(set(stripe_ids)):
+        raise ValueError("Stripe results contain duplicate case IDs")
+    if not set(stripe_ids).issubset(input_ids):
+        unknown = sorted(set(stripe_ids) - set(input_ids))
+        raise ValueError(f"Stripe results contain cases absent from the replay: {unknown!r}")
+    for case_id in stripe_ids:
+        try:
+            case = provenance[case_id]
+        except KeyError as error:
+            raise ValueError(f"Stripe case {case_id!r} is absent from the validated provenance pack") from error
+        require_same_image_boxes(case)
+
+
 def run_case(
-    case: dict, frozen: dict, fits: dict, legacy: ModuleType, prepared: dict, starting_evidence: dict,
+    case: dict,
+    frozen: dict,
+    fits: dict,
+    legacy: ModuleType,
+    prepared: dict,
+    starting_evidence: dict,
+    provenance: CaseProvenance,
 ) -> dict:
     """Remeasure changed geometries while reusing the verified parent control."""
+    if provenance.case_id != case["id"]:
+        raise ValueError(f"provenance case {provenance.case_id!r} does not match {case['id']!r}")
+    require_same_image_boxes(provenance)
     started = perf_counter()
     size, scale = prepared["size"], prepared["native_scale"]
     observations = prepare_observations(prepared["segments"], size)
@@ -126,41 +187,84 @@ def summarise(records: list[dict]) -> dict:
             "eligible_geometries": eligible_counts, "cases": cases}
 
 
+def python_artefact_md5s(directory: Path) -> dict[str, str]:
+    """Hash every Python source that can participate in the archived import tree."""
+    return {
+        str(path.relative_to(directory)): bytes_md5(path.read_bytes())
+        for path in sorted(directory.rglob("*.py"))
+    }
+
+
+def output_provenance(
+    binding: dict[str, str],
+    replay_bytes: bytes,
+    stripe_bytes: bytes,
+    refit_bytes: bytes,
+    legacy_artefacts: dict[str, str],
+) -> dict:
+    """Bind renewed output to every replay, result and archived-code input."""
+    return {
+        **binding,
+        "replay_artefact_md5": bytes_md5(replay_bytes),
+        "stripe_artefact_md5": bytes_md5(stripe_bytes),
+        "refits_artefact_md5": bytes_md5(refit_bytes),
+        "legacy_artefacts_md5": legacy_artefacts,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--replay", required=True, type=Path)
+    parser.add_argument("--provenance-pack", required=True, type=Path)
     parser.add_argument("--legacy-dir", required=True, type=Path,
                         help="Directory containing the unchanged scripts extracted from marking_refit_replay.zip")
     parser.add_argument("--stripes", required=True, type=Path)
     parser.add_argument("--refits", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    replay_bytes = args.replay.read_bytes()
+    provenance = load_frozen_case_provenance(args.provenance_pack)
+    require_replay_pack(args.replay, args.provenance_pack)
+    inputs, saved = read_replay_bytes(replay_bytes)
+    stripe_bytes = args.stripes.read_bytes()
+    stripes_saved = json.loads(gzip.decompress(stripe_bytes))
+    binding = provenance_binding(args.provenance_pack)
+    preflight_cases(inputs, stripes_saved, provenance, binding)
+    legacy_artefacts = python_artefact_md5s(args.legacy_dir)
     sys.path.insert(0, str(args.legacy_dir.resolve()))
     legacy = importlib.import_module("run_alignment")
     # The archived replay fixes OpenCV threads; distance-map rounding depends on it.
     cv2.setNumThreads(1)
-    inputs, saved = read_replay(args.replay)
-    stripes_saved = json.loads(gzip.decompress(args.stripes.read_bytes()))
-    refits = json.loads(gzip.decompress(args.refits.read_bytes()))
+    refit_bytes = args.refits.read_bytes()
+    refits = json.loads(gzip.decompress(refit_bytes))
     cases = {case["id"]: case for case in inputs["cases"]}
     original = {record["id"]: {"entries": frozen_entries(record)} for record in saved["records"]}
     fitted = {record["id"]: record for record in refits["records"]}
     controls = {}
     for frozen in stripes_saved["records"]:
         identifier = frozen["id"]
-        controls[identifier] = verify_starts(cases[identifier], frozen, original[identifier], legacy)
+        controls[identifier] = verify_starts(
+            cases[identifier], frozen, original[identifier], legacy, provenance[identifier]
+        )
     print("All starting eligibility flags and net scores reproduce exactly.", flush=True)
     records = []
     for frozen in stripes_saved["records"]:
         identifier = frozen["id"]
         prepared, starting_evidence = controls.pop(identifier)
-        result = run_case(cases[identifier], frozen, fitted[identifier], legacy, prepared, starting_evidence)
+        result = run_case(
+            cases[identifier], frozen, fitted[identifier], legacy, prepared, starting_evidence,
+            provenance[identifier],
+        )
         records.append(result)
         print(f"{identifier}: {len(result['entries'])} geometries, {result['elapsed_seconds']:.2f}s", flush=True)
     attach_metrics(records, inputs["references"])
     summary = summarise(records)
-    output = {"schema": "renewed-fixed-refit-selection/1", "development_data": True,
-              "acceptance_evaluated": False, "assignment_held_fixed": True, "summary": summary, "records": records}
+    output = {"schema": OUTPUT_SCHEMA, "development_data": True,
+              "acceptance_evaluated": False, "assignment_held_fixed": True,
+              "provenance": output_provenance(
+                  binding, replay_bytes, stripe_bytes, refit_bytes, legacy_artefacts,
+              ),
+              "summary": summary, "records": records}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(gzip.compress(json.dumps(output, allow_nan=False).encode(), mtime=0))
     print(json.dumps({key: value for key, value in summary.items() if key != "cases"}, indent=2))

@@ -16,6 +16,20 @@ case "$1" in
     "$HPCRSYNC" -ai --delete "$LOCAL_EXPERIMENTS/" "$REMOTE_HOST:$REMOTE_ROOT/experiments/annotator/independent_court/"
     "$HPCSSH" "$REMOTE_HOST" "seed_dir=$REMOTE_ROOT/next_steps_20260916/webui_seed/source; if [ -L \"\$seed_dir\" ]; then mv \"\$seed_dir\" \"\$seed_dir.automatic_axes_link\"; fi; mkdir -p \"\$seed_dir\""
     "$HPCRSYNC" -ai --delete "$LOCAL_SEED/" "$REMOTE_HOST:$REMOTE_ROOT/next_steps_20260916/webui_seed/source/"
+    local_sidecar="$here/../frozen_views/case_provenance.json.gz"
+    remote_sidecar="$REMOTE_ROOT/frozen_views/case_provenance.json.gz"
+    if "$HPCSSH" "$REMOTE_HOST" "[ -f \"$remote_sidecar\" ]"; then
+      changes=$("$HPCRSYNC" -aic --dry-run --itemize-changes \
+        "$local_sidecar" "$REMOTE_HOST:$remote_sidecar")
+      if [ -n "$changes" ]; then
+        printf 'Frozen input differs: frozen_views/case_provenance.json.gz\n%s\n' "$changes" >&2
+        exit 1
+      fi
+      printf 'Frozen input matches: frozen_views/case_provenance.json.gz\n'
+    else
+      printf 'Frozen input was absent; copying: frozen_views/case_provenance.json.gz\n'
+      "$HPCRSYNC" -ai "$local_sidecar" "$REMOTE_HOST:$remote_sidecar"
+    fi
     for frozen_input in \
       "$LOCAL_G0|$REMOTE_ROOT/automatic_axes_20260914/all_camera|automatic_axes_20260914/all_camera" \
       "$LOCAL_BASELINE|$REMOTE_ROOT/frozen_views/baseline_generation|frozen_views/baseline_generation"; do

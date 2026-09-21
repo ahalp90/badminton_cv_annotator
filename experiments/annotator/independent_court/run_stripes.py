@@ -13,8 +13,10 @@ import numpy as np
 
 from . import stripe_observations as stripes
 from .assignment import MARKINGS, prepare_observations
+from .case_provenance import load_frozen_case_provenance
 from .detector import CORNER_COURT_M
 from .run_assignment import ACCURATE_PX, attach_metrics, frozen_entries, read_replay
+from .run_junctions import provenance_binding, require_replay_pack
 
 SCHEMES = ("recorded_original", "recorded_bidirectional", "group_assignment",
            "centre_independent", "centre_exclusive", "stripe_independent", "stripe_exclusive")
@@ -90,10 +92,13 @@ def summarise(records: list[dict]) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--replay", required=True, type=Path)
+    parser.add_argument("--provenance-pack", required=True, type=Path)
     parser.add_argument("--baseline", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--ids", nargs="*")
     args = parser.parse_args()
+    load_frozen_case_provenance(args.provenance_pack)
+    require_replay_pack(args.replay, args.provenance_pack)
     packed, saved = read_replay(args.replay)
     baseline = json.loads(gzip.decompress(args.baseline.read_bytes()))
     by_id = {record["id"]: record for record in baseline["records"]}
@@ -109,8 +114,9 @@ def main() -> None:
               f"{len(result['fragment_ids'])} fragments, {result['elapsed_seconds']:.2f}s", flush=True)
     attach_metrics(records, packed["references"])
     summary = summarise(records)
-    output = {"schema": "frozen-stripe-observations/1", "development_data": True,
+    output = {"schema": "frozen-stripe-observations/2", "development_data": True,
               "acceptance_evaluated": False, "paired_support_is_diagnostic": True,
+              "input_provenance": provenance_binding(args.provenance_pack),
               "markings": MARKINGS, "positions": stripes.POSITION_NAMES,
               "summary": summary, "records": records}
     args.output.parent.mkdir(parents=True, exist_ok=True)

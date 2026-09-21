@@ -1,22 +1,35 @@
 """Check physical paint positions and their fixed-refit propagation."""
 
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
 import cv2
 import numpy as np
 import pytest
 
+from experiments.annotator.independent_court import (
+    check_paint_control,
+    render_paint_refit,
+    run_paint_refit,
+)
 from experiments.annotator.independent_court import fixed_stripe_refit as refit
 from experiments.annotator.independent_court import paint_geometry as paint
-from experiments.annotator.independent_court import run_paint_refit
 from experiments.annotator.independent_court import stripe_observations as stripes
 from experiments.annotator.independent_court.assignment import (
     Observations,
     prepare_observations,
+)
+from experiments.annotator.independent_court.case_provenance import (
+    CaseProvenance,
+    ImageKind,
 )
 from experiments.annotator.independent_court.detector import (
     CORNER_COURT_M,
     SEGMENTS_M,
     project,
 )
+from experiments.annotator.independent_court.run_junctions import provenance_binding
 
 IMAGE_SIZE = (2400, 1600)
 KNOWN_CORNERS = np.array(
@@ -36,6 +49,105 @@ def test_archive_control_detects_a_previously_successful_refit_disappearing() ->
     fresh = [{"id": "frame", "entries": [{**source, "model": "legacy", "stage": "start"}]}]
     with pytest.raises(ValueError, match="Control candidate population changed"):
         run_paint_refit.verify_control(fresh, archived)
+
+
+def test_paint_refit_direct_case_rejects_unsafe_boxes_before_prepare() -> None:
+    legacy = SimpleNamespace(
+        prepare_case=lambda _case: (_ for _ in ()).throw(AssertionError("prepared unsafe boxes")),
+    )
+    provenance = CaseProvenance("case", ImageKind.COMPOSITE, (1, 2), 1)
+    with pytest.raises(ValueError, match="composite"):
+        run_paint_refit.run_case({"id": "case"}, [], legacy, provenance)
+
+
+def test_paint_refit_preflights_all_cases_before_import_or_output(monkeypatch, tmp_path: Path) -> None:
+    recorded = tmp_path / "recorded"
+    recorded.mkdir()
+    (recorded / "marking_refit_replay.zip").write_bytes(b"replay bytes")
+    pack_path = tmp_path / "marking_refit_inputs.json.gz"
+    provenance = {
+        "safe": CaseProvenance("safe", ImageKind.SOURCE_FRAME, (1,), 1),
+        "unsafe": CaseProvenance("unsafe", ImageKind.COMPOSITE, (1, 2), 1),
+    }
+    monkeypatch.setattr(run_paint_refit, "load_frozen_case_provenance", lambda _path: provenance)
+    monkeypatch.setattr(run_paint_refit, "require_replay_pack", lambda *_args: None)
+    monkeypatch.setattr(
+        run_paint_refit,
+        "read_replay_bytes",
+        lambda _bytes: ({"cases": [{"id": "safe"}, {"id": "unsafe"}]}, {"records": []}),
+    )
+    monkeypatch.setattr(
+        run_paint_refit.importlib,
+        "import_module",
+        lambda _name: (_ for _ in ()).throw(AssertionError("legacy measurement imported before preflight")),
+    )
+    output = tmp_path / "output"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run_paint_refit.py", "--recorded", str(recorded), "--provenance-pack", str(pack_path),
+         "--annotations", str(tmp_path / "annotations"), "--output", str(output)],
+    )
+    with pytest.raises(ValueError, match="composite"):
+        run_paint_refit.main()
+    assert not output.exists()
+
+
+def test_paint_refit_output_binding_uses_artefact_spelling() -> None:
+    binding = {"pack_filename": "pack", "pack_md5": "0" * 32}
+    provenance = run_paint_refit.output_provenance(binding, b"replay", b"control", {"corners.csv": "1" * 32})
+    assert run_paint_refit.OUTPUT_SCHEMA == "paired-paint-refit/2"
+    assert provenance["replay_artefact_md5"] == run_paint_refit.bytes_md5(b"replay")
+    assert provenance["control_artefact_md5"] == run_paint_refit.bytes_md5(b"control")
+
+
+def _current_paint_result() -> dict:
+    pack_path = Path("marking_refit_inputs.json.gz")
+    binding = provenance_binding(pack_path)
+    return {
+        "schema": run_paint_refit.OUTPUT_SCHEMA,
+        "provenance": run_paint_refit.output_provenance(
+            binding,
+            b"replay",
+            b"control",
+            {str(path): "1" * 32 for path in run_paint_refit.ANNOTATION_ARTEFACTS},
+        ),
+    }
+
+
+@pytest.mark.parametrize("reader", [render_paint_refit, check_paint_control])
+def test_paint_result_readers_reject_archived_schema_one(reader: ModuleType) -> None:
+    with pytest.raises(ValueError, match="old or unsupported"):
+        reader.validate_result_provenance({"schema": "paired-paint-refit/1"})
+
+
+def test_paint_result_reader_accepts_bound_schema_two_and_checks_bytes() -> None:
+    result = _current_paint_result()
+    render_paint_refit.validate_result_provenance(result, replay_bytes=b"replay", control_bytes=b"control")
+    with pytest.raises(ValueError, match="different replay bytes"):
+        check_paint_control.validate_result_provenance(result, replay_bytes=b"other", control_bytes=b"control")
+
+
+def test_paint_result_reader_rejects_non_marking_pinned_pack() -> None:
+    result = _current_paint_result()
+    result["provenance"]["pack_filename"] = "gx_extension_inputs.json.gz"
+    with pytest.raises(ValueError, match="amateur replay pack"):
+        run_paint_refit.validate_result_provenance(result)
+
+
+@pytest.mark.parametrize("field", ["replay_artefact_md5", "control_artefact_md5", "annotation_artefacts_md5"])
+@pytest.mark.parametrize(
+    "malformed",
+    [" " + "0" * 31, "0x" + "0" * 30, "+" + "0" * 31, "_" + "0" * 31, "A" + "0" * 31],
+)
+def test_paint_result_reader_rejects_noncanonical_md5(field: str, malformed: str) -> None:
+    result = _current_paint_result()
+    if field == "annotation_artefacts_md5":
+        result["provenance"][field]["hand_corners.csv"] = malformed
+    else:
+        result["provenance"][field] = malformed
+    with pytest.raises(ValueError, match="32-character lowercase MD5"):
+        run_paint_refit.validate_result_provenance(result)
 
 
 def _known_homography() -> np.ndarray:

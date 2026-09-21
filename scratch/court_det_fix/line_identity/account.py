@@ -38,9 +38,11 @@ from shared import (
     PACK_OF,
     PACKS,
     add_helper_paths,
+    case_provenance,
     control_corners,
     load_estimator,
     read,
+    require_same_image_boxes,
     write,
 )
 
@@ -52,6 +54,15 @@ from run_population import prepare
 
 STAGES = ('results', 'camera_first', 'all_camera')
 HERE = Path(__file__).resolve().parent
+PERSON_BOX_ARMS = frozenset({'person', 'person_observations', 'paint_person'})
+
+
+def preflight_person_inputs(case_ids: list[str], arms: list[str]) -> None:
+    """Reject old person-filtered artefacts before loading or measuring records."""
+    if not PERSON_BOX_ARMS.intersection(arms):
+        return
+    for case_id in case_ids:
+        require_same_image_boxes(case_provenance(case_id))
 
 
 def direction_experiment_module(name: str):
@@ -114,6 +125,7 @@ def main() -> None:
     parser.add_argument('--arms', nargs='+', required=True)
     parser.add_argument('--cases', nargs='+', default=list(CASE_IDS))
     args = parser.parse_args()
+    preflight_person_inputs(args.cases, args.arms)
     matrix = direction_experiment_module('diagnose_matrix')
     run_dir = HERE / 'runs' / args.run / 'matcher'
     baseline = baseline_rows()

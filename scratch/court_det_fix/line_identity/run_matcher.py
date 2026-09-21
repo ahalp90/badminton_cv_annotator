@@ -24,11 +24,24 @@ import cv2
 from rescore_camera_pool import rescore
 from run_automatic import generate
 
-from shared import read, write
+from shared import case_provenance, read, require_same_image_boxes, write
 
 STAGES = ('results', 'camera_first', 'all_camera')
 LEGACY = Path('smoke/legacy')
 HERE = Path(__file__).resolve().parent
+PERSON_BOX_ARMS = frozenset({'person', 'person_observations', 'paint_person'})
+
+
+def preflight_person_input(case_id: str, arm: str) -> None:
+    """Reject person-filtered inputs when boxes do not describe the measured image."""
+    if arm in PERSON_BOX_ARMS:
+        require_same_image_boxes(case_provenance(case_id))
+
+
+def preflight_person_inputs(case_ids: list[str], arm: str) -> None:
+    """Check every selected case before a multi-case matcher run starts."""
+    for case_id in case_ids:
+        preflight_person_input(case_id, arm)
 
 
 def md5(path: Path) -> str:
@@ -44,6 +57,7 @@ def code_md5() -> dict[str, str]:
 
 
 def run_case(case_id: str, arm: str, zone: object, root: Path, output: Path, run: str, code: dict) -> dict:
+    preflight_person_input(case_id, arm)
     case_path = HERE / 'inputs' / arm / 'cases' / f'{case_id}.json.gz'
     estimator_path = HERE / 'inputs' / arm / 'estimators' / f'{case_id}.json.gz'
     source, saved = read(case_path), read(estimator_path)
@@ -78,6 +92,7 @@ def main() -> None:
     parser.add_argument('--arm', required=True)
     parser.add_argument('--ids', nargs='+', required=True)
     args = parser.parse_args()
+    preflight_person_inputs(args.ids, args.arm)
     sys.path.insert(0, str((args.root / LEGACY).resolve()))
     zone = importlib.import_module('zone_net')
     cv2.setNumThreads(1)

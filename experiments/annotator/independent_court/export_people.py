@@ -216,7 +216,8 @@ def export_window(
         anchor_set = set(validated["anchor_frames"])
         median_count = min(MAX_MEDIAN_FRAMES, len(scheduled))
         median_positions = np.linspace(0, len(scheduled) - 1, num=median_count, dtype=int)
-        median_set = {scheduled[int(position)] for position in median_positions}
+        median_indices = [scheduled[int(position)] for position in median_positions]
+        median_set = set(median_indices)
         median_frames: list[np.ndarray] = []
         samples: list[dict[str, Any]] = []
         anchor_images: list[dict[str, Any]] = []
@@ -245,7 +246,11 @@ def export_window(
                 image_path = image_root / image_name
                 _write_png(image_path, frame)
                 anchor_images.append(
-                    {"frame_index": frame_index, "image": f"images/{image_name}"}
+                    {
+                        "kind": "source_frame",
+                        "frame_index": frame_index,
+                        "image": f"images/{image_name}",
+                    }
                 )
             if frame_index in scheduled_set:
                 boxes, scores = _normalise_detections(detector(frame), score_min)
@@ -280,6 +285,10 @@ def export_window(
         "samples": samples,
         "anchor_images": anchor_images,
         "median_image": f"images/{median_name}",
+        "median_image_provenance": {
+            "kind": "composite",
+            "frame_indices": median_indices,
+        },
     }
     _write_gzip_json(output_path / f"{validated['id']}.json.gz", record)
     return record
@@ -301,7 +310,7 @@ def _write_manifests(output: Path, records: list[dict[str, Any]]) -> None:
     manifest = {
         "windows": [{"id": record["id"], "record": f"{record['id']}.json.gz"} for record in records]
     }
-    cases: list[dict[str, str]] = []
+    cases: list[dict[str, Any]] = []
     for record in records:
         window_id = record["id"]
         cases.append(
@@ -309,6 +318,7 @@ def _write_manifests(output: Path, records: list[dict[str, Any]]) -> None:
                 "id": f"{window_id}_median",
                 "image": record["median_image"],
                 "reference_status": "unlabelled",
+                "image_provenance": record["median_image_provenance"],
             }
         )
         for anchor in record["anchor_images"]:
@@ -317,6 +327,10 @@ def _write_manifests(output: Path, records: list[dict[str, Any]]) -> None:
                     "id": f"{window_id}_frame_{anchor['frame_index']}",
                     "image": anchor["image"],
                     "reference_status": "unlabelled",
+                    "image_provenance": {
+                        "kind": anchor["kind"],
+                        "frame_index": anchor["frame_index"],
+                    },
                 }
             )
     _write_gzip_json(output / "manifest.json.gz", manifest)

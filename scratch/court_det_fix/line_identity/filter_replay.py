@@ -61,6 +61,7 @@ from shared import (
     PACK_OF,
     PACKS,
     add_helper_paths,
+    case_provenance,
     control_corners,
     corner_errors,
     feet_working,
@@ -68,6 +69,7 @@ from shared import (
     load_direction_record,
     load_estimator,
     read,
+    require_same_image_boxes,
     write,
 )
 
@@ -97,20 +99,34 @@ STAGE2_COLUMNS = ['case_id', 'label', 'arm', 'pair_id', 'groups', 'direction_fit
                   *[f'best_{step}_px' for step in STEPS], *[f'best_{step}_rank' for step in STEPS]]
 
 
-def fragment_masks(source: dict, frame: np.ndarray, scale: np.ndarray) -> dict[str, np.ndarray]:
-    """Keep masks over the pack's fragments for every arm (True keeps the fragment)."""
+def paint_masks(source: dict, frame: np.ndarray, scale: np.ndarray) -> dict[str, np.ndarray]:
+    """Build masks that use only line pixels and paint features."""
     fragments = np.asarray(source['segments_px'], dtype=float)
     contrast, saturation = features(profiles(frame, fragments, scale))[:, :2].T
+    paint = (contrast >= PAINT_CONTRAST) & (saturation <= PAINT_SATURATION)
+    masks = {'baseline': np.ones(len(fragments), dtype=bool), 'paint': paint}
+    for threshold in SENSITIVITY_CONTRASTS:
+        masks[f'paint{threshold:.0f}'] = (contrast >= threshold) & (saturation <= PAINT_SATURATION)
+    return masks
+
+
+def person_mask(source: dict) -> np.ndarray:
+    """Build the person exclusion mask after proving boxes describe this image."""
+    provenance = case_provenance(source['id'])
+    require_same_image_boxes(provenance)
+    fragments = np.asarray(source['segments_px'], dtype=float)
     midpoints = (fragments[:, :2] + fragments[:, 2:]) / 2
     boxes = np.asarray(source['bbox_px'], dtype=float).reshape(-1, 4)
     inside_x = (midpoints[:, None, 0] >= np.minimum(boxes[:, 0], boxes[:, 2])) & (midpoints[:, None, 0] <= np.maximum(boxes[:, 0], boxes[:, 2]))
     inside_y = (midpoints[:, None, 1] >= np.minimum(boxes[:, 1], boxes[:, 3])) & (midpoints[:, None, 1] <= np.maximum(boxes[:, 1], boxes[:, 3]))
-    outside_people = ~(inside_x & inside_y).any(axis=1)
-    paint = (contrast >= PAINT_CONTRAST) & (saturation <= PAINT_SATURATION)
-    masks = {'baseline': np.ones(len(fragments), dtype=bool), 'person': outside_people, 'paint': paint,
-             'paint_person': paint & outside_people}
-    for threshold in SENSITIVITY_CONTRASTS:
-        masks[f'paint{threshold:.0f}'] = (contrast >= threshold) & (saturation <= PAINT_SATURATION)
+    return ~(inside_x & inside_y).any(axis=1)
+
+
+def fragment_masks(source: dict, frame: np.ndarray, scale: np.ndarray) -> dict[str, np.ndarray]:
+    """Keep masks over the pack's fragments for every full replay arm."""
+    masks = paint_masks(source, frame, scale)
+    outside_people = person_mask(source)
+    masks.update({'person': outside_people, 'paint_person': masks['paint'] & outside_people})
     return masks
 
 
@@ -160,12 +176,18 @@ def load_case_inputs(case_id: str) -> tuple[dict, np.ndarray, np.ndarray, tuple[
 
 
 def write_observation_inputs_only(case_ids: list[str], inputs_dir: Path) -> None:
-    """Write paint-observation matcher inputs without reading control or diagnostic records."""
+    """Write paint-observation inputs without reading boxes or diagnostic records."""
     for case_id in case_ids:
         source, frame, _, size, saved, settings = load_case_inputs(case_id)
         scale = np.asarray([source['dimensions']['width'], source['dimensions']['height']], dtype=float) / size
-        masks = fragment_masks(source, frame, scale)
+        masks = paint_masks(source, frame, scale)
         write_inputs(inputs_dir, 'paint_observations', case_id, source, masks['paint'], saved['estimator'], settings, size)
+
+
+def preflight_person_provenance(case_ids: list[str]) -> None:
+    """Prove every full-replay case has same-image boxes before any replay work."""
+    for case_id in case_ids:
+        require_same_image_boxes(case_provenance(case_id))
 
 
 def stage_one(case_id: str, arm: str, source: dict, keep: np.ndarray, settings: vp_pruning.Settings, control: np.ndarray,
@@ -293,6 +315,7 @@ def main() -> None:
         write_observation_inputs_only(args.cases, args.inputs_dir)
         return
 
+    preflight_person_provenance(args.cases)
     args.output.mkdir(parents=True, exist_ok=True)
     stage1_rows, stage2_rows = [], []
     for case_id in args.cases:

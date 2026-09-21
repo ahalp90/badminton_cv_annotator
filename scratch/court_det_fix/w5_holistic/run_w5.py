@@ -150,6 +150,15 @@ KNOWN_CONTROLS = {
 
 class ViewAmbiguity(AssertionError):
     """A candidate identity conflict makes one view unsafe to score."""
+
+
+VISIBILITY_COLUMNS = {
+    "lengthwise": "first six projected court-template pieces (x-family): sidelines plus split centre",
+    "cross_court": "second six projected court-template pieces (y-family): baselines and service lines",
+}
+VISIBILITY_FLOOR_ARMS = ((0, 0), (3, 3), (4, 3), (5, 3))
+
+
 L2_COMPARISON_CASES = (
     "gxBQ_window_00_frame_0",
     "am2_window_00_frame_150",
@@ -173,13 +182,24 @@ def load_runtime(root: Path) -> dict[str, Any]:
     return {"verifier": load_verifier(root), **import_runtime(root)}
 
 
-def validate_min_visible_markings(value: int) -> int:
-    """Validate the explicit line-template admission floor at a run boundary."""
+def validate_visibility_floor(value: int, name: str) -> int:
+    """Validate one inclusive projected-piece floor at a run boundary."""
     if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
-        raise TypeError("min_visible_markings must be an integer")
+        raise TypeError(f"{name} must be an integer")
     if value < 0:
-        raise ValueError("min_visible_markings must be non-negative")
+        raise ValueError(f"{name} must be non-negative")
     return int(value)
+
+
+def validate_visibility_floors(
+    min_visible_lengthwise: int,
+    min_visible_cross_court: int,
+) -> tuple[int, int]:
+    """Validate both visibility columns without applying a scalar alias."""
+    return (
+        validate_visibility_floor(min_visible_lengthwise, "min_visible_lengthwise"),
+        validate_visibility_floor(min_visible_cross_court, "min_visible_cross_court"),
+    )
 
 
 def nonnegative_int(value: str) -> int:
@@ -292,7 +312,8 @@ def load_populations(
     runtime: dict[str, Any],
     *,
     include_line_template: bool = True,
-    min_visible_markings: int = 0,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
 ) -> tuple[list[dict], list[dict], list[dict], dict]:
     g0, g0_source = load_g0(root, context, runtime)
     g1, g1_source = load_g1(root, context, runtime["verifier"])
@@ -301,7 +322,8 @@ def load_populations(
             context,
             runtime,
             import_detector(),
-            min_visible_markings=min_visible_markings,
+            min_visible_lengthwise=min_visible_lengthwise,
+            min_visible_cross_court=min_visible_cross_court,
         )
         line_template = list(generated.entries)
         line_template_source = generated.metadata
@@ -378,20 +400,27 @@ def run_preflight(
     root: Path,
     run_dir: Path,
     cases: list[str] | tuple[str, ...] | None = None,
-    min_visible_markings: int = 0,
+    *,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
 ) -> dict:
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
-    min_visible_markings = validate_min_visible_markings(min_visible_markings)
+    min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     case_ids = resolve_case_ids(verifier, cases)
     regression_case_ids = list(verifier["REGRESSION_CASE_IDS"])
     results = {
-        "schema": "w5-preflight/1",
+        "schema": "w5-preflight/2",
         "status": "passed",
         "case_ids": case_ids,
         "regression_case_ids": regression_case_ids,
         "unused_case_ids": list(verifier["UNUSED_CASE_IDS"]),
-        "min_visible_markings": min_visible_markings,
+        "min_visible_lengthwise": min_visible_lengthwise,
+        "min_visible_cross_court": min_visible_cross_court,
+        "visibility_columns": dict(VISIBILITY_COLUMNS),
         "module_paths": runtime["paths"],
         "working_dimensions": {},
         "g0_source": {},
@@ -436,7 +465,8 @@ def run_preflight(
             root,
             context,
             runtime,
-            min_visible_markings=min_visible_markings,
+            min_visible_lengthwise=min_visible_lengthwise,
+            min_visible_cross_court=min_visible_cross_court,
         )
         populations[case_id] = (g0, g1, line_template, sources)
         results["line_template_source"][case_id] = sources["line_template"]
@@ -919,9 +949,19 @@ def has_source_occurrence(candidate: dict, source: str, candidate_id: str) -> bo
     )
 
 
-def process_case(root: Path, case_id: str, run_dir: Path, min_visible_markings: int = 0) -> dict:
+def process_case(
+    root: Path,
+    case_id: str,
+    run_dir: Path,
+    *,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
+) -> dict:
     cv2.setNumThreads(1)
-    min_visible_markings = validate_min_visible_markings(min_visible_markings)
+    min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
     context = verifier["prepare_view"](root, case_id)
@@ -929,7 +969,8 @@ def process_case(root: Path, case_id: str, run_dir: Path, min_visible_markings: 
         root,
         context,
         runtime,
-        min_visible_markings=min_visible_markings,
+        min_visible_lengthwise=min_visible_lengthwise,
+        min_visible_cross_court=min_visible_cross_court,
     )
     automatic_entries = g0 + g1 + line_template
     contamination_fields = []
@@ -1010,9 +1051,11 @@ def process_case(root: Path, case_id: str, run_dir: Path, min_visible_markings: 
     public_parents = [public_candidate(parent) for parent in parents]
     public_children = [public_candidate(child) for child in children]
     full_record = {
-        "schema": "w5-case-evidence/1",
+        "schema": "w5-case-evidence/2",
         "case_id": case_id,
-        "min_visible_markings": min_visible_markings,
+        "min_visible_lengthwise": min_visible_lengthwise,
+        "min_visible_cross_court": min_visible_cross_court,
+        "visibility_columns": dict(VISIBILITY_COLUMNS),
         "provenance": provenance,
         "population_sources": sources,
         "population_counts": {
@@ -1034,9 +1077,11 @@ def process_case(root: Path, case_id: str, run_dir: Path, min_visible_markings: 
     array_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(array_path, **all_arrays)
     return {
-        "schema": "w5-case-result/1",
+        "schema": "w5-case-result/2",
         "case_id": case_id,
-        "min_visible_markings": min_visible_markings,
+        "min_visible_lengthwise": min_visible_lengthwise,
+        "min_visible_cross_court": min_visible_cross_court,
+        "visibility_columns": dict(VISIBILITY_COLUMNS),
         "label": verifier["CASE_LABELS"][case_id],
         "provenance": provenance,
         "population_sources": sources,
@@ -1372,7 +1417,9 @@ def write_packet(
     verifier: dict[str, Any],
     runtime_paths: dict,
     stopped_views: list[dict] | None = None,
-    min_visible_markings: int | None = None,
+    *,
+    min_visible_lengthwise: int | None = None,
+    min_visible_cross_court: int | None = None,
 ) -> None:
     case_order = verifier.get("ALL_CASE_IDS", verifier["CASE_IDS"])
     case_results = sorted(case_results, key=lambda result: case_order.index(result["case_id"]))
@@ -1381,13 +1428,31 @@ def write_packet(
     sensitivity = write_sensitivity(root, run_dir, case_results, verifier)
     add_reference_near_candidates(root, case_results, packets, verifier)
     preflight = __import__("json").loads((run_dir / "preflight.json").read_text())
-    preflight_floor = validate_min_visible_markings(preflight["min_visible_markings"])
-    if min_visible_markings is None:
-        min_visible_markings = preflight_floor
+    preflight_lengthwise = preflight.get("min_visible_lengthwise")
+    preflight_cross_court = preflight.get("min_visible_cross_court")
+    if preflight_lengthwise is None or preflight_cross_court is None:
+        raise RuntimeError("W5 preflight does not record both directional visibility floors")
+    preflight_lengthwise, preflight_cross_court = validate_visibility_floors(
+        preflight_lengthwise,
+        preflight_cross_court,
+    )
+    if (min_visible_lengthwise is None) != (min_visible_cross_court is None):
+        raise RuntimeError("W5 pilot must provide both directional visibility floors")
+    if min_visible_lengthwise is None:
+        min_visible_lengthwise, min_visible_cross_court = (
+            preflight_lengthwise,
+            preflight_cross_court,
+        )
     else:
-        min_visible_markings = validate_min_visible_markings(min_visible_markings)
-        if min_visible_markings != preflight_floor:
-            raise RuntimeError("W5 pilot floor differs from its preflight floor")
+        min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
+            min_visible_lengthwise,
+            min_visible_cross_court,
+        )
+        if (min_visible_lengthwise, min_visible_cross_court) != (
+            preflight_lengthwise,
+            preflight_cross_court,
+        ):
+            raise RuntimeError("W5 pilot floors differ from their preflight floors")
     automatic_reference_checks = preflight["automatic_reference_fields"]
     preflight_path_free_of_reference_fields = (
         set(automatic_reference_checks) == set(preflight["case_ids"])
@@ -1451,16 +1516,20 @@ def write_packet(
         },
     }
     manifest = {
-        "schema": "w5-manifest/1",
+        "schema": "w5-manifest/2",
         "run_id": run_dir.name,
         "cases": [result["case_id"] for result in case_results],
         "requested_cases": preflight["case_ids"],
-        "min_visible_markings": min_visible_markings,
+        "min_visible_lengthwise": min_visible_lengthwise,
+        "min_visible_cross_court": min_visible_cross_court,
+        "visibility_columns": dict(VISIBILITY_COLUMNS),
         "stopped_views": stopped_views,
         "global_parameters": {
             "working_size": list(verifier["WORKING_SIZE"]),
             "camera_limit": verifier["CAMERA_LIMIT"],
-            "min_visible_markings": min_visible_markings,
+            "min_visible_lengthwise": min_visible_lengthwise,
+            "min_visible_cross_court": min_visible_cross_court,
+            "visibility_columns": dict(VISIBILITY_COLUMNS),
             "camera_error_limit_historical": verifier["CAMERA_LIMIT"],
             "physical_centres": "paint_geometry.CENTRE_SEGMENTS_M",
             "photometric_offsets_working_px": verifier["PHOTO_CENTRE_OFFSETS_PX"].tolist(),
@@ -1486,7 +1555,9 @@ def write_packet(
             for result in case_results
         },
         "line_template_admission": {
-            "min_visible_markings": min_visible_markings,
+            "min_visible_lengthwise": min_visible_lengthwise,
+            "min_visible_cross_court": min_visible_cross_court,
+            "visibility_columns": dict(VISIBILITY_COLUMNS),
             "cases": {
                 result["case_id"]: result["population_sources"].get("line_template", {}).get(
                     "generation", {}
@@ -1508,6 +1579,7 @@ def write_packet(
     per_view_fields = [
         "case_id", "label", "view_status", "g0_source", "working_width", "working_height", "image_kind",
         "same_image_mask_available", "G0_count", "G1_count", "line_template_count", "canonical_parent_count",
+        "min_visible_lengthwise", "min_visible_cross_court",
         "raw_id_collision_count", "duplicate_group_count", "A_line", "A_paint", "A_eligible_count",
         "B_status", "B_selected", "B_r1_selected", "B_r2_selected", "B_pilot_selected",
         "C_status", "C_selected", "C_r1_selected", "C_r2_selected", "C_pilot_selected",
@@ -1526,6 +1598,8 @@ def write_packet(
                 "image_kind": provenance["image_kind"], "same_image_mask_available": provenance["same_image_mask_available"],
                 "G0_count": result["population_counts"]["G0"], "G1_count": result["population_counts"]["G1"],
                 "line_template_count": result["population_counts"]["line_template"],
+                "min_visible_lengthwise": min_visible_lengthwise,
+                "min_visible_cross_court": min_visible_cross_court,
                 "canonical_parent_count": result["identity_resolution"]["canonical_parent_count"],
                 "raw_id_collision_count": result["identity_resolution"]["raw_id_collision_count"],
                 "duplicate_group_count": result["identity_resolution"]["duplicate_group_count"],
@@ -1559,7 +1633,15 @@ def write_packet(
         '{"schema":"w5-visual-rulings/1","status":"pending_review","rulings":[]}\n'
     )
     write_fit_attempts(run_dir / "fit_attempts.csv.gz", case_results)
-    write_result(run_dir / "result.md", case_results, sensitivity, refs, stopped_views)
+    write_result(
+        run_dir / "result.md",
+        case_results,
+        sensitivity,
+        refs,
+        stopped_views,
+        min_visible_lengthwise=min_visible_lengthwise,
+        min_visible_cross_court=min_visible_cross_court,
+    )
 
 
 def write_result(
@@ -1568,7 +1650,14 @@ def write_result(
     sensitivity: dict,
     references: dict,
     stopped_views: list[dict] | None = None,
+    *,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
 ) -> None:
+    min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     stopped_views = stopped_views or []
     controls = [
         (result["label"], control)
@@ -1607,6 +1696,19 @@ def write_result(
             "candidates. The automatic pool includes the cached-fragment `line_template` source. The JSON and CSV "
             "retain `A`, `B` and `C` as historical field names."
         ),
+        "",
+        "## Line-template admission",
+        "",
+        (
+            f"The inclusive projected court-template piece floors are "
+            f"`min_visible_lengthwise={min_visible_lengthwise}` and "
+            f"`min_visible_cross_court={min_visible_cross_court}`. "
+            f"Lengthwise covers the first six template pieces ({VISIBILITY_COLUMNS['lengthwise']}); "
+            f"cross-court covers the second six ({VISIBILITY_COLUMNS['cross_court']}). "
+            "The filter runs before score ordering, diversity and the 256-entry cap, "
+            "so later supported hypotheses can refill the pool."
+        ),
+        "Cross-court visibility partly reflects camera framing: head-height, cropped or even overhead footage can omit horizontal baselines or service lines. Those pieces still contribute to the support score whenever they are present.",
         "",
         "## Completed views",
         "",
@@ -1794,9 +1896,14 @@ def run_pilot(
     run_dir: Path,
     cases: list[str],
     workers: int,
-    min_visible_markings: int = 0,
+    *,
+    min_visible_lengthwise: int = 0,
+    min_visible_cross_court: int = 0,
 ) -> list[dict]:
-    min_visible_markings = validate_min_visible_markings(min_visible_markings)
+    min_visible_lengthwise, min_visible_cross_court = validate_visibility_floors(
+        min_visible_lengthwise,
+        min_visible_cross_court,
+    )
     runtime = load_runtime(root)
     verifier = runtime["verifier"]
     cases = resolve_case_ids(verifier, cases)
@@ -1817,18 +1924,30 @@ def run_pilot(
         raise RuntimeError(
             f"W5 pilot cases do not match preflight order: pilot={cases}, preflight={preflight_cases}"
         )
-    preflight_floor = preflight.get("min_visible_markings")
-    if preflight_floor is None or validate_min_visible_markings(preflight_floor) != min_visible_markings:
+    preflight_lengthwise = preflight.get("min_visible_lengthwise")
+    preflight_cross_court = preflight.get("min_visible_cross_court")
+    if preflight_lengthwise is None or preflight_cross_court is None:
+        raise RuntimeError("W5 preflight does not record both directional visibility floors")
+    preflight_floors = validate_visibility_floors(preflight_lengthwise, preflight_cross_court)
+    if preflight_floors != (min_visible_lengthwise, min_visible_cross_court):
         raise RuntimeError(
-            "W5 pilot floor is not covered by preflight: "
-            f"pilot={min_visible_markings}, preflight={preflight_floor}"
+            "W5 pilot floors are not covered by preflight: "
+            f"pilot={(min_visible_lengthwise, min_visible_cross_court)}, "
+            f"preflight={preflight_floors}"
         )
     workers = max(1, min(int(workers), 10, len(cases)))
     os.environ["W5_WORKERS"] = str(workers)
     print(f"W5 pilot cases={cases} workers={workers}", flush=True)
     with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = [
-            pool.submit(process_case, root, case_id, run_dir, min_visible_markings)
+            pool.submit(
+                process_case,
+                root,
+                case_id,
+                run_dir,
+                min_visible_lengthwise=min_visible_lengthwise,
+                min_visible_cross_court=min_visible_cross_court,
+            )
             for case_id in cases
         ]
         results = []
@@ -1850,7 +1969,8 @@ def run_pilot(
         verifier,
         runtime["paths"],
         stopped_views,
-        min_visible_markings,
+        min_visible_lengthwise=min_visible_lengthwise,
+        min_visible_cross_court=min_visible_cross_court,
     )
     return results
 
@@ -1861,7 +1981,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run", required=True)
     parser.add_argument("--stage", choices=("preflight", "pilot"), required=True)
     parser.add_argument("--cases", nargs="+", default=None)
-    parser.add_argument("--min-visible-markings", type=nonnegative_int, default=0)
+    parser.add_argument("--min-visible-lengthwise", type=nonnegative_int, default=0)
+    parser.add_argument("--min-visible-cross-court", type=nonnegative_int, default=0)
     parser.add_argument("--workers", type=int, default=6)
     return parser.parse_args()
 
@@ -1874,10 +1995,23 @@ def main() -> None:
     verifier = load_verifier(root)
     cases = resolve_case_ids(verifier, args.cases)
     if args.stage == "preflight":
-        run_preflight(root, run_dir, cases, args.min_visible_markings)
+        run_preflight(
+            root,
+            run_dir,
+            cases,
+            min_visible_lengthwise=args.min_visible_lengthwise,
+            min_visible_cross_court=args.min_visible_cross_court,
+        )
         print("W5 preflight passed", flush=True)
         return
-    run_pilot(root, run_dir, cases, args.workers, args.min_visible_markings)
+    run_pilot(
+        root,
+        run_dir,
+        cases,
+        args.workers,
+        min_visible_lengthwise=args.min_visible_lengthwise,
+        min_visible_cross_court=args.min_visible_cross_court,
+    )
     print("W5 pilot packet written", run_dir, flush=True)
 
 
