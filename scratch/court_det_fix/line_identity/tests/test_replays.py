@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -89,6 +91,39 @@ def mocked_filter_replay(monkeypatch, tmp_path: Path, case_id: str = 'mock_case'
     monkeypatch.setattr(filter_replay, 'case_provenance', lambda _case_id: object())
     monkeypatch.setattr(filter_replay, 'require_same_image_boxes', lambda record: record)
     return filter_replay, case_id, saved, gate_calls, mask_calls, source
+
+
+def write_exact_detection_packet(tmp_path: Path, repair_inputs, gx_md5: str) -> Path:
+    """Write a small packet with the shared detector contract and all six case records."""
+    packet = {
+        'schema': repair_inputs.DETECTION_SCHEMA,
+        'model': {
+            'basename': repair_inputs.RTMDET_M_BASENAME,
+            'score_cutoff': repair_inputs.SCORE_CUTOFF,
+            'score_rule': 'strict_gt',
+        },
+        'coordinate_order': 'xyxy',
+        'cases': {},
+    }
+    for case_id in repair_inputs.DETECTION_CASE_IDS:
+        frame_index, image, width, height = repair_inputs.DETECTION_METADATA[case_id]
+        packet['cases'][case_id] = {
+            'frame_index': frame_index,
+            'image': image,
+            'image_md5': gx_md5 if case_id == repair_inputs.GX5_CASE_ID else '0' * 32,
+            'dimensions': {'width': width, 'height': height},
+            'bboxes': [[1., 1., 3., 3.]],
+            'scores': [0.3],
+        }
+    path = tmp_path / 'detections.json'
+    path.write_text(json.dumps(packet))
+    return path
+
+
+def write_repair_detection_packet(tmp_path: Path, repair_inputs) -> Path:
+    source = repair_inputs.load_source(repair_inputs.GX5_CASE_ID)
+    return write_exact_detection_packet(tmp_path, repair_inputs,
+                                        repair_inputs.file_md5(repair_inputs.frame_path(source)))
 
 
 def install_normal_route_stubs(monkeypatch, filter_replay, saved):
@@ -293,6 +328,313 @@ def test_account_quarantines_person_arms_before_measurement(monkeypatch):
     checked.clear()
     account.preflight_person_inputs(['unsafe'], ['paint'])
     assert checked == []
+
+
+@pytest.mark.parametrize('field, value', [
+    ('case_id', 'other'),
+    ('arm', 'paint'),
+    ('stage', 'camera_first'),
+    ('run', 'other-run'),
+])
+def test_account_checks_record_identity_before_hashes(monkeypatch, field, value, tmp_path):
+    import account
+
+    record = {
+        'case_id': 'case',
+        'arm': 'person_observations',
+        'stage': 'results',
+        'run': 'run',
+        'input_case_md5': 'unused',
+        'input_estimator_md5': 'unused',
+    }
+    record[field] = value
+    monkeypatch.setattr(account, 'md5', lambda _path: (_ for _ in ()).throw(AssertionError('hashed too early')))
+    with pytest.raises(ValueError, match=f'{field} does not match'):
+        account.gate_inputs(
+            'case', 'person_observations', {}, record, tmp_path,
+            expected_stage='results', expected_run='run')
+
+
+def account_gate_fixture(monkeypatch, tmp_path):
+    import account
+
+    source = {'id': 'case', 'frozen': 'source', 'segments_px': [[0., 0., 4., 0.]]}
+    filtered = dict(source)
+    written = {
+        'kept_fragment_ids': [0],
+        'estimator': {'directions': 'saved'},
+        'settings': {'threshold': 1},
+    }
+    saved = {'estimator': {'directions': 'saved'}, 'settings': {'threshold': 1}}
+    record = {
+        'case_id': 'case',
+        'arm': 'person_observations',
+        'input_case_md5': 'case-hash',
+        'input_estimator_md5': 'estimator-hash',
+        'fragments_kept': 1,
+        'fragments_total': 1,
+    }
+    monkeypatch.setattr(account, 'md5', lambda path: 'case-hash' if path.parent.name == 'cases' else 'estimator-hash')
+    monkeypatch.setattr(account, 'read', lambda path: filtered if path.parent.name == 'cases' else written)
+    monkeypatch.setattr(account, 'load_estimator', lambda _case_id: saved)
+    return account, source, filtered, written, record
+
+
+def test_account_hash_gate_raises_explicitly(monkeypatch, tmp_path):
+    account, source, _, _, record = account_gate_fixture(monkeypatch, tmp_path)
+    record['input_case_md5'] = 'tampered'
+    with pytest.raises(ValueError, match='case input changed'):
+        account.gate_inputs('case', 'person_observations', source, record, tmp_path)
+
+
+def test_account_source_gate_raises_explicitly(monkeypatch, tmp_path):
+    account, source, filtered, _, record = account_gate_fixture(monkeypatch, tmp_path)
+    filtered['frozen'] = 'tampered'
+    with pytest.raises(ValueError, match='case fields differ'):
+        account.gate_inputs('case', 'person_observations', source, record, tmp_path)
+
+
+def test_account_segment_gate_raises_explicitly(monkeypatch, tmp_path):
+    account, source, filtered, _, record = account_gate_fixture(monkeypatch, tmp_path)
+    filtered['segments_px'] = [[1., 0., 4., 0.]]
+    with pytest.raises(ValueError, match='kept fragments differ'):
+        account.gate_inputs('case', 'person_observations', source, record, tmp_path)
+
+
+def test_account_saved_estimator_gate_raises_explicitly(monkeypatch, tmp_path):
+    account, source, _, written, record = account_gate_fixture(monkeypatch, tmp_path)
+    written['estimator'] = {'directions': 'tampered'}
+    with pytest.raises(ValueError, match='baseline directions changed'):
+        account.gate_inputs('case', 'person_observations', source, record, tmp_path)
+
+
+def test_repair_mask_uses_inclusive_two_of_three_boxes_and_deduplicates():
+    import repair_inputs
+
+    frame_boxes = [
+        np.array([[0., 0., 4., 4.], [10., 10., 12., 12.]]),
+        np.array([[4., 1., 8., 5.], [10., 10., 12., 12.]]),
+        np.array([[1., 1., 3., 3.], [10., 10., 12., 12.]]),
+    ]
+    boxes = repair_inputs.inclusive_pairwise_intersections(frame_boxes)
+    np.testing.assert_array_equal(boxes, [[1., 1., 3., 3.], [4., 1., 4., 4.], [10., 10., 12., 12.]])
+
+
+def test_repair_score_cut_is_strictly_above_point_two():
+    import repair_inputs
+
+    boxes = [[0., 0., 1., 1.], [2., 2., 3., 3.], [4., 4., 5., 5.]]
+    selected = repair_inputs.eligible_boxes(boxes, [0.2, 0.2000001, 0.1])
+    np.testing.assert_array_equal(selected, [[2., 2., 3., 3.]])
+
+
+def test_repair_exact_frame_requires_native_identity_and_frozen_image_hash(monkeypatch, tmp_path):
+    import repair_inputs
+
+    assert len(repair_inputs.DETECTION_CASE_IDS) == 6
+    assert repair_inputs.DETECTION_CASE_IDS[-1] == 'am4_window_00_frame_319'
+    image = tmp_path / 'gxBQ_window_00_frame_00000005.png'
+    image.write_bytes(b'frozen image')
+    image_md5 = hashlib.md5(image.read_bytes()).hexdigest()
+    source = {
+        'id': 'gxBQ_window_00_frame_5',
+        'image': 'images/gxBQ_window_00_frame_00000005.png',
+        'dimensions': {'width': 1920, 'height': 1080},
+        'provenance': {'anchor_frame_index': 5, 'line_image_file_md5': image_md5},
+    }
+    path = write_exact_detection_packet(tmp_path, repair_inputs, image_md5)
+    detections = json.loads(path.read_text())
+    monkeypatch.setattr(repair_inputs, 'frame_path', lambda _source: image)
+    evidence = repair_inputs.exact_frame_evidence(source, path)
+    assert evidence['frame_index'] == 5
+    detections['cases']['gxBQ_window_00_frame_5']['frame_index'] = 6
+    path.write_text(json.dumps(detections))
+    with pytest.raises(ValueError, match='expected 5'):
+        repair_inputs.exact_frame_evidence(source, path)
+
+
+@pytest.mark.parametrize('mutation, match', [
+    ('frame', 'expected 5'),
+    ('image', 'expected'),
+    ('md5', 'hexadecimal'),
+    ('dimensions', 'expected 1920x1080'),
+    ('boxes', 'image coordinates'),
+    ('scores', 'between zero and one'),
+])
+def test_repair_detector_packet_pins_all_canonical_metadata(tmp_path, mutation, match):
+    import repair_inputs
+
+    path = write_exact_detection_packet(tmp_path, repair_inputs, 'a' * 32)
+    packet = json.loads(path.read_text())
+    record = packet['cases'][repair_inputs.GX5_CASE_ID]
+    if mutation == 'frame':
+        record['frame_index'] = 6
+    elif mutation == 'image':
+        record['image'] = 'wrong.png'
+    elif mutation == 'md5':
+        record['image_md5'] = 'z' * 32
+    elif mutation == 'dimensions':
+        record['dimensions']['width'] = 1280
+    elif mutation == 'boxes':
+        record['bboxes'] = [[-2., 1., 3., 3.]]
+    elif mutation == 'scores':
+        record['scores'] = [1.1]
+    path.write_text(json.dumps(packet))
+    with pytest.raises(ValueError, match=match):
+        repair_inputs._case_detection(packet, repair_inputs.GX5_CASE_ID)
+
+    if mutation == 'frame':
+        del packet['cases'][repair_inputs.DETECTION_CASE_IDS[-1]]
+        with pytest.raises(ValueError, match='must contain exactly'):
+            repair_inputs._case_detection(packet, repair_inputs.GX5_CASE_ID)
+
+
+def test_repair_manifest_rejects_another_arm(tmp_path):
+    import repair_inputs
+
+    path = tmp_path / 'manifest.json.gz'
+    from shared import write
+
+    write(path, {'schema': repair_inputs.SCHEMA, 'arm': 'paint', 'cases': []})
+    with pytest.raises(ValueError, match='only valid for person_observations'):
+        repair_inputs.load_manifest(path)
+
+
+def test_repair_matcher_preflights_the_whole_batch_before_zone_import(monkeypatch):
+    from shared import add_helper_paths
+
+    add_helper_paths()
+    import run_matcher
+
+    calls = []
+    monkeypatch.setattr(run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
+    monkeypatch.setattr(run_matcher.repair_inputs, 'validate_repair_inputs',
+                        lambda ids, inputs, manifest: calls.append((ids, inputs, manifest)))
+    monkeypatch.setattr(
+        run_matcher.importlib,
+        'import_module',
+        lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before repair preflight')),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'run_matcher.py', '--run', 'test', '--arm', 'person_observations',
+        '--ids', 'first', 'second', '--inputs-dir', str(Path('/tmp/repair-inputs')),
+        '--repair-manifest', '/tmp/repair-manifest.json.gz',
+    ])
+    with pytest.raises(AssertionError, match='zone imported'):
+        run_matcher.main()
+    assert calls == [(['first', 'second'], Path('/tmp/repair-inputs'), {'manifest': True})]
+
+
+def test_repair_matcher_rejects_existing_stage_before_zone_import(monkeypatch, tmp_path):
+    from shared import add_helper_paths
+
+    add_helper_paths()
+    import run_matcher
+
+    output = tmp_path / 'runs' / 'test'
+    existing = output / 'matcher' / 'person_observations' / 'results' / 'first.json.gz'
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(b'old result')
+    monkeypatch.setattr(run_matcher, 'HERE', tmp_path)
+    monkeypatch.setattr(run_matcher.repair_inputs, 'load_manifest', lambda _path: {'manifest': True})
+    monkeypatch.setattr(run_matcher.repair_inputs, 'validate_repair_inputs', lambda *_args: None)
+    monkeypatch.setattr(
+        run_matcher.importlib,
+        'import_module',
+        lambda _name: (_ for _ in ()).throw(AssertionError('zone imported before output preflight')),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'run_matcher.py', '--run', 'test', '--arm', 'person_observations', '--ids', 'first', 'second',
+        '--inputs-dir', str(tmp_path / 'inputs'), '--repair-manifest', str(tmp_path / 'manifest.json.gz'),
+    ])
+    with pytest.raises(FileExistsError, match='repair output paths already exist'):
+        run_matcher.main()
+
+
+def test_repair_validation_rejects_tampered_fragments_and_manifest(monkeypatch, tmp_path):
+    import repair_inputs
+
+    from shared import read, write
+
+    monkeypatch.setattr(repair_inputs, '_gate_saved_estimator', lambda _source, _saved: None)
+    inputs = tmp_path / 'inputs'
+    manifest_path = tmp_path / 'manifest.json.gz'
+    detections_path = write_repair_detection_packet(tmp_path, repair_inputs)
+    manifest = repair_inputs.build_repair_inputs(
+        inputs, manifest_path, repair_inputs.REPAIR_CASE_IDS, detections_path)
+    repair_inputs.validate_repair_inputs(repair_inputs.REPAIR_CASE_IDS, inputs, manifest)
+
+    case_id = 'shuttleset_03_scene_0016'
+    case_path = inputs / repair_inputs.ARM / 'cases' / f'{case_id}.json.gz'
+    case = read(case_path)
+    case['segments_px'][0][0] += 1.
+    write(case_path, case)
+    with pytest.raises(ValueError, match='filtered fragments'):
+        repair_inputs.validate_repair_inputs([case_id], inputs, manifest)
+
+    # Restore the input and tamper with the manifest itself.
+    source = repair_inputs.load_source(case_id)
+    entry = next(entry for entry in manifest['cases'] if entry['case_id'] == case_id)
+    case['segments_px'][0] = source['segments_px'][entry['kept_fragment_ids'][0]]
+    write(case_path, case)
+    entry['kept_fragment_ids'] = [999]
+    with pytest.raises(ValueError, match='kept IDs'):
+        repair_inputs.validate_repair_inputs([case_id], inputs, manifest)
+
+
+def test_repair_builder_requires_the_fixed_case_allowlist(tmp_path):
+    import repair_inputs
+
+    with pytest.raises(ValueError, match='exactly the five-case repair allowlist'):
+        repair_inputs.build_repair_inputs(
+            tmp_path / 'inputs', tmp_path / 'manifest.json.gz', ['shuttleset_03_scene_0016'])
+
+
+def test_repair_builder_requires_fresh_targets(monkeypatch, tmp_path):
+    import repair_inputs
+
+    monkeypatch.setattr(repair_inputs, '_gate_saved_estimator', lambda _source, _saved: None)
+    with pytest.raises(ValueError, match='outside historical'):
+        repair_inputs.build_repair_inputs(
+            repair_inputs.HISTORICAL_INPUTS / 'new', tmp_path / 'manifest.json.gz',
+            repair_inputs.REPAIR_CASE_IDS)
+    with pytest.raises(ValueError, match='outside historical'):
+        repair_inputs.build_repair_inputs(
+            tmp_path / 'inputs', repair_inputs.HISTORICAL_INPUTS / 'manifest.json.gz',
+            repair_inputs.REPAIR_CASE_IDS)
+
+    target = tmp_path / 'inputs'
+    (target / repair_inputs.ARM).mkdir(parents=True)
+    with pytest.raises(FileExistsError, match='arm directory already exists'):
+        repair_inputs.build_repair_inputs(target, tmp_path / 'manifest.json.gz', repair_inputs.REPAIR_CASE_IDS)
+
+    (target / repair_inputs.ARM).rmdir()
+    manifest_path = tmp_path / 'manifest.json.gz'
+    manifest_path.write_bytes(b'old')
+    with pytest.raises(FileExistsError, match='manifest already exists'):
+        repair_inputs.build_repair_inputs(target, manifest_path, repair_inputs.REPAIR_CASE_IDS)
+
+
+def test_repair_builder_derives_all_cases_before_writing(monkeypatch, tmp_path):
+    import repair_inputs
+
+    def fail_on_second(source, _saved):
+        if source['id'] == 'shuttleset_03_scene_0017':
+            raise RuntimeError('synthetic derivation failure')
+
+    monkeypatch.setattr(repair_inputs, '_gate_saved_estimator', fail_on_second)
+    inputs = tmp_path / 'inputs'
+    manifest_path = tmp_path / 'manifest.json.gz'
+    detections_path = write_repair_detection_packet(tmp_path, repair_inputs)
+    with pytest.raises(RuntimeError, match='synthetic derivation failure'):
+        repair_inputs.build_repair_inputs(inputs, manifest_path, repair_inputs.REPAIR_CASE_IDS, detections_path)
+    assert not (inputs / repair_inputs.ARM).exists()
+    assert not manifest_path.exists()
+
+    # A partial arm directory from an interrupted write cannot be reused.
+    (inputs / repair_inputs.ARM).mkdir(parents=True)
+    with pytest.raises(FileExistsError, match='arm directory already exists'):
+        repair_inputs.build_repair_inputs(inputs, manifest_path, repair_inputs.REPAIR_CASE_IDS, detections_path)
 
 
 def random_basis(seed: int) -> np.ndarray:

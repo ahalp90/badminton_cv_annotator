@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import repair_inputs
 
 from shared import (
     CASE_IDS,
@@ -57,8 +58,20 @@ HERE = Path(__file__).resolve().parent
 PERSON_BOX_ARMS = frozenset({'person', 'person_observations', 'paint_person'})
 
 
-def preflight_person_inputs(case_ids: list[str], arms: list[str]) -> None:
-    """Reject old person-filtered artefacts before loading or measuring records."""
+def preflight_person_inputs(
+    case_ids: list[str],
+    arms: list[str],
+    inputs_dir: Path | None = None,
+    repair_manifest: dict | None = None,
+) -> None:
+    """Reject unsafe person artefacts before loading or measuring records."""
+    if repair_manifest is not None:
+        if set(arms) != {repair_inputs.ARM}:
+            raise ValueError(f'--repair-manifest is only valid for {repair_inputs.ARM}')
+        if inputs_dir is None:
+            raise ValueError('--repair-manifest requires --inputs-dir')
+        repair_inputs.validate_repair_inputs(case_ids, inputs_dir, repair_manifest)
+        return
     if not PERSON_BOX_ARMS.intersection(arms):
         return
     for case_id in case_ids:
@@ -91,26 +104,60 @@ def md5(path: Path) -> str:
     return digest.hexdigest()
 
 
-def gate_inputs(case_id: str, arm: str, source: dict, record: dict) -> None:
+def gate_inputs(
+    case_id: str,
+    arm: str,
+    source: dict,
+    record: dict,
+    inputs_dir: Path | None = None,
+    repair_manifest: dict | None = None,
+    expected_stage: str | None = None,
+    expected_run: str | None = None,
+) -> None:
     """The record must come from this folder's inputs, and those inputs must differ from the pack only as stated."""
-    case_path = HERE / 'inputs' / arm / 'cases' / f'{case_id}.json.gz'
-    estimator_path = HERE / 'inputs' / arm / 'estimators' / f'{case_id}.json.gz'
-    assert record['input_case_md5'] == md5(case_path), (case_id, arm, 'case input changed since the run')
-    assert record['input_estimator_md5'] == md5(estimator_path), (case_id, arm, 'direction input changed since the run')
+    expected = {'case_id': case_id, 'arm': arm, 'stage': expected_stage, 'run': expected_run}
+    for field, value in expected.items():
+        if value is not None and record.get(field) != value:
+            raise ValueError(f'{field} does not match the requested record: {record.get(field)!r} != {value!r}')
+    inputs_dir = HERE / 'inputs' if inputs_dir is None else inputs_dir
+    if repair_manifest is not None:
+        if arm != repair_inputs.ARM:
+            raise ValueError(f'--repair-manifest is only valid for {repair_inputs.ARM}')
+        repair_inputs.validate_repair_case(case_id, inputs_dir, repair_manifest)
+    case_path = inputs_dir / arm / 'cases' / f'{case_id}.json.gz'
+    estimator_path = inputs_dir / arm / 'estimators' / f'{case_id}.json.gz'
+    if record.get('input_case_md5') != md5(case_path):
+        raise ValueError(f'{case_id} {arm}: case input changed since the run')
+    if record.get('input_estimator_md5') != md5(estimator_path):
+        raise ValueError(f'{case_id} {arm}: direction input changed since the run')
     filtered, written = read(case_path), read(estimator_path)
-    assert all(filtered[key] == source[key] for key in source if key != 'segments_px'), (case_id, arm, 'case fields differ')
-    kept = written['kept_fragment_ids']
-    assert filtered['segments_px'] == [source['segments_px'][index] for index in kept], (case_id, arm, 'kept fragments differ')
-    assert len(kept) == record['fragments_kept'] <= len(source['segments_px']) == record['fragments_total']
+    if any(filtered.get(key) != source[key] for key in source if key != 'segments_px'):
+        raise ValueError(f'{case_id} {arm}: case fields differ')
+    try:
+        kept = written['kept_fragment_ids']
+    except KeyError as error:
+        raise ValueError(f'{case_id} {arm}: kept fragment IDs are missing') from error
+    expected_segments = [source['segments_px'][index] for index in kept]
+    if filtered.get('segments_px') != expected_segments:
+        raise ValueError(f'{case_id} {arm}: kept fragments differ')
+    if not (len(kept) == record.get('fragments_kept') <= len(source['segments_px'])
+            == record.get('fragments_total')):
+        raise ValueError(f'{case_id} {arm}: fragment counts differ')
     saved = load_estimator(case_id)
     if arm.endswith('_observations'):
-        assert written['estimator'] == saved['estimator'] and written['settings'] == saved['settings'], (case_id, 'baseline directions changed')
+        if (written.get('estimator') != saved['estimator']
+                or written.get('settings') != saved['settings']):
+            raise ValueError(f'{case_id}: baseline directions changed')
     else:
         # Own-direction arms: the unchanged selection on the filtered fragments must reproduce the written directions.
         segments, _, size = prepare(filtered)
         _, replayed = vp_pruning.estimate(segments, size, vp_pruning.Settings(**saved['settings']))
-        assert replayed['retained_candidate_ids'] == written['estimator']['retained_candidate_ids'], (case_id, arm, 'directions differ')
-        np.testing.assert_allclose(replayed['points_working'], written['estimator']['points_working'], rtol=0, atol=1e-12)
+        if replayed['retained_candidate_ids'] != written['estimator']['retained_candidate_ids']:
+            raise ValueError(f'{case_id} {arm}: directions differ')
+        try:
+            np.testing.assert_allclose(replayed['points_working'], written['estimator']['points_working'], rtol=0, atol=1e-12)
+        except AssertionError as error:
+            raise ValueError(f'{case_id} {arm}: direction points differ') from error
 
 
 def number(value) -> str:
@@ -124,8 +171,13 @@ def main() -> None:
     parser.add_argument('--run', required=True)
     parser.add_argument('--arms', nargs='+', required=True)
     parser.add_argument('--cases', nargs='+', default=list(CASE_IDS))
+    parser.add_argument('--inputs-dir', type=Path, default=HERE / 'inputs')
+    parser.add_argument('--repair-manifest', type=Path)
     args = parser.parse_args()
-    preflight_person_inputs(args.cases, args.arms)
+    if args.repair_manifest is not None and set(args.arms) != {repair_inputs.ARM}:
+        parser.error(f'--repair-manifest is only valid for {repair_inputs.ARM}')
+    repair_manifest = None if args.repair_manifest is None else repair_inputs.load_manifest(args.repair_manifest)
+    preflight_person_inputs(args.cases, args.arms, args.inputs_dir, repair_manifest)
     matrix = direction_experiment_module('diagnose_matrix')
     run_dir = HERE / 'runs' / args.run / 'matcher'
     baseline = baseline_rows()
@@ -147,7 +199,8 @@ def main() -> None:
                     missing.append((case_id, arm, stage))
                     continue
                 record = read(path)
-                gate_inputs(case_id, arm, source, record)
+                gate_inputs(case_id, arm, source, record, args.inputs_dir, repair_manifest,
+                            expected_stage=stage, expected_run=args.run)
                 diagnosis = diagnose(source, reference, record, given)
                 row = matrix.accounting(case_id, arm, stage, record, diagnosis, control)
                 rows.append(row)
