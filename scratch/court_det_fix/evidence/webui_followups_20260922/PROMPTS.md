@@ -1,6 +1,6 @@
 > Original WebUI task packet, moved from `court_det_fix/WEBUI_FOLLOWUPS.md`.
 > Tasks 1/2 have a verified local replay. [SVD returns](../webui_followup3_20260922/README.md)
-> are filed but unreviewed. Historical launch instructions below are preserved;
+> have a critical assessment and cached local replay. Historical instructions below are preserved;
 > [pickup](../../pickup.md) owns the next actions.
 
 # Useful WebUI follow-ups

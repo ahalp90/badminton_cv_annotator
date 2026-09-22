@@ -12,7 +12,7 @@ experiments, not successive versions of a deployable detector.
 | Resume practical work and choose the next test | [pickup.md](pickup.md) |
 | Send WebUI the fitting-objective reasoning task | [Objective-audit prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
 | Read the completed four-part comparison | [evaluation_results_20260922.md](archive/20260922/evaluation_results_20260922.md) |
-| Find the unreviewed SVD return packages | [Task 3 and accompanying evaluation archive](evidence/webui_followup3_20260922/README.md) |
+| Read the SVD return assessment and locate its packages | [Critical assessment](evidence/webui_followup3_20260922/ASSESSMENT.md); [packages](evidence/webui_followup3_20260922/README.md) |
 | Read the returned far-end and sparse-frame follow-ups | [WebUI tasks 1 and 2](evidence/webui_followups_20260922/README.md) |
 | Judge the results myself using only GitHub | [Raw review packet](evidence/review_20260922/README.md) |
 | Find execution details or check results | [Evaluation worklog](archive/20260922/evaluation_20260922.md); older records are in local-only `worklog/` |

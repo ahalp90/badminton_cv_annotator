@@ -1,10 +1,11 @@
 # Court-detector pickup
 
 Resume here. This is the only current handover; the linked records supply detail
-when a specific question needs it. Session closed on 22 September 2026 after the
-seven-case paint-side test. The next task is to explain the remaining SS03-34
-inset with fixed-data diagnostics, then decide whether one fitting change is
-justified. Start with this file and [the polarity result](edge_polarity/README.md).
+when a specific question needs it. Session closed on 23 September 2026 after
+a critical read and cached replay of both SVD returns. The next task is to
+explain the remaining SS03-34 inset with fixed-data diagnostics, then decide
+whether one fitting change is justified. Start with this file and
+[the polarity result](edge_polarity/README.md).
 Then assess SVD/search coverage before further selection experiments. Do not
 restart the wider evaluation.
 
@@ -36,9 +37,10 @@ runtime and its acceptance/fallback behaviour are not integrated yet.
 - WebUI follow-ups 1 and 2 reproduce locally. Task 1 supplies fixed-candidate
   ranking counterexamples: lower overall landmark error can hide worse far-end
   clipping. Task 2 shows a wall selection surviving three samples. Neither
-  return has produced an integrated detector change. The **two SVD return archives**
-  are [filed for follow-up](evidence/webui_followup3_20260922/README.md), unopened
-  beyond member listings. Their claims, code and outputs remain unreviewed
+  return has produced an integrated detector change. Both SVD packages now have
+  a [critical assessment and local replay](evidence/webui_followup3_20260922/ASSESSMENT.md).
+  Their 12-family screen preserves all nine best cached reference-fit pairs;
+  automatic candidate retention and actual speed remain untested
 
 ## Run next: account for the remaining fit error
 
@@ -65,8 +67,8 @@ Keep SS03-29 as an improvement case, SS03-19 as a contrary case, and
    contrary result instead of tuning until its score improves
 
 Finish with an explained residual and one supported candidate change, or a
-clear reason to leave fitting unchanged and proceed to the SVD assessment. No fixed
-corner offsets. No new full search or large gallery is needed for this step.
+clear reason to leave fitting unchanged and proceed to the SVD candidate check.
+No fixed corner offsets. No new full search or large gallery is needed here.
 
 The [WebUI objective-audit prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) is
 ready to paste into a fresh WebUI session. It asks for independent reasoning,
@@ -75,7 +77,8 @@ test. It has not been launched. The local coordinator checks any returned claims
 
 ## Immediately after fitting: SVD and search coverage
 
-Read and validate the two SVD returns before tuning selection further. Cheaper
+The two SVD returns have been critically read and their cached calculations
+reproduced. Read the assessment before tuning selection further. Cheaper
 search could support a broader meaningful candidate pool at the same cost and
 shorten later evaluations. The commissioned screen ranks line families by SVD
 residual and prunes some; this is narrower than that broader opportunity.
@@ -92,7 +95,7 @@ removal of unused diagnostics can join this step with output-equality checks.
 | Lead | Evidence and bounded question |
 | --- | --- |
 | Remaining width/edge bias | [Polarity test](edge_polarity/README.md): partial correction only. Which residuals resist the preferred geometry? |
-| SVD and search coverage | [Unreviewed returns](evidence/webui_followup3_20260922/README.md): assess immediately after fitting. Check useful-candidate retention and actual work saved, then broader search at equal cost |
+| SVD and search coverage | [Critical assessment](evidence/webui_followup3_20260922/ASSESSMENT.md): the cached screen passes at 12 families. Next check saved automatic-candidate retention, then actual work saved and broader search at equal cost |
 | Ranking versus missing proposals | [Historical audit](evidence/independent_proposals/history_audit_20260922.md): approved geometries survive but rank lower. Compare fixed candidates before changing generation; keep Am4-319's G0 fallback |
 | Source caps | Read-only worker lead, not yet parent-verified: W5 rebuilds capped G0 pools and loads capped G1 results rather than complete historical `all_camera` populations. Inspect `w5_holistic/run_w5.py:load_g0/load_g1` only if a named useful candidate is missing. The eight retained approved witnesses do not establish equality of whole populations |
 | Far-end selection | [WebUI 1/2 return and local replay](evidence/webui_followups_20260922/README.md): GX86088 has less-clipped alternatives, still imperfect. Compare their existing evidence; no blanket visual-success claim |
@@ -109,7 +112,7 @@ scope or fallback decision, rather than another open-ended sweep.
 | Session | Work | Finish when |
 | --- | --- | --- |
 | 1 | Explain the remaining fitting bias with the fixed cases above | One mechanism is supported or rejected; any candidate has a predicted, checked effect |
-| 2 | Validate SVD/search reduction and its scope for broader candidate coverage; remove measured waste | Useful-candidate retention and actual work saved are checked. Any broader search is assessed separately at equal cost; an unsuccessful screen is explicitly rejected |
+| 2 | Test the reviewed SVD screen on automatic candidate retention and actual search cost; remove measured waste | Useful-candidate retention and actual work saved are checked. Any broader search is assessed separately at equal cost; an unsuccessful screen is explicitly rejected |
 | 3 | Settle selection and fallback on named failures and retained good fits | The chosen source/score rule preserves necessary G0 coverage; far-end failures have an explicit decision |
 | 4 | Test sparse scene agreement and camera-change behaviour | Sampling, proposal reuse, resampling and abstention have concrete rules tested on short source clips |
 | 5 | Integrate that bounded design and remove CourtKeyNet dependencies | The annotator uses the agreed scene interface; relevant pipeline gates pass |
@@ -157,3 +160,26 @@ Use [INDEX](INDEX.md) for the experiment history, [FP_INDEX](FP_INDEX.md) for
 files by idea, and [decisions](DETECTOR_DECISIONS.md) for settled findings.
 The [archive map](archive/README.md) explains moved names and preserves prior
 worklogs. Historical resume sections are records, not today's instructions.
+
+
+## Appended close-out: SVD read, 23 September
+
+The first package's arithmetic and code support a narrow positive result:
+12 of 16 families retain the exact best cached reference-fit pair on 9/9 views,
+with 132 rather than 240 possible ordered pairs. This is not a measured speedup
+or proof that automatically generated useful courts survive. The 8- and
+10-family cuts fail on most views. Preserve the frozen normalisation.
+
+The supplement reproduces alternative-ranking failures and old SVD-refit
+potentials. Its proposed per-assignment fit before duplicate selection/capping
+is plausible but unimplemented and untested. Keep that separate from the
+12-family screen; do not replace the current plan with this redesign.
+
+Next SVD action, after the fitting decision: check the 12-family mask against
+saved automatic candidate records with matching directions and IDs. Proceed
+to a 12-versus-16 matcher/work comparison only if useful coverage survives.
+No fresh detector run is needed merely to understand the returned findings.
+The [assessment](evidence/webui_followup3_20260922/ASSESSMENT.md) records the
+scientific limits, exact input checks, small protocol omission and rerun paths.
+All three returned numerical scripts ran locally with exit 0; no image review,
+new fits or matcher run occurred. Twenty local frozen PNGs remain untracked.
