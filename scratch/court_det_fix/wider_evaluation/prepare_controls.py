@@ -105,7 +105,16 @@ def prepare(root: Path) -> dict[str, Any]:
             raise ValueError(f"{case_id}: line and people dimensions differ")
         segments = validate_segments(line, case_id)
         boxes, scores = validate_people(people, case_id)
-        feet = [[[(box[0] + box[2]) / 2, box[3]] for box in boxes]]
+        feet = [[]]
+        off_image_feet = 0
+        for box in boxes:
+            foot_x, foot_y = (box[0] + box[2]) / 2, box[3]
+            # Match frozen broadcast preparation: an off-image foot is unknown.
+            if 0 <= foot_x < dimensions[0] and 0 <= foot_y < dimensions[1]:
+                feet[0].append([foot_x, foot_y])
+            else:
+                feet[0].append(None)
+                off_image_feet += 1
         while len(feet[0]) < 2:
             feet[0].append(None)
         relative_image = image_path.relative_to(root).as_posix()
@@ -115,7 +124,7 @@ def prepare(root: Path) -> dict[str, Any]:
             "all_feet_px": feet, "image": relative_image, "frame_index": item["frame_index"],
             "provenance": {"people_source": people["source"], "people_model": people_payload["detector_model"],
                            "people_count": len(boxes), "people_sample_count": 1,
-                           "person_score_cutoff": PERSON_SCORE_CUTOFF},
+                           "person_score_cutoff": PERSON_SCORE_CUTOFF, "off_image_feet": off_image_feet},
         })
         review.append({key: item[key] for key in ("id", "reference_status", "video_id", "frame_index", "image", "image_kind")})
         images[case_id] = image_md5

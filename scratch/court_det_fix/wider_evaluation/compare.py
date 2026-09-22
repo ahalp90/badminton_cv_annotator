@@ -102,10 +102,23 @@ def main() -> None:
             continue
         record = verifier.read_json_gz(path)
         selected = selections(record)
+        restricted = [
+            candidate for candidate in record["parents"] + record["valid_children"]
+            if set(candidate["source_memberships"]) & {"G1", "line_template"}
+        ]
+        independently_ranked = verifier.rank_candidates(restricted)
         result = {"case_id": row["case_id"], "group": row["group"], "arm": row["arm"],
                   "record": str(path), "population_counts": record["population_counts"],
                   "selections": selected, "reference_status": row.get("reference_status"),
                   "view_status": row.get("view_status"), "previous_w5_case": row["previous_w5_case"]}
+        result["restricted_rank_diagnostic"] = {
+            "population_count": len(restricted),
+            "independent_criterion": independently_ranked["r2_criterion"],
+            "independent_ungated_winner": independently_ranked["selected_origin_key"],
+            "differs_from_fixed_rank_filter": (
+                independently_ranked["selected_origin_key"] != selected["g1_templates"]["ungated"]
+            ),
+        }
         if args.render:
             result["gallery"] = render(root, args.output.parent / "gallery", row, record, selected, verifier)
         rows.append(result)

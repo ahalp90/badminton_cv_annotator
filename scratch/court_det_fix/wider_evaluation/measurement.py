@@ -35,7 +35,7 @@ def prepared_measurements(verifier: ModuleType) -> Iterator[dict[str, int]]:
         return values.reshape(np.asarray(points).shape[:-1])
 
     verifier.grayscale_sample = sample
-    verifier.raw_junctions = lambda *_args: {}
+    verifier.raw_junctions = lambda *_args: {"status": "omitted_unused_diagnostic"}
     try:
         yield counts
     finally:

@@ -98,3 +98,22 @@ red-team review. The Claude review has no elapsed-time limit.
   timeout. Review record: `local_scratch/external_delegate/20260922-wider-runner-audit/`.
 - The old Carmack checkout contains changes from earlier runs. Use a fresh
   worktree for the synced commit; preserve the old checkout and its data.
+- Snapshot `abbe46b` was committed and pushed. Fresh remote worktree:
+  `/scratch/ahalperi/court_det_fix/wider_eval_checkout_20260922`.
+  All 71 raw image hashes match the manifest there. The documented court
+  environment is `~/.venvs/venv-rtmlib/bin/python` (NumPy 2.4.6, SciPy 1.17.1);
+  the general pipeline and torch environments lack SciPy. Remote imports and
+  input preparation pass in the court environment.
+- Claude Opus 5 completed one independent review with no verified defect in
+  its coverage. Parent verified the model ID, replay equality, source filtering,
+  and control preparation. Small pre-dispatch improvements add strict result
+  serialisation, atomic population writes, explicit omitted-junction markers,
+  and a diagnostic for restricted-pool ranking fallback differences.
+- Parent checked the control comparability caveat. Both broadcast preparation
+  and controls use box bottom-centres. All 20 broadcast line arrays equal the
+  default DeepLSD cache exactly; `line_population: original` is not a different
+  detector. Sample counts, score cutoffs and selected detections still differ,
+  so the controls remain a separate arm.
+- Four control feet fall outside the image. They now remain unavailable, as
+  in the frozen broadcast preparation; their boxes/scores remain unchanged.
+  Parent verified all prepared feet and all four exclusions directly.

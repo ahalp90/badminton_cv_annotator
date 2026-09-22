@@ -22,7 +22,7 @@ def write(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     with gzip.open(temporary, "wt", encoding="utf-8") as stream:
-        json.dump(value, stream, indent=2)
+        json.dump(value, stream, indent=2, allow_nan=False)
     temporary.replace(path)
 
 
@@ -95,7 +95,7 @@ def run_case(root: Path, output: Path, case_id: str, control_pack: Path | None =
         with prepared_measurements(verifier) as counts:
             result = run_w5.process_case(root, case_id, output, min_visible_lengthwise=4, min_visible_cross_court=3)
         result["measurement_optimisation"] = {"junction_diagnostics": "omitted", **counts}
-        write(result_path, result)
+        write(result_path, verifier.jsonable(result))
     finally:
         run_w5.load_g0, run_w5.load_g1 = original_g0, original_g1
     return {"case_id": case_id, "status": "completed", "result": str(result_path), **counts}

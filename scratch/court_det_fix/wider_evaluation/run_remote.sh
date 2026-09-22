@@ -18,7 +18,8 @@ export PYTHONPATH="$repo:$repo/src"
 unset PYTHONOPTIMIZE
 printf '%s\n' "$$" > "$output/receipts/$label.pid"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$output/receipts/$label.started"
-"$HOME/.venvs/venv-pipeline/bin/python" -u "$here/run_cases.py" \
+python="${REMOTE_PYTHON:-$HOME/.venvs/venv-rtmlib/bin/python}"
+"$python" -u "$here/run_cases.py" \
   --root "$root" --output "$output" --workers 6 \
   --manifest "$here/runs/20260922/manifest.json.gz" \
   --control-pack "$here/runs/20260922/control_inputs.json.gz" "$@" 2>&1 | tee "$log"

@@ -49,8 +49,10 @@ def _read_json_gz(path: Path) -> dict:
 def _write_json_gz(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = gzip.compress(json.dumps(value, allow_nan=False, separators=(",", ":")).encode(), mtime=0)
-    with path.open("xb") as stream:
+    temporary = path.with_name(path.name + ".tmp")
+    with temporary.open("wb") as stream:
         stream.write(payload)
+    temporary.replace(path)
 
 def _validate_population(record: dict, case_id: str, run_w5: ModuleType, source: str) -> dict:
     run_w5.validate_generation_record(record, case_id, source, expected_stage="results", validate_entries=False)
@@ -117,11 +119,11 @@ def _native_frame(root: Path, context: Any, verifier: dict) -> tuple[np.ndarray,
 def ensure_populations(root: Path, context: Any, runtime: dict, output: Path) -> dict[str, Path]:
     """Ensure fresh G0/G1 generation records for one frozen view.
 
-    :param root: Repository root containing the frozen packs and helper snapshots.
+    :param root: Investigation root containing frozen packs and helper snapshots.
     :param context: Prepared verifier view with ``source``, ``segments`` and ``size``.
     :param runtime: Already-loaded W5/runtime modules and verifier functions.
     :param output: Isolated wider-evaluation run directory.
-    :return: Paths for ``G0``, ``G1`` and the input audit record.
+    :return: Paths for the ``G0`` and ``G1`` generation records.
     """
     case_id = context.case_id
     verifier = runtime["verifier"]
@@ -168,6 +170,7 @@ def ensure_populations(root: Path, context: Any, runtime: dict, output: Path) ->
         for name, source in (("G0", context.source), ("G1", filtered)):
             if cached[name] is not None:
                 continue
+            print(f"[{case_id}] generating {name}", flush=True)
             result = run_automatic.generate(source, direction, runtime["zone"], root)
             result.update({"stage": "results", "population": name})
             _validate_population(result, case_id, run_w5, f"fresh {name} generation")
