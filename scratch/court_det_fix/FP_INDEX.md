@@ -1,19 +1,20 @@
 # Find court-detector files by idea
 
-This is a map of what the directories mean. Nothing has moved. Start with the
-question you have, then follow one route. Most dated folders are frozen
+This maps ideas to their files. Start with your question, then follow one route.
+Most dated folders are frozen
 experiments, not successive versions of a deployable detector.
 
 ## Start here
 
 | I want to… | Open |
 | --- | --- |
-| Understand where the detector stands and what to test next | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) |
-| Resume practical work | [pickup.md](pickup.md) |
-| Read the completed four-part comparison | [evaluation_results_20260922.md](evaluation_results_20260922.md) |
+| Read settled findings and their evidence | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) |
+| Resume practical work and choose the next test | [pickup.md](pickup.md) |
+| Read the completed four-part comparison | [evaluation_results_20260922.md](archive/20260922/evaluation_results_20260922.md) |
+| Find the unreviewed SVD return packages | [Task 3 and accompanying evaluation archive](evidence/webui_followup3_20260922/README.md) |
 | Read the returned far-end and sparse-frame follow-ups | [WebUI tasks 1 and 2](evidence/webui_followups_20260922/README.md) |
 | Judge the results myself using only GitHub | [Raw review packet](evidence/review_20260922/README.md) |
-| Find execution details or check results | [Evaluation worklog](evaluation_20260922.md); older records are in local-only `worklog/` |
+| Find execution details or check results | [Evaluation worklog](archive/20260922/evaluation_20260922.md); older records are in local-only `worklog/` |
 
 ## The main ideas and their evidence
 
@@ -31,6 +32,7 @@ experiments, not successive versions of a deployable detector.
 | Understand why a net, wall or seam can score like court paint | **W2**, interval/pixel atlas, identity diagnostics | [Pixel evidence and caveats](evidence/pixel_temporal/README.md); [W2 atlas assets](evidence/pixel_temporal/w2/evidence/); [identity diagnostics](evidence/pixel_temporal/diagnostics/identity_diagnostics/) |
 | Improve directions or stop useful assignments being discarded too early | **B/M/R/MR**, **E0–E4**, **C2**, **L1** | [Direction and cap findings](evidence/direction_search/README.md); [direction experiment](direction_agreement/); [exact cap witnesses](next_steps_20260916/C2_traces/); [stopped diversity probe](next_steps_20260916/L1_admission/) |
 | Improve a plausible court's geometry with stripes, multiple fragments or net geometry | **Stripe / marking refit**, **physical paint**, **projective patterns** | [Earlier proposal and refit findings](evidence/independent_proposals/README.md); [reusable experiment package](../../experiments/annotator/independent_court/README.md) |
+| Trace recurring inward corner bias | **Paint-side polarity**, fixed edge labels, earlier gallery fits | [Probe, results and tests](edge_polarity/README.md); [historical fit audit](evidence/independent_proposals/history_audit_20260922.md) |
 | Find out why CourtKeyNet is being removed | **Retirement**, old fallback chain | [Retirement findings](evidence/retirement/README.md) |
 
 `GX` names views from the difficult amateur video. `Am1`–`Am4` name other
@@ -60,4 +62,4 @@ a promise that GitHub contains that file. GitHub does not render the old HTML
 atlases as applications; use their linked images or the Markdown review pages.
 
 Recovery archives are for retrieving superseded material, not normal reading.
-Their route remains in [INDEX.md](INDEX.md#recovery-not-another-reading-path).
+Their route remains in [INDEX.md](INDEX.md#recovery).

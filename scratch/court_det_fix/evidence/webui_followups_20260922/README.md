@@ -2,7 +2,7 @@
 
 The returned package is filed here unchanged. Start with [return.md](return.md).
 It covers the far-end fit diagnostic and sparse-frame replay requested in
-[WEBUI_FOLLOWUPS.md](../../WEBUI_FOLLOWUPS.md). Task 3, SVD search reduction,
+[WEBUI_FOLLOWUPS.md](PROMPTS.md). Task 3, SVD search reduction,
 is not part of this return.
 
 The return reports a ranking lead for GX86088: existing alternatives reduce

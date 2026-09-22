@@ -1,0 +1,218 @@
+> Historical record, filed on 22 September 2026. Its next-action and resume
+> text describes that stage. [pickup.md](../../pickup.md) owns current work;
+> the [archive map](../README.md) records the original paths.
+> Content is retained; relative Markdown links have been rebased.
+
+# Findings and decisions
+
+G1 paint-filtered proposals, line templates and player evidence remain a
+candidate smaller design. The completed wider run loses a tolerable Am4-319
+fit when G0 is removed, so retain full-source access while investigating that
+regression. Reliable fitting and safe automatic acceptance remain unresolved.
+CourtKeyNet repair is retired; removing its dependencies remains unfinished.
+
+The nine-view stress panel and expanded 27-case corpus are development data,
+not representative held-out evaluations. A nearby reference fit, a generated
+candidate, an automatic winner and a visually usable court are different
+outcomes. Keep those distinctions when interpreting every result below.
+
+| ID | Finding and decision | Evidence |
+| --- | --- | --- |
+| D01 | The old chain passed 0/11 labelled amateur frames. Broadcast repair lessons survive, but CourtKeyNet is excluded from the replacement design. | [Retirement](../../evidence/retirement/README.md) |
+| D02 | Better line evidence and useful candidate pools did not solve court identity. Preserve earlier inputs, proposal records and contrary examples; do not revive failed acceptance rules. | [Independent proposals](../../evidence/independent_proposals/README.md) |
+| D03 | Midpoint and representative changes each caused regressions. Fixed-membership SVD is diagnostic, not a tested matcher improvement. SVD search reduction remains a deployment lead; graph search should follow a settled search design. Neither speedup has been measured. | [Direction search](../../evidence/direction_search/README.md) |
+| D04 | Score ordering and the 512-assignment cap discard court-compatible matches on traced pairs. A broader fixed-budget rule helped one case and badly regressed another. Screen all pairs before another expensive trial. | [Exact traces and stopped probe](../../evidence/direction_search/README.md#cap-and-duplicate-corrections) |
+| D05 | The expanded crossed comparison supports G1 proposal access, but not universally better S1 ranking. G0 retains some complementary coverage. Adding candidates can worsen selection. | [G0/G1](../../evidence/g0_g1/README.md) |
+| D06 | W5 `(4,3)` and `(5,3)` select identical courts, with 21/27 usable development selections. The existing player gate raises this to 24/27. G1 plus templates preserves that count and the same failures. Test this smaller design; no tested floor is a sufficient acceptance rule. | [Evaluation](evaluation_results_20260922.md) |
+| D07 | All five corrected person-mask matcher comparisons are complete. Useful broadcast proposals survive, including SS03-17 despite its poor paint winner. Masks alone do not rescue GX5. Historical direction-changing masked arms remain qualified. | [Provenance and repairs](../../evidence/holistic_admission/box_provenance.md) |
+| D08 | On the same registered GX union, per-frame and shared paint ranking identify the played court on 7/7 frames, versus 5/7 with native-only access. Far-end errors remain; these are not precise-fit counts. Shared line ranking selects a wall on all seven. Prioritise stable-view proposal reuse and measure far-marking accuracy. | [Pixel and temporal evidence](../../evidence/pixel_temporal/README.md) |
+| D09 | The wider comparison completes 47 frozen cases and 24 controls. Removing G0 loses the tolerable Am4-319 fit. Both arms accept one of eight labelled non-court controls. Static-grid residuals show inward width bias; SS03-34 has a confirmed inner/outer paint-edge misinterpretation. | [Wider results and checks](wider_evaluation_20260922.md#completed-numeric-comparison) |
+| D10 | A fixed-point polarity check partly corrects the left inset. Across six video-03 scenes, median left-edge disagreement with the shared static grid falls from 3.745 to 1.799 working pixels. Scores are mixed; the approved GX control moves under 0.05 pixels. Inspect remaining residuals before integrating a new assignment rule. | [Seven-case polarity test](../../edge_polarity/README.md) |
+
+## What counts as good enough
+
+The recorded 24/27 W5 result means qualitatively usable **for development**.
+It is not a count of clean fits. The GX temporal result of 7/7 means that paint
+ranking identifies the played court; it does not mean seven accurate fits.
+Do not silently relabel either historical count under a stricter standard.
+
+Use three separate judgements in the next visual review:
+
+- **Clean fit:** visible boundaries and service markings follow the court
+- **Tolerable fallback:** the right court has a limited, visible error that
+  could be accepted on a rare difficult case; record the affected region
+- **Unacceptable fit:** wrong court or substantial missing/extra court area;
+  also record any exceptional last-resort use separately
+
+User review places frame-0 G1 `143:158` in the fallback category: it is skewed
+and clips a sliver of the far-left court. GX86088 G1 `16:44` is a more serious
+last resort. Its close near-end alignment hides loss of nearly the whole far
+long-service-to-baseline strip. An error of that size at any reasonable
+frequency would block shipping. These are the temporal candidates, not an
+automatic ruling on their separately refined W5 children.
+
+Review far-end crops alongside full images. Record far-baseline, long-service
+and sideline errors separately from near-end error. Where annotations permit,
+measure missing court area as well as landmark distance. Report error severity
+and frequency, not one pooled “usable” rate. The user clarified the standard on
+22 September: imperceptible misalignment is the visual ideal. Following the
+outer edges of the white markings is preferred, not a minimum deployment
+threshold. Numerical errors support the visual review; this comparison sets no
+new pixel cutoff or acceptable fallback frequency. Borderline fits need user
+review.
+
+## Older ideas worth bringing back
+
+Bring mechanisms back one at a time against the frozen baseline. The wider
+sample test below comes first; its failures should decide which lead gets
+the next bounded experiment.
+
+| Priority | Lead and why it is promising | What is missing or unsafe |
+| --- | --- | --- |
+| Core design | **Sparse multi-frame agreement and stable-view proposal reuse.** Decide a scene's court from several sampled frames, with shared proposals and supporting observations. The complete GX comparison identifies the played court on 7/7 frames with the common pool, versus 5/7 with each frame's own pool. | This is an access gain, not accurate fitting or a camera-change detector. Check camera stability and support in each sampled image. The failed shared line median rules out that selector, not the need for multi-frame agreement. |
+| Next, especially for yellow courts | **Net-image evidence plus pooled-fragment refinement.** The older three-frame Yellow replay changed worst-corner error from 221.19 px with floor scoring to 26.01 with net evidence, then 21.22 after pooled refinement. W5 has same-view refinement but not this combined temporal method. | These are 1280×720 errors against old references, not the current working-pixel metric. Letterboxed worsened from 10.06 to 14.75; the net cue and refinement were not isolated temporal ablations. Player-pair identity and camera stability remain prerequisites. |
+| Next, for correct-court but poor-fit cases | **Constrained stripe/marking refinement, with explicit far-end assessment.** Older fixed-assignment refits sometimes improved a plausible start. Keep parents beside children and inspect both near and far markings. | W5 already has same-view fixed-assignment refinement, so simply adding a refit is not a new mechanism. Across 357 old parent/refit pairs, an improvement rule chose 35 harmful refits. A lower fitting objective does not certify better court geometry. |
+| Alongside reuse | **Scene-repair safeguards without CourtKeyNet.** Borrowed geometry should agree with the target's own visible lines. Keep inferred repairs from becoming donors. Separate mixed broadcast composites from ordinary views. | Those safeguards came from broadcast repair; they do not validate amateur detection. Camera novelty, colour and temporal consistency alone cannot certify a court. |
+| Early speed experiment | **SVD-based search reduction.** Fit compact direction/subspace representations and test whether redundant hypotheses can be removed before expensive matching. The objective is much less search without losing useful courts, not merely a smaller fit residual. | The saved fixed-group SVD diagnostics do not establish search reduction or retained coverage. Compare hypothesis counts, matcher work, runtime and candidate/winner quality. Avoid merging distinct court-supported alternatives just because their directions are close. |
+| Conditional on a traced coverage failure | **Better retention before candidate caps.** Exact traces show useful assignments discarded before whole-court scoring sees them. | The tested diversity rule helped one pair and harmed another. Screen all pairs and regression controls before changing the 512-assignment cap; this is distinct from W5's 256-template retention limit. |
+| After the search rules settle | **Graph search / shared partial states.** Reuse equivalent partial assignments rather than revisiting the same work along many search paths. | This is a speed/implementation lead, not a new accuracy result. Define state equivalence from the final matcher constraints and verify equivalent outputs before adopting it. Its complexity makes it a later step. |
+
+The [older temporal replay account](../../../../experiments/annotator/independent_court/recorded/player_guided/projective_patterns/evaluation/temporal_assessment.md#an-earlier-shared-court-experiment-already-exists)
+includes the Yellow/Letterboxed/Centre comparisons and links the saved code.
+That replay uses footpoints and raw fragments; the historical spatial-mask
+error does not invalidate it. Its net cue measures image support along
+projected net segments. The newer W5 projected-post diagnostic only records
+geometry, so it is not a test of that image cue.
+
+See [refit evidence](../../evidence/independent_proposals/README.md#other-branches-and-why-their-records-remain-useful),
+[donor safeguards](../../evidence/retirement/README.md#non-model-lessons-worth-keeping)
+and [cap traces](../../evidence/direction_search/README.md#cap-and-duplicate-corrections).
+Keep global midpoint/direction replacements, connected-pixel vetoes and
+junction-first ranking out of the main design for now. Do not equate the old
+fixed-group SVD diagnostic with the proposed search-reduction experiment.
+Retain player
+evidence, but compare rejection/fallback behaviour rather than assuming a
+hard gate is always preferable to a ranking feature.
+
+### Scene-level operation is the target
+
+Sample several frames from a scene or verified stable camera view. Share
+proposal search and aggregate compatible line, paint and player observations
+across those samples. Require multi-frame support before assigning the court
+to the scene, then reuse it with cheap checks for camera change or loss of
+support. A failed check should trigger resampling/recalibration or abstention.
+Choose the sample count, spacing and agreement rule through the next tests.
+
+The detector should neither decide a whole scene from one frame nor repeat
+full independent search on every frame. Agreement must include visible court
+geometry, especially at the far end; a wall can score consistently across
+frames. The existing fixed-pool replay tests only part of this design. It does
+not yet implement multi-frame generation, a scene sampler or change handling.
+
+## Next design and wider test
+
+The wider fixed-view test is complete; its [results](wider_evaluation_20260922.md)
+supersede the scheduling instructions below. The preserved protocol explains
+its scope. The [returned WebUI follow-ups](../../evidence/webui_followups_20260922/README.md)
+reproduce locally. Next trace the [earlier gallery fits](../../evidence/independent_proposals/history_audit_20260922.md)
+through the later pipeline before choosing a fitting or ranking change.
+
+First run the wider fixed-view comparison to expose coverage and fitting
+failures. Then evaluate scene-level sampling and agreement on the source clips;
+single-view success cannot pass that second requirement. Preserve this order
+without treating the single-view runner as the deployment architecture.
+
+Use the current full-source W5 `(4,3)` design as the baseline. Compare G1 plus
+line templates under the same scoring and player rule. Where possible, derive
+the source restriction from one shared measured pool rather than repeating
+expensive image measurements. Preserve rejected candidates so a bad result
+can be separated into missing proposals, poor ranking or an overstrict gate.
+
+Completed pre-run protocol:
+
+1. Freeze the input list, source/scoring settings and review categories. Mark
+   prior use by view and video; unused frames from familiar videos are not a
+   held-out generalisation test.
+2. Smoke-test ordinary broadcast, difficult amateur and contaminated-view
+   cases. Confirm input masks, candidate/source identity, saved raw frames and
+   player-observation availability. Do not silently turn missing observations
+   into a passed or failed player gate.
+3. Remove measured unused diagnostics and repeated image conversion only with
+   an equality check on the retained measurements. Use at most six workers
+   for this research run; deployment timing is a later measurement.
+
+Inspect all selected overlays, including failures and far-end crops. Separate
+clean, fallback and unacceptable rates for broadcast and amateur views. Count
+empty pools, rejected useful proposals and abstentions explicitly. Keep
+contaminated broadcast medians visible in the results; do not silently drop
+them from the denominator.
+
+Record player-gate outcome separately from proposal and ranking outcome. Keep
+both ungated and gated winners and the number of observed frames per case.
+The current packs contain only three player samples per broadcast composite,
+versus 29–31 per amateur case. The same fractional cutoff therefore uses
+different amounts of evidence. All 47 cases have footpoint observations;
+the 24 extra controls need their input/observation check before the run.
+
+The broader committed set is an expansion of development coverage. A later
+test on unseen cameras/videos is still needed before a deployment claim.
+
+### Frozen sample coverage
+
+The [three frozen input packs](../../frozen_views/README.md) contain 47 cases: 20
+ShuttleSet composite views, seven GX frames and 20 other amateur frames.
+The recent panel covered all seven GX frames, ten broadcast views and ten
+other amateur frames. These **20 additional views** should enter the next run:
+
+| Source | Outside the recent 27-case panel |
+| --- | --- |
+| ShuttleSet video 03 | scenes 0001, 0023, 0032, 0046 |
+| ShuttleSet video 21 | scenes 0005, 0015, 0024, 0029, 0034, 0044 |
+| Yellow clip | frames 90, 156 |
+| Letterboxed clip | frames 58, 78 |
+| Centre clip | frames 64, 71 |
+| Am1 | frame 5352 |
+| Am3 | frames 17174, 24515 |
+| Am4 | frame 319 |
+
+The 20 non-GX amateur frames cover the complete small annotated set: the
+[original 11 frames](../../../../data/amateur_court_corners/README.md) and
+[nine September additions](../../../../data/amateur_court_corners/2026-09-08/README.md).
+Use their visible clicked landmarks to assess fit; extrapolated offscreen
+corners measure agreement with an annotation model, not observed accuracy.
+Am4's camera moves between sampled frames, so do not reuse a court across
+that clip without checking the view.
+
+The broadcast manifest marks SS21-10 and SS21-39 as `view_unverified`.
+Keep their pipeline outcomes, but distinguish unreliable composite/reference
+comparisons from normal-view geometry scores. The input packs are committed;
+that does not imply that every raw image or source video is already in Git.
+
+Also include the [24 recorded broadcast controls](../../../../experiments/annotator/independent_court/recorded/controls.json.gz)
+as a separate rejection/review arm: eight are labelled non-court and 16 are
+unlabelled. They are different raw frames from ShuttleSet video 21, not 24
+new positive examples or independent cameras. Their raw PNGs are currently
+local under `evidence/independent_proposals/development/inputs/controls/frames/`.
+Check those inputs when freezing the run; unlabelled cases need human review,
+not an assumed correct-court score. This makes 71 planned input cases:
+47 frozen detector cases plus 24 controls, reported in separate groups.
+
+The retired CourtKeyNet calibration's 400 court frames and 63 non-court
+frames are a different historical study, not an additional reproducible
+committed image set for this run.
+
+## What remains before a detector can ship
+
+Address the Am4-319 regression before removing G0. Yellow14 and Am1-54
+need better proposal coverage. The user excludes unreliable edit-transition
+views such as SS21-10 from required detection; confidence rejection is optional.
+Retain player evidence while testing rejection and fallback on new
+cameras. Remove unused junction diagnostics and repeated greyscale conversion
+from the runtime path; the measured omission alone gave a 2.37× local speedup
+without changing other evidence. This is not a deployment latency estimate.
+
+Representative labelled evaluation, ordinary-hardware latency with player
+detections supplied, camera-change handling and annotator integration remain
+separate requirements. Development search time on Carmack is not deployment
+latency. Remove CourtKeyNet and accidental model/weight-loading dependencies
+before the branch finishes.

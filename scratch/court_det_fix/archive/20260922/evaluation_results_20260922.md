@@ -1,3 +1,8 @@
+> Historical record, filed on 22 September 2026. Its next-action and resume
+> text describes that stage. [pickup.md](../../pickup.md) owns current work;
+> the [archive map](../README.md) records the original paths.
+> Content is retained; relative Markdown links have been rebased.
+
 # Towards a CourtKeyNet-free detector
 
 The strongest next prototype is **paint-filtered proposals plus line-template
@@ -13,8 +18,8 @@ integration and CourtKeyNet removal have not
 been performed in this evaluation pass.
 
 For an independent visual and numerical review from GitHub, use the
-[published evidence packet](evidence/review_20260922/README.md). The current
-[design plan](DETECTOR_DECISIONS.md) adds the wider-test schedule, scene-level
+[published evidence packet](../../evidence/review_20260922/README.md). The current
+[design plan](../../DETECTOR_DECISIONS.md) adds the wider-test schedule, scene-level
 requirements and deployment-speed leads to these experimental findings.
 
 ## What was compared
@@ -95,9 +100,9 @@ diagnostics, not proposed selectors.
   player gate excludes it. The composite view and its player observations
   need attention before tightening that gate.
 
-Evidence: [full-frame rulings and ablations](evidence/holistic_admission/directional_20260921_r5/visual_review.md),
-[coverage diagnostics](evidence/holistic_admission/directional_20260921_r5/evaluation/coverage_failures.json.gz),
-[visible-landmark diagnostics](evidence/holistic_admission/directional_20260921_r5/evaluation/visible_landmark_coverage.json.gz).
+Evidence: [full-frame rulings and ablations](../../evidence/holistic_admission/directional_20260921_r5/visual_review.md),
+[coverage diagnostics](../../evidence/holistic_admission/directional_20260921_r5/evaluation/coverage_failures.json.gz),
+[visible-landmark diagnostics](../../evidence/holistic_admission/directional_20260921_r5/evaluation/visible_landmark_coverage.json.gz).
 
 ## G0/G1: retain proposal gains without assuming every ranking improves
 
@@ -134,9 +139,9 @@ The result favours G1 proposal access. It does not establish that S1 scoring
 is universally better or that G0 should be removed before testing the
 G1-plus-template design on new data.
 
-Evidence: [crossed comparison](evidence/review_20260922/g0_g1.md),
-[selected overlays](evidence/review_20260922/g0_g1/gallery.md),
-[complete comparison](evidence/g0_g1/evaluation_20260922/comparison_summary.json.gz).
+Evidence: [crossed comparison](../../evidence/review_20260922/g0_g1.md),
+[selected overlays](../../evidence/review_20260922/g0_g1/gallery.md),
+[complete comparison](../../evidence/g0_g1/evaluation_20260922/comparison_summary.json.gz).
 
 ## Corrected person masks: useful courts survive, GX5 is not rescued
 
@@ -159,8 +164,8 @@ does not replace the useful W5 template proposal.
 Keep correct spatial masks as an input fix. This five-case comparison does
 not justify treating person filtering or paint ranking as a universal remedy.
 
-Evidence: [five-case results by stage](evidence/holistic_admission/box_repair/evaluation_20260922/runs/person_observations_repair_20260922/matcher/comparison.md).
-The [published mask review](evidence/review_20260922/person_masks.md) includes
+Evidence: [five-case results by stage](../../evidence/holistic_admission/box_repair/evaluation_20260922/runs/person_observations_repair_20260922/matcher/comparison.md).
+The [published mask review](../../evidence/review_20260922/person_masks.md) includes
 the diagnostic overlays, including the retained-but-poorly-ranked courts.
 
 ## Temporal scoring
@@ -209,7 +214,7 @@ baseline strip. It might serve as an exceptional last resort, but that error
 at any reasonable frequency would be unacceptable. Neither is a clean-fit
 example. This qualification does not change the recorded selection counts.
 
-![GX86088 far-end comparison: raw image, native/union paint winner, shared paint winner](evidence/pixel_temporal/evaluation_20260922/results/gx/review_sheets/gxBQ_window_04_frame_86088__far_end.png)
+![GX86088 far-end comparison: raw image, native/union paint winner, shared paint winner](../../evidence/pixel_temporal/evaluation_20260922/results/gx/review_sheets/gxBQ_window_04_frame_86088__far_end.png)
 
 The raw far end is shown first. The middle overlay is G1 `16:44`; the bottom
 is the shared paint winner G1 `143:158`. The crop keeps the far markings large
@@ -219,10 +224,10 @@ This supports pooling or reusing proposals within a verified stable camera
 view. It does not establish camera-change handling, held-out reliability or
 a practical runtime for exhaustively scoring this union.
 
-Evidence: [Am3 locked selections](evidence/pixel_temporal/evaluation_20260922/results/am3/selection.json),
-[GX locked selections](evidence/pixel_temporal/evaluation_20260922/results/gx/selection.json),
-[GX full-frame review sheets](evidence/pixel_temporal/evaluation_20260922/results/gx/review_sheets/),
-[replay code](evidence/pixel_temporal/evaluation_20260922/run_temporal_union.py).
+Evidence: [Am3 locked selections](../../evidence/pixel_temporal/evaluation_20260922/results/am3/selection.json),
+[GX locked selections](../../evidence/pixel_temporal/evaluation_20260922/results/gx/selection.json),
+[GX full-frame review sheets](../../evidence/pixel_temporal/evaluation_20260922/results/gx/review_sheets),
+[replay code](../../evidence/pixel_temporal/evaluation_20260922/run_temporal_union.py).
 
 ## Runtime and correctness findings
 

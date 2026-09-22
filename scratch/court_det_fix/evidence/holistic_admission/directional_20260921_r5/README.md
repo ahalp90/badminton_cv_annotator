@@ -12,7 +12,7 @@ The full-frame review is complete. It found 19/27 usable selections for
 `(3,3)` and 21/27 for `(4,3)` and `(5,3)`; the existing player-support gate
 raises this to 24/27. No tested floor is sufficient for automatic acceptance;
 `(4,3)` is the least restrictive tied development setting. See the [current
-evaluation results](../../../evaluation_results_20260922.md).
+evaluation results](../../../archive/20260922/evaluation_results_20260922.md).
 
 | Floor (lengthwise, cross-court) | Saved arm |
 | --- | --- |
@@ -52,7 +52,7 @@ Full-frame review covered the wrong and unclear views, prior-ruling conflicts
 and regression cases. The remaining failures are yellow14 and Am1-54, which
 need better proposals, and SS21-10, where a better template child is excluded
 by the player gate. The complete findings and caveats are in the [current
-evaluation results](../../../evaluation_results_20260922.md).
+evaluation results](../../../archive/20260922/evaluation_results_20260922.md).
 
 The [whole-court evidence account](../README.md) and [box-provenance
 account](../box_provenance.md) retain the historical context and qualifications.

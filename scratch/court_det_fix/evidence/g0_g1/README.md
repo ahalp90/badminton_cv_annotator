@@ -3,7 +3,7 @@
 The expanded 27-case G0/G1 comparison is complete. It is a separate result
 from W5: the comparison measures proposal access and crossed scoring inputs,
 while W5 measures full-frame usability. See the [current evaluation
-results](../../evaluation_results_20260922.md) for the findings and caveats.
+results](../../archive/20260922/evaluation_results_20260922.md) for the findings and caveats.
 The [published case tables](../review_20260922/g0_g1.md) and
 [overlay gallery](../review_20260922/g0_g1/gallery.md) can be read on GitHub.
 

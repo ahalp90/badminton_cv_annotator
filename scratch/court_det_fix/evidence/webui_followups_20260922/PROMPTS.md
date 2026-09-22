@@ -1,8 +1,13 @@
+> Original WebUI task packet, moved from `court_det_fix/WEBUI_FOLLOWUPS.md`.
+> Tasks 1/2 have a verified local replay. [SVD returns](../webui_followup3_20260922/README.md)
+> are filed but unreviewed. Historical launch instructions below are preserved;
+> [pickup](../../pickup.md) owns the next actions.
+
 # Useful WebUI follow-ups
 
-Tasks 1 and 2 have a [filed return](evidence/webui_followups_20260922/README.md).
+Tasks 1 and 2 have a [filed return](README.md).
 The original report, runner, tables and figures are preserved.
-[Local numerical replay](evidence/webui_followups_20260922/local_replay/README.md)
+[Local numerical replay](local_replay/README.md)
 passes; detector integration is untested. Task 3 is still separate.
 
 These tasks turn committed evidence into small executable results for the

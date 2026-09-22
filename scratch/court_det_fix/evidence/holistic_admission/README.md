@@ -14,7 +14,7 @@ usable selections for `(3,3)` and 21/27 for `(4,3)` and `(5,3)`. Under the
 existing player-support gate, 24/27 remain usable; the three gated failures
 are yellow14, Am1-54 and SS21-10. These are development-set judgements; no
 tested floor is a sufficient automatic acceptance rule. See the [current evaluation
-results](../../evaluation_results_20260922.md).
+results](../../archive/20260922/evaluation_results_20260922.md).
 
 ## What changed and what happened
 

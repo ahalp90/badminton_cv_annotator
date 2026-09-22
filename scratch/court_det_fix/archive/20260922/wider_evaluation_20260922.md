@@ -1,3 +1,8 @@
+> Historical record, filed on 22 September 2026. Its next-action and resume
+> text describes that stage. [pickup.md](../../pickup.md) owns current work;
+> the [archive map](../README.md) records the original paths.
+> Content is retained; relative Markdown links have been rebased.
+
 # Wider court evaluation
 
 ## Resume
@@ -8,7 +13,7 @@ The run finished with exit 0: all 47 frozen detector cases and 24 controls are
 local and compared. Numeric extraction completed with six workers. There are
 59 visual rulings; the remaining 12 controls are deliberately unreviewed
 visually, following the user's request. The results and inward-bias diagnostic
-are below. The [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
+are below. The [returned WebUI follow-ups](../../evidence/webui_followups_20260922/README.md)
 now reproduce locally. Next: trace the good fits in the 9–14 September HTML
 galleries through the later pipeline, following the user's regression lead.
 The new edge-polarity diagnostic is parked while that history is checked.

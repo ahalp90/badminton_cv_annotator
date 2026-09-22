@@ -1,10 +1,15 @@
+> Historical record, filed on 22 September 2026. Its next-action and resume
+> text describes that stage. [pickup.md](../../pickup.md) owns current work;
+> the [archive map](../README.md) records the original paths.
+> Content is retained; relative Markdown links have been rebased.
+
 # Evaluation worklog
 
 ## Resume
 
 All four pickup comparisons and the documentation/publication follow-up are
-complete. Start with [pickup](pickup.md) for the next run, [FP_INDEX](FP_INDEX.md)
-for files by idea, and the [GitHub packet](evidence/review_20260922/README.md)
+complete. Start with [pickup](../../pickup.md) for the next run, [FP_INDEX](../../FP_INDEX.md)
+for files by idea, and the [GitHub packet](../../evidence/review_20260922/README.md)
 for independent review. Existing source packets and the directory layout stay
 unchanged. The wider 71-case test and scene-level detector work have not run.
 Read [evaluation results](evaluation_results_20260922.md) for the measurements.

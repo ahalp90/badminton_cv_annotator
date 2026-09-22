@@ -1,95 +1,51 @@
 # Court-detector investigation
 
-The branch is building a CourtKeyNet-free detector. G1 paint-filtered proposals
-plus line templates remain a smaller-design candidate, with an Am4 regression
-to resolve before dropping G0. Court selection has improved;
-far-end fit, rejection of bad results and practical runtime still need work.
-The four September pickup comparisons are complete.
-The target is a scene-level detector using a few sampled frames, shared search
-and agreement across a stable camera view, not full search on every frame.
+**Start at [pickup.md](pickup.md).** It owns current state, the next targeted
+check, open leads and the route to branch completion. This index explains the
+experiment history. [FP_INDEX.md](FP_INDEX.md) maps ideas directly to files;
+[DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) retains lasting findings.
 
-Start with [pickup.md](pickup.md) for what to do next. Use
-[FP_INDEX.md](FP_INDEX.md) to find files by idea rather than experiment name.
-For an independent review from GitHub, open the
-[raw evidence packet](evidence/review_20260922/README.md).
-For useful GitHub-only follow-up work, use the three bounded
-[WebUI prompts](WEBUI_FOLLOWUPS.md): far-end fit, sparse-frame replay and SVD
-search reduction.
-The [returns for tasks 1 and 2](evidence/webui_followups_20260922/README.md)
-are filed with their original script and results; local numerical replay passes.
+## Experiment history
 
-## Research and evidence
-
-| Question | Read |
+| Stage or question | Record |
 | --- | --- |
-| What has the branch established? | [Findings and decisions](DETECTOR_DECISIONS.md) |
-| What did the completed comparisons show? | [22 September evaluation](evaluation_results_20260922.md) |
-| What happened on all 71 wider-test inputs? | [Wider results and numeric bias](wider_evaluation_20260922.md#completed-numeric-comparison) |
-| Does the side containing white paint explain the inset? | [Paint-side polarity test](edge_polarity/README.md) |
-| Where do proposal access and scoring differ? | [G0/G1 comparison](evidence/g0_g1/README.md) |
-| Which older ideas should return, and when do we test more views? | [Next design and test plan](DETECTOR_DECISIONS.md#next-design-and-wider-test) |
-| What does W5 test, and why? | [Whole-court scoring and admission](evidence/holistic_admission/README.md) |
-| Which results survive the person-box error? | [Corrected provenance account](evidence/holistic_admission/box_provenance.md) |
-| Why did direction and cap changes fail? | [Direction/search evidence](evidence/direction_search/README.md) |
-| What did pixel and temporal tests establish? | [Pixel/temporal evidence](evidence/pixel_temporal/README.md) |
-| Which earlier ideas and data remain useful? | [Independent proposals](evidence/independent_proposals/README.md) |
-| Why is CourtKeyNet being removed? | [Retirement evidence](evidence/retirement/README.md) |
+| Retire the old CourtKeyNet fallback chain | [Retirement](evidence/retirement/README.md) |
+| Recover courts from line fragments, paint and player evidence | [Independent proposals and earlier fits](evidence/independent_proposals/README.md) |
+| Explain direction, assignment-cap and line-identity failures | [Direction/search](evidence/direction_search/README.md); [G0/G1 comparison](evidence/g0_g1/README.md) |
+| Combine proposal sources and test whole-court admission | [W5 findings](evidence/holistic_admission/README.md); [completed directional-floor packet](evidence/holistic_admission/directional_20260921_r5/README.md) |
+| Correct person-mask provenance | [Box repair and valid comparisons](evidence/holistic_admission/box_provenance.md) |
+| Separate shared proposals from shared scoring | [Pixel and temporal evidence](evidence/pixel_temporal/README.md) |
+| Read the completed four-part evaluation and its execution record | [Archive map](archive/README.md), then the 22 September results/worklog |
+| Follow the wider 47-view plus 24-control evaluation | [Archived wider worklog](archive/20260922/wider_evaluation_20260922.md#completed-numeric-comparison) |
+| Check whether earlier approved geometry was lost | [Historical fit audit](evidence/independent_proposals/history_audit_20260922.md) |
+| Test whether an inner paint edge is mistaken for the outer boundary | [Paint-side experiment and rerun commands](edge_polarity/README.md) |
+| Follow the WebUI calculations | [Original prompts](evidence/webui_followups_20260922/PROMPTS.md); [returns 1/2 and local replay](evidence/webui_followups_20260922/README.md); [unreviewed SVD returns](evidence/webui_followup3_20260922/README.md) |
 
-The completed [W5 directional packet](evidence/holistic_admission/directional_20260921_r5/README.md)
-contains all three 27-case arms, receipts and the comparison. Full-frame review
-and source/player-gate comparisons are complete. The local-only
-`worklog/remote_records_20260921/README.md` indexes the preserved full G0/G1
-input and candidate data. Use the published review packet when reading on GitHub.
+## Inputs and code
 
-## Code and saved data
+Use [frozen views](frozen_views/README.md) for inputs and [FP_INDEX](FP_INDEX.md#code-inputs-and-big-working-packets)
+for code ownership. The [GitHub review packet](evidence/review_20260922/README.md)
+provides a bounded published subset. Large preserved G0/G1 populations remain
+local under `worklog/remote_records_20260921/`; its README is their map.
+Experiment code, data and manifests retain their original locations.
 
-Production and current experiment code stays in its existing directories.
-The line-identity matcher is `line_identity/line_run_matcher.py`; its distinct
-name prevents an import clash with the direction matcher. The evidence notes
-link directly to recorded comparisons, complete candidate populations,
-original images and runnable checks. Replay consumers use the canonical
-evidence locations after retirement of the temporary compatibility paths.
-The one internal `case_records` link in the older line-template result packet
-shares its retained measurements without duplicating them.
+<a id="recovery-not-another-reading-path"></a>
 
-## Recovery, not another reading path
+## Recovery
 
-The local `.recovery/disposition.csv.gz` ledger maps original paths to
-retained evidence or the sealed backup. The archive
-`.recovery/court-before-cleanup-20260921.tar.gz` preserves 7,746 original
-files under repository-relative names. Every member was checksum-verified
-before working copies were removed. Original worklogs are intact inside it.
-
-To read the original source for decision D01 without restoring a session tree,
-run this from the repository root:
-
-```bash
-tar -xOf scratch/court_det_fix/.recovery/court-before-cleanup-20260921.tar.gz \
-  docs/courtkeynet/fallback_evaluation/README.md
-```
-
-Use the same command with any original path in the ledger. The original
-pre-tidy plan is separately sealed in `.recovery/planning-input.tar.gz`.
-Keep both archives. The later `.recovery/w5-preparation-20260922.tar.gz`
-preserves the completed W5 campaign, its worktree, handovers, check-ins,
-earlier monitoring records and the filing-time launcher/comparator sources.
-Its retired members were compared against the working copies before removal.
-Use the same `tar -xOf` command with this archive to recover a preparation file.
-The separate `.recovery/w5-monitor-20260922.tar.gz` preserves the visible
-Luna launch brief and launcher from `local_scratch/external_delegate/`.
-`.recovery/w5-compatibility-links-20260922.tar.gz` preserves the former
-symlink names and targets; their evidence targets remain in place.
-Model assets remain in `local_scratch/court_line_models/`.
+The [archive map](archive/README.md) records moved documents, retired names
+and verified snapshots. Its [earlier recovery section](archive/README.md#earlier-sealed-recovery)
+explains the sealed 21 September cleanup and W5 preparation archives.
 
 ## Keep this usable
 
-- This index and pickup are the short orientation path; stay below 5,000 tokens
-- FP_INDEX maps ideas to files; it does not duplicate the results or move files
-- Update a result beside its evidence, not in a new session narrative
-- Preserve candidate origin, evaluation stage, units and visual-review status
-- Keep unfinished assessment prominent; completed generation is not assessment
-- Keep original inputs and useful candidate data, with producer and source paths
-- Retire superseded prose after its findings and open questions have a home
-- Keep recovery copies sealed; do not create another browsable session tree
-- Keep W5 manifests, receipts and original recorded paths intact as provenance
-- CourtKeyNet is retired as an approach and must be removed before branch end
+- `pickup.md` is the only live handover; rewrite it at close-out, never add a sibling
+- Keep pickup plus this index under roughly 4,000 orientation tokens; open evidence for a named question
+- INDEX maps the experiment history; FP_INDEX maps ideas to files; decisions records lasting rulings
+- Put each result and its run record beside the relevant evidence, with a reproducible command
+- Archive completed plans/worklogs whole, label their old resume text, and update links
+- Keep the next actions in pickup rather than duplicating them across reports
+- Preserve source identity, units, reference limits and visual-review status
+- Keep original inputs, useful candidate populations and recovery snapshots
+- File incoming returns under evidence with explicit review status; do not leave packages at the top level
+- Use numerical comparisons and focused visual questions; broad image review needs a specific reason

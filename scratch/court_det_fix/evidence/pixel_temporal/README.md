@@ -4,7 +4,7 @@ A bright-line match can have the wrong physical source. The completed pixel
 review demonstrated this on a net band, but also found borrowed support on
 an approved court. Simple coherence or shared-pixel vetoes therefore failed
 their contrary-example test. The temporal rank-sum calculation is also
-complete. The [expanded independent/shared comparison](../../evaluation_results_20260922.md#temporal-scoring)
+complete. The [expanded independent/shared comparison](../../archive/20260922/evaluation_results_20260922.md#temporal-scoring)
 is also complete on verified G0/G1 unions for GX and Am3.
 
 ## What the pixels established
