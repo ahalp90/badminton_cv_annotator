@@ -1,16 +1,25 @@
 # Court-detector investigation
 
-The branch is building a CourtKeyNet-free detector. Good courts exist in the
-saved development pools; reliable automatic selection and practical runtime
-remain unresolved. Start with [pickup.md](pickup.md), then read only the
-evidence needed for the question at hand.
+The branch is building a CourtKeyNet-free detector. G1 paint-filtered proposals
+plus line templates are the leading next design. Court selection has improved;
+far-end fit, rejection of bad results and practical runtime still need work.
+The four September pickup comparisons are complete.
+The target is a scene-level detector using a few sampled frames, shared search
+and agreement across a stable camera view, not full search on every frame.
+
+Start with [pickup.md](pickup.md) for what to do next. Use
+[FP_INDEX.md](FP_INDEX.md) to find files by idea rather than experiment name.
+For an independent review from GitHub, open the
+[raw evidence packet](evidence/review_20260922/README.md).
 
 ## Research and evidence
 
 | Question | Read |
 | --- | --- |
 | What has the branch established? | [Findings and decisions](DETECTOR_DECISIONS.md) |
-| What remains unassessed in G0/G1? | [Population inventory and assessment brief](evidence/g0_g1/README.md) |
+| What did the completed comparisons show? | [22 September evaluation](evaluation_results_20260922.md) |
+| Where do proposal access and scoring differ? | [G0/G1 comparison](evidence/g0_g1/README.md) |
+| Which older ideas should return, and when do we test more views? | [Next design and test plan](DETECTOR_DECISIONS.md#next-design-and-wider-test) |
 | What does W5 test, and why? | [Whole-court scoring and admission](evidence/holistic_admission/README.md) |
 | Which results survive the person-box error? | [Corrected provenance account](evidence/holistic_admission/box_provenance.md) |
 | Why did direction and cap changes fail? | [Direction/search evidence](evidence/direction_search/README.md) |
@@ -19,9 +28,10 @@ evidence needed for the question at hand.
 | Why is CourtKeyNet being removed? | [Retirement evidence](evidence/retirement/README.md) |
 
 The completed [W5 directional packet](evidence/holistic_admission/directional_20260921_r5/README.md)
-contains all three 27-case arms, receipts and the comparison. Visual review
-is still pending. The [remote packet](worklog/remote_records_20260921/README.md)
-owns the preserved G0/G1 input and candidate data.
+contains all three 27-case arms, receipts and the comparison. Full-frame review
+and source/player-gate comparisons are complete. The local-only
+`worklog/remote_records_20260921/README.md` indexes the preserved full G0/G1
+input and candidate data. Use the published review packet when reading on GitHub.
 
 ## Code and saved data
 
@@ -36,7 +46,7 @@ shares its retained measurements without duplicating them.
 
 ## Recovery, not another reading path
 
-The [disposition ledger](.recovery/disposition.csv.gz) maps original paths to
+The local `.recovery/disposition.csv.gz` ledger maps original paths to
 retained evidence or the sealed backup. The archive
 `.recovery/court-before-cleanup-20260921.tar.gz` preserves 7,746 original
 files under repository-relative names. Every member was checksum-verified
@@ -66,6 +76,7 @@ Model assets remain in `local_scratch/court_line_models/`.
 ## Keep this usable
 
 - This index and pickup are the short orientation path; stay below 5,000 tokens
+- FP_INDEX maps ideas to files; it does not duplicate the results or move files
 - Update a result beside its evidence, not in a new session narrative
 - Preserve candidate origin, evaluation stage, units and visual-review status
 - Keep unfinished assessment prominent; completed generation is not assessment
