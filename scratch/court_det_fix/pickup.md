@@ -1,5 +1,10 @@
 # Court-detector pickup
 
+The [wider evaluation](wider_evaluation_20260922.md) is now running on Carmack.
+It adds the remaining 20 frozen views and 24 separate broadcast controls with
+six workers, and reuses the completed 27-case W5 baseline. Resume from that
+worklog for the live run, checks and review state. Code snapshot: `dc7872d`.
+
 Start with the [22 September evaluation](evaluation_results_20260922.md).
 W5, expanded G0/G1, the corrected five-case person-mask comparison and
 independent/shared temporal scoring are complete. Checks and run details
