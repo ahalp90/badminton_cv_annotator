@@ -11,6 +11,7 @@ experiments, not successive versions of a deployable detector.
 | Understand where the detector stands and what to test next | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) |
 | Resume practical work | [pickup.md](pickup.md) |
 | Read the completed four-part comparison | [evaluation_results_20260922.md](evaluation_results_20260922.md) |
+| Read the returned far-end and sparse-frame follow-ups | [WebUI tasks 1 and 2](evidence/webui_followups_20260922/README.md) |
 | Judge the results myself using only GitHub | [Raw review packet](evidence/review_20260922/README.md) |
 | Find execution details or check results | [Evaluation worklog](evaluation_20260922.md); older records are in local-only `worklog/` |
 

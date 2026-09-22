@@ -4,10 +4,12 @@
 
 The 44 fresh cases are dispatched on Carmack with six workers: 20 added
 detector views and 24 separate controls. The original 27 W5 records are reused.
-Seventeen fresh cases are complete and reviewed locally; 22 are complete
-remotely at the latest check. All 27 previous cases have been re-reviewed.
-The inset-corner diagnostic is filed below. Next: finish the remaining cases
-and their visual review, then report the groups separately.
+The run finished with exit 0: all 47 frozen detector cases and 24 controls are
+local and compared. Numeric extraction completed with six workers. There are
+59 visual rulings; the remaining 12 controls are deliberately unreviewed
+visually, following the user's request. The results and inward-bias diagnostic
+are below. Next: reproduce the [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
+before choosing the next fitting or ranking experiment.
 
 Code: `dc7872d`, committed and pushed. Remote checkout:
 `/scratch/ahalperi/court_det_fix/wider_eval_checkout_20260922`.
@@ -35,6 +37,11 @@ all 47 frozen cases and the separate 24 broadcast controls in their own groups.
   those are measured empty frames. Control boxes use the original >0.3 cutoff.
 - Cached broadcast composites include unverified views. Keep their outcomes
   visible and qualify reference-based geometry scores.
+- ShuttleSet uses one static homography per video, not per scene. The user
+  confirms it is valid only for standard-view play. Side-on court-play views
+  can also invalidate it. Broadcast corner residuals are disagreement with a
+  shared static grid, not independently annotated scene errors. Do not infer
+  validity from a court-play label or count repeated grids as independent truth.
 - Existing runner helpers contain historical case lists and paths. Check those
   before treating the wider run as a routine replay.
 
@@ -47,6 +54,10 @@ Review full images and far-end crops as clean, tolerable fallback or unacceptabl
 Record the affected court region. Numerical errors support visual judgement;
 this run does not impose a new pixel cutoff or acceptable fallback percentage.
 Borderline visual cases remain open for user review.
+
+Later steering: stop image evaluation for the rest of this run. Use numeric fit
+and corner/directional bias instead. Existing visual rulings remain evidence;
+do not infer visual categories for the remaining cases from numeric scores.
 
 The user exempts unreliable edit-transition frames from required detection.
 Rejecting them through confidence is optional. The reviewed mixed transition
@@ -260,3 +271,84 @@ fall in the other four; all retain the gates. Visual inspection shows the
 shift overshoots the other four corners. The user explicitly rejects a fixed
 corner offset. Any follow-up must derive the correction from image evidence.
 No fitting, search or selection behaviour has changed in the wider run.
+
+## Completed numeric comparison
+
+All 71 cases are accounted for: 27 reused baseline cases and 44 fresh cases.
+The remote run finished at 12:07:07 UTC on 22 September, with exit 0. Receipts
+and the log are local under `measured/`. The comparison is
+`wider_evaluation/runs/20260922/comparison.json.gz`; selected scores and signed
+reference disagreement are in `numeric_fit.json.gz` beside it. The extraction
+script is `wider_evaluation/numeric_fit.py`.
+
+Both arms return a gated candidate for every frozen detector case and for
+17/24 controls. Passing the gate is not a quality judgement. Of eight controls
+already labelled non-court, seven are rejected and frame 14336 is accepted.
+That accepted player close-up has paint score 0.0337. All 16 unlabelled controls
+receive a candidate; their labels have not been changed.
+
+The table shows median span-weighted support scores among gated selections.
+These are internal fit scores, not accuracy or confidence probabilities.
+
+| Group | Cases | Gated, both arms | Paint: full / G1+templates | Geometry: full / G1+templates |
+| --- | ---: | ---: | ---: | ---: |
+| GX | 7 | 7 | 0.4189 / 0.4189 | 0.4639 / 0.4639 |
+| Other amateur | 20 | 20 | 0.5665 / 0.5622 | 0.6046 / 0.5916 |
+| Frozen broadcast | 20 | 20 | 0.8657 / 0.8588 | 0.9293 / 0.9275 |
+| Separate controls | 24 | 17 | 0.6954 / 0.6954 | 0.7134 / 0.7134 |
+
+The arms select different gated candidate IDs in 15/71 cases. The previously
+inspected Am4 frame 319 is a material regression for G1 plus templates: the
+full-source fit is tolerable, while the restricted fit loses the far backcourt.
+Its paint score only falls from 0.5967 to 0.5831. Scores alone conceal the scale
+of that geometry change, so this run does not justify dropping G0 wholesale.
+
+### Signed reference disagreement
+
+The 18 broadcast cases not marked `view_unverified` use just two distinct
+reference grids, one per video. These repeated static grids are not independent
+scene annotations. The numbers below describe disagreement with those grids,
+conditional on their standard-view applicability. They do not establish
+scene-level accuracy. The two known unverified composites are excluded here.
+
+At the 960-pixel working width, full-source median corner offsets are:
+
+| Reference corner | Horizontal offset | Vertical offset |
+| --- | ---: | ---: |
+| Far left | +2.88 px | +0.29 px |
+| Far right | -2.67 px | +0.61 px |
+| Near right | -3.24 px | -1.80 px |
+| Near left | +5.15 px | -1.13 px |
+
+Positive x points right; positive y points down. Both sidelines tend inward,
+with median signed edge displacement of 3.83 px on the left and 2.23 px on the
+right. G1 plus templates gives similar values, 3.74 and 2.33 px. Thus the
+reference disagreement describes broader narrowing, not an upper-left-only
+effect. The scene 0034 image diagnostic independently establishes one local
+edge-labelling mechanism; it does not prove the same cause for every case.
+
+Broadcast median directional paint support is 0.9515 lengthwise versus 0.8657
+cross-court for full source, and 0.9515 versus 0.8588 for G1 plus templates.
+These direction scores include all 20 broadcast cases; the reference-offset
+table uses the 18-case subset. GX references retain their clicked/extrapolated
+corner flags. Amateur corner provenance is unspecified in the input pack;
+their residuals remain descriptive and are not pooled as independent truth.
+
+### Checks and limits
+
+All 44 fresh cases report one greyscale conversion each, covering 9,081–50,985
+sampling calls per case. This fixes repeated conversion inside this evaluation
+adapter; it is not a measured total speed-up or a production-code change.
+No available restricted-rank diagnostic changes the selected ungated winner
+when recomputed independently.
+
+Numeric extraction covers all 71 cases (exit 0). A signed-translation and
+180-degree relabelling smoke passes (exit 0). Relevant Ruff and whole-project
+Pyrefly pass (exit 0 each). Earlier runner and adapter tests remain applicable
+because their code is unchanged. No additional images were evaluated after
+the user requested numeric-only completion.
+
+The WebUI task-1/task-2 return is filed unchanged at
+`evidence/webui_followups_20260922/`. All 15 files match the supplied archive;
+compressed tables and JSON parse. Its reported numerical checks have not yet
+been reproduced locally. The original archive is retained in `.recovery/`.

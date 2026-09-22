@@ -1,7 +1,8 @@
 # Court-detector investigation
 
 The branch is building a CourtKeyNet-free detector. G1 paint-filtered proposals
-plus line templates are the leading next design. Court selection has improved;
+plus line templates remain a smaller-design candidate, with an Am4 regression
+to resolve before dropping G0. Court selection has improved;
 far-end fit, rejection of bad results and practical runtime still need work.
 The four September pickup comparisons are complete.
 The target is a scene-level detector using a few sampled frames, shared search
@@ -14,6 +15,8 @@ For an independent review from GitHub, open the
 For useful GitHub-only follow-up work, use the three bounded
 [WebUI prompts](WEBUI_FOLLOWUPS.md): far-end fit, sparse-frame replay and SVD
 search reduction.
+The [returns for tasks 1 and 2](evidence/webui_followups_20260922/README.md)
+are filed with their original script and results; local replay is pending.
 
 ## Research and evidence
 
@@ -21,6 +24,7 @@ search reduction.
 | --- | --- |
 | What has the branch established? | [Findings and decisions](DETECTOR_DECISIONS.md) |
 | What did the completed comparisons show? | [22 September evaluation](evaluation_results_20260922.md) |
+| What happened on all 71 wider-test inputs? | [Wider results and numeric bias](wider_evaluation_20260922.md#completed-numeric-comparison) |
 | Where do proposal access and scoring differ? | [G0/G1 comparison](evidence/g0_g1/README.md) |
 | Which older ideas should return, and when do we test more views? | [Next design and test plan](DETECTOR_DECISIONS.md#next-design-and-wider-test) |
 | What does W5 test, and why? | [Whole-court scoring and admission](evidence/holistic_admission/README.md) |

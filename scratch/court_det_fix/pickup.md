@@ -1,9 +1,16 @@
 # Court-detector pickup
 
-The [wider evaluation](wider_evaluation_20260922.md) is now running on Carmack.
-It adds the remaining 20 frozen views and 24 separate broadcast controls with
-six workers, and reuses the completed 27-case W5 baseline. Resume from that
-worklog for the live run, checks and review state. Code snapshot: `dc7872d`.
+The [wider evaluation](wider_evaluation_20260922.md) is complete: 47 frozen
+detector cases plus 24 controls, with exit 0. The final comparison and numeric
+fit records are local. Image review stopped at 59 cases at the user's request;
+the remaining 12 controls have numeric analysis only. G1 plus templates loses
+a tolerable Am4-319 fit available from G0. An inward-bias investigation found
+an inner paint edge mislabelled as the outer boundary in SS03-34.
+
+Next read and locally reproduce the [WebUI follow-ups 1 and 2](evidence/webui_followups_20260922/README.md).
+Their original report, script, tables and figures are filed unchanged. The
+return reports attainable better GX geometry and limits to sparse-frame paint
+scoring. These findings may guide the next experiment; local replay is pending.
 
 Start with the [22 September evaluation](evaluation_results_20260922.md).
 W5, expanded G0/G1, the corrected five-case person-mask comparison and
@@ -32,14 +39,13 @@ obsolete comparator requirement for ten workers. The arms used six workers.
 The local comparison validates with the existing worker-count repair and
 exactly matches the saved comparison. The full-frame review is complete.
 
-## Next research step
+## Completed wider comparison
 
-Run the broader committed sample set next, after a short frozen-runner smoke
-check. Compare the current full-source W5 `(4,3)` baseline with G1 plus line
-templates using the same scoring and player rule. Keep the current 27 cases
-as regression controls. Expand to all 47 frozen cases and add the separate
-24-case broadcast rejection/review arm. The [design and wider-test plan](DETECTOR_DECISIONS.md#next-design-and-wider-test)
-sets the scope, review categories and older leads worth testing afterwards.
+The broader committed sample comparison is complete. It uses full-source W5
+`(4,3)` and G1 plus line templates with the same scoring and player rule. The
+original 27 cases remain regression controls within the 47 frozen cases;
+24 broadcast controls form a separate arm. The [wider worklog](wider_evaluation_20260922.md)
+contains the group scores, gate outcomes, reference limits and checks.
 
 The deployment target is scene-level detection from a small set of sampled
 frames, with agreement and proposal reuse across a verified camera view.
@@ -47,7 +53,7 @@ The wider fixed-view run is a coverage check, not a single-frame architecture
 decision. Test SVD search reduction for speed and preserved coverage; defer
 graph-search implementation until the search rules are settled.
 
-Do not postpone that coverage check while adding every older idea. Separate
+Use these saved populations to evaluate focused follow-ups. Separate
 clean fits, rare tolerable fallbacks and unacceptable fits; inspect the far
 end explicitly. GX G1 `143:158` is a skewed fallback. G1 `16:44` loses much of
 the far backcourt strip and is tolerable only as an exceptional last resort.

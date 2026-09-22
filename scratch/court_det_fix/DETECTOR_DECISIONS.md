@@ -1,8 +1,9 @@
 # Findings and decisions
 
-The leading next design combines G1 paint-filtered proposals, line-template
-proposals and player evidence. The completed comparisons support this smaller
-prototype, but do not establish reliable fitting or safe automatic acceptance.
+G1 paint-filtered proposals, line templates and player evidence remain a
+candidate smaller design. The completed wider run loses a tolerable Am4-319
+fit when G0 is removed, so retain full-source access while investigating that
+regression. Reliable fitting and safe automatic acceptance remain unresolved.
 CourtKeyNet repair is retired; removing its dependencies remains unfinished.
 
 The nine-view stress panel and expanded 27-case corpus are development data,
@@ -20,6 +21,7 @@ outcomes. Keep those distinctions when interpreting every result below.
 | D06 | W5 `(4,3)` and `(5,3)` select identical courts, with 21/27 usable development selections. The existing player gate raises this to 24/27. G1 plus templates preserves that count and the same failures. Test this smaller design; no tested floor is a sufficient acceptance rule. | [Evaluation](evaluation_results_20260922.md) |
 | D07 | All five corrected person-mask matcher comparisons are complete. Useful broadcast proposals survive, including SS03-17 despite its poor paint winner. Masks alone do not rescue GX5. Historical direction-changing masked arms remain qualified. | [Provenance and repairs](evidence/holistic_admission/box_provenance.md) |
 | D08 | On the same registered GX union, per-frame and shared paint ranking identify the played court on 7/7 frames, versus 5/7 with native-only access. Far-end errors remain; these are not precise-fit counts. Shared line ranking selects a wall on all seven. Prioritise stable-view proposal reuse and measure far-marking accuracy. | [Pixel and temporal evidence](evidence/pixel_temporal/README.md) |
+| D09 | The wider comparison completes 47 frozen cases and 24 controls. Removing G0 loses the tolerable Am4-319 fit. Both arms accept one of eight labelled non-court controls. Static-grid residuals show inward width bias; SS03-34 has a confirmed inner/outer paint-edge misinterpretation. | [Wider results and checks](wider_evaluation_20260922.md#completed-numeric-comparison) |
 
 ## What counts as good enough
 
@@ -103,10 +105,10 @@ not yet implement multi-frame generation, a scene sampler or change handling.
 
 ## Next design and wider test
 
-Schedule the wider sample test as the **next evaluation batch**, after a small
-smoke check of the frozen runner. Do not wait for every promising old idea to
-be reintegrated or for the hard GX views to be perfect. More tuning on the
-same 27 views would tell us little about how often the remaining errors occur.
+The wider fixed-view test is complete; its [results](wider_evaluation_20260922.md)
+supersede the scheduling instructions below. The preserved protocol explains
+its scope. Next, reproduce the [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
+before choosing a focused fitting/ranking change or sparse-frame experiment.
 
 First run the wider fixed-view comparison to expose coverage and fitting
 failures. Then evaluate scene-level sampling and agreement on the source clips;
@@ -119,7 +121,7 @@ the source restriction from one shared measured pool rather than repeating
 expensive image measurements. Preserve rejected candidates so a bad result
 can be separated into missing proposals, poor ranking or an overstrict gate.
 
-Before the wider run:
+Completed pre-run protocol:
 
 1. Freeze the input list, source/scoring settings and review categories. Mark
    prior use by view and video; unused frames from familiar videos are not a
@@ -194,9 +196,10 @@ committed image set for this run.
 
 ## What remains before a detector can ship
 
-Build and compare the smaller G1-plus-template design. Yellow14 and Am1-54
-need better proposal coverage; SS21-10 exposes contaminated-view/player-gate
-problems. Retain player evidence while testing rejection and fallback on new
+Address the Am4-319 regression before removing G0. Yellow14 and Am1-54
+need better proposal coverage. The user excludes unreliable edit-transition
+views such as SS21-10 from required detection; confidence rejection is optional.
+Retain player evidence while testing rejection and fallback on new
 cameras. Remove unused junction diagnostics and repeated greyscale conversion
 from the runtime path; the measured omission alone gave a 2.37× local speedup
 without changing other evidence. This is not a deployment latency estimate.
