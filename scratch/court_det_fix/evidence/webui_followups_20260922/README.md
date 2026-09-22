@@ -8,8 +8,8 @@ is not part of this return.
 The return reports a ranking lead for GX86088: existing alternatives reduce
 far-strip clipping, but remain imperfect. Its sparse-frame replay reports
 that shared paint scoring helps while a wall-selection failure survives three
-samples. These are the return's conclusions; local numerical reproduction and
-integration review remain pending.
+samples. [Local numerical reproduction](local_replay/README.md) now passes.
+Detector integration remains untested.
 
 ## Contents
 
@@ -28,8 +28,8 @@ the named pinned inputs is also supported by the returned script.
 
 Received on 22 September 2026 from `followups12_completed.tar.gz`. All 15
 regular files match their archive members byte-for-byte. All compressed JSON
-and CSV outputs parse successfully. The runner has not been executed or
-integrated locally; reported checks inside the return remain attributed to it.
+and CSV outputs parse successfully. The runner subsequently passed a local
+numerical replay; its results and limits are recorded separately above.
 
 The original archive is retained at
 `.recovery/webui-followups12-return-20260922.tar.gz` relative to the investigation

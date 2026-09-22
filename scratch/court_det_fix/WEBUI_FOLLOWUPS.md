@@ -1,8 +1,9 @@
 # Useful WebUI follow-ups
 
 Tasks 1 and 2 have a [filed return](evidence/webui_followups_20260922/README.md).
-The original report, runner, tables and figures are preserved. Local replay
-and integration review remain pending. Task 3 is still separate.
+The original report, runner, tables and figures are preserved.
+[Local numerical replay](evidence/webui_followups_20260922/local_replay/README.md)
+passes; detector integration is untested. Task 3 is still separate.
 
 These tasks turn committed evidence into small executable results for the
 local agent. They are not another general review of the detector. Start with

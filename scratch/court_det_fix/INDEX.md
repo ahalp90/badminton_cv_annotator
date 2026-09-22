@@ -16,7 +16,7 @@ For useful GitHub-only follow-up work, use the three bounded
 [WebUI prompts](WEBUI_FOLLOWUPS.md): far-end fit, sparse-frame replay and SVD
 search reduction.
 The [returns for tasks 1 and 2](evidence/webui_followups_20260922/README.md)
-are filed with their original script and results; local replay is pending.
+are filed with their original script and results; local numerical replay passes.
 
 ## Research and evidence
 
