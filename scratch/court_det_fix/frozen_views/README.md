@@ -1,4 +1,14 @@
-# The nine frozen views: evidence the court-detector experiments read
+# Frozen views: evidence the court-detector experiments read
+
+The original nine-frame export below now includes the other 18 raw frames
+used by the completed 27-case evaluation. All 27 detector input images are
+published at native dimensions: 17 single frames and 10 broadcast median
+composites. The three input packs still describe 47 cases; the
+additional 20 cases are the next wider-test set, not completed W5 results.
+See the [sample plan](../DETECTOR_DECISIONS.md#frozen-sample-coverage) and
+[GitHub review packet](../evidence/review_20260922/README.md).
+
+## Original nine-frame export
 
 Byte-identical copies, made 2026-09-16, of the gitignored originals under `scratch/court_det_fix/worklog/checks/independent/` (packs and frames) and the `player_guided/20260914` helper tree (baseline direction records), plus two baseline matcher records pulled from the compute host. Committed so a clone can rerun every local replay in `../line_identity/` and `../direction_agreement/` without the working trees. The three packs and the GX0, Amateur-3 and SS03-16 frames carry the MD5s the follow-up checks' manifest recorded for their originals (`<follow-ups>/manifest.json`, 6 of 6 compared equal on 2026-09-16); the other frames and the direction records are plain copies of the files the direction experiment's run manifest hashed.
 

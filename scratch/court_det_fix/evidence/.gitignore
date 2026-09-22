@@ -2,10 +2,27 @@
 **/__pycache__/
 holistic_admission/measurements/
 holistic_admission/figures/
-# The downloaded W5 packet remains local; its reading entry is tracked.
+# The full W5 download stays local; selected diagnostics and review files are tracked.
 holistic_admission/directional_20260921_r5/*
 !holistic_admission/directional_20260921_r5/README.md
+!holistic_admission/directional_20260921_r5/visual_review.md
+!holistic_admission/directional_20260921_r5/evaluation/
+holistic_admission/directional_20260921_r5/evaluation/*
+!holistic_admission/directional_20260921_r5/evaluation/*.py
+!holistic_admission/directional_20260921_r5/evaluation/*.md
+!holistic_admission/directional_20260921_r5/evaluation/*.json.gz
 holistic_admission/source_admission/results*/
 independent_proposals/development/
 independent_proposals/refit_audit/
 direction_search/diagnostics/*/records/
+
+# Full-resolution duplicate galleries and large working populations stay local.
+# review_20260922 publishes the bounded visual/numerical packet.
+g0_g1/evaluation_20260922/populations/
+g0_g1/evaluation_20260922/gallery/
+holistic_admission/box_repair/evaluation_20260922/gallery/
+pixel_temporal/evaluation_20260922/results/gx/overlays/
+pixel_temporal/evaluation_20260922/results/am3/overlays/
+pixel_temporal/evaluation_20260922/results/gx0_smoke/
+pixel_temporal/evaluation_20260922/results/gx0_smoke_s0/
+pixel_temporal/evaluation_20260922/results/am3_registration_smoke/

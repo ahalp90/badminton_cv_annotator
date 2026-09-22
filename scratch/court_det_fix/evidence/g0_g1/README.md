@@ -1,8 +1,16 @@
-# G0/G1: preserved populations, unfinished assessment
+# G0/G1: completed expanded comparison
 
-The expanded 27-case G0/G1 comparison remains unassessed. It is a separate
-research task beside W5. Running W5 on these inputs does not establish which
-generator supplies better courts or which scoring input ranks them better.
+The expanded 27-case G0/G1 comparison is complete. It is a separate result
+from W5: the comparison measures proposal access and crossed scoring inputs,
+while W5 measures full-frame usability. See the [current evaluation
+results](../../evaluation_results_20260922.md) for the findings and caveats.
+The [published case tables](../review_20260922/g0_g1.md) and
+[overlay gallery](../review_20260922/g0_g1/gallery.md) can be read on GitHub.
+
+All 27 case and population checkpoints are available. S0 scoring is complete
+for all 27 cases. S1 is available for 26; `shuttleset_03_scene_0029` is S0-only
+because its original S1 inputs were not preserved. Frozen-reference distances
+for expanded cases are descriptive diagnostics, not accuracy measurements.
 
 G0 is the baseline automatic proposal population. G1 keeps the selected
 directions fixed and filters the line observations for paint evidence.
@@ -12,8 +20,7 @@ scoring. Both use cached DeepLSD fragments; G1 is not a new line detector.
 ## What is available
 
 [The 27-case ledger](cases.csv.gz) records each source path, checksum, cohort
-and available stage. It leaves unavailable stages blank and marks the expanded
-comparison unassessed. The original data remains in the protected
+and available stage. The original data remains in the protected
 [remote packet](../../worklog/remote_records_20260921/README.md).
 
 | Saved evidence | Cases | Meaning |
@@ -42,13 +49,12 @@ needed for the G0/G1 assessment, make a bounded check there first. Do not
 treat the files as globally lost or silently substitute regenerated inputs
 for the original experiment.
 
-The six direct G0 records are not the only useful baseline evidence. The L2
-replay reconstructs generation retention from saved all-camera per-pair
-shortlists when a direct record is absent. That route is tested in L2's four
-cases; it must be checked before extending it to the expanded corpus. A
-reconstructed stage must remain distinguishable from an original stage file.
+The six direct G0 records are not the only useful baseline evidence. The
+completed expanded pass reconstructs generation retention from saved
+all-camera per-pair shortlists when a direct record is absent. Reconstructed
+stages remain labelled separately from original stage files.
 
-## What the earlier comparisons established
+## Historical four-case L2 comparison
 
 The earlier line-identity experiment compared nine development views. L2
 then separated candidate access from scoring on four: GX0, Amateur-2 frames
@@ -80,28 +86,30 @@ Retained evidence:
 - [Direction and cap findings](../direction_search/README.md) for the C2 and
   six-pair L1 probes; neither is a full-corpus G0/G1 assessment
 
-## Questions for the expanded assessment
+## Completed expanded assessment
 
-1. Does G1 add useful courts, lose useful G0 courts, or merely change ordering?
-2. On one fixed candidate union, which changes come from scoring observations
-   rather than access to different candidates?
-3. Which effects arise at generation, camera-first filtering and all-camera
-   rescoring? Report available stages separately.
-4. Do the 17 new cases preserve the original gains and reveal regressions?
-5. How should the generation-only scene be reported without imputing missing
-   inputs, rescores or visual judgements?
+G1 improves useful proposal access on the expanded panel. Nearest
+camera-eligible courts fall within 15 working pixels for 15/27 G0 cases, 21/27
+G1 cases and 22/27 union cases. These are descriptive frozen-reference
+diagnostics, not accuracy estimates. Adding G0 can still hurt ranking: on
+Am2-150, U/S0 selects a 140.9-pixel line court while G1/S0 selects a usable
+12.4-pixel court. On GX0, the G1/S1 line winner is 21.2 pixels versus 10.1
+for G1/S0, but both overlays are pragmatically usable. The [complete crossed
+comparison](evaluation_20260922/comparison_summary.json.gz) retains every
+cell, pool count and selected-origin overlay.
 
 Keep the complete saved candidate records, input pairs, producing code and
 receipts as working evidence. Do not replace them with winners or infer
 visual approval from corner error. Structural validation establishes that
 records arrived coherently; it does not assess scientific quality.
 
-## Separate unfinished work
+## Related evidence
 
-The five-case corrected `person_observations` comparison is still owed.
+The corrected five-case `person_observations` comparison is complete. Its
+results are recorded in the [matcher comparison](../holistic_admission/box_repair/evaluation_20260922/runs/person_observations_repair_20260922/matcher/comparison.md).
 The old person-filtered arms used invalid spatial masks on GX5 and four
-ShuttleSet views. Same-image cases and paint-only arms remain useful; see
-[box provenance](../holistic_admission/box_provenance.md).
+ShuttleSet views, so their historical totals remain qualified. See the [box
+provenance](../holistic_admission/box_provenance.md) for the distinction.
 
 The [temporal comparison](../pixel_temporal/README.md) is another distinct
 question. Its completed rank-sum calculation neither assesses this corpus

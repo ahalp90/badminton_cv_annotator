@@ -1,10 +1,18 @@
 # W5 directional admission: completed packet
 
+For GitHub-only review, use the [published W5 evidence](../../review_20260922/w5.md).
+The full downloaded run links below describe the larger local working packet;
+its arrays, caches and complete case measurements are not committed.
+
 All three arms completed on the fixed 27-case development panel. Each has
 27 case records and successful pilot and gallery receipts. The saved
 [comparison](w5_directional_20260921_r5_comparison/comparison.md) exactly
 matches a fresh validation with the local comparator on 22 September 2026.
-Visual rulings remain pending; no global admission floor has been selected.
+The full-frame review is complete. It found 19/27 usable selections for
+`(3,3)` and 21/27 for `(4,3)` and `(5,3)`; the existing player-support gate
+raises this to 24/27. No tested floor is sufficient for automatic acceptance;
+`(4,3)` is the least restrictive tied development setting. See the [current
+evaluation results](../../../evaluation_results_20260922.md).
 
 | Floor (lengthwise, cross-court) | Saved arm |
 | --- | --- |
@@ -38,17 +46,16 @@ filing. These are local source snapshots, not a newly recovered remote hash
 receipt. Arm manifests retain the recorded producer/helper provenance.
 The earlier r4 launcher and monitoring records are in the preparation archive.
 
-## Review still owed
+## Completed review and interpretation
 
-Inspect every wrong or unclear view, prior-ruling conflict and regression
-case excluded from the contact sheets at full-frame scale. Check the useful
-GX5 admission and the earlier weak GX0 and Am2 winners against saved rulings.
-Choose one global floor only if the evidence supports it; otherwise reject it.
+Full-frame review covered the wrong and unclear views, prior-ruling conflicts
+and regression cases. The remaining failures are yellow14 and Am1-54, which
+need better proposals, and SS21-10, where a better template child is excluded
+by the player gate. The complete findings and caveats are in the [current
+evaluation results](../../../evaluation_results_20260922.md).
 
-The earlier handover also requires a Claude Opus 5 High review of the W5
-result and final historical-impact accounting. That review has not been run
-as part of filing. The [whole-court evidence account](../README.md) and
-[box-provenance account](../box_provenance.md) retain the scientific context.
+The [whole-court evidence account](../README.md) and [box-provenance
+account](../box_provenance.md) retain the historical context and qualifications.
 
 The preparation archive at `../../../.recovery/w5-preparation-20260922.tar.gz`
 preserves the old campaign, worktree, handover, check-ins and earlier monitoring

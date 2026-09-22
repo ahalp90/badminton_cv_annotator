@@ -1,0 +1,62 @@
+{
+  "schema": "temporal-registration/1",
+  "anchor_case": "am3_window_00_frame_0",
+  "pairs": {
+    "am3_window_00_frame_0": {
+      "status": "anchor",
+      "homography_target_to_anchor": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "am3_window_01_frame_10514": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "inlier_count": 378,
+      "inlier_ratio": 0.7339805825242719,
+      "inlier_target_grid_coverage_fraction": 1.0,
+      "heldout_residuals": {
+        "count": 129,
+        "median_px": 0.5556818842887878,
+        "p90_px": 94.19435119628906,
+        "maximum_px": 740.4352416992188
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9978035122361093,
+          -0.0002510521557941641,
+          3.0292723460397646
+        ],
+        [
+          -3.590113085967634e-05,
+          0.9976879161109785,
+          2.7060386801778664
+        ],
+        [
+          -7.17975875616973e-09,
+          -1.8898689664855403e-07,
+          1.0
+        ]
+      ],
+      "overlay_path": "scratch/court_det_fix/evidence/pixel_temporal/evaluation_20260922/results/am3/alignment/am3_window_00_frame_0_to_am3_window_01_frame_10514.png",
+      "identity_grid_summary_px": {
+        "median": 2.3321785926818848,
+        "mean": 2.1808230876922607,
+        "maximum": 3.810833692550659
+      }
+    }
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "schema": "temporal-union-replay/1",
+  "cohort": "am3",
+  "population_cases": [
+    "am3_window_00_frame_0",
+    "am3_window_01_frame_10514"
+  ],
+  "scoring_cases": [
+    "am3_window_00_frame_0",
+    "am3_window_01_frame_10514"
+  ],
+  "population_sources": {
+    "am3_window_00_frame_0": {
+      "path": "/home/ariel/Documents/COSC594/badminton_cv_annotator/scratch/court_det_fix/evidence/g0_g1/evaluation_20260922/populations/am3_window_00_frame_0.json.gz",
+      "md5": "34d27a1830a3121edac57542ea863fd5",
+      "g0_source": "direct:frozen_views/baseline_generation/am3_window_00_frame_0.json.gz"
+    },
+    "am3_window_01_frame_10514": {
+      "path": "/home/ariel/Documents/COSC594/badminton_cv_annotator/scratch/court_det_fix/evidence/g0_g1/evaluation_20260922/populations/am3_window_01_frame_10514.json.gz",
+      "md5": "75d56c470296617239d644f41cea61b3",
+      "g0_source": "replayed:worklog/remote_records_20260921/preserved_data/automatic_axes_20260914/all_camera/am3_window_01_frame_10514.json.gz"
+    }
+  },
+  "population_root": "/home/ariel/Documents/COSC594/badminton_cv_annotator/scratch/court_det_fix/evidence/g0_g1/evaluation_20260922/populations",
+  "candidate_count": 1024,
+  "candidates_per_case_and_arm": 256,
+  "observation_convention": "S0 original source segments and fixed native 960x540 prepare context",
+  "alignment": {
+    "source": "L3.register_pair",
+    "records": {
+      "am3_window_00_frame_0": {
+        "status": "anchor",
+        "homography_target_to_anchor": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "am3_window_01_frame_10514": {
+        "status": "ok",
+        "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+        "inlier_count": 378,
+        "inlier_ratio": 0.7339805825242719,
+        "inlier_target_grid_coverage_fraction": 1.0,
+        "heldout_residuals": {
+          "count": 129,
+          "median_px": 0.5556818842887878,
+          "p90_px": 94.19435119628906,
+          "maximum_px": 740.4352416992188
+        },
+        "homography_target_to_anchor": [
+          [
+            0.9978035122361093,
+            -0.0002510521557941641,
+            3.0292723460397646
+          ],
+          [
+            -3.590113085967634e-05,
+            0.9976879161109785,
+            2.7060386801778664
+          ],
+          [
+            -7.17975875616973e-09,
+            -1.8898689664855403e-07,
+            1.0
+          ]
+        ],
+        "overlay_path": "scratch/court_det_fix/evidence/pixel_temporal/evaluation_20260922/results/am3/alignment/am3_window_00_frame_0_to_am3_window_01_frame_10514.png",
+        "identity_grid_summary_px": {
+          "median": 2.3321785926818848,
+          "mean": 2.1808230876922607,
+          "maximum": 3.810833692550659
+        }
+      }
+    }
+  },
+  "anchor_case": "am3_window_00_frame_0",
+  "diagonal_checks": {
+    "am3_window_00_frame_0": {
+      "target_case": "am3_window_00_frame_0",
+      "native_candidate_count": 512,
+      "native_saved_reused": 451,
+      "native_reevaluated": 61,
+      "maximum_absolute_difference": 1.7152777777777777,
+      "mismatch_examples": [
+        {
+          "court_id": "am3_window_00_frame_0::G1::32:12",
+          "field": "floor_score",
+          "difference": 1.7083333333333335
+        },
+        {
+          "court_id": "am3_window_00_frame_0::G1::32:2",
+          "field": "floor_score",
+          "difference": 1.6875
+        },
+        {
+          "court_id": "am3_window_00_frame_0::G1::32:234",
+          "field": "floor_score",
+          "difference": 1.5833333333333333
+        },
+        {
+          "court_id": "am3_window_00_frame_0::G1::32:3",
+          "field": "floor_score",
+          "difference": 1.6979166666666667
+        },
+        {
+          "court_id": "am3_window_00_frame_0::G1::32:338",
+          "field": "floor_score",
+          "difference": 1.6770833333333335
+        }
+      ],
+      "invalid_projection_count": 0,
+      "invalid_projection_ids": []
+    },
+    "am3_window_01_frame_10514": {
+      "target_case": "am3_window_01_frame_10514",
+      "native_candidate_count": 512,
+      "native_saved_reused": 456,
+      "native_reevaluated": 56,
+      "maximum_absolute_difference": 1.6944444444444444,
+      "mismatch_examples": [
+        {
+          "court_id": "am3_window_01_frame_10514::G1::30:0",
+          "field": "floor_score",
+          "difference": 0.07638888888888895
+        },
+        {
+          "court_id": "am3_window_01_frame_10514::G1::30:10016",
+          "field": "floor_score",
+          "difference": 1.6736111111111112
+        },
+        {
+          "court_id": "am3_window_01_frame_10514::G1::30:12",
+          "field": "floor_score",
+          "difference": 0.07986111111111094
+        },
+        {
+          "court_id": "am3_window_01_frame_10514::G1::30:130",
+          "field": "floor_score",
+          "difference": 0.06597222222222221
+        },
+        {
+          "court_id": "am3_window_01_frame_10514::G1::30:135",
+          "field": "floor_score",
+          "difference": 0.06944444444444442
+        }
+      ],
+      "invalid_projection_count": 0,
+      "invalid_projection_ids": []
+    }
+  },
+  "target_timings_s": {
+    "am3_window_00_frame_0": 149.4250775520013,
+    "am3_window_01_frame_10514": 157.3708877600002
+  },
+  "target_reused": {
+    "am3_window_00_frame_0": true,
+    "am3_window_01_frame_10514": true
+  },
+  "selection_locked": true,
+  "selection_path": "scratch/court_det_fix/evidence/pixel_temporal/evaluation_20260922/results/am3/selection.json",
+  "rendered": [
+    "am3_window_00_frame_0:am3_window_00_frame_0::G1::43:153:native_per_frame-line,common_union_per_frame-line,temporal-shared:am3_window_00_frame_0__am3_window_00_frame_0__G1__43_153__full.png,am3_window_00_frame_0__am3_window_00_frame_0__G1__43_153__crop.png",
+    "am3_window_00_frame_0:am3_window_00_frame_0::G1::43:159:native_per_frame-paint,common_union_per_frame-paint:am3_window_00_frame_0__am3_window_00_frame_0__G1__43_159__full.png,am3_window_00_frame_0__am3_window_00_frame_0__G1__43_159__crop.png",
+    "am3_window_00_frame_0:am3_window_00_frame_0::G1::43:451:temporal-shared:am3_window_00_frame_0__am3_window_00_frame_0__G1__43_451__full.png,am3_window_00_frame_0__am3_window_00_frame_0__G1__43_451__crop.png",
+    "am3_window_01_frame_10514:am3_window_01_frame_10514::G1::30:0:native_per_frame-line:am3_window_01_frame_10514__am3_window_01_frame_10514__G1__30_0__full.png,am3_window_01_frame_10514__am3_window_01_frame_10514__G1__30_0__crop.png",
+    "am3_window_01_frame_10514:am3_window_01_frame_10514::G1::30:325:native_per_frame-paint:am3_window_01_frame_10514__am3_window_01_frame_10514__G1__30_325__full.png,am3_window_01_frame_10514__am3_window_01_frame_10514__G1__30_325__crop.png",
+    "am3_window_01_frame_10514:am3_window_00_frame_0::G1::43:156:common_union_per_frame-line:am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_156__full.png,am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_156__crop.png",
+    "am3_window_01_frame_10514:am3_window_00_frame_0::G1::43:451:common_union_per_frame-paint,temporal-shared:am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_451__full.png,am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_451__crop.png",
+    "am3_window_01_frame_10514:am3_window_00_frame_0::G1::43:153:temporal-shared:am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_153__full.png,am3_window_01_frame_10514__am3_window_00_frame_0__G1__43_153__crop.png"
+  ],
+  "w4_rank_sum": null,
+  "references_loaded_before_selection": false
+}

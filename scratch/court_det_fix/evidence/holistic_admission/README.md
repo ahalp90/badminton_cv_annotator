@@ -9,7 +9,12 @@ This pack replaces the separate stage-2, stage-3, stage-4, stage-5 and
 line-template result narratives. It preserves their numerical records and
 visual decisions without retaining every generated gallery or old raw run.
 The completed [27-case directional-floor packet](directional_20260921_r5/README.md)
-is filed here with all three arms. Its visual assessment is still pending.
+is filed here with all three arms. The completed full-frame review found 19/27
+usable selections for `(3,3)` and 21/27 for `(4,3)` and `(5,3)`. Under the
+existing player-support gate, 24/27 remain usable; the three gated failures
+are yellow14, Am1-54 and SS21-10. These are development-set judgements; no
+tested floor is a sufficient automatic acceptance rule. See the [current evaluation
+results](../../evaluation_results_20260922.md).
 
 ## What changed and what happened
 

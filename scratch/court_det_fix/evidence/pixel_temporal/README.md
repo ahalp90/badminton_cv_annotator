@@ -4,7 +4,8 @@ A bright-line match can have the wrong physical source. The completed pixel
 review demonstrated this on a net band, but also found borrowed support on
 an approved court. Simple coherence or shared-pixel vetoes therefore failed
 their contrary-example test. The temporal rank-sum calculation is also
-complete; a broader independent-versus-shared scoring comparison remains open.
+complete. The [expanded independent/shared comparison](../../evaluation_results_20260922.md#temporal-scoring)
+is also complete on verified G0/G1 unions for GX and Am3.
 
 ## What the pixels established
 
@@ -51,7 +52,7 @@ low-priority provenance footnote, not an open research task or W5 blocker.
 Do not spend a fresh session hunting the matching script unless exact export
 reproduction is needed or a concrete discrepancy appears in the saved checks.
 
-## Temporal result: complete, still not a usable selector
+## Historical 30-court temporal pilot
 
 The L3 pilot scored 30 saved courts on seven GX frames, giving 210
 measurements. Shared median-line scoring selected `106:93818` with median
@@ -82,18 +83,39 @@ Full diagnostic tables, crops, inputs and scripts remain available. The
 [direction-search note](../direction_search/README.md) owns the separate
 cap and pre-gate results and raw arrays.
 
-## Unfinished comparisons
+## Completed automatic-union comparison
 
-Independent versus shared scoring still needs comparison on the same
-verified automatic candidate union. Separate native independent selection,
-independent scoring on the union, and shared scoring. Keep candidate-access
-arms distinct and retain Amateur-3 as a regression control. W4's rank sum
-does not answer that question.
+The new replay uses 3,584 source-qualified candidate occurrences on seven GX
+frames and 1,024 on two Am3 frames. Original S0 observations score every
+proposal after image registration. Primary per-frame and shared rankings use
+the same all-frame-eligible union: 278 GX candidates and 204 Am3 candidates.
+Native-only selection is reported separately from that controlled comparison.
+
+Full-frame review finds GX paint winners identify the played court on 5/7 frames with native-only
+access, 7/7 with per-frame common-union scoring and 7/7 with shared median
+scoring. Corresponding line winners are usable on 2/7, 3/7 and 0/7 frames.
+Shared line scoring still selects a wall. All Am3 native, common-union and
+shared selections remain usable. Far-end GX crops reveal residual misalignment
+even where the near end fits closely, notably G1 `16:44`. The GX counts measure
+correct-court selection, not precise fit. These are developmental judgements,
+not held-out accuracy or a specified pixel tolerance.
+
+The useful GX gain comes from proposal access. Median aggregation prevents no
+additional wrong-court selections over per-frame paint scoring on the same
+union; relative fitting accuracy remains unmeasured. The result
+supports proposal reuse within a stable registered view, not automatic
+acceptance from temporal consistency alone.
+
+The [GX](evaluation_20260922/results/gx/selection.json) and
+[Am3](evaluation_20260922/results/am3/selection.json) selection files preserve
+all access arms. Full-frame overlays and score checkpoints sit beside them.
+The [replay](evaluation_20260922/run_temporal_union.py) uses no reference
+geometry before locking selection. W4 remains a separate historical panel.
 
 Multi-frame generation, camera-change detection and safe court reuse remain
 separate. Nearby cached frames are not independent quality evidence.
 The expanded [G0/G1 assessment](../g0_g1/README.md) and corrected five-case
-person-observation comparison also remain unfinished.
+person-observation comparison are also complete.
 
 ## Rerun the recorded checks
 

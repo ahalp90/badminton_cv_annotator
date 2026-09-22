@@ -1,0 +1,632 @@
+{
+  "schema": "temporal-union-selection/1",
+  "scoring_cases": [
+    "am3_window_00_frame_0",
+    "am3_window_01_frame_10514"
+  ],
+  "common_union_count": 204,
+  "native_per_frame": {
+    "am3_window_00_frame_0": {
+      "eligible_count": 148,
+      "line": {
+        "court_id": "am3_window_00_frame_0::G1::43:153",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:153",
+        "line_score": 0.3542950617374748,
+        "paint_profile_score": 0.8181818181818182
+      },
+      "paint": {
+        "court_id": "am3_window_00_frame_0::G1::43:159",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:159",
+        "line_score": 0.3443092252358326,
+        "paint_profile_score": 1.0
+      }
+    },
+    "am3_window_01_frame_10514": {
+      "eligible_count": 56,
+      "line": {
+        "court_id": "am3_window_01_frame_10514::G1::30:0",
+        "origin_case": "am3_window_01_frame_10514",
+        "origin_arm": "G1",
+        "origin_candidate_id": "30:0",
+        "line_score": 0.3726418154651563,
+        "paint_profile_score": 0.8636363636363636
+      },
+      "paint": {
+        "court_id": "am3_window_01_frame_10514::G1::30:325",
+        "origin_case": "am3_window_01_frame_10514",
+        "origin_arm": "G1",
+        "origin_candidate_id": "30:325",
+        "line_score": 0.35264510819159406,
+        "paint_profile_score": 0.9545454545454546
+      }
+    }
+  },
+  "common_union_per_frame": {
+    "am3_window_00_frame_0": {
+      "eligible_count": 204,
+      "line": {
+        "court_id": "am3_window_00_frame_0::G1::43:153",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:153",
+        "line_score": 0.3542950617374748,
+        "paint_profile_score": 0.8181818181818182
+      },
+      "paint": {
+        "court_id": "am3_window_00_frame_0::G1::43:159",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:159",
+        "line_score": 0.3443092252358326,
+        "paint_profile_score": 1.0
+      }
+    },
+    "am3_window_01_frame_10514": {
+      "eligible_count": 204,
+      "line": {
+        "court_id": "am3_window_00_frame_0::G1::43:156",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:156",
+        "line_score": 0.3851214988185808,
+        "paint_profile_score": 0.6818181818181818
+      },
+      "paint": {
+        "court_id": "am3_window_00_frame_0::G1::43:451",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:451",
+        "line_score": 0.3722781730139674,
+        "paint_profile_score": 1.0
+      }
+    }
+  },
+  "target_eligible_per_frame": {
+    "am3_window_00_frame_0": {
+      "eligible_count": 204,
+      "line": {
+        "court_id": "am3_window_00_frame_0::G1::43:153",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:153",
+        "line_score": 0.3542950617374748,
+        "paint_profile_score": 0.8181818181818182
+      },
+      "paint": {
+        "court_id": "am3_window_00_frame_0::G1::43:159",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:159",
+        "line_score": 0.3443092252358326,
+        "paint_profile_score": 1.0
+      }
+    },
+    "am3_window_01_frame_10514": {
+      "eligible_count": 205,
+      "line": {
+        "court_id": "am3_window_00_frame_0::G1::43:156",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:156",
+        "line_score": 0.3851214988185808,
+        "paint_profile_score": 0.6818181818181818
+      },
+      "paint": {
+        "court_id": "am3_window_00_frame_0::G1::43:451",
+        "origin_case": "am3_window_00_frame_0",
+        "origin_arm": "G1",
+        "origin_candidate_id": "43:451",
+        "line_score": 0.3722781730139674,
+        "paint_profile_score": 1.0
+      }
+    }
+  },
+  "common_union_temporal": {
+    "eligible_count": 204,
+    "shared_line": {
+      "court_id": "am3_window_00_frame_0::G1::43:153",
+      "median_line_score": 0.3691998938528789,
+      "line_vector": [
+        0.3542950617374748,
+        0.38410472596828293
+      ]
+    },
+    "shared_paint": {
+      "court_id": "am3_window_00_frame_0::G1::43:451",
+      "median_paint_profile_score": 1.0,
+      "median_line_score": 0.3554541277796459,
+      "paint_vector": [
+        1.0,
+        1.0
+      ]
+    },
+    "l3": {
+      "metric": "stripe.exclusive.score",
+      "tie_order": "ascending court_id",
+      "independent": {
+        "am3_window_00_frame_0": {
+          "court_id": "am3_window_00_frame_0::G1::43:153",
+          "line_score": 0.3542950617374748,
+          "line_vector": [
+            0.3542950617374748,
+            0.38410472596828293
+          ],
+          "paint_profile_vector": [
+            0.8181818181818182,
+            0.6818181818181818
+          ]
+        },
+        "am3_window_01_frame_10514": {
+          "court_id": "am3_window_00_frame_0::G1::43:156",
+          "line_score": 0.3851214988185808,
+          "line_vector": [
+            0.347694697700067,
+            0.3851214988185808
+          ],
+          "paint_profile_vector": [
+            0.8181818181818182,
+            0.6818181818181818
+          ]
+        }
+      },
+      "shared": {
+        "aggregation": "median across 2 selected frames",
+        "court_id": "am3_window_00_frame_0::G1::43:153",
+        "median_line_score": 0.3691998938528789,
+        "line_vector": [
+          0.3542950617374748,
+          0.38410472596828293
+        ],
+        "paint_profile_vector": [
+          0.8181818181818182,
+          0.6818181818181818
+        ]
+      }
+    }
+  },
+  "access_arms": {
+    "G0": {
+      "common_union_count": 57,
+      "per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 57,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G0::43:22603",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22603",
+            "line_score": 0.345268501618597,
+            "paint_profile_score": 0.7272727272727273
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G0::43:22627",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22627",
+            "line_score": 0.33800176563531215,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 57,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G0::43:22611",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22611",
+            "line_score": 0.3801288987276043,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G0::43:22627",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22627",
+            "line_score": 0.3735606206357306,
+            "paint_profile_score": 0.9090909090909091
+          }
+        }
+      },
+      "target_eligible_per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 57,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G0::43:22603",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22603",
+            "line_score": 0.345268501618597,
+            "paint_profile_score": 0.7272727272727273
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G0::43:22627",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22627",
+            "line_score": 0.33800176563531215,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 58,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G0::43:22611",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22611",
+            "line_score": 0.3801288987276043,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G0::43:22627",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G0",
+            "origin_candidate_id": "43:22627",
+            "line_score": 0.3735606206357306,
+            "paint_profile_score": 0.9090909090909091
+          }
+        }
+      },
+      "temporal": {
+        "eligible_count": 57,
+        "shared_line": {
+          "court_id": "am3_window_00_frame_0::G0::43:22603",
+          "median_line_score": 0.36263524944763714,
+          "line_vector": [
+            0.345268501618597,
+            0.3800019972766773
+          ]
+        },
+        "shared_paint": {
+          "court_id": "am3_window_00_frame_0::G0::43:22627",
+          "median_paint_profile_score": 0.9545454545454546,
+          "median_line_score": 0.35578119313552137,
+          "paint_vector": [
+            1.0,
+            0.9090909090909091
+          ]
+        },
+        "l3": {
+          "metric": "stripe.exclusive.score",
+          "tie_order": "ascending court_id",
+          "independent": {
+            "am3_window_00_frame_0": {
+              "court_id": "am3_window_00_frame_0::G0::43:22603",
+              "line_score": 0.345268501618597,
+              "line_vector": [
+                0.345268501618597,
+                0.3800019972766773
+              ],
+              "paint_profile_vector": [
+                0.7272727272727273,
+                0.7272727272727273
+              ]
+            },
+            "am3_window_01_frame_10514": {
+              "court_id": "am3_window_00_frame_0::G0::43:22611",
+              "line_score": 0.3801288987276043,
+              "line_vector": [
+                0.34270594859667647,
+                0.3801288987276043
+              ],
+              "paint_profile_vector": [
+                0.8181818181818182,
+                0.6818181818181818
+              ]
+            }
+          },
+          "shared": {
+            "aggregation": "median across 2 selected frames",
+            "court_id": "am3_window_00_frame_0::G0::43:22603",
+            "median_line_score": 0.36263524944763714,
+            "line_vector": [
+              0.345268501618597,
+              0.3800019972766773
+            ],
+            "paint_profile_vector": [
+              0.7272727272727273,
+              0.7272727272727273
+            ]
+          }
+        }
+      }
+    },
+    "G1": {
+      "common_union_count": 147,
+      "per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 147,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:153",
+            "line_score": 0.3542950617374748,
+            "paint_profile_score": 0.8181818181818182
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:159",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:159",
+            "line_score": 0.3443092252358326,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 147,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:156",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:156",
+            "line_score": 0.3851214988185808,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:451",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:451",
+            "line_score": 0.3722781730139674,
+            "paint_profile_score": 1.0
+          }
+        }
+      },
+      "target_eligible_per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 147,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:153",
+            "line_score": 0.3542950617374748,
+            "paint_profile_score": 0.8181818181818182
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:159",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:159",
+            "line_score": 0.3443092252358326,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 147,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:156",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:156",
+            "line_score": 0.3851214988185808,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:451",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:451",
+            "line_score": 0.3722781730139674,
+            "paint_profile_score": 1.0
+          }
+        }
+      },
+      "temporal": {
+        "eligible_count": 147,
+        "shared_line": {
+          "court_id": "am3_window_00_frame_0::G1::43:153",
+          "median_line_score": 0.3691998938528789,
+          "line_vector": [
+            0.3542950617374748,
+            0.38410472596828293
+          ]
+        },
+        "shared_paint": {
+          "court_id": "am3_window_00_frame_0::G1::43:451",
+          "median_paint_profile_score": 1.0,
+          "median_line_score": 0.3554541277796459,
+          "paint_vector": [
+            1.0,
+            1.0
+          ]
+        },
+        "l3": {
+          "metric": "stripe.exclusive.score",
+          "tie_order": "ascending court_id",
+          "independent": {
+            "am3_window_00_frame_0": {
+              "court_id": "am3_window_00_frame_0::G1::43:153",
+              "line_score": 0.3542950617374748,
+              "line_vector": [
+                0.3542950617374748,
+                0.38410472596828293
+              ],
+              "paint_profile_vector": [
+                0.8181818181818182,
+                0.6818181818181818
+              ]
+            },
+            "am3_window_01_frame_10514": {
+              "court_id": "am3_window_00_frame_0::G1::43:156",
+              "line_score": 0.3851214988185808,
+              "line_vector": [
+                0.347694697700067,
+                0.3851214988185808
+              ],
+              "paint_profile_vector": [
+                0.8181818181818182,
+                0.6818181818181818
+              ]
+            }
+          },
+          "shared": {
+            "aggregation": "median across 2 selected frames",
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "median_line_score": 0.3691998938528789,
+            "line_vector": [
+              0.3542950617374748,
+              0.38410472596828293
+            ],
+            "paint_profile_vector": [
+              0.8181818181818182,
+              0.6818181818181818
+            ]
+          }
+        }
+      }
+    },
+    "union": {
+      "common_union_count": 204,
+      "per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 204,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:153",
+            "line_score": 0.3542950617374748,
+            "paint_profile_score": 0.8181818181818182
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:159",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:159",
+            "line_score": 0.3443092252358326,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 204,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:156",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:156",
+            "line_score": 0.3851214988185808,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:451",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:451",
+            "line_score": 0.3722781730139674,
+            "paint_profile_score": 1.0
+          }
+        }
+      },
+      "target_eligible_per_frame": {
+        "am3_window_00_frame_0": {
+          "eligible_count": 204,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:153",
+            "line_score": 0.3542950617374748,
+            "paint_profile_score": 0.8181818181818182
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:159",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:159",
+            "line_score": 0.3443092252358326,
+            "paint_profile_score": 1.0
+          }
+        },
+        "am3_window_01_frame_10514": {
+          "eligible_count": 205,
+          "line": {
+            "court_id": "am3_window_00_frame_0::G1::43:156",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:156",
+            "line_score": 0.3851214988185808,
+            "paint_profile_score": 0.6818181818181818
+          },
+          "paint": {
+            "court_id": "am3_window_00_frame_0::G1::43:451",
+            "origin_case": "am3_window_00_frame_0",
+            "origin_arm": "G1",
+            "origin_candidate_id": "43:451",
+            "line_score": 0.3722781730139674,
+            "paint_profile_score": 1.0
+          }
+        }
+      },
+      "temporal": {
+        "eligible_count": 204,
+        "shared_line": {
+          "court_id": "am3_window_00_frame_0::G1::43:153",
+          "median_line_score": 0.3691998938528789,
+          "line_vector": [
+            0.3542950617374748,
+            0.38410472596828293
+          ]
+        },
+        "shared_paint": {
+          "court_id": "am3_window_00_frame_0::G1::43:451",
+          "median_paint_profile_score": 1.0,
+          "median_line_score": 0.3554541277796459,
+          "paint_vector": [
+            1.0,
+            1.0
+          ]
+        },
+        "l3": {
+          "metric": "stripe.exclusive.score",
+          "tie_order": "ascending court_id",
+          "independent": {
+            "am3_window_00_frame_0": {
+              "court_id": "am3_window_00_frame_0::G1::43:153",
+              "line_score": 0.3542950617374748,
+              "line_vector": [
+                0.3542950617374748,
+                0.38410472596828293
+              ],
+              "paint_profile_vector": [
+                0.8181818181818182,
+                0.6818181818181818
+              ]
+            },
+            "am3_window_01_frame_10514": {
+              "court_id": "am3_window_00_frame_0::G1::43:156",
+              "line_score": 0.3851214988185808,
+              "line_vector": [
+                0.347694697700067,
+                0.3851214988185808
+              ],
+              "paint_profile_vector": [
+                0.8181818181818182,
+                0.6818181818181818
+              ]
+            }
+          },
+          "shared": {
+            "aggregation": "median across 2 selected frames",
+            "court_id": "am3_window_00_frame_0::G1::43:153",
+            "median_line_score": 0.3691998938528789,
+            "line_vector": [
+              0.3542950617374748,
+              0.38410472596828293
+            ],
+            "paint_profile_vector": [
+              0.8181818181818182,
+              0.6818181818181818
+            ]
+          }
+        }
+      }
+    }
+  },
+  "selection_locked": true
+}

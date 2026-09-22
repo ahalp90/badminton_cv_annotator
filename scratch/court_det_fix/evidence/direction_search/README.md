@@ -64,7 +64,7 @@ Both arms still formed 512×512 candidate combinations. The control measured
 the outcome; it did not choose admissions.
 
 The [G0/G1 note](../g0_g1/README.md) separates access to proposals from changed
-scoring observations. Its expanded 27-case comparison is unfinished.
+scoring observations. Its expanded 27-case comparison is complete.
 The [pixel/temporal note](../pixel_temporal/README.md) owns the completed
 rank-sum result and the distinct independent-versus-shared scoring question.
 
