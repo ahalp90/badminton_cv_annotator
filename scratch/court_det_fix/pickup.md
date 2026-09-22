@@ -1,5 +1,14 @@
 # Court-detector pickup
 
+The [paint-side polarity experiment](edge_polarity/README.md) is complete on
+seven development cases with six workers. Correcting contradicted edge labels
+partly reduces the recurring left inset. Across six video-03 scenes, median
+left-edge disagreement with the static grid falls from 3.745 to 1.799 working
+pixels. Scores are mixed; the approved GX fit barely moves. No images were
+reviewed. The next bounded check is the remaining SS03-34 fitting residuals,
+especially observed stripe width versus the projected physical stripe model.
+Detector search, ranking and production behaviour remain unchanged.
+
 The [wider evaluation](wider_evaluation_20260922.md) is complete: 47 frozen
 detector cases plus 24 controls, with exit 0. The final comparison and numeric
 fit records are local. Image review stopped at 59 cases at the user's request;
@@ -8,12 +17,12 @@ a tolerable Am4-319 fit available from G0. An inward-bias investigation found
 an inner paint edge mislabelled as the outer boundary in SS03-34.
 
 The [WebUI follow-ups 1 and 2](evidence/webui_followups_20260922/README.md)
-now reproduce locally. Their original files remain unchanged. The next task
-is a [historical regression audit](evidence/independent_proposals/history_audit_20260922.md):
-trace the better fits in the 9–14 September
-HTML galleries through the later direction, line-identity and W5 work. The
-user recalls better geometry before the Claude orchestration sessions.
-Establish the earliest divergence before proposing another fit change.
+now reproduce locally. Their original files remain unchanged. The
+[historical regression audit](evidence/independent_proposals/history_audit_20260922.md)
+found the earlier approved automatic fits still available in current G0.
+The core fitter is unchanged from 14 September, and broadcast inward bias was
+already present then. Selection and source-population changes remain distinct
+from the polarity defect tested above.
 
 Start with the [22 September evaluation](evaluation_results_20260922.md).
 W5, expanded G0/G1, the corrected five-case person-mask comparison and

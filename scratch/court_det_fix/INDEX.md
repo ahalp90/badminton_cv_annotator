@@ -25,6 +25,7 @@ are filed with their original script and results; local numerical replay passes.
 | What has the branch established? | [Findings and decisions](DETECTOR_DECISIONS.md) |
 | What did the completed comparisons show? | [22 September evaluation](evaluation_results_20260922.md) |
 | What happened on all 71 wider-test inputs? | [Wider results and numeric bias](wider_evaluation_20260922.md#completed-numeric-comparison) |
+| Does the side containing white paint explain the inset? | [Paint-side polarity test](edge_polarity/README.md) |
 | Where do proposal access and scoring differ? | [G0/G1 comparison](evidence/g0_g1/README.md) |
 | Which older ideas should return, and when do we test more views? | [Next design and test plan](DETECTOR_DECISIONS.md#next-design-and-wider-test) |
 | What does W5 test, and why? | [Whole-court scoring and admission](evidence/holistic_admission/README.md) |
