@@ -31,6 +31,17 @@ record. Its missing inputs and rescores are a known exception, not a failed
 r3 case. Preserve its complete result even though it cannot currently be
 rerun from the preserved packet.
 
+This is a known reproduction gap, not a W5 blocker: all 256 saved G1
+candidates remain available for evaluation. The missing files are
+`line_identity/inputs/paint_observations/cases/shuttleset_03_scene_0029.json.gz`
+and the corresponding `estimators/shuttleset_03_scene_0029.json.gz`.
+Neither appeared in the pre-cleanup local inventory. Do not repeat a broad
+local search during session pickup. The user suspects copies may remain on
+Carmack; that possibility has not been checked. If exact regeneration is
+needed for the G0/G1 assessment, make a bounded check there first. Do not
+treat the files as globally lost or silently substitute regenerated inputs
+for the original experiment.
+
 The six direct G0 records are not the only useful baseline evidence. The L2
 replay reconstructs generation retention from saved all-camera per-pair
 shortlists when a direct record is absent. That route is tested in L2's four
@@ -63,7 +74,9 @@ Retained evidence:
 - [L2 replay source](../../next_steps_20260916/L2_scoring/run_l2_scoring.py):
   `load_generation_population` records direct versus reconstructed inputs
 - [Nine-view matcher records](../../line_identity/runs/line_identity_20260915_222437/matcher/):
-  retain all arms, with the person-mask qualifications below
+  other saved arms remain here, with the person-mask qualifications below.
+  The complete [paint-observation population](../../worklog/remote_records_20260921/preserved_data/line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/)
+  is in the remote packet; its temporary nine-view links have been retired
 - [Direction and cap findings](../direction_search/README.md) for the C2 and
   six-pair L1 probes; neither is a full-corpus G0/G1 assessment
 

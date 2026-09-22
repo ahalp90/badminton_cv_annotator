@@ -345,8 +345,10 @@ def import_run_automatic():
 
 
 def load_g1(root: Path, context, verifier: dict[str, Any]) -> tuple[list[dict], str]:
-    path = root / "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results" / (
-        f"{context.case_id}.json.gz"
+    path = (
+        root / "worklog/remote_records_20260921/preserved_data/line_identity/runs"
+        / "line_identity_20260915_222437/matcher/paint_observations/results"
+        / f"{context.case_id}.json.gz"
     )
     record = validate_generation_record(
         verifier["read_json_gz"](path), context.case_id, "saved G1", expected_stage="results"
@@ -1326,7 +1328,7 @@ def helper_hashes(root: Path, runtime_paths: dict[str, str]) -> dict:
 def previous_stage5_anchors(root: Path, case_id: str) -> dict:
     """Load only the selected stage-5 identities for review continuity."""
     run_name = "w5_stage5_20260920"
-    path = root / "w5_holistic/runs" / run_name / "review_candidates.json"
+    path = root / "evidence/holistic_admission/runs" / run_name / "review_candidates.json"
     if not path.exists():
         return {"available": False, "run": run_name, "selected": {}, "candidates": {}}
     records = __import__("json").loads(path.read_text())
@@ -1449,7 +1451,10 @@ def write_packet(
         },
         "source_stage": {
             "G0": "frozen_views/baseline_generation when present, otherwise automatic_axes_20260914/all_camera with L2 selection replay",
-            "G1": "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results",
+            "G1": (
+                "worklog/remote_records_20260921/preserved_data/line_identity/runs/"
+                "line_identity_20260915_222437/matcher/paint_observations/results"
+            ),
             "line_template": "cached W5 fragments + frozen coverage VP ordering + union-map support",
             "automatic_path_reference_fields": not automatic_path_free_of_reference_fields,
             "automatic_path_free_of_reference_fields": automatic_path_free_of_reference_fields,

@@ -46,6 +46,11 @@ Reproduction has two important boundaries:
   The executed source has not been recovered in this local check. Preserve
   that gap; it does not invalidate the returned pixels or their verifier
 
+The atlas-builder checksum mismatch predates the cleanup. Treat it as a
+low-priority provenance footnote, not an open research task or W5 blocker.
+Do not spend a fresh session hunting the matching script unless exact export
+reproduction is needed or a concrete discrepancy appears in the saved checks.
+
 ## Temporal result: complete, still not a usable selector
 
 The L3 pilot scored 30 saved courts on seven GX frames, giving 210

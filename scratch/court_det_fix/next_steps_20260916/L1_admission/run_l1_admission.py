@@ -28,12 +28,13 @@ COURT_DET_FIX = HERE.parents[1]
 REPO = HERE.parents[3]
 LINE_IDENTITY = COURT_DET_FIX / 'line_identity'
 FOLLOW_UPS = COURT_DET_FIX / 'worklog/webui_further_followups_16092026'
-CAMERA_HELPERS = COURT_DET_FIX / 'worklog/checks/independent/player_guided/20260908'
+RETENTION_HELPERS = COURT_DET_FIX / 'evidence/pixel_temporal/support/helpers'
+CAMERA_HELPERS = COURT_DET_FIX / 'evidence/independent_proposals/development/player_guided/20260908'
 WEBUI_SEED = COURT_DET_FIX / 'next_steps_20260916/webui_seed'
 
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(LINE_IDENTITY))
-sys.path.insert(0, str(FOLLOW_UPS / 'helpers'))
+sys.path.insert(0, str(RETENTION_HELPERS))
 
 from shared import add_helper_paths
 
@@ -658,7 +659,7 @@ def main() -> None:
         'reference_files': {
             'axis_replay': relative_path(LINE_IDENTITY / 'axis_replay.py'),
             'axis_table': relative_path(LINE_IDENTITY / 'runs/axis_replay/table.csv'),
-            'retention_helper': relative_path(FOLLOW_UPS / 'helpers/retention_probe_reference.py'),
+            'retention_helper': relative_path(RETENTION_HELPERS / 'retention_probe_reference.py'),
             'c2_witnesses': relative_path(COURT_DET_FIX / 'next_steps_20260916/C2_traces/witnesses.json'),
         },
         'matcher_settings': asdict(MATCHER_SETTINGS),

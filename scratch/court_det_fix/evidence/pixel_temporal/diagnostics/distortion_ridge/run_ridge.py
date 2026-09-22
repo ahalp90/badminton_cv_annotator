@@ -21,11 +21,7 @@ from scipy.ndimage import map_coordinates
 
 # <repo> is an alias that must be resolved locally.
 REPO_ROOT = Path("<repo>")
-OUT = (
-    REPO_ROOT
-    / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026"
-    / "CLAUDE_FOLLOWUPS/distortion_ridge"
-)
+OUT = REPO_ROOT / "scratch/court_det_fix/evidence/pixel_temporal/diagnostics/distortion_ridge"
 
 MARGIN_PX = 20
 N_POSITIONS = 60
@@ -34,7 +30,7 @@ PEAK_THRESHOLD_GREY = 25.0
 
 # view -> (frame path, e3 record path, role)
 GX_FRAME = (
-    "scratch/court_det_fix/worklog/checks/independent/player_guided/"
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
     "20260909/gx_extension/people/images/gxBQ_window_00_frame_00000000.png"
 )
 GX_E3 = (
@@ -42,7 +38,7 @@ GX_E3 = (
     "direction_agreement_20260915_144900/e3/gxBQ_window_00_frame_0.json.gz"
 )
 AM3_FRAME = (
-    "scratch/court_det_fix/worklog/checks/independent/player_guided/"
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
     "20260908/people_original/images/am3_window_00_frame_00000000.png"
 )
 AM3_E3 = (
@@ -50,7 +46,7 @@ AM3_E3 = (
     "direction_agreement_20260915_144900/e3/am3_window_00_frame_0.json.gz"
 )
 SHUTTLESET_FRAME = (
-    "scratch/court_det_fix/worklog/checks/independent/people_job/images/"
+    "scratch/court_det_fix/evidence/independent_proposals/development/people_job/images/"
     "shuttleset_03_scene_0016.png"
 )
 SHUTTLESET_E3 = (

@@ -31,7 +31,7 @@ AXIS_ROOT = HELPER_ROOT / "axis_matching"
 MARKING_ROOT = HELPER_ROOT / "marking_diagnosis"
 VP_ROOT = HELPER_ROOT / "vp_pruning"
 LEGACY_ROOT = HELPER_ROOT / "legacy"
-CAMERA_HELPERS = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260908"
+CAMERA_HELPERS = REPO_ROOT / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260908"
 for import_root in (
     REPO_ROOT,
     SRC_ROOT,
@@ -53,12 +53,14 @@ from experiments.annotator.independent_court import assignment
 OUTPUT_ROOT = REPO_ROOT / "scratch/court_det_fix/next_steps_20260916/L3_temporal"
 PACK_PATH = REPO_ROOT / "scratch/court_det_fix/frozen_views/packs/gx_extension_inputs.json.gz"
 LOCAL_PACK_PATH = (
-    REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/inputs.json.gz"
+    REPO_ROOT / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+    "20260909/gx_extension/inputs.json.gz"
 )
-IMAGE_ROOT = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909"
+IMAGE_ROOT = REPO_ROOT / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260909"
 ORIGIN_ROOT = (
     REPO_ROOT
-    / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/automatic_axes/collected/all_camera"
+    / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+    "20260914/automatic_axes/collected/all_camera"
 )
 
 ORIGIN_CASES = (

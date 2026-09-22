@@ -15,9 +15,15 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[6]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "src"))
-sys.path.insert(0, str(REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/automatic_axes"))
-sys.path.insert(0, str(REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/vp_pruning"))
-sys.path.insert(0, str(REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/marking_diagnosis"))
+sys.path.insert(0, str(REPO_ROOT / (
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/automatic_axes"
+)))
+sys.path.insert(0, str(REPO_ROOT / (
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/vp_pruning"
+)))
+sys.path.insert(0, str(REPO_ROOT / (
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/marking_diagnosis"
+)))
 
 from diagnose_direction_bank import reconstruct_bank
 
@@ -30,7 +36,7 @@ TEMPORAL_RECORDS = REPO_ROOT / (
     "evaluation/temporal_records.json.gz"
 )
 SAVED_GX0_ESTIMATOR = REPO_ROOT / (
-    "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/vp_pruning/"
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/vp_pruning/"
     "coverage/results/gxBQ_window_00_frame_0.json.gz"
 )
 E2_RECORD = REPO_ROOT / (

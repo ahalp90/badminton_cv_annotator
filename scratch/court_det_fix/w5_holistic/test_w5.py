@@ -298,7 +298,7 @@ def test_line_template_full_w5_gates_are_attached_with_raw_maps() -> None:
 
 
 def test_previous_stage5_anchor_keeps_only_final_c_selection(tmp_path: Path) -> None:
-    path = tmp_path / "w5_holistic/runs/w5_stage5_20260920/review_candidates.json"
+    path = tmp_path / "evidence/holistic_admission/runs/w5_stage5_20260920/review_candidates.json"
     path.parent.mkdir(parents=True)
     path.write_text(__import__("json").dumps({
         "case": {

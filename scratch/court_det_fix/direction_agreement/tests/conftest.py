@@ -5,7 +5,7 @@ from pathlib import Path
 
 EXPERIMENT = Path(__file__).resolve().parents[1]
 REPO = EXPERIMENT.parents[2]
-HELPERS = REPO / 'scratch/court_det_fix/worklog/checks/independent/player_guided/20260914'
+HELPERS = REPO / 'scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914'
 # The experiment folder must resolve first, as it does on the remote PYTHONPATH: the
 # marking_diagnosis helpers also have a summarise.py.
 sys.path[:0] = [str(directory) for directory in (

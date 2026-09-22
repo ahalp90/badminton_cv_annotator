@@ -13,7 +13,7 @@ import audit_admission as audit
 
 ROOT = Path(__file__).resolve().parents[5]
 AUDIT_ROOT = Path(__file__).resolve().parent
-W5_ROOT = ROOT / "scratch/court_det_fix/w5_holistic/runs/w5_stage5_20260920"
+W5_ROOT = ROOT / "scratch/court_det_fix/evidence/holistic_admission/runs/w5_stage5_20260920"
 CASES = (
     "gxBQ_window_00_frame_0",
     "gxBQ_window_00_frame_5",

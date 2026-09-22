@@ -62,7 +62,7 @@ def load_helpers(root: Path):
 def load_camera_helper(root: Path):
     camera_root = root / "smoke/legacy"
     if not camera_root.exists():
-        camera_root = root / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260908"
+        camera_root = root / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260908"
     sys.path.insert(0, str(camera_root))
     import camera_diagnostic  # noqa: PLC0415
 

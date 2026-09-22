@@ -19,7 +19,7 @@ from common import CASE_IDS, read
 from experiments.annotator.independent_court.render_stripe_overlays import court_lines
 
 REPO = Path(__file__).resolve().parents[3]
-CHECKS = REPO / 'scratch/court_det_fix/worklog/checks/independent'
+CHECKS = REPO / 'scratch/court_det_fix/evidence/independent_proposals/development'
 PACKS = (
     CHECKS / 'player_guided/20260909/gx_extension/inputs.json.gz',
     CHECKS / 'player_guided/20260909/broadcast_extension/inputs.json.gz',

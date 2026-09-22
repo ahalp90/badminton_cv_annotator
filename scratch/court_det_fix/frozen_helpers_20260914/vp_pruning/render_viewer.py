@@ -19,7 +19,7 @@ from experiments.annotator.independent_court.render_stripe_overlays import (
 )
 
 ROOT = Path(__file__).resolve().parents[8]
-CHECKS = ROOT / 'scratch/court_det_fix/worklog/checks/independent'
+CHECKS = ROOT / 'scratch/court_det_fix/evidence/independent_proposals/development'
 CASES = (
     'gxBQ_window_00_frame_0', 'gxBQ_window_00_frame_5',
     'am2_window_00_frame_150', 'am2_window_01_frame_28019', 'am3_window_00_frame_0',

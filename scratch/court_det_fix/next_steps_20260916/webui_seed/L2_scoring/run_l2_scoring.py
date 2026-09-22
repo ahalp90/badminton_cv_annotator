@@ -27,12 +27,20 @@ COURT_DET_FIX = Path(
 ).resolve()
 FROZEN_VIEWS = COURT_DET_FIX / "frozen_views"
 HELPERS = COURT_DET_FIX / "frozen_helpers_20260914"
-CAMERA_HELPERS = COURT_DET_FIX / "worklog/checks/independent/player_guided/20260908"
+CAMERA_HELPERS = COURT_DET_FIX / "evidence/independent_proposals/development/player_guided/20260908"
 SOURCE = COURT_DET_FIX / "next_steps_20260916/webui_seed/source"
-FILTER_INPUTS = COURT_DET_FIX / "line_identity/inputs/paint_observations"
-FILTER_RUN = COURT_DET_FIX / "line_identity/runs/line_identity_20260915_222437/matcher/paint_observations"
+FILTER_INPUTS = (
+    COURT_DET_FIX
+    / "worklog/remote_records_20260921/preserved_data/line_identity/inputs/paint_observations"
+)
+FILTER_RUN = (
+    COURT_DET_FIX
+    / "worklog/remote_records_20260921/preserved_data/line_identity/runs/"
+    "line_identity_20260915_222437/matcher/paint_observations"
+)
 BASELINE_ALL_CAMERA = (
-    COURT_DET_FIX / "worklog/checks/independent/player_guided/20260914/automatic_axes/collected/all_camera"
+    COURT_DET_FIX / "evidence/independent_proposals/development/player_guided/"
+    "20260914/automatic_axes/collected/all_camera"
 )
 BASELINE_GENERATION = FROZEN_VIEWS / "baseline_generation"
 BASELINE_ACCOUNTING = COURT_DET_FIX / "direction_agreement/runs/direction_agreement_20260915_144900/e4/accounting.csv.gz"

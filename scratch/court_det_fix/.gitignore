@@ -1,16 +1,3 @@
 # Private working data and sealed recovery stay local. INDEX.md is the reading entry.
 .recovery/
 worklog/*
-!worklog/webui_evaluation_returns_15092026/
-worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/*/records/
-worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/_bundles/
-worklog/**/__pycache__/
-# 2026-09-20: the W5 handover pack and its WebUI check-in prompts are tracked so the Git-only
-# reviewer can read the contract it audits against. The rest of that follow-up folder stays private.
-!worklog/webui_further_followups_16092026/
-worklog/webui_further_followups_16092026/*
-!worklog/webui_further_followups_16092026/w5_handover/
-!worklog/webui_further_followups_16092026/w5_webui_checkins/
-# Compatibility links for previously tracked standalone replay packs.
-!worklog/webui_further_followups_16092026/w2_pixel_review
-!worklog/webui_further_followups_16092026/W4_audit

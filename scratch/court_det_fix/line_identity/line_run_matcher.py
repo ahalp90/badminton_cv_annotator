@@ -113,7 +113,11 @@ def run_case(
     inputs_dir: Path | None = None,
     repair_manifest: dict | None = None,
 ) -> dict:
-    inputs_dir = HERE / 'inputs' if inputs_dir is None else inputs_dir
+    if inputs_dir is None:
+        inputs_dir = (
+            HERE.parent / 'worklog/remote_records_20260921/preserved_data/line_identity/inputs'
+            if arm == 'paint_observations' else HERE / 'inputs'
+        )
     preflight_person_input(case_id, arm, inputs_dir, repair_manifest)
     case_path = inputs_dir / arm / 'cases' / f'{case_id}.json.gz'
     estimator_path = inputs_dir / arm / 'estimators' / f'{case_id}.json.gz'
@@ -149,7 +153,7 @@ def main() -> None:
     parser.add_argument('--run', required=True)
     parser.add_argument('--arm', required=True)
     parser.add_argument('--ids', nargs='+', required=True)
-    parser.add_argument('--inputs-dir', type=Path, default=HERE / 'inputs')
+    parser.add_argument('--inputs-dir', type=Path)
     parser.add_argument('--repair-manifest', type=Path)
     args = parser.parse_args()
     if args.repair_manifest is not None and args.arm != repair_inputs.ARM:

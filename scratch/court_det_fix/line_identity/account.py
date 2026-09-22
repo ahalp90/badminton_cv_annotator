@@ -25,6 +25,7 @@ import gzip
 import hashlib
 import importlib.util
 import io
+import os
 import sys
 from pathlib import Path
 
@@ -119,7 +120,11 @@ def gate_inputs(
     for field, value in expected.items():
         if value is not None and record.get(field) != value:
             raise ValueError(f'{field} does not match the requested record: {record.get(field)!r} != {value!r}')
-    inputs_dir = HERE / 'inputs' if inputs_dir is None else inputs_dir
+    if inputs_dir is None:
+        inputs_dir = (
+            HERE.parent / 'worklog/remote_records_20260921/preserved_data/line_identity/inputs'
+            if arm == 'paint_observations' else HERE / 'inputs'
+        )
     if repair_manifest is not None:
         if arm != repair_inputs.ARM:
             raise ValueError(f'--repair-manifest is only valid for {repair_inputs.ARM}')
@@ -171,7 +176,7 @@ def main() -> None:
     parser.add_argument('--run', required=True)
     parser.add_argument('--arms', nargs='+', required=True)
     parser.add_argument('--cases', nargs='+', default=list(CASE_IDS))
-    parser.add_argument('--inputs-dir', type=Path, default=HERE / 'inputs')
+    parser.add_argument('--inputs-dir', type=Path)
     parser.add_argument('--repair-manifest', type=Path)
     args = parser.parse_args()
     if args.repair_manifest is not None and set(args.arms) != {repair_inputs.ARM}:
@@ -192,8 +197,14 @@ def main() -> None:
         control = {**control_record, 'corners_native_px': (corners_working * scale).tolist()}
         given = {'control_corners_px': control['corners_native_px'], 'given_direction_source': control['control_source']}
         for arm in args.arms:
+            arm_dir = run_dir / arm
+            if args.run == 'line_identity_20260915_222437' and arm == 'paint_observations':
+                arm_dir = (
+                    HERE.parent / 'worklog/remote_records_20260921/preserved_data/line_identity/runs'
+                    / args.run / 'matcher' / arm
+                )
             for stage in STAGES:
-                path = run_dir / arm / stage / f'{case_id}.json.gz'
+                path = arm_dir / stage / f'{case_id}.json.gz'
                 if not path.exists():
                     rows.append(matrix.missing_row(case_id, arm, stage, control, 'missing', args.run))
                     missing.append((case_id, arm, stage))
@@ -204,7 +215,7 @@ def main() -> None:
                 diagnosis = diagnose(source, reference, record, given)
                 row = matrix.accounting(case_id, arm, stage, record, diagnosis, control)
                 rows.append(row)
-                records.append({'case_id': case_id, 'arm': arm, 'stage': stage, 'record': str(path.relative_to(HERE)),
+                records.append({'case_id': case_id, 'arm': arm, 'stage': stage, 'record': os.path.relpath(path, HERE),
                                 'control': control, 'diagnosis': diagnosis, 'accounting': row})
     write(run_dir / 'diagnosis.json.gz', {'schema': 'line-identity-diagnosis/1', 'run': args.run, 'records': records})
     with gzip.open(run_dir / 'accounting.csv.gz', 'wt', newline='') as stream:

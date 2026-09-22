@@ -39,7 +39,9 @@ different denominators; do not combine their counts into detector accuracy.
 The queued person_observations repair keeps chosen directions fixed and
 changes the fragments seen by axis matching. GX5 needs same-image boxes; the
 four broadcast cases use the supported composite mask. Corrected inputs are
-prepared in the protected W5 campaign, but the matcher comparison has not run.
+preserved in [box_repair/person_observations/](box_repair/person_observations/),
+including the v3 five-case manifest and case/estimator pairs. The matcher
+comparison has not run.
 
 Do not rerun the direction-changing person and paint_person variants merely
 to restore their old totals. Valid same-image regressions already prevent
@@ -53,8 +55,7 @@ queue predates the completed marking-junction repair; the corrected packet
 and the later campaign state establish that update. The original audit stays
 recoverable in the consolidation backup.
 
-The marking repair and exact detections are copied here byte-for-byte to give
-the scientific result a durable home. Their protected campaign originals
-remain while W5 and its monitoring session are active. The source manifest
-records both paths. Removing a duplicate after campaign closure must not
-remove the retained repair evidence.
+The marking repair, exact detections and v3 person-observation inputs are
+retained here byte-for-byte. The campaign originals and superseded repairs
+are sealed in `.recovery/w5-preparation-20260922.tar.gz` at the investigation
+root. Source manifests retain the original producing paths.

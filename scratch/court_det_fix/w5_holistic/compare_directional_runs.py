@@ -638,14 +638,12 @@ def _validate_arm(arm_id: str, path: Path, floor: tuple[int, int]) -> ArmRun:
     global_parameters = _required(manifest, "global_parameters", arm_id)
     if not isinstance(global_parameters, dict):
         _fail(f"{arm_id}: global_parameters must be an object")
-    if (
-        _integer(
-            _required(global_parameters, "workers", arm_id),
-            f"{arm_id}.global_parameters.workers",
-        )
-        != 10
-    ):
-        _fail(f"{arm_id}: worker count must be 10")
+    workers = _integer(
+        _required(global_parameters, "workers", arm_id),
+        f"{arm_id}.global_parameters.workers",
+    )
+    if workers < 1:
+        _fail(f"{arm_id}: worker count must be positive")
     if _pair(global_parameters, arm_id) != floor:
         _fail(f"{arm_id}: global-parameter visibility floor does not match its arm")
     _validate_columns(

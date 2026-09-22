@@ -8,7 +8,8 @@ which proposals should enter the pool before its 256-candidate limit.
 This pack replaces the separate stage-2, stage-3, stage-4, stage-5 and
 line-template result narratives. It preserves their numerical records and
 visual decisions without retaining every generated gallery or old raw run.
-The running 27-case directional-floor experiment is separate and unchanged.
+The completed [27-case directional-floor packet](directional_20260921_r5/README.md)
+is filed here with all three arms. Its visual assessment is still pending.
 
 ## What changed and what happened
 
@@ -48,8 +49,8 @@ by direction. The wrong Am2-28019 winner has 3/6. The useful GX5 winner has
 selections on all nine saved development pools. Floors 4, 5 and 6 selected
 the same nine winners; floor 3 still failed Am2-28019.
 
-That calculation did not refill the pool from later proposals. The running
-experiment tests floors (3,3), (4,3) and (5,3), ordered lengthwise then
+That calculation did not refill the pool from later proposals. The completed
+experiment tested floors (3,3), (4,3) and (5,3), ordered lengthwise then
 cross-court, before the 256-candidate limit. A global floor must retain the
 useful GX5 admission without introducing unexplained regressions. The
 visibility counts describe projected court pieces, not raw line fragments.

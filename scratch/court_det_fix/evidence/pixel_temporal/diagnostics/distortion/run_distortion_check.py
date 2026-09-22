@@ -41,34 +41,40 @@ PACKS = [
     {
         "group": "gx",
         "pack": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/inputs.json.gz",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260909/gx_extension/inputs.json.gz",
         "case_ids": ["gxBQ_window_00_frame_0", "gxBQ_window_00_frame_5"],
         "image_dir": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/people/images",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260909/gx_extension/people/images",
     },
     {
         "group": "amateur",
         "pack": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260908/marking_refit/marking_inputs.json.gz",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260908/marking_refit/marking_inputs.json.gz",
         "case_ids": [
             "am2_window_00_frame_150",
             "am2_window_01_frame_28019",
             "am3_window_00_frame_0",
         ],
         "image_dir": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260908/marking_refit/images",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260908/marking_refit/images",
     },
     {
         "group": "broadcast",
         "pack": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/broadcast_extension/inputs.json.gz",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260909/broadcast_extension/inputs.json.gz",
         "case_ids": [
             "shuttleset_03_scene_0016",
             "shuttleset_03_scene_0019",
             "shuttleset_21_scene_0020",
         ],
         "image_dir": REPO_ROOT
-        / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/broadcast_extension/images",
+        / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+        "20260909/broadcast_extension/images",
     },
 ]
 

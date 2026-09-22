@@ -2,6 +2,9 @@
 **/__pycache__/
 holistic_admission/measurements/
 holistic_admission/figures/
+# The downloaded W5 packet remains local; its reading entry is tracked.
+holistic_admission/directional_20260921_r5/*
+!holistic_admission/directional_20260921_r5/README.md
 holistic_admission/source_admission/results*/
 independent_proposals/development/
 independent_proposals/refit_audit/

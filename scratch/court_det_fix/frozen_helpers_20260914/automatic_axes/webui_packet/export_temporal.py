@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 ROOT = Path.cwd()
-LOCAL = ROOT / 'scratch/court_det_fix/worklog/checks/independent/player_guided'
+LOCAL = ROOT / 'scratch/court_det_fix/evidence/independent_proposals/development/player_guided'
 PUBLIC = ROOT / 'experiments/annotator/independent_court/recorded/player_guided/projective_patterns'
 OUTPUT = PUBLIC / 'evaluation'
 

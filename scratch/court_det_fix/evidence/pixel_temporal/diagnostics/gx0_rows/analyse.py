@@ -14,10 +14,16 @@ import numpy as np
 
 # <repo> is an alias that must be resolved locally.
 REPO = Path("<repo>")
-OUT = REPO / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/gx0_rows"
+OUT = REPO / "scratch/court_det_fix/evidence/pixel_temporal/diagnostics/gx0_rows"
 
-FRAME_PATH = REPO / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/people/images/gxBQ_window_00_frame_00000000.png"
-INPUTS_PATH = REPO / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/inputs.json.gz"
+FRAME_PATH = (
+    REPO / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+    "20260909/gx_extension/people/images/gxBQ_window_00_frame_00000000.png"
+)
+INPUTS_PATH = (
+    REPO / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+    "20260909/gx_extension/inputs.json.gz"
+)
 E0_PATH = REPO / "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e0/gxBQ_window_00_frame_0.json.gz"
 E2_PATH = REPO / "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e2/gxBQ_window_00_frame_0.json.gz"
 CONTROL_PATH = REPO / "experiments/annotator/independent_court/recorded/player_guided/projective_patterns/gx0_control_measurements.json.gz"

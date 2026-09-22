@@ -24,8 +24,8 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DIRECTION_AGREEMENT = REPO_ROOT / "scratch/court_det_fix/direction_agreement"
-HELPERS = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914"
-GX_DIRECTIONS = REPO_ROOT / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/gx_directions"
+HELPERS = REPO_ROOT / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914"
+GX_DIRECTIONS = REPO_ROOT / "scratch/court_det_fix/evidence/pixel_temporal/diagnostics/gx_directions"
 OUT_DIR = Path(__file__).resolve().parent
 
 for path in (
@@ -44,9 +44,12 @@ from run_svd_fixed import fit_pairs
 
 from experiments.annotator.independent_court import assignment, detector
 
-INPUT_PACK = REPO_ROOT / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260909/gx_extension/inputs.json.gz"
+INPUT_PACK = (
+    REPO_ROOT / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/"
+    "20260909/gx_extension/inputs.json.gz"
+)
 SAVED_ESTIMATOR = REPO_ROOT / (
-    "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/vp_pruning/"
+    "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/vp_pruning/"
     "coverage/results/gxBQ_window_00_frame_0.json.gz"
 )
 E3_RECORD = DIRECTION_AGREEMENT / "runs/direction_agreement_20260915_144900/e3/gxBQ_window_00_frame_0.json.gz"

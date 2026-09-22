@@ -61,12 +61,12 @@ from run_population import prepare
 
 from experiments.annotator.independent_court import assignment, detector
 
-FILTER_INPUTS = LINE_IDENTITY / "inputs"
-FILTER_RUN = LINE_IDENTITY / "runs/line_identity_20260915_222437"
+SAVED_LINE_IDENTITY = LINE_IDENTITY.parent / "worklog/remote_records_20260921/preserved_data/line_identity"
+FILTER_INPUTS = SAVED_LINE_IDENTITY / "inputs"
+FILTER_RUN = SAVED_LINE_IDENTITY / "runs/line_identity_20260915_222437"
 PREGATE_RECORDS = (
     REPO
-    / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/"
-    "CLAUDE_FOLLOWUPS/pregate_loss/records/new"
+    / "scratch/court_det_fix/evidence/direction_search/diagnostics/pregate_loss/records/new"
 )
 IDENTITY_REPORTS = LINE_IDENTITY
 RANKING_RECORDS = (
@@ -76,14 +76,13 @@ RANKING_RECORDS = (
 )
 CONTROL_RECORD = (
     REPO
-    / "scratch/court_det_fix/worklog/checks/independent/player_guided/20260914/"
+    / "scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914/"
     "automatic_axes/gx0_control/collected/control.json.gz"
 )
 CONTROL_DIAGNOSIS = CONTROL_RECORD.parent / "diagnosis.json.gz"
 IDENTITY_ROWS = (
     REPO
-    / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/"
-    "CLAUDE_FOLLOWUPS/identity_diagnostics/rows.json"
+    / "scratch/court_det_fix/evidence/pixel_temporal/diagnostics/identity_diagnostics/rows.json"
 )
 CURRENT_AXIS_SOURCE = LINE_IDENTITY / "axis_replay.py"
 CURRENT_FILTER_SOURCE = LINE_IDENTITY / "filter_replay.py"
@@ -93,13 +92,11 @@ FROZEN_PROJECTIVE_SOURCE = (
 PRODUCER_SOURCES = {
     "run_automatic.py": (
         REPO
-        / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/"
-        "CLAUDE_FOLLOWUPS/pregate_loss/remote_src/run_automatic.py"
+        / "scratch/court_det_fix/evidence/direction_search/diagnostics/pregate_loss/remote_src/run_automatic.py"
     ),
     "run_given.py": (
         REPO
-        / "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/"
-        "CLAUDE_FOLLOWUPS/pregate_loss/remote_src/run_given.py"
+        / "scratch/court_det_fix/evidence/direction_search/diagnostics/pregate_loss/remote_src/run_given.py"
     ),
 }
 AXIS_SOURCE_PATH = (

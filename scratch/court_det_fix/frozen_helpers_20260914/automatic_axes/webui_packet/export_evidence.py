@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path.cwd()
-LOCAL = ROOT / 'scratch/court_det_fix/worklog/checks/independent/player_guided/20260914'
+LOCAL = ROOT / 'scratch/court_det_fix/evidence/independent_proposals/development/player_guided/20260914'
 PUBLIC = ROOT / 'experiments/annotator/independent_court/recorded/player_guided/projective_patterns'
 OUTPUT = PUBLIC / 'evaluation'
 
