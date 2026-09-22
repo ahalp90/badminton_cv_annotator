@@ -46,9 +46,12 @@ automatic ruling on their separately refined W5 children.
 Review far-end crops alongside full images. Record far-baseline, long-service
 and sideline errors separately from near-end error. Where annotations permit,
 measure missing court area as well as landmark distance. Report error severity
-and frequency, not one pooled “usable” rate. Choose numerical pass thresholds
-and acceptable fallback frequency before running the wider comparison, not
-after looking at its results. Those choices remain open.
+and frequency, not one pooled “usable” rate. The user clarified the standard on
+22 September: imperceptible misalignment is the visual ideal. Following the
+outer edges of the white markings is preferred, not a minimum deployment
+threshold. Numerical errors support the visual review; this comparison sets no
+new pixel cutoff or acceptable fallback frequency. Borderline fits need user
+review.
 
 ## Older ideas worth bringing back
 
