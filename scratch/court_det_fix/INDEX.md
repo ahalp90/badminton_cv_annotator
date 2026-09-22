@@ -19,6 +19,7 @@ experiment history. [FP_INDEX.md](FP_INDEX.md) maps ideas directly to files;
 | Follow the wider 47-view plus 24-control evaluation | [Archived wider worklog](archive/20260922/wider_evaluation_20260922.md#completed-numeric-comparison) |
 | Check whether earlier approved geometry was lost | [Historical fit audit](evidence/independent_proposals/history_audit_20260922.md) |
 | Test whether an inner paint edge is mistaken for the outer boundary | [Paint-side experiment and rerun commands](edge_polarity/README.md) |
+| Request independent reasoning about the remaining fitting bias | [Ready-to-use WebUI objective audit](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
 | Follow the WebUI calculations | [Original prompts](evidence/webui_followups_20260922/PROMPTS.md); [returns 1/2 and local replay](evidence/webui_followups_20260922/README.md); [unreviewed SVD returns](evidence/webui_followup3_20260922/README.md) |
 
 ## Inputs and code

@@ -5,7 +5,8 @@ when a specific question needs it. Session closed on 22 September 2026 after the
 seven-case paint-side test. The next task is to explain the remaining SS03-34
 inset with fixed-data diagnostics, then decide whether one fitting change is
 justified. Start with this file and [the polarity result](edge_polarity/README.md).
-Do not restart the wider evaluation.
+Then assess SVD/search coverage before further selection experiments. Do not
+restart the wider evaluation.
 
 ## Where we are
 
@@ -32,7 +33,10 @@ runtime and its acceptance/fallback behaviour are not integrated yet.
 - Eight earlier approved automatic gallery fits remain in current G0. The
   approved GX5 fit reproduces with today's fitter. Core fitting code is
   unchanged from 14 September; broadcast inward bias already existed then
-- WebUI follow-ups 1 and 2 reproduce locally. The **two SVD return archives**
+- WebUI follow-ups 1 and 2 reproduce locally. Task 1 supplies fixed-candidate
+  ranking counterexamples: lower overall landmark error can hide worse far-end
+  clipping. Task 2 shows a wall selection surviving three samples. Neither
+  return has produced an integrated detector change. The **two SVD return archives**
   are [filed for follow-up](evidence/webui_followup3_20260922/README.md), unopened
   beyond member listings. Their claims, code and outputs remain unreviewed
 
@@ -61,19 +65,39 @@ Keep SS03-29 as an improvement case, SS03-19 as a contrary case, and
    contrary result instead of tuning until its score improves
 
 Finish with an explained residual and one supported candidate change, or a
-clear reason to leave fitting unchanged and proceed to selection. No fixed
+clear reason to leave fitting unchanged and proceed to the SVD assessment. No fixed
 corner offsets. No new full search or large gallery is needed for this step.
+
+The [WebUI objective-audit prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) is
+ready to paste into a fresh WebUI session. It asks for independent reasoning,
+a derivation or small counterexample, exact code anchors and a predicted local
+test. It has not been launched. The local coordinator checks any returned claims.
+
+## Immediately after fitting: SVD and search coverage
+
+Read and validate the two SVD returns before tuning selection further. Cheaper
+search could support a broader meaningful candidate pool at the same cost and
+shorten later evaluations. The commissioned screen ranks line families by SVD
+residual and prunes some; this is narrower than that broader opportunity.
+Rejecting that screen would not rule out SVD-based search reduction generally.
+
+Check retained useful candidates and actual matcher work/runtime first. Then
+test whether reinvesting any savings in broader search improves coverage.
+Keep those comparisons separate and preserve the full-source baseline.
+More candidates alone do not establish better selection. Greyscale reuse and
+removal of unused diagnostics can join this step with output-equality checks.
 
 ## Leads worth keeping, in order
 
 | Lead | Evidence and bounded question |
 | --- | --- |
 | Remaining width/edge bias | [Polarity test](edge_polarity/README.md): partial correction only. Which residuals resist the preferred geometry? |
+| SVD and search coverage | [Unreviewed returns](evidence/webui_followup3_20260922/README.md): assess immediately after fitting. Check useful-candidate retention and actual work saved, then broader search at equal cost |
 | Ranking versus missing proposals | [Historical audit](evidence/independent_proposals/history_audit_20260922.md): approved geometries survive but rank lower. Compare fixed candidates before changing generation; keep Am4-319's G0 fallback |
 | Source caps | Read-only worker lead, not yet parent-verified: W5 rebuilds capped G0 pools and loads capped G1 results rather than complete historical `all_camera` populations. Inspect `w5_holistic/run_w5.py:load_g0/load_g1` only if a named useful candidate is missing. The eight retained approved witnesses do not establish equality of whole populations |
 | Far-end selection | [WebUI 1/2 return and local replay](evidence/webui_followups_20260922/README.md): GX86088 has less-clipped alternatives, still imperfect. Compare their existing evidence; no blanket visual-success claim |
 | Sparse scene decisions | The same return uses archived registrations and candidate pools. A wall selection survives three samples. Adaptive two-to-three sampling, actual scene sampling and camera-change handling remain untested |
-| Cheaper search and measurement | [SVD return](evidence/webui_followup3_20260922/README.md) needs provenance and local checks. Greyscale reuse already works in the wider/polarity wrappers; the general runtime still needs it and removal of unused junction diagnostics |
+| Measurement cost | Greyscale reuse already works in the wider/polarity wrappers; the general runtime still needs it and removal of unused junction diagnostics |
 | Difficult-camera coverage | Yellow14 and Am1 remain proposal problems. Earlier pooled-fragment/net-image evidence is a conditional lead in [decisions](DETECTOR_DECISIONS.md#older-ideas-worth-bringing-back), not another automatic sweep |
 
 ## A six-session route to branch completion
@@ -85,9 +109,9 @@ scope or fallback decision, rather than another open-ended sweep.
 | Session | Work | Finish when |
 | --- | --- | --- |
 | 1 | Explain the remaining fitting bias with the fixed cases above | One mechanism is supported or rejected; any candidate has a predicted, checked effect |
-| 2 | Settle selection and fallback on named failures and retained good fits | The chosen source/score rule preserves necessary G0 coverage; far-end failures have an explicit decision |
-| 3 | Test sparse scene agreement and camera-change behaviour | Sampling, proposal reuse, resampling and abstention have concrete rules tested on short source clips |
-| 4 | Validate the SVD return; remove measured waste and profile the chosen path | Output equality and useful-candidate retention are checked; ordinary-hardware cost is known. Defer SVD or graph search if it adds complexity without a demonstrated gain |
+| 2 | Validate SVD/search reduction and its scope for broader candidate coverage; remove measured waste | Useful-candidate retention and actual work saved are checked. Any broader search is assessed separately at equal cost; an unsuccessful screen is explicitly rejected |
+| 3 | Settle selection and fallback on named failures and retained good fits | The chosen source/score rule preserves necessary G0 coverage; far-end failures have an explicit decision |
+| 4 | Test sparse scene agreement and camera-change behaviour | Sampling, proposal reuse, resampling and abstention have concrete rules tested on short source clips |
 | 5 | Integrate that bounded design and remove CourtKeyNet dependencies | The annotator uses the agreed scene interface; relevant pipeline gates pass |
 | 6 | Check unseen cameras, selected failure cases and practical latency; close docs and branch | Acceptance/fallback behaviour and remaining limits are explicit; broader gates pass and the user can judge a small decisive visual set |
 
