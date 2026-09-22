@@ -4,10 +4,10 @@
 
 The 44 fresh cases are dispatched on Carmack with six workers: 20 added
 detector views and 24 separate controls. The original 27 W5 records are reused.
-Seven fresh cases are complete and reviewed locally; no failure records have
-appeared. All 27 previous cases have been re-reviewed with thin overlays and
-far-end crops. Next: finish the remaining fresh cases and their visual review,
-then combine the comparison and report the groups separately.
+Seventeen fresh cases are complete and reviewed locally; 22 are complete
+remotely at the latest check. All 27 previous cases have been re-reviewed.
+The inset-corner diagnostic is filed below. Next: finish the remaining cases
+and their visual review, then report the groups separately.
 
 Code: `dc7872d`, committed and pushed. Remote checkout:
 `/scratch/ahalperi/court_det_fix/wider_eval_checkout_20260922`.
@@ -23,6 +23,13 @@ all 47 frozen cases and the separate 24 broadcast controls in their own groups.
 
 ## Concerns and observations
 
+- SS03-34 has a visible inset upper-left corner. The user judges a diagnostic
+  movement of (-3, -2) native pixels perfect. It improves the paint score and
+  retains the existing gates. The fit incorrectly interprets an observed inner
+  paint edge as the outer edge and holds that label fixed. No fitting or
+  selection code has changed; next investigate image-based edge identity.
+- Am4 frame 319 loses a tolerable fit when G0 proposals are removed. The
+  restricted winner substitutes a service line for the far baseline.
 - The 20 added detector cases and 24 controls need new G0/G1 proposal records.
   Each control has one real RTMDet sample. Two samples contain no detections;
   those are measured empty frames. Control boxes use the original >0.3 cutoff.
@@ -40,6 +47,11 @@ Review full images and far-end crops as clean, tolerable fallback or unacceptabl
 Record the affected court region. Numerical errors support visual judgement;
 this run does not impose a new pixel cutoff or acceptable fallback percentage.
 Borderline visual cases remain open for user review.
+
+The user exempts unreliable edit-transition frames from required detection.
+Rejecting them through confidence is optional. The reviewed mixed transition
+is saved as `shuttleset_21_scene_0010`; the user called it `scene_0100`.
+Preserve its measured failure, but separate input eligibility from fit quality.
 
 ## Scope and runbook
 
@@ -175,13 +187,15 @@ it is not an overall runtime speed-up measurement.
 ## Regression visual review
 
 The parent reviewed all 27 prior cases, including both arms where their selected
-geometry differs. Provisional rulings for each arm are seven clean fits,
-16 tolerable fallbacks, three unacceptable fits and one requiring user review.
+geometry differs. After correcting the initial SS03-34 judgement, provisional
+rulings for each arm are six clean fits, 17 tolerable fallbacks, three
+unacceptable fits and one requiring user review.
 These visual categories do not introduce a numerical deployment threshold.
 Clean means the visible projection follows the paint closely; exact placement
 on the paint's outer edge is not asserted.
 
-The three unacceptable cases remain Yellow14, Am1-54 and SS21-10. SS21-39
+The three unacceptable geometries remain Yellow14, Am1-54 and SS21-10.
+SS21-10 is exempt from required detection under the user's transition rule. SS21-39
 requires review because its cached composite mixes camera views. The selected
 geometry follows the dominant court, but cannot validate scene-level behaviour.
 Many fallback cases show a much better near end than far backcourt. Reinspection
@@ -199,3 +213,50 @@ winners were recovered from their unchanged full records. Gallery and metadata:
 The renderer smoke completes all 27 cases with zero missing roles (exit 0).
 Ruff and whole-project Pyrefly pass after the correction (exit 0 each;
 zero type errors, 39 suppressed). Earlier runner tests remain applicable.
+
+## Upper-left corner investigation
+
+SS03-34 selects `G1:1:1003/child` in both arms. Its working and native frames
+are both 960×540, ruling out resizing as the cause in this example. The parent
+already has the inset corner; refinement moves it only (-0.114, +0.346) pixels.
+The selected outer corner is (318.744, 215.940).
+
+Moving only that corner by (-3, -2) pixels improves the span-weighted paint
+score from 0.84723 to 0.89393. The line-geometry score falls from 0.93847 to
+0.90979. Both versions pass the existing full-court and camera gates, retain
+line counts (5, 6), and fully contain both player observations. The camera-error
+value improves from 0.03358 to 0.00148. This is a diagnostic, not an automatic
+refinement result or a general correction rule.
+
+The parent inspected the raw/selected/diagnostic crop, and the user judged the
+diagnostic corner perfect. The initial clean rating for this saved selection
+was too generous; it is now tolerable with a visible corner offset. Evidence:
+`wider_evaluation/runs/20260922/corner_bias/`.
+
+The fixed fitting objective does pull the diagnostic back inward. Reproduction
+matches the saved parent objective (0.705845) and child objective (0.527223).
+The diagnostic raises this objective to 1.347913. Refining from that position
+returns within 0.000002 pixels of the saved child. Parent rerun and assertions
+pass (exit 0). The solver is doing what this objective asks.
+
+The selected left-sideline fragment, raw ID 236, follows the inner falling edge
+of the visible paint. The parent labels it as the outer edge (position 1).
+Refinement holds that identity fixed. Parent pixel profiles show bright paint
+outside the fitted boundary, confirming a real offset beyond the intended
+half-stripe inset of a centre-line overlay. Relabelling that fragment as the
+inner edge moves the corner only (-1.01, -0.47) pixels; it does not fully recover
+the preferred diagnostic. Parent reran this counterfactual (exit 0).
+
+A read-only Claude Code Opus 5 audit independently reproduced the assignments,
+fit and image-edge mismatch. No coordinate-order, sign or scale bug was found
+in this path. Its apparent-stripe-width explanation remains a lead: blur and
+local scale have not been separated. Review records are under
+`local_scratch/external_delegate/20260922-corner-fit-audit/`; no time limit was
+imposed and the returned model ID is `claude-opus-5`.
+
+The same fixed movement was tested diagnostically on SS03 scenes 16, 17, 19,
+29, 34 and 38 using six local workers. Paint scores improve in 19 and 34 but
+fall in the other four; all retain the gates. Visual inspection shows the
+shift overshoots the other four corners. The user explicitly rejects a fixed
+corner offset. Any follow-up must derive the correction from image evidence.
+No fitting, search or selection behaviour has changed in the wider run.
