@@ -11,6 +11,9 @@ Start with [pickup.md](pickup.md) for what to do next. Use
 [FP_INDEX.md](FP_INDEX.md) to find files by idea rather than experiment name.
 For an independent review from GitHub, open the
 [raw evidence packet](evidence/review_20260922/README.md).
+For useful GitHub-only follow-up work, use the three bounded
+[WebUI prompts](WEBUI_FOLLOWUPS.md): far-end fit, sparse-frame replay and SVD
+search reduction.
 
 ## Research and evidence
 
