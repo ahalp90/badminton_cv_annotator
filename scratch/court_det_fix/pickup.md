@@ -7,10 +7,13 @@ the remaining 12 controls have numeric analysis only. G1 plus templates loses
 a tolerable Am4-319 fit available from G0. An inward-bias investigation found
 an inner paint edge mislabelled as the outer boundary in SS03-34.
 
-Next read and locally reproduce the [WebUI follow-ups 1 and 2](evidence/webui_followups_20260922/README.md).
-Their original report, script, tables and figures are filed unchanged. The
-return reports attainable better GX geometry and limits to sparse-frame paint
-scoring. These findings may guide the next experiment; local replay is pending.
+The [WebUI follow-ups 1 and 2](evidence/webui_followups_20260922/README.md)
+now reproduce locally. Their original files remain unchanged. The next task
+is a [historical regression audit](evidence/independent_proposals/history_audit_20260922.md):
+trace the better fits in the 9–14 September
+HTML galleries through the later direction, line-identity and W5 work. The
+user recalls better geometry before the Claude orchestration sessions.
+Establish the earliest divergence before proposing another fit change.
 
 Start with the [22 September evaluation](evaluation_results_20260922.md).
 W5, expanded G0/G1, the corrected five-case person-mask comparison and

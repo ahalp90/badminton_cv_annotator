@@ -8,8 +8,10 @@ The run finished with exit 0: all 47 frozen detector cases and 24 controls are
 local and compared. Numeric extraction completed with six workers. There are
 59 visual rulings; the remaining 12 controls are deliberately unreviewed
 visually, following the user's request. The results and inward-bias diagnostic
-are below. Next: reproduce the [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
-before choosing the next fitting or ranking experiment.
+are below. The [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
+now reproduce locally. Next: trace the good fits in the 9–14 September HTML
+galleries through the later pipeline, following the user's regression lead.
+The new edge-polarity diagnostic is parked while that history is checked.
 
 Code: `dc7872d`, committed and pushed. Remote checkout:
 `/scratch/ahalperi/court_det_fix/wider_eval_checkout_20260922`.

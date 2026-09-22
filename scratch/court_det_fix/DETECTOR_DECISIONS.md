@@ -107,8 +107,9 @@ not yet implement multi-frame generation, a scene sampler or change handling.
 
 The wider fixed-view test is complete; its [results](wider_evaluation_20260922.md)
 supersede the scheduling instructions below. The preserved protocol explains
-its scope. Next, reproduce the [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
-before choosing a focused fitting/ranking change or sparse-frame experiment.
+its scope. The [returned WebUI follow-ups](evidence/webui_followups_20260922/README.md)
+reproduce locally. Next trace the [earlier gallery fits](evidence/independent_proposals/history_audit_20260922.md)
+through the later pipeline before choosing a fitting or ranking change.
 
 First run the wider fixed-view comparison to expose coverage and fitting
 failures. Then evaluate scene-level sampling and agreement on the source clips;
