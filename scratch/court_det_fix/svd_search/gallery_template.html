@@ -5,16 +5,17 @@
 <title>SVD12 search depth · court gallery</title>
 <style>
 :root{font:16px/1.45 system-ui,sans-serif;color-scheme:dark;background:#111820;color:#eef3f8}
-*{box-sizing:border-box}body{margin:0}header,main{max-width:1800px;margin:auto;padding:20px}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}header,main{max-width:1800px;margin:auto;padding:20px}
 h1{font-size:26px;margin:0}h2{font-size:21px;margin:0 0 8px}p{color:#c5d2de;max-width:1100px}
 nav{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}a{color:#8ee6fa}
 .toolbar{position:sticky;top:0;background:#253240f4;border-block:1px solid #52677b;padding:10px 20px;z-index:2;display:flex;gap:20px;flex-wrap:wrap}
 label{display:inline-flex;gap:8px;align-items:center}select,input{font:inherit}select{background:#293d51;color:white;border:1px solid #8195a8;padding:5px}
 section{border-top:1px solid #52677b;margin:10px 0 38px;padding-top:18px;scroll-margin-top:90px}
-.grid{display:grid;grid-template-columns:repeat(4,minmax(230px,1fr));gap:12px;overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(var(--columns,4),minmax(230px,1fr));gap:12px;overflow-x:auto}
 .panel{display:grid;grid-template-rows:subgrid;grid-row:span 3;background:#1c2935;border-radius:5px;overflow:hidden}.label{padding:8px;font-weight:600}.small{font-size:13px;color:#bed0de}
 canvas{width:100%;height:auto;display:block;background:#050b10}.full{cursor:crosshair}.crop-title{margin:12px 0 8px;color:#c5d2de}.crop canvas{image-rendering:pixelated}button{font:inherit;background:#293d51;color:white;border:1px solid #8195a8;padding:5px;cursor:pointer}table{border-collapse:collapse;margin-top:12px}td,th{text-align:left;padding:5px 14px 5px 0}
-@media(max-width:950px){.grid{grid-template-columns:repeat(4,minmax(260px,1fr))}.toolbar{position:static}}
+.evidence{overflow-x:auto}.evidence table{width:100%;font-size:13px}.evidence td,.evidence th{border-bottom:1px solid #435363;vertical-align:top}.evidence details{margin-top:10px}.evidence summary{cursor:pointer}
+@media(max-width:950px){.grid{grid-template-columns:repeat(var(--columns,4),minmax(260px,1fr))}.toolbar{position:static}}
 </style>
 </head>
 <body>
@@ -37,9 +38,24 @@ canvas{width:100%;height:auto;display:block;background:#050b10}.full{cursor:cros
 <script>
 'use strict';
 const cases=__GALLERY_DATA__;
+const colourMode=cases[0]?.gallery_mode==='colour';
 const labels={baseline:'Baseline · axes 512 / courts 256',deeper:'Deeper axes · 640 / 256',shortlist:'Wider shortlist · 512 / 512'};
 const viewLabels={selected:'Detector selection',oracle_generated:'Reference oracle: generated',oracle_refitted:'Reference oracle: refitted'};
-const colours={saved:'#f5f5f0',baseline:'#00e5ff',deeper:'#ffb547',shortlist:'#dca9ff'};
+const colours={saved:'#f5f5f0',g1:'#95f0c4',baseline:'#00e5ff',deeper:'#ffb547',shortlist:'#dca9ff'};
+const colourNames={saved:'Saved W5',g1:'Saved G1/templates',baseline:'SVD baseline',deeper:'SVD deeper',shortlist:'SVD shortlist'};
+const sourceNames={saved:'saved_w5',g1:'saved_g1_templates',baseline:'svd_baseline',deeper:'svd_deeper',shortlist:'svd_shortlist'};
+if(colourMode){
+ document.title='Colour consistency · court gallery';
+ document.querySelector('h1').textContent='Colour consistency on saved court geometry';
+ const paragraphs=document.querySelectorAll('header p');
+ paragraphs[0].textContent='Saved W5 and G1/templates stay side by side. Six cases also show SVD G0 detector selections or reference-best refits. Reference-best is retrospective.';
+ paragraphs[1].textContent='Colour distances describe supported paint and local paint-minus-floor measurements; they do not establish court correctness. Missing support and greyscale views are labelled. Click a full image to focus every crop.';
+ paragraphs[2].textContent='Select a corner beneath each case to jump there. Hold Space to hide outlines temporarily. Outside boundaries are shown by default.';
+ document.querySelector('#view option[value="oracle_generated"]').remove();
+ document.querySelector('#view option[value="selected"]').textContent='Detector / saved selections';
+ document.querySelector('#view option[value="oracle_refitted"]').textContent='Best refitted by reference (retrospective)';
+ document.querySelector('#reference').closest('label').hidden=true;
+}
 const controls=['view','mode','width','opacity','reference','outlines','smooth'].map(id=>document.getElementById(id));
 const states=[];
 const cornerLabels=['Upper left','Upper right','Lower right','Lower left'];
@@ -63,30 +79,81 @@ function draw(canvas,image,data,name,focus,isCrop){
  ctx.drawImage(image,0,0,...data.size);
  if(!document.getElementById('outlines').checked||spaceHeld)return;
  const view=document.getElementById('view').value;
- const geometry=name==='saved'?data.saved_geometry:data.arms[name].geometry[view];
+ const geometry=name==='saved'?data.saved_geometry:name==='g1'?data.g1_geometry:data.arms[name].geometry[view];
  const thickness=Number(document.getElementById('width').value);
  const scale=box[2]/canvas.getBoundingClientRect().width;
  ctx.globalAlpha=Number(document.getElementById('opacity').value);ctx.lineJoin='round';
- if(document.getElementById('reference').checked)strokeLines(ctx,outline(data.reference),'#f6e45d',thickness,scale,[11,7]);
+ if(!colourMode&&document.getElementById('reference').checked)strokeLines(ctx,outline(data.reference),'#f6e45d',thickness,scale,[11,7]);
  if(geometry){
   const mode=document.getElementById('mode').value;
-  const lines=mode==='edges'?geometry.edges:outline(geometry.corners);
+  const lines=mode==='edges'?geometry.edges.slice():outline(geometry.corners);
   if(mode==='centres')lines.push(...geometry.centres);
-  const dashes=name!=='saved'&&view!=='selected'?[18,8,3,8]:[];
+  const dashes=name!=='saved'&&name!=='g1'&&view!=='selected'?[18,8,3,8]:[];
   strokeLines(ctx,lines,colours[name],thickness,scale,dashes);
  }
  ctx.globalAlpha=1;
+}
+function colourSource(data,name,view){
+ const suffix=name==='saved'||name==='g1'?'':'_reference_best_refit_retrospective';
+ const key=sourceNames[name]+(view==='oracle_refitted'?suffix:'');
+ return data.colour_sources[key];
+}
+function number(value){return value==null?'—':Number(value).toFixed(2);}
+function triplet(values){return values==null?'—':values.map(number).join(', ');}
+function cell(row,value){const element=document.createElement('td');element.textContent=value;row.append(element);}
+function colourEvidence(section,data,names){
+ const evidence=document.createElement('div');evidence.className='evidence';
+ const summary=document.createElement('table');
+ summary.innerHTML='<thead><tr><th>Source</th><th>Support / state</th><th>Median nearest raw paint / floor-relative ab</th><th>Candidate</th></tr></thead>';
+ const body=document.createElement('tbody');
+ const detailRows=[];
+ for(const name of names){
+  for(const view of name==='saved'||name==='g1'?['selected']:['selected','oracle_refitted']){
+   const source=colourSource(data,name,view);
+   const title=colourNames[name]+(view==='oracle_refitted'?' · reference-best refit (retrospective)':' · selection');
+   const row=document.createElement('tr');cell(row,title);
+   if(source.status==='measured'){
+    const counts=Object.entries(source.summary.statuses).map(([status,count])=>`${status.replaceAll('_',' ')} ${count}`).join(' · ');
+    cell(row,`${counts} · ${source.summary.ambiguous} ambiguous · ${source.summary.supported} ridge samples · ${source.summary.unresolved} unresolved widths`);
+    cell(row,`${number(source.summary.median_raw)} / ${number(source.summary.median_relative)}`);
+   }else{cell(row,source.status.replaceAll('_',' '));cell(row,'—');}
+   cell(row,source.key||'—');body.append(row);
+   if(source.status==='measured')detailRows.push([title,source]);
+  }
+ }
+ summary.append(body);evidence.append(summary);
+ for(const [title,source] of detailRows){
+  const details=document.createElement('details');const heading=document.createElement('summary');
+  heading.textContent=`${title} · per-marking colour and support`;details.append(heading);
+  const table=document.createElement('table');
+  table.innerHTML='<thead><tr><th>Marking</th><th>State / support</th><th>Paint / floor − / floor + Lab</th><th>Paint − floor Lab; within raw / relative spread</th><th>Nearest raw / relative ab; reference spread</th></tr></thead>';
+  const rows=document.createElement('tbody');
+  for(const mark of source.markings){
+   const row=document.createElement('tr');cell(row,mark.name);
+   cell(row,`${mark.status.replaceAll('_',' ')}${mark.ambiguous?' · ambiguous':''}; geom ${number(mark.support)}, ${mark.fragments} fragments, ${mark.strong} ridge samples, ${mark.unresolved} unresolved widths`);
+   cell(row,`${triplet(mark.paint)} / ${triplet(mark.floor_minus)} / ${triplet(mark.floor_plus)}`);
+   cell(row,`${triplet(mark.delta)}; ${number(mark.paint_spread)} / ${number(mark.relative_spread)}`);
+   const spread=mark.reference_spread;
+   cell(row,`${number(mark.nearest_raw)} / ${number(mark.nearest_relative)}; ${number(spread?.raw_paint)} / ${number(spread?.relative)} (${mark.references.length} reference markings)`);
+   rows.append(row);
+  }
+  table.append(rows);details.append(table);evidence.append(details);
+ }
+ section.append(evidence);
 }
 const redraw=[];
 for(const data of cases){
  const link=document.createElement('a');link.href='#'+data.case_id;link.textContent=data.case_id;document.getElementById('nav').append(link);
  const section=document.createElement('section');section.id=data.case_id;
  const heading=document.createElement('h2');heading.textContent=data.case_id;section.append(heading);
- const grid=document.createElement('div');grid.className='grid';section.append(grid);
+ if(colourMode){const context=document.createElement('p');context.className='small';context.textContent=`${data.group} · ${data.control_label||data.view_status||'unverified'} · ${data.chromatic?'chromatic image':'greyscale-only image'}`;section.append(context);}
+ const names=colourMode?['saved','g1',...(Object.keys(data.arms).length?['baseline','deeper','shortlist']:[])]:['saved','baseline','deeper','shortlist'];
+ const grid=document.createElement('div');grid.className='grid';grid.style.setProperty('--columns',names.length);section.append(grid);
  const image=new Image();const panels={};
- const focusCorners=data.saved_selected||data.reference;
- const state={focus:[...focusCorners[0]],corner:null};
- for(const name of ['saved','baseline','deeper','shortlist']){
+ const focusCorners=colourMode?(data.saved_selected||data.g1_geometry?.corners||Object.values(data.arms).flatMap(arm=>[arm.selected,arm.oracle_refitted]).find(Boolean)):data.saved_selected||data.reference;
+ const initialFocus=focusCorners?[...focusCorners[0]]:[data.size[0]/2,data.size[1]/2];
+ const state={focus:initialFocus,corner:null};
+ for(const name of names){
   const panel=document.createElement('div');panel.className='panel';
   const title=document.createElement('div');title.className='label';title.style.color=colours[name];panel.append(title);
   const canvas=document.createElement('canvas');canvas.className='full';canvas.width=data.size[0];canvas.height=data.size[1];panel.append(canvas);
@@ -100,23 +167,32 @@ for(const data of cases){
  const corner=document.createElement('select');corner.innerHTML=cornerLabels.map((label,index)=>`<option value="${index}">${label}</option>`).join('')+'<option value="custom">Clicked point</option>';
  focusLabel.append(corner);cropTitle.append(focusLabel);const cropNote=document.createElement('span');cropTitle.append(' · ',cropNote);section.append(cropTitle);state.corner=corner;
  const cropGrid=document.createElement('div');cropGrid.className='grid';section.append(cropGrid);
- for(const name of ['saved','baseline','deeper','shortlist']){
+ cropGrid.style.setProperty('--columns',names.length);
+ for(const name of names){
   const panel=document.createElement('div');panel.className='panel crop';
   const title=document.createElement('div');title.className='label';title.style.color=colours[name];panel.append(title);
   const canvas=document.createElement('canvas');canvas.width=600;canvas.height=450;panel.append(canvas);
   panels[name].cropTitle=title;panels[name].crop=canvas;cropGrid.append(panel);
  }
- const note=document.createElement('p');note.className='small';note.textContent='Oracle outlines use a long-short dash pattern. A missing outline means no selectable candidate in that view.';section.append(note);
+ const note=document.createElement('p');note.className='small';note.textContent=colourMode?'Reference-best refits are retrospective. A missing outline means that source has no candidate. Raw-paint and floor-relative ab distances are separate measurements.':'Oracle outlines use a long-short dash pattern. A missing outline means no selectable candidate in that view.';section.append(note);
+ if(colourMode)colourEvidence(section,data,names);
+ if(!colourMode){
  const table=document.createElement('table');table.innerHTML='<thead><tr><th>Arm</th><th>Selected vs reference</th><th>Selected vs saved W5</th><th>Best selectable generated vs reference</th><th>Best selectable refitted vs reference</th><th>Generation wall</th><th>Refit/scoring wall</th><th>Pairs reaching cap</th><th>Axis exclusions</th></tr></thead>';
  const body=document.createElement('tbody');for(const name of ['baseline','deeper','shortlist']){const arm=data.arms[name];const row=document.createElement('tr');
-  for(const value of [labels[name],distance(arm.selected_error),distance(arm.selected_saved_error),distance(arm.oracle_generated_error),distance(arm.oracle_refitted_error),arm.timing.generation.wall_s.toFixed(1)+' s',arm.timing.refit_and_scoring.wall_s.toFixed(1)+' s',String(arm.counts.per_pair_cap_reached),String(arm.counts.axis_cap_exclusions)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell)}body.append(row)}table.append(body);section.append(table);
+ for(const value of [labels[name],distance(arm.selected_error),distance(arm.selected_saved_error),distance(arm.oracle_generated_error),distance(arm.oracle_refitted_error),arm.timing.generation.wall_s.toFixed(1)+' s',arm.timing.refit_and_scoring.wall_s.toFixed(1)+' s',String(arm.counts.per_pair_cap_reached),String(arm.counts.axis_cap_exclusions)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell)}body.append(row)}table.append(body);section.append(table);
+ }
  document.getElementById('gallery').append(section);
  function update(){
   const view=document.getElementById('view').value;
   cropNote.textContent=`Enlarged crop · centre (${state.focus[0].toFixed(1)}, ${state.focus[1].toFixed(1)}) · 120 × 90 working pixels`;
   for(const name of Object.keys(panels)){
-   const {title,detail,canvas,cropTitle,crop}=panels[name];
-   if(name==='saved'){
+  const {title,detail,canvas,cropTitle,crop}=panels[name];
+   if(colourMode){
+    const source=colourSource(data,name,view);
+    const retrospective=name!=='saved'&&name!=='g1'&&view==='oracle_refitted';
+    title.textContent=`${colourNames[name]} · ${retrospective?'reference-best refit (retrospective)':'selection'}${source.status==='measured'?'':' · no candidate'}`;
+    detail.textContent=source.status==='measured'?`${source.key} · ${source.summary.supported} ridge samples · ${source.summary.ambiguous} ambiguous markings`:source.status.replaceAll('_',' ');
+   }else if(name==='saved'){
     const population=data.saved_selected_key.split(':')[0];
     title.textContent=`Saved W5 selection · ${population}`;
     detail.textContent=`Earlier W5 selection · ${data.saved_selected_key}`;
@@ -135,8 +211,8 @@ for(const data of cases){
    if(image.complete&&image.naturalWidth){draw(canvas,image,data,name,state.focus,false);draw(crop,image,data,name,state.focus,true);}
   }
  }
- corner.addEventListener('change',()=>{if(corner.value!=='custom')state.focus=[...focusCorners[Number(corner.value)]];update();});
- state.reset=()=>{state.focus=[...focusCorners[0]];corner.value='0';update();};
+ corner.addEventListener('change',()=>{if(corner.value!=='custom')state.focus=focusCorners?[...focusCorners[Number(corner.value)]]:[data.size[0]/2,data.size[1]/2];update();});
+ state.reset=()=>{state.focus=focusCorners?[...focusCorners[0]]:[data.size[0]/2,data.size[1]/2];corner.value='0';update();};
  image.onload=update;image.src=data.image;
  redraw.push(update);states.push(state);update();
 }

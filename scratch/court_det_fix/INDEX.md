@@ -2,7 +2,7 @@
 
 **Start at [pickup.md](pickup.md).** It owns current state, the next targeted
 check, open leads and the route to branch completion. This index explains the
-experiment history. [FP_INDEX.md](FP_INDEX.md) maps ideas directly to files;
+experiment history through the 23 September handover. [FP_INDEX.md](FP_INDEX.md) maps ideas directly to files;
 [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) retains lasting findings.
 
 ## Experiment history
@@ -19,8 +19,25 @@ experiment history. [FP_INDEX.md](FP_INDEX.md) maps ideas directly to files;
 | Follow the wider 47-view plus 24-control evaluation | [Archived wider worklog](archive/20260922/wider_evaluation_20260922.md#completed-numeric-comparison) |
 | Check whether earlier approved geometry was lost | [Historical fit audit](evidence/independent_proposals/history_audit_20260922.md) |
 | Test whether an inner paint edge is mistaken for the outer boundary | [Paint-side experiment and rerun commands](edge_polarity/README.md) |
-| Request independent reasoning about the remaining fitting bias | [Ready-to-use WebUI objective audit](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
+| Explain the remaining fitting bias and test centre-to-edge labels | [Completed local assessment](edge_polarity/local_audit/ASSESSMENT.md); [original WebUI brief](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
 | Follow the WebUI calculations | [Original prompts](evidence/webui_followups_20260922/PROMPTS.md); [returns 1/2 and local replay](evidence/webui_followups_20260922/README.md); [SVD returns and critical assessment](evidence/webui_followup3_20260922/ASSESSMENT.md) |
+| Integrate SVD12 and measure its matcher cost | [Current SVD state](svd_runtime/README.md); [completed nine-case timings](svd_runtime/RESULTS.md) |
+| Spend the saving on deeper axes or wider shortlists | [Completed six-case comparison and user review](svd_search/WORKLOG.md); [local comparison gallery](svd_search/gallery/index.html) |
+| Investigate Am1 net tape using colour | [Received WebUI colour probe](edge_polarity/webui_return_colour_consistency/README.md); [local replay and broader diagnostic](colour_consistency/PLAN.md) |
+| Understand what the colour gallery does and does not establish | [Diagnostic findings](colour_consistency/PLAN.md); [local gallery](colour_consistency/gallery/index.html). Existing fits were measured, not reranked or refitted |
+
+The SVD efficiency result and the deeper-search benefit on Am2 are completed
+findings. Colour effectiveness remains untested: its gallery displays fixed
+saved fits, often duplicated between source selections. The next behavioural
+experiment and broader detector work belong in [pickup](pickup.md).
+
+## Newly received lead
+
+[Net evidence and court homography frontier packet](webui_net_evidence_frontier_handover/README.md)
+is newly received and unreviewed beyond its README/manifest. Its historical
+Am1/GX material overlaps prior work; the new proposals remain untested locally.
+The user expects this to be the final new idea assessed after colour, before
+pragmatic detector integration. [pickup](pickup.md) owns that bounded sequence.
 
 ## Inputs and code
 
@@ -28,7 +45,11 @@ Use [frozen views](frozen_views/README.md) for inputs and [FP_INDEX](FP_INDEX.md
 for code ownership. The [GitHub review packet](evidence/review_20260922/README.md)
 provides a bounded published subset. Large preserved G0/G1 populations remain
 local under `worklog/remote_records_20260921/`; its README is their map.
-Experiment code, data and manifests retain their original locations.
+Experiment code, data and manifests retain their original locations. Recent
+colour code, measurements, galleries and received packets are included in the
+close-out checkpoint. Complete raw search outputs remain local; the compact
+comparison and completion receipt are included. Local links do not imply every
+large working packet has been published to GitHub.
 
 <a id="recovery-not-another-reading-path"></a>
 
@@ -48,5 +69,5 @@ explains the sealed 21 September cleanup and W5 preparation archives.
 - Keep the next actions in pickup rather than duplicating them across reports
 - Preserve source identity, units, reference limits and visual-review status
 - Keep original inputs, useful candidate populations and recovery snapshots
-- File incoming returns under evidence with explicit review status; do not leave packages at the top level
+- File future returns under evidence with explicit review status; the current net packet stays at its received top-level path until assessed
 - Use numerical comparisons and focused visual questions; broad image review needs a specific reason

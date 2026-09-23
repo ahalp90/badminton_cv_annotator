@@ -2,8 +2,8 @@
 
 **The 12-family SVD screen is integrated and pushed as `1353541`.** It reduces
 matching work in fresh experimental W5 generation. The full 16-family option
-remains available. Deeper search is now authorised as a separate experiment;
-its effect on court quality has not yet been measured.
+remains available. The separate six-case search-depth experiment is complete. Deeper matching
+substantially improves Am2, confirmed by the user's visual review.
 
 ## What is implemented
 
@@ -56,17 +56,32 @@ separate the detector's selection from the best reference-agreement candidate.
 That tests whether extra search generates better courts and whether selection
 actually chooses them.
 
-**Current status:** all 18 case/configuration combinations are running on
-Carmack with six workers at `14310f7`. Opus 5-5's implementation findings were
-checked and resolved before launch. Its
-[worklog](../svd_search/WORKLOG.md) and [run instructions](../svd_search/RUN_READY.md)
-hold execution details. Detector defaults remain unchanged.
+**Complete:** all 18 outputs returned with coordinator exit 0 at `14310f7`.
+Across six cases, deeper axes cost 26.6% more summed full-trial runtime than
+SVD baseline; wider shortlists cost 10.0% more. Deeper reduces Am2's selected
+reference disagreement from 323.6 to 18.4 native pixels. Its best refitted
+reference disagreement falls from 288.8 to 7.9 px. This is the strongest search-
+depth result. The user judges only saved W5 and deeper suitable on Am2; deeper
+is acceptable before refitting and perfect afterwards.
+
+The user judges the three arms' reference-best refits perfect on both easy
+broadcast cases, and all SVD refits near-perfect on GX0. GX5 and Am1 remain
+hallucinations in the SVD gallery. Saved W5 is great on GX5 and includes G1 and
+templates, which the G0-only experiment excludes. Keep those candidate sources.
+The [search worklog](../svd_search/WORKLOG.md) contains the complete table,
+visual assessments and timing limits. Detector defaults remain unchanged.
 
 ## Remaining work
 
-1. Collect the existing search-depth run and build the gallery. Keep the
-   combined worker count at six or fewer; do not launch a duplicate run.
-2. Judge search depth from runtime and visible court quality.
+1. Retain deeper matching as a demonstrated useful way to spend saved compute;
+   choosing a new default or adaptive search policy is a separate decision.
+2. Review the completed colour diagnostic on preserved candidates. No new
+   direction search or refitting was needed for that measurement pass.
 
 The separate [compute-efficiency audit](COMPUTE_AUDIT.md) identified possible
 matcher optimisations. Those changes have not been applied to either benchmark.
+
+The [colour-consistency diagnostic](../colour_consistency/PLAN.md) is complete.
+It reused preserved fits and assignments without rerunning SVD search. Its
+71-view gallery includes selections and retrospective refits from all six
+SVD cases.
