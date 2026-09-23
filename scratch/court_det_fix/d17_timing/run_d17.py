@@ -215,6 +215,9 @@ def main() -> None:
     clock.wrap(vp_pruning, "rectangle_population")
     clock.wrap(vp_pruning, "select", "vp_select")
     clock.wrap(line_template_source, "geometry_and_support")
+    clock.wrap(line_template_source, "camera_errors_with_frontier_recheck", "template_camera_check")
+    clock.wrap(line_template_source, "select_with_visibility_floor", "template_selection")
+    clock.wrap(line_template_source, "_ranked_records", "template_records")
     clock.wrap(line_template_source, "attach_w5_gates")
     # W5 record. process_case loads its own runtime, which picks up these module functions.
     clock.wrap(run_w5, "load_runtime")
@@ -224,8 +227,8 @@ def main() -> None:
     clock.wrap(run_w5, "rank_sensitivity")
     clock.wrap(run_w5, "load_control_entry")
     clock.wrap(sys.modules["run_diagnosis"], "gate_evidence")
-    for name in ("prepare_view", "measure_candidate", "rank_candidates", "permutation_determinism",
-                 "candidate_review", "write_json_gz", "read_json_gz"):
+    for name in ("prepare_view", "measure_candidate", "physical_marking_evidence", "rank_candidates",
+                 "permutation_determinism", "candidate_review", "write_json_gz", "read_json_gz"):
         clock.wrap(verifier_module, name)
     clock.wrap(np, "savez_compressed", "write_arrays")
     # Stripe-polarity refit.
@@ -236,6 +239,7 @@ def main() -> None:
     # Shared helpers appear under whichever stage called them.
     clock.wrap(detector, "_distance_maps", "distance_maps")
     clock.wrap(stripe_observations, "measure", "stripe_measure")
+    clock.wrap(stripe_observations, "score_model", "stripe_score_model")
 
     population_labels = ["G0_generation", "G1_generation"]
     generate = generation.generate
