@@ -2,10 +2,18 @@
 
 ## Resume
 
-Preparing a bounded nine-case comparison of 12 versus 16 direction families.
+Running a bounded nine-case comparison of 12 versus 16 direction families.
 User approved proceeding and permits up to six remote workers. The cached
 check preserves all eight historically approved fits and all nine best
 reference-agreement candidates. Actual runtime is the remaining question.
+
+The full run started on Carmack at about 00:40 UTC on 23 September, revision
+`7935ce1`, coordinator PID 2653088. Six worker processes run one numerical
+thread each. Log: `/scratch/ahalperi/court_det_fix/svd_runtime_20260923/full.log`.
+Completion receipt: sibling `full.exit`; results: sibling `full/`.
+Poll the receipt and process status before any relaunch. The detached job
+survives the launch SSH connection, which has been closed. No remote job was
+cancelled. Retrieve results, run the history comparison, then summarise timing.
 
 ## Scope and concerns
 
@@ -52,3 +60,10 @@ reference-agreement candidates. Actual runtime is the remaining question.
 - Runtime runner committed and pushed as `394b9ed`. Remote checkout is
   `/scratch/ahalperi/court_det_fix/svd_runtime_checkout_20260923`; run outputs
   are under `/scratch/ahalperi/court_det_fix/svd_runtime_20260923`.
+- Launch script and smoke receipt notes committed/pushed as `7935ce1`.
+  Carmack has 32 logical CPUs and 375 GiB RAM; six-worker memory is adequate.
+- Opus compute audit completed on the requested model. See
+  [the assessed recommendations](COMPUTE_AUDIT.md). Geometry-first player
+  filtering and a two-endpoint maximum are the smallest high-value leads.
+  The player-projection arithmetic rewrite needs remote boundary checks and
+  canonical constants. No compute optimisation has been applied.
