@@ -632,7 +632,7 @@ It includes the final trials, corrected shared-template gallery, current
 handover and policy. The earlier diagnostic gallery is labelled historical.
 Unrelated frozen images, raw searches and local review artefacts remain local.
 
-### Am1 proposal-recovery follow-up — completed experiment, visual review pending
+### Am1 proposal-recovery follow-up — visually accepted, integration checks remain
 
 Current outcome: the bounded trial found a promising automatic Am1 recovery.
 See [the report](AM1_RECOVERY.md) and [gallery](am1_gallery/index.html).
@@ -790,3 +790,12 @@ The report audit scores 94/100 after source fidelity checks; all six cold-reader
 questions were answered. No production default, manual colour handling or new
 post detector was introduced. This closes the bounded experiment; visual review
 and combined-change selection checks remain before integration.
+
+### User visual review
+
+The user finds the net-preference Am1 result a substantial improvement. The
+right boundary follows the inner edge of the yellow stripe rather than the
+outer edge, but the user considers that residual inset acceptable given the
+recovery. Record Am1 as visually accepted for this experiment. Combined-change
+selection checks remain before integration; this review does not establish
+general net-rule accuracy or resolve the remaining edge convention.

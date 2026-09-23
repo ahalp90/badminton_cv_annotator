@@ -3,7 +3,9 @@
 **The expanded Am1 pool contains a promising court that net support selects
 automatically.** Its maximum visible-landmark disagreement is 7.2 working
 pixels, versus 45.0 for the expanded pool's paint-score winner. Saved GX5 and
-Letterboxed45 selections stay unchanged. Visual review is pending.
+Letterboxed45 selections stay unchanged. The user accepts the Am1 result
+as a substantial improvement. The right boundary follows the inner edge of
+the yellow stripe; that residual inset is acceptable for this recovery.
 
 The net-ranking trial covers three known development views and four pool
 configurations. A separate generation check covers GX5, Am4-319 and SS21-10. Am1 geometry and earlier net measurements on Am1 and GX5
@@ -96,8 +98,8 @@ assembly detector is unnecessary for this trial.
 
 ## Decision and limits
 
-**Keep this as a promising experiment for visual review.** If the Am1 overlay
-is useful, the next check is final selection on a small set of existing good
+**The user accepts the Am1 recovery.** The next check is final selection
+on a small set of existing good
 courts after applying both changes together. Generation retention alone cannot
 establish that newly added candidates will not outrank those courts.
 

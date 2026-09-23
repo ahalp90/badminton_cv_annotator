@@ -6,11 +6,13 @@
 seeds expose useful proposals. A fixed positive net-support preference selects
 one with 7.2 working pixels maximum visible-landmark disagreement, versus 45.0
 for the expanded pool's paint-score winner. Saved GX5 and Letterboxed45 outputs
-stay unchanged. This is a small development result; visual review is pending.
+stay unchanged. The user accepts the Am1 improvement, including the remaining
+inset to the inner edge of the right yellow stripe. This remains a small
+development result.
 See the [experiment report](colour_consistency/AM1_RECOVERY.md) and
 [three-case gallery](colour_consistency/am1_gallery/index.html).
 
-Next: judge the Am1 overlay, then check final selection on a small set of good
+Next: check final selection on a small set of good
 courts with both changes enabled. The current controls test net preference on
 saved pools. GX5, Am4-319 and SS21-10 preserve their selected source geometry,
 but generation retention alone cannot establish ranking safety. No production
@@ -201,7 +203,7 @@ The historical catalogue, including work overlapping the final packet, remains i
 ## Local state and working agreements
 
 - The colour trials, automatic-edge comparison and bounded Am1/net trial are
-  complete; the Am1 gallery awaits visual review. Commits are authorised on
+  complete; the user accepts the Am1 recovery with a small right-edge inset. Commits are authorised on
   `fix/court-det`. No production detector change has been adopted.
 - Branch `fix/court-det`. This close-out checkpoint includes colour code and
   measurements, both galleries, compact search results, received packets and

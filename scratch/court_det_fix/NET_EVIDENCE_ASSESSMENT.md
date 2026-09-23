@@ -7,8 +7,9 @@
 vanishing-point seeds, then prefers the first eligible court with strongly
 supported tape halves and at least one post. It selects the original rank-2
 court: maximum visible-landmark disagreement falls from 45.0 to 7.2 working
-pixels. GX5 and Letterboxed45 retain their saved selections. Visual review is
-pending; no production rule is adopted.
+pixels. GX5 and Letterboxed45 retain their saved selections. The user accepts
+the Am1 improvement despite a remaining inset on the right yellow stripe.
+Combined-change selection checks remain; no production rule is adopted.
 
 The earlier no-go concerned the old candidate pool. Net preference still cannot
 recover Am1 from that pool. Naive candidate-free post assembly also remains

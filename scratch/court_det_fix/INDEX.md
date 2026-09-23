@@ -39,8 +39,9 @@ in [pickup](pickup.md).
 The [net assessment](NET_EVIDENCE_ASSESSMENT.md) now distinguishes the old-pool
 no-go from the new [automatic recovery trial](colour_consistency/AM1_RECOVERY.md).
 Extra line-group seeds admit useful candidates; a fixed net preference selects
-a promising Am1 fit. The two saved-pool controls are unchanged. Visual review
-and combined-change ranking checks precede any integration. Follow
+an Am1 fit the user accepts, with a small remaining right-edge inset. The two
+saved-pool controls are unchanged. Combined-change ranking checks precede
+integration. Follow
 [pickup](pickup.md) for the current next step.
 
 ## Inputs and code
