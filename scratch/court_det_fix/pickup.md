@@ -2,6 +2,20 @@
 
 ## Resume — 23 September 2026
 
+**Am1 now has a promising automatic recovery.** Three extra vanishing-point
+seeds expose useful proposals. A fixed positive net-support preference selects
+one with 7.2 working pixels maximum visible-landmark disagreement, versus 45.0
+for the expanded pool's paint-score winner. Saved GX5 and Letterboxed45 outputs
+stay unchanged. This is a small development result; visual review is pending.
+See the [experiment report](colour_consistency/AM1_RECOVERY.md) and
+[three-case gallery](colour_consistency/am1_gallery/index.html).
+
+Next: judge the Am1 overlay, then check final selection on a small set of good
+courts with both changes enabled. The current controls test net preference on
+saved pools. GX5, Am4-319 and SS21-10 preserve their selected source geometry,
+but generation retention alone cannot establish ranking safety. No production
+rule is adopted. Keep the expanded candidate pool for replay.
+
 **The automatic colour trials are complete and do not justify a new rejection
 rule.** The floor cue rejected 0/9 saved choices. The hue-only paint cue
 rejected 0/12: one usable comparison, eleven inconclusive. Weak or neutral
@@ -150,23 +164,17 @@ geometry, and these trials did not establish a useful automatic contradiction.
 Do not substitute annotated best candidates or add another threshold search.
 The [worklog](colour_consistency/PLAN.md) preserves all arms and limitations.
 
-## One final new lead, then integration
+## Am1 net lead, then integration
 
-The user has supplied [the net-evidence frontier packet](webui_net_evidence_frontier_handover/README.md)
-at the top level. Its proposals have now received a bounded Opus 5-5 high
-pre-evaluation and source checks. **No new net experiment is recommended before
-integration; no new net cue has been tested.** The
-[assessment](NET_EVIDENCE_ASSESSMENT.md) records the evidence and disagreements
-with the reviewer. The packet combines historical
-net-image work and the Am1/GX audit with further net-assisted court-localisation
-ideas. The packet describes the older `1353541` checkout, before the search and
-colour results above. Its colour-probe script is identical to the earlier return.
-Its net/floor ownership idea overlaps the completed Am1 colour trial. The old
-net scorer penalises missing support; do not restore that behaviour or use
-absence of net fragments as a rejection rule. A small independently annotated
-net test could establish information value, but no practical new detector
-follows from the packet alone. The historical overlap remains in
-[decisions](DETECTOR_DECISIONS.md#older-ideas-worth-bringing-back).
+The [net assessment](NET_EVIDENCE_ASSESSMENT.md) now includes an actual selection
+trial. The earlier no-go applied to the old candidate pool. Additional automatic
+line-group seeds repair a specific omission; positive net support then selects
+a much better visible fit. No post detector or colour selector was added.
+The old scorer's missing-support penalty remains rejected.
+
+The next decision depends on the new gallery and a bounded combined-change
+regression check. Avoid another threshold search or broad proposal sweep.
+The result does not resolve general false acceptance or scene-level agreement.
 
 **User's intended order: finish colour, assess this final new lead, then build
 a coherent, pragmatic deployable detector.** Bound the new lead to a useful
@@ -192,8 +200,8 @@ The historical catalogue, including work overlapping the final packet, remains i
 
 ## Local state and working agreements
 
-- The net pre-evaluation, colour trials and automatic-edge comparison are
-  complete. Commits are authorised on
+- The colour trials, automatic-edge comparison and bounded Am1/net trial are
+  complete; the Am1 gallery awaits visual review. Commits are authorised on
   `fix/court-det`. No production detector change has been adopted.
 - Branch `fix/court-det`. This close-out checkpoint includes colour code and
   measurements, both galleries, compact search results, received packets and
@@ -206,8 +214,8 @@ The historical catalogue, including work overlapping the final packet, remains i
   [historical colour diagnostic](http://127.0.0.1:8880/).
   If the local servers have ended, serve `svd_search/gallery/` and
   `colour_consistency/gallery/` respectively. Their index files and data persist.
-- GPT-6 Sol medium/default tier owns bounded coding and galleries; use high for
-  a specific unresolved problem. GPT-6 Luna max/priority handles tightly bounded
+- GPT-6 Sol high/default tier owns substantial coding, experiment runners and
+  galleries. Use medium only for simple bounded tasks. GPT-6 Luna max/priority handles tightly bounded
   mechanics. Opus `claude-opus-5-5` high is authorised for bounded audits, with
   the coordinator checking material findings. Do not impose time limits on
   Opus. No silent GPT-5.6 substitution.

@@ -24,6 +24,7 @@ experiment history through the 23 September handover. [FP_INDEX.md](FP_INDEX.md)
 | Integrate SVD12 and measure its matcher cost | [Current SVD state](svd_runtime/README.md); [completed nine-case timings](svd_runtime/RESULTS.md) |
 | Spend the saving on deeper axes or wider shortlists | [Completed six-case comparison and user review](svd_search/WORKLOG.md); [local comparison gallery](svd_search/gallery/index.html) |
 | Compare automatic paint and edge decisions | [Completed trial record](colour_consistency/PLAN.md); [six-case review gallery](colour_consistency/decision_gallery/index.html) |
+| Recover Am1 proposals and prefer independently supported nets | [Bounded recovery result](colour_consistency/AM1_RECOVERY.md); [three-case gallery](colour_consistency/am1_gallery/index.html) |
 | Investigate Am1 net tape using colour | [Received WebUI colour probe](edge_polarity/webui_return_colour_consistency/README.md); [local replay and broader diagnostic](colour_consistency/PLAN.md) |
 | Understand what the colour gallery does and does not establish | [Diagnostic findings](colour_consistency/PLAN.md); [local gallery](colour_consistency/gallery/index.html). Existing fits were measured, not reranked or refitted |
 
@@ -33,13 +34,14 @@ neither supplies a useful rejection on the saved choices. See the
 [colour trial record](colour_consistency/PLAN.md). Broader detector work belongs
 in [pickup](pickup.md).
 
-## Final net-evidence lead
+## Am1 net-evidence result
 
-[Net evidence and court homography frontier packet](webui_net_evidence_frontier_handover/README.md)
-has received a bounded [pre-evaluation](NET_EVIDENCE_ASSESSMENT.md). Its practical
-net/floor ownership idea overlaps the completed Am1 colour trial. No additional
-net experiment is recommended before integration; no new net cue has been
-tested. Follow [pickup](pickup.md) towards the scene detector.
+The [net assessment](NET_EVIDENCE_ASSESSMENT.md) now distinguishes the old-pool
+no-go from the new [automatic recovery trial](colour_consistency/AM1_RECOVERY.md).
+Extra line-group seeds admit useful candidates; a fixed net preference selects
+a promising Am1 fit. The two saved-pool controls are unchanged. Visual review
+and combined-change ranking checks precede any integration. Follow
+[pickup](pickup.md) for the current next step.
 
 ## Inputs and code
 

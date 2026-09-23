@@ -1,17 +1,67 @@
 # Net-evidence pre-evaluation — 23 September 2026
 
-## Resume
+## Current result
 
-**The frontier packet does not justify another net experiment before
-integration.** Its most practical idea is to stop net tape being counted as
-floor paint. The completed automatic colour trials did not produce a useful
-rejection rule; this leaves the Am1 failure unresolved.
+**Positive net support helps Am1 once useful proposals exist.** The completed
+[recovery trial](colour_consistency/AM1_RECOVERY.md) adds three automatic
+vanishing-point seeds, then prefers the first eligible court with strongly
+supported tape halves and at least one post. It selects the original rank-2
+court: maximum visible-landmark disagreement falls from 45.0 to 7.2 working
+pixels. GX5 and Letterboxed45 retain their saved selections. Visual review is
+pending; no production rule is adopted.
 
-This is a pre-evaluation, not a new detector result. No net detector, ranking
-change or gallery was implemented. The negative colour result alone does not
-validate an alternative net cue. Follow [pickup](pickup.md) for the next stage.
+The earlier no-go concerned the old candidate pool. Net preference still cannot
+recover Am1 from that pool. Naive candidate-free post assembly also remains
+unpromising. These limits do not invalidate the new candidate-conditioned
+comparison against observed fragments. Missing evidence remains neutral.
 
-## Evidence and judgement
+See [pickup](pickup.md) for next steps and the linked report for exact settings,
+controls, retained data and limitations. Historical findings below retain their
+original scope.
+
+## Earlier feasibility probe on saved pools
+
+All generic Hough fragments were compared with the four projected net pieces:
+left/right tape and left/right posts. Support is the fraction of visible sample
+locations within four working pixels of an aligned fragment (eight-degree
+angle tolerance). These are exploratory fixed settings, not validated detector
+thresholds. Reference projections are retrospective information-value checks;
+references do not select an automatic output.
+
+| View and court | Left/right tape support | Left/right post support |
+| --- | --- | --- |
+| Am1 selected wrong court | 0.083 / 0.250 | 0.125 / 0.000 |
+| Am1 reference, retrospective | 0.958 / 0.917 | 1.000 / 1.000 |
+| GX5 selected good court | 0.833 / 0.833 | 0.833 / 0.000 |
+| GX5 reference, retrospective | 0.875 / 0.833 | 0.875 / 0.000 |
+
+The stronger GX support differs from the received packet's weak net result
+because this probe uses all generic fragments. The packet used only retained
+court fragments. The missing right post remains a reason to keep absent
+evidence neutral; it does not make GX's visible tape and left post unusable.
+
+A simple candidate-free assembly produced 32 Am1 and 12 GX post/tape triples.
+It missed Am1's real pair because a detected right-post fragment extends above
+the tape. Requiring lower-band support also removed the real Am1 net; GX's
+survivor was a background structure. These results reject those simple rules,
+not every inexpensive net method. Cutting a post at its intersection with tape
+was not tested. No automatic net-assembly detector was implemented.
+
+The old Am1 pool contains no close correct court. Its 471 candidates passing
+this probe’s camera-error filter include none with strong support for both tape and both posts.
+That result alone cannot assess a new proposal pool. Predicting net geometry
+from a candidate and checking independent image fragments is a legitimate
+consistency test; it is not inherently circular. Low support still cannot
+serve as a rejection by itself.
+
+The Opus 5-5 high report and five diagnostic scripts are under
+`local_scratch/external_delegate/20260923-am1-net-feasibility/`. Its source and
+saved numerical outputs were checked, including coordinate conversion, selected
+case identity, coverage fractions and counts. The scripts and scoped Ruff exited
+0. One Am1 crop was inspected to interpret the overshooting post fragment;
+that interpretation remains tentative. No net trial was adopted.
+
+## Historical packet: evidence and judgement
 
 The [frontier packet](webui_net_evidence_frontier_handover/README.md) accurately
 distinguishes projected geometry from an independent observation of a net.

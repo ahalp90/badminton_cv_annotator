@@ -631,3 +631,162 @@ Final checkpoint: `Record the colour outcome and preferred edge correction`.
 It includes the final trials, corrected shared-template gallery, current
 handover and policy. The earlier diagnostic gallery is labelled historical.
 Unrelated frozen images, raw searches and local review artefacts remain local.
+
+### Am1 proposal-recovery follow-up — completed experiment, visual review pending
+
+Current outcome: the bounded trial found a promising automatic Am1 recovery.
+See [the report](AM1_RECOVERY.md) and [gallery](am1_gallery/index.html).
+The entries below preserve the investigation sequence.
+
+The user approved one bounded investigation of Am1 recovery before introducing
+net-post detection. The general colour-veto trials remain closed. This follow-up
+asks whether existing service-line templates and automatically colour-consistent
+fragments can produce a useful proposal that the saved pool lacked.
+
+Luna owns saved-record extraction only. Opus 5-5 high traces template generation,
+pruning and retention with source/evidence checks. Sol owns any justified bounded
+runner or gallery. No manual colour, annotation-selected replacement, broad
+search, production change or new post detector is in scope. Inspect actual
+candidate survival before designing a new colour branch. Artefacts are under
+`local_scratch/external_delegate/20260923-am1-{records,causal-trace}/`.
+
+Claude shell execution is restored after the user unlocked the login keyring.
+A native Opus probe returned `shell-ok`; memory was disabled and normal
+permissions were retained. No shell configuration was changed.
+
+The user updated delegation preferences: use Sol high/default tier for
+substantial coding, experiment runners and galleries. Luna remains limited to
+linear mechanical tasks. Opus 5-5 high remains the independent evaluator.
+
+The user authorised continued AFK work and suitable commits. A second Opus
+5-5 high delegate now evaluates the distinct net/post feasibility question
+using existing image fragments and saved Am1/GX evidence. It does not repeat
+the service-line template trace or build a new production detector. Record a
+practical no-go if neither route justifies a bounded follow-up; update the
+top-level handover and stop rather than expand the search indefinitely.
+
+Opus findings are investigation leads, not final rulings. The final decision
+requires source or numerical confirmation of each decisive claim. If the net
+proposal is worthwhile, the user permits Claude to build a narrowly scoped
+trial under explicit simplicity constraints. Its implementation must receive
+final audit and tidy before the trial runs. Sol high remains responsible for
+substantial Sol work and gallery building.
+
+Provisional source-trace lead (awaiting final verification): the observed lines
+nearest the reference service-line rectangle survive extraction and merging,
+but rectangle 103151 is outside the direction-group rectangle union. Its two
+sidelines belong to different selected groups. This identification uses the
+reference only to diagnose missing coverage; inserting that rectangle manually
+would not be an automatic recovery. The next decision depends on a label-free
+way to retain useful geometry and on its downstream ranking.
+
+The template trace completed. Its unchanged 256 proposal IDs reproduce the
+saved pool exactly. Three additional vanishing points from pairs of the three
+longest lengthwise merged lines admit a new leading template proposal with
+13.1 working-pixel maximum retrospective landmark disagreement (old pool:
+97.7). This establishes generation coverage only. The trace's claim of
+recovery is premature until refitting and final W5 ranking are checked.
+
+Sol high is implementing the bounded next trial under
+`local_scratch/external_delegate/20260923-am1-recovery-trial/`: Am1 first, with
+unchanged scoring/ranking and reuse of unchanged saved pools/refits. If useful,
+check GX5, Am4-319 and SS21-10 retention; no 47-case sweep. Only the standalone
+`colour_consistency/am1_recovery_trial.py` and its output are in scope.
+
+The separate net feasibility review found strong support for the actual Am1
+net when using all generic fragments, but many false matches from naive
+candidate-free post/tape assembly. Its no-go applies to recovery from the
+old candidate pool. A candidate-conditioned match against independent image
+fragments is not inherently circular; no net decision is final until the
+new-proposal ranking result is known. Low or missing support cannot itself
+reject a court. Raw review and diagnostic scripts are under
+`local_scratch/external_delegate/20260923-am1-net-feasibility/`.
+
+The seeded W5 replay completed. It keeps the three source populations and
+unchanged scoring/refitting/ranking. Actual selection changes to
+`rectangle_103167:template_42/child`; maximum corner-reference disagreement is
+197 native pixels (98 working), still material. Reference-near alternatives
+survive both gates at camera ranks 2 and 3. The rank-3 alternative has 34 native
+pixels maximum corner disagreement and 18.6 native pixels maximum visible
+landmark disagreement. These references enter only after automatic selection.
+No retention controls were run under the Am1-first stop condition.
+
+A single net-ranking trial is now justified by the changed candidate coverage.
+Its rule is fixed before outcomes: both projected tape halves must have at
+least 75% aligned generic-fragment support, plus at least one post at 75%.
+Prefer the first such court in the existing eligible paint-score ordering;
+otherwise retain the existing choice. Missing support never rejects a court.
+The comparison uses Am1's new pool, saved Am1, GX5 and Letterboxed45. It does
+not assemble posts, refit nets or sweep thresholds. Opus builds the standalone
+runner; it must be audited before real-data execution. Preserve all seeded
+candidates so any follow-up can replay scores without repeating fitting.
+
+The audited net trial completed with exit 0. It changes only seeded Am1 among
+four evaluated pool configurations. The new choice is
+`rectangle_98207:template_12/child`, original camera rank 2. Maximum/median
+visible-landmark disagreement over 21 points changes from 90.06/22.58 to
+14.44/2.40 native pixels (working coordinates are half those values). All four
+net pieces have 24 visible samples: tape support 23/24 and 22/24; both posts
+24/24. The old Am1 pool has no strong gated alternative and remains wrong.
+GX5 and Letterboxed45 preserve their saved choices. Runtime is 30.6 seconds
+for the four records, including preparation and reranking assertions.
+
+The independent final audit reproduced the numbers and candidate identity.
+It found no code-level reference leakage or reuse/order bug. Its important
+qualification is retained: seed design used reference-labelled Am1 geometry,
+and Am1/GX feasibility results informed the net condition. The rule was fixed
+before scoring the expanded pool, not before seeing these development views.
+None of the current controls tests a correct obscured winner against a strong
+wrong alternative. Strong wrong candidates exist outside the full-court gate;
+that gate remains part of the tested ordering. Even among seeded gated courts,
+strong net support alone does not guarantee the best visible fit.
+
+The full seeded pool is preserved locally (16 MB compressed), and a separate
+replay reproduced the earlier choices and selected geometry exactly. The
+optional `--pool-output` export was added afterwards for future runs; the
+preserved pool itself was captured by `preserve_pool.py` during that replay.
+Whole-project Pyrefly: exit 0, 39 existing suppressions. Seed/hook checks,
+scoped Ruff and syntax: exit 0. Source-to-gallery ID/coordinate and JavaScript checks passed; the page and all three images return HTTP 200.
+
+Three control generations completed at unchanged caps. GX5's selected template
+was initially flagged as unretained because the check required exact equality
+of every gate diagnostic. A targeted parent replay showed identical corners
+and homography; only camera error changed from 0.009531846882642437 to
+0.00953184688264241. This does not alter eligibility. The retention runner now
+reports geometry equality separately and records differing gate values.
+Am4-319 and SS21-10 retain their selected G0/G1 parents in the frozen sources.
+No combined-change ranking/refitting control was run. The next useful check,
+after visual review, is final selection safety on known good courts, including
+a correct court with obscured net evidence facing a strong wrong alternative.
+
+The gallery reuses the shared SVD template and existing image assets. All nine
+displayed choices match the source IDs and working-pixel corners (tolerance
+1e-6); native-to-working conversion occurs once. Homography corner agreement
+uses 0.02 working pixels to allow stored floating-point precision. Image sizes,
+relative links, JavaScript syntax and local HTTP checks passed. No image was
+visually judged during gallery construction. Review URL:
+http://127.0.0.1:8882/am1_gallery/ . The original six-case edge gallery remains
+available separately.
+
+The report received a fresh prose edit and a separate cold read. The reader
+recovered all six experiment questions without guessing. Mechanical prose
+warnings were checked; several were false positives on technical labels and
+an explicit opening outcome. Numerical facts and qualifiers were checked
+against the saved outputs. The checkpoint keeps the result experimental.
+
+Final retention rerun: exit 0. Matching IDs with identical corners/homographies
+are 177/256 on GX5, 181/256 on Am4-319 and 141/256 on SS21-10. Exact equality
+including every gate float is lower (86, 110 and 99); do not interpret those
+smaller counts as geometry loss. GX5's selected parent is preserved exactly in
+geometry, with only the camera-error rounding difference above. The other two
+selected source parents remain in unchanged G0/G1 pools.
+
+Final checks: four-script Ruff, four Python syntax parses, generated JavaScript
+syntax, local documentation links and `git diff --check` all exit 0.
+Whole-project Pyrefly exits 0 (39 existing suppressions). Relevant behaviour was
+exercised by the replay, fixed-rule selection, generation checks and targeted
+numerical audits; no broad pytest run was needed for this scratch-only change.
+The report audit scores 94/100 after source fidelity checks; all six cold-reader
+questions were answered. No production default, manual colour handling or new
+post detector was introduced. This closes the bounded experiment; visual review
+and combined-change selection checks remain before integration.
