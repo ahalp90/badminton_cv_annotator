@@ -1,13 +1,33 @@
 # Court-detector pickup
 
 Resume here. This is the only current handover; the linked records supply detail
-when a specific question needs it. Session closed on 23 September 2026 after
-a critical read and cached replay of both SVD returns. The next task is to
-explain the remaining SS03-34 inset with fixed-data diagnostics, then decide
-whether one fitting change is justified. Start with this file and
-[the polarity result](edge_polarity/README.md).
-Then assess SVD/search coverage before further selection experiments. Do not
-restart the wider evaluation.
+when a specific question needs it. On 23 September 2026, the WebUI objective
+return was replayed on the exact local evidence. The user prefers centre-to-edge
+across the four-case gallery, confirming it as the winner after an initial
+"marginally better" ruling. Retain it as a candidate
+partial improvement; production fitting is unchanged. The fitting investigation
+is complete: read [the assessment](edge_polarity/local_audit/ASSESSMENT.md).
+The saved automatic SVD check also passes its coverage condition: all eight
+historically approved automatic witnesses survive the 12-family screen.
+**Running now: actual matcher work and runtime with 12 versus 16 families.**
+The user approved this step and up to six remote workers. The full nine-case
+Carmack job runs at revision `7935ce1`; use
+[its worklog](svd_runtime/WORKLOG.md) for the PID, log and completion receipt.
+Do not relaunch without checking that job. Opus also completed a requested
+[compute-efficiency audit](svd_runtime/COMPUTE_AUDIT.md); fixes remain separate
+from this fixed-matcher timing.
+Read [the retention findings](evidence/webui_followup3_20260922/review_20260923/automatic_retention/README.md)
+before running it. Three existing score-winner roles are lost, so the screen
+does change selection opportunities. Keep the full-source comparator and G0.
+The requested [eight-source amateur gallery](edge_polarity/local_audit/gallery/amateur/index.html)
+has been reviewed. The user reports one insignificant regression (case unnamed)
+and judges Am1 frame 54 very bad, regressing against an also-bad saved court.
+The sample uses the earliest saved frame from each amateur source, including
+GX. The user identifies Am1's false far baseline as the net's bottom white band.
+The [WebUI net-versus-court audit brief](edge_polarity/local_audit/webui_net_audit/PROMPT.md)
+and case packet are committed and pushed as `94821ee`; its source and images
+are already on GitHub. This separate reasoning task needs no upload.
+Do not restart the wider evaluation.
 
 ## Where we are
 
@@ -40,9 +60,20 @@ runtime and its acceptance/fallback behaviour are not integrated yet.
   return has produced an integrated detector change. Both SVD packages now have
   a [critical assessment and local replay](evidence/webui_followup3_20260922/ASSESSMENT.md).
   Their 12-family screen preserves all nine best cached reference-fit pairs;
-  automatic candidate retention and actual speed remain untested
+  the subsequent automatic check retains all eight historical approved fits
+  and all nine best reference-agreement candidates. Actual speed is untested
 
-## Run next: account for the remaining fit error
+## Fitting investigation: original protocol
+
+The fixed-data runs below have now been performed. Results and the user's
+visual ruling are in [the current worklog](edge_polarity/local_audit/WORKLOG.md).
+Fragment 111 alone adds (−0.497, −0.070) working pixels of upper-left movement
+on SS03-34. Resolving both strong centre fragments adds (−0.506, −0.061).
+The user prefers centre-to-edge across this small sample despite mixed paint
+scores. On SS03-19, the user reports that polarity-only marginally undershoots
+the back line, while centre-to-edge hugs the inner edge of the white line.
+The default overlay marks the outside boundary; this is a relative preference,
+not a ruling that every corner or boundary is exact.
 
 The question is: **which fixed constraints still favour the inset after their
 paint-side labels are corrected, and why?** Use `shuttleset_03_scene_0034`.
@@ -73,9 +104,17 @@ No fixed corner offsets. No new full search or large gallery is needed here.
 The [WebUI objective-audit prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) is
 ready to paste into a fresh WebUI session. It asks for independent reasoning,
 a derivation or small counterexample, exact code anchors and a predicted local
-test. It has not been launched. The local coordinator checks any returned claims.
+test. The return is in [webui_return](edge_polarity/webui_return/); its analytic
+examples and exact fragment-111 counterfactual reproduce locally.
 
 ## Immediately after fitting: SVD and search coverage
+
+Update, 23 September: the saved automatic retention check is complete.
+It retains 8/8 approved witnesses and all 34 candidates within one working
+pixel of each full pool's best reference agreement. This numerical neighbourhood
+is not a usability judgement. Candidate count falls from 19,286 to 8,657.
+Both GX5 score winners and Am2-28019's paint winner are dropped. Proceed to
+actual matcher timing; do not enable production pruning from cached counts.
 
 The two SVD returns have been critically read and their cached calculations
 reproduced. Read the assessment before tuning selection further. Cheaper
@@ -137,7 +176,9 @@ visual batch for that question; no routine review of another 50-plus images.
 - **Delegation:** use bounded Luna Max tasks for mechanics. The coordinator
   checks their leads and makes the ruling. Claude Code Opus audit is authorised
   when useful, without a time limit; project sharing with Anthropic and HPC
-  document uploads are authorised. Do not cancel an existing external run
+  document uploads are authorised. All project sharing with delegated Codex
+  agents is explicitly authorised. Use GPT-6 Sol medium, non-priority for
+  bounded experiment runners and galleries. Do not cancel an existing external run
 - **Git:** commits and pushes on `fix/court-det` are authorised. Use plain,
   succinct messages at meaningful checkpoints. Never commit to `main`
 - **Checks:** choose validation for the change. The last code checkpoint passed
@@ -163,6 +204,9 @@ worklogs. Historical resume sections are records, not today's instructions.
 
 
 ## Appended close-out: SVD read, 23 September
+
+Historical record below: the proposed automatic retention check has since
+completed. Use the current next step at the top of this file.
 
 The first package's arithmetic and code support a narrow positive result:
 12 of 16 families retain the exact best cached reference-fit pair on 9/9 views,

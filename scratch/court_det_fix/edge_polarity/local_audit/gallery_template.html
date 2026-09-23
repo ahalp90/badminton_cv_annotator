@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__GALLERY_TITLE__</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#12161c;color:#edf1f7}
+*{box-sizing:border-box}body{margin:0}header,main{max-width:1720px;margin:auto;padding:24px}h1{font-size:26px;margin:0 0 8px}h2{font-size:21px;margin:0}p{margin:8px 0;color:#b9c5d5}a{color:#8ddff5}nav{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}.toolbar{position:sticky;top:0;z-index:5;background:#1c2531f5;border-block:1px solid #435062;padding:12px 24px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}label{display:inline-flex;align-items:center;gap:8px}select,button{font:inherit;background:#293748;color:#fff;border:1px solid #607189;border-radius:5px;padding:6px 10px}button{cursor:pointer}input[type=range]{width:110px}section{margin:0 0 44px;padding-top:20px;scroll-margin-top:120px;border-top:1px solid #435062}.case-head{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.panel{background:#1b222c;border-radius:6px;overflow:hidden}.label{padding:9px 12px;font-weight:600}.sub{font-size:13px;color:#bcc8d8;font-weight:400}canvas{width:100%;height:auto;display:block;background:#000}.full{cursor:crosshair}.crop-title{padding:12px 0 8px;color:#b9c5d5;font-size:14px}.crop canvas{image-rendering:pixelated}details{margin-top:14px;color:#b9c5d5}table{border-collapse:collapse;margin:8px 0}td,th{text-align:left;padding:5px 14px 5px 0}footer{color:#a7b5c7;font-size:13px;margin-top:30px}.help{max-width:1000px}.note{font-size:14px}@media(max-width:760px){header,main{padding:15px}.toolbar{position:static;padding:12px}.grid{grid-template-columns:repeat(3,minmax(240px,1fr));overflow-x:auto}.case-head{display:block}.case-head label{margin-top:10px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<header>
+<h1>__GALLERY_TITLE__</h1>
+<p class="help">Compare the existing polarity correction with the same fit after centre-labelled fragments are assigned to their polarity-compatible paint edge. All fitted points and weights are unchanged. These are development cases; visual rulings are pending.</p>
+<p class="help"><strong>Click any full image</strong> to inspect the same spot in all three enlarged crops. Select a corner below each case to jump there. <strong>Hold Space</strong> to hide outlines. The cyan outline marks the outside court boundary by default.</p>
+<nav id="nav"></nav>
+</header>
+<div class="toolbar">
+<label>Overlay <select id="mode"><option value="boundary">Outside boundary</option><option value="edges">Both edges of every stripe</option><option value="centres">Stripe centres + outside boundary</option></select></label>
+<label>Line width <input id="lineWidth" type="range" min="1" max="6" value="3" step="0.5"></label>
+<label>Opacity <input id="opacity" type="range" min="0.1" max="1" value="1" step="0.05"></label>
+<label><input id="visible" type="checkbox" checked> Show outlines</label>
+<label><input id="smooth" type="checkbox"> Smooth enlarged pixels</label>
+<button id="reset">Reset all crops</button>
+</div>
+<main id="gallery"></main>
+<script>
+'use strict';
+const cases = __GALLERY_DATA__;
+const states = [];
+let spaceHeld = false;
+const mode = document.querySelector('#mode');
+const opacity = document.querySelector('#opacity');
+const lineWidth = document.querySelector('#lineWidth');
+const visible = document.querySelector('#visible');
+const smooth = document.querySelector('#smooth');
+const cropWidth = 120, cropHeight = 90;
+const cornerLabels = ['Upper left', 'Upper right', 'Lower right', 'Lower left'];
+const armLabels = {polarity:'Polarity-only fit',strong_centres:'Centre-to-edge fit',original:'Original fit',fragment111:'Fragment 111 only',fragment179:'Fragment 179 only',saved_selection:'Saved selected court'};
+function panelLabel(data,name){
+  const arm=data.arms[name];
+  if(!arm.corners)return `${armLabels[name]} · no valid fit`;
+  return armLabels[name]+(arm.camera_eligible===false?' · camera gate failed':'');
+}
+function draw(canvas, state, armName, crop) {
+  const ctx = canvas.getContext('2d');
+  const [width,height] = state.data.size;
+  let box = [0,0,width,height];
+  if(crop) box = [state.focus[0]-cropWidth/2,state.focus[1]-cropHeight/2,cropWidth,cropHeight];
+  const sx = canvas.width/box[2], sy = canvas.height/box[3];
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.imageSmoothingEnabled = !crop || smooth.checked;
+  ctx.setTransform(sx,0,0,sy,-box[0]*sx,-box[1]*sy);
+  ctx.drawImage(state.image,0,0,width,height);
+  if(!armName) return;
+  const arm = state.data.arms[armName];
+  if(!arm.corners){
+    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#10151def';ctx.fillRect(0,canvas.height-48,canvas.width,48);
+    ctx.fillStyle='#fff';ctx.font='18px system-ui';ctx.fillText(`No valid fit: ${arm.status.replaceAll('_',' ')}`,12,canvas.height-18);return;
+  }
+  if(!visible.checked || spaceHeld) return;
+  ctx.globalAlpha = Number(opacity.value);
+  const screenScale = canvas.width / canvas.getBoundingClientRect().width / sx;
+  const lines = [];
+  if(mode.value !== 'edges') arm.corners.forEach((point,index)=>lines.push([point,arm.corners[(index+1)%4]]));
+  if(mode.value === 'edges') lines.push(...arm.edges);
+  if(mode.value === 'centres') lines.push(...arm.centres);
+  ctx.beginPath();for(const [start,end] of lines){ctx.moveTo(...start);ctx.lineTo(...end);}
+  ctx.strokeStyle='#071019';ctx.lineWidth=(Number(lineWidth.value)+2)*screenScale;ctx.stroke();
+  ctx.strokeStyle='#00e5ff';ctx.lineWidth=Number(lineWidth.value)*screenScale;ctx.stroke();ctx.globalAlpha=1;
+}
+function render(state) {
+  const arms = [null,'polarity',state.comparison.value];
+  state.full.forEach((canvas,index)=>draw(canvas,state,arms[index],false));
+  state.crops.forEach((canvas,index)=>draw(canvas,state,arms[index],true));
+  state.rightLabel.textContent=panelLabel(state.data,state.comparison.value);
+  state.cropRightLabel.textContent=panelLabel(state.data,state.comparison.value);
+  state.cropNote.textContent=`Enlarged crop · centre (${state.focus[0].toFixed(1)}, ${state.focus[1].toFixed(1)}) · 120 × 90 working pixels`;
+}
+function renderAll(){states.forEach(state=>{if(state.image.complete && state.image.naturalWidth)render(state);});}
+for(const data of cases){
+  const link=document.createElement('a');link.href=`#${data.id}`;link.textContent=data.title;document.querySelector('#nav').append(link);
+  const section=document.createElement('section');section.id=data.id;
+  let extra = data.arms.fragment111 ? '<option value="fragment111">Fragment 111 only</option><option value="fragment179">Fragment 179 only</option>' : '';
+  if(data.arms.saved_selection)extra+='<option value="saved_selection">Saved selected court</option>';
+  section.innerHTML=`<div class="case-head"><div><h2>${data.title}</h2><div class="sub">${data.changed_fragments} centre fragments changed · ${data.size[0]} × ${data.size[1]} working pixels</div></div><label>Right panel <select class="comparison"><option value="strong_centres">All strong centre fragments</option>${extra}<option value="original">Original fit before polarity</option></select></label></div><div class="grid full-grid"></div><div class="crop-title"><label>Focus <select class="corner">${cornerLabels.map((label,index)=>`<option value="${index}">${label}</option>`).join('')}<option value="custom">Clicked point</option></select></label> · <span class="crop-note"></span></div><div class="grid crop-grid"></div><details><summary>Scores and measured movements</summary><p class="note">These measurements help locate changes. They are not visual quality ratings. Negative x is left; negative y is up.</p><table><thead><tr><th>Fit</th><th>Paint score</th><th>Upper-left change (px)</th><th>Largest corner move (px)</th></tr></thead><tbody></tbody></table></details>`;
+  document.querySelector('#gallery').append(section);
+  const focusCorners=data.arms.polarity.corners || data.arms.saved_selection.corners;
+  const state={data,image:new Image(),full:[],crops:[],focusCorners,focus:[...focusCorners[0]],comparison:section.querySelector('.comparison'),corner:section.querySelector('.corner'),cropNote:section.querySelector('.crop-note')};
+  for(const [gridName,list,isCrop] of [['.full-grid',state.full,false],['.crop-grid',state.crops,true]]){
+    ['Raw image',panelLabel(data,'polarity'),panelLabel(data,'strong_centres')].forEach((label,index)=>{
+      const panel=document.createElement('div');panel.className='panel'+(isCrop?' crop':'');
+      const heading=document.createElement('div');heading.className='label';heading.textContent=label;panel.append(heading);
+      if(index===2){if(isCrop)state.cropRightLabel=heading;else state.rightLabel=heading;}
+      const canvas=document.createElement('canvas');canvas.width=isCrop?600:data.size[0];canvas.height=isCrop?450:data.size[1];
+      if(!isCrop){canvas.className='full';canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect();state.focus=[(event.clientX-rect.left)/rect.width*data.size[0],(event.clientY-rect.top)/rect.height*data.size[1]];state.corner.value='custom';render(state);});}
+      canvas.setAttribute('aria-label',`${data.title}: ${label}${isCrop?', enlarged crop':''}`);panel.append(canvas);list.push(canvas);section.querySelector(gridName).append(panel);
+    });
+  }
+  for(const [name,arm] of Object.entries(data.arms)){
+    const movements=arm.corners && data.arms.polarity.corners ? arm.corners.map((point,index)=>point.map((value,axis)=>value-data.arms.polarity.corners[index][axis])) : null;
+    const maximum=movements?Math.max(...movements.map(point=>Math.hypot(...point))).toFixed(3):'—';
+    const upperLeft=movements?movements[0].map(value=>value.toFixed(3)).join(', '):'—';
+    const row=document.createElement('tr');row.innerHTML=`<td>${panelLabel(data,name)}</td><td>${arm.paint===null?'—':arm.paint.toFixed(6)}</td><td>${upperLeft}</td><td>${maximum}</td>`;section.querySelector('tbody').append(row);
+  }
+  state.comparison.addEventListener('change',()=>render(state));
+  state.corner.addEventListener('change',()=>{if(state.corner.value!=='custom')state.focus=[...state.focusCorners[Number(state.corner.value)]];render(state);});
+  state.image.onload=()=>render(state);state.image.src=data.image;states.push(state);
+}
+[mode,opacity,lineWidth,visible,smooth].forEach(control=>control.addEventListener('input',renderAll));
+window.addEventListener('resize',renderAll);
+document.querySelector('#reset').addEventListener('click',()=>{states.forEach(state=>{state.focus=[...state.focusCorners[0]];state.corner.value='0';});renderAll();});
+document.addEventListener('keydown',event=>{if(event.code==='Space' && !['INPUT','SELECT','BUTTON'].includes(document.activeElement.tagName)){event.preventDefault();spaceHeld=true;renderAll();}});
+document.addEventListener('keyup',event=>{if(event.code==='Space'){spaceHeld=false;renderAll();}});
+window.addEventListener('blur',()=>{spaceHeld=false;renderAll();});
+</script>
+</body>
+</html>

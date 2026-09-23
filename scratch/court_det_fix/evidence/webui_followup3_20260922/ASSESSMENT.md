@@ -65,6 +65,13 @@ an old producer timing, not a new end-to-end benchmark.
 
 ## Next bounded check
 
+**Later update, 23 September:** the saved automatic check below has completed.
+The [retention findings](review_20260923/automatic_retention/README.md) preserve
+this assessment and add today's visual context. All eight historically
+approved automatic fits survive the 12-family mask. Three score-winner roles
+are lost. Proceed to an actual 12-versus-16 matcher comparison, retaining the
+full-source comparator and G0. Runtime remains unmeasured.
+
 Keep fitting first, then SVD/search coverage as recorded in pickup. Begin with
 saved automatic candidate records for the same baseline directions. Check
 input identity and original group IDs before mapping the 12-family mask onto

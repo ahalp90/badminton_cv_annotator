@@ -1,0 +1,25 @@
+SS03-34 polarity identity from saved contrast and code orientation
+  fragment 111: image_sign=+1, contrast<0 -> positive/inner edge (position 2); orientation margin after 5 deg tolerance 65.630 deg
+  fragment 179: image_sign=+1, contrast>0 -> negative/far edge (position 1); orientation margin after 5 deg tolerance 62.450 deg
+
+left-singles projected centre-to-edge q: 1.063798 .. 1.804644 px
+  centre-capture parent-shift lower endpoint q/2: 0.531899 .. 0.902322 px
+  centre-capture parent-shift upper endpoint 3q/2: 1.595697 .. 2.706966 px
+  captured point-to-centre residual <= 0.902322 px
+  corresponding reverse support >= 0.903234
+near-short projected centre-to-edge q: 0.452800 .. 0.489898 px
+  centre-capture parent-shift lower endpoint q/2: 0.226400 .. 0.244949 px
+  centre-capture parent-shift upper endpoint 3q/2: 0.679200 .. 0.734847 px
+  captured point-to-centre residual <= 0.244949 px
+  corresponding reverse support >= 0.992528
+
+Minimal assignment -> polarity -> frozen-refit calculation
+  parent inward shift 0.5 px: geometry=positive_edge, after polarity=positive_edge, left boundary=300.000000 px, inset=+0.000000 px, loss=5.26e-26
+  parent inward shift 1.0 px: geometry=centre, after polarity=centre, left boundary=301.302491 px, inset=+1.302491 px, loss=5.17e-26
+  parent inward shift 2.0 px: geometry=negative_edge, after polarity=positive_edge, left boundary=300.000000 px, inset=+0.000000 px, loss=5.26e-26
+
+SS03-34 fragment-111 two-line projective proxy, upper-left correction: (-1.154448, +0.001630) working px
+
+Generalized capture condition
+  centre wins when |effective_edge_offset - parent_shift| <= model_half_width / 2
+  therefore a width/localisation mismatch can select centre even at zero parent shift

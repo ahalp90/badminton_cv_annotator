@@ -1,0 +1,11 @@
+1-D exact specialization
+  correct edge: boundary=300.000000 px, loss=5.26e-26 px^2
+  edge frozen as centre: boundary=301.302491 px, loss=1.47e-25 px^2
+  zero-loss inset=1.302491 px
+
+SS03-34 projective two-line proxy
+  left-singles projected 40 mm width: 2.128..3.609 px
+  near-short projected 40 mm width: 0.906..0.981 px
+  fragment 111-like correction, upper-left: (-1.154, +0.002) px
+  fragment 179-like correction, upper-left: (-0.287, +0.693) px
+  combined proxy correction, upper-left: (-1.440, +0.695) px
