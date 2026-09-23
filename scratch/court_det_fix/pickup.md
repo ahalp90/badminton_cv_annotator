@@ -20,6 +20,12 @@ net support cannot override arbitrarily weaker paint evidence.
 See [the current worklog](net_recovery/WORKLOG.md) and
 [15-case gallery](net_recovery/gallery/index.html).
 
+The user has now reviewed all 15 gallery rows; the case rulings are in the
+current worklog. GX689, GX5111 and Yellow156 improve, while Am2-150 and Am3-0
+also regress. Several other differences are minor or tradeoffs. The gallery
+uses older W5 fits without the accepted automatic stripe-polarity correction.
+Projected net posts are predictions from the court, not independent detections.
+
 Next: freshly measure baseline and seeded pools consistently before further
 generation comparisons, then test a restrained net preference. The replay
 cache is repaired and Am1's accepted net choice reproduces exactly. Fresh and

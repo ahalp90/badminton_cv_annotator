@@ -68,6 +68,81 @@ and isolated shared-template rows are under
 `local_scratch/net_recovery/20260923/visual_review/`. Do not turn this selected
 handful into an overall accuracy count.
 
+### User review — 23 September
+
+The user reviewed all 15 gallery rows. These rulings supersede the provisional
+visual judgements above. Net preference gives useful gains on several views,
+but also degrades good courts. Keep unrestricted net preference experimental.
+
+| Case | User's visual judgement |
+| --- | --- |
+| Letterboxed78 | Substantial regression. The projected right post starts part-way up the real post. The left is a hallucination further along the court line. |
+| GX5 and GX0 | Both versions are perfect. |
+| GX689 | Net preference improves the court; only a tiny top-left shortfall remains. The projected right post sits slightly further along the court outline than the real post. |
+| GX5111 | Same judgement as GX689. |
+| Yellow156 | Net preference improves the court. It appears to follow the inner pole/tape junction, pulling the court inward. The user suggests inward net tension as the cause; this mechanism is unverified. |
+| Am2-150 | Net preference degrades the court. The saved W5 version also fits the net better visually. |
+| Am3-0 | Net preference pulls the court inward by following the inside of the net structure. Saved W5 avoids this problem. |
+| Am3-17174 | Both courts are equally useful. Saved W5 slightly overshoots the top right; net preference slightly undershoots. The trial's projected net fits much better. |
+| SS03-0016 | Both insignificantly overshoot the top left. Net preference slightly improves the court and left net outer, but fits the net top worse. |
+| SS21-0034 and SS21-0044 | Both courts are fine. Vertical lines hug the stripe inner; the user asks whether the earlier centre/edge correction is active. |
+| Unlabelled control 00000001 | Saved W5 undershoots the far baseline. Net preference fixes that but marginally overshoots the near baseline. The trial is roughly usable in this difficult view. |
+| Unlabelled control 00052563 | Clear regression from a good saved court. Net preference overshoots onto the back tape of the court overflow area. |
+| Unlabelled control 00081233 | Marginal regression. The trial's left sideline hugs the stripe inner and its right sometimes lies slightly outside. Both courts are fine. |
+
+The control IDs retain their original experimental labels. These visual
+judgements do not relabel the input set.
+
+The gallery uses saved W5 geometry. Neither column applies the later automatic
+stripe-polarity correction. The inset therefore does not show that the accepted
+correction was reverted or failed. The net overlay is projected from each court;
+it is not a separately detected set of posts. The rule requires both tape
+halves and only one post to reach 75% fragment coverage. It neither verifies
+post-foot contact nor establishes that supporting fragments form a real net.
+
+The user proposes a graded preference: two mutually coherent posts should
+contribute more than one supported post, and one more than none. This is a
+candidate design, not an implemented rule. Missing posts may be obscured.
+Independent fragment matches alone do not establish mutual coherence, and
+any net reward still needs a bounded influence on paint-based selection.
+
+The user also stresses that inward post lean can offset the top from the base,
+and that the tape sags along its length. The current projection models upright
+posts with a fixed centre height of 1.524 m versus 1.55 m at the posts, using
+two straight tape halves. It cannot represent variable post lean or tape sag.
+This supports investigating post-base evidence as a court anchor, with tops
+and tape used more loosely to corroborate net identity. It does not establish
+that tension caused every observed inset, or that post bases can already be
+identified reliably from the available fragments.
+
+### Independent review and current recommendation
+
+Opus 5-5 xhigh reviewed the source, saved evidence and user rulings. Its report
+is `local_scratch/external_delegate/20260923-net-user-review/result.md` from
+the repository root. The review ran without a time limit and changed no files.
+
+A separate replay confirms its graded-priority diagnostic: preferring any
+two-post-supported candidate before any one-post-supported candidate retains
+all five user-reported regressions and changes ten further choices relative
+to the fixed rule. GX0 moves to full-court rank 17 and GX5111 to rank 89.
+Those replacements are unreviewed; rank alone does not establish their quality.
+This diagnostic tests unconditional priority, not the user's proposed bounded
+weight for genuinely coherent posts.
+
+Keep a bounded net reward as the next candidate design. Two coherent posts
+can contribute more than one, while obscured posts provide no evidence.
+Prioritising reliable base evidence could reduce dependence on idealised net
+shape. It remains untested, and finding reliable bases is the key prerequisite.
+First use the internally consistent saved pools for inexpensive selection
+experiments. Further proposal-generation comparisons still need consistently
+remeasured baseline and seeded pools.
+
+The review suggests a paint band of roughly 0.01 from historical score drift.
+That justification is not accepted: a difference between historical and fresh
+measurements does not establish normal measurement repeatability or a safe
+selection margin. No numerical cap has been adopted. The apparent separation
+of gains and regressions by paint loss is development evidence only.
+
 ### What the projected-net overlay explains
 
 Letterboxed78's trial tape follows the back edge of the floor, above the real
