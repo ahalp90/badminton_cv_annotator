@@ -31,13 +31,13 @@ findings. Colour effectiveness remains untested: its gallery displays fixed
 saved fits, often duplicated between source selections. The next behavioural
 experiment and broader detector work belong in [pickup](pickup.md).
 
-## Newly received lead
+## Final net-evidence lead
 
 [Net evidence and court homography frontier packet](webui_net_evidence_frontier_handover/README.md)
-is newly received and unreviewed beyond its README/manifest. Its historical
-Am1/GX material overlaps prior work; the new proposals remain untested locally.
-The user expects this to be the final new idea assessed after colour, before
-pragmatic detector integration. [pickup](pickup.md) owns that bounded sequence.
+has received a bounded [pre-evaluation](NET_EVIDENCE_ASSESSMENT.md). Its practical
+net/floor ownership idea overlaps the pending Am1 colour trial. No additional
+net experiment is recommended before integration; no new net cue has been
+tested. Finish colour, then follow [pickup](pickup.md) towards the scene detector.
 
 ## Inputs and code
 

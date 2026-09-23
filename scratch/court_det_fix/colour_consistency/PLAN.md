@@ -2,6 +2,75 @@
 
 ## Resume
 
+**Decision trials started, 23 September 2026.** Work through the Am2 floor cue,
+then the Am1 observed-fragment cue, then decide the centre-to-edge policy.
+Use saved choices and geometry. A rejected choice becomes an abstention;
+do not insert an annotation-selected replacement. Sol owns implementation and
+galleries, with a bounded Opus review of the substantive result. The user has
+authorised feature-branch commits at suitable checkpoints.
+
+The user now confirms that amateur reference courts mix paint-centre and
+outside-edge annotations. The convention is unknown case by case. Small
+signed reference drift cannot establish an improvement or regression.
+Semantic mistakes, invalid fits and substantial geometry failures remain
+meaningful. Limited image viewing is authorised to resolve concrete ambiguity.
+
+### Current runbook
+
+1. **Floor contradiction:** test saved W5 and selected SVD baseline/deeper
+   courts for Am2-28019, GX0 and GX5. Use three small manual floor patches per
+   view, fixed from raw images without court overlays. This is a diagnostic
+   with extra supervision, not an automatic floor detector. Compare paired
+   inward/outward strips at 0.15, 0.35 and 0.60 court metres. Use nearest-patch
+   Lab chroma distance, a predeclared threshold and a contiguous contradiction
+   requirement. Report sensitivity without tuning for reference agreement.
+   If it changes no useful decision, stop this formulation.
+2. **Observed paint:** sample actual fragments without using a fit's predicted
+   stripe width. Separate raw paint, floor and relative colour. Count distinct
+   reference markings, not fragments, and exclude the target marking. Include
+   real-paint controls, partial views, missing evidence and synthetic dark
+   stripes. Insufficient independent evidence must remain inconclusive.
+3. **Centre-to-edge:** reuse the completed four-case and amateur comparisons.
+   Check the rule's brightness assumptions against dark-stripe counterexamples.
+   Decide between retaining the rule, limiting it to supported paint polarity,
+   or leaving it experimental. Do not use small reference offsets as the vote.
+4. **Review and close-out:** one substantive Opus 5-5 high audit without a time
+   limit, source checks of material findings, and Sol-built galleries using the
+   shared template. Record a go/no-go decision for each cue and commit the
+   coherent result on `fix/court-det`.
+
+Out of scope: new proposal searches, changed candidate geometry during the
+colour trials, learned net models, full scene integration, threshold searches,
+and treating a floor-colour transition as the exact painted boundary.
+
+Planned checkpoints: `Record the colour trials and annotation limits`,
+`Test colour contradictions on saved court choices`, and
+`Set the court paint and edge policy from the trials`. The user's current
+commit authorisation covers these feature-branch checkpoints; messages may
+be tightened to describe the actual completed change.
+
+Verification: focused synthetic and real-input checks for sampling, masks,
+missing evidence and unchanged geometry; scoped Ruff, syntax and types for new
+scripts; gallery payload/JavaScript checks and preserved template controls.
+Reuse earlier successful checks for unchanged code. No full search or broad
+test suite is justified by these standalone experiments.
+
+### Current concerns and module state
+
+- `floor_trial.py` is being implemented by Sol. GX5's manual patch locations
+  were also checked on its raw frame; they lie on unobstructed floor. Frame-6
+  person boxes cannot mask this frame-5 image. The subtitle is separate from
+  the anchors but may affect evidence elsewhere.
+- The existing projected-stripe diagnostic remains historical and unchanged.
+  Its GX5 box mask did not enforce the same-frame requirement; new trials use
+  the verifier's provenance check. Any effect on old measurements is unmeasured.
+- The floor patches add supervision. A useful result would justify assessing
+  an automatic anchor, not deploying this manual diagnostic unchanged.
+- The shared SVD template and existing galleries remain the renderer baseline.
+  The final gallery must show changed decisions and reasons, with good controls.
+
+### Earlier diagnostic resume
+
 **Gallery correction, 23 September 2026.** The colour builder now fills the
 existing SVD gallery template. Saved W5 and G1/templates remain side by side;
 six SVD cases add detector and retrospective reference-best views. All 71

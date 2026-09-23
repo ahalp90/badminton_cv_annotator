@@ -17,7 +17,7 @@ experiments, not successive versions of a deployable detector.
 | Compare deeper versus wider SVD searches | [Six-case worklog and visual rulings](svd_search/WORKLOG.md); [gallery](svd_search/gallery/index.html) |
 | Understand the colour diagnostic and its duplicate columns | [Findings and limits](colour_consistency/PLAN.md); [measurement code](colour_consistency/run.py); [saved-source selection](wider_evaluation/compare.py) |
 | Build a gallery using the working shared renderer | [Shared template](svd_search/gallery_template.html); [SVD adapter](svd_search/build_gallery.py); [colour adapter](colour_consistency/build_gallery.py) |
-| Locate the final new WebUI lead after colour | [Net-evidence frontier packet](webui_net_evidence_frontier_handover/README.md); [proposed directions](webui_net_evidence_frontier_handover/docs/03_FRONTIER_DIRECTIONS.md), not yet assessed locally |
+| Read the final net-evidence lead and its pre-evaluation | [Assessment](NET_EVIDENCE_ASSESSMENT.md); [received packet](webui_net_evidence_frontier_handover/README.md); no new net experiment recommended before integration |
 | Read the returned far-end and sparse-frame follow-ups | [WebUI tasks 1 and 2](evidence/webui_followups_20260922/README.md) |
 | Judge the results myself using only GitHub | [Raw review packet](evidence/review_20260922/README.md) |
 | Find execution details or check results | [Evaluation worklog](archive/20260922/evaluation_20260922.md); older records are in local-only `worklog/` |

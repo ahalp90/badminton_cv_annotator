@@ -1,5 +1,12 @@
 # Centre-to-edge correction explains part of the court inset
 
+**23 September follow-up:** the final adoption decision will follow the colour
+trials. The user confirms that amateur reference annotations mix paint centres
+and outside edges, with the convention unknown per case. Small reference drift
+is therefore inconclusive. The current centre-to-edge rule also uses brightness
+polarity; dark paint needs an explicit check before claiming that rule handles
+it safely. The [colour runbook](../../colour_consistency/PLAN.md) owns the work.
+
 **Keep centre-to-edge correction as an experimental candidate, and proceed to the saved-candidate SVD retention check.** The correction fixes a supported label error and is preferred in the initial four-case gallery. On SS03-34, it moves the upper-left corner about half a working pixel left. A substantial offset remains, especially upwards. The evidence does not support changing the projected paint width or adding a fixed corner offset. Production fitting remains unchanged.
 
 The wider aim is a scene-level court detector that works without CourtKeyNet. This comparison asks whether fragments labelled as stripe centres should instead represent paint edges when their two sides differ strongly in brightness. The comparator corrects contradicted inner and outer edge labels. The candidate also resolves strongly polarised centre fragments to the matching edge. Both use the existing threshold of 10 grey levels sampled at ±1 working pixel. The parent court, points, marking identities, finite intervals and weights are frozen; reference corners do not choose labels. All cases are development comparisons.

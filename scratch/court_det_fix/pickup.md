@@ -2,6 +2,16 @@
 
 ## Resume — 23 September 2026
 
+**Colour decision trials are now in progress.** The user authorised the colour
+experiments, a final centre-to-edge decision afterwards, and feature-branch
+commits at useful checkpoints. [The runbook](colour_consistency/PLAN.md) owns
+the active work. Limited image viewing is allowed for concrete ambiguity;
+Sol builds the galleries for the user's review.
+
+Some amateur references mark paint centres and others mark outside edges.
+The user cannot identify which. Do not interpret small signed reference drift
+as improved or worsened alignment on those courts.
+
 **SVD search reduction is implemented and measured. Deeper search has a useful
 visual result. Colour has only been measured on saved courts: no colour-based
 selection, rejection or fitting improvement has been tested.** The next useful
@@ -141,15 +151,20 @@ This handover task does not itself launch either experiment.
 ## One final new lead, then integration
 
 The user has supplied [the net-evidence frontier packet](webui_net_evidence_frontier_handover/README.md)
-at the top level. Only its README and manifest were skimmed to identify it;
-its new proposals are **unreviewed and untested locally**. It combines historical
+at the top level. Its proposals have now received a bounded Opus 5-5 high
+pre-evaluation and source checks. **No new net experiment is recommended before
+integration; no new net cue has been tested.** The
+[assessment](NET_EVIDENCE_ASSESSMENT.md) records the evidence and disagreements
+with the reviewer. The packet combines historical
 net-image work and the Am1/GX audit with further net-assisted court-localisation
 ideas. The packet describes the older `1353541` checkout, before the search and
 colour results above. Its colour-probe script is identical to the earlier return.
-Reconcile overlap with that replay and with the historical net-image replay in
-[decisions](DETECTOR_DECISIONS.md#older-ideas-worth-bringing-back) before commissioning
-work. Its `docs/03_FRONTIER_DIRECTIONS.md` is the route to the new
-proposal space, not an instruction to run every listed idea.
+Its net/floor ownership idea overlaps the pending Am1 colour trial. The old
+net scorer penalises missing support; do not restore that behaviour or use
+absence of net fragments as a rejection rule. A small independently annotated
+net test could establish information value, but no practical new detector
+follows from the packet alone. The historical overlap remains in
+[decisions](DETECTOR_DECISIONS.md#older-ideas-worth-bringing-back).
 
 **User's intended order: finish colour, assess this final new lead, then build
 a coherent, pragmatic deployable detector.** Bound the new lead to a useful
@@ -175,6 +190,9 @@ The historical catalogue, including work overlapping the final packet, remains i
 
 ## Local state and working agreements
 
+- The net pre-evaluation is complete. Colour experiments are in progress under
+  the runbook above; commits are authorised on `fix/court-det`. No production
+  detector change has yet been adopted.
 - Branch `fix/court-det`. This close-out checkpoint includes colour code and
   measurements, both galleries, compact search results, received packets and
   these status updates. Use `git log -1` and `git status` for the current revision.
@@ -187,14 +205,17 @@ The historical catalogue, including work overlapping the final packet, remains i
 - GPT-6 Sol medium/default tier owns bounded coding and galleries; use high for
   a specific unresolved problem. GPT-6 Luna max/priority handles tightly bounded
   mechanics. Opus `claude-opus-5-5` high is authorised for bounded audits, with
-  the coordinator checking material findings. No silent GPT-5.6 substitution.
+  the coordinator checking material findings. Do not impose time limits on
+  Opus. No silent GPT-5.6 substitution.
 - Codex-agent, Anthropic and Carmack project sharing is authorised. Serena/Pyrefly
   may be reused at `http://127.0.0.1:9121/mcp` when reachable. Use up to six remote
   workers with one numerical thread each; read `~/.codex/remote_hpc.md` first and
   keep one remote connection at a time.
 - Avoid provenance theatre: reuse successful checks and data, make one bounded
   audit count, and keep the user responsible for visual judgement. For galleries,
-  reuse `svd_search/gallery_template.html`; show changed decisions clearly.
+  delegate to Sol with explicit instructions to reuse
+  `svd_search/gallery_template.html`; show changed decisions, abstention and
+  unchanged good controls clearly.
 - The user authorised this close-out commit and push on the feature branch.
   The twenty untracked frozen PNGs and large raw run artefacts remain local.
   The received WebUI packets are included unchanged, including their original
@@ -204,10 +225,11 @@ The historical catalogue, including work overlapping the final packet, remains i
   those experiments. The latest gallery builds, scoped lint, payload and JS
   checks passed. The user's browser check supersedes the blocked headless check.
   This handover update requires documentation/link checks, not another test run.
-- Opus 5-5 high audited the four top-level documents and selected supporting
+- The earlier close-out Opus 5-5 high audit covered the four top-level documents
+  and selected supporting
   records. It found the story recoverable and consistent. The close-out clarified
   the colour measurement, historical overlap, packet age and current routing;
-  it did not evaluate the final packet's new proposals.
+  the later frontier pre-evaluation is recorded in the assessment above.
 - G1 scene 0029's original local input/estimator pair is incomplete; recover it
   only for an exact replay that needs it. Historical W2 caveats remain recorded.
 
