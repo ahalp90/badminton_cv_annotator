@@ -1,7 +1,7 @@
 """Experimental net-support preference over the saved W5 full-court choice.
 
 Each candidate's court corners imply a net: two tape halves and two posts. This
-trial measures how much of each projected piece lies on generic Hough fragments
+trial measures how much of each projected piece lies on cached DeepLSD segments
 from the same image. Among full-court candidates, in the original W5 camera-valid
 order, it prefers the first one with strong net support. With no strongly
 supported candidate, it keeps the original W5 winner.
@@ -72,7 +72,7 @@ def piece_coverage(piece: np.ndarray, segments: np.ndarray, working_size: tuple[
     the coverage and the in-frame sample count.
 
     :param piece: Working-pixel piece endpoints, shape (2, 2) as (start/end, x/y).
-    :param segments: Working-pixel Hough fragments, one per row as x1, y1, x2, y2.
+    :param segments: Working-pixel DeepLSD segments, one per row as x1, y1, x2, y2.
     :param working_size: Working image size as (width, height).
     :return: Covered fraction of in-frame samples (None when no sample is in
         frame), and the number of in-frame samples.
@@ -301,7 +301,7 @@ def main(output: Path, am1_pool: Path | None) -> None:
             "direction_tolerance_deg": DIRECTION_TOLERANCE_DEG,
             "extent_margin_working_px": EXTENT_MARGIN_WORKING_PX,
             "strong_support": STRONG_SUPPORT,
-            "fragments": "all prepared Hough fragments from verifier.prepare_view, no occlusion mask",
+            "fragments": "all cached DeepLSD segments from verifier.prepare_view, no occlusion mask",
             "coverage_denominator": "in-frame samples only; null coverage when no sample is in frame",
         },
         "sources": {

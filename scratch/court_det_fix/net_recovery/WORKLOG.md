@@ -2,17 +2,111 @@
 
 ## Resume
 
-The 71-case saved-pool scan and review gallery are complete. Unrestricted net
-preference loses good courts, so core promotion is held. The combined runner's
-cache comparison is repaired. Next: measure baseline and seeded pools
-consistently before further generation comparisons, then test a restrained
-net preference. No replacement rank or score-gap limit has been adopted.
+The user authorises a bounded follow-up experiment with graded post evidence,
+priority for reliable post bases, allowance for lean and sag, and capped
+influence over paint. Numerical weights require a small sensitivity check.
+The first batch measures base support in the 15 reviewed gallery cases plus
+seeded Am1. An independent design review runs alongside that diagnostic.
+No new scoring rule or numerical weight has been adopted yet.
+
+The previous 71-case scan is complete. Unrestricted preference loses good
+courts, so core promotion remains held. The combined runner's cache is repaired,
+but further proposal comparisons need freshly and consistently measured paint
+scores. The first follow-up uses frozen pools without changing their scores.
 
 The [Am1 report](../colour_consistency/AM1_RECOVERY.md) records the accepted
 starting point. No production default changes during this comparison.
 
+### Bounded follow-up plan
+
+1. Measure existing fragment support near post bases and fragment endpoints.
+   Reproduce the old whole-piece coverage exactly before interpreting the new
+   diagnostics. Use the 15 reviewed gallery cases and seeded Am1 for design.
+2. Choose one simple bounded, graded score after assessing whether useful base
+   evidence exists. Record its formula and numerical settings before selection
+   replay. Inspect a small declared weight range, not a search for a perfect
+   development score. Stop if the evidence requires a new post detector.
+3. Replay the fixed design across the saved pools. Keep remaining views out of
+   design decisions until then. Report source families separately: nearby
+   frames from a reviewed video are correlated validation views, not unseen
+   sources. Centre and Am4 provide sources absent from this net-review gallery,
+   although earlier detector experiments have used them. Seeded Am1 is always
+   a development positive.
+4. If selection remains useful, check the accepted stripe-polarity correction
+   on the promising selected courts as a separate fitting comparison. Sol builds
+   the review gallery from the existing SVD template. Obtain an independent
+   audit, retain all substantial changes for review, and document the outcome.
+
+In scope: scratch measurement/ranking scripts, saved-pool replays, focused
+checks, galleries and current documentation. Out of scope: production defaults,
+new proposal-generation work, a new object detector, manual cue selection,
+player changes, colour searches and a physical net simulation. Existing gates,
+candidate geometry and paint scores stay fixed during the selection experiment.
+Missing evidence is neutral. Clear regressions on known good courts block
+promotion. If useful base evidence or a safe bounded preference fails to emerge,
+stop and preserve the findings.
+
+Checkpoint commits remain authorised on `fix/court-det`: record the measurable
+base evidence, then the bounded preference outcome and gallery. Scope-specific
+checks cover exact old coverage, coordinate/sample ordering, deterministic
+ranking, endpoint reversal, score bounds and no-evidence fallback. Run scoped
+lint and the project type check after coherent code changes. Documentation-only
+checkpoints use diff and link checks.
+
+### Fixed policy for the first bounded replay
+
+The base pilot and independent design review support testing a conservative
+lower-post cue. A post contributes when at least one of its lowest six samples
+has segment support and none of those supporting segments continues more than
+4 working pixels below the projected base. The base must be in frame. Matching
+reuses the existing 4 px perpendicular, 8 degree direction and 2 px extent
+tolerances. Segment endpoint order is irrelevant. This is support for a plausible
+base, not verified post identity. A failed check removes only that post's bonus.
+
+`reward = (left_base_supported + right_base_supported) / 2`
+
+`combined_score = saved_paint_score + weight * reward`
+
+Only existing full-court candidates compete; exact ties retain original rank.
+Normalising by two prevents an off-image post from increasing the reward.
+Tape, tops and upper-shaft alignment do not contribute. Their idealised shape
+can therefore neither strengthen nor suppress this cue directly. The projected
+post direction and height still locate the lower-quarter samples. The bases
+themselves depend only on the court homography. Focal-bound cases retain a
+diagnostic flag rather than receiving an automatic veto.
+
+Primary weight: **0.04**. Sensitivity arms: **0.02 and 0.08**, then base overrun
+tolerances **2 and 8 px** at weight 0.04. Weight zero checks baseline equality.
+These settings are fixed before the full replay; no preferred setting will be
+chosen from validation outcomes. The 0.04 choice uses development evidence and
+is provisional. It is not inferred from the historical/fresh score discrepancy.
+At the largest bonus of 0.08, the five known regressed choices cannot displace
+their baselines because each loses more than 0.08 paint score. Other candidates
+may still produce new regressions; preserving the old baselines is insufficient
+validation on its own.
+
+The split is frozen in `bounded_split.json.gz`: 16 saved development cases,
+49 additional views of development sources and 6 views from Centre/Am4.
+Seeded Am1 is an extra development pool. It is excluded from all validation
+claims. The split was recorded before the base diagnostic results were read.
+
+Court and net colours are independent. The user explicitly rules out requiring
+them to match. This experiment uses only segment geometry; the separate accepted
+stripe-polarity correction uses local court-marking contrast. Colour-consistency
+rejection remains closed.
+
 ## Concerns and findings
 
+- Line-source correction: these experiments use cached DeepLSD segments, read
+  directly from the frozen packs by `verifier.prepare_segments`. No Hough
+  extraction or Hough composition occurs. Earlier net-trial descriptions and
+  saved metadata saying "Hough" are incorrect. The court proposal path groups
+  and merges separate line families; net support uses the original segments.
+- The 16-case base pilot reproduces every saved coverage value exactly.
+  Lower-quarter support alone does not establish a physical post base.
+  Am1's accepted pair has endpoints near both predicted bases; GX views often
+  lack comparable endpoint support. All 16 local frame hashes match the full
+  frozen manifest, including the entries absent from the older inventory.
 - The fixed rule changes 13/71 saved selections. Letterboxed78 jumps from
   full-court rank 1 to 706. Visual inspection confirms a shortened court with
   its near baseline on an internal marking. The original is substantially
@@ -179,6 +273,14 @@ unresolved. The saved-pool scan uses only frozen paint scores and is unaffected.
 
 ## Current module state
 
+- `base_probe.py`: saved-selection diagnostic of the original 24-point masks,
+  lower-quarter support and fragment endpoints. All 16 cases and 30 distinct
+  choices reproduce the old coverage exactly. Source frame hashes are checked
+  against the complete manifest. Data/table/logs are under
+  `local_scratch/net_recovery/20260923/base_probe/`.
+- `bounded_split.json.gz`: fixed 71-case cohort membership plus seeded Am1.
+  The bounded selection runner and a separate generic polarity replay are in
+  progress; their outputs are not yet accepted results.
 - `scan_saved.py`: fixed-rule selection over saved pools; no new generation.
   Complete output is `saved_net_scan.json.gz`. References enter after selection.
 - `run_combined.py` and `colour_consistency/am1_recovery_trial.py`: generic
@@ -192,6 +294,11 @@ unresolved. The saved-pool scan uses only frozen paint scores and is unaffected.
 
 ## Checkpoint checks — 23 September
 
+- Base diagnostic: syntax, scoped Ruff, exact saved coverage/fragment-union
+  checks and synthetic sample-order/endpoint-reversal/in-frame checks pass.
+  After replacing the incomplete inventory check with the full manifest,
+  all 16 cases rerun successfully (exit 0). Whole-project Pyrefly exits 0.
+  The current line-source terminology edits change descriptions only.
 - Full GX5 replay and original-CLI Am1 replay: exit 0. These runs used the
   overstrict metadata cache check and are preserved under
   `local_scratch/net_recovery/20260923/repaired/`. GX5 keeps its selected ID;

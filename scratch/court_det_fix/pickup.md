@@ -26,8 +26,17 @@ also regress. Several other differences are minor or tradeoffs. The gallery
 uses older W5 fits without the accepted automatic stripe-polarity correction.
 Projected net posts are predictions from the court, not independent detections.
 
-Next: freshly measure baseline and seeded pools consistently before further
-generation comparisons, then test a restrained net preference. The replay
+The bounded follow-up is now authorised and running. A 16-case post-base
+diagnostic reproduces the old measurements exactly. The fixed next trial adds
+at most 0.04 to paint scores for supported lower posts, with 0.02/0.08 sensitivity
+arms and a check for supporting segments extending below the predicted base.
+Tape and tops do not contribute. The [current worklog](net_recovery/WORKLOG.md)
+records the policy, split and numerical caveats. These are cached DeepLSD
+segments; earlier references to Hough were incorrect. Court and net colours
+remain independent.
+
+Freshly measure baseline and seeded pools consistently before any further
+generation comparisons. The replay
 cache is repaired and Am1's accepted net choice reproduces exactly. Fresh and
 historical paint scores still differ on identical geometry, including on
 Carmack; the cause is unresolved. The saved-pool scan is unaffected. Combined

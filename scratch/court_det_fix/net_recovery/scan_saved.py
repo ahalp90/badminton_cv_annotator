@@ -269,7 +269,7 @@ def main(output: Path) -> None:
             "direction_tolerance_deg": net.DIRECTION_TOLERANCE_DEG,
             "extent_margin_working_px": net.EXTENT_MARGIN_WORKING_PX,
             "strong_support": net.STRONG_SUPPORT,
-            "fragments": "all prepared Hough fragments; no occlusion mask",
+            "fragments": "all cached DeepLSD segments; no occlusion mask",
             "coverage_denominator": "in-frame samples only; null when no sample is in frame",
             "selection_fallback": "original full/gated winner when no strong eligible candidate",
         },

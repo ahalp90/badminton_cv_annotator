@@ -29,7 +29,7 @@ original scope.
 
 ## Earlier feasibility probe on saved pools
 
-All generic Hough fragments were compared with the four projected net pieces:
+All cached DeepLSD segments were compared with the four projected net pieces:
 left/right tape and left/right posts. Support is the fraction of visible sample
 locations within four working pixels of an aligned fragment (eight-degree
 angle tolerance). These are exploratory fixed settings, not validated detector
