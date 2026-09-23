@@ -7,20 +7,17 @@ across the four-case gallery, confirming it as the winner after an initial
 "marginally better" ruling. Retain it as a candidate
 partial improvement; production fitting is unchanged. The fitting investigation
 is complete: read [the assessment](edge_polarity/local_audit/ASSESSMENT.md).
-The saved automatic SVD check also passes its coverage condition: all eight
-historically approved automatic witnesses survive the 12-family screen.
-**Integrated: the 12-family SVD screen in fresh experimental W5 generation.**
-The default is 12; the explicit 16-family comparator remains. Code review and
-a real matcher/scoring smoke pass. Matching depth remains a separate adjustment.
-**Running now: the final case of the nine-case matcher benchmark.** The
-Carmack job runs at revision `7935ce1`; use
-[its worklog](svd_runtime/WORKLOG.md) for the PID, log and completion receipt.
-Do not relaunch without checking that job. Opus also completed a requested
-[compute-efficiency audit](svd_runtime/COMPUTE_AUDIT.md); fixes remain separate
-from this fixed-matcher timing.
-Read [the retention findings](evidence/webui_followup3_20260922/review_20260923/automatic_retention/README.md)
-for the supporting coverage evidence. Three existing score-winner roles are lost, so the screen
-does change selection opportunities. Keep the full-source comparator and G0.
+
+**SVD is integrated; the search-depth experiments are running.** The
+[consolidated SVD state](svd_runtime/README.md) explains the implementation,
+coverage evidence, timing limits and three-arm experiment. The original
+Carmack timing run completed all nine cases with exit 0. SVD12 used 52.9% less
+summed matcher time; all historical/shared-pair checks passed. The six-case
+search experiment runs at `14310f7` with six workers;
+see [its worklog](svd_search/WORKLOG.md) for the existing job and audit decisions.
+Opus 5-5's material findings were checked and resolved before launch.
+No deeper-search accuracy benefit is established yet.
+
 The requested [eight-source amateur gallery](edge_polarity/local_audit/gallery/amateur/index.html)
 has been reviewed. The user reports one insignificant regression (case unnamed)
 and judges Am1 frame 54 very bad, regressing against an also-bad saved court.
@@ -28,7 +25,9 @@ The sample uses the earliest saved frame from each amateur source, including
 GX. The user identifies Am1's false far baseline as the net's bottom white band.
 The [WebUI net-versus-court audit brief](edge_polarity/local_audit/webui_net_audit/PROMPT.md)
 and case packet are committed and pushed as `94821ee`; its source and images
-are already on GitHub. This separate reasoning task needs no upload.
+are already on GitHub. The user has now downloaded the colour-consistency
+return under `edge_polarity/webui_return_colour_consistency/`. Review it after
+the experiment setup and SVD documentation consolidation; it remains unread.
 Do not restart the wider evaluation.
 
 ## Where we are
@@ -63,7 +62,8 @@ runtime and its acceptance/fallback behaviour are not integrated yet.
   a [critical assessment and local replay](evidence/webui_followup3_20260922/ASSESSMENT.md).
   Their 12-family screen preserves all nine best cached reference-fit pairs;
   the subsequent automatic check retains all eight historical approved fits
-  and all nine best reference-agreement candidates. Actual speed is untested
+  and all nine best reference-agreement candidates. All nine fresh timing cases
+  and the [final aggregate](svd_runtime/RESULTS.md) are complete
 
 ## Fitting investigation: original protocol
 

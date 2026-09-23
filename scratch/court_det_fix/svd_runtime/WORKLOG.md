@@ -2,28 +2,30 @@
 
 ## Resume
 
+Read [the consolidated SVD state](README.md) first for the current decision,
+evidence and separate search-depth experiment. This file holds execution detail.
+
 The 12-family SVD screen is integrated into fresh experimental W5 generation.
 Default budget is 12; explicit 16 preserves the full-family comparator. Frozen
 helpers and seed snapshots are unchanged. Original directions and pair/candidate
 IDs remain intact. G0, G1, line templates, fitting and matching depth remain.
 The code review and bounded real-matcher check pass. Detailed checks are below.
 
-**Next: finish and aggregate the existing Carmack benchmark.** Eight of nine
-cases have completed; GX0 remains. The detached coordinator is PID 2653088,
-started about 00:40 UTC on 23 September at revision `7935ce1`. Six workers were
-launched with one numerical thread each. The checkout remains pinned at
-`/scratch/ahalperi/court_det_fix/svd_runtime_checkout_20260923`.
-Run root: `/scratch/ahalperi/court_det_fix/svd_runtime_20260923`; log `full.log`,
-completion receipt `full.exit`, raw results `full/`. Do not relaunch or change
-that checkout. The remote monitor can be closed without stopping the job.
-Keep one SSH connection at a time.
+**The original nine-case Carmack benchmark and local aggregation are finished.**
+The detached coordinator, PID 2653088, completed at revision `7935ce1`.
+Its run root was `/scratch/ahalperi/court_det_fix/svd_runtime_20260923`;
+`full.exit` records exit 0. Six workers used one numerical thread each.
+All nine raw cases and the summary are under local `full/`. There is no
+remaining SSH-owned delegate or benchmark job to monitor.
 
-Six completed cases are downloaded under local `full/`. Their historical and
-shared-pair comparisons pass (1,440 and 792 pairs respectively). The partial
-receipt is explicitly partial. After completion, retrieve all nine raw files
-and summary, run `check_history.py`, then `summarise.py`, and write the final
-runtime report. Raw outputs are local/remote artefacts; commit compact reports
-and receipts. Matcher timing excludes full scoring and scene processing.
+The final [timing report](RESULTS.md) links the compact
+[`results.json.gz`](results.json.gz) and
+[`history_check.json.gz`](history_check.json.gz) receipts. The existing
+`check_history.py` and `summarise.py` each exited 0. Historical comparisons
+passed for 2,160 pairs and shared-arm comparisons passed for 1,188 pairs;
+there were zero mismatches. Raw outputs remain local artefacts. The core
+integration remains `1353541`. Matcher timing excludes full scoring and
+scene processing.
 
 Real SS03-19 integration smoke: first two original ordered pairs, real matcher
 and full scoring. Live16 equals the saved generator exactly except timing and
@@ -165,3 +167,25 @@ Six completed remote cases now pass all 1,440 historical pair comparisons and
 all 792 retained-pair comparisons at the existing 1e-8 absolute tolerance.
 No mismatch. Am3-0: 2,427.837 s full16 versus 1,013.485 s svd12, plus 0.00664 s
 ranking. Three cases remain. Updated partial receipt stays explicitly partial.
+
+Integration checkpoint `1353541` is committed and pushed to `fix/court-det`.
+The remote benchmark remains pinned to `7935ce1`. An additional bounded check
+freshly estimated directions from the three frozen source packs: all 47 unique
+views produced 16 families and passed both budgets' ID/count/unchanged-estimator
+checks. No matcher or image scoring ran. Receipt: `saved_input_check.json.gz`.
+This is input compatibility, not accuracy or broader candidate-retention evidence;
+it supplies no real non-empty case below 16 families.
+
+Token-cost steering: the user asked to avoid unnecessary Astra machinery.
+Monitoring and aggregation were delegated to GPT-6 Sol medium/default under
+`local_scratch/external_delegate/20260923-svd-finish/`. That attempt stopped
+because the worker's sandbox could not resolve the SSH host. It did not alter
+the remote job or aggregate results. The parent now handles remote transport;
+there is no Sol-owned SSH connection. The original GX0 SVD arm has since
+completed; all nine cases were aggregated locally. Integration is already
+pushed as `1353541`.
+
+The user has separately authorised a six-case search-depth experiment and
+an Opus 5-5 implementation audit. Its code and current checks are in
+`../svd_search/`; see the consolidated README for the three configurations.
+Do not mix those results with this unchanged-matcher timing run.

@@ -1,5 +1,46 @@
 # SVD search-depth worklog
 
+## Resume
+
+The full six-case, three-arm experiment is running on Carmack at commit
+`14310f7`. Six workers each use one numerical thread. The earlier nine-case
+timing benchmark completed with exit 0 before this launch.
+
+- Checkout: `/scratch/ahalperi/court_det_fix/svd_search_checkout_20260923`
+- Run root: `/scratch/ahalperi/court_det_fix/svd_search_run_20260923`
+- Coordinator PID: `2671966`; completion receipt: `full.exit`; log: `full.log`
+- Results: `results/`; per-case progress: `results/generation_logs/`
+- Next: collect completed results, build the gallery and judge runtime plus
+  court quality. Do not relaunch without checking the existing job
+
+The generator and runner are frozen for this experiment. Restoring the old
+gallery's corner crops and stripe-overlay controls is separate display work.
+
+## Audit decision
+
+Opus 5-5 inspected the generator, runner and gallery. Its cap-bound finding
+described an earlier code version: the final implementation reports a cap
+*reached* from retained counts. Its oracle-caption defect was confirmed and
+fixed. Captions, errors and accessibility labels now follow the displayed view;
+oracle outlines use a distinct dash pattern. Saved selections show their source
+population, because most came from G1 or line templates outside these G0 arms.
+
+Reference-based oracles now consider only candidates in the ranker's selectable
+list. Reference data still enters after ranking. Measured total time stops
+before reference evaluation and excludes runtime imports and report writing.
+These changes were checked against source after the audit. No defect in the
+search changes was established. Broader accuracy remains an experimental question.
+
+Scoped generation/search tests passed (9 tests, exit 0); the final search fixes
+passed both focused tests (exit 0). Scoped lint and JavaScript syntax passed.
+Whole-project Pyrefly passed with 0 errors and 39 existing suppressions. The
+real one-pair smoke generated and refitted 256 candidates, exit 0. The rendering
+fixture duplicates that one result across arms and is not experimental evidence.
+Browser interaction remains to be checked outside the worker's restricted
+Chromium environment.
+
+## Implementation record
+
 Scope: six frozen views, three independent SVD12 automatic G0 arms. Only axis
 enumeration and per-pair/global shortlist depths change. W5 fitting and ranker
 are reused directly. The gallery reports the detector's choice separately from

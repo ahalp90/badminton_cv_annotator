@@ -1,63 +1,72 @@
-# Measure SVD pruning before changing search
+# SVD: current state
 
-Compare the frozen pair matcher on nine baseline B cases, using all 16
-direction families and the 12 retained by the reviewed SVD ranking. This
-measures the camera-direction gate, pair matching and per-pair shortlist
-selection. It excludes full evidence scoring and scene processing.
+**The 12-family SVD screen is integrated and pushed as `1353541`.** It reduces
+matching work in fresh experimental W5 generation. The full 16-family option
+remains available. Deeper search is now authorised as a separate experiment;
+its effect on court quality has not yet been measured.
 
-## Protocol
+## What is implemented
 
-- Preserve direction coordinates, original family/pair/candidate IDs,
-  normalisation, camera thresholds and per-pair caps.
-- Recompute SVD ranking from the frozen line arrays and masks; require the
-  result to match the reviewed ranking. Record this overhead separately.
-- Run both arms sequentially for each case. Alternate the first arm across
-  cases, using up to six case workers and one numerical thread each.
-- Compare every shared pair's non-timing output between arms. Check against
-  the historical pair records when the cache directory is supplied.
-- Record elapsed time and process CPU time separately. Compare summed arm
-  times and per-case ratios; the mixed batch wall time is not a standalone
-  12-family or 16-family runtime.
+The screen ranks the original direction-support groups by SVD residual and
+keeps 12 of the 16 families. Matching still uses their original directions.
+Original family, pair and candidate identities are preserved at unchanged
+search depth. Fresh G0 and G1 generation use
+[`automatic_generation.py`](../w5_holistic/automatic_generation.py).
 
-The [cached retention check](../evidence/webui_followup3_20260922/review_20260923/automatic_retention/README.md)
-already preserves all eight historically approved automatic fits. Some score
-winners change, as recorded there. These timings do not settle ranking quality.
+Fitting, scoring, G0 fallback and line-template proposals are unchanged. The
+complete scene-level detector is still a separate integration task. Its planned
+sampling across each scene already addresses additional-frame evidence.
 
-## Execution
+Use a fresh output directory for each configuration. `run_cases.py` defaults
+to `--direction-budget 12`; use `--direction-budget 16` for the comparator.
+The historical `wider_evaluation/run_remote.sh` stays pinned to 16 because it
+writes into the earlier evaluation directory.
 
-`run_benchmark.py --help` documents the runner. `--max-pairs` explicitly marks
-an output as a smoke run; it must not be reported as a complete benchmark.
-Each output directory must be new or empty.
+## What the evidence supports
 
-The active protocol and checks are recorded in [WORKLOG.md](WORKLOG.md).
-The full 16-family path and G0 fallback remain available. Matcher optimisations
-from the independent compute audit will be assessed separately from this
-initial comparison.
+- On nine saved development cases, SVD12 retains all nine best reference-fit
+  candidates and all eight historically approved automatic fits. Three existing
+  score-winner roles are lost; substitutes have mixed quality. This supports an
+  efficiency tradeoff, not an accuracy improvement or a general safety guarantee.
+  See the [retention results](../evidence/webui_followup3_20260922/review_20260923/automatic_retention/README.md).
+- The integration passed a bounded real matcher/scoring comparison, focused
+  tests and type checks. Original geometry and IDs were preserved. The largest
+  shared numerical difference in that smoke was 8.47e-11. The [worklog](WORKLOG.md)
+  records checks and the existing whole-project lint/PATH exceptions.
+- The nine-case Carmack timing run is complete. SVD12 including ranking used
+  52.9% less summed matcher wall time than full16. All 2,160 historical and
+  1,188 shared-arm comparisons passed. Direct timings contain between-pass
+  variation; the [timing results](RESULTS.md) also report retained-work and
+  shared-pair measures. The run excludes full image scoring, refitting and
+  scene processing.
 
-## Active detector integration
+## Spending the saved computation
 
-Fresh W5 generation now uses `w5_holistic/automatic_generation.py`. The
-`wider_evaluation/run_cases.py` CLI defaults to `--direction-budget 12`;
-`--direction-budget 16` keeps the full comparison. Use a fresh `--output`
-directory for each budget. Resume checks reject a different budget or method.
-Historical records without screen metadata count as full-16 only.
+The new experiment holds SVD12, automatic G0 inputs, fitting and selection fixed:
 
-The screen ranks the original support groups using SVD residuals. It transforms
-line coefficients into the estimator's saved normalised coordinates and gives
-each line a unit two-dimensional normal. Lower residual wins; ties prefer more
-support lines, then the original group ID. Matching uses the original direction
-points. The SVD-fitted points are used only to measure each group's residual.
-Original group, ordered-pair and candidate IDs remain intact.
+| Arm | Axis assignments kept | Courts kept per pair / overall |
+|---|---:|---:|
+| Baseline | 512 | 256 / 256 |
+| Deeper matching | 640 | 256 / 256 |
+| Larger refit shortlist | 512 | 512 / 512 |
 
-Both the unfiltered G0 and paint-filtered G1 populations remain available.
-Their shared direction estimator remains at 16 families. The matcher still
-keeps up to 512 axes per direction and 256 courts per pair and overall. Fitting,
-scoring, line-template proposals and acceptance rules are unchanged. The older
-`wider_evaluation/run_remote.sh` launcher is pinned to 16 families because it
-writes into the historical 22 September evaluation directory.
+The six cases are SS03-19, SS03-34, GX0, GX5, Am1-54 and Am2-28019. Increasing
+both axis caps to 640 permits about 56% more combinations. The gallery will
+separate the detector's selection from the best reference-agreement candidate.
+That tests whether extra search generates better courts and whether selection
+actually chooses them.
 
-This is the active experimental detector path. The complete scene-level
-runtime is still a separate integration task. Any increase in matching depth
-should be measured separately: more axes increase the number of combinations
-within each pair, so a 45% reduction in pair count does not translate directly
-into a 45% increase in useful search depth.
+**Current status:** all 18 case/configuration combinations are running on
+Carmack with six workers at `14310f7`. Opus 5-5's implementation findings were
+checked and resolved before launch. Its
+[worklog](../svd_search/WORKLOG.md) and [run instructions](../svd_search/RUN_READY.md)
+hold execution details. Detector defaults remain unchanged.
+
+## Remaining work
+
+1. Collect the existing search-depth run and build the gallery. Keep the
+   combined worker count at six or fewer; do not launch a duplicate run.
+2. Judge search depth from runtime and visible court quality.
+
+The separate [compute-efficiency audit](COMPUTE_AUDIT.md) identified possible
+matcher optimisations. Those changes have not been applied to either benchmark.

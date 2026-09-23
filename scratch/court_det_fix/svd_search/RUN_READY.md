@@ -8,7 +8,7 @@ cd /scratch/ahalperi/court_det_fix/svd_search_checkout_20260923
 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
 VECLIB_MAXIMUM_THREADS=1 BLIS_NUM_THREADS=1 \
 /home/ahalperi/.venvs/venv-rtmlib/bin/python scratch/court_det_fix/svd_search/run.py \
-  --workers 6 --output /scratch/ahalperi/court_det_fix/svd_search_run_20260923
+  --workers 6 --output /scratch/ahalperi/court_det_fix/svd_search_run_20260923/results
 ```
 
 Use `--workers 5` if the original benchmark is still running; otherwise use
