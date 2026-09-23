@@ -36,13 +36,20 @@ passed both focused tests (exit 0). Scoped lint and JavaScript syntax passed.
 Whole-project Pyrefly passed with 0 errors and 39 existing suppressions. The
 real one-pair smoke generated and refitted 256 candidates, exit 0. The rendering
 fixture duplicates that one result across arms and is not experimental evidence.
-Browser rendering and interaction now pass outside the worker's restricted
-Chromium environment (exit 0). Checks covered oracle captions and accessibility
-labels with outlines hidden, all stripe modes, corner/click focus, reset and
-aligned panels. A screenshot exposed uneven image positions from wrapped
-headings; shared grid rows corrected this. The original corner magnification
-and stripe-overlay controls have been restored. These are display-only changes
-after the frozen compute revision.
+The original corner magnification and stripe-overlay controls are restored.
+Shared grid rows align images despite wrapped headings. An initial browser
+check passed control-state assertions but missed a redraw error. The user
+reported broken controls in the actual preview. Projected stripe points were
+flat arrays where the renderer expected endpoint pairs; the builder now emits
+centres `(12, 2, 2)` and edges `(24, 2, 2)`. All 20 geometries in the rebuilt
+two-case preview pass shape/finite checks, and scoped lint/syntax pass (exit 0).
+The user will do the visual check; no further browser checks are requested.
+These display changes do not alter the frozen compute revision.
+
+The preview is served at `http://127.0.0.1:8879/`. The native
+`/root/svd_run_monitor` delegate owns the sole Carmack connection and will
+collect the existing run, build the six-case gallery and refresh that URL's
+files when all 18 arms complete. It must report errors rather than relaunch.
 
 ## Implementation record
 

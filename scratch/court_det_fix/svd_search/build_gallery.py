@@ -44,7 +44,11 @@ def projected_geometry(corners: list | None) -> dict | None:
     positions = np.tile([1, 2], 12)
     stripes = paint_geometry.positioned_segments(paint_geometry.CENTRE_SEGMENTS_M, intervals, positions)
     edges = detector.project(homography[None], stripes)[0][0]
-    return {"corners": points.tolist(), "centres": centres.tolist(), "edges": edges.tolist()}
+    return {
+        "corners": points.tolist(),
+        "centres": centres.reshape(-1, 2, 2).tolist(),
+        "edges": edges.reshape(-1, 2, 2).tolist(),
+    }
 
 
 def arm_view(summary: dict, scale: np.ndarray) -> dict:
