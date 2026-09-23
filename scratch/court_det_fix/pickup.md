@@ -2,6 +2,18 @@
 
 ## Resume — 23 September 2026
 
+**Runtime is a deployment blocker. Substantial optimisation is required.** The
+user explicitly rejects multiple minutes per sampled frame. The six measured
+SVD12 G0-only baseline trials take 4.3–33.6 minutes per frame; generation accounts
+for about 92% of summed trial time, while refitting/scoring takes 59–107 seconds
+per frame. These trials use cached line inputs and omit G1/templates. The 52.9%
+matcher saving does not establish an affordable detector. Prioritise reducing
+generation and fitting work; scene reuse alone cannot solve first-search cost.
+The user wants a video-level budget: several minutes for an hour-long video,
+and substantially less for a five-minute video. No hard frame limit or target
+hardware is specified. A suggested working benchmark is 5% of video duration
+(15 seconds for five minutes; three minutes for an hour), not a user-set limit.
+
 **Am1 now has a promising automatic recovery.** Three extra vanishing-point
 seeds expose useful proposals. A fixed positive net-support preference selects
 one with 7.2 working pixels maximum visible-landmark disagreement, versus 45.0
