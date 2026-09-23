@@ -30,7 +30,7 @@ extrapolation. No matcher implementation has changed. Finish the fixed-code
   The real-data check compared resulting player fractions on one case; it did
   not establish identical projected coordinates for every input.
 
-The coordinator confirmed a boundary difference in that prototype, exit 0:
+A boundary check confirms a difference in that prototype, exit 0:
 with an identity homography and feet at `(6.1 * 1.15, 3)` and `(3, 10)`, the
 existing function gives a both-halves fraction of 0; the decimal-literal
 rewrite gives 1. Canonical dimensions are approximately `6.0999999046` and
@@ -54,6 +54,6 @@ The requested model was verified as `claude-opus-5-5`, high effort. It inspected
 Am2-150 pair 1, GX5 pair 0, and a random additional function (`canonicalise`).
 Its profiling and equivalence scripts are preserved under
 `local_scratch/external_delegate/20260923-svd-compute-audit/`.
-The audit reports all commands exited 0. The coordinator checked the called
-source and the scripts' scope; full-population equivalence remains untested.
+The audit reports all commands exited 0. Source inspection supports the
+mechanisms described above; full-population equivalence remains untested.
 Review targets were not edited.

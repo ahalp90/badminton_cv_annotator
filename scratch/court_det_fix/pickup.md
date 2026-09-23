@@ -9,15 +9,17 @@ partial improvement; production fitting is unchanged. The fitting investigation
 is complete: read [the assessment](edge_polarity/local_audit/ASSESSMENT.md).
 The saved automatic SVD check also passes its coverage condition: all eight
 historically approved automatic witnesses survive the 12-family screen.
-**Running now: actual matcher work and runtime with 12 versus 16 families.**
-The user approved this step and up to six remote workers. The full nine-case
+**Integrated: the 12-family SVD screen in fresh experimental W5 generation.**
+The default is 12; the explicit 16-family comparator remains. Code review and
+a real matcher/scoring smoke pass. Matching depth remains a separate adjustment.
+**Running now: the final case of the nine-case matcher benchmark.** The
 Carmack job runs at revision `7935ce1`; use
 [its worklog](svd_runtime/WORKLOG.md) for the PID, log and completion receipt.
 Do not relaunch without checking that job. Opus also completed a requested
 [compute-efficiency audit](svd_runtime/COMPUTE_AUDIT.md); fixes remain separate
 from this fixed-matcher timing.
 Read [the retention findings](evidence/webui_followup3_20260922/review_20260923/automatic_retention/README.md)
-before running it. Three existing score-winner roles are lost, so the screen
+for the supporting coverage evidence. Three existing score-winner roles are lost, so the screen
 does change selection opportunities. Keep the full-source comparator and G0.
 The requested [eight-source amateur gallery](edge_polarity/local_audit/gallery/amateur/index.html)
 has been reviewed. The user reports one insignificant regression (case unnamed)

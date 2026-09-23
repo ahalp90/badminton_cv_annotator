@@ -38,6 +38,22 @@ Three winner roles disappear:
 | GX5 | Paint score | `10:1274` | 0, 11 |
 | Am2-28019 | Paint score | `184:4123` | 12, 4 |
 
+Reapplying the unchanged winner rules to the retained pool gives these
+substitutes. Errors are the largest corner distance from the saved reference,
+in working pixels, allowing the same direct/180-degree ordering comparison.
+This is a numerical check, not a new visual ruling.
+
+| Winner role | Replacement | Winning score, old → replacement | Reference error, old → replacement |
+| --- | --- | --- | --- |
+| GX5 line | `211:650` | 0.27785 → 0.27129 | 530.27 → 351.51 px |
+| GX5 paint | `46:3243` | 0.81818 → 0.77778 | 530.69 → 1,651.68 px |
+| Am2-28019 paint | `16:1796` | 1.00000 → 0.90909 | 892.14 → 17.18 px |
+
+Am2's replacement is much closer to the reference. GX5's paint selection
+becomes substantially worse; its better retained candidates still rank below
+that winner. The user accepted proceeding with efficiency work before further
+accuracy tuning, retaining the full comparator.
+
 The earlier user preference for centre-to-edge and the Am1 net-band failure
 concern fitting and semantic acceptance. They do not validate these scores or
 turn this pruning check into a detector-quality result.

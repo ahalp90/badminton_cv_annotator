@@ -13,6 +13,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from automatic_generation import SCREEN_METHOD, generate
 
 
 def _module(runtime: dict, name: str) -> ModuleType:
@@ -70,10 +71,20 @@ def _validate_population(record: dict, case_id: str, run_w5: ModuleType, source:
             raise ValueError(f"{case_id}: {source} {winner_name} is outside its entries")
     return record
 
-def _cached(path: Path, case_id: str, run_w5: ModuleType, population: str) -> dict | None:
+def screen_matches(record: dict, budget: int) -> bool:
+    screen = record.get("direction_screen")
+    if screen is None:
+        return budget == 16
+    return screen.get("method") == SCREEN_METHOD and screen.get("budget") == budget
+
+
+def _cached(path: Path, case_id: str, run_w5: ModuleType, population: str, budget: int) -> dict | None:
     if not path.exists():
         return None
-    return _validate_population(_read_json_gz(path), case_id, run_w5, f"cached {population} generation")
+    record = _validate_population(_read_json_gz(path), case_id, run_w5, f"cached {population} generation")
+    if not screen_matches(record, budget):
+        raise ValueError(f"{case_id}: cached {population} direction screen differs from requested budget/method")
+    return record
 
 def _direction_from_record(record: dict, case_id: str) -> dict:
     try:
@@ -116,7 +127,8 @@ def _native_frame(root: Path, context: Any, verifier: dict) -> tuple[np.ndarray,
         raise ValueError(f"{context.case_id}: native frame shape {frame.shape[:2]} != {expected}")
     return frame, frame_path
 
-def ensure_populations(root: Path, context: Any, runtime: dict, output: Path) -> dict[str, Path]:
+def ensure_populations(root: Path, context: Any, runtime: dict, output: Path,
+                       direction_budget: int = 12) -> dict[str, Path]:
     """Ensure fresh G0/G1 generation records for one frozen view.
 
     :param root: Investigation root containing frozen packs and helper snapshots.
@@ -134,7 +146,10 @@ def ensure_populations(root: Path, context: Any, runtime: dict, output: Path) ->
         "G1": output / "populations/G1" / f"{case_id}.json.gz",
         "inputs": output / "inputs" / f"{case_id}.json.gz",
     }
-    cached = {name: _cached(path, case_id, run_w5, name) for name, path in paths.items() if name != "inputs"}
+    if direction_budget not in (12, 16):
+        raise ValueError(f"direction budget must be 12 or 16, got {direction_budget}")
+    cached = {name: _cached(path, case_id, run_w5, name, direction_budget)
+              for name, path in paths.items() if name != "inputs"}
     direction = next((
         _direction_from_record(record, case_id) for record in cached.values() if record is not None
     ), None)
@@ -171,7 +186,7 @@ def ensure_populations(root: Path, context: Any, runtime: dict, output: Path) ->
             if cached[name] is not None:
                 continue
             print(f"[{case_id}] generating {name}", flush=True)
-            result = run_automatic.generate(source, direction, runtime["zone"], root)
+            result = generate(source, direction, runtime["zone"], root, run_automatic, direction_budget)
             result.update({"stage": "results", "population": name})
             _validate_population(result, case_id, run_w5, f"fresh {name} generation")
             _write_json_gz(paths[name], result)

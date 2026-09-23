@@ -1,4 +1,4 @@
-"""Measure added frozen views with the unchanged W5 search and scoring rules."""
+"""Measure frozen views with SVD-screened directions and the existing W5 scoring."""
 
 from __future__ import annotations
 
@@ -70,12 +70,16 @@ def load_runtime(root: Path, control_pack: Path | None = None) -> tuple[Any, Any
     return run_w5, verifier, runtime
 
 
-def run_case(root: Path, output: Path, case_id: str, control_pack: Path | None = None) -> dict:
+def run_case(root: Path, output: Path, case_id: str, control_pack: Path | None = None,
+             direction_budget: int = 12) -> dict:
     import cv2
-    from generation import ensure_populations
 
+    if direction_budget not in (12, 16):
+        raise ValueError(f"direction budget must be 12 or 16, got {direction_budget}")
     cv2.setNumThreads(1)
     run_w5, verifier, runtime = load_runtime(root, control_pack)
+    from generation import SCREEN_METHOD, ensure_populations, screen_matches
+
     context = verifier.prepare_view(root, case_id)
     result_path = output / "results" / f"{case_id}.json.gz"
     if result_path.is_file():
@@ -83,10 +87,13 @@ def run_case(root: Path, output: Path, case_id: str, control_pack: Path | None =
         record = verifier.read_json_gz(output / result["case_record"])
         if record["case_id"] != case_id or record["min_visible_lengthwise"] != 4 or record["min_visible_cross_court"] != 3:
             raise ValueError(f"{case_id}: checkpoint identity/settings mismatch")
+        if not screen_matches(result, direction_budget):
+            raise ValueError(f"{case_id}: checkpoint direction screen differs from requested budget/method")
         if not (output / result["array_file"]).is_file():
             raise FileNotFoundError(output / result["array_file"])
-        return {"case_id": case_id, "status": "reused", "result": str(result_path)}
-    population_paths = ensure_populations(root, context, runtime, output)
+        return {"case_id": case_id, "status": "reused", "result": str(result_path),
+                "direction_screen": result.get("direction_screen", {"budget": 16, "method": "legacy-full"})}
+    population_paths = ensure_populations(root, context, runtime, output, direction_budget)
     populations = {name: verifier.read_json_gz(path)["entries"] for name, path in population_paths.items()}
     original_g0, original_g1 = run_w5.load_g0, run_w5.load_g1
     run_w5.load_g0 = lambda *_args: (populations["G0"], str(population_paths["G0"]))
@@ -95,10 +102,12 @@ def run_case(root: Path, output: Path, case_id: str, control_pack: Path | None =
         with prepared_measurements(verifier) as counts:
             result = run_w5.process_case(root, case_id, output, min_visible_lengthwise=4, min_visible_cross_court=3)
         result["measurement_optimisation"] = {"junction_diagnostics": "omitted", **counts}
+        result["direction_screen"] = {"method": SCREEN_METHOD, "budget": direction_budget}
         write(result_path, verifier.jsonable(result))
     finally:
         run_w5.load_g0, run_w5.load_g1 = original_g0, original_g1
-    return {"case_id": case_id, "status": "completed", "result": str(result_path), **counts}
+    return {"case_id": case_id, "status": "completed", "result": str(result_path),
+            "direction_screen": result["direction_screen"], **counts}
 
 
 def main() -> None:
@@ -109,6 +118,7 @@ def main() -> None:
     parser.add_argument("--cases", nargs="+")
     parser.add_argument("--control-pack", type=Path)
     parser.add_argument("--workers", type=int, default=6, choices=range(1, 7))
+    parser.add_argument("--direction-budget", type=int, choices=(12, 16), default=12)
     args = parser.parse_args()
     root, output = args.root.resolve(), args.output.resolve()
     with gzip.open(args.manifest, "rt", encoding="utf-8") as stream:
@@ -131,7 +141,7 @@ def main() -> None:
     # A fresh process per case isolates the legacy helper module overrides.
     with ProcessPoolExecutor(max_workers=min(args.workers, len(cases)), max_tasks_per_child=1) as executor:
         futures = {
-            executor.submit(run_case, root, output, case_id, args.control_pack): case_id
+            executor.submit(run_case, root, output, case_id, args.control_pack, args.direction_budget): case_id
             for case_id in cases
         }
         for future in as_completed(futures):
@@ -140,12 +150,15 @@ def main() -> None:
                 record = future.result()
             except Exception as error:
                 LOGGER.exception("Case %s failed", case_id)
-                record = {"case_id": case_id, "status": "failed", "error": repr(error),
+                record = {"case_id": case_id, "status": "failed", "direction_budget": args.direction_budget,
+                          "error": repr(error),
                           "traceback": traceback.format_exc()}
                 write(output / "failures" / f"{case_id}.json.gz", record)
             records.append(record)
             print(json.dumps(record), flush=True)
-    write(output / "completion.json.gz", {"cases": records, "workers": args.workers})
+    write(output / "completion.json.gz", {"cases": records, "workers": args.workers,
+                                           "direction_budget": args.direction_budget,
+                                           "direction_screen_method": "svd-family-residual/1"})
     if any(record["status"] == "failed" for record in records):
         raise SystemExit(1)
 
