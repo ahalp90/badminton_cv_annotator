@@ -4,6 +4,10 @@
 completed work and the decisions at that time. Their dated resume and next-run
 sections are historical. Each archived document points back here and to pickup.
 
+The [23 September top-level refresh](20260923_top_level/README.md) preserves the
+previous index, pickup, decision record and filepath map. Its disposition record
+also documents every newly tracked input and explicitly local-only run output.
+
 ## Path map
 
 | Former path under `court_det_fix/` | Current location and role |

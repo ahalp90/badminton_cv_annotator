@@ -1,3 +1,13 @@
-# Private working data and sealed recovery stay local. Start at pickup.md.
+# Local working data and sealed recovery. INDEX.md is the entry point.
 .recovery/
 worklog/*
+
+# Retained generated data; see archive/20260923_top_level/TIDY_RECORD.md.
+# Keep these stable paths for the scripts and provenance records that use them.
+/colour_consistency/smoke.json.gz
+/edge_polarity/local_audit/webui_net_audit/webui_net_audit.zip
+/svd_runtime/full/
+/svd_runtime/integration_smoke_raw/
+/svd_runtime/smoke/
+/svd_search/gallery_preview/
+/svd_search/run_20260923/generation/

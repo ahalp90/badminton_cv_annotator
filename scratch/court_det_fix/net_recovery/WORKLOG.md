@@ -7,10 +7,12 @@ rejects a detector taking multiple minutes per frame. Existing six-case SVD12
 G0-only timings already show 4.3–33.6 minutes per frame, with about 92% in
 generation and another 59–107 seconds per frame in refitting/scoring. The
 52.9% matcher saving is insufficient. Start performance work from those stage
-measurements. The user's budget is video-level: several minutes for an hour of
-video and substantially less for five minutes. Target hardware remains
-unspecified. A suggested benchmark is about 5% of video duration, not a hard
-user requirement. Scene reuse does not remove the initial search cost.
+measurements. The clarified budget is roughly 30 seconds for a five-minute
+video, with 90 seconds a tolerable upper end; report startup/warmup separately.
+Long-video expensive search should scale with distinct compatible views.
+The earlier 5%-of-duration proposal is rejected. Target hardware is unspecified.
+Scene reuse does not remove the initial search cost. Next-session instructions
+are in the [handover packet](../handover_20260923/01_LAUNCH_OPTIMISATION.md).
 
 The user judges the displayed combination of bounded net selection and
 automatic stripe-polarity fitting very usable. Frequent tiny imperfections in

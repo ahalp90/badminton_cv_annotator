@@ -1,10 +1,10 @@
-# Net-evidence pre-evaluation — 23 September 2026
+# Net-evidence assessment — 23 September 2026
 
 ## Current result
 
 **Keep weight 0.04 for the next combined trial.** The user judges the displayed
 net-selected, stripe-corrected courts very usable. The
-[paired statistical comparison](net_recovery/statistics/paired_reference_report.md)
+[paired statistical comparison](statistics/paired_reference_report.md)
 finds the same median reference-point error at weights 0.02 and 0.04, with a
 modestly better upper tail at 0.04. The source-based uncertainty intervals do
 not establish a weight optimum. Further exhaustive visual review or small
@@ -14,23 +14,23 @@ misses and non-court acceptance still require automatic handling.
 **A bounded lower-post bonus preserves the accepted Am1 recovery and avoids
 the five known regression choices.** The completed replay changes 15 of 72
 saved pools at weight 0.04. New choices still need visual review in the
-[selection gallery](net_recovery/bounded_gallery/index.html). The numerical
+[selection gallery](bounded_gallery/index.html). The numerical
 weight is provisional. This is lower-quarter fragment support, not reliable
 post-base detection: only 4 of 26 supported posts on changed selections match
 the base sample itself. Removing the fragment-overrun veto changes no winner;
 the paint-score cap provides the demonstrated protection. The
-[worklog](net_recovery/WORKLOG.md#bounded-replay-results) records sensitivity,
+[worklog](WORKLOG.md#bounded-replay-results) records sensitivity,
 audit findings and the separate stripe-fitting comparison. No production rule
 is adopted, and fresh SVD12 generation has not been combined with this trial.
 
 **Positive net support helps Am1 once useful proposals exist.** The completed
-[recovery trial](colour_consistency/AM1_RECOVERY.md) adds three automatic
+[recovery trial](../colour_consistency/AM1_RECOVERY.md) adds three automatic
 vanishing-point seeds, then prefers the first eligible court with strongly
 supported tape halves and at least one post. It selects the original rank-2
 court: maximum visible-landmark disagreement falls from 45.0 to 7.2 working
 pixels. GX5 and Letterboxed45 retain their saved selections. The user accepts
 the Am1 improvement despite a remaining inset on the right yellow stripe.
-The later [71-case saved-pool scan](net_recovery/WORKLOG.md) changes 13 choices
+The later [71-case saved-pool scan](WORKLOG.md) changes 13 choices
 and visibly loses good courts on Letterboxed78 and frame 52563. Unrestricted
 net preference is therefore unsuitable for core promotion. Net evidence remains
 useful on Am1; a safe way to combine it with paint evidence is unresolved.
@@ -44,7 +44,7 @@ recover Am1 from that pool. Naive candidate-free post assembly also remains
 unpromising. These limits do not invalidate the new candidate-conditioned
 comparison against observed fragments. Missing evidence remains neutral.
 
-See [pickup](pickup.md) for next steps and the linked report for exact settings,
+See [pickup](../pickup.md) for next steps and the linked report for exact settings,
 controls, retained data and limitations. Historical findings below retain their
 original scope.
 
@@ -92,7 +92,7 @@ that interpretation remains tentative. No net trial was adopted.
 
 ## Historical packet: evidence and judgement
 
-The [frontier packet](webui_net_evidence_frontier_handover/README.md) accurately
+The [frontier packet](../webui_net_evidence_frontier_handover/README.md) accurately
 distinguishes projected geometry from an independent observation of a net.
 Current W5 retains the camera-error diagnostic; it discards the projected net
 segments before ranking. The older scorer samples generic line support along
@@ -116,7 +116,7 @@ the best maximum visible-landmark errors are 97.7 and 304.4 working pixels,
 respectively. Those statements concern the inspected W5 pools. A new rejection
 cue could still usefully cause abstention, but ranking cannot recover geometry
 absent from those pools. See the
-[coverage assessment](archive/20260922/evaluation_results_20260922.md#what-the-remaining-failures-need).
+[coverage assessment](../archive/20260922/evaluation_results_20260922.md#what-the-remaining-failures-need).
 
 ## What to retain from the independent review
 
