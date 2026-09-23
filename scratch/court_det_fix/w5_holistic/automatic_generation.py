@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from itertools import permutations
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, process_time
 from types import ModuleType
 
 import numpy as np
@@ -62,9 +62,16 @@ def screen_groups(estimator: dict, budget: int) -> dict:
 
 
 def generate(source: dict, saved: dict, zone: object, root: Path, helpers: ModuleType,
-             direction_budget: int = 12, pool_path: Path | None = None) -> dict:
+             direction_budget: int = 12, pool_path: Path | None = None, *,
+             keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
+             max_matched_pairs: int | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work."""
     started = perf_counter()
+    cpu_started = process_time()
+    if min(keep_axes, keep_per_pair, keep_global) <= 0:
+        raise ValueError("candidate caps must be positive")
+    if max_matched_pairs is not None and max_matched_pairs <= 0:
+        raise ValueError("max_matched_pairs must be positive")
     segments, families, size = helpers.prepare(source)
     assert list(size) == saved["working_size"]
     assert saved["settings"]["pencil_selection"] == "coverage"
@@ -78,9 +85,16 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
                        for frame in source["all_feet_px"]], dtype=float) / scale
     observations = assignment.prepare_observations(segments, size)
-    settings = helpers.Settings(keep_axes=512)
+    settings = helpers.Settings(keep_axes=keep_axes)
+    def select(candidates: list, limit: int) -> list:
+        if limit == helpers.KEEP_COURTS:
+            return helpers.select_pool(candidates)
+        selection = replace(helpers.detector.DEFAULT_SETTINGS, keep_candidates=limit, distinct_corner_distance=2.)
+        return helpers.retain(candidates, selection)
+
     pooled, provenance, pair_records = [], {}, []
     pool_records = []
+    matched_pairs = 0
     for pair_id, pencil_ids in enumerate(permutations(range(len(points)), 2)):
         record = {"pair_id": pair_id, "pencils": list(pencil_ids)}
         if not set(pencil_ids) <= selected:
@@ -92,19 +106,24 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         if bound > helpers.CAMERA_ERROR_LIMIT + helpers.CAMERA_ROUNDING_MARGIN:
             pair_records.append({**record, "status": "camera_direction_bound"})
             continue
+        if max_matched_pairs is not None and matched_pairs >= max_matched_pairs:
+            pair_records.append({**record, "status": "smoke_pair_limit"})
+            continue
+        matched_pairs += 1
         pair_start = perf_counter()
         proposed = helpers.propose_role(pair_points, observations, feet, size, settings, zone)
-        proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
-                                      dtype=np.float32).reshape(-1, 4, 2)
-        proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
         local_details = {}
         for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
             local_details[id(candidate)] = {"candidate_id": f"{pair_id}:{index}", "pair_id": pair_id, **details}
-        retained = helpers.select_pool(proposed.candidates)
-        pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
-                             np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
-                             (proposed.combined_corners, proposed.valid, proposed.usable,
-                              proposed.player_any, proposed.player_both_halves)))
+        retained = select(proposed.candidates, keep_per_pair)
+        if pool_path is not None:
+            proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
+                                          dtype=np.float32).reshape(-1, 4, 2)
+            proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
+            pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
+                                 np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
+                                 (proposed.combined_corners, proposed.valid, proposed.usable,
+                                  proposed.player_any, proposed.player_both_halves)))
         shortlist = []
         for candidate in retained:
             details = local_details[id(candidate)]
@@ -112,12 +131,13 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             shortlist.append({**details, "corners_px": (candidate.corners_px * scale).tolist(),
                               "shortlist_score": candidate.score})
         pooled.extend(retained)
-        record.update({"status": "matched", "role": proposed.record, "shortlist": shortlist,
+        record.update({"status": "matched", "role": proposed.record, "raw_parent_count": len(proposed.candidates),
+                       "per_pair_cap_reached": len(retained) == keep_per_pair, "shortlist": shortlist,
                        "elapsed_s": perf_counter() - pair_start})
         pair_records.append(record)
         print(source["id"], "pair", pair_id, list(pencil_ids), "combined", proposed.record.get("combined", 0),
               "players", len(proposed.candidates), "retained", len(retained), "seconds", record["elapsed_s"], flush=True)
-    retained = helpers.select_pool(pooled)
+    retained = select(pooled, keep_global)
     shortlist = []
     for candidate in retained:
         shortlist.append({**provenance[id(candidate)], "corners_px": (candidate.corners_px * scale).tolist(),
@@ -128,12 +148,14 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         helpers.write_pool(pool_path, pool_records)
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],
             "automatic_directions": True, "label_guided_generation": False, "emission_decision": None,
-            "working_size": size, "settings": asdict(settings), "keep_per_pair": helpers.KEEP_COURTS,
-            "keep_global": helpers.KEEP_COURTS, "estimator_settings": saved["settings"], "estimator": estimator,
+            "working_size": size, "settings": asdict(settings), "keep_per_pair": keep_per_pair,
+            "keep_global": keep_global, "estimator_settings": saved["settings"], "estimator": estimator,
             "direction_screen": screen,
+            "max_matched_pairs": max_matched_pairs,
             "camera_error_limit": helpers.CAMERA_ERROR_LIMIT, "camera_rounding_margin": helpers.CAMERA_ROUNDING_MARGIN,
             "camera_bound_coordinate_space": "native",
             "pairs": pair_records, "pooled_candidates": len(pooled), "entries": entries,
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
             "line_winner_id": line_id, "paint_winner_id": paint_id,
-            "elapsed_s": perf_counter() - started}
+            "elapsed_s": perf_counter() - started, "cpu_s": process_time() - cpu_started,
+            "global_cap_reached": len(retained) == keep_global}
