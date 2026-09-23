@@ -12,6 +12,16 @@ Some amateur references mark paint centres and others mark outside edges.
 The user cannot identify which. Do not interpret small signed reference drift
 as improved or worsened alignment on those courts.
 
+All proposed decisions must be automatic, including paint colour, polarity and
+floor references. Manual region selection is not an acceptable detector input.
+The initial manual-floor diagnostic was superseded before adoption.
+
+The automatic internal-marking floor cue also failed to change its nine saved
+choices and is closed. The player-floor detour was dropped: `sticky_anchor`
+pairs depend on court presence. Finish the bounded hue-based paint comparison
+and automatic edge-side assessment in the runbook; do not add player-selection
+machinery or reopen the floor search.
+
 **SVD search reduction is implemented and measured. Deeper search has a useful
 visual result. Colour has only been measured on saved courts: no colour-based
 selection, rejection or fitting improvement has been tested.** The next useful

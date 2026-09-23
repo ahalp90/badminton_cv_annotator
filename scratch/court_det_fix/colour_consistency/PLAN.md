@@ -15,12 +15,28 @@ signed reference drift cannot establish an improvement or regression.
 Semantic mistakes, invalid fits and substantial geometry failures remain
 meaningful. Limited image viewing is authorised to resolve concrete ambiguity.
 
+**Automation requirement:** the user explicitly rules out manual handling,
+including choosing paint colour or polarity. Floor references and paint-side
+decisions must therefore be inferred automatically. Ambiguous evidence leaves
+the cue unavailable. The initial manual-patch diagnostic is archived locally
+and cannot qualify a rule for adoption.
+
+**Current status:** the automatic internal-marking floor cue changed none of
+nine decisions and is closed. The first observed-paint rule changed none of
+12 decisions. One final comparison groups coloured reference paint by hue,
+with saturation used to assess colour reliability. The automatic edge-side
+comparison is running alongside it. The player-floor idea was dropped: saved
+`sticky_anchor` player pairs depend on court presence and are circular evidence
+for finding the court. Do not introduce a new player-selection stage here.
+
 ### Current runbook
 
 1. **Floor contradiction:** test saved W5 and selected SVD baseline/deeper
-   courts for Am2-28019, GX0 and GX5. Use three small manual floor patches per
-   view, fixed from raw images without court overlays. This is a diagnostic
-   with extra supervision, not an automatic floor detector. Compare paired
+   courts for Am2-28019, GX0 and GX5. Infer floor reference colours from the
+   two sides of observed internal-marking fragments. Require at least two
+   distinct supported internal markings; exclude outer boundaries. This uses
+   each fixed candidate's assignments, without manually selected regions.
+   Compare paired
    inward/outward strips at 0.15, 0.35 and 0.60 court metres. Use nearest-patch
    Lab chroma distance, a predeclared threshold and a contiguous contradiction
    requirement. Report sensitivity without tuning for reference agreement.
@@ -32,14 +48,15 @@ meaningful. Limited image viewing is authorised to resolve concrete ambiguity.
    stripes. Insufficient independent evidence must remain inconclusive.
 3. **Centre-to-edge:** reuse the completed four-case and amateur comparisons.
    Check the rule's brightness assumptions against dark-stripe counterexamples.
-   Decide between retaining the rule, limiting it to supported paint polarity,
+   Decide between retaining the rule, limiting it to automatically inferred paint polarity,
    or leaving it experimental. Do not use small reference offsets as the vote.
 4. **Review and close-out:** one substantive Opus 5-5 high audit without a time
    limit, source checks of material findings, and Sol-built galleries using the
    shared template. Record a go/no-go decision for each cue and commit the
    coherent result on `fix/court-det`.
 
-Out of scope: new proposal searches, changed candidate geometry during the
+Out of scope: manual colour, polarity or floor selection; new proposal searches;
+changed candidate geometry during the
 colour trials, learned net models, full scene integration, threshold searches,
 and treating a floor-colour transition as the exact painted boundary.
 
@@ -57,17 +74,51 @@ test suite is justified by these standalone experiments.
 
 ### Current concerns and module state
 
-- `floor_trial.py` is being implemented by Sol. GX5's manual patch locations
-  were also checked on its raw frame; they lie on unobstructed floor. Frame-6
-  person boxes cannot mask this frame-5 image. The subtitle is separate from
-  the anchors but may affect evidence elsewhere.
+- `floor_trial.py` is being revised by Sol to use automatic observed-fragment
+  floor references. `observed_colour.py` will share native sampling with
+  `fragment_trial.py`. All three use unchanged geometry and same-frame masks.
+  GX5 has no such mask; its subtitle may affect image evidence.
 - The existing projected-stripe diagnostic remains historical and unchanged.
   Its GX5 box mask did not enforce the same-frame requirement; new trials use
   the verifier's provenance check. Any effect on old measurements is unmeasured.
-- The floor patches add supervision. A useful result would justify assessing
-  an automatic anchor, not deploying this manual diagnostic unchanged.
+- The observed-stripe sampler must handle bright and dark paint symmetrically.
+  Recognising a local stripe does not by itself certify that it is court paint.
 - The shared SVD template and existing galleries remain the renderer baseline.
   The final gallery must show changed decisions and reasons, with good controls.
+
+### Execution record — active trials
+
+- `75ff070 Record the colour trials and annotation limits`: documented the net
+  pre-evaluation, experiment scope and mixed annotation conventions. Link and
+  whitespace checks passed (exit 0).
+- The initial manual floor diagnostic completed on nine saved choices. It kept
+  Am2's bad baseline, retained all W5 selections and rejected the two GX5 SVD
+  hallucinations at the primary threshold. Those rejections disappeared at
+  20 ab units. No threshold was tuned. This result does not establish automatic
+  efficacy. Its code, data and checks are retained only under
+  `local_scratch/external_delegate/20260923-floor-trial/`; the live runner is
+  being replaced with the automatic formulation. Scoped lint, syntax, synthetic
+  boundaries, source-geometry checks and real execution passed (exit 0).
+- Active Sol task: automatic fragment-colour and floor trials, artefacts under
+  `local_scratch/external_delegate/20260923-automatic-colour/`, completed with
+  exit 0. Paint decisions: eight keep, four no-decision, zero rejections. Am1's
+  references were ambiguous under raw-ab grouping; the three ShuttleSet views
+  are greyscale. Floor decisions: nine keep. Both fixed sensitivity checks
+  remain reported, not adopted as alternative thresholds. Scoped lint, syntax,
+  synthetic boundaries and real-input checks passed (exit 0); Serena reported
+  no diagnostics for the three new scripts.
+- The synthetic existing-edge check passed (exit 0). Under identical geometry,
+  bright contrasts `[200,-200,200]` become `[-200,200,-200]` after inversion.
+  The historical rule swaps both edge labels and reverses the centre choice.
+  Weak or masked evidence remains unchanged. Results are under
+  `local_scratch/external_delegate/20260923-edge-polarity-check/`.
+- Active Sol task: `paint_grouping_trial.py` and `edge_auto_trial.py`, artefacts
+  under `local_scratch/external_delegate/20260923-paint-edge-decision/`, session
+  8956. The grouping comparison uses the same saved samples and geometry. The
+  edge comparison infers stripe polarity automatically; unresolved polarity
+  preserves the original label. No gallery worker or independent reviewer is
+  active yet. Final colour decisions must follow the user's hue-first
+  preference and keep low-chroma uncertainty explicit.
 
 ### Earlier diagnostic resume
 
