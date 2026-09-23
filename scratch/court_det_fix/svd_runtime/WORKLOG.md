@@ -39,3 +39,16 @@ reference-agreement candidates. Actual runtime is the remaining question.
 - Opus is auditing runner correctness and, at the user's additional request,
   simple compute-efficiency opportunities in the called matcher. Both are
   read-only and use `claude-opus-5-5` at high effort.
+- Carmack's two-worker smoke on SS03-16 and SS21-20 passes, exit 0, 37.1 s
+  batch wall time. All four full-arm pairs also match historical cache records
+  in a separate comparison, exit 0. The local SS03-16 difference does not
+  reproduce in the Carmack environment. Native thread counts are one.
+- Opus runner audit found no verified defect. It independently replayed three
+  SS03-19 pairs against the local cache. Its useful limitations: host contention
+  can affect elapsed-time ratios, historical mismatch before writing loses a
+  result, and matcher-only timing excludes later scoring. The full Carmack run
+  will preserve its results first and compare the historical cache afterwards.
+  Record shared-pair timing ratios alongside overall savings.
+- Runtime runner committed and pushed as `394b9ed`. Remote checkout is
+  `/scratch/ahalperi/court_det_fix/svd_runtime_checkout_20260923`; run outputs
+  are under `/scratch/ahalperi/court_det_fix/svd_runtime_20260923`.
