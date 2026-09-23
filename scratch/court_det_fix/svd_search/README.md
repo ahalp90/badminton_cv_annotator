@@ -15,6 +15,13 @@ candidate geometries remain available for diagnostics. The earlier W5 selection
 comes from the wider W5 records listed in `saved_selected.json.gz`; its selected
 key identifies whether it came from G0, G1 or the line-template population.
 
+The gallery starts with the outside court boundary. Its overlay selector also
+shows both edges of each paint stripe or stripe centres with the boundary.
+Every panel has an aligned enlarged crop beneath it. Choose a corner or click
+any full image to inspect the same working-image position across all four panels.
+Line width, opacity, pixel smoothing and temporary outline hiding apply to both
+rows. The saved W5 panel keeps its original selection in every Show view.
+
 Total wall and CPU time starts before view preparation and fresh direction
 estimation, and ends immediately after generation, measurement, refit and ranking.
 Runtime/module setup, reference evaluation, reporting and serialisation are

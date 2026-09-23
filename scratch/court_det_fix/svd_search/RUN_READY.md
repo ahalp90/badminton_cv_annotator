@@ -11,8 +11,8 @@ VECLIB_MAXIMUM_THREADS=1 BLIS_NUM_THREADS=1 \
   --workers 6 --output /scratch/ahalperi/court_det_fix/svd_search_run_20260923/results
 ```
 
-Use `--workers 5` if the original benchmark is still running; otherwise use
-`--workers 6`. The parent will choose at launch time.
+The existing run launched with six workers after the original benchmark
+completed. Check [WORKLOG.md](WORKLOG.md) before starting another run.
 
 `--case ID` and `--arm baseline|deeper|shortlist` are
 repeatable filters. For a local one-pair smoke, add `--max-matched-pairs 1` and use a
@@ -37,10 +37,10 @@ Input packs and frames are listed in `input_manifest.json.gz`. The GX0 baseline 
 file in the manifest supplies unchanged estimator settings. Other directions are
 estimated afresh from each frozen source. The input frames have no extra frame work.
 
-After results return, run:
+After results return, run from the local repository root:
 
 ```bash
-~/.venvs/badminton-cicd/bin/python scratch/court_det_fix/svd_search/build_gallery.py \
+PYTHONPATH=src:. ~/.venvs/badminton-cicd/bin/python scratch/court_det_fix/svd_search/build_gallery.py \
   --input /path/to/svd_search_run_20260923 \
   --output scratch/court_det_fix/svd_search/gallery
 ```

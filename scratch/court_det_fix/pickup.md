@@ -26,8 +26,22 @@ GX. The user identifies Am1's false far baseline as the net's bottom white band.
 The [WebUI net-versus-court audit brief](edge_polarity/local_audit/webui_net_audit/PROMPT.md)
 and case packet are committed and pushed as `94821ee`; its source and images
 are already on GitHub. The user has now downloaded the colour-consistency
-return under `edge_polarity/webui_return_colour_consistency/`. Review it after
-the experiment setup and SVD documentation consolidation; it remains unread.
+return under `edge_polarity/webui_return_colour_consistency/`. The SVD state was
+consolidated before this return was read. Its colour-consistency diagnostic is
+promising on Am1: neutral tape differs from yellow paint. GX has no supported
+far-baseline fragments, so that particular veto is untestable there. All four
+Am1 reference fragments belong to one service-line interval; there is no genuine
+supported-baseline positive control. The attached-mesh test failed to separate
+the cases. Source, reported results and overlays were reviewed; no local replay
+or detector change has been made.
+
+The user proposes extending colour consistency across high-confidence visible
+court lines, with lighting and perspective accommodation. This could also help
+GX's visible lines. The next diagnostic should consider all supported markings,
+local floor-relative colour and projected stripe widths. A smooth spatial colour
+model remains a possible extension. Initial confidence must come from independent
+geometry/image evidence to avoid self-confirming colour assignments. No colour
+threshold or fitting change has been made.
 Do not restart the wider evaluation.
 
 ## Where we are

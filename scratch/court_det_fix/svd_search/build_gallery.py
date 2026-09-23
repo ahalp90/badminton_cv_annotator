@@ -10,6 +10,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from experiments.annotator.independent_court import detector, paint_geometry
+
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parent
 ARMS = ("baseline", "deeper", "shortlist")
@@ -30,14 +32,33 @@ def candidate(summary: dict, key: str | None) -> dict | None:
     return next((item for item in summary["candidates"] if item["origin_key"] == key), None)
 
 
+def projected_geometry(corners: list | None) -> dict | None:
+    if corners is None:
+        return None
+    points = np.asarray(corners)
+    homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M, points.astype(np.float32))
+    reprojected = detector.project(homography[None], detector.CORNER_COURT_M)[0][0]
+    np.testing.assert_allclose(reprojected, points, atol=0.01, rtol=0)
+    centres = detector.project(homography[None], paint_geometry.CENTRE_SEGMENTS_M)[0][0]
+    intervals = np.repeat(np.arange(12), 2)
+    positions = np.tile([1, 2], 12)
+    stripes = paint_geometry.positioned_segments(paint_geometry.CENTRE_SEGMENTS_M, intervals, positions)
+    edges = detector.project(homography[None], stripes)[0][0]
+    return {"corners": points.tolist(), "centres": centres.tolist(), "edges": edges.tolist()}
+
+
 def arm_view(summary: dict, scale: np.ndarray) -> dict:
     selected = candidate(summary, summary["selected_key"])
     generated = candidate(summary, (summary["oracle_generated"] or {}).get("origin_key"))
     refitted = candidate(summary, (summary["oracle_refitted"] or {}).get("origin_key"))
-    return {
+    views = {
         "selected": (np.asarray(selected["corners_px"]) * scale).tolist() if selected else None,
         "oracle_generated": (np.asarray(generated["corners_px"]) * scale).tolist() if generated else None,
         "oracle_refitted": (np.asarray(refitted["corners_px"]) * scale).tolist() if refitted else None,
+    }
+    return {
+        **views,
+        "geometry": {name: projected_geometry(corners) for name, corners in views.items()},
         "selected_error": (summary["selected_reference_error"] or {}).get("maximum"),
         "selected_saved_error": (summary.get("selected_saved_error") or {}).get("maximum"),
         "oracle_generated_error": (summary["oracle_generated"] or {}).get("maximum_native_px"),
@@ -81,9 +102,11 @@ def main() -> None:
         native = [source_case["dimensions"]["width"], source_case["dimensions"]["height"]]
         scale = np.asarray(working, dtype=float) / np.asarray(native, dtype=float)
         saved_corners = saved[case_id]["corners_native_px"]
+        saved_working = (np.asarray(saved_corners) * scale).tolist() if saved_corners else None
         rows.append({
             "case_id": case_id, "image": image_name, "size": working,
-            "saved_selected": (np.asarray(saved_corners) * scale).tolist() if saved_corners else None,
+            "saved_selected": saved_working,
+            "saved_geometry": projected_geometry(saved_working),
             "saved_source": saved[case_id]["source"],
             "saved_selected_key": saved[case_id]["selected_key"],
             "reference": (np.asarray(summaries["baseline"]["reference_corners_native_px"]) * scale).tolist(),

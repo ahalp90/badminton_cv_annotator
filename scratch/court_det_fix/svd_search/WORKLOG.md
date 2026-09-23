@@ -36,8 +36,13 @@ passed both focused tests (exit 0). Scoped lint and JavaScript syntax passed.
 Whole-project Pyrefly passed with 0 errors and 39 existing suppressions. The
 real one-pair smoke generated and refitted 256 candidates, exit 0. The rendering
 fixture duplicates that one result across arms and is not experimental evidence.
-Browser interaction remains to be checked outside the worker's restricted
-Chromium environment.
+Browser rendering and interaction now pass outside the worker's restricted
+Chromium environment (exit 0). Checks covered oracle captions and accessibility
+labels with outlines hidden, all stripe modes, corner/click focus, reset and
+aligned panels. A screenshot exposed uneven image positions from wrapped
+headings; shared grid rows corrected this. The original corner magnification
+and stripe-overlay controls have been restored. These are display-only changes
+after the frozen compute revision.
 
 ## Implementation record
 
