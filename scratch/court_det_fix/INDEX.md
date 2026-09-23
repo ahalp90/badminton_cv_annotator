@@ -25,6 +25,7 @@ experiment history through the 23 September handover. [FP_INDEX.md](FP_INDEX.md)
 | Spend the saving on deeper axes or wider shortlists | [Completed six-case comparison and user review](svd_search/WORKLOG.md); [local comparison gallery](svd_search/gallery/index.html) |
 | Compare automatic paint and edge decisions | [Completed trial record](colour_consistency/PLAN.md); [six-case review gallery](colour_consistency/decision_gallery/index.html) |
 | Recover Am1 proposals and prefer independently supported nets | [Bounded recovery result](colour_consistency/AM1_RECOVERY.md); [three-case gallery](colour_consistency/am1_gallery/index.html) |
+| Check wider net preference and its regressions | [71-case scan and current worklog](net_recovery/WORKLOG.md); [changed-choice gallery](net_recovery/gallery/index.html) |
 | Investigate Am1 net tape using colour | [Received WebUI colour probe](edge_polarity/webui_return_colour_consistency/README.md); [local replay and broader diagnostic](colour_consistency/PLAN.md) |
 | Understand what the colour gallery does and does not establish | [Diagnostic findings](colour_consistency/PLAN.md); [local gallery](colour_consistency/gallery/index.html). Existing fits were measured, not reranked or refitted |
 
@@ -40,8 +41,9 @@ The [net assessment](NET_EVIDENCE_ASSESSMENT.md) now distinguishes the old-pool
 no-go from the new [automatic recovery trial](colour_consistency/AM1_RECOVERY.md).
 Extra line-group seeds admit useful candidates; a fixed net preference selects
 an Am1 fit the user accepts, with a small remaining right-edge inset. The two
-saved-pool controls are unchanged. Combined-change ranking checks precede
-integration. Follow
+saved-pool controls are unchanged. The subsequent 71-case scan finds clear
+regressions from unrestricted preference, so core promotion is held. See the
+[wider worklog](net_recovery/WORKLOG.md). Follow
 [pickup](pickup.md) for the current next step.
 
 ## Inputs and code

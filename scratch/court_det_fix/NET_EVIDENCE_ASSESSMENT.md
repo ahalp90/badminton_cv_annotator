@@ -9,7 +9,14 @@ supported tape halves and at least one post. It selects the original rank-2
 court: maximum visible-landmark disagreement falls from 45.0 to 7.2 working
 pixels. GX5 and Letterboxed45 retain their saved selections. The user accepts
 the Am1 improvement despite a remaining inset on the right yellow stripe.
-Combined-change selection checks remain; no production rule is adopted.
+The later [71-case saved-pool scan](net_recovery/WORKLOG.md) changes 13 choices
+and visibly loses good courts on Letterboxed78 and frame 52563. Unrestricted
+net preference is therefore unsuitable for core promotion. Net evidence remains
+useful on Am1; a safe way to combine it with paint evidence is unresolved.
+The replay cache is repaired. Projection checks reveal both false fragment
+matches and a focal-search-bound limitation. Consistently measured baseline
+and seeded pools are required before further generation comparisons. No
+production rule is adopted.
 
 The earlier no-go concerned the old candidate pool. Net preference still cannot
 recover Am1 from that pool. Naive candidate-free post assembly also remains

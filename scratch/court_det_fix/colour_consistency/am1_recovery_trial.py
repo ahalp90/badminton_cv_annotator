@@ -20,11 +20,14 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(ROOT / "w5_holistic"))
 sys.path.insert(0, str(ROOT / "wider_evaluation"))
 
 import compare
 import line_template_source
+import run_cases
 import run_w5
 
 run_w5.add_helper_paths(ROOT)
@@ -76,6 +79,8 @@ def generate_seeded(context, runtime, detector):
 
 
 def entry_matches_parent(entry: dict, parent: dict) -> bool:
+    # Extra seeds change rectangle enumeration order without changing scoring
+    # inputs. The replay updates source occurrences when it reuses a record.
     return (
         entry["candidate_id"] == parent["candidate_id"]
         and np.array_equal(entry["corners_px"], parent["corners_px"])
@@ -83,6 +88,20 @@ def entry_matches_parent(entry: dict, parent: dict) -> bool:
         and run_w5.values_equal_with_nan(entry["gates"], parent["gates"])
         and entry.get("line_template") == parent.get("line_template")
     )
+
+
+def resolve_saved_path(record: str, root: Path = ROOT) -> Path:
+    """Resolve a comparison record written in another checkout to this checkout."""
+    marker = Path("scratch/court_det_fix")
+    source = Path(record)
+    parts = source.parts
+    for index in range(len(parts) - 1):
+        if parts[index:index + 2] == marker.parts:
+            path = root.parents[1] / Path(*parts[index:])
+            if path.is_file():
+                return path
+            raise FileNotFoundError(path)
+    raise ValueError(f"Comparison record has no {marker} suffix: {record}")
 
 
 def saved_source_entries(saved: dict, source: str) -> list[dict]:
@@ -130,22 +149,27 @@ def selected_geometry(candidate: dict | None, context) -> dict | None:
     }
 
 
-def main(output: Path, pool_output: Path | None = None) -> None:
+def replay_case(case_id: str, comparator: dict, control_pack: Path | None = None) -> dict:
+    """Regenerate and score one seeded pool against its frozen W5 record."""
     cv2.setNumThreads(1)
     start = monotonic()
-    saved = read(SAVED)
-    comparator = next(case for case in read(COMPARISON)["cases"] if case["case_id"] == CASE)
-    numeric = next(case for case in read(NUMERIC)["cases"] if case["case_id"] == CASE)
+    saved_path = resolve_saved_path(comparator["record"])
+    saved = read(saved_path)
     assert saved["schema"] == "w5-case-evidence/2"
+    assert saved["case_id"] == case_id == comparator["case_id"]
     assert (saved["min_visible_lengthwise"], saved["min_visible_cross_court"]) == (4, 3)
-    assert Path(comparator["record"]).resolve() == SAVED.resolve()
+    assert comparator["population_counts"] == saved["population_counts"]
     assert compare.selections(saved) == comparator["selections"]
-    runtime = run_w5.load_runtime(ROOT)
+    loaded_w5, verifier, runtime = run_cases.load_runtime(ROOT, control_pack)
+    assert loaded_w5 is run_w5
     runtime["verifier"] = run_w5.load_verifier(ROOT)
+    context = verifier.prepare_view(ROOT, case_id)
     verifier = runtime["verifier"]
-    context = verifier["prepare_view"](ROOT, CASE)
-    assert list(context.native_size) == numeric["native_size"]
-    assert list(context.size) == numeric["working_size"]
+    assert context.frame_relative_path == saved["provenance"]["frame_path"]
+    assert list(context.native_size) == saved["provenance"]["native_dimensions"]
+    assert list(context.size) == saved["provenance"]["working_dimensions"]
+    assert context.same_image_mask_available == saved["provenance"]["same_image_mask_available"]
+    assert context.person_mask_unavailable_reason == saved["provenance"]["person_mask_unavailable_reason"]
     saved_candidates = saved["parents"] + saved["valid_children"]
     assert verifier["rank_candidates"](saved_candidates) == saved["rankings"]["C"]
     saved_by_key = {candidate["origin_key"]: candidate for candidate in saved_candidates}
@@ -168,6 +192,10 @@ def main(output: Path, pool_output: Path | None = None) -> None:
 
     generated, seeds = generate_seeded(context, runtime, run_w5.import_detector())
     templates = list(generated.entries)
+    assert generated.metadata["settings"]["global_rectangle_cap"] == 4096
+    assert generated.metadata["settings"]["proposal_cap"] == 256
+    assert (generated.metadata["settings"]["min_visible_lengthwise"],
+            generated.metadata["settings"]["min_visible_cross_court"]) == (4, 3)
     assert len(templates) <= line_template_source.PROPOSAL_CAP
     assert generated.metadata["ordering"]["selected_rectangle_ids_first_cap"]
     assert len(generated.metadata["ordering"]["selected_rectangle_ids_first_cap"]) <= line_template_source.RECTANGLE_CAP
@@ -213,9 +241,35 @@ def main(output: Path, pool_output: Path | None = None) -> None:
     assert len(parents) == len(identities)
     assert len(changed) + len(retained) == len(parents)
     candidates = parents + children
-    b_rank = verifier["rank_candidates"]([parent for parent in parents if parent["hard_valid"] and "evidence" in parent])
+    eligible_parents = [parent for parent in parents if parent["hard_valid"] and "evidence" in parent]
+    b_rank = verifier["rank_candidates"](eligible_parents)
     c_rank = verifier["rank_candidates"](candidates)
     trial_record = {"parents": parents, "valid_children": children, "rankings": {"B": b_rank, "C": c_rank}}
+    return {
+        "saved_path": saved_path, "saved": saved, "context": context, "verifier": verifier,
+        "trial_record": trial_record, "saved_by_key": saved_by_key,
+        "g0_source": g0_source, "g1_source": g1_source, "generated": generated,
+        "seeds": seeds, "templates": templates, "g0": g0, "g1": g1,
+        "changed": changed, "retained": retained, "started": start,
+    }
+
+
+def main(output: Path, pool_output: Path | None = None) -> None:
+    comparator = next(case for case in read(COMPARISON)["cases"] if case["case_id"] == CASE)
+    numeric = next(case for case in read(NUMERIC)["cases"] if case["case_id"] == CASE)
+    replay = replay_case(CASE, comparator)
+    saved = replay["saved"]
+    context = replay["context"]
+    verifier = replay["verifier"]
+    trial_record = replay["trial_record"]
+    saved_by_key = replay["saved_by_key"]
+    g0_source, g1_source = replay["g0_source"], replay["g1_source"]
+    generated, seeds = replay["generated"], replay["seeds"]
+    templates, g0, g1 = replay["templates"], replay["g0"], replay["g1"]
+    changed, retained, start = replay["changed"], replay["retained"], replay["started"]
+    parents, children = trial_record["parents"], trial_record["valid_children"]
+    c_rank = trial_record["rankings"]["C"]
+    candidates = parents + children
     if pool_output is not None:
         pool_record = dict(trial_record)
         pool_record.update(
@@ -325,6 +379,8 @@ def main(output: Path, pool_output: Path | None = None) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--pool-output", type=Path, help="Preserve all scored candidates for subsequent evidence trials.")
+    parser.add_argument(
+        "--pool-output", type=Path, help="Preserve all scored candidates for subsequent evidence trials.",
+    )
     arguments = parser.parse_args()
     main(arguments.output, arguments.pool_output)

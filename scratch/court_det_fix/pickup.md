@@ -12,11 +12,24 @@ development result.
 See the [experiment report](colour_consistency/AM1_RECOVERY.md) and
 [three-case gallery](colour_consistency/am1_gallery/index.html).
 
-Next: check final selection on a small set of good
-courts with both changes enabled. The current controls test net preference on
-saved pools. GX5, Am4-319 and SS21-10 preserve their selected source geometry,
-but generation retention alone cannot establish ranking safety. No production
-rule is adopted. Keep the expanded candidate pool for replay.
+**The wider test blocks unrestricted net preference.** The fixed rule changes
+13 of 71 saved choices. Visual inspection confirms clear regressions on
+Letterboxed78 (rank 1 → 706) and unlabelled control frame 52563 (1 → 266).
+The original courts are better. The Am1 recovery remains useful, but strong
+net support cannot override arbitrarily weaker paint evidence.
+See [the current worklog](net_recovery/WORKLOG.md) and
+[15-case gallery](net_recovery/gallery/index.html).
+
+Next: freshly measure baseline and seeded pools consistently before further
+generation comparisons, then test a restrained net preference. The replay
+cache is repaired and Am1's accepted net choice reproduces exactly. Fresh and
+historical paint scores still differ on identical geometry, including on
+Carmack; the cause is unresolved. The saved-pool scan is unaffected. Combined
+GX5 retains its selected geometry but is not a clean seed-only ranking
+comparison. All seven GX views are in the saved scan; their wider combined
+runs are deferred. The projected-net gallery also exposes false fragment
+matches and a focal-search-bound limitation. No replacement ranking rule or
+production change is adopted. Keep the expanded pools for replay.
 
 **The automatic colour trials are complete and do not justify a new rejection
 rule.** The floor cue rejected 0/9 saved choices. The hue-only paint cue

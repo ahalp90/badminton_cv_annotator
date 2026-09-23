@@ -11,6 +11,7 @@ experiments, not successive versions of a deployable detector.
 | Review the final colour and automatic-edge trials | [Trial worklog](colour_consistency/PLAN.md); [decision gallery](colour_consistency/decision_gallery/index.html) |
 | Read settled findings and their evidence | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) |
 | Resume practical work and choose the next test | [pickup.md](pickup.md) |
+| Review the wider net preference failures | [71-case scan/worklog](net_recovery/WORKLOG.md); [15-case gallery](net_recovery/gallery/index.html); [saved measurements](net_recovery/saved_net_scan.json.gz) |
 | Read the completed fitting-objective investigation | [Local assessment](edge_polarity/local_audit/ASSESSMENT.md); [original prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
 | Read the completed four-part comparison | [evaluation_results_20260922.md](archive/20260922/evaluation_results_20260922.md) |
 | Read the historical SVD return assessment and locate its packages | [Critical assessment](evidence/webui_followup3_20260922/ASSESSMENT.md); [packages](evidence/webui_followup3_20260922/README.md) |
