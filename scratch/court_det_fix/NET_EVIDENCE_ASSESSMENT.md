@@ -2,16 +2,14 @@
 
 ## Resume
 
-**Finish the colour trials, then proceed to integration. The frontier packet
-does not currently justify another net experiment.** Its most practical idea
-is to stop net tape being counted as floor paint. The pending Am1 colour trial
-already tests one way to do that.
+**The frontier packet does not justify another net experiment before
+integration.** Its most practical idea is to stop net tape being counted as
+floor paint. The completed automatic colour trials did not produce a useful
+rejection rule; this leaves the Am1 failure unresolved.
 
 This is a pre-evaluation, not a new detector result. No net detector, ranking
-change or gallery was implemented. The next action remains Am2's floor cue,
-followed by Am1's observed-fragment cue. Revisit this recommendation only if
-those results expose a specific question that independent net evidence could
-answer.
+change or gallery was implemented. The negative colour result alone does not
+validate an alternative net cue. Follow [pickup](pickup.md) for the next stage.
 
 ## Evidence and judgement
 
@@ -79,14 +77,14 @@ can therefore be tested directly. Reselection would first require recovering
 the original ordering; a reference-best candidate must never be inserted as a
 replacement.
 
-The independent floor anchor remains a design question. Existing person boxes
+The automatic floor trial is now closed without a useful rejection. Existing person boxes
 are not automatically reliable court-floor labels. GX5 also has frame-6 boxes
 for a frame-5 image. The current colour diagnostic uses those raw boxes, while
 `verifier.mask_boxes_working()` correctly checks the frame relationship. This
 limits the existing GX5 occlusion masking and must be addressed before reusing
 it in a decision trial. No effect size from that mismatch has been measured.
 
-Sol owns future gallery building. Its brief must require literal reuse of
+Sol owns gallery building. Its brief must require literal reuse of
 `svd_search/gallery_template.html`, clearly labelled before/after decisions,
 explicit abstention, unchanged good controls, identical candidate access in
 each comparison, and visible locations of the evidence used. Preserve the

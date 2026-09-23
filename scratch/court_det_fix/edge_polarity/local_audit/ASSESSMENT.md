@@ -1,13 +1,87 @@
 # Centre-to-edge correction explains part of the court inset
 
-**23 September follow-up:** the final adoption decision will follow the colour
-trials. The user confirms that amateur reference annotations mix paint centres
-and outside edges, with the convention unknown per case. Small reference drift
-is therefore inconclusive. The current centre-to-edge rule also uses brightness
-polarity; dark paint needs an explicit check before claiming that rule handles
-it safely. The [colour runbook](../../colour_consistency/PLAN.md) owns the work.
+## Final policy — 23 September 2026
 
-**Keep centre-to-edge correction as an experimental candidate, and proceed to the saved-candidate SVD retention check.** The correction fixes a supported label error and is preferred in the initial four-case gallery. On SS03-34, it moves the upper-left corner about half a working pixel left. A substantial offset remains, especially upwards. The evidence does not support changing the projected paint width or adding a fixed corner offset. Production fitting remains unchanged.
+**Carry automatic stripe polarity forward as the preferred integration
+candidate. Keep the current fitter unchanged until that integration.** The
+user reviewed the six-case decision gallery and found automatic polarity
+practically identical to the earlier bright-paint rule, with both improving
+on the original fit. This is a qualitative ruling on the displayed comparison,
+not a claim that every displayed court is correct.
+
+The historical rule assumes brighter paint. A fixed-geometry brightness
+inversion reverses both its edge swaps and its centre choice. Automatic polarity
+handles that synthetic inversion and preserves original labels when polarity
+is unresolved. It is therefore preferable to requiring bright paint or manual
+polarity selection. Robustness on real dark-taped courts remains unestablished.
+The hue-only colour trial does not resolve that uncertainty.
+
+Nine of twelve cases have label sets different from the earlier saved arms.
+All twelve optimise to convergence; eleven pass both the camera and historical
+full-court gates. Yellow14 fails both. Am1 remains the wrong net-based court:
+its furthest corner moves about 7,245 working pixels from the earlier correction
+while still passing both gates. This exposes the acceptance/assignment failure;
+it does not by itself disqualify a local fitting correction. Neither rule
+resolves the wrong object being identified as a baseline.
+
+Of 382 retained fragments, 109 have unresolved polarity and 111 change labels
+from the original. The observed points, weights, intervals and fragment/sample
+IDs remain fixed. Automatic polarity describes a local stripe; it does not
+establish that the stripe is court paint. The earlier user preference covered the historical comparison. The latest
+review covers the six displayed automatic comparisons; the other six automatic
+fits have not received a user visual ruling.
+
+The final hue-only trial supplies no additional rejection: it keeps one saved
+choice and is inconclusive on eleven. It cannot remove the concern about dark
+or neutral paint, and it does not reject Am1's false baseline. The floor trial
+also supplies no useful rejection. No manual paint-colour or polarity selection
+is permitted in the auto-annotator.
+
+The user confirms that amateur annotations mix paint centres and outside edges.
+The convention is unknown per case. Small signed reference drift is therefore
+inconclusive. Preserve the initial visual preferences below without converting
+them into a per-case accuracy count.
+
+[The six-case gallery](../../colour_consistency/decision_gallery/index.html)
+compares original labels, the earlier bright-paint rule and automatic polarity.
+It includes the initial four cases, Am1 and an unchanged Am4 control. The user
+retains visual judgement. [Saved automatic results](../../colour_consistency/edge_auto_trial.json.gz)
+and the [trial worklog](../../colour_consistency/PLAN.md) preserve the checks.
+The selected direction is automatic polarity for the next integration, with
+uncertain evidence retaining original labels. No production fitting change is
+made by these experiments. Preserve the old rule as a comparison, not a
+bright-paint requirement in the auto-annotator.
+
+### Complexity and measured cost
+
+The automatic rule adds two small decision functions and reuses the observed
+stripe sampler. It samples 24 positions along each retained fragment, tries
+five perpendicular shifts, and compares each shift with two flanks. The older
+rule samples 14 positions at two side distances. Both use the same optimiser;
+neither adds a court-proposal search.
+
+On the 12 saved cases, a local single-thread timing probe measured a median
+64 ms for the bright-rule evidence stage. Adding automatic sampling and native
+image reading/conversion gives a conservative median total of about 154 ms
+(range 71–220 ms). Extra sampling alone costs a median 43 ms; native reading
+and conversion cost 48 ms. These are medians of three timed repeats after one
+warm-up per case. Context preparation, proposal generation, fitting and scoring
+are excluded. This standalone path does not reuse the existing greyscale cache;
+it is an implementation-cost estimate, not production latency.
+
+The extra cost is modest for sparse scene sampling. The reason to prefer the
+automatic version is its explicit handling of polarity, not an established
+real-world robustness gain. Local dark profiles can occur on bright-painted
+courts too: SS03-19 fragment 178 was inferred dark and retained its original
+label. That does not establish a dark physical paint stripe.
+
+## Historical bright-paint findings
+
+The correction explains a supported label error and was preferred in the
+initial four-case gallery. On SS03-34, it moves the upper-left corner about half
+a working pixel left. A substantial offset remains, especially upwards. The
+evidence does not support changing the projected paint width or adding a fixed
+corner offset. The SVD retention experiment proposed afterwards is now complete.
 
 The wider aim is a scene-level court detector that works without CourtKeyNet. This comparison asks whether fragments labelled as stripe centres should instead represent paint edges when their two sides differ strongly in brightness. The comparator corrects contradicted inner and outer edge labels. The candidate also resolves strongly polarised centre fragments to the matching edge. Both use the existing threshold of 10 grey levels sampled at ±1 working pixel. The parent court, points, marking identities, finite intervals and weights are frozen; reference corners do not choose labels. All cases are development comparisons.
 
@@ -58,4 +132,4 @@ The user reports one insignificant regression without naming the case. Separatel
 
 Independent Opus 5.5 High work reproduces the fragment 111, fragment 179 and combined fits. Its proxy-weight qualification is already acknowledged. Different 0.3 and 0.1 px rejection thresholds do not affect fragment 111, which exceeds both. The listed scripts, counterfactual, case runs and checks exit 0. The first amateur attempt stopped on invalid Am1; the completed diagnostic retains failed arms explicitly. Seven successful original-label refits match saved attempts within 1.4e−9 native px.
 
-The fitting investigation can close with this supported experimental candidate. Next, separately check whether the proposed singular-value decomposition (SVD) screen preserves useful saved automatic candidates. Preserve the full-source comparator; do not mix a direction-pruning change with the fitting correction. The remaining SS03-34 offset is a weighted compromise among constraints whose raw coordinates do not consistently match observed paint transitions. Its blur/width decomposition remains unresolved. Am1’s net-versus-court confusion needs separate selection or rejection work. Supporting results are in the [four-case diagnostics](diagnostics.json.gz), [fragment 111 diagnostic](fragment111.json.gz), [amateur results](amateur_results.json.gz) and [execution record](WORKLOG.md).
+The historical investigation closed with this experimental candidate. The subsequent singular-value decomposition (SVD) retention check is complete. Preserve the full-source comparator; do not mix a direction-pruning change with the fitting correction. The remaining SS03-34 offset is a weighted compromise among constraints whose raw coordinates do not consistently match observed paint transitions. Its blur/width decomposition remains unresolved. Am1’s net-versus-court confusion needs separate selection or rejection work. Supporting results are in the [four-case diagnostics](diagnostics.json.gz), [fragment 111 diagnostic](fragment111.json.gz), [amateur results](amateur_results.json.gz) and [execution record](WORKLOG.md).

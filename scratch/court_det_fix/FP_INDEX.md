@@ -8,6 +8,7 @@ experiments, not successive versions of a deployable detector.
 
 | I want to… | Open |
 | --- | --- |
+| Review the final colour and automatic-edge trials | [Trial worklog](colour_consistency/PLAN.md); [decision gallery](colour_consistency/decision_gallery/index.html) |
 | Read settled findings and their evidence | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) |
 | Resume practical work and choose the next test | [pickup.md](pickup.md) |
 | Read the completed fitting-objective investigation | [Local assessment](edge_polarity/local_audit/ASSESSMENT.md); [original prompt](edge_polarity/WEBUI_OBJECTIVE_AUDIT.md) |
@@ -62,7 +63,7 @@ between a parent and child without checking their geometry.
 | [wider_evaluation/](wider_evaluation/) | Preserved 71-view manifest, numeric fits and full-versus-G1/template comparison; source of the colour diagnostic's saved courts |
 | [svd_runtime/](svd_runtime/README.md) | SVD integration, retention links, completed matcher benchmark and optional compute audit |
 | [svd_search/](svd_search/WORKLOG.md) | Three-arm six-case experiment, all 18 result records, receipts and the shared gallery template |
-| [colour_consistency/](colour_consistency/PLAN.md) | Fixed-geometry measurements and gallery; no colour-driven selection, rejection or fitting rule yet |
+| [colour_consistency/](colour_consistency/PLAN.md) | Fixed-geometry diagnostic, completed automatic floor/paint decision trials, automatic edge comparison and galleries; no adopted colour veto |
 | [line_identity/](line_identity/) | Automatic line-matching proposal experiments; `line_run_matcher.py` is the line-identity matcher |
 | [direction_agreement/](direction_agreement/) | Fixed direction experiments and their E0–E4 records |
 | [frozen_helpers_20260914/](frozen_helpers_20260914/) | Fixed helper code used to reproduce older experiments |

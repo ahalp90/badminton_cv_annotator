@@ -23,21 +23,23 @@ experiment history through the 23 September handover. [FP_INDEX.md](FP_INDEX.md)
 | Follow the WebUI calculations | [Original prompts](evidence/webui_followups_20260922/PROMPTS.md); [returns 1/2 and local replay](evidence/webui_followups_20260922/README.md); [SVD returns and critical assessment](evidence/webui_followup3_20260922/ASSESSMENT.md) |
 | Integrate SVD12 and measure its matcher cost | [Current SVD state](svd_runtime/README.md); [completed nine-case timings](svd_runtime/RESULTS.md) |
 | Spend the saving on deeper axes or wider shortlists | [Completed six-case comparison and user review](svd_search/WORKLOG.md); [local comparison gallery](svd_search/gallery/index.html) |
+| Compare automatic paint and edge decisions | [Completed trial record](colour_consistency/PLAN.md); [six-case review gallery](colour_consistency/decision_gallery/index.html) |
 | Investigate Am1 net tape using colour | [Received WebUI colour probe](edge_polarity/webui_return_colour_consistency/README.md); [local replay and broader diagnostic](colour_consistency/PLAN.md) |
 | Understand what the colour gallery does and does not establish | [Diagnostic findings](colour_consistency/PLAN.md); [local gallery](colour_consistency/gallery/index.html). Existing fits were measured, not reranked or refitted |
 
 The SVD efficiency result and the deeper-search benefit on Am2 are completed
-findings. Colour effectiveness remains untested: its gallery displays fixed
-saved fits, often duplicated between source selections. The next behavioural
-experiment and broader detector work belong in [pickup](pickup.md).
+findings. Automatic floor and hue-only decision trials are also complete:
+neither supplies a useful rejection on the saved choices. See the
+[colour trial record](colour_consistency/PLAN.md). Broader detector work belongs
+in [pickup](pickup.md).
 
 ## Final net-evidence lead
 
 [Net evidence and court homography frontier packet](webui_net_evidence_frontier_handover/README.md)
 has received a bounded [pre-evaluation](NET_EVIDENCE_ASSESSMENT.md). Its practical
-net/floor ownership idea overlaps the pending Am1 colour trial. No additional
+net/floor ownership idea overlaps the completed Am1 colour trial. No additional
 net experiment is recommended before integration; no new net cue has been
-tested. Finish colour, then follow [pickup](pickup.md) towards the scene detector.
+tested. Follow [pickup](pickup.md) towards the scene detector.
 
 ## Inputs and code
 

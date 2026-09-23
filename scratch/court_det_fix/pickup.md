@@ -2,31 +2,32 @@
 
 ## Resume — 23 September 2026
 
-**Colour decision trials are now in progress.** The user authorised the colour
-experiments, a final centre-to-edge decision afterwards, and feature-branch
-commits at useful checkpoints. [The runbook](colour_consistency/PLAN.md) owns
-the active work. Limited image viewing is allowed for concrete ambiguity;
-Sol builds the galleries for the user's review.
+**The automatic colour trials are complete and do not justify a new rejection
+rule.** The floor cue rejected 0/9 saved choices. The hue-only paint cue
+rejected 0/12: one usable comparison, eleven inconclusive. Weak or neutral
+colour cannot supply a dependable hue. The intermediate raw-colour comparison
+rejected Am1 but still penalised paler examples of the same hue.
+[The experiment record](colour_consistency/PLAN.md) gives the evidence.
+
+**Carry automatic stripe polarity forward for fitting integration.** The user confirmed this choice because black markings are plausible and
+finds its six displayed comparisons practically identical to the bright-paint
+rule, with both improving on the original. It handles dark-stripe inversion in
+synthetic checks and adds modest cost. Real dark-court robustness remains
+unproven. Original labels remain when polarity is unresolved. The current
+production fitter is unchanged. See the [final edge policy](edge_polarity/local_audit/ASSESSMENT.md).
 
 Some amateur references mark paint centres and others mark outside edges.
-The user cannot identify which. Do not interpret small signed reference drift
-as improved or worsened alignment on those courts.
+The convention is unknown per case. Small signed reference drift cannot
+establish improved or worsened alignment on those courts.
 
-All proposed decisions must be automatic, including paint colour, polarity and
-floor references. Manual region selection is not an acceptable detector input.
-The initial manual-floor diagnostic was superseded before adoption.
-
-The automatic internal-marking floor cue also failed to change its nine saved
-choices and is closed. The player-floor detour was dropped: `sticky_anchor`
-pairs depend on court presence. Finish the bounded hue-based paint comparison
-and automatic edge-side assessment in the runbook; do not add player-selection
-machinery or reopen the floor search.
+All proposed decisions must be automatic. The manual-floor diagnostic was
+superseded. The floor and player-floor paths are closed: `sticky_anchor` pairs
+depend on court presence. Do not add player-selection machinery or reopen
+colour threshold searches to force a positive result.
 
 **SVD search reduction is implemented and measured. Deeper search has a useful
-visual result. Colour has only been measured on saved courts: no colour-based
-selection, rejection or fitting improvement has been tested.** The next useful
-experiment should change a decision on preserved candidates and show that
-change clearly. Do not ask the user to review another unchanged-fit gallery.
+visual result.** The remaining main task is the scene-level detector described
+below, with unresolved false acceptance treated explicitly.
 
 This is the only live handover. Read this file first; open linked evidence for
 a named question. [INDEX.md](INDEX.md) gives the history,
@@ -129,34 +130,25 @@ unhelpful for judging colour's benefit. The separate renderer was replaced by
 the actual shared SVD template, and the user confirmed its controls work. That
 confirms the UI, not colour efficacy. [Measurements, corrections and limits](colour_consistency/PLAN.md).
 
-## Recommended next experiment — not yet run
+## Completed automatic colour trials
 
-Start with **Am2's baseline court extending into the adjacent blue floor**.
-Test a bounded floor-region contradiction cue on preserved candidates. Sample
-court-side and outside strips, including stretches without detected paint.
-Anchor appearance to independently reliable visible court regions. A colour
-transition need not coincide with the painted badminton boundary; use paint
-for exact placement. The current diagnostic flags ambiguity on four of baseline's
-five supported markings and none of deeper's five, but that is only a lead.
+The floor trial compared W5, baseline SVD and deeper SVD choices on Am2-28019,
+GX0 and GX5. Reference floor colours came from the sides of observed internal
+markings. All nine choices were retained, including the bad Am2 baseline.
+At the stricter sensitivity setting two GX5 alternatives were rejected; this
+threshold-dependent result does not justify adoption.
 
-Compare known bad fits with the retained good Am2/GX examples. Keep the candidate
-pool fixed across comparator and colour arms; report rejection/abstention if
-that pool lacks a good replacement. Adding deeper or template candidates is a
-separate coverage change. Do not seed a selector with reference-best candidates
-chosen using annotations. Am2's full saved W5 fit is already good: rejecting its
-bad G0-only alternative would establish a useful cue, not an improvement to the
-existing full W5 selection by itself.
+The observed-paint trial used native image samples along retained fragments
+on twelve W5 choices. Distinct markings supplied references; the target marking
+was excluded. Raw-colour comparison rejected none. Grouping references by hue
+made Am1 separable, but comparing target colour strength still failed the
+same-hue pale-paint check. The final hue-only rule made no rejection. Low
+chroma and greyscale evidence remained inconclusive.
 
-Am1 supplies a second question: can colour measured along independently
-supported **observed fragments** distinguish tape from real paint without
-relying on the wrong fit's predicted stripe width? Keep that trial separate
-from the Am2 floor cue. Use genuine-paint controls and retain ambiguous outcomes.
-
-A useful deliverable is one small, real **before/after selection, rejection or
-fit comparison**, plus unchanged good controls. If the cue changes no useful
-decision, say so and stop it. Reuse the shared gallery template literally.
-Do not launch another full search or a broad unchanged-image review for this.
-This handover task does not itself launch either experiment.
+**Close both cues without integration.** Colour similarity cannot certify
+geometry, and these trials did not establish a useful automatic contradiction.
+Do not substitute annotated best candidates or add another threshold search.
+The [worklog](colour_consistency/PLAN.md) preserves all arms and limitations.
 
 ## One final new lead, then integration
 
@@ -169,7 +161,7 @@ with the reviewer. The packet combines historical
 net-image work and the Am1/GX audit with further net-assisted court-localisation
 ideas. The packet describes the older `1353541` checkout, before the search and
 colour results above. Its colour-probe script is identical to the earlier return.
-Its net/floor ownership idea overlaps the pending Am1 colour trial. The old
+Its net/floor ownership idea overlaps the completed Am1 colour trial. The old
 net scorer penalises missing support; do not restore that behaviour or use
 absence of net fragments as a rejection rule. A small independently annotated
 net test could establish information value, but no practical new detector
@@ -200,16 +192,18 @@ The historical catalogue, including work overlapping the final packet, remains i
 
 ## Local state and working agreements
 
-- The net pre-evaluation is complete. Colour experiments are in progress under
-  the runbook above; commits are authorised on `fix/court-det`. No production
-  detector change has yet been adopted.
+- The net pre-evaluation, colour trials and automatic-edge comparison are
+  complete. Commits are authorised on
+  `fix/court-det`. No production detector change has been adopted.
 - Branch `fix/court-det`. This close-out checkpoint includes colour code and
   measurements, both galleries, compact search results, received packets and
   these status updates. Use `git log -1` and `git status` for the current revision.
 - Both Carmack experiments and their transfers finished with exit 0. No compute
-  job or implementation worker remains active. Search receipts and all 18 outputs
+  job remains active. Search receipts and all 18 outputs
   are under `svd_search/`; do not relaunch the completed run.
-- Galleries: [SVD](http://127.0.0.1:8879/), [colour diagnostic](http://127.0.0.1:8880/).
+- Current review: [automatic edge decisions](http://127.0.0.1:8881/), served from
+  `colour_consistency/decision_gallery/`. Older galleries: [SVD](http://127.0.0.1:8879/),
+  [historical colour diagnostic](http://127.0.0.1:8880/).
   If the local servers have ended, serve `svd_search/gallery/` and
   `colour_consistency/gallery/` respectively. Their index files and data persist.
 - GPT-6 Sol medium/default tier owns bounded coding and galleries; use high for

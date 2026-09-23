@@ -39,16 +39,29 @@ canvas{width:100%;height:auto;display:block;background:#050b10}.full{cursor:cros
 'use strict';
 const cases=__GALLERY_DATA__;
 const colourMode=cases[0]?.gallery_mode==='colour';
+const decisionMode=cases[0]?.gallery_mode==='decision_trials';
 const labels={baseline:'Baseline · axes 512 / courts 256',deeper:'Deeper axes · 640 / 256',shortlist:'Wider shortlist · 512 / 512'};
 const viewLabels={selected:'Detector selection',oracle_generated:'Reference oracle: generated',oracle_refitted:'Reference oracle: refitted'};
 const colours={saved:'#f5f5f0',g1:'#95f0c4',baseline:'#00e5ff',deeper:'#ffb547',shortlist:'#dca9ff'};
 const colourNames={saved:'Saved W5',g1:'Saved G1/templates',baseline:'SVD baseline',deeper:'SVD deeper',shortlist:'SVD shortlist'};
 const sourceNames={saved:'saved_w5',g1:'saved_g1_templates',baseline:'svd_baseline',deeper:'svd_deeper',shortlist:'svd_shortlist'};
+const decisionNames={original:'Original fit',earlier:'Earlier bright-paint rule',automatic:'Automatic stripe polarity'};
+const decisionColours={original:'#e9eef2',earlier:'#ffbd67',automatic:'#69d9f0'};
+if(decisionMode){
+ document.title='Experimental court decisions · review gallery';
+ document.querySelector('h1').textContent='Experimental court decisions';
+ const paragraphs=document.querySelectorAll('header p');
+ paragraphs[0].textContent='Saved colour decisions and three fits from the same frozen parent. The colour rules and automatic stripe polarity are experimental.';
+ paragraphs[1].textContent='A kept or undecided candidate is retained; neither result certifies the geometry. The camera gate also does not establish visual correctness.';
+ paragraphs[2].textContent='Click a full image to focus every enlarged crop. Select a corner to jump there. Hold Space to hide overlays.';
+ document.getElementById('view').closest('label').hidden=true;
+ document.getElementById('reference').closest('label').hidden=true;
+}
 if(colourMode){
  document.title='Colour consistency · court gallery';
  document.querySelector('h1').textContent='Colour consistency on saved court geometry';
  const paragraphs=document.querySelectorAll('header p');
- paragraphs[0].textContent='Saved W5 and G1/templates stay side by side. Six cases also show SVD G0 detector selections or reference-best refits. Reference-best is retrospective.';
+ paragraphs[0].textContent='Historical diagnostic: these are saved fits, not before/after colour results. The completed automatic colour trials produced no useful rejection. Saved W5 and G1/templates compare candidate sources; reference-best refits are retrospective.';
  paragraphs[1].textContent='Colour distances describe supported paint and local paint-minus-floor measurements; they do not establish court correctness. Missing support and greyscale views are labelled. Click a full image to focus every crop.';
  paragraphs[2].textContent='Select a corner beneath each case to jump there. Hold Space to hide outlines temporarily. Outside boundaries are shown by default.';
  document.querySelector('#view option[value="oracle_generated"]').remove();
@@ -79,17 +92,28 @@ function draw(canvas,image,data,name,focus,isCrop){
  ctx.drawImage(image,0,0,...data.size);
  if(!document.getElementById('outlines').checked||spaceHeld)return;
  const view=document.getElementById('view').value;
- const geometry=name==='saved'?data.saved_geometry:name==='g1'?data.g1_geometry:data.arms[name].geometry[view];
+ const geometry=decisionMode?data.decision_views[name].geometry:name==='saved'?data.saved_geometry:name==='g1'?data.g1_geometry:data.arms[name].geometry[view];
  const thickness=Number(document.getElementById('width').value);
  const scale=box[2]/canvas.getBoundingClientRect().width;
  ctx.globalAlpha=Number(document.getElementById('opacity').value);ctx.lineJoin='round';
- if(!colourMode&&document.getElementById('reference').checked)strokeLines(ctx,outline(data.reference),'#f6e45d',thickness,scale,[11,7]);
+ if(!colourMode&&!decisionMode&&document.getElementById('reference').checked)strokeLines(ctx,outline(data.reference),'#f6e45d',thickness,scale,[11,7]);
  if(geometry){
   const mode=document.getElementById('mode').value;
   const lines=mode==='edges'?geometry.edges.slice():outline(geometry.corners);
   if(mode==='centres')lines.push(...geometry.centres);
-  const dashes=name!=='saved'&&name!=='g1'&&view!=='selected'?[18,8,3,8]:[];
-  strokeLines(ctx,lines,colours[name],thickness,scale,dashes);
+  const dashes=decisionMode?(name==='earlier'?[12,7]:name==='automatic'?[18,6,3,6]:[]):name!=='saved'&&name!=='g1'&&view!=='selected'?[18,8,3,8]:[];
+  strokeLines(ctx,lines,decisionMode?decisionColours[name]:colours[name],thickness,scale,dashes);
+ }
+ if(decisionMode&&name==='original'&&data.saved_w5_geometry){
+  strokeLines(ctx,outline(data.saved_w5_geometry.corners),'#dca9ff',thickness,scale,[3,5]);
+ }
+ if(decisionMode&&name==='original'&&data.paint){
+  for(const sample of data.paint.samples){
+   const target=sample.name==='far_baseline';
+   ctx.beginPath();ctx.setLineDash([]);ctx.lineWidth=2*scale;
+   if(target){ctx.arc(...sample.xy,4*scale,0,Math.PI*2);}else{ctx.rect(sample.xy[0]-3*scale,sample.xy[1]-3*scale,6*scale,6*scale);}
+   ctx.fillStyle=target?'#ffbd67':'#69d9f0';ctx.strokeStyle='#071019';ctx.fill();ctx.stroke();
+  }
  }
  ctx.globalAlpha=1;
 }
@@ -101,6 +125,23 @@ function colourSource(data,name,view){
 function number(value){return value==null?'—':Number(value).toFixed(2);}
 function triplet(values){return values==null?'—':values.map(number).join(', ');}
 function cell(row,value){const element=document.createElement('td');element.textContent=value;row.append(element);}
+function decisionEvidence(section,data){
+ if(data.paint){
+  const paint=data.paint;
+  const paragraph=document.createElement('p');paragraph.textContent='Am1 colour cue: raw paint makes no decision; hue-grouped raw-colour comparison rejects; final hue-only makes no decision. The final cue retains the saved W5 candidate (purple dotted outline in the first panel). The original edge fit is invalid. The hue-grouped raw result is diagnostic and fails the pale same-hue check.';section.append(paragraph);
+  const decisions=document.createElement('table');decisions.innerHTML='<thead><tr><th>Experimental colour rule</th><th>Decision</th><th>Far baseline</th></tr></thead>';
+  for(const [label,key] of [['Raw AB paint','raw'],['Hue-grouped raw-colour mismatch','hue_grouped_raw'],['Hue-only','hue_only']]){
+   const result=paint[key],row=document.createElement('tr');cell(row,label);cell(row,result.after.replaceAll('_',' '));
+   const target=result.targets.far_baseline;cell(row,`${target.decision.replaceAll('_',' ')} · ${target.reason.replaceAll('_',' ')}`);decisions.append(row);
+  }
+  section.append(decisions);
+  const table=document.createElement('table');table.innerHTML='<thead><tr><th>Observed marking</th><th>Raw OpenCV AB</th><th>Hue / chroma</th><th>Fragments</th></tr></thead>';
+  for(const marking of paint.markings){const row=document.createElement('tr');cell(row,marking.name.replaceAll('_',' '));cell(row,marking.raw_ab.map(number).join(', '));cell(row,`${marking.hue.toFixed(1)}° / ${marking.chroma.toFixed(1)}`);cell(row,String(marking.fragments));table.append(row);}section.append(table);
+  const legend=document.createElement('p');legend.className='small';legend.textContent='Saved sampled fragment centres: amber circles mark the far baseline target; cyan squares mark other supported markings. Positions use native-to-working image scale.';section.append(legend);
+ }
+ const table=document.createElement('table');table.innerHTML='<thead><tr><th>Fit</th><th>Status</th><th>Maximum corner movement vs earlier rule</th></tr></thead>';
+ for(const name of ['original','earlier','automatic']){const view=data.decision_views[name],row=document.createElement('tr');cell(row,decisionNames[name]);cell(row,view.valid?'saved fit available':`${view.status.replaceAll('_',' ')} · no accepted outline`);cell(row,name==='automatic'?distance(data.movement_px):'—');table.append(row);}section.append(table);
+}
 function colourEvidence(section,data,names){
  const evidence=document.createElement('div');evidence.className='evidence';
  const summary=document.createElement('table');
@@ -142,20 +183,27 @@ function colourEvidence(section,data,names){
  section.append(evidence);
 }
 const redraw=[];
+if(decisionMode){
+ const summary=cases[0].decision_summary,header=document.querySelector('header');
+ const table=document.createElement('table');table.innerHTML='<thead><tr><th>Frozen comparison</th><th>Numerical result</th></tr></thead>';
+ for(const [label,result] of [['Floor primary',`${summary.floor.changed}/${summary.floor.total} changes (closed)`],['Raw AB paint primary',`${summary.raw.rejected}/${summary.raw.total} rejections`],['Hue-grouped raw-colour mismatch',`${summary.grouped.rejected}/${summary.grouped.total} rejections (Am1; diagnostic, fails pale same-hue check)`],['Final hue-only',`${summary.hue.abstain} rejections · ${summary.hue.keep} keeps · ${summary.hue.no_decision} no decisions`],['Automatic stripe polarity',`${summary.edge.valid}/${summary.edge.total} gate-valid fits · ${summary.edge.exact_reuse} exact saved-arm matches`]]){const row=document.createElement('tr');cell(row,label);cell(row,result);table.append(row);}header.append(table);
+ const note=document.createElement('p');note.textContent='Amateur references mix centre and outer-edge annotations. Corner movement below measures change between fits, not improvement against an annotation.';header.append(note);
+}
 for(const data of cases){
  const link=document.createElement('a');link.href='#'+data.case_id;link.textContent=data.case_id;document.getElementById('nav').append(link);
  const section=document.createElement('section');section.id=data.case_id;
  const heading=document.createElement('h2');heading.textContent=data.case_id;section.append(heading);
  if(colourMode){const context=document.createElement('p');context.className='small';context.textContent=`${data.group} · ${data.control_label||data.view_status||'unverified'} · ${data.chromatic?'chromatic image':'greyscale-only image'}`;section.append(context);}
- const names=colourMode?['saved','g1',...(Object.keys(data.arms).length?['baseline','deeper','shortlist']:[])]:['saved','baseline','deeper','shortlist'];
+ if(decisionMode){const context=document.createElement('p');context.className='small';context.textContent=`${data.context} · ${data.box_mask.same_image_available?`${data.box_mask.count??data.box_mask.box_count} same-frame player boxes`:'same-frame player box mask unavailable'}${data.reused_saved_arm?` · automatic fit exactly reuses saved ${data.reused_saved_arm.replaceAll('_',' ')} arm`:''}`;section.append(context);}
+ const names=decisionMode?['original','earlier','automatic']:colourMode?['saved','g1',...(Object.keys(data.arms).length?['baseline','deeper','shortlist']:[])]:['saved','baseline','deeper','shortlist'];
  const grid=document.createElement('div');grid.className='grid';grid.style.setProperty('--columns',names.length);section.append(grid);
  const image=new Image();const panels={};
- const focusCorners=colourMode?(data.saved_selected||data.g1_geometry?.corners||Object.values(data.arms).flatMap(arm=>[arm.selected,arm.oracle_refitted]).find(Boolean)):data.saved_selected||data.reference;
+ const focusCorners=decisionMode?(data.saved_selected||data.saved_w5_geometry?.corners||data.decision_views.earlier.geometry?.corners||data.decision_views.automatic.geometry?.corners):colourMode?(data.saved_selected||data.g1_geometry?.corners||Object.values(data.arms).flatMap(arm=>[arm.selected,arm.oracle_refitted]).find(Boolean)):data.saved_selected||data.reference;
  const initialFocus=focusCorners?[...focusCorners[0]]:[data.size[0]/2,data.size[1]/2];
  const state={focus:initialFocus,corner:null};
  for(const name of names){
   const panel=document.createElement('div');panel.className='panel';
-  const title=document.createElement('div');title.className='label';title.style.color=colours[name];panel.append(title);
+  const title=document.createElement('div');title.className='label';title.style.color=decisionMode?decisionColours[name]:colours[name];panel.append(title);
   const canvas=document.createElement('canvas');canvas.className='full';canvas.width=data.size[0];canvas.height=data.size[1];panel.append(canvas);
   canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect();state.focus=[(event.clientX-rect.left)/rect.width*data.size[0],(event.clientY-rect.top)/rect.height*data.size[1]];state.corner.value='custom';update();});
   const detail=document.createElement('div');detail.className='label small';
@@ -170,13 +218,14 @@ for(const data of cases){
  cropGrid.style.setProperty('--columns',names.length);
  for(const name of names){
   const panel=document.createElement('div');panel.className='panel crop';
-  const title=document.createElement('div');title.className='label';title.style.color=colours[name];panel.append(title);
+  const title=document.createElement('div');title.className='label';title.style.color=decisionMode?decisionColours[name]:colours[name];panel.append(title);
   const canvas=document.createElement('canvas');canvas.width=600;canvas.height=450;panel.append(canvas);
   panels[name].cropTitle=title;panels[name].crop=canvas;cropGrid.append(panel);
  }
- const note=document.createElement('p');note.className='small';note.textContent=colourMode?'Reference-best refits are retrospective. A missing outline means that source has no candidate. Raw-paint and floor-relative ab distances are separate measurements.':'Oracle outlines use a long-short dash pattern. A missing outline means no selectable candidate in that view.';section.append(note);
+ const note=document.createElement('p');note.className='small';note.textContent=decisionMode?'Solid: original. Dashed: earlier bright-paint rule. Dash-dot: automatic stripe polarity. Invalid or unavailable fits have no outline.':colourMode?'Reference-best refits are retrospective. A missing outline means that source has no candidate. Raw-paint and floor-relative ab distances are separate measurements.':'Oracle outlines use a long-short dash pattern. A missing outline means no selectable candidate in that view.';section.append(note);
+ if(decisionMode)decisionEvidence(section,data);
  if(colourMode)colourEvidence(section,data,names);
- if(!colourMode){
+ if(!colourMode&&!decisionMode){
  const table=document.createElement('table');table.innerHTML='<thead><tr><th>Arm</th><th>Selected vs reference</th><th>Selected vs saved W5</th><th>Best selectable generated vs reference</th><th>Best selectable refitted vs reference</th><th>Generation wall</th><th>Refit/scoring wall</th><th>Pairs reaching cap</th><th>Axis exclusions</th></tr></thead>';
  const body=document.createElement('tbody');for(const name of ['baseline','deeper','shortlist']){const arm=data.arms[name];const row=document.createElement('tr');
  for(const value of [labels[name],distance(arm.selected_error),distance(arm.selected_saved_error),distance(arm.oracle_generated_error),distance(arm.oracle_refitted_error),arm.timing.generation.wall_s.toFixed(1)+' s',arm.timing.refit_and_scoring.wall_s.toFixed(1)+' s',String(arm.counts.per_pair_cap_reached),String(arm.counts.axis_cap_exclusions)]){const cell=document.createElement('td');cell.textContent=value;row.append(cell)}body.append(row)}table.append(body);section.append(table);
@@ -187,7 +236,10 @@ for(const data of cases){
   cropNote.textContent=`Enlarged crop · centre (${state.focus[0].toFixed(1)}, ${state.focus[1].toFixed(1)}) · 120 × 90 working pixels`;
   for(const name of Object.keys(panels)){
   const {title,detail,canvas,cropTitle,crop}=panels[name];
-   if(colourMode){
+   if(decisionMode){
+    const fit=data.decision_views[name];title.textContent=`${decisionNames[name]}${fit.valid?'':' · no accepted fit outline'}`;
+    detail.textContent=fit.valid?(name==='automatic'&&data.reused_saved_arm?`Exact saved ${data.reused_saved_arm.replaceAll('_',' ')} arm`:'Saved fit · experimental comparison'):`${fit.status.replaceAll('_',' ')} · no accepted fit outline${data.saved_w5_geometry&&name==='original'?' · dotted saved W5 candidate':''}`;
+   }else if(colourMode){
     const source=colourSource(data,name,view);
     const retrospective=name!=='saved'&&name!=='g1'&&view==='oracle_refitted';
     title.textContent=`${colourNames[name]} · ${retrospective?'reference-best refit (retrospective)':'selection'}${source.status==='measured'?'':' · no candidate'}`;

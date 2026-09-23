@@ -21,15 +21,24 @@ decisions must therefore be inferred automatically. Ambiguous evidence leaves
 the cue unavailable. The initial manual-patch diagnostic is archived locally
 and cannot qualify a rule for adoption.
 
-**Current status:** the automatic internal-marking floor cue changed none of
-nine decisions and is closed. The first observed-paint rule changed none of
-12 decisions. One final comparison groups coloured reference paint by hue,
-with saturation used to assess colour reliability. The automatic edge-side
-comparison is running alongside it. The player-floor idea was dropped: saved
-`sticky_anchor` player pairs depend on court presence and are circular evidence
-for finding the court. Do not introduce a new player-selection stage here.
+**Colour decisions complete:** the automatic floor cue rejected 0/9 saved
+choices. The final hue-only cue rejected 0/12: one comparison was usable and
+11 were inconclusive. Neither cue qualifies for integration. A hue-grouped
+raw-colour comparison rejected Am1, but still rejects paler examples of the
+same hue; that intermediate result does not establish hue-only efficacy.
 
-### Current runbook
+The player-floor idea is closed. Saved `sticky_anchor` pairs depend on court
+presence. Do not introduce a new player-selection stage here. The automatic
+edge trial is complete. **Carry automatic polarity forward as the preferred
+fitting integration candidate.** The user finds its six displayed comparisons
+practically identical to the bright-paint rule and both improved over the
+original. It handles synthetic polarity inversion with modest added cost.
+Real dark-court robustness is still unproven. Am1 remains a separate assignment
+and acceptance failure. The current production fitter is unchanged; see the
+[final policy and timing](../edge_polarity/local_audit/ASSESSMENT.md).
+No further colour search is planned.
+
+### Completed trial scope
 
 1. **Floor contradiction:** test saved W5 and selected SVD baseline/deeper
    courts for Am2-28019, GX0 and GX5. Infer floor reference colours from the
@@ -74,9 +83,8 @@ test suite is justified by these standalone experiments.
 
 ### Current concerns and module state
 
-- `floor_trial.py` is being revised by Sol to use automatic observed-fragment
-  floor references. `observed_colour.py` will share native sampling with
-  `fragment_trial.py`. All three use unchanged geometry and same-frame masks.
+- `floor_trial.py` uses automatic observed-fragment floor references.
+  `observed_colour.py` shares native sampling with `fragment_trial.py`. All three use unchanged geometry and same-frame masks.
   GX5 has no such mask; its subtitle may affect image evidence.
 - The existing projected-stripe diagnostic remains historical and unchanged.
   Its GX5 box mask did not enforce the same-frame requirement; new trials use
@@ -86,7 +94,7 @@ test suite is justified by these standalone experiments.
 - The shared SVD template and existing galleries remain the renderer baseline.
   The final gallery must show changed decisions and reasons, with good controls.
 
-### Execution record — active trials
+### Execution record — completed trials
 
 - `75ff070 Record the colour trials and annotation limits`: documented the net
   pre-evaluation, experiment scope and mixed annotation conventions. Link and
@@ -96,10 +104,9 @@ test suite is justified by these standalone experiments.
   hallucinations at the primary threshold. Those rejections disappeared at
   20 ab units. No threshold was tuned. This result does not establish automatic
   efficacy. Its code, data and checks are retained only under
-  `local_scratch/external_delegate/20260923-floor-trial/`; the live runner is
-  being replaced with the automatic formulation. Scoped lint, syntax, synthetic
+  `local_scratch/external_delegate/20260923-floor-trial/`; the live runner now uses the automatic formulation. Scoped lint, syntax, synthetic
   boundaries, source-geometry checks and real execution passed (exit 0).
-- Active Sol task: automatic fragment-colour and floor trials, artefacts under
+- Completed Sol task: automatic fragment-colour and floor trials, artefacts under
   `local_scratch/external_delegate/20260923-automatic-colour/`, completed with
   exit 0. Paint decisions: eight keep, four no-decision, zero rejections. Am1's
   references were ambiguous under raw-ab grouping; the three ShuttleSet views
@@ -112,13 +119,28 @@ test suite is justified by these standalone experiments.
   The historical rule swaps both edge labels and reverses the centre choice.
   Weak or masked evidence remains unchanged. Results are under
   `local_scratch/external_delegate/20260923-edge-polarity-check/`.
-- Active Sol task: `paint_grouping_trial.py` and `edge_auto_trial.py`, artefacts
-  under `local_scratch/external_delegate/20260923-paint-edge-decision/`, session
-  8956. The grouping comparison uses the same saved samples and geometry. The
-  edge comparison infers stripe polarity automatically; unresolved polarity
-  preserves the original label. No gallery worker or independent reviewer is
-  active yet. Final colour decisions must follow the user's hue-first
-  preference and keep low-chroma uncertainty explicit.
+- `f4c6bf6 Test automatic colour evidence on saved court choices`: committed
+  the shared sampler, first paint trial and automatic floor trial with their
+  saved outputs.
+- Completed Sol task: `paint_grouping_trial.py` and `edge_auto_trial.py`, with
+  checks under `local_scratch/external_delegate/20260923-paint-edge-decision/`.
+  The edge trial infers stripe polarity automatically; unresolved polarity
+  preserves the original label. All 12 fits converge; Yellow14 fails the
+  camera/full-court gate. Three label sets exactly reuse historical arms;
+  nine differ. Of 382 fragments, 109 have unresolved polarity and 111 change
+  labels from the original. Neither convergence nor camera eligibility proves
+  correct geometry. Scoped lint, syntax and behavioural checks exited 0;
+  Serena returned no diagnostics.
+- Completed Sol task: hue-only target comparison and shared-template gallery,
+  under `local_scratch/external_delegate/20260923-colour-gallery/`.
+  The hue-only result is 0 abstain, 1 keep, 11 no-decision. Low chroma is
+  inconclusive; it is not a reason to reject a neutral target against coloured
+  references. The intermediate hue-grouped raw comparison remains labelled
+  separately for reproducibility.
+- Opus 5-5 high completed the substantive source audit without a time limit.
+  Shell access failed, so saved results were reconciled locally afterwards.
+  Record and findings are under
+  `local_scratch/external_delegate/20260923-colour-edge-audit/`.
 
 ### Earlier diagnostic resume
 
@@ -506,3 +528,106 @@ The completed SVD gallery received a further user assessment: GX0 refits are
 near-perfect across arms and improve on saved W5; Am2 is suitable only for saved
 W5 and deeper axes. Deeper Am2 is acceptable before refitting and perfect after
 it. These findings are recorded in [the SVD worklog](../svd_search/WORKLOG.md).
+
+### Final comparison and integration checks — 23 September 2026
+
+The final hue-only arm uses angular distance, with chroma only establishing
+whether hue is reliable. Reference markings have equal total weight. Targets
+are excluded from their references. The 15°, 20° and 25° sensitivity arms each
+produce zero rejections, one keep and eleven no-decisions. Neutral Am1 tape is
+inconclusive; no extra material classifier was introduced to force rejection.
+Same-hue pale paint, different-hue paint, angle wrap, missing/weak evidence,
+target exclusion and fragment-replication checks pass (exit 0).
+
+Sol reused the shared SVD template for a six-case comparison: SS03-34, SS03-29,
+SS03-19, GX5, Am1 and Am4. The gallery distinguishes original labels, the earlier
+bright-paint rule and automatic polarity. Am1 includes the separate saved W5
+choice and observed colour evidence. It is also the largest edge-fit movement,
+about 7,245 working pixels. An unavailable or invalid fit has no accepted outline.
+Colour trials do not change any displayed geometry.
+
+Integration found and corrected a gallery unit error: edge fit `corners_px`
+are already working pixels; saved W5 corners and observed sample locations are
+native pixels. The first gallery worker scaled both. Checking against the
+explicit saved `measurement.corners_working_px` now passes for all 17 accepted
+fits in the six-case gallery. The first four original fits also match the old
+gallery geometry within 0.001 working pixels. Camera-ineligible copies produce
+no accepted outline. Saved W5 and all 13 observed sample centres separately
+match their native-to-working conversion. JavaScript and template checks pass
+(exit 0); final builder Serena diagnostics are empty.
+This does not affect numeric trial results or the edge-policy decision.
+
+Whole-project Pyrefly completed with exit 0: zero errors, 39 suppressed.
+This project check is separate from scoped checks on the scratch scripts.
+The current documentation's local links and Git whitespace checks pass.
+
+The old colour gallery now identifies itself as a historical diagnostic. Its
+saved source comparisons must not be read as before/after colour intervention.
+The current review is [the decision gallery](decision_gallery/index.html), served
+locally at <http://127.0.0.1:8881/> (HTTP check 200). The image overlays were built
+and corrected by Sol; visual judgement remains with the user.
+
+### Independent audit and final ruling
+
+Opus 5-5 high completed one read-only source review. Its shell calls hung, so it
+could not open compressed numeric results or reproduce reported counts. Its
+three Serena checks were clean. Model usage confirms the requested model.
+The local reconciliation script then verified the saved counts, both fit gates,
+working-pixel coordinates and a reproducible seed-23 case draw (Am1).
+
+- **Floor evidence gaps:** the reported reproduction is real: masking the
+  middle of a 14-location contradiction leaves runs of seven and six, changing
+  abstain to keep with 39 paired locations remaining. This follows the declared
+  contiguous-location rule. `keep` means no demonstrated veto, not verified
+  floor agreement. Joining observations across unseen gaps would change that
+  rule; it is not an automatic correctness fix. Missing evidence may weaken a
+  rejection, and must never strengthen one. The closed negative trial remains
+  reported with this limitation.
+- **Original paint dispersion:** the first arm pooled fragments for its scale.
+  That allows one marking with more fragments to dominate the threshold. The
+  preserved original is diagnostic only. Both balanced arms and final hue-only
+  give each reference marking total weight one; they are the relevant results.
+- **Fit gates:** all eleven `automatic_valid` cases also pass the stored
+  historical full-court gate; Yellow14 fails both. The runner's flag itself
+  only tests camera eligibility. Do not assume the two gates are equivalent
+  for future data. Am1 demonstrates that passing both does not certify a court.
+- **Dark local profiles:** SS03-19 fragment 178 is the only dark inference in
+  the three ShuttleSet views. It retains its original label; it does not meet
+  the reviewer's proposed trigger of a dark inference changing that label.
+  Its sampled centre is darker than both flanks on visibly bright-painted
+  footage. This is a local image profile, not proof of physical dark paint.
+  Possible confusion with nearby structures remains a limit of the method.
+- **Hue under colour casts:** no cast-invariance claim is established. Hue-only
+  tolerates colour-strength changes at fixed hue; lighting can also change hue.
+
+The user subsequently reviewed the six-case decision gallery and judged the
+automatic and earlier bright-paint corrections practically identical, with
+both improving on the original. This supports choosing automatic polarity for
+the next integration, while preserving uncertainty on real dark-taped courts
+and the six unreviewed automatic fits. The known wrong Am1 assignment remains
+unresolved by either correction. No production change is made in this phase.
+
+A bounded local timing probe used one warm-up and three measured repeats per
+case, one OpenCV thread and one BLAS thread. Median bright-rule evidence time
+was 64 ms; adding native image preparation and automatic sampling gives about
+154 ms (71–220 ms across case medians). This excludes proposal generation,
+context preparation, fitting and scoring. The additional sampling median is
+43 ms; native read/conversion median is 48 ms. The standalone probe does not
+use `prepared_measurements`; integration should reuse that existing cache.
+There is no need to create another greyscale-cache mechanism.
+
+Reconciliation and timing scripts/results are retained locally under
+`local_scratch/external_delegate/20260923-colour-edge-audit/` and
+`local_scratch/external_delegate/20260923-edge-cost/`. The saved numeric checks,
+scoped Ruff, syntax, gallery payload and JavaScript checks all exited 0.
+The gallery correction is recorded under `20260923-gallery-scale-fix/`.
+
+The user confirmed retaining automatic polarity because black court markings
+are plausible. The general colour question is closed for this phase. Am1's
+remaining failure is a separate recovery/abstention question. The current
+follow-up examines existing options before choosing another experiment.
+
+Final checkpoint: `Record the colour outcome and preferred edge correction`.
+It includes the final trials, corrected shared-template gallery, current
+handover and policy. The earlier diagnostic gallery is labelled historical.
+Unrelated frozen images, raw searches and local review artefacts remain local.
