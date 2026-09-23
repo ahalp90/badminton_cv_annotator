@@ -44,15 +44,6 @@ class AdmissionSelection:
     removed_from_floor_zero: np.ndarray
 
 
-def union_distance_map(segments: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """Build one distance map from every cached working-image fragment."""
-    width, height = size
-    mask = np.full((height, width), 255, dtype=np.uint8)
-    for x1, y1, x2, y2 in np.rint(segments).astype(int):
-        cv2.line(mask, (x1, y1), (x2, y2), 0, 1)
-    return cv2.distanceTransform(mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
-
-
 def geometry_and_support(
     homographies: np.ndarray,
     distance_map: np.ndarray,
@@ -446,7 +437,7 @@ def generate(
     if not len(rectangles_array):
         return Generation((), _empty_metadata(settings, started, "no_area_valid_rectangles"))
 
-    union_map = union_distance_map(context.segments, context.size)
+    union_map = detector.distance_map(context.segments, context.size)
     native_scale = np.asarray(context.native_size, dtype=np.float64) / np.asarray(context.size, dtype=np.float64)
     all_corners = []
     all_means = []

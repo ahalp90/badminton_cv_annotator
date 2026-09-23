@@ -250,15 +250,25 @@ def _image_rectangles(
     return np.asarray(rectangles).reshape(-1, 3, 3)
 
 
-def _distance_maps(families: tuple[np.ndarray, np.ndarray], size: tuple[int, int]) -> np.ndarray:
+def distance_map(segments: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """Give each working-image pixel its distance to the nearest drawn fragment."""
     width, height = size
-    maps = []
-    for segments in families:
-        mask = np.full((height, width), 255, dtype=np.uint8)
-        for x1, y1, x2, y2 in np.rint(segments).astype(int):
-            cv2.line(mask, (x1, y1), (x2, y2), 0, 1)
-        maps.append(cv2.distanceTransform(mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE))
-    return np.stack(maps)
+    mask = np.full((height, width), 255, dtype=np.uint8)
+    for x1, y1, x2, y2 in np.rint(segments).astype(int):
+        cv2.line(mask, (x1, y1), (x2, y2), 0, 1)
+    # Intel's IPP version rounds differently depending on where the output
+    # array lands in memory, so repeat runs gave slightly different scores.
+    # OpenCV's own version gives the same bits every time and is faster here.
+    use_ipp = cv2.ipp.useIPP()
+    cv2.ipp.setUseIPP(False)
+    try:
+        return cv2.distanceTransform(mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    finally:
+        cv2.ipp.setUseIPP(use_ipp)
+
+
+def _distance_maps(families: tuple[np.ndarray, np.ndarray], size: tuple[int, int]) -> np.ndarray:
+    return np.stack([distance_map(segments, size) for segments in families])
 
 
 def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -> tuple[np.ndarray, np.ndarray]:

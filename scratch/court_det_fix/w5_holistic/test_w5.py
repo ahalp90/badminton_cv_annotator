@@ -16,7 +16,6 @@ from line_template_source import (
     attach_w5_gates,
     geometry_and_support,
     select_with_visibility_floor,
-    union_distance_map,
     vector_camera_errors,
     visibility_eligible,
 )
@@ -316,7 +315,7 @@ def test_previous_stage5_anchor_keeps_only_final_c_selection(tmp_path: Path) -> 
 
 def test_line_template_union_map_keeps_working_image_shape() -> None:
     segments = np.asarray([[10, 10, 90, 10], [10, 90, 90, 90], [10, 10, 10, 90], [90, 10, 90, 90]], dtype=float)
-    distance_map = union_distance_map(segments, (100, 100))
+    distance_map = detector.distance_map(segments, (100, 100))
     assert distance_map.shape == (100, 100)
     corners = np.asarray([[10, 10], [90, 10], [90, 90], [10, 90]], dtype=np.float32)
     homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M.astype(np.float32), corners)
