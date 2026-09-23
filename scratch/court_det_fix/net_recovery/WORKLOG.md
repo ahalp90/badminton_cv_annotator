@@ -2,10 +2,17 @@
 
 ## Resume
 
-The bounded replay is complete and ready for visual review. The primary weight
+The user judges the displayed combination of bounded net selection and
+automatic stripe-polarity fitting very usable. Frequent tiny imperfections in
+amateur footage are acceptable. This is a gallery-level judgement, not a set
+of separately recorded per-case votes. The requested next comparison is
+statistical, with visual review reserved for meaningful or unclear cases.
+
+The bounded replay and paired statistical comparison are complete. The primary weight
 0.04 changes 15 of 72 pools, preserves the accepted seeded Am1 recovery, and
 keeps the original selection on all five previously reported regression views.
-The weight remains provisional. The cue measures lower-quarter post support;
+Keep weight 0.04 for the next combined trial; it is not a statistically proven
+optimum. The cue measures lower-quarter post support;
 it does not reliably identify the physical base. No production rule is adopted.
 
 Review the [selection gallery](bounded_gallery/index.html), then the separate
@@ -470,7 +477,8 @@ stripe correction, and no net-to-court colour matching is used.
 
 Limited inspection of Am1's fitting comparison finds both versions still follow
 the intended court. The near-corner placement changes visibly; the user has not
-yet judged whether the corrected fit is preferable.
+given a separate before/after ruling for this case. Subsequently, the user
+judged the displayed combined selections and corrected fits very usable.
 
 ### Outputs, checks and next decision
 
@@ -510,3 +518,49 @@ Pyrefly exit 0. All linked gallery images are already tracked. The changed
 Markdown links and `git diff --check` pass (exit 0). The existing port 8883
 server served the Am1 fitting comparison successfully in Chromium; the
 delegate's sandbox-local connection failure did not indicate a dead server.
+
+## Statistical setting choice and usability ruling
+
+**Keep net weight 0.04 and overrun 4 working pixels for the combined trial.**
+The user judges the displayed net-selected, stripe-corrected courts very usable.
+The [paired analysis](statistics/paired_reference_report.md) supports keeping
+that setting without further small-parameter tuning. It does not establish a
+statistically reliable optimum.
+
+Across 45 reference-bearing frames, the median per-frame reference-point error
+is 3.40 working pixels at zero weight, 2.75 at both 0.02 and 0.04, and 2.76 at
+0.08. At 0.04 the 90th percentile is 5.62, versus 6.20 at 0.02. The primary
+71-frame population replaces the original Am1-54 pool with its seeded pool;
+the original population is reported separately. The measure combines 27
+visible-landmark views and 18 four-corner views, with separate subgroup results.
+Twenty-four unlabelled controls and two unverified views are excluded.
+
+The three measured choices distinguishing 0.04 from 0.02 all improve median
+error, by 0.30–1.56 working pixels. The two measured choices distinguishing
+0.08 from 0.04 worsen it by 1.29 and 1.98. At a 2 px change threshold, all
+positive weights improve four frames versus zero and worsen none. Giving each
+video source equal weight retains the small preference for 0.04. These are
+mostly small differences; the mixed amateur annotation conventions limit their
+meaning. The overrun settings are indistinguishable on these pools.
+
+The two large persistent numerical failures, Am1-5352 and Yellow14, are
+unchanged by every weight. They are retained in the statistics. All arms also
+retain the same one acceptance among eight labelled non-court controls. The
+accepted 20-case corrected gallery does not establish that the whole detector
+handles these other views.
+
+The stripe-fitting page means: left is the existing candidate selected with
+paint plus bounded net support; right is a new fit of that candidate using
+court-stripe polarity. Net evidence does not move corners or constrain that
+refit. The statistical setting comparison uses the pre-correction selections,
+since correction was replayed only on a selected subset.
+
+SVD12 belongs upstream of this comparison. It keeps twelve of sixteen direction
+support groups before fresh G0/G1 matching; template proposals remain a separate
+source. The measured 52.9% saving concerns matcher time on nine cases, not total
+detector runtime. The next integration milestone is a fresh run combining SVD12,
+all three candidate sources, accepted fitting changes and net selection, with
+accuracy, failure behaviour and end-to-end runtime measured together. Scene
+sampling remains deferred. Repeated agreement on a wrong court is still a
+failure, so scene-level selection needs validation rather than an assumption
+that a median will resolve every miss.

@@ -2,6 +2,15 @@
 
 ## Current result
 
+**Keep weight 0.04 for the next combined trial.** The user judges the displayed
+net-selected, stripe-corrected courts very usable. The
+[paired statistical comparison](net_recovery/statistics/paired_reference_report.md)
+finds the same median reference-point error at weights 0.02 and 0.04, with a
+modestly better upper tail at 0.04. The source-based uncertainty intervals do
+not establish a weight optimum. Further exhaustive visual review or small
+parameter sweeps are unnecessary before the combined trial. Existing large
+misses and non-court acceptance still require automatic handling.
+
 **A bounded lower-post bonus preserves the accepted Am1 recovery and avoids
 the five known regression choices.** The completed replay changes 15 of 72
 saved pools at weight 0.04. New choices still need visual review in the

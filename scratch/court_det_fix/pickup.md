@@ -26,12 +26,26 @@ also regress. Several other differences are minor or tradeoffs. The gallery
 uses older W5 fits without the accepted automatic stripe-polarity correction.
 Projected net posts are predictions from the court, not independent detections.
 
-**The bounded follow-up is complete and ready for visual review.** At weight
+**The bounded follow-up is complete; keep weight 0.04 for the combined trial.** At weight
 0.04 it changes 15 of 72 pools, retains the accepted seeded Am1 recovery, and
 keeps the original courts on all five previously reported regression views.
 The 72 pools cover 71 images: Am1 appears with both its original and seeded
 pool. See the [selection gallery](net_recovery/bounded_gallery/index.html) and
 the separate [20-case stripe-fitting gallery](net_recovery/polarity_gallery/index.html).
+
+The user judges that combined selection-and-fitting result very usable despite
+frequent tiny imperfections in amateur footage. Compare settings statistically
+and reserve further visual review for meaningful or unclear cases; do not ask
+for exhaustive gallery review. This is overall acceptance of the displayed
+combination, not separately recorded votes for every case.
+
+The [paired statistical comparison](net_recovery/statistics/paired_reference_report.md)
+supports that practical choice. Across 45 reference-bearing frames, weights
+0.02 and 0.04 tie at 2.75 working pixels median per-frame reference-point error;
+zero weight gives 3.40 and 0.08 gives 2.76. Weight 0.04 has the better upper
+quartile and 90th percentile than 0.02. The few inter-weight differences do not
+establish a statistically reliable optimum. No further parameter sweep or
+exhaustive gallery review is needed before a fresh combined test.
 
 The cue measures lower-quarter post support, usually without matching the
 actual foot. The paint-score cap protects the known regression cases; removing
