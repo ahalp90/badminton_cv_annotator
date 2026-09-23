@@ -149,7 +149,13 @@ def propose_role(
     transforms, axis_pairs = combine(basis, horizontal, vertical)
     transforms, rotated = canonicalise(transforms)
     valid, corners = geometry(transforms, size)
-    one, two = zone.player_fractions(transforms, feet) if len(transforms) else (np.array([]), np.array([]))
+    # The player test costs one projection per court per foot sample, and only geometry-valid
+    # courts can become usable, so invalid courts keep NaN fractions (never measured).
+    one = np.full(len(transforms), np.nan)
+    two = np.full(len(transforms), np.nan)
+    valid_ids = np.flatnonzero(valid)
+    if len(valid_ids):
+        one[valid_ids], two[valid_ids] = zone.player_fractions(transforms[valid_ids], feet)
     usable = valid & (one == 1) & (two >= .5)
     record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),

@@ -71,18 +71,24 @@ def interval_evidence(
     shifted_samples = shifted_samples.reshape(3, len(centre_samples), 2)
     inside = ((shifted_samples >= -boundary_tolerance_px)
               & (shifted_samples <= np.asarray(size) - 1 + boundary_tolerance_px)).all(axis=2)
-    forward = []
+    # Direction-incompatible fragments score zero forward and infinite reverse distance, so only
+    # fragments compatible with at least one position need the finite-segment distances.
+    fragments = np.flatnonzero(compatible.any(axis=0))
+    samples_per_fragment = observations.samples.shape[1]
+    forward = np.zeros((len(POSITION_OFFSETS_M), len(centre_samples), len(observations.segments)))
     for position in range(len(POSITION_OFFSETS_M)):
-        distances = distances_to_segments(shifted_samples[position], observations.segments)
+        distances = distances_to_segments(shifted_samples[position], observations.segments[fragments])
         response = np.exp(-0.5 * np.square(distances / DISTANCE_SIGMA_PX))
-        forward.append(np.where(inside[position, :, None] & compatible[position, None], response, 0.0))
+        forward[position][:, fragments] = np.where(
+            inside[position, :, None] & compatible[position, fragments][None], response, 0.0)
 
-    distances = distances_to_segments(observations.samples.reshape(-1, 2), projected)
-    distances = distances.reshape(len(observations.segments), observations.samples.shape[1], 3)
-    distances = np.where(compatible.T[:, None], distances, np.inf)
+    distances = np.full((len(observations.segments), samples_per_fragment, 3), np.inf)
+    compatible_distances = distances_to_segments(observations.samples[fragments].reshape(-1, 2), projected)
+    compatible_distances = compatible_distances.reshape(len(fragments), samples_per_fragment, 3)
+    distances[fragments] = np.where(compatible.T[fragments, None], compatible_distances, np.inf)
     width = np.linalg.norm(shifted_samples[1] - shifted_samples[2], axis=1)
     resolvable = inside[1] & inside[2] & (width >= RESOLVABLE_WIDTH_PX)
-    return np.asarray(forward), distances, resolvable
+    return forward, distances, resolvable
 
 
 def measure(
