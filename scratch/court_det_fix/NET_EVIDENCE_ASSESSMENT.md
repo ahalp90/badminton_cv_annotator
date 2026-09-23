@@ -2,6 +2,18 @@
 
 ## Current result
 
+**A bounded lower-post bonus preserves the accepted Am1 recovery and avoids
+the five known regression choices.** The completed replay changes 15 of 72
+saved pools at weight 0.04. New choices still need visual review in the
+[selection gallery](net_recovery/bounded_gallery/index.html). The numerical
+weight is provisional. This is lower-quarter fragment support, not reliable
+post-base detection: only 4 of 26 supported posts on changed selections match
+the base sample itself. Removing the fragment-overrun veto changes no winner;
+the paint-score cap provides the demonstrated protection. The
+[worklog](net_recovery/WORKLOG.md#bounded-replay-results) records sensitivity,
+audit findings and the separate stripe-fitting comparison. No production rule
+is adopted, and fresh SVD12 generation has not been combined with this trial.
+
 **Positive net support helps Am1 once useful proposals exist.** The completed
 [recovery trial](colour_consistency/AM1_RECOVERY.md) adds three automatic
 vanishing-point seeds, then prefers the first eligible court with strongly

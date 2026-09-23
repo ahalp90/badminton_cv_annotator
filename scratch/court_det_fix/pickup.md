@@ -26,14 +26,28 @@ also regress. Several other differences are minor or tradeoffs. The gallery
 uses older W5 fits without the accepted automatic stripe-polarity correction.
 Projected net posts are predictions from the court, not independent detections.
 
-The bounded follow-up is now authorised and running. A 16-case post-base
-diagnostic reproduces the old measurements exactly. The fixed next trial adds
-at most 0.04 to paint scores for supported lower posts, with 0.02/0.08 sensitivity
-arms and a check for supporting segments extending below the predicted base.
-Tape and tops do not contribute. The [current worklog](net_recovery/WORKLOG.md)
-records the policy, split and numerical caveats. These are cached DeepLSD
+**The bounded follow-up is complete and ready for visual review.** At weight
+0.04 it changes 15 of 72 pools, retains the accepted seeded Am1 recovery, and
+keeps the original courts on all five previously reported regression views.
+The 72 pools cover 71 images: Am1 appears with both its original and seeded
+pool. See the [selection gallery](net_recovery/bounded_gallery/index.html) and
+the separate [20-case stripe-fitting gallery](net_recovery/polarity_gallery/index.html).
+
+The cue measures lower-quarter post support, usually without matching the
+actual foot. The paint-score cap protects the known regression cases; removing
+the below-base fragment veto changes no selection. Weight 0.04 remains
+provisional, with nearby choice boundaries on GX77876 and control 81233.
+The [current worklog](net_recovery/WORKLOG.md) records the sensitivity results,
+independent audit and remaining visual decisions. These are cached DeepLSD
 segments; earlier references to Hough were incorrect. Court and net colours
 remain independent.
+
+This replay uses historical candidate pools, not a fresh end-to-end SVD12 run.
+SVD12 remains the fresh-generation default: twelve direction-support groups,
+not twelve individual lines. A future combined evaluation must retain G0,
+G1 and templates and measure both arms consistently. Scene sampling may settle
+borderline choices, but cannot be assumed to remove systematic bias. The user
+defers that work to deployment readiness.
 
 Freshly measure baseline and seeded pools consistently before any further
 generation comparisons. The replay

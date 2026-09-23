@@ -2,12 +2,15 @@
 
 ## Resume
 
-The user authorises a bounded follow-up experiment with graded post evidence,
-priority for reliable post bases, allowance for lean and sag, and capped
-influence over paint. Numerical weights require a small sensitivity check.
-The first batch measures base support in the 15 reviewed gallery cases plus
-seeded Am1. An independent design review runs alongside that diagnostic.
-No new scoring rule or numerical weight has been adopted yet.
+The bounded replay is complete and ready for visual review. The primary weight
+0.04 changes 15 of 72 pools, preserves the accepted seeded Am1 recovery, and
+keeps the original selection on all five previously reported regression views.
+The weight remains provisional. The cue measures lower-quarter post support;
+it does not reliably identify the physical base. No production rule is adopted.
+
+Review the [selection gallery](bounded_gallery/index.html), then the separate
+[stripe-fitting gallery](polarity_gallery/index.html). The latter compares the
+bounded selected court with its automatic stripe-polarity refit on 20 cases.
 
 The previous 71-case scan is complete. Unrestricted preference loses good
 courts, so core promotion remains held. The combined runner's cache is repaired,
@@ -60,8 +63,9 @@ lower-post cue. A post contributes when at least one of its lowest six samples
 has segment support and none of those supporting segments continues more than
 4 working pixels below the projected base. The base must be in frame. Matching
 reuses the existing 4 px perpendicular, 8 degree direction and 2 px extent
-tolerances. Segment endpoint order is irrelevant. This is support for a plausible
-base, not verified post identity. A failed check removes only that post's bonus.
+tolerances. Segment endpoint order is irrelevant. This measures lower-quarter
+post support; neither base location nor post identity is verified. A failed
+check removes only that post's bonus.
 
 `reward = (left_base_supported + right_base_supported) / 2`
 
@@ -279,8 +283,10 @@ unresolved. The saved-pool scan uses only frozen paint scores and is unaffected.
   against the complete manifest. Data/table/logs are under
   `local_scratch/net_recovery/20260923/base_probe/`.
 - `bounded_split.json.gz`: fixed 71-case cohort membership plus seeded Am1.
-  The bounded selection runner and a separate generic polarity replay are in
-  progress; their outputs are not yet accepted results.
+  `bounded_trial.py` completes all six settings on 72 pools. `refit_selected.py`
+  applies the accepted automatic stripe rule to 20 primary selections. The two
+  gallery builders reuse the existing SVD gallery template literally. Results
+  await user visual review.
 - `scan_saved.py`: fixed-rule selection over saved pools; no new generation.
   Complete output is `saved_net_scan.json.gz`. References enter after selection.
 - `run_combined.py` and `colour_consistency/am1_recovery_trial.py`: generic
@@ -378,3 +384,129 @@ Evidence: `archive/20260922/wider_evaluation_20260922.md` lines 219–229,
 `archive/20260922/evaluation_results_20260922.md` lines 195–202 and
 `evidence/webui_followups_20260922/return.md` line 76. The historical wall labels
 refer to their named variants; do not transfer them to current gated choices.
+
+## Bounded replay results
+
+The primary setting retains the exact accepted seeded Am1 court. It preserves
+GX0 and GX5, and keeps the original selection on Letterboxed78, Am2-150,
+Am3-0, control 52563 and control 81233. Those are the five previously reported
+regression views. This supports further visual assessment, not core promotion.
+
+| Setting | Changed pools | Development | More views of development sources | Centre/Am4 |
+| --- | ---: | ---: | ---: | ---: |
+| Weight 0.04 | 15 | 7 | 8 | 0 |
+| Weight 0.02 | 11 | 4 | 7 | 0 |
+| Weight 0.08 | 18 | 10 | 8 | 0 |
+| Overrun 2 px, weight 0.04 | 15 | 7 | 8 | 0 |
+| Overrun 8 px, weight 0.04 | 15 | 7 | 8 | 0 |
+| Weight zero | 0 | 0 | 0 | 0 |
+
+There are 72 pools from 71 images: 17 development pools, 49 additional views
+of those sources, and six Centre/Am4 views withheld from this design gallery.
+Centre/Am4 appeared in earlier detector work, so they are not new project data.
+Seven pools have no eligible candidate. Labelled non-court acceptance remains
+1/8 under the fixed gates; this trial supplies no new rejection evidence.
+
+### What changed
+
+Six primary selections repeat previously reviewed net choices: GX689,
+Am3-17174, SS03-0016, SS21-0044, control 00000001 and seeded Am1. SS21-0034
+now selects rank 3 rather than the previously reviewed rank 2; it needs a new
+ruling. The other eight changes are GX77876, Am2-28019, SS03-0017/0019/0023/
+0032/0034 and SS21-0039. The last has saved status `view_unverified`.
+
+The primary rule gives up the old improvements on GX5111 and Yellow156.
+Weight 0.08 introduces unreviewed replacements on GX5111, Am2-150 and control
+81233. Weight 0.02 loses the primary changes on GX689, GX77876, SS21-0044 and
+control 00000001. The 2/4/8 px overrun settings select exactly the same courts.
+
+Limited visual inspection found no gross regression on GX77876,
+Am2-28019 and SS03-0019. Both columns remain plausible court fits. Fine line
+alignment and the other new choices remain for user review. These are not
+user-approved results.
+
+### Weight and evidence limits
+
+An analytic score comparison reproduces all 288 saved choices at weights
+0, 0.02, 0.04 and 0.08. GX77876 changes above 0.03980188, while control 81233
+keeps its original court only through 0.04107934. Thus 0.04 sits close to two
+choice boundaries. The accepted seeded Am1 choice is stable above 0.00359161
+through 0.08. These intervals describe selection stability, not visual quality.
+The interval margin compares the best candidate in each reward class; it does
+not measure closeness to another candidate with the same reward.
+
+Opus 5-5 xhigh independently reproduced the ranking and sampled raw evidence.
+The review found no selection-changing implementation fault. Its main limits
+were checked against the saved output:
+
+- Only 4 of 26 supported posts on changed selections match the base sample.
+  Other matches may sit 13–26 working pixels above the projected base.
+- Most changes cross the fixed 4 px lateral matching threshold after a small
+  court movement. The cue remains sensitive to fragment and projection error.
+- The overrun veto fires on 1,778 of 12,216 covered posts, but removing it
+  changes zero of 72 winners. Its incremental selection value is unproven.
+- 1,094 eligible candidate rows have at least one post projecting downwards in
+  the image; 36 earn a reward. No arm selects these rows. The terminology
+  “below base” follows the projected post axis, which is misleading in those
+  cases. No new gate was introduced to hide this limitation.
+
+The capped bonus is the demonstrated protection against the old severe
+regressions. Neither lower-quarter support nor a pair of supported posts proves
+physical post identity. Further threshold sweeps would not establish quality;
+review the displayed evidence before changing parameters.
+
+### Separate stripe-fitting replay
+
+Automatic stripe polarity was replayed on the 15 changed primary selections
+plus GX0, GX5, Letterboxed78, Am2-150 and Am3-0. All 20 fits converge and pass
+the recorded geometry, camera and historical full-court checks. Reconstructing
+the original fit differs by at most 2.41e-9 native pixels. This validates replay
+identity, not improvement. The fitting gallery contains no net overlays.
+
+A shared image-loader fix uses the validated context frame path; the old helper
+misresolved control images as amateur views. The first batch stopped at that
+error. The corrected 20-case batch exits 0. No candidate ranking is rerun after
+stripe correction, and no net-to-court colour matching is used.
+
+Limited inspection of Am1's fitting comparison finds both versions still follow
+the intended court. The near-corner placement changes visibly; the user has not
+yet judged whether the corrected fit is preferable.
+
+### Outputs, checks and next decision
+
+Raw output is local under `local_scratch/net_recovery/20260923/`:
+
+- `bounded/bounded_trial.json.gz`, `summary.md` and `full_run.log`: all six
+  settings. A later diagnostic-only update adds the focal-bound flag; a summary
+  fix counts the named withheld subcohorts correctly. Independent recomputation
+  verifies every saved choice after those edits.
+- `bounded/weight_intervals.{md,json.gz}` and `derive_weight_intervals.py`:
+  exact score intersections and checks.
+- `selected_polarity/bounded_results.json.gz` and
+  `bounded_run_corrected_path.log`: all 20 stripe fits.
+- `bounded_visual/`: three limited gallery inspections.
+
+The independent report is
+`local_scratch/external_delegate/20260923-net-bounded-audit/result.md`.
+The tracked gallery audits preserve source identities and displayed geometry.
+
+Checks completed with exit 0: five focused ranking tests; full 72-pool replay;
+weight-zero equality and all six independent ranking recomputations; base-probe
+feature agreement; 288 weight-interval choices; corrected 20-case polarity
+replay; scoped Ruff; and whole-project Pyrefly. Gallery and final documentation
+checks are recorded with the closing checkpoint.
+
+Next: obtain visual rulings on the new selections and separate stripe fits.
+Keep 0.04 provisional. A later combined trial must generate SVD12 G0/G1/template
+pools and measure comparison arms consistently. This experiment reused older
+pools. SVD12 means twelve direction-support groups, not twelve DeepLSD lines.
+The user defers repeated scene sampling and robust aggregation to deployment
+readiness. Such sampling may reduce frame-specific variation; systematic
+selection bias still requires attention.
+
+Closing checks: both gallery builders, source geometry/image audits, Python and
+JavaScript syntax, scoped Ruff, Serena diagnostics and final whole-project
+Pyrefly exit 0. All linked gallery images are already tracked. The changed
+Markdown links and `git diff --check` pass (exit 0). The existing port 8883
+server served the Am1 fitting comparison successfully in Chromium; the
+delegate's sandbox-local connection failure did not indicate a dead server.

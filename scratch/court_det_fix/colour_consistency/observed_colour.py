@@ -23,7 +23,7 @@ OUTER_MARKINGS = frozenset(("far_baseline", "near_baseline", "left_doubles", "ri
 
 
 def native_image(context: verifier.ViewContext, root) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    path = verifier.frame_path(root, context.source, context.provenance)
+    path = root / context.frame_relative_path
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None:
         raise FileNotFoundError(path)
