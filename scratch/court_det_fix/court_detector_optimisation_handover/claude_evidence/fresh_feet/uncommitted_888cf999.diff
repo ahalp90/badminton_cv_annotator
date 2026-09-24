@@ -1,0 +1,81 @@
+diff --git a/scratch/court_det_fix/d17_timing/run_d17.py b/scratch/court_det_fix/d17_timing/run_d17.py
+index 4815b8a8..fe08b7b1 100644
+--- a/scratch/court_det_fix/d17_timing/run_d17.py
++++ b/scratch/court_det_fix/d17_timing/run_d17.py
+@@ -9,9 +9,9 @@ Selection happens before correction, as in the accepted 20-case gallery.
+ Every step calls the existing code. This script adds three things: the seeded-template
+ hook, the net-choice rows (as in bounded_trial.measure_case, without its frozen-data
+ checks), and timers. Line fragments and player feet come from the frozen view packs, so
+-DeepLSD and pose inference are not timed. One view and one arm run per process, so each
+-run pays start-up once. Launch with D17_LAUNCH=$(date +%s.%N) to include interpreter
+-start-up.
++DeepLSD and pose inference are not timed. --feet swaps in player feet from another file.
++One view and one arm run per process, so each run pays start-up once. Launch with
++D17_LAUNCH=$(date +%s.%N) to include interpreter start-up.
+ """
+ 
+ from __future__ import annotations
+@@ -120,6 +120,23 @@ def net_rows(record: dict, context, net, bounded_trial, np) -> list[dict]:
+     return rows
+ 
+ 
++def replace_feet(verifier_module, feet_path: Path) -> None:
++    """Serve every view's source with the player feet in feet_path, keyed by case ID.
++
++    Generation, the W5 gates and the line templates all read feet from the source that
++    prepare_view loads, so replacing it there reaches every player test.
++    """
++    feet_by_case = verifier_module.read_json_gz(feet_path)
++    load_source = verifier_module.load_source
++
++    def load_source_with_feet(root: Path, case_id: str) -> dict:
++        source = load_source(root, case_id)
++        provenance = {**(source.get("provenance") or {}), "people_source": f"feet_file:{feet_path.name}"}
++        return {**source, "all_feet_px": feet_by_case[case_id], "provenance": provenance}
++
++    verifier_module.load_source = load_source_with_feet
++
++
+ def population_summary(record: dict) -> dict:
+     statuses: dict[str, int] = defaultdict(int)
+     for pair in record["pairs"]:
+@@ -135,6 +152,8 @@ def main() -> None:
+     parser.add_argument("--direction-budget", type=int, choices=(12, 16), required=True)
+     parser.add_argument("--output", type=Path, required=True, help="arm directory, one per direction budget")
+     parser.add_argument("--max-matched-pairs", type=int, default=None, help="smoke tests only")
++    parser.add_argument("--feet", type=Path, default=None,
++                        help="JSON gz mapping case ID to all_feet_px, replacing the pack's player feet")
+     args = parser.parse_args()
+     case_id = args.case
+     arm_dir = args.output.resolve()
+@@ -164,6 +183,8 @@ def main() -> None:
+     import run_cases  # pyrefly: ignore[missing-import]
+ 
+     run_w5, verifier_module, runtime = run_cases.load_runtime(ROOT, ROOT / "wider_evaluation/runs/20260922/control_inputs.json.gz")
++    if args.feet is not None:
++        replace_feet(verifier_module, args.feet.resolve())
+     import am1_recovery_trial  # pyrefly: ignore[missing-import]
+     import automatic_generation  # pyrefly: ignore[missing-import]
+     import bounded_trial  # pyrefly: ignore[missing-import]
+@@ -329,6 +350,7 @@ def main() -> None:
+         "label": label,
+         "direction_budget": args.direction_budget,
+         "max_matched_pairs": args.max_matched_pairs,
++        "feet_file": None if args.feet is None else args.feet.name,
+         "native_size_wh": list(context.native_size),
+         "working_size_wh": list(context.size),
+         "net_rule": {"weight": NET_WEIGHT, "overrun_px": NET_OVERRUN_PX},
+diff --git a/scratch/court_det_fix/next_steps_20260916/webui_seed/source/projective_seed.py b/scratch/court_det_fix/next_steps_20260916/webui_seed/source/projective_seed.py
+index 8fb98829..ce9ea601 100644
+--- a/scratch/court_det_fix/next_steps_20260916/webui_seed/source/projective_seed.py
++++ b/scratch/court_det_fix/next_steps_20260916/webui_seed/source/projective_seed.py
+@@ -227,7 +227,8 @@ def match_axis(
+                     # Unmeasured under player pruning: player-incompatible hypotheses are never scored.
+                     'zero_scale_excluded': int((~nonzero).sum()),
+                     'pattern_supported': int(pattern.sum()) if feet_px is None else None,
+-                    'necessary_player_pruning': feet_px is not None, 'pattern_and_players': len(eligible),
++                    'necessary_player_pruning': feet_px is not None, 'scored': len(to_score),
++                    'pattern_and_players': len(eligible),
+                     'distinct_assignments': len(distinct), 'axis_cap_excluded': max(0, len(distinct) - len(retained))})
+     return AxisMatches(parameters, scores, matches, anchors, supported, player_compatible,
+                        np.asarray(distinct, dtype=int), retained, details)

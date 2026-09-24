@@ -1,0 +1,412 @@
+[
+ {
+  "case_id": "gxBQ_window_00_frame_0",
+  "video": "gx",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   0
+  ],
+  "composite": false,
+  "anchor": 0,
+  "frozen_image": "frozen_views/frames/gx/images/gxBQ_window_00_frame_00000000.png"
+ },
+ {
+  "case_id": "gxBQ_window_00_frame_5",
+  "video": "gx",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   5
+  ],
+  "composite": false,
+  "anchor": 5,
+  "frozen_image": "frozen_views/frames/gx/images/gxBQ_window_00_frame_00000005.png"
+ },
+ {
+  "case_id": "gxBQ_window_00_frame_689",
+  "video": "gx",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   689
+  ],
+  "composite": false,
+  "anchor": 689,
+  "frozen_image": "frozen_views/frames/gx/images/gxBQ_window_00_frame_00000689.png"
+ },
+ {
+  "case_id": "gxBQ_window_03_frame_77876",
+  "video": "gx",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   77876
+  ],
+  "composite": false,
+  "anchor": 77876,
+  "frozen_image": "frozen_views/frames/gx/images/gxBQ_window_03_frame_00077876.png"
+ },
+ {
+  "case_id": "am2_window_01_frame_28019",
+  "video": "am2",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   28019
+  ],
+  "composite": false,
+  "anchor": 28019,
+  "frozen_image": "frozen_views/frames/amateur/am2/frame_00028019.png"
+ },
+ {
+  "case_id": "am2_window_00_frame_150",
+  "video": "am2",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   150
+  ],
+  "composite": false,
+  "anchor": 150,
+  "frozen_image": "frozen_views/frames/amateur/am2/frame_00000150.png"
+ },
+ {
+  "case_id": "am3_window_00_frame_0",
+  "video": "am3",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   0
+  ],
+  "composite": false,
+  "anchor": 0,
+  "frozen_image": "frozen_views/frames/amateur/am3/frame_00000000.png"
+ },
+ {
+  "case_id": "am3_window_02_frame_17174",
+  "video": "am3",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   17174
+  ],
+  "composite": false,
+  "anchor": 17174,
+  "frozen_image": "frozen_views/frames/amateur/am3/frame_00017174.png"
+ },
+ {
+  "case_id": "am1_window_00_frame_54",
+  "video": "am1",
+  "pack_size": [
+   1920,
+   1080
+  ],
+  "image_frames": [
+   54
+  ],
+  "composite": false,
+  "anchor": 54,
+  "frozen_image": "frozen_views/frames/amateur/am1/frame_00000054.png"
+ },
+ {
+  "case_id": "letterboxed_short_frame_78",
+  "video": "letterboxed",
+  "pack_size": [
+   960,
+   720
+  ],
+  "image_frames": [
+   78
+  ],
+  "composite": false,
+  "anchor": 78,
+  "frozen_image": "frozen_views/frames/amateur/letterboxed/frame_00000078.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0017",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   38343,
+   38525,
+   38671
+  ],
+  "composite": true,
+  "anchor": 38525,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0017_frame_00038343_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0019",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   40691,
+   40987,
+   41224
+  ],
+  "composite": true,
+  "anchor": 40987,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0019_frame_00040691_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0034",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   67324,
+   67674,
+   67955
+  ],
+  "composite": true,
+  "anchor": 67674,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0034_frame_00067324_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0023",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   54321,
+   54704,
+   55012
+  ],
+  "composite": true,
+  "anchor": 54704,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0023_frame_00054321_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0016",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   36665,
+   36872,
+   37038
+  ],
+  "composite": true,
+  "anchor": 36872,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0016_frame_00036665_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_03_scene_0032",
+  "video": "sset03",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   65892,
+   66034,
+   66148
+  ],
+  "composite": true,
+  "anchor": 66034,
+  "frozen_image": "frozen_views/frames/original/video_03/scene_0032_frame_00065892_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_21_scene_0034",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   71712,
+   71980,
+   72196
+  ],
+  "composite": true,
+  "anchor": 71980,
+  "frozen_image": "frozen_views/frames/original/video_21/scene_0034_frame_00071712_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_21_scene_0039",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   85565,
+   85822,
+   86028
+  ],
+  "composite": true,
+  "anchor": 85822,
+  "frozen_image": "frozen_views/frames/original/video_21/scene_0039_frame_00085565_cached_view.png"
+ },
+ {
+  "case_id": "shuttleset_21_scene_0044",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   90827,
+   90919,
+   90993
+  ],
+  "composite": true,
+  "anchor": 90919,
+  "frozen_image": "frozen_views/frames/original/video_21/scene_0044_frame_00090827_cached_view.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00000001",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   1
+  ],
+  "composite": false,
+  "anchor": 1,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00000001.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00000300",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   300
+  ],
+  "composite": false,
+  "anchor": 300,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00000300.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00009558",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   9558
+  ],
+  "composite": false,
+  "anchor": 9558,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00009558.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00014336",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   14336
+  ],
+  "composite": false,
+  "anchor": 14336,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00014336.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00023893",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   23893
+  ],
+  "composite": false,
+  "anchor": 23893,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00023893.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00038228",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   38228
+  ],
+  "composite": false,
+  "anchor": 38228,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00038228.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00062120",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   62120
+  ],
+  "composite": false,
+  "anchor": 62120,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00062120.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00090790",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   90790
+  ],
+  "composite": false,
+  "anchor": 90790,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00090790.png"
+ },
+ {
+  "case_id": "sset_21_gloiZ_gTJaE_frame_00100347",
+  "video": "sset21",
+  "pack_size": [
+   960,
+   540
+  ],
+  "image_frames": [
+   100347
+  ],
+  "composite": false,
+  "anchor": 100347,
+  "frozen_image": "evidence/independent_proposals/development/inputs/controls/frames/frame_00100347.png"
+ }
+]

@@ -1,0 +1,22 @@
+am1_window_00_frame_54               frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: pass 1.00/1.00  standing_movers: FAIL 1.00/0.45
+am2_window_00_frame_150              frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 1.00/0.19  standing_movers: pass 1.00/0.68
+am2_window_01_frame_28019            frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.87  movers: FAIL 0.52/0.06  standing_movers: FAIL 0.65/0.00
+am3_window_00_frame_0                frozen: pass 1.00/0.94  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 0.93/0.00  standing_movers: FAIL 1.00/0.00
+am3_window_02_frame_17174            frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: pass 1.00/0.81  standing_movers: FAIL 0.87/0.23
+gxBQ_window_00_frame_0               frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 0.87/0.19  standing_movers: pass 1.00/1.00
+gxBQ_window_00_frame_5               frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 0.13/0.00  standing_movers: pass 1.00/1.00
+gxBQ_window_00_frame_689             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 0.97/0.19  standing_movers: pass 1.00/1.00
+gxBQ_window_03_frame_77876           frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 1.00/0.00  standing_movers: pass 1.00/1.00
+letterboxed_short_frame_78           frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: pass 1.00/1.00  standing_movers: pass 1.00/1.00
+shuttleset_03_scene_0016             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.90  movers: pass 1.00/1.00  standing_movers: pass 1.00/0.87
+shuttleset_03_scene_0017             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.74  movers: pass 1.00/0.68  standing_movers: pass 1.00/0.65
+shuttleset_03_scene_0019             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.94  movers: pass 1.00/0.68  standing_movers: FAIL 1.00/0.45
+shuttleset_03_scene_0023             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: pass 1.00/1.00  standing_movers: pass 1.00/1.00
+shuttleset_03_scene_0032             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.90  movers: FAIL 0.00/0.00  standing_movers: pass 1.00/0.61
+shuttleset_03_scene_0034             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.81  movers: pass 1.00/1.00  standing_movers: pass 1.00/0.58
+shuttleset_21_scene_0034             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.81  movers: pass 1.00/1.00  standing_movers: pass 1.00/0.81
+shuttleset_21_scene_0039             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.74  movers: pass 1.00/1.00  standing_movers: pass 1.00/0.61
+shuttleset_21_scene_0044             frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/0.58  movers: pass 1.00/1.00  standing_movers: pass 1.00/0.55
+sset_21_gloiZ_gTJaE_frame_00000001   frozen: pass 1.00/1.00  everyone: pass 1.00/1.00  standing: pass 1.00/1.00  movers: FAIL 0.75/0.00  standing_movers: FAIL 0.00/0.00
+sset_21_gloiZ_gTJaE_frame_00014336   frozen: pass 1.00/1.00  everyone: pass 1.00/0.50  standing: FAIL 1.00/0.00  movers: pass 1.00/0.50  standing_movers: FAIL 1.00/0.00
+{"frozen": 0, "everyone": 0, "standing": 1, "movers": 9, "standing_movers": 7}

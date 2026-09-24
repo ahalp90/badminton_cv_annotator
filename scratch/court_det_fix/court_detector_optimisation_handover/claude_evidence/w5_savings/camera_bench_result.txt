@@ -1,0 +1,5 @@
+left grouping: 110 of 110 batches byte-identical
+right grouping: 0 of 110 batches byte-identical
+current        2.71 s for 80 batches (37895 courts)
+x/y/w left     0.39 s for 80 batches (37895 courts)
+exit 0
