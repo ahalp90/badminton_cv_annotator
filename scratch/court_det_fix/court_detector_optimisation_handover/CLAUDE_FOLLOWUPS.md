@@ -20,6 +20,12 @@ court across scenes (item 9) avoids whole searches, but it is a design
 decision. Most ideas that would cut more were decided against, because they
 can drop the right court on a view nobody has tested.
 
+The detector is not yet one unit. Its stages run end to end only through a
+timing script, `scratch/court_det_fix/d17_timing/run_d17.py`, on the 28 test
+views. `d17_timing/WIRING.md` on `exp/court-det-opt` says how those stages join
+up, and what a single detector must keep or can drop. The web UI's
+`SOURCE_MAP.md` says no such runner exists; that line predates the script.
+
 The tables below list every idea tried, with its outcome and the reason.
 Numbered sections after them hold the detail.
 
