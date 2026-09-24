@@ -86,11 +86,16 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
                        for frame in source["all_feet_px"]], dtype=float) / scale
     observations = assignment.prepare_observations(segments, size)
     settings = helpers.Settings(keep_axes=keep_axes)
+    def retention(limit: int):
+        return replace(helpers.detector.DEFAULT_SETTINGS, keep_candidates=limit, distinct_corner_distance=2.)
+
     def select(candidates: list, limit: int) -> list:
         if limit == helpers.KEEP_COURTS:
             return helpers.select_pool(candidates)
-        selection = replace(helpers.detector.DEFAULT_SETTINGS, keep_candidates=limit, distinct_corner_distance=2.)
-        return helpers.retain(candidates, selection)
+        return helpers.retain(candidates, retention(limit))
+
+    # select_pool applies the same settings when keep_per_pair is KEEP_COURTS.
+    per_pair = retention(keep_per_pair)
 
     pooled, provenance, pair_records = [], {}, []
     pool_records = []
@@ -111,7 +116,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             continue
         matched_pairs += 1
         pair_start = perf_counter()
-        proposed = helpers.propose_role(pair_points, observations, feet, size, settings)
+        proposed = helpers.propose_role(pair_points, observations, feet, size, settings, shortlist=per_pair)
         local_details = {}
         for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
             local_details[id(candidate)] = {"candidate_id": f"{pair_id}:{index}", "pair_id": pair_id, **details}

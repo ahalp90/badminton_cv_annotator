@@ -32,6 +32,18 @@ def continuous_support(homographies: np.ndarray, maps: np.ndarray, size: tuple[i
     distance = maps[family, pixel_y, pixel_x]
     response = np.exp(-.5 * np.square(distance / assignment.DISTANCE_SIGMA_PX)).mean(axis=2)
     response *= visible
+    return marking_score(response, visible)
+
+
+def marking_score(response: np.ndarray, visible: np.ndarray) -> np.ndarray:
+    """Average interval responses within each marking, then over the visible markings.
+
+    The score only grows when any visible interval's response grows, which the shortlist bound
+    in run_given relies on.
+
+    :param response: one mean sample response per court and marking interval, zero where hidden
+    :param visible: whether each court's marking interval is visible
+    """
     per_marking, marking_visible = [], []
     for intervals in assignment.MARKING_INTERVALS:
         count = visible[:, intervals].sum(axis=1)

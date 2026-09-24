@@ -275,6 +275,16 @@ def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -
     """Clip finite projected markings before sampling them uniformly in image space."""
     starts = endpoints[:, :, 0]
     vectors = endpoints[:, :, 1] - starts
+    lower, upper, visible = _visible_fractions(endpoints, size)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count)
+    samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
+    return samples, visible
+
+
+def _visible_fractions(endpoints: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per projected marking: first and last in-image fractions of its length, and whether it counts as visible."""
+    starts = endpoints[:, :, 0]
+    vectors = endpoints[:, :, 1] - starts
     lower = np.zeros(starts.shape[:2])
     upper = np.ones(starts.shape[:2])
     visible = np.ones(starts.shape[:2], dtype=bool)
@@ -289,9 +299,7 @@ def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -
     visible &= upper > lower
     clipped_length = (upper - lower) * np.linalg.norm(vectors, axis=-1)
     visible &= clipped_length >= 12
-    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count)
-    samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
-    return samples, visible
+    return lower, upper, visible
 
 
 def _matched_line_counts(
