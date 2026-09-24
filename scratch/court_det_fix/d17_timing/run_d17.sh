@@ -1,15 +1,17 @@
 #!/bin/bash
 # Run the fresh D17 chain on the accepted 20-case gallery and the eight labelled non-court
-# controls, at direction budgets 16 and 12. One process per view and budget.
-# Usage: run_d17.sh OUTPUT_DIR PYTHON PARALLEL_JOBS
+# controls, at direction budgets 16 (full search) and 12 (SVD12 screen), or only the budgets
+# given. One process per view and budget.
+# Usage: run_d17.sh OUTPUT_DIR PYTHON PARALLEL_JOBS [BUDGETS]   e.g. BUDGETS="16"
 set -u
-if [ $# -ne 3 ]; then
-    echo "usage: $0 OUTPUT_DIR PYTHON PARALLEL_JOBS" >&2
+if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+    echo "usage: $0 OUTPUT_DIR PYTHON PARALLEL_JOBS [BUDGETS]" >&2
     exit 2
 fi
 export D17_OUT=$1
 export D17_PYTHON=$2
 JOBS=$3
+BUDGETS=${4:-"16 12"}
 export D17_HERE
 D17_HERE=$(cd "$(dirname "$0")" && pwd)
 
@@ -25,7 +27,7 @@ sset_21_gloiZ_gTJaE_frame_00090790 sset_21_gloiZ_gTJaE_frame_00100347"
 
 mkdir -p "$D17_OUT/logs"
 for CASE in $GALLERY $NON_COURT; do
-    for BUDGET in 16 12; do
+    for BUDGET in $BUDGETS; do
         echo "$CASE $BUDGET"
     done
 done | xargs -P "$JOBS" -L 1 bash -c '

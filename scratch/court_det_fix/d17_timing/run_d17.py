@@ -204,7 +204,10 @@ def main() -> None:
     clock.wrap(run_given, "combine")
     clock.wrap(run_given, "canonicalise")
     clock.wrap(run_given, "geometry")
+    # Gate evidence still uses zone_net's player test. The generator's joint version keeps the
+    # same label, so per-pair stage tables compare with runs before it.
     clock.wrap(runtime["zone"], "player_fractions")
+    clock.wrap(run_given, "joint_player_fractions", "player_fractions")
     clock.wrap(run_given, "finite_scores")
     clock.wrap(run_automatic, "retain")
     clock.wrap(run_automatic, "evaluate_pool", "pool_evidence")

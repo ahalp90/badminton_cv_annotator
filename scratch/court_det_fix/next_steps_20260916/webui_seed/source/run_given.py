@@ -22,6 +22,7 @@ from projective_seed import (
     basis_for,
     combine,
     corner_errors,
+    joint_player_fractions,
     match_axis,
 )
 from run_diagnosis import gate_evidence, read, write
@@ -92,13 +93,16 @@ def axis_diagnostic(matches: AxisMatches, basis: np.ndarray, axis: int, control:
     projected, _ = detector.project(basis @ maps, detector.CORNER_COURT_M)
     truth, _ = detector.project(control[None], detector.CORNER_COURT_M)
     errors = np.linalg.norm(projected - truth, axis=2).max(axis=1)
+    # Under player pruning, player-incompatible rows are never scored (NaN score, zero support),
+    # so the pattern-supported stage is unmeasured.
+    pattern = matches.supported >= Settings().minimum_matches
+    pruned = matches.diagnostics['necessary_player_pruning']
     result = {}
     for name, ids in [('enumerated', np.arange(len(errors))),
-                      ('pattern_supported', np.flatnonzero(matches.supported >= Settings().minimum_matches)),
-                      ('pattern_and_players', np.flatnonzero((matches.supported >= Settings().minimum_matches)
-                                                             & matches.player_compatible)),
+                      ('pattern_supported', None if pruned else np.flatnonzero(pattern)),
+                      ('pattern_and_players', np.flatnonzero(pattern & matches.player_compatible)),
                       ('distinct', matches.distinct), ('retained', matches.retained)]:
-        if not len(ids):
+        if ids is None or not len(ids):
             result[name] = None
             continue
         index = int(ids[np.argmin(errors[ids])])
@@ -135,7 +139,7 @@ class RoleProposals:
 
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
-    size: tuple[int, int], settings: Settings, zone: object,
+    size: tuple[int, int], settings: Settings,
     player_pruning: bool = True, combined_ranking: str = 'finite',
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels."""
@@ -149,13 +153,7 @@ def propose_role(
     transforms, axis_pairs = combine(basis, horizontal, vertical)
     transforms, rotated = canonicalise(transforms)
     valid, corners = geometry(transforms, size)
-    # The player test costs one projection per court per foot sample, and only geometry-valid
-    # courts can become usable, so invalid courts keep NaN fractions (never measured).
-    one = np.full(len(transforms), np.nan)
-    two = np.full(len(transforms), np.nan)
-    valid_ids = np.flatnonzero(valid)
-    if len(valid_ids):
-        one[valid_ids], two[valid_ids] = zone.player_fractions(transforms[valid_ids], feet)
+    one, two = joint_player_fractions(basis, horizontal, vertical, feet)
     usable = valid & (one == 1) & (two >= .5)
     record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
@@ -194,7 +192,7 @@ def run_case(
     counter = 0
     true_corners, _ = detector.project(control[None], detector.CORNER_COURT_M)
     for role, points in enumerate((control[:, :2].T, control[:, [1, 0]].T)):
-        proposed = propose_role(points, observations, feet, size, settings, zone, player_pruning, combined_ranking)
+        proposed = propose_role(points, observations, feet, size, settings, player_pruning, combined_ranking)
         record = {'role': role, **proposed.record}
         for candidate, details in zip(proposed.candidates, proposed.details, strict=True):
             candidates.append(candidate)

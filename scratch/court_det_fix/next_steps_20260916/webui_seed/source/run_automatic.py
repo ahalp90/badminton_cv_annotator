@@ -156,7 +156,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, pool_path: Pat
             pair_records.append({**record, 'status': 'camera_direction_bound'})
             continue
         pair_start = perf_counter()
-        proposed = propose_role(pair_points, observations, feet, size, settings, zone)
+        proposed = propose_role(pair_points, observations, feet, size, settings)
         proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
                                       dtype=np.float32).reshape(-1, 4, 2)
         proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}

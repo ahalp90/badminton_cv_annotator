@@ -111,7 +111,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             continue
         matched_pairs += 1
         pair_start = perf_counter()
-        proposed = helpers.propose_role(pair_points, observations, feet, size, settings, zone)
+        proposed = helpers.propose_role(pair_points, observations, feet, size, settings)
         local_details = {}
         for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
             local_details[id(candidate)] = {"candidate_id": f"{pair_id}:{index}", "pair_id": pair_id, **details}
