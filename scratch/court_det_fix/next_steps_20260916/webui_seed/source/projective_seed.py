@@ -104,8 +104,13 @@ def score_axes(
     predicted = parameters[:, :1] * coordinates + parameters[:, 1:]
     lines = inverse[axis][None, None] - predicted[..., None] * inverse[2]
     norms = np.linalg.norm(lines[..., :2], axis=2)
-    distances = np.abs(np.einsum('hmd,ged->hmge', lines[..., :2], endpoints) + lines[..., 2, None, None])
-    distances = distances.max(axis=3) / np.maximum(norms[..., None], 1e-15)
+    # Each group's two endpoints get separate arrays, one value per (hypothesis, coordinate, group):
+    # numpy is several times slower reducing a trailing axis of length 2. Same arithmetic order as
+    # the einsum form this replaces, so results are bit-identical.
+    line_x, line_y, line_offset = lines[..., 0, None], lines[..., 1, None], lines[..., 2, None]
+    first = np.abs((line_x * endpoints[:, 0, 0] + line_y * endpoints[:, 0, 1]) + line_offset)
+    second = np.abs((line_x * endpoints[:, 1, 0] + line_y * endpoints[:, 1, 1]) + line_offset)
+    distances = np.maximum(first, second) / np.maximum(norms[..., None], 1e-15)
     nearest = distances.argmin(axis=2)
     residual = np.take_along_axis(distances, nearest[..., None], axis=2)[..., 0]
     response = np.exp(-.5 * np.square(residual / assignment.DISTANCE_SIGMA_PX))

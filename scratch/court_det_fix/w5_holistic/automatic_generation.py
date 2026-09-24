@@ -86,16 +86,11 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
                        for frame in source["all_feet_px"]], dtype=float) / scale
     observations = assignment.prepare_observations(segments, size)
     settings = helpers.Settings(keep_axes=keep_axes)
-    def retention(limit: int):
-        return replace(helpers.detector.DEFAULT_SETTINGS, keep_candidates=limit, distinct_corner_distance=2.)
-
     def select(candidates: list, limit: int) -> list:
         if limit == helpers.KEEP_COURTS:
             return helpers.select_pool(candidates)
-        return helpers.retain(candidates, retention(limit))
-
-    # select_pool applies the same settings when keep_per_pair is KEEP_COURTS.
-    per_pair = retention(keep_per_pair)
+        selection = replace(helpers.detector.DEFAULT_SETTINGS, keep_candidates=limit, distinct_corner_distance=2.)
+        return helpers.retain(candidates, selection)
 
     pooled, provenance, pair_records = [], {}, []
     pool_records = []
@@ -116,22 +111,20 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             continue
         matched_pairs += 1
         pair_start = perf_counter()
-        proposed = helpers.propose_role(pair_points, observations, feet, size, settings, shortlist=per_pair)
-        local_details = {}
-        for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
-            local_details[id(candidate)] = {"candidate_id": f"{pair_id}:{index}", "pair_id": pair_id, **details}
+        proposed = helpers.propose_role(pair_points, observations, feet, size, settings)
         retained = select(proposed.candidates, keep_per_pair)
+        proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
         if pool_path is not None:
             proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
                                           dtype=np.float32).reshape(-1, 4, 2)
-            proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
             pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
                                  np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
                                  (proposed.combined_corners, proposed.valid, proposed.usable,
                                   proposed.player_any, proposed.player_both_halves)))
         shortlist = []
         for candidate in retained:
-            details = local_details[id(candidate)]
+            position = proposed_positions[id(candidate)]
+            details = {"candidate_id": f"{pair_id}:{position}", "pair_id": pair_id, **proposed.detail(position)}
             provenance[id(candidate)] = details
             shortlist.append({**details, "corners_px": (candidate.corners_px * scale).tolist(),
                               "shortlist_score": candidate.score})

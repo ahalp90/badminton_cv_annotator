@@ -114,11 +114,18 @@ def prepare_observations(
 
 def distances_to_segments(points: np.ndarray, segments: np.ndarray) -> np.ndarray:
     """Return finite-segment distances: (points, segments)."""
-    vectors = segments[:, 1] - segments[:, 0]
-    delta = points[:, None] - segments[None, :, 0]
-    fraction = np.einsum("psd,sd->ps", delta, vectors) / np.square(vectors).sum(axis=1)
-    nearest = segments[None, :, 0] + np.clip(fraction, 0, 1)[..., None] * vectors[None]
-    return np.linalg.norm(points[:, None] - nearest, axis=-1)
+    # x and y stay separate arrays because numpy is about 3x slower on a trailing axis of length 2.
+    # The arithmetic order matches the einsum/norm form, so results are bit-identical.
+    start_x, start_y = segments[:, 0, 0], segments[:, 0, 1]
+    vector_x = segments[:, 1, 0] - start_x
+    vector_y = segments[:, 1, 1] - start_y
+    point_x, point_y = points[:, 0, None], points[:, 1, None]
+    fraction = ((point_x - start_x) * vector_x + (point_y - start_y) * vector_y) / (
+        np.square(vector_x) + np.square(vector_y))
+    fraction = np.clip(fraction, 0, 1)
+    gap_x = point_x - (start_x + fraction * vector_x)
+    gap_y = point_y - (start_y + fraction * vector_y)
+    return np.sqrt(np.square(gap_x) + np.square(gap_y))
 
 
 def measure_support(homography: np.ndarray, observations: Observations, size: tuple[int, int]) -> Support:

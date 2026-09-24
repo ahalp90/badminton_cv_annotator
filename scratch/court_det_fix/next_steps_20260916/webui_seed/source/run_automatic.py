@@ -160,9 +160,6 @@ def generate(source: dict, saved: dict, zone: object, root: Path, pool_path: Pat
         proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
                                       dtype=np.float32).reshape(-1, 4, 2)
         proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
-        local_details = {}
-        for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
-            local_details[id(candidate)] = {'candidate_id': f'{pair_id}:{index}', 'pair_id': pair_id, **details}
         retained = select_pool(proposed.candidates)
         pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
                              np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
@@ -170,7 +167,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, pool_path: Pat
                               proposed.player_any, proposed.player_both_halves)))
         shortlist = []
         for candidate in retained:
-            details = local_details[id(candidate)]
+            position = proposed_positions[id(candidate)]
+            details = {'candidate_id': f'{pair_id}:{position}', 'pair_id': pair_id, **proposed.detail(position)}
             provenance[id(candidate)] = details
             shortlist.append({**details, 'corners_px': (candidate.corners_px * scale).tolist(),
                               'shortlist_score': candidate.score})

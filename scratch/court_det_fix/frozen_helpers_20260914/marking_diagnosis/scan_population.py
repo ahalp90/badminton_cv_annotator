@@ -25,25 +25,19 @@ DIVERSITY_PX = 2.0
 def continuous_support(homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int]) -> np.ndarray:
     """Score finite visible intervals smoothly while counting the split centre once."""
     projected, _ = detector.project(homographies, detector.SEGMENTS_M)
-    samples, visible = detector._visible_samples(projected.reshape(-1, 12, 2, 2), size, 64)
-    pixel_x = np.clip(samples[..., 0], 0, size[0] - 1).astype(int)
-    pixel_y = np.clip(samples[..., 1], 0, size[1] - 1).astype(int)
+    endpoints = projected.reshape(-1, 12, 2, 2)
+    lower, upper, visible = detector._visible_fractions(endpoints, size)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, 64)
+    # Same arithmetic as detector._visible_samples, with x and y as separate arrays: numpy is
+    # much slower on a trailing axis of length 2. The scores are bit-identical.
+    start_x, start_y = endpoints[:, :, 0, 0, None], endpoints[:, :, 0, 1, None]
+    end_x, end_y = endpoints[:, :, 1, 0, None], endpoints[:, :, 1, 1, None]
+    pixel_x = np.clip(start_x + fractions * (end_x - start_x), 0, size[0] - 1).astype(int)
+    pixel_y = np.clip(start_y + fractions * (end_y - start_y), 0, size[1] - 1).astype(int)
     family = np.repeat([0, 1], 6)[None, :, None]
     distance = maps[family, pixel_y, pixel_x]
     response = np.exp(-.5 * np.square(distance / assignment.DISTANCE_SIGMA_PX)).mean(axis=2)
     response *= visible
-    return marking_score(response, visible)
-
-
-def marking_score(response: np.ndarray, visible: np.ndarray) -> np.ndarray:
-    """Average interval responses within each marking, then over the visible markings.
-
-    The score only grows when any visible interval's response grows, which the shortlist bound
-    in run_given relies on.
-
-    :param response: one mean sample response per court and marking interval, zero where hidden
-    :param visible: whether each court's marking interval is visible
-    """
     per_marking, marking_visible = [], []
     for intervals in assignment.MARKING_INTERVALS:
         count = visible[:, intervals].sum(axis=1)

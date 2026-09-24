@@ -681,7 +681,19 @@ def fit_row_base(parent: dict, status: str, reason: str | None = None) -> dict:
     }
 
 
-def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -> tuple[dict, dict | None, dict[str, np.ndarray] | None]:
+def view_line_maps(context) -> np.ndarray:
+    """The view's two wide-family distance maps. They depend only on the view, so every refit shares one copy."""
+    detector = import_detector()
+    maps = detector._distance_maps(detector._wide_line_families(context.segments), context.size)
+    # Shared across every refit in the view, so a stray in-place write should fail loudly.
+    maps.flags.writeable = False
+    return maps
+
+
+def attempt_refit(
+    context, parent: dict, runtime: dict[str, Any], cache: dict, line_maps: np.ndarray,
+) -> tuple[dict, dict | None, dict[str, np.ndarray] | None]:
+    """Refit one parent court; line_maps is view_line_maps(context)."""
     verifier = runtime["verifier"]
     row = fit_row_base(parent, "not_attempted")
     if not parent["hard_valid"] or "evidence" not in parent:
@@ -744,14 +756,13 @@ def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -
         detector.CORNER_COURT_M.astype(np.float32), attempted_working.astype(np.float32)
     ).astype(float)
     native_corners = row["attempted_corners_native"]
-    maps = detector._distance_maps(detector._wide_line_families(context.segments), context.size)
     child_gates = runtime["gate_evidence"](
         np.asarray(native_corners),
         context.source,
         np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float),
         context.size,
         context.families,
-        maps,
+        line_maps,
         runtime["zone"],
     )
     child_entry = {
@@ -920,8 +931,9 @@ def process_case(
     fit_rows = []
     children = []
     progress(f"refitting {len(parents)} parents")
+    line_maps = view_line_maps(context)
     for parent_index, parent in enumerate(parents, start=1):
-        row, child, arrays = attempt_refit(context, parent, runtime, cache)
+        row, child, arrays = attempt_refit(context, parent, runtime, cache, line_maps)
         fit_rows.append(row)
         if child is not None:
             children.append(child)

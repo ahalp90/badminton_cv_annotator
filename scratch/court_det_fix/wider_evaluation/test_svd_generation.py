@@ -143,7 +143,7 @@ def test_pair_ids_and_original_points_survive_screen(monkeypatch: pytest.MonkeyP
         calls.append(pair_points.copy())
         empty = np.empty((0,), dtype=float)
         candidate = SimpleNamespace(corners_px=np.zeros((4, 2)), score=1.)
-        return SimpleNamespace(candidates=[candidate], details=[{}], combined_corners=np.empty((0, 4, 2)),
+        return SimpleNamespace(candidates=[candidate], detail=lambda _position: {}, combined_corners=np.empty((0, 4, 2)),
                                valid=empty, usable=empty, player_any=empty, player_both_halves=empty,
                                record={"combined": 0})
 

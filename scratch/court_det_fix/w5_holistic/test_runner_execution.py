@@ -168,6 +168,7 @@ def test_process_case_keeps_conflicting_gate_candidates_and_writes_result(tmp_pa
     })
     monkeypatch.setattr(run_w5, "load_runtime", lambda *args: {"verifier": runtime})
     monkeypatch.setattr(run_w5, "load_populations", lambda *args, **kwargs: ([entry], [other], [], {"G0": {}, "line_template": {}}))
+    monkeypatch.setattr(run_w5, "view_line_maps", lambda _context: None)
     monkeypatch.setattr(run_w5, "attempt_refit", lambda *args: ({}, None, {}))
     monkeypatch.setattr(run_w5, "load_reference", lambda *args: pytest.fail("reference read during automatic ranking"))
     result = run_w5.process_case(tmp_path, "test_case", tmp_path)

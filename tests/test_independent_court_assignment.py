@@ -137,3 +137,22 @@ def test_reference_metrics_do_not_change_ranking() -> None:
     run_assignment.attach_metrics([record], {"test": {"corners_px": corners, "landmarks": []}})
     assert record["orders"] == before
     assert record["entries"][0]["metrics"]["corner_max_error_px"] == 0
+
+
+def test_segment_distances_match_the_original_vector_form_exactly() -> None:
+    """The x/y form must reproduce the einsum/norm form bit for bit; stripe evidence depends on it."""
+    random = np.random.default_rng(20260924)
+    for trial in range(200):
+        points = random.uniform(-50, 1000, (int(random.integers(1, 300)), 2))
+        segments = random.uniform(-50, 1000, (int(random.integers(1, 40)), 2, 2))
+        if trial % 5 == 0:
+            segments[0, 1] = segments[0, 0]  # A zero-length segment gives NaN in both forms.
+        vectors = segments[:, 1] - segments[:, 0]
+        delta = points[:, None] - segments[None, :, 0]
+        with np.errstate(invalid="ignore"):
+            fraction = np.einsum("psd,sd->ps", delta, vectors) / np.square(vectors).sum(axis=1)
+            nearest = segments[None, :, 0] + np.clip(fraction, 0, 1)[..., None] * vectors[None]
+            expected = np.linalg.norm(points[:, None] - nearest, axis=-1)
+            actual = assignment.distances_to_segments(points, segments)
+        # Bytes rather than values, so signed zeros and NaN bit patterns must match too.
+        assert (actual.dtype, actual.shape, actual.tobytes()) == (expected.dtype, expected.shape, expected.tobytes())

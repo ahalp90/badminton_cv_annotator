@@ -27,125 +27,29 @@ from projective_seed import (
 )
 from run_diagnosis import gate_evidence, read, write
 from run_population import prepare
-from scan_population import continuous_support, geometry, marking_score, retain
+from scan_population import continuous_support, geometry, retain
 
 from experiments.annotator.independent_court import assignment, detector
 from experiments.annotator.independent_court import stripe_observations as stripes
 
 KEEP_COMBINED = 256
-SCORING_BATCH = 256
-# continuous_support reads 64 samples along each marking interval; the bound reads every eighth.
-SAMPLES_PER_INTERVAL = 64
-BOUND_SAMPLES = np.unique(np.r_[np.arange(0, SAMPLES_PER_INTERVAL, 8), SAMPLES_PER_INTERVAL - 1])
-# Truncating a sample to its pixel moves it by less than one pixel on each axis.
-PIXEL_TRUNCATION_PX = float(np.sqrt(2))
-# Cover float32 map values and float32 responses, which differ from exact values by about 1e-7.
-DISTANCE_SLACK_PX = 1e-3
-SCORE_SLACK = 1e-6
 
 
 def finite_scores(
     homographies: np.ndarray, observations: assignment.Observations,
     axes: tuple[AxisMatches, AxisMatches], size: tuple[int, int],
-    shortlist: detector.Settings | None = None, corners: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Score canonically oriented courts using families from the current directions.
-
-    Given the pair's shortlist settings and the courts' corners, courts that cannot enter the
-    shortlist keep -inf instead of a score (see shortlist_scores).
-    """
+    """Score canonically oriented courts using families from the current directions."""
     families = []
     for matched in axes:
         groups = matched.diagnostics['retained_group_ids']
         members = np.concatenate([observations.groups[index] for index in groups])
         families.append(observations.segments[members].reshape(-1, 4))
     maps = detector._distance_maps((families[0], families[1]), size)
-    if shortlist is not None:
-        assert corners is not None
-        return shortlist_scores(homographies, maps, size, corners, shortlist)
     scores = np.empty(len(homographies))
-    for start in range(0, len(homographies), SCORING_BATCH):
-        scores[start:start + SCORING_BATCH] = continuous_support(homographies[start:start + SCORING_BATCH], maps, size)
+    for start in range(0, len(homographies), 256):
+        scores[start:start + 256] = continuous_support(homographies[start:start + 256], maps, size)
     return scores
-
-
-def score_upper_bounds(homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """An upper bound on each court's continuous_support score, from every eighth sample.
-
-    A distance map is an exact Euclidean distance transform, so its value changes by at most
-    the pixel distance between two samples. Between measured samples a and b, every sample is
-    therefore at least (d_a + d_b - (b - a) * spacing) / 2 - sqrt(2) px from a line, where
-    sqrt(2) covers truncation to whole pixels. The score only grows with each response, so
-    using the largest response each sample could have bounds it.
-    """
-    projected, _ = detector.project(homographies, detector.SEGMENTS_M)
-    endpoints = projected.reshape(-1, 12, 2, 2)
-    starts = endpoints[:, :, 0]
-    vectors = endpoints[:, :, 1] - starts
-    lower, upper, visible = detector._visible_fractions(endpoints, size)
-    # The same arithmetic as detector._visible_samples, so measured samples land on the same pixels.
-    sample_fractions = np.linspace(0, 1, SAMPLES_PER_INTERVAL)[BOUND_SAMPLES]
-    fractions = lower[..., None] + (upper - lower)[..., None] * sample_fractions
-    samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
-    pixel_x = np.clip(samples[..., 0], 0, size[0] - 1).astype(int)
-    pixel_y = np.clip(samples[..., 1], 0, size[1] - 1).astype(int)
-    family = np.repeat([0, 1], 6)[None, :, None]
-    distance = maps[family, pixel_y, pixel_x].astype(float)
-    spacing = (upper - lower) * np.linalg.norm(vectors, axis=-1) / (SAMPLES_PER_INTERVAL - 1)
-    gaps = np.diff(BOUND_SAMPLES)
-    between = (distance[..., :-1] + distance[..., 1:] - gaps * spacing[..., None]) / 2 - PIXEL_TRUNCATION_PX
-    response_sum = (largest_response(distance).sum(axis=2)
-                    + ((gaps - 1) * largest_response(between)).sum(axis=2))
-    response = np.where(visible, response_sum / SAMPLES_PER_INTERVAL, 0.)
-    return marking_score(response, visible) + SCORE_SLACK
-
-
-def largest_response(least_distance_px: np.ndarray) -> np.ndarray:
-    """continuous_support's sample response at the smallest distance a sample could have."""
-    distance = np.maximum(least_distance_px - DISTANCE_SLACK_PX, 0)
-    return np.exp(-.5 * np.square(distance / assignment.DISTANCE_SIGMA_PX))
-
-
-def shortlist_scores(
-    homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int], corners: np.ndarray,
-    shortlist: detector.Settings,
-) -> np.ndarray:
-    """Score courts in descending order of their bounds until the unscored ones cannot matter.
-
-    retain keeps the shortlist's best mutually distinct courts, greedily in score order. Once
-    the courts scored above every unscored court's bound fill the shortlist, the unscored
-    courts sort after the point where retain stops, so they cannot change the shortlist. They
-    keep -inf, which also sorts them last. Scored courts get exactly continuous_support's score.
-    """
-    bounds = np.concatenate([score_upper_bounds(homographies[start:start + SCORING_BATCH], maps, size)
-                             for start in range(0, len(homographies), SCORING_BATCH)])
-    order = np.argsort(-bounds, kind='stable')
-    scores = np.full(len(homographies), -np.inf)
-    scored = 0
-    while scored < len(order):
-        # Each round adds a quarter of what is scored so far, which keeps the retain checks few.
-        end = min(len(order), scored + max(SCORING_BATCH, scored // 4))
-        for start in range(scored, end, SCORING_BATCH):
-            rows = order[start:min(start + SCORING_BATCH, end)]
-            scores[rows] = continuous_support(homographies[rows], maps, size)
-        scored = end
-        if scored < len(order) and shortlist_filled(scores, corners, bounds[order[scored]], shortlist):
-            break
-    return scores
-
-
-def shortlist_filled(scores: np.ndarray, corners: np.ndarray, remaining_bound: float,
-                     shortlist: detector.Settings) -> bool:
-    """Whether the courts scored above every unscored court's bound already fill the shortlist.
-
-    Every court scoring above remaining_bound has been scored, so these courts are exactly the
-    top of the full score order, and retain on them matches retain on all courts up to its stop.
-    """
-    ahead = np.flatnonzero(scores > remaining_bound)
-    if len(ahead) < shortlist.keep_candidates:
-        return False
-    candidates = [detector.Candidate(corners[index], float(scores[index]), (0., 0.), (0, 0)) for index in ahead]
-    return len(retain(candidates, shortlist)) == shortlist.keep_candidates
 
 
 def control_homography(source: dict, reference: dict, vp_saved: dict, marking_summary: dict) -> tuple[np.ndarray, str]:
@@ -223,7 +127,12 @@ class RoleProposals:
     basis: np.ndarray | None
     axes: tuple[AxisMatches, AxisMatches] | None
     candidates: list[detector.Candidate]
-    details: list[dict]
+    # One row per candidate, in candidates order, for detail(): the two axis hypothesis IDs,
+    # whether canonicalise turned the court 180 degrees, the mean axis score and the homography.
+    axis_ids: np.ndarray = field(default_factory=lambda: np.empty((0, 2), dtype=int))
+    rotated: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
+    axis_scores: np.ndarray = field(default_factory=lambda: np.empty(0))
+    homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3)))
     # pregate copy: every combined court in transforms order (working px, float32), the geometry
     # mask, the player mask and the two player fractions. Empty when the basis fails.
     combined_corners: np.ndarray = field(default_factory=lambda: np.empty((0, 4, 2), dtype=np.float32))
@@ -232,22 +141,24 @@ class RoleProposals:
     player_any: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
     player_both_halves: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
 
+    def detail(self, position: int) -> dict:
+        """One candidate's provenance, built on demand because most candidates never reach a shortlist."""
+        first, second = self.axis_ids[position]
+        return {'axis_ids': [int(first), int(second)], 'rotated_180': bool(self.rotated[position]),
+                'axis_score': float(self.axis_scores[position]),
+                'homography_working': self.homographies[position].tolist()}
+
 
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
     player_pruning: bool = True, combined_ranking: str = 'finite',
-    shortlist: detector.Settings | None = None,
 ) -> RoleProposals:
-    """Generate one ordered direction role without reference geometry or labels.
-
-    :param shortlist: the retention settings the caller will apply to these candidates. When
-        given, candidates that provably fall outside that shortlist keep a score of -inf.
-    """
+    """Generate one ordered direction role without reference geometry or labels."""
     basis, details = basis_for(points, size, settings)
     record = {'basis_status': details}
     if basis is None:
-        return RoleProposals(record, None, None, [], [])
+        return RoleProposals(record, None, None, [])
     axis_feet = feet if player_pruning else None
     horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings, axis_feet)
     vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings, axis_feet)
@@ -260,19 +171,15 @@ def propose_role(
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
                    'geometry_players': int(usable.sum())})
     usable_ids = np.flatnonzero(usable)
-    finite = finite_scores(transforms[usable], observations, (horizontal, vertical), size,
-                           shortlist, corners[usable]) if (combined_ranking == 'finite' and len(usable_ids)) else None
-    if finite is not None:
-        record['finite_scored'] = int(np.isfinite(finite).sum())
-    candidates, provenance = [], []
-    for position, index in enumerate(usable_ids):
-        first, second = axis_pairs[index]
-        score = float((horizontal.scores[first] + vertical.scores[second]) / 2)
-        shortlist_score = score if finite is None else float(finite[position])
-        candidates.append(detector.Candidate(corners[index], shortlist_score, (0., 0.), (0, 0)))
-        provenance.append({'axis_ids': [int(first), int(second)], 'rotated_180': bool(rotated[index]),
-                           'axis_score': score, 'homography_working': transforms[index].tolist()})
-    return RoleProposals(record, basis, (horizontal, vertical), candidates, provenance,
+    axis_ids = axis_pairs[usable_ids]
+    axis_scores = (horizontal.scores[axis_ids[:, 0]] + vertical.scores[axis_ids[:, 1]]) / 2
+    finite = finite_scores(transforms[usable], observations, (horizontal, vertical), size) if (
+        combined_ranking == 'finite' and len(usable_ids)) else None
+    shortlist_scores = axis_scores if finite is None else finite
+    candidates = [detector.Candidate(corners[index], float(score), (0., 0.), (0, 0))
+                  for index, score in zip(usable_ids, shortlist_scores, strict=True)]
+    return RoleProposals(record, basis, (horizontal, vertical), candidates,
+                         axis_ids, rotated[usable_ids], axis_scores, transforms[usable_ids],
                          np.asarray(corners, dtype=np.float32).reshape(-1, 4, 2),
                          np.asarray(valid, dtype=bool), np.asarray(usable, dtype=bool),
                          np.asarray(one, dtype=np.float32), np.asarray(two, dtype=np.float32))
@@ -297,9 +204,9 @@ def run_case(
     for role, points in enumerate((control[:, :2].T, control[:, [1, 0]].T)):
         proposed = propose_role(points, observations, feet, size, settings, player_pruning, combined_ranking)
         record = {'role': role, **proposed.record}
-        for candidate, details in zip(proposed.candidates, proposed.details, strict=True):
+        for position, candidate in enumerate(proposed.candidates):
             candidates.append(candidate)
-            provenance[id(candidate)] = {'candidate_id': counter, 'role': role, **details}
+            provenance[id(candidate)] = {'candidate_id': counter, 'role': role, **proposed.detail(position)}
             counter += 1
         # Given directions are diagnostic; cap-loss measurements happen after generation.
         if role == 0 and proposed.axes is not None:

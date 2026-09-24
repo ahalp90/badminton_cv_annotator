@@ -209,6 +209,7 @@ def replay_case(case_id: str, comparator: dict, control_pack: Path | None = None
     changed = []
     retained = []
     cache = {}
+    line_maps = run_w5.view_line_maps(context)
     for identity in identities:
         entry = identity["entry"]
         key = identity["origin_key"]
@@ -234,7 +235,7 @@ def replay_case(case_id: str, comparator: dict, control_pack: Path | None = None
                 context, entry, identity["source"], identity["source_order"],
                 identity["origin_index"], runtime, cache, identity=identity,
             )
-            _, child, _ = run_w5.attempt_refit(context, parent, runtime, cache)
+            _, child, _ = run_w5.attempt_refit(context, parent, runtime, cache, line_maps)
             if child is not None:
                 children.append(run_w5.public_candidate(child))
         parents.append(run_w5.public_candidate(parent))
