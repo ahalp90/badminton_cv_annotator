@@ -94,24 +94,34 @@ def geometry_and_support(
 
 
 def vector_camera_errors(homographies: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """Vectorise the frozen camera diagnostic over its 200 focal lengths."""
-    width, height = size
-    focals = np.geomspace(0.4 * width, 4.0 * width, 200)
-    axes = np.broadcast_to(homographies[:, None, :, :2], (len(homographies), len(focals), 3, 2)).copy()
-    principal = np.asarray([width / 2.0, height / 2.0])
-    axes[:, :, :2] -= principal[None, None, :, None] * homographies[:, None, 2:3, :2]
-    axes[:, :, :2] /= focals[None, :, None, None]
-    norms = np.linalg.norm(axes, axis=2)
+    """Vectorise the frozen camera diagnostic over its 200 focal lengths.
+
+    Each court direction's x, y and w parts stay separate (courts, focal lengths) arrays, because
+    numpy is several times slower on trailing axes of length 3 and 2. The sums run left to right,
+    as numpy's length-3 reductions do, so errors are bit-identical to the stacked form.
+    """
+    # The stacked form kept float32 input in float32; this form would promote it to float64.
+    if homographies.dtype != np.float64:
+        raise TypeError(f"camera errors need float64 homographies, got {homographies.dtype}")
+    image_width, image_height = size
+    focals = np.geomspace(0.4 * image_width, 4.0 * image_width, 200)
+    # Column 0 of a homography images the court's width direction, column 1 its length direction.
+    # The image-plane parts move to the principal point and scale by focal length; w does neither.
+    width_x = (homographies[:, 0, 0] - image_width / 2.0 * homographies[:, 2, 0])[:, None] / focals
+    width_y = (homographies[:, 1, 0] - image_height / 2.0 * homographies[:, 2, 0])[:, None] / focals
+    length_x = (homographies[:, 0, 1] - image_width / 2.0 * homographies[:, 2, 1])[:, None] / focals
+    length_y = (homographies[:, 1, 1] - image_height / 2.0 * homographies[:, 2, 1])[:, None] / focals
+    width_w, length_w = homographies[:, 2, 0, None], homographies[:, 2, 1, None]
+    width_norm = np.sqrt(np.square(width_x) + np.square(width_y) + np.square(width_w))
+    length_norm = np.sqrt(np.square(length_x) + np.square(length_y) + np.square(length_w))
     with np.errstate(divide="ignore", invalid="ignore"):
-        cosine = (axes[:, :, :, 0] * axes[:, :, :, 1]).sum(axis=2) / np.prod(norms, axis=2)
-        ratio = np.log(norms[:, :, 0] / norms[:, :, 1])
+        dot = width_x * length_x + width_y * length_y + width_w * length_w
+        cosine = dot / (width_norm * length_norm)
+        ratio = np.log(width_norm / length_norm)
         errors = np.hypot(cosine, ratio)
-    errors = np.where(
-        np.isfinite(errors) & np.all(np.isfinite(norms), axis=2) & np.all(norms > 0, axis=2),
-        errors,
-        np.inf,
-    )
-    return errors.min(axis=1)
+    usable = (np.isfinite(errors) & np.isfinite(width_norm) & np.isfinite(length_norm)
+              & (width_norm > 0) & (length_norm > 0))
+    return np.where(usable, errors, np.inf).min(axis=1)
 
 
 def camera_errors_with_frontier_recheck(
