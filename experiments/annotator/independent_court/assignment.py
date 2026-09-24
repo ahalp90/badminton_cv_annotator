@@ -7,6 +7,8 @@ Groups describe collinear detector responses, not verified physical stripes.
 
 from __future__ import annotations
 
+import copy
+import functools
 from dataclasses import dataclass
 
 import numpy as np
@@ -72,9 +74,25 @@ def prepare_observations(
     :param fragment_ids: Stable source IDs; defaults to positions in the raw cache.
     :return: Canonically ordered observations retaining raw fragment provenance.
     """
-    segments = np.asarray(segments, dtype=float).reshape(-1, 2, 2).copy()
-    if fragment_ids is None:
-        fragment_ids = np.arange(len(segments))
+    segments = np.asarray(segments, dtype=float).reshape(-1, 2, 2)
+    if fragment_ids is not None:
+        return _build_observations(segments, size, fragment_ids)
+    # One D17 view prepares the same fragments six times. Each call gets its own copy, so
+    # callers stay as independent of each other as they were without the cache.
+    width, height = size
+    return copy.deepcopy(_build_with_position_ids(segments.tobytes(), width, height))
+
+
+# typed=True keys sizes such as 2050 and np.float16(2050) apart: they compare equal but clip differently.
+@functools.lru_cache(maxsize=8, typed=True)
+def _build_with_position_ids(segment_bytes: bytes, width: int, height: int) -> Observations:
+    """Cached build for the default IDs, keyed on the exact bytes of the float segments."""
+    segments = np.frombuffer(segment_bytes, dtype=float).reshape(-1, 2, 2)
+    return _build_observations(segments, (width, height), np.arange(len(segments)))
+
+
+def _build_observations(segments: np.ndarray, size: tuple[int, int], fragment_ids: np.ndarray) -> Observations:
+    segments = segments.copy()
     swap = (segments[:, 0, 0] > segments[:, 1, 0]) | (
         (segments[:, 0, 0] == segments[:, 1, 0]) & (segments[:, 0, 1] > segments[:, 1, 1])
     )
