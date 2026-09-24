@@ -191,7 +191,7 @@ These swaps are timing only and change nothing:
 | Case provenance | `frozen_views/case_provenance.json.gz` | Yes | `prepare_view`, for views outside the control pack. Says which frames the image and person boxes come from, and so whether boxes can mask the photometry | Equivalent frame and box provenance for the live frame |
 | Frames | `frozen_views/frames/{gx,original,amateur}/` | Yes | Prepare view, pool evidence, W5 and the stripe refit | The decoded frame |
 | Control views | `wider_evaluation/runs/20260922/control_inputs.json.gz`; frames in `evidence/independent_proposals/development/inputs/controls/frames/` | Pack yes; frames **no** (git-ignored, copy by hand) | The control swap | As for view packs |
-| Standing-only feet | The `--feet` file, `feet_standing.json.gz` | **No**; rebuild it | The feet swap | See "Feet" below |
+| Standing-only feet | The `--feet` file, `feet_standing.json.gz` (138 KB) | **No**. Use the baseline's copy on Carmack: `fresh_feet_20260924/feet_standing.json.gz` in the court-detector run root. Rebuilding it needs the videos and the pose model | The feet swap | See "Feet" below |
 | Direction settings | `frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz` | Yes | Search | Constants |
 | Manifest | `wider_evaluation/runs/20260922/manifest.json.gz` | Yes | Refit's frame check | None; drop the check |
 | Saved control candidates | `automatic_axes_20260914/all_camera/` | **No**, and not in this checkout | W5's known-control diagnostic, on 3 views | None; drop the diagnostic |
@@ -264,10 +264,20 @@ comes from the same `evaluate_pool` call, so that change needs care.
 Run the new detector and `run_d17.py` on the same 28 views with the same feet
 file. For each view, compare `selection.bounded` and
 `selection.polarity_refit.corrected` from the script's summary with the new
-detector's output, bit for bit. The launcher is
-`claude_evidence/fresh_feet/run_feet_variants.sh CHECKOUT OUT FEET_DIR PYTHON JOBS standing`.
-Nine views need the git-ignored control frames copied in first. Three need
-`automatic_axes_20260914/` unless the known-control diagnostic is dropped.
+detector's output, bit for bit.
+
+The baseline run lives on Carmack, in the court-detector run root:
+
+- **Summaries**: `d17_camera_20260924/standing/budget16/d17/`, one
+  `.json.gz` per view, 28 in all
+- **Feet**: `fresh_feet_20260924/feet_standing.json.gz`. Pass the folder
+  `fresh_feet_20260924` as the launcher's `FEET_DIR`
+- **Launcher**: `court_detector_optimisation_handover/claude_evidence/fresh_feet/run_feet_variants.sh CHECKOUT OUT FEET_DIR PYTHON JOBS standing`.
+  It writes each view's summary to `OUT/standing/budget16/d17/`
+- **Git-ignored inputs**: nine views need the control frames, and three need
+  `automatic_axes_20260914/` unless the known-control diagnostic is
+  dropped. The baseline's checkout, `d17_camera_checkout_20260924`, has
+  both under its `scratch/court_det_fix/`. Copy them into any new checkout
 
 ## Other documents
 
