@@ -1,0 +1,34 @@
+case | reference median working px per arm: baseline / everyone / standing
+am1_window_00_frame_54 | 1.23 / 1.23 / 1.23
+am2_window_00_frame_150 | 1.76 / 1.76 / 1.76
+am2_window_01_frame_28019 | 2.35 / 2.35 / 2.35
+am3_window_00_frame_0 | 2.17 / 2.17 / 2.17
+am3_window_02_frame_17174 | 1.72 / 1.72 / 1.72
+gxBQ_window_00_frame_0 | 3.61 / 3.61 / 3.61
+gxBQ_window_00_frame_5 | 2.20 / 2.20 / 2.20
+gxBQ_window_00_frame_689 | 2.76 / 2.76 / 2.76
+gxBQ_window_03_frame_77876 | 1.86 / 1.86 / 1.86
+letterboxed_short_frame_78 | 1.58 / 1.58 / 1.58
+shuttleset_03_scene_0016 | 1.96 / 1.96 / 1.96
+shuttleset_03_scene_0017 | 2.66 / 3.44 / 2.05
+shuttleset_03_scene_0019 | 1.77 / 1.77 / 1.77
+shuttleset_03_scene_0023 | 2.12 / 2.12 / 2.12
+shuttleset_03_scene_0032 | 1.68 / 2.19 / 1.72
+shuttleset_03_scene_0034 | 2.53 / 2.33 / 2.33
+shuttleset_21_scene_0034 | 2.47 / 2.47 / 2.47
+shuttleset_21_scene_0039 | - / - / -
+shuttleset_21_scene_0044 | 2.21 / 2.21 / 2.21
+sset_21_gloiZ_gTJaE_frame_00000001 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00000300 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00009558 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00014336 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00023893 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00038228 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00062120 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00090790 | - / - / -
+sset_21_gloiZ_gTJaE_frame_00100347 | - / - / -
+
+baseline {'pair': 9003, 'pair/finite_scores': 3321, 'pair/match_axis': 3569, 'pair/player_fractions': 53}
+everyone {'pair': 8766, 'pair/finite_scores': 2823, 'pair/match_axis': 3967, 'pair/player_fractions': 118}
+standing {'pair': 7881, 'pair/finite_scores': 3048, 'pair/match_axis': 2878, 'pair/player_fractions': 83}
+exit 0

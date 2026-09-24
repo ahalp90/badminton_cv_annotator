@@ -1,0 +1,78 @@
+# Items 3 and 5: D17 full search rerun against the 24 September full search (Carmack, 8 jobs; baseline ran 12 jobs)
+
+## Exact comparison (compare_d17_runs.py): exit 0
+files identical: 168
+files differing: 0
+pattern_supported counts now None (expected): 11656
+
+json files: 140, npz files: 28
+     28 budget16/case_records
+     28 budget16/d17
+     28 budget16/inputs
+     28 budget16/populations/G0
+     28 budget16/populations/G1
+pattern_supported set to None: 11656
+----
+## Court views: targeted generator steps (G0 + G1) in seconds, old / new
+pair/player_fractions: 6429 / 52 (122.9x faster)
+pair/match_axis: 4579 / 3553 (1.3x faster)
+pair: 15770 / 8980 (1.8x faster)
+
+## Court views: stage totals in seconds, old / new / change
+startup (start Python, import numpy/OpenCV, load detector code): 48 / 48 / +0
+prepare_view (load the frozen line fragments and frame for the view): 21 / 22 / +1
+direction_estimate (estimate vanishing directions, shared by G0 and G1): 19 / 21 / +2
+G0_search (G0: try direction pairs and keep the best 256 courts): 12793 / 7843 / -4951
+G0_pool_evidence (G0: legacy evidence on the kept 256 courts): 316 / 328 / +12
+G1_search (G1: same search on paint-filtered fragments): 3341 / 1530 / -1811
+G1_pool_evidence (G1: legacy evidence on the kept 256 courts): 159 / 152 / -7
+paint_filter_and_other (paint mask for G1 and other population glue): 7 / 7 / +1
+population_io (write and re-read G0/G1 population files): 139 / 139 / -0
+line_templates (seeded line templates: candidate courts built from line-crossing rectangles): 666 / 661 / -5
+w5_measure (W5: measure paint and stripe evidence for every merged candidate): 1081 / 1082 / +1
+w5_refit (W5: refit every valid candidate to its stripes and re-measure the result): 1571 / 1614 / +43
+w5_rank_and_merge (W5: merge duplicates, gate and rank): 12 / 12 / +0
+w5_research (W5: determinism re-check, control entry, candidate review, sensitivity rankings): 18 / 19 / +1
+w5_io (W5: re-prepare view, write full record and arrays): 352 / 355 / +3
+net_choice (bounded net choice: post evidence for full-court candidates, then choose): 21 / 20 / -1
+net_choice_io (re-read the W5 record for the net choice): 24 / 25 / +1
+refit_replay (polarity refit: reload record and view, check the saved fit replays): 44 / 46 / +3
+refit_correct (polarity refit: infer stripe polarity, refit, validate): 13 / 14 / +1
+total wall: 20647 / 13942 (0.68x)
+total cpu: 20517 / 13832 (0.67x)
+
+## Wall seconds per view by group: old median / new median, old total / new total
+GX: 2416 / 1414, 10440 / 5582
+amateur: 754 / 409, 4144 / 2606
+broadcast: 641 / 537, 6064 / 5755
+non-court: 90 / 101, 783 / 805
+
+## Per view: wall old / new, G0+G1 search old / new, peak RSS MB old / new
+gxBQ_window_00_frame_0 | 2425 / 1518 | 2132 / 1229 | 6044 / 2235
+gxBQ_window_00_frame_5 | 2057 / 1200 | 1869 / 1029 | 5187 / 1803
+gxBQ_window_00_frame_689 | 3550 / 1553 | 3208 / 1218 | 7059 / 1940
+gxBQ_window_03_frame_77876 | 2407 / 1311 | 2129 / 1062 | 5259 / 1926
+am1_window_00_frame_54 | 945 / 428 | 687 / 262 | 5436 / 914
+am2_window_00_frame_150 | 717 / 390 | 547 / 198 | 6016 / 1074
+am2_window_01_frame_28019 | 611 / 327 | 471 / 115 | 6605 / 963
+am3_window_00_frame_0 | 792 / 642 | 676 / 423 | 5605 / 1674
+am3_window_02_frame_17174 | 849 / 574 | 617 / 360 | 4666 / 1388
+letterboxed_short_frame_78 | 230 / 244 | 69 / 45 | 1749 / 519
+shuttleset_03_scene_0016 | 845 / 750 | 565 / 480 | 1677 / 1681
+shuttleset_03_scene_0017 | 754 / 788 | 485 / 508 | 1781 / 1803
+shuttleset_03_scene_0019 | 739 / 700 | 466 / 414 | 1512 / 1533
+shuttleset_03_scene_0023 | 548 / 478 | 314 / 325 | 1606 / 1588
+shuttleset_03_scene_0032 | 683 / 596 | 484 / 392 | 1507 / 1553
+shuttleset_03_scene_0034 | 684 / 810 | 403 / 537 | 1885 / 1752
+shuttleset_21_scene_0034 | 600 / 438 | 369 / 221 | 1500 / 1379
+shuttleset_21_scene_0039 | 404 / 414 | 210 / 169 | 1248 / 1134
+shuttleset_21_scene_0044 | 491 / 373 | 262 / 179 | 1119 / 1012
+sset_21_gloiZ_gTJaE_frame_00000001 | 316 / 406 | 171 / 207 | 979 / 982
+sset_21_gloiZ_gTJaE_frame_00000300 | 134 / 121 | 71 / 4 | 272 / 272
+sset_21_gloiZ_gTJaE_frame_00009558 | 97 / 99 | 37 / 3 | 282 / 282
+sset_21_gloiZ_gTJaE_frame_00014336 | 79 / 131 | 6 / 7 | 368 / 367
+sset_21_gloiZ_gTJaE_frame_00023893 | 106 / 114 | 26 / 9 | 302 / 301
+sset_21_gloiZ_gTJaE_frame_00038228 | 65 / 74 | 2 / 2 | 231 / 234
+sset_21_gloiZ_gTJaE_frame_00062120 | 83 / 99 | 25 / 2 | 278 / 271
+sset_21_gloiZ_gTJaE_frame_00090790 | 59 / 64 | 5 / 2 | 258 / 257
+sset_21_gloiZ_gTJaE_frame_00100347 | 160 / 103 | 70 / 3 | 281 / 283

@@ -1,0 +1,225 @@
+{
+  "schema": "court-detector-optimisation-handover/1",
+  "reviewed": {
+    "repository": "ahalp90/badminton_cv_annotator",
+    "branch": "fix/court-det",
+    "revision": "2a00f77172a59374136e19246ede1d854aaaff01",
+    "date": "2026-09-23",
+    "kind": "static source audit plus execution protocol"
+  },
+  "non_negotiable": [
+    "no new annotations or held-out set",
+    "preserve uncommitted local data and historical outputs",
+    "retain G0, G1 and line-template sources",
+    "retain SVD12 baseline and existing search caps",
+    "retain gates, ranking, tie order, abstention and selection-then-correction",
+    "reference labels must not enter runtime pruning"
+  ],
+  "tasks": [
+    {
+      "id": "P0",
+      "title": "Capture baseline and resolve imports",
+      "class": "measurement",
+      "depends_on": [],
+      "files": [
+        "svd_search/run.py",
+        "w5_holistic/run_w5.py"
+      ],
+      "acceptance": [
+        "actual module paths recorded",
+        "fast and slow one-worker records captured",
+        "wall/cpu/rss and work counters captured"
+      ]
+    },
+    {
+      "id": "P1",
+      "title": "Prepare frame/pair geometry and hoist basis inverse",
+      "class": "exact",
+      "depends_on": [
+        "P0"
+      ],
+      "files": [
+        "active projective_seed.py",
+        "active run_given.py"
+      ],
+      "acceptance": [
+        "same retained axes and candidate identities",
+        "same winners and gates",
+        "basis inverse count reduced to natural pair lifetime"
+      ]
+    },
+    {
+      "id": "P2",
+      "title": "Apply existing player gate before axis scoring",
+      "class": "exact retained-output semantics",
+      "depends_on": [
+        "P1"
+      ],
+      "files": [
+        "active projective_seed.py"
+      ],
+      "acceptance": [
+        "same retained output",
+        "scored parameter count does not increase",
+        "wall saving measured where pruning occurs"
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "Adaptive scoring batches",
+      "class": "exact semantics",
+      "depends_on": [
+        "P2"
+      ],
+      "files": [
+        "active projective_seed.py"
+      ],
+      "acceptance": [
+        "same global indexes and stable order",
+        "peak RSS recorded",
+        "useful reduction in batch overhead"
+      ]
+    },
+    {
+      "id": "P4",
+      "title": "Prepared endpoint scoring kernel",
+      "class": "numerical-equivalent",
+      "depends_on": [
+        "P1",
+        "P2"
+      ],
+      "files": [
+        "active projective_seed.py"
+      ],
+      "acceptance": [
+        "same support masks and nearest group IDs",
+        "threshold frontier uses baseline fallback",
+        "same retained identities"
+      ]
+    },
+    {
+      "id": "P5",
+      "title": "Lean axis-pair combination and analytic player mapping",
+      "class": "numerical-equivalent with fallback",
+      "depends_on": [
+        "P1",
+        "P2"
+      ],
+      "files": [
+        "active projective_seed.py",
+        "active run_given.py",
+        "zone_net.py"
+      ],
+      "acceptance": [
+        "same usable and retained IDs",
+        "same final decisions",
+        "generic inverse and duplicate projection counts materially reduced"
+      ]
+    },
+    {
+      "id": "P6",
+      "title": "Complete-key distance-map cache",
+      "class": "exact conditional",
+      "depends_on": [
+        "P0"
+      ],
+      "files": [
+        "active run_given.py"
+      ],
+      "acceptance": [
+        "map equality on hits",
+        "complete evidence identity in key",
+        "meaningful hit rate and net saving"
+      ]
+    },
+    {
+      "id": "P7",
+      "title": "Batch gates and full evidence",
+      "class": "numerical-equivalent with frontier recheck",
+      "depends_on": [
+        "P0"
+      ],
+      "files": [
+        "run_automatic.py",
+        "run_diagnosis.py",
+        "line_template_source.py"
+      ],
+      "acceptance": [
+        "same gate/eligibility records",
+        "same rank and abstention",
+        "candidate feet/settings prepared once"
+      ]
+    },
+    {
+      "id": "P8",
+      "title": "Batch stripe evidence",
+      "class": "numerical-equivalent",
+      "depends_on": [
+        "P7"
+      ],
+      "files": [
+        "stripe_observations.py"
+      ],
+      "acceptance": [
+        "same fragment assignments",
+        "same stripe scores within tolerance",
+        "same refit/rank decisions"
+      ]
+    },
+    {
+      "id": "P9",
+      "title": "Refit cache, evidence reuse, analytic Jacobian",
+      "class": "exact then numerical-equivalent",
+      "depends_on": [
+        "P8"
+      ],
+      "files": [
+        "fixed_stripe_refit.py",
+        "W5 refit caller"
+      ],
+      "acceptance": [
+        "complete cache identity",
+        "same fit status/child existence/final selected key",
+        "baseline solver fallback on ambiguity"
+      ]
+    },
+    {
+      "id": "P10",
+      "title": "Deterministic one-level parallelism",
+      "class": "exact semantics",
+      "depends_on": [
+        "P5",
+        "P7"
+      ],
+      "files": [
+        "runner/orchestrator"
+      ],
+      "acceptance": [
+        "same output at multiple worker counts",
+        "one numerical thread per worker",
+        "no nested pools or harmful memory multiplication"
+      ]
+    },
+    {
+      "id": "P11",
+      "title": "Early compatible-view reuse with full-search fallback",
+      "class": "pipeline",
+      "depends_on": [
+        "P5",
+        "P7",
+        "P10"
+      ],
+      "files": [
+        "src/annotator/composition_mask.py",
+        "court_evidence.py",
+        "court_views.py",
+        "dataset_builder integration"
+      ],
+      "acceptance": [
+        "uncertain validation always falls back",
+        "frozen quality/control results preserved",
+        "full detector calls track distinct compatible views"
+      ]
+    }
+  ]
+}
