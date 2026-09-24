@@ -227,7 +227,8 @@ def match_axis(
                     # Unmeasured under player pruning: player-incompatible hypotheses are never scored.
                     'zero_scale_excluded': int((~nonzero).sum()),
                     'pattern_supported': int(pattern.sum()) if feet_px is None else None,
-                    'necessary_player_pruning': feet_px is not None, 'pattern_and_players': len(eligible),
+                    'necessary_player_pruning': feet_px is not None, 'scored': len(to_score),
+                    'pattern_and_players': len(eligible),
                     'distinct_assignments': len(distinct), 'axis_cap_excluded': max(0, len(distinct) - len(retained))})
     return AxisMatches(parameters, scores, matches, anchors, supported, player_compatible,
                        np.asarray(distinct, dtype=int), retained, details)
