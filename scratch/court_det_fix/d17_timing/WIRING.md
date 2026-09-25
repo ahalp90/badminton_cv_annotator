@@ -383,8 +383,8 @@ detector's output, bit for bit.
 
 `court_detector/run_views.py` does this for the joined detector. With
 `--baseline` (the baseline's `budget16` folder), `--feet` and `--artefacts`,
-it checks each view against the baseline run: the chosen court, the refitted
-court, the feet, the shot check's grey differences, the G0 and G1 entries
+it checks each view against the baseline run: the chosen court, the whole
+refit record, the feet, the shot check's grey differences, the G0 and G1 entries
 (without the legacy evidence), the line templates' count and metadata, the W5
 parents, children, fit attempts and C ranking, and the identity resolution.
 Values must match in type as well: `1` and `1.0` count as different. Its module docstring gives the command.

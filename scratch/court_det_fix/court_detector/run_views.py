@@ -7,7 +7,7 @@ decoded frame count. Each video is decoded once per process, from frame 0, as th
 scripts did, and only the window frames are kept.
 
 With --baseline (needs --artefacts), each view is checked against the baseline arm: the
-chosen court, the refitted court, the feet, the grey differences, the G0 and G1 entries,
+chosen court, the whole refit record, the feet, the grey differences, the G0 and G1 entries,
 the line templates' count and metadata, and the W5 record. A view that raises is logged and the run carries on; the exit code is
 1 when any view raised or failed a check.
 
@@ -31,6 +31,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
 import resource
 import traceback
 from collections.abc import Sequence
@@ -60,6 +61,8 @@ SHOT_CHECK = FRESH_FEET / "shot_check.jsonl"
 MANIFEST = ROOT / "wider_evaluation/runs/20260922/manifest.json.gz"
 CONTROL_PACK = ROOT / "wider_evaluation/runs/20260922/control_inputs.json.gz"
 LEGACY_ENTRY_FIELDS = ("stripe", "profile")
+# refit_selected.refit_selection adds these around the refit itself.
+REFIT_WRAPPER_FIELDS = {"case_id", "label", "source_record", "frame_md5"}
 
 
 def read_json_gz(path: Path) -> Any:
@@ -154,7 +157,9 @@ def first_difference(left: Any, right: Any, path: str = "") -> str | None:
     # Python counts 1 == 1.0 and False == 0, but JSON writes them differently.
     if type(left) is not type(right):
         return f"{path}: types {type(left).__name__} and {type(right).__name__}"
-    return None if left == right else f"{path}: {left!r} != {right!r}"
+    # Python also counts -0.0 == 0.0.
+    signs_differ = isinstance(left, float) and math.copysign(1.0, left) != math.copysign(1.0, right)
+    return None if left == right and not signs_differ else f"{path}: {left!r} != {right!r}"
 
 
 def baseline_checks(view_id: str, result: CourtResult, artefacts: dict, baseline: Path, feet_by_view: dict,
@@ -164,15 +169,18 @@ def baseline_checks(view_id: str, result: CourtResult, artefacts: dict, baseline
     selection = summary["selection"]
     polarity = selection["polarity_refit"]
     refit = artefacts.get("stripe_refit")
+    if refit is not None:
+        refit = {key: value for key, value in refit.items() if key != "timings_seconds"}
+    if polarity is not None:
+        polarity = {key: value for key, value in polarity.items()
+                    if key != "timings_seconds" and key not in REFIT_WRAPPER_FIELDS}
     checks = {
         "chosen_key": first_difference(result.chosen_key, selection["bounded"]),
-        "refit_corrected": first_difference(None if refit is None else refit["corrected"],
-                                            None if polarity is None else polarity["corrected"]),
+        "refit": first_difference(refit, polarity),
         "feet": first_difference(artefacts["feet"]["all_feet_px"], feet_by_view[view_id]),
+        "grey_differences": first_difference(artefacts["feet"]["grey_differences"],
+                                             shot_rows[view_id]["differences"]),
     }
-    if artefacts["feet"]["grey_differences"] is not None:
-        checks["grey_differences"] = first_difference(artefacts["feet"]["grey_differences"],
-                                                      shot_rows[view_id]["differences"])
     for name in ("G0", "G1"):
         saved = read_json_gz(baseline / "populations" / name / f"{view_id}.json.gz")["entries"]
         checks[f"{name}_entries"] = first_difference(artefacts["populations"][name],
