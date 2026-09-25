@@ -1,0 +1,42 @@
+{
+ "view_id": "shuttleset_03_scene_0034",
+ "error": null,
+ "detect_seconds": 431.31719137215987,
+ "chosen_key": "G1:1:2005",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   316.6795577609535,
+   216.38290139546555
+  ],
+  [
+   642.7173344809169,
+   215.21155954566697
+  ],
+  [
+   754.7508361342328,
+   493.15850883495546
+  ],
+  [
+   201.57707215771813,
+   492.7483839473511
+  ]
+ ],
+ "checks": {
+  "chosen_key": null,
+  "refit_corrected": null,
+  "feet": null,
+  "grey_differences": null,
+  "G0_entries": null,
+  "G1_entries": null,
+  "line_template_count": null,
+  "line_template_metadata": null,
+  "w5_parents": null,
+  "w5_valid_children": null,
+  "w5_fit_attempts": null,
+  "w5_c_ranking": null,
+  "w5_identity_resolution": null
+ },
+ "all_checks_equal": true
+}

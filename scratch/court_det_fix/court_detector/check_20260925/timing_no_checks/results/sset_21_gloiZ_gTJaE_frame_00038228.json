@@ -1,0 +1,18 @@
+{
+ "view_id": "sset_21_gloiZ_gTJaE_frame_00038228",
+ "error": null,
+ "detect_seconds": 32.96502442937344,
+ "chosen_key": null,
+ "no_court_reason": "no_gated_court",
+ "stage_seconds": {
+  "feet": 0.07298639370128512,
+  "context": 0.12942201690748334,
+  "directions_and_paint_filter": 0.1783902202732861,
+  "G0_search": 0.9396264920942485,
+  "G1_search": 0.21984884701669216,
+  "line_templates": 8.056282060686499,
+  "w5": 23.344215292017907,
+  "net_choice": 0.00034634489566087723
+ },
+ "corners_native_px": null
+}

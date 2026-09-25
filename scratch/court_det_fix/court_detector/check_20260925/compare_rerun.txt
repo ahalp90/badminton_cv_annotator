@@ -1,0 +1,48 @@
+d17: 6 of 28 files equal
+populations/G0: 28 of 28 files equal
+populations/G1: 28 of 28 files equal
+case_records: 0 of 28 files equal
+inputs: 28 of 28 files equal
+arrays: 28 of 28 files equal
+
+d17/am1_window_00_frame_54.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/am2_window_00_frame_150.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/am2_window_01_frame_28019.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/am3_window_00_frame_0.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/am3_window_02_frame_17174.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/gxBQ_window_00_frame_0.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/gxBQ_window_00_frame_5.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/gxBQ_window_00_frame_689.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/gxBQ_window_03_frame_77876.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/letterboxed_short_frame_78.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/shuttleset_03_scene_0016.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+d17/shuttleset_03_scene_0017.json.gz: 1 differences
+  $.selection.polarity_refit.source_record: <remote>/d17_camera_20260924/standing/budget16/case_recor != <remote>/court_detector_20260925/run_d17/standing/budget1
+
+Difference paths, all files:
+       28  $.population_sources.G0
+       28  $.population_sources.G1
+       28  $.provenance.g0_source
+       22  $.selection.polarity_refit.source_record

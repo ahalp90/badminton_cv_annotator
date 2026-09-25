@@ -1,0 +1,42 @@
+{
+ "view_id": "sset_21_gloiZ_gTJaE_frame_00000001",
+ "error": null,
+ "detect_seconds": 189.20354830706492,
+ "chosen_key": "G0:180:580/child",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   71.84782065751331,
+   408.10399818865744
+  ],
+  [
+   212.57065451768528,
+   368.3828967718462
+  ],
+  [
+   525.9011119423358,
+   435.51477463566914
+  ],
+  [
+   413.8959741173237,
+   509.3500817215178
+  ]
+ ],
+ "checks": {
+  "chosen_key": null,
+  "refit_corrected": null,
+  "feet": null,
+  "grey_differences": null,
+  "G0_entries": null,
+  "G1_entries": null,
+  "line_template_count": null,
+  "line_template_metadata": null,
+  "w5_parents": null,
+  "w5_valid_children": null,
+  "w5_fit_attempts": null,
+  "w5_c_ranking": null,
+  "w5_identity_resolution": null
+ },
+ "all_checks_equal": true
+}
