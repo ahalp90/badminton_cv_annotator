@@ -10,9 +10,11 @@ of views, trace the path:
 - item 12: all 28 views, 13,002 → 8,931 s
 - items 13 and 14: all 28 views, 8,931 → 8,250 s
 
-The exact savings left add up to about 10% of the baseline, from a deployment
-mode that skips research-only files and legacy evidence. After that, the
-remaining time is the search itself.
+A deployment mode that skips research-only files and legacy evidence was the
+last exact saving, estimated at about 10% of the baseline. The joined detector
+builds it in. Over the 28 views it ran 8–12% faster than `run_d17.py`, about
+the size of run-to-run noise. Its time is now the search (about two thirds) and
+W5 scoring (about one third).
 
 Two larger levers remain, and neither is a micro-optimisation. Running pairs
 in parallel (item 8) cuts one video's wait but not total CPU. Reusing a view's
@@ -20,11 +22,13 @@ court across scenes (item 9) avoids whole searches, but it is a design
 decision. Most ideas that would cut more were decided against, because they
 can drop the right court on a view nobody has tested.
 
-The detector is not yet one unit. Its stages run end to end only through a
-timing script, `scratch/court_det_fix/d17_timing/run_d17.py`, on the 28 test
-views. `d17_timing/WIRING.md` on `exp/court-det-opt` says how those stages join
-up, and what a single detector must keep or can drop. The web UI's
-`SOURCE_MAP.md` says no such runner exists; that line predates the script.
+The detector is now one unit, the joined detector (see Conventions). Its
+chosen courts, and the intermediate results its harness checks, match the
+timing script `scratch/court_det_fix/d17_timing/run_d17.py` bit for bit on the
+28 test views. The check's README lists what was compared.
+`d17_timing/WIRING.md` on `exp/court-det-opt` says how the stages join up, and
+what the detector keeps or drops. The web UI's `SOURCE_MAP.md` says no such
+runner exists; that line predates both.
 
 The tables below list every idea tried, with its outcome and the reason.
 Numbered sections after them hold the detail.
@@ -54,42 +58,49 @@ Numbered sections after them hold the detail.
 - **Line templates**: extra candidate courts built from rectangles of crossing
   lines. The template camera check rejects those that no camera with a
   plausible focal length could produce
+- **Joined detector**: `scratch/court_det_fix/court_detector/` on
+  `exp/court-det-opt`, the D17 chain as one detector that hands results between
+  stages in memory. It calls the research modules directly. The column "In the
+  joined detector" below says which changes are on its call path. Its 28-view
+  check is in `court_detector/check_20260925/`
 
 ## Built in
 
 All exact unless noted.
 
-| Change | Commit and item | Result | Why it was kept |
-| --- | --- | --- | --- |
-| Player test only on geometry-valid courts (patch 1) | a2e24ddf, item 1 | With patch 2: six views 2.4× faster | Exact. Item 3 later replaced it |
-| Stripe evidence measures only direction-compatible fragments (patch 2) | a2e24ddf, item 1 | With patch 1: six views 2.4× faster. Stripe measurement had been 80–96% of pool-evidence and refit time | Exact. The skipped fragments were discarded anyway |
-| Distance maps built without IPP | 7b56d58e, item 2 | Maps 12–16% faster; repeat runs bit-identical | Removed run-to-run score noise, so every later change could be checked bit for bit |
-| Player test as one matrix product per frame (F5) | 888cf999, item 3 | Player test 6,429 → 52 s over the 20 court views | Exact. Cost no longer grows with courts × people |
-| Player gate before axis scoring (F1) | 888cf999, item 5 | Axis matching 4,579 → 3,553 s | Exact. The skipped hypotheses could never be kept |
-| Refit distance maps built once per view | d1609d6c, item 4 | 412 → 85 s over 28 views | Exact. The maps were identical for every refit |
-| x and y kept as separate arrays in three hot spots; provenance records built on demand | d1609d6c, item 12 | 13,002 → 8,931 s over 28 views (−31%) | Exact. numpy is 2–3× slower on a trailing axis of length 2 |
-| Cache for `prepare_observations` | 7c74b015, item 14 | 100 → 21 s over 28 views, under 1% | Exact and a few lines. The project owner judged it worth it |
-| Camera check with x, y and w as separate arrays | 44254b42, item 13 | 564 → 92 s over 28 views (5.3% of the run) | Exact on all 28 views. numpy is several times slower on a trailing axis of length 3 or 2 |
+| Change | Commit and item | Result | Why it was kept | In the joined detector |
+| --- | --- | --- | --- | --- |
+| Player test only on geometry-valid courts (patch 1) | a2e24ddf, item 1 | With patch 2: six views 2.4× faster | Exact. Item 3 later replaced it | Through item 3, which replaced it |
+| Stripe evidence measures only direction-compatible fragments (patch 2) | a2e24ddf, item 1 | With patch 1: six views 2.4× faster. Stripe measurement had been 80–96% of pool-evidence and refit time | Exact. The skipped fragments were discarded anyway | Yes |
+| Distance maps built without IPP | 7b56d58e, item 2 | Maps 12–16% faster; repeat runs bit-identical | Removed run-to-run score noise, so every later change could be checked bit for bit | Yes |
+| Player test as one matrix product per frame (F5) | 888cf999, item 3 | Player test 6,429 → 52 s over the 20 court views | Exact. Cost no longer grows with courts × people | Yes |
+| Player gate before axis scoring (F1) | 888cf999, item 5 | Axis matching 4,579 → 3,553 s | Exact. The skipped hypotheses could never be kept | Yes |
+| Refit distance maps built once per view | d1609d6c, item 4 | 412 → 85 s over 28 views | Exact. The maps were identical for every refit | Yes |
+| x and y kept as separate arrays in three hot spots; provenance records built on demand | d1609d6c, item 12 | 13,002 → 8,931 s over 28 views (−31%) | Exact. numpy is 2–3× slower on a trailing axis of length 2 | Yes |
+| Cache for `prepare_observations` | 7c74b015, item 14 | 100 → 21 s over 28 views, under 1% | Exact and a few lines. The project owner judged it worth it | Yes |
+| Camera check with x, y and w as separate arrays | 44254b42, item 13 | 564 → 92 s over 28 views (5.3% of the run) | Exact on all 28 views. numpy is several times slower on a trailing axis of length 3 or 2 | Yes |
 
 ## Decided or being checked
 
-| Change | Status | Result so far | What is left |
-| --- | --- | --- | --- |
-| Leave seated people out of the player test | Decided by the project owner, item 10 | Axis matching −27%, run −5%, all 20 courts kept. Not exact: three courts moved 0.5–3.9 px, each as close to the reference or closer, bar 0.04 px on one | Wire in pose keypoints for the frames the player test uses. The baseline already uses these feet, so the 5% is already counted |
+| Change | Status | Result so far | What is left | In the joined detector |
+| --- | --- | --- | --- | --- |
+| Leave seated people out of the player test | Decided by the project owner, item 10 | Axis matching −27%, run −5%, all 20 courts kept. Not exact: three courts moved 0.5–3.9 px, each as close to the reference or closer, bar 0.04 px on one | Nothing. The joined detector wires in the pose keypoints (`court_detector/feet.py`). The baseline already used these feet, so the 5% is already counted | Yes |
 
 ## Open
 
-| Idea | Likely gain | Exact? | What it needs |
-| --- | --- | --- | --- |
-| Deployment mode: skip research-only files | About 580 s (6.5%) | Yes; records only | Pass populations and records between stages in memory. Also removes the git-ignored control files blocker |
-| Deployment mode: skip legacy pool evidence (item 7) | Under 480 s; not re-measured | Yes; records only | A mode flag |
-| Run pairs in parallel (item 8) | One video's wait, several-fold on 8 cores (not measured). No CPU saving | Yes, if merged in order | A process pool |
-| Reuse a view's court across scenes (item 9, F12) | The large lever for whole videos | No; a design decision | Rules for "same camera" and for catching a wrong reuse |
-| Finish building candidate objects only for survivors (item 6, F8) | At most 179 s (2%) | Yes | An interface change between `propose_role` and `select_pool` |
-| Larger axis-scoring batches (F4) | A few per cent; not measured | Yes | A batch-size change and a timing check |
-| float32 in the hot scoring code (item 17) | Perhaps 10–20%; a guess | No | Time the two hottest functions first, then a 28-view accuracy check |
-| Compiled loops (numba) for court scoring | Unmeasured | Not automatically: loop sums round differently from numpy's | A new dependency. Only worth it if the options above miss the time budget |
-| Working image below 960×540 | Unmeasured | No | Likely costs accuracy: reference errors are about 2 working px now |
+The joined detector has since built in the two deployment-mode rows.
+
+| Idea | Likely gain | Exact? | What it needs | In the joined detector |
+| --- | --- | --- | --- | --- |
+| Deployment mode: skip research-only files | About 580 s (6.5%) | Yes; records only | Pass populations and records between stages in memory. Also removes the git-ignored control files blocker | Yes. It writes files only when asked to |
+| Deployment mode: skip legacy pool evidence (item 7) | Under 480 s; not re-measured | Yes; records only | A mode flag | Yes (`legacy_evidence=False`) |
+| Run pairs in parallel (item 8) | One video's wait, several-fold on 8 cores (not measured). No CPU saving | Yes, if merged in order | A process pool | No |
+| Reuse a view's court across scenes (item 9, F12) | The large lever for whole videos | No; a design decision | Rules for "same camera" and for catching a wrong reuse | No |
+| Finish building candidate objects only for survivors (item 6, F8) | At most 179 s (2%) | Yes | An interface change between `propose_role` and `select_pool` | Only the half item 12 did |
+| Larger axis-scoring batches (F4) | A few per cent; not measured | Yes | A batch-size change and a timing check | No |
+| float32 in the hot scoring code (item 17) | Perhaps 10–20%; a guess | No | Time the two hottest functions first, then a 28-view accuracy check | No |
+| Compiled loops (numba) for court scoring | Unmeasured | Not automatically: loop sums round differently from numpy's | A new dependency. Only worth it if the options above miss the time budget | No |
+| Working image below 960×540 | Unmeasured | No | Likely costs accuracy: reference errors are about 2 working px now | No |
 
 ## Decided against
 
