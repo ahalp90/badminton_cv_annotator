@@ -1,3 +1,6 @@
+# Stale snapshot: do not import. A 17 September 2026 copy of the package module
+# experiments/annotator/independent_court/detector.py, which has fixes
+# this copy lacks. Import that one instead. Kept only for SOURCE_MAP.md.
 """Experimental court proposals from image lines, without neural initialisation.
 
 The search assumes an upright view from behind a baseline. It enumerates line

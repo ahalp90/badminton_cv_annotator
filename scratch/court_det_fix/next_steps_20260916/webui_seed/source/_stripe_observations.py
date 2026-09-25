@@ -1,3 +1,6 @@
+# Stale snapshot: do not import. A 17 September 2026 copy of the package module
+# experiments/annotator/independent_court/stripe_observations.py, which has fixes
+# this copy lacks. Import that one instead. Kept only for SOURCE_MAP.md.
 """Test fragment membership and paint-edge positions at fixed court geometry.
 
 Each raw fragment can take one marking identity and one position hypothesis.

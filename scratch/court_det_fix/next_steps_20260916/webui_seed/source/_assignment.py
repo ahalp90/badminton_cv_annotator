@@ -1,3 +1,6 @@
+# Stale snapshot: do not import. A 17 September 2026 copy of the package module
+# experiments/annotator/independent_court/assignment.py, which has fixes
+# this copy lacks. Import that one instead. Kept only for SOURCE_MAP.md.
 """Partial matching of observed line groups to finite, named court markings.
 
 This frozen-geometry experiment uses working-image pixels throughout. It has
