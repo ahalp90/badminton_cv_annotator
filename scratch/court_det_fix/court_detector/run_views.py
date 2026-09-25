@@ -87,7 +87,10 @@ class DecodedVideo:
     """Frames decoded once, in order from frame 0; asking for a frame not kept raises."""
 
     def __init__(self, path: str, keep: set[int]) -> None:
-        capture = cv2.VideoCapture(path)
+        # FFmpeg otherwise starts a decoding thread per core, whatever the thread variables say.
+        capture = cv2.VideoCapture(path, cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 1])
+        if not capture.isOpened():
+            raise FileNotFoundError(path)
         self.fps = capture.get(cv2.CAP_PROP_FPS)
         self.size = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
         self.frames = {}
