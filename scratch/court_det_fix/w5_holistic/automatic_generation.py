@@ -64,8 +64,12 @@ def screen_groups(estimator: dict, budget: int) -> dict:
 def generate(source: dict, saved: dict, zone: object, root: Path, helpers: ModuleType,
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
-             max_matched_pairs: int | None = None) -> dict:
-    """Generate courts from original directions, screening pairs before matcher work."""
+             max_matched_pairs: int | None = None, legacy_evidence: bool = True) -> dict:
+    """Generate courts from original directions, screening pairs before matcher work.
+
+    :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
+        two research winners from them. Off leaves those keys out and both winner IDs None.
+    """
     started = perf_counter()
     cpu_started = process_time()
     if min(keep_axes, keep_per_pair, keep_global) <= 0:
@@ -140,8 +144,13 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     for candidate in retained:
         shortlist.append({**provenance[id(candidate)], "corners_px": (candidate.corners_px * scale).tolist(),
                           "shortlist_score": candidate.score})
-    entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
-    line_id, paint_id = helpers.winner_ids(entries)
+    if legacy_evidence:
+        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
+        line_id, paint_id = helpers.winner_ids(entries)
+    else:
+        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root,
+                                        legacy_evidence=False)
+        line_id = paint_id = None
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],

@@ -209,15 +209,27 @@ def load_case_provenance(root: Path, case_id: str) -> CaseProvenance:
 def prepare_view(root: Path, case_id: str) -> ViewContext:
     source = load_source(root, case_id)
     provenance = load_case_provenance(root, case_id)
-    segments, families, size = prepare_segments(source)
-    observations = assignment.prepare_observations(segments, size)
     frame_file = frame_path(root, source, provenance)
     frame = cv2.imread(str(frame_file))
     if frame is None:
         raise FileNotFoundError(frame_file)
+    return view_context(case_id, source, provenance, frame, relative_path(frame_file, root))
+
+
+def view_context(
+    case_id: str, source: dict, provenance: CaseProvenance, native_frame: np.ndarray, frame_label: str,
+) -> ViewContext:
+    """Build one view's working context from its source record and native frame.
+
+    :param native_frame: BGR frame at the source's native dimensions.
+    :param frame_label: Where the frame came from; kept as ``frame_relative_path``.
+    """
+    segments, families, size = prepare_segments(source)
+    observations = assignment.prepare_observations(segments, size)
     expected_shape = (source["dimensions"]["height"], source["dimensions"]["width"])
-    if frame.shape[:2] != expected_shape:
-        raise ValueError(f"{case_id}: frame shape {frame.shape[:2]} does not match {expected_shape}")
+    if native_frame.shape[:2] != expected_shape:
+        raise ValueError(f"{case_id}: frame shape {native_frame.shape[:2]} does not match {expected_shape}")
+    frame = native_frame
     if (frame.shape[1], frame.shape[0]) != size:
         frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
     native_size = (source["dimensions"]["width"], source["dimensions"]["height"])
@@ -236,7 +248,7 @@ def prepare_view(root: Path, case_id: str) -> ViewContext:
         same_image_mask_available=provenance.has_same_image_boxes,
         person_mask_unavailable_reason=provenance.unavailable_reason,
         image_kind=image_kind(provenance),
-        frame_relative_path=relative_path(frame_file, root),
+        frame_relative_path=frame_label,
     )
 
 

@@ -374,8 +374,13 @@ def generate(
     *,
     min_visible_lengthwise: int = 0,
     min_visible_cross_court: int = 0,
+    seed_points: np.ndarray | None = None,
 ) -> Generation:
-    """Generate the audited line/template source for one prepared W5 view."""
+    """Generate the audited line/template source for one prepared W5 view.
+
+    :param seed_points: Extra homogeneous vanishing points, (points, 3), appended to the
+        estimator's own before rectangle selection. The G0/G1 direction pairs never see them.
+    """
     min_visible_lengthwise, min_visible_cross_court = _validate_visibility_floors(
         min_visible_lengthwise,
         min_visible_cross_court,
@@ -424,6 +429,8 @@ def generate(
         pencil_selection="coverage",
     )
     points, estimator = estimate(context.segments, context.size, vp_settings)
+    if seed_points is not None:
+        points = np.concatenate((points, seed_points))
     detector_settings = detector.Settings(wide_families=True, min_supported_lines=3)
     _, selection = select(context.families, points, context.size, detector_settings, vp_settings)
     selected_ids = np.asarray(selection.get("selected_pair_product_ids", []), dtype=np.int64)

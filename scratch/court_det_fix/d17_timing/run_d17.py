@@ -92,34 +92,6 @@ class StageClock:
         return stages
 
 
-def net_rows(record: dict, context, net, bounded_trial, np) -> list[dict]:
-    """Rows for bounded_trial.choose, built as bounded_trial.measure_case builds them."""
-    candidates = {item["origin_key"]: item for item in record["parents"] + record["valid_children"]}
-    ranking = record["rankings"]["C"]["provisional_rank"]
-    criterion = record["rankings"]["C"]["r2_criterion"]
-    rows = []
-    full_rank = 0
-    for rank, key in enumerate(ranking, start=1):
-        candidate = candidates[key]
-        if not candidate["historical"]["historical_fullcourt"]:
-            continue
-        full_rank += 1
-        projection = net.project_pieces(candidate["corners_px"], context)
-        posts = {}
-        if projection["state"] == "measured":
-            for name, piece_index in (("post_left", 2), ("post_right", 3)):
-                posts[name] = bounded_trial.post_features(
-                    np.asarray(projection["pieces_working_px"][piece_index]), context.segments, context.size,
-                )
-        rows.append({
-            "origin_key": key, "candidate_id": candidate["candidate_id"], "source": candidate["source"],
-            "original_rank": rank, "full_court_rank": full_rank, "historical_fullcourt": True,
-            "camera_eligible": candidate["camera_eligible"], "gate_camera_error": candidate["gates"]["camera_error"],
-            "paint_score": candidate["evidence"][criterion], "net_state": projection["state"], "posts": posts,
-        })
-    return rows
-
-
 def replace_feet(verifier_module, feet_path: Path) -> None:
     """Serve every view's source with the player feet in feet_path, keyed by case ID.
 
@@ -201,16 +173,16 @@ def main() -> None:
         fixed_stripe_refit,
         stripe_observations,
     )
+    from scratch.court_det_fix.court_detector import stripe_refit
+    from scratch.court_det_fix.court_detector.net_choice import net_rows
 
     manifest = verifier_module.read_json_gz(refit_selected.MANIFEST)
     label = verifier_module.CASE_LABELS[case_id]
     startup["import_and_load_runtime"] = time.perf_counter() - started
 
     vp_pruning = sys.modules["vp_pruning"]
-    net = bounded_trial.net
     # The seeded generator must patch the same modules that run_w5 and generation use.
     assert am1_recovery_trial.line_template_source is line_template_source
-    assert am1_recovery_trial.vp_pruning is vp_pruning
     assert generation.generate is automatic_generation.generate
 
     clock = StageClock()
@@ -258,8 +230,8 @@ def main() -> None:
     # Stripe-polarity refit.
     clock.wrap(fixed_stripe_refit, "prepare", "refit_prepare")
     clock.wrap(fixed_stripe_refit, "refine", "refit_refine")
-    clock.wrap(refit_selected.probe, "relabel", "polarity_relabel")
-    clock.wrap(refit_selected.edge_auto_trial, "infer_polarity")
+    clock.wrap(stripe_refit, "relabel", "polarity_relabel")
+    clock.wrap(stripe_refit, "infer_polarity")
     # Shared helpers appear under whichever stage called them.
     clock.wrap(detector, "_distance_maps", "distance_maps")
     clock.wrap(stripe_observations, "measure", "stripe_measure")
@@ -321,7 +293,7 @@ def main() -> None:
     started = time.perf_counter()
     with clock.stage("net_choice"):
         record = verifier_module.read_json_gz(record_path)
-        rows = net_rows(record, context, net, bounded_trial, np)
+        rows = net_rows(record, context)
         chosen, scored = bounded_trial.choose(rows, NET_WEIGHT, NET_OVERRUN_PX)
     phases["net_choice"] = time.perf_counter() - started
     gated_baseline = rows[0]["origin_key"] if rows else None

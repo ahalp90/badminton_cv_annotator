@@ -55,7 +55,7 @@ def _write_json_gz(path: Path, value: Any) -> None:
         stream.write(payload)
     temporary.replace(path)
 
-def _validate_population(record: dict, case_id: str, run_w5: ModuleType, source: str) -> dict:
+def validate_population(record: dict, case_id: str, run_w5: ModuleType, source: str) -> dict:
     run_w5.validate_generation_record(record, case_id, source, expected_stage="results", validate_entries=False)
     entries = record.get("entries")
     if not isinstance(entries, list) or len(entries) > 256:
@@ -81,7 +81,7 @@ def screen_matches(record: dict, budget: int) -> bool:
 def _cached(path: Path, case_id: str, run_w5: ModuleType, population: str, budget: int) -> dict | None:
     if not path.exists():
         return None
-    record = _validate_population(_read_json_gz(path), case_id, run_w5, f"cached {population} generation")
+    record = validate_population(_read_json_gz(path), case_id, run_w5, f"cached {population} generation")
     if not screen_matches(record, budget):
         raise ValueError(f"{case_id}: cached {population} direction screen differs from requested budget/method")
     return record
@@ -101,21 +101,27 @@ def _direction_from_record(record: dict, case_id: str) -> dict:
         raise ValueError(f"{case_id}: cached generation direction identity differs")
     return direction
 
-def _new_direction(root: Path, context: Any, verifier: dict, vp_pruning: ModuleType) -> dict:
-    baseline_path = root / "frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz"
-    baseline = verifier.get("read_json_gz", _read_json_gz)(baseline_path)
-    settings = vp_pruning.Settings(**baseline["settings"])
+def direction_record(context: Any, settings: dict, vp_pruning: ModuleType) -> dict:
+    """Estimate the view's court directions with fixed search settings.
+
+    :param settings: ``vp_pruning.Settings`` fields, as saved in a direction file.
+    """
     working_size = tuple(context.size)
     _points, estimator = vp_pruning.estimate(
-        np.asarray(context.segments, dtype=float), working_size, settings
+        np.asarray(context.segments, dtype=float), working_size, vp_pruning.Settings(**settings)
     )
     return {
         "schema": "wider-w5-direction/1",
         "case_id": context.case_id,
         "working_size": list(working_size),
-        "settings": baseline["settings"],
+        "settings": settings,
         "estimator": estimator,
     }
+
+def _new_direction(root: Path, context: Any, verifier: dict, vp_pruning: ModuleType) -> dict:
+    baseline_path = root / "frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz"
+    baseline = verifier.get("read_json_gz", _read_json_gz)(baseline_path)
+    return direction_record(context, baseline["settings"], vp_pruning)
 
 def _native_frame(root: Path, context: Any, verifier: dict) -> tuple[np.ndarray, Path]:
     frame_path = verifier["frame_path"](root, context.source, context.provenance)
@@ -188,7 +194,7 @@ def ensure_populations(root: Path, context: Any, runtime: dict, output: Path,
             print(f"[{case_id}] generating {name}", flush=True)
             result = generate(source, direction, runtime["zone"], root, run_automatic, direction_budget)
             result.update({"stage": "results", "population": name})
-            _validate_population(result, case_id, run_w5, f"fresh {name} generation")
+            validate_population(result, case_id, run_w5, f"fresh {name} generation")
             _write_json_gz(paths[name], result)
     finally:
         run_automatic.frame_path = original_frame_path

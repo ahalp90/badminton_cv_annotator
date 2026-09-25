@@ -34,7 +34,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from scipy.ndimage import map_coordinates
 
 from shared import (
     CASE_IDS,
@@ -50,12 +49,8 @@ add_helper_paths()
 from run_population import prepare
 
 from experiments.annotator.independent_court import detector
+from scratch.court_det_fix.court_detector.search import features, profiles
 
-PROFILE_HALF_WIDTH_WORKING_PX = 10
-PROFILE_STEP_WORKING_PX = 0.5
-RIDGE_SEARCH_WORKING_PX = 2.5
-FLANK_WINDOWS_WORKING_PX = ((3., 6.), (6., 10.))
-SAMPLES_ALONG = 12
 EDGE_PX = 6.0
 # Raw fragment IDs of GX0's three merged rows that the earlier check judged non-court (wall seam,
 # floor strip, spectator's face); person_mask_replay.py carries the same lists.
@@ -89,53 +84,6 @@ def marking_distance(points: np.ndarray, control: np.ndarray) -> np.ndarray:
     for start, end in segments:
         best = np.minimum(best, point_to_segment_distance(points, start, end))
     return best
-
-
-def profiles(frame: np.ndarray, fragments_native: np.ndarray, scale: np.ndarray) -> np.ndarray:
-    """Brightness and saturation across each fragment: arrays (fragments, samples, offsets)."""
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
-    brightness, saturation = hsv[..., 2], hsv[..., 1]
-    starts, ends = fragments_native[:, :2], fragments_native[:, 2:]
-    along = np.linspace(0.05, 0.95, SAMPLES_ALONG)
-    centres = starts[:, None, :] + along[None, :, None] * (ends - starts)[:, None, :]
-    directions = (ends - starts) / np.maximum(np.linalg.norm(ends - starts, axis=1), 1e-9)[:, None]
-    normals = np.stack((-directions[:, 1], directions[:, 0]), axis=1)
-    offsets_working = profile_offsets()
-    # Offsets are in working pixels so the profile spans the same court-scale width on every view.
-    offsets_native = offsets_working[None, None, :, None] * (normals * scale.mean())[:, None, None, :]
-    points = centres[:, :, None, :] + offsets_native
-    coordinates = np.stack((points[..., 1].ravel(), points[..., 0].ravel()))
-    shape = points.shape[:3]
-    sampled_brightness = map_coordinates(brightness, coordinates, order=1, mode='nearest').reshape(shape)
-    sampled_saturation = map_coordinates(saturation, coordinates, order=1, mode='nearest').reshape(shape)
-    return np.stack((sampled_brightness, sampled_saturation))
-
-
-def profile_offsets() -> np.ndarray:
-    return np.arange(-PROFILE_HALF_WIDTH_WORKING_PX, PROFILE_HALF_WIDTH_WORKING_PX + PROFILE_STEP_WORKING_PX / 2,
-                     PROFILE_STEP_WORKING_PX)
-
-
-def features(profile: np.ndarray) -> np.ndarray:
-    """Per fragment: ridge contrast, saturation at the peak, peak offset, centre and flank brightness (medians over samples)."""
-    brightness, saturation = profile
-    offsets = profile_offsets()
-    search = np.abs(offsets) <= RIDGE_SEARCH_WORKING_PX
-    peak_index = brightness[..., search].argmax(axis=-1)
-    peak = np.take_along_axis(brightness[..., search], peak_index[..., None], axis=-1)[..., 0]
-    peak_saturation = np.take_along_axis(saturation[..., search], peak_index[..., None], axis=-1)[..., 0]
-    # A ridge must fall away on both sides, so each window's contrast is measured against its brighter flank.
-    flanks = []
-    for near, far in FLANK_WINDOWS_WORKING_PX:
-        left_flank = (offsets <= -near) & (offsets >= -far)
-        right_flank = (offsets >= near) & (offsets <= far)
-        flanks.append(np.maximum(brightness[..., left_flank].mean(axis=-1), brightness[..., right_flank].mean(axis=-1)))
-    flank = np.min(flanks, axis=0)
-    contrast = peak - flank
-    centre = int(np.flatnonzero(offsets == 0)[0])
-    return np.stack((np.median(contrast, axis=1), np.median(peak_saturation, axis=1),
-                     np.median(offsets[search][peak_index], axis=1),
-                     np.median(brightness[..., centre], axis=1), np.median(flank, axis=1)), axis=1)
 
 
 def study_case(case_id: str) -> list[dict]:

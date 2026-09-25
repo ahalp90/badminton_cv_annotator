@@ -64,8 +64,13 @@ def select_pool(candidates: list[detector.Candidate]) -> list[detector.Candidate
 def evaluate_pool(
     source: dict, shortlist: list[dict], observations: assignment.Observations,
     size: tuple[int, int], segments: np.ndarray, families: tuple, zone: object, root: Path,
+    legacy_evidence: bool = True,
 ) -> list[dict]:
-    """Measure the unchanged stripe, camera, floor and paint evidence for saved courts."""
+    """Measure the unchanged stripe, camera, floor and paint evidence for saved courts.
+
+    :param legacy_evidence: Also score each court's stripes and paint profile. Only the
+        research rankings read these two; the court detector turns them off.
+    """
     scale = np.array([source['dimensions']['width'], source['dimensions']['height']]) / size
     weights = stripes.fragment_weights(observations)
     maps = detector._distance_maps(detector._wide_line_families(segments), size)
@@ -75,13 +80,14 @@ def evaluate_pool(
         if len(shortlist) > 256 and position % 512 == 0:
             print(source['id'], 'full evidence', position, 'of', len(shortlist),
                   'seconds', perf_counter() - started, flush=True)
-        homography = np.asarray(details['homography_working'])
-        stripe = stripes.score_model(stripes.measure(homography, observations, size), weights, 3)
         corners = np.asarray(details['corners_px'])
-        gates = gate_evidence(corners, source, scale, size, families, maps, zone)
-        entries.append({**details, 'corners_px': corners.tolist(), 'shortlist_score': details['shortlist_score'],
-                        'stripe': stripe, 'gates': gates})
-    if entries:
+        entry = {**details, 'corners_px': corners.tolist(), 'shortlist_score': details['shortlist_score']}
+        if legacy_evidence:
+            homography = np.asarray(details['homography_working'])
+            entry['stripe'] = stripes.score_model(stripes.measure(homography, observations, size), weights, 3)
+        entry['gates'] = gate_evidence(corners, source, scale, size, families, maps, zone)
+        entries.append(entry)
+    if entries and legacy_evidence:
         path = frame_path(source, root)
         frame = cv2.imread(str(path))
         if frame is None:

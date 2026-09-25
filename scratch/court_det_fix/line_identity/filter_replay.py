@@ -53,7 +53,7 @@ from axis_replay import (
     step_masks,
     sweep,
 )
-from paint_profiles import EDGE_PX, features, marking_distance, profiles
+from paint_profiles import EDGE_PX, marking_distance
 
 from shared import (
     CASE_IDS,
@@ -82,9 +82,14 @@ from run_population import prepare
 from run_svd_fixed import fit_pairs
 
 from experiments.annotator.independent_court import assignment, detector
+from scratch.court_det_fix.court_detector.search import (
+    PAINT_CONTRAST,
+    PAINT_SATURATION,
+    features,
+    filtered_source,
+    profiles,
+)
 
-PAINT_CONTRAST = 20.
-PAINT_SATURATION = 90.
 SENSITIVITY_CONTRASTS = (15., 25.)
 ARMS = ('baseline', 'person', 'paint', 'paint_person', 'paint15', 'paint25')
 FLOAT_ATOL = 1e-12
@@ -128,10 +133,6 @@ def fragment_masks(source: dict, frame: np.ndarray, scale: np.ndarray) -> dict[s
     outside_people = person_mask(source)
     masks.update({'person': outside_people, 'paint_person': masks['paint'] & outside_people})
     return masks
-
-
-def filtered_source(source: dict, keep: np.ndarray) -> dict:
-    return {**source, 'segments_px': [segment for segment, kept in zip(source['segments_px'], keep, strict=True) if kept]}
 
 
 def control_vanishing_points(control: np.ndarray, size: tuple[int, int]) -> np.ndarray:
