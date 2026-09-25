@@ -387,7 +387,19 @@ it checks each view against the baseline run: the chosen court, the whole
 refit record, the feet, the shot check's grey differences, the G0 and G1 entries
 (without the legacy evidence), the line templates' count and metadata, the W5
 parents, children, fit attempts and C ranking, and the identity resolution.
-Values must match in type as well: `1` and `1.0` count as different. Its module docstring gives the command.
+Values must match in type as well: `1` and `1.0` count as different.
+
+Checked on Carmack on 25 September 2026, at commit 07a15523:
+
+- All 28 views equal the baseline on every check, including views run
+  second or later in one process
+- A `run_d17.py` rerun at the same commit equals the baseline in every saved
+  file, apart from durations, peak memory and paths that name the output
+  folder
+- The joined detector took 6,737 s over the 28 views with self-checks on and
+  6,434 s with them off. The rerun's stages took 7,288 s under the same load
+  (8 processes). Search and W5 compute take almost all the time, so joining
+  the stages saves about 8-12%; run-to-run noise is of the same size Its module docstring gives the command.
 
 The baseline run lives on Carmack, in the court-detector run root:
 
