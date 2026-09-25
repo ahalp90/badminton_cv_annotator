@@ -1,0 +1,9 @@
+scenario,finite_scores_cost_ratio,assumed_fallback_rate,projected_28_view_total_s,projected_saving_fraction,pair_shortlists_identical,pair_calls,quality_note
+16-sample fixed K=1024,0.47,0.0,7161.38,0.1319539393939394,2471,3369,empirical pair-shortlist replay; not an unseen-view guarantee
+16-sample fixed K=2048,0.51,0.0,7243.54,0.1219951515151515,3291,3369,empirical pair-shortlist replay; not an unseen-view guarantee
+16-sample fixed K=4096,0.57,0.0,7366.78,0.10705696969696976,3368,3369,empirical pair-shortlist replay; not an unseen-view guarantee
+16-sample fixed K=8192,0.66,0.0,7551.64,0.08464969696969693,3369,3369,empirical pair-shortlist replay; not an unseen-view guarantee
+16-sample K=4096 with completion fallback,0.613,0.05,7455.102,0.09635127272727273,depends on fallback trigger,3369,model only; fallback trigger not evaluated in committed data
+16-sample K=4096 with completion fallback,0.6559999999999999,0.1,7543.424,0.08564557575757581,depends on fallback trigger,3369,model only; fallback trigger not evaluated in committed data
+16-sample K=4096 with completion fallback,0.7849999999999999,0.25,7808.389999999999,0.053528484848484936,depends on fallback trigger,3369,model only; fallback trigger not evaluated in committed data
+16-sample K=4096 with completion fallback,1.0,0.5,8250.0,0.0,depends on fallback trigger,3369,model only; fallback trigger not evaluated in committed data

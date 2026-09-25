@@ -10,7 +10,9 @@ savings left need a design decision or a first measurement.
 This page lists what is built in, what is left to try and how to check a
 speed-up. [claude_evidence/README.md](claude_evidence/README.md) names the
 script and result behind each number. The detector itself is described in its
-own [README](../court_detector/README.md).
+own [README](../court_detector/README.md). The web-UI's 25 September proposals,
+including a GPU route, are sorted against this page in
+[webui_final_opt_handover/README.md](../webui_final_opt_handover/README.md).
 
 ## Names used here
 
