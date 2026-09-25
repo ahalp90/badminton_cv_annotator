@@ -1,3 +1,9 @@
+> Historical record, filed on 25 September 2026. The
+> [speed-up README](../../court_detector_optimisation_handover/README.md)
+> owns current status; the [archive map](../README.md) records the original
+> paths. Content is unchanged. `claude_evidence/` paths are under
+> `court_detector_optimisation_handover/`.
+
 # Court detector speed-ups: what was tried, and why
 
 **Where things stand.** The full search now takes 8,250 s summed over 28

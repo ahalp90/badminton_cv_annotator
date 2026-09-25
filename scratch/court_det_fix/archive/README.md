@@ -20,6 +20,14 @@ also documents every newly tracked input and explicitly local-only run output.
 | `TIDY_PLAN.md` | Retired pointer, removed at the user's request after the re-entry check. Its complete text remains in the close-out snapshot below |
 | `followup3_svd_screen_completed.tar.gz` | [Unreviewed SVD returns](../evidence/webui_followup3_20260922/README.md) |
 | `svd_court_evaluation.tar.gz` | [Unreviewed SVD returns](../evidence/webui_followup3_20260922/README.md) |
+| `court_detector_optimisation_handover/CLAUDE_FOLLOWUPS.md` | [Speed-up list](20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md): every speed-up tried to 25 September, with measurements and reasons. The [speed-up README](../court_detector_optimisation_handover/README.md) keeps current status |
+| `court_detector_optimisation_handover/CLAUDE_EVALUATION.md` | [Evaluation of the web-UI packet](20260925_optimisation_handover/CLAUDE_EVALUATION.md), 24 September profiles and verdicts on F1–F12 |
+| `court_detector_optimisation_handover/README.md` before 25 September | [Web-UI packet overview](20260925_optimisation_handover/webui_packet/README.md). The folder's README is now the speed-up README |
+| `court_detector_optimisation_handover/STATIC_AUDIT.md` | [Static audit](20260925_optimisation_handover/webui_packet/STATIC_AUDIT.md), which defines F1–F12 |
+| `court_detector_optimisation_handover/PATCH_QUEUE.md` | [Patch queue](20260925_optimisation_handover/webui_packet/PATCH_QUEUE.md), the packet's ordered plan P0–P11 |
+| `court_detector_optimisation_handover/EXPERIMENT_PROTOCOL.md` | [Experiment protocol](20260925_optimisation_handover/webui_packet/EXPERIMENT_PROTOCOL.md) |
+| `court_detector_optimisation_handover/SOURCE_MAP.md` | [Source map](20260925_optimisation_handover/webui_packet/SOURCE_MAP.md) of the 23 September hot path |
+| `court_detector_optimisation_handover/court_detector_optimisation_handover.md`, `LOCAL_MODEL_PROMPT.md`, `task_manifest.json`, `tools/` | Deleted on 25 September: a copy of the packet, and the prompt, task list and helpers for a session that has run. Git history has them at commit 92535b6e |
 
 For D06's 24/27 development judgement, follow the four-comparison results.
 For D09's 47-case plus 24-control result, follow the wider worklog's

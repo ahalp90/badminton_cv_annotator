@@ -293,7 +293,9 @@ These swaps are timing only and change nothing:
 - Drop seated people with `is_sitting` from
   `src/bst_x/preparing_data/heuristics/base.py`, threshold −0.3
 
-Follow-up item 10 in `CLAUDE_FOLLOWUPS.md` covers this choice.
+Follow-up item 10 in the archived speed-up list
+(`archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md`) covers this
+choice.
 
 `extract_window_people.py` saved the first step's detections as one record
 per view (the "Window detections" row above). Each record holds the video
@@ -334,8 +336,10 @@ against the evidence scripts and the copy against the original.
   fit with its tolerance check
 - The weight-0 check and the timers
 
-`CLAUDE_FOLLOWUPS.md` estimates the research files at about 580 s over the 28
-views (6.5%). Legacy pool evidence (its item 7) can go too: the joined
+The archived speed-up list
+(`archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md`) estimates the
+research files at about 580 s over the 28 views (6.5%). Legacy pool evidence
+(its item 7) can go too: the joined
 detector drops it with `legacy_evidence=False` and keeps the gate evidence
 from the same `evaluate_pool` call. `court_detector/STRIPPED.md` lists each
 dropped piece and where it would plug back in.
@@ -419,9 +423,12 @@ The baseline run lives on Carmack, in the court-detector run root:
 
 ## Other documents
 
-- `court_detector_optimisation_handover/SOURCE_MAP.md`: the web UI's map of
-  hot-path files. Its "No single runner" line predates `run_d17.py`
-- `court_detector_optimisation_handover/CLAUDE_FOLLOWUPS.md`: every speed-up
-  tried, and the deployment-mode estimate
+- `archive/20260925_optimisation_handover/webui_packet/SOURCE_MAP.md`: the
+  web UI's map of hot-path files. Its "No single runner" line predates
+  `run_d17.py`
+- `court_detector_optimisation_handover/README.md`: speed-ups built in, what
+  is left to try and how to check a speed-up
+- `archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md`: every speed-up
+  tried to 25 September, and the deployment-mode estimate
 - `handover_20260923/01_LAUNCH_OPTIMISATION.md`, step 3: the recipe
   `run_d17.py` follows

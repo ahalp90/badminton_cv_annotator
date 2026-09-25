@@ -1,3 +1,11 @@
+> Historical record from the web-UI handover packet of 23 September 2026,
+> filed on 25 September 2026. The
+> [speed-up README](../../../court_detector_optimisation_handover/README.md)
+> owns current status; the [archive map](../../README.md) records the original
+> paths. Content is unchanged. The packet's `tools/`, `task_manifest.json`,
+> `LOCAL_MODEL_PROMPT.md` and single-file copy are in git history at commit
+> 92535b6e.
+
 # Source and data map
 
 ## Reviewed revision

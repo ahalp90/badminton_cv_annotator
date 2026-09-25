@@ -168,9 +168,9 @@ reports. `STRIPPED.md` lists each piece and where it plugs back in.
 ## Before it can run on new videos
 
 - **Speed.** About 4 minutes a view.
-  `../court_detector_optimisation_handover/CLAUDE_FOLLOWUPS.md` lists what is
-  left to try, such as searching direction pairs in parallel and reusing a
-  court across the scenes of one camera.
+  `../court_detector_optimisation_handover/README.md` lists what is left to
+  try, such as searching direction pairs in parallel and reusing a court
+  across the scenes of one camera.
 - **Inputs.** Nothing builds the inputs from a new video yet. That needs
   DeepLSD for the line fragments, and a person and pose detector such as
   RTMLib for the people. It also needs a scene cutter for the scene range, and

@@ -1,3 +1,10 @@
+> Historical record, filed on 25 September 2026. The
+> [speed-up README](../../court_detector_optimisation_handover/README.md)
+> owns current status; the [archive map](../README.md) records the original
+> paths. Content is unchanged. `claude_evidence/` paths are under
+> `court_detector_optimisation_handover/`; the deleted `tools/` folder is in
+> git history at commit 92535b6e.
+
 # Evaluation of the web-UI optimisation handover
 
 **Bottom line.** The handover is right that the detector wastes a lot of work.
