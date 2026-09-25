@@ -53,9 +53,10 @@ Seconds summed over the 28 views, 8 processes at a time:
 | Detector, self-checks on | 6,737 |
 | Detector, self-checks off | 6,434 |
 
-The search takes about 64% of the detector's time and W5 about 33%. The same
-`run_d17.py` code ran 11% faster than on 24 September, and single views swing by
-30-40% between runs. The detector's times leave out start-up and video decoding.
+With self-checks off, the search takes about 64% of the detector's time, W5
+about 29% and the line templates about 6%. The same `run_d17.py` code ran 11%
+faster than on 24 September, and single views swing by 30-40% between runs.
+The detector's times leave out start-up and video decoding.
 
 ## Paths and data kept on Carmack
 

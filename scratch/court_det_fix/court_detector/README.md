@@ -56,13 +56,14 @@ longest side is at most 960 pixels. A 16:9 frame becomes 960×540.
 2. **Set-up**. Shrinks the image and the line fragments to working size, and
    sorts the fragments by direction. The person boxes hide people from the
    paint measurements, but only when the boxes come from the image itself.
-3. **Court search** (G0 and G1). Finds the view's main line directions. For
-   each of up to 16 pairs of directions, it matches lines to the court's
-   markings and builds candidate courts. It rejects courts the players' feet
-   do not fit. It keeps up to 256 of the best-scoring, distinct courts per
-   pair, and 256 overall. It runs twice: once on every line fragment (G0), and once on only
-   the fragments that look like white paint (G1). A paint fragment is a pale
-   line, clearly brighter than its surroundings and not strongly coloured.
+3. **Court search** (G0 and G1). Finds up to 16 main line directions in the
+   view. For every pair of them, tried both ways round, it matches lines to the
+   court's markings and builds candidate courts. It rejects courts the players'
+   feet do not fit. It keeps up to 256 of the best-scoring, distinct courts per
+   pair, and 256 overall. It runs twice: once on every line fragment (G0), and
+   once on only the fragments that look like white paint (G1). A paint fragment
+   is a pale line, clearly brighter than its surroundings and not strongly
+   coloured.
 4. **Line templates**. Builds more candidates from rectangles of crossing
    lines. As well as its own starting points, it tries the point where each
    pair of the three longest lengthwise lines meets. A template must show at
