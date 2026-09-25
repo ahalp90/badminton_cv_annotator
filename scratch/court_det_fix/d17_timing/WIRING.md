@@ -430,5 +430,6 @@ The baseline run lives on Carmack, in the court-detector run root:
   is left to try and how to check a speed-up
 - `archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md`: every speed-up
   tried to 25 September, and the deployment-mode estimate
-- `handover_20260923/01_LAUNCH_OPTIMISATION.md`, step 3: the recipe
+- `archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md`,
+  step 3: the recipe
   `run_d17.py` follows

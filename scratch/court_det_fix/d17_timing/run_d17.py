@@ -1,6 +1,7 @@
 """Time the fresh D17 court detector on one view, stage by stage.
 
-The chain follows the launch plan (handover_20260923/01_LAUNCH_OPTIMISATION.md, step 3):
+The chain follows step 3 of the launch plan, now archived at
+archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md:
 fresh G0 and paint-filtered G1 generation at the requested direction budget, seeded line
 templates, the W5 merge/score/refit/rank record, the bounded net choice (weight 0.04,
 overrun 4 working px), then the automatic stripe-polarity refit of the chosen court.

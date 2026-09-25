@@ -9,9 +9,11 @@ running. The full experimental history belongs in
 [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md), and paths in
 [FP_INDEX.md](FP_INDEX.md). [INDEX.md](INDEX.md) explains the document roles.
 
-To start work, read the [shared contract](handover_20260923/00_SHARED_CONTRACT.md)
-and [optimisation launch prompt](handover_20260923/01_LAUNCH_OPTIMISATION.md).
-They preserve delegation permissions, scope, checks and a bounded starting plan.
+To start speed-up work, read the
+[speed-up README](court_detector_optimisation_handover/README.md). The
+23 September [shared contract](archive/20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md)
+and [launch prompt](archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md)
+are archived.
 
 ## What to carry forward
 

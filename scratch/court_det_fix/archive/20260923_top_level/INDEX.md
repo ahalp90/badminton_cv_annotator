@@ -2,8 +2,8 @@
 
 # Court-detector investigation
 
-**Fresh session:** read the [shared contract](../../handover_20260923/00_SHARED_CONTRACT.md)
-and [optimisation launch prompt](../../handover_20260923/01_LAUNCH_OPTIMISATION.md).
+**Fresh session:** read the [shared contract](../20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md)
+and [optimisation launch prompt](../20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md).
 [pickup.md](../../pickup.md) retains the investigation summary and evidence links.
 This index explains the
 experiment history through the 23 September handover. [FP_INDEX.md](../../FP_INDEX.md) maps ideas directly to files;

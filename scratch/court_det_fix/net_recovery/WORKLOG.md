@@ -12,7 +12,7 @@ video, with 90 seconds a tolerable upper end; report startup/warmup separately.
 Long-video expensive search should scale with distinct compatible views.
 The earlier 5%-of-duration proposal is rejected. Target hardware is unspecified.
 Scene reuse does not remove the initial search cost. Next-session instructions
-are in the [handover packet](../handover_20260923/01_LAUNCH_OPTIMISATION.md).
+are in the [handover packet](../archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md).
 
 The user judges the displayed combination of bounded net selection and
 automatic stripe-polarity fitting very usable. Frequent tiny imperfections in

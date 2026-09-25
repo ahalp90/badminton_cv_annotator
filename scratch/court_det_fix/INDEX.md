@@ -11,7 +11,7 @@ detailed experiment history, evidence and rulings. They serve different readers.
 | Skim current state or resume work | [pickup.md](pickup.md) | Current result, blockers, next action and working state |
 | Understand what was tried and decided | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) | Detailed, concise-per-item findings with evidence and contrary cases |
 | Find the implementation, inputs or a rerun command | [FP_INDEX.md](FP_INDEX.md) | Core code/data map; fresh-generation and historical-replay entry points |
-| Start the next optimisation session | [Shared contract](handover_20260923/00_SHARED_CONTRACT.md), then [launch prompt](handover_20260923/01_LAUNCH_OPTIMISATION.md) | Permissions, bounded intake, first work and verification gates |
+| Start the next speed-up session | [Speed-up README](court_detector_optimisation_handover/README.md) | Where the time goes, what is left to try and how to check a speed-up |
 | Check net-weight statistics | [Paired comparison](net_recovery/statistics/paired_reference_report.md) | Measures, source sensitivity, per-frame results and limits |
 | Follow the net experiment in depth | [Net worklog](net_recovery/WORKLOG.md), [assessment](net_recovery/ASSESSMENT.md) | Run history, user rulings, mechanisms and independent audit |
 | Recover earlier material | [Archive map](archive/README.md) | Archived records and sealed recovery routes |

@@ -28,6 +28,7 @@ also documents every newly tracked input and explicitly local-only run output.
 | `court_detector_optimisation_handover/EXPERIMENT_PROTOCOL.md` | [Experiment protocol](20260925_optimisation_handover/webui_packet/EXPERIMENT_PROTOCOL.md) |
 | `court_detector_optimisation_handover/SOURCE_MAP.md` | [Source map](20260925_optimisation_handover/webui_packet/SOURCE_MAP.md) of the 23 September hot path |
 | `court_detector_optimisation_handover/court_detector_optimisation_handover.md`, `LOCAL_MODEL_PROMPT.md`, `task_manifest.json`, `tools/` | Deleted on 25 September: a copy of the packet, and the prompt, task list and helpers for a session that has run. Git history has them at commit 92535b6e |
+| `handover_20260923/` | [Shared contract](20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md) and [launch prompt](20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md) that started the speed-up work on 23 September. The [speed-up README](../court_detector_optimisation_handover/README.md) keeps current status |
 
 For D06's 24/27 development judgement, follow the four-comparison results.
 For D09's 47-case plus 24-control result, follow the wider worklog's

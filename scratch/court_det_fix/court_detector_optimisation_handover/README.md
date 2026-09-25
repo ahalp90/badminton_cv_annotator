@@ -205,5 +205,6 @@ New speed-up work goes on `exp/court-det-opt2`. The merged work above is on
 | Every speed-up tried, with its measurements and reasoning (items 1–17) | [Archived speed-up list](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md) |
 | The 24 September evaluation of the web UI's packet: profiles, whole-view runs, the cause of score drift, verdicts on F1–F12 | [Archived evaluation](../archive/20260925_optimisation_handover/CLAUDE_EVALUATION.md) |
 | The web UI's 23 September packet: overview, static audit, patch queue, experiment protocol and source map | [Archived packet](../archive/20260925_optimisation_handover/webui_packet/README.md) |
+| The 23 September shared contract and launch prompt that started this work | [Archived launch](../archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md) |
 | Measurement scripts and their results | [claude_evidence/](claude_evidence/README.md), still in this folder |
 | The packet's single-file copy, local-model prompt, task manifest and `tools/` | Deleted. Git history has them at commit 92535b6e |

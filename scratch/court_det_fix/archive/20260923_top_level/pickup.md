@@ -5,8 +5,8 @@
 ## Resume — 23 September 2026
 
 **Ready for a fresh optimisation/integration session.** Start with the
-[shared contract](../../handover_20260923/00_SHARED_CONTRACT.md) and
-[launch prompt](../../handover_20260923/01_LAUNCH_OPTIMISATION.md). They contain the
+[shared contract](../20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md) and
+[launch prompt](../20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md). They contain the
 required intake, permissions, code/data anchors and first bounded work. The
 rest of this file is on-demand investigation history. Do not restart colour
 discovery, tune tiny net-weight differences or request exhaustive gallery review.

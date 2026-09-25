@@ -1,3 +1,8 @@
+> Historical record: the 23 September 2026 launch of the speed-up work, filed on
+> 25 September 2026. The [speed-up README](../../../court_detector_optimisation_handover/README.md)
+> owns current status; the [archive map](../../README.md) records the original
+> paths. Content is unchanged.
+
 # Launch: make the accepted court finder computationally affordable
 
 Read [the shared contract](00_SHARED_CONTRACT.md) and mandatory repo context.
