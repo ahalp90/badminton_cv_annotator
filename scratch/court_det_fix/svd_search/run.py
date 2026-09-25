@@ -94,8 +94,9 @@ def run_one(case_id: str, arm: str, output: Path, max_matched_pairs: int | None)
         for index, entry in enumerate(record["entries"]):
             parent, _ = run_w5.make_parent_record(context, entry, "G0", 0, index, runtime, cache)
             parents.append(parent)
+        line_maps = run_w5.view_line_maps(context)
         for parent in parents:
-            row, child, _ = run_w5.attempt_refit(context, parent, runtime, cache)
+            row, child, _ = run_w5.attempt_refit(context, parent, runtime, cache, line_maps)
             fit_rows.append(row)
             if child is not None:
                 children.append(child)

@@ -64,8 +64,13 @@ def select_pool(candidates: list[detector.Candidate]) -> list[detector.Candidate
 def evaluate_pool(
     source: dict, shortlist: list[dict], observations: assignment.Observations,
     size: tuple[int, int], segments: np.ndarray, families: tuple, zone: object, root: Path,
+    legacy_evidence: bool = True,
 ) -> list[dict]:
-    """Measure the unchanged stripe, camera, floor and paint evidence for saved courts."""
+    """Measure the unchanged stripe, camera, floor and paint evidence for saved courts.
+
+    :param legacy_evidence: Also score each court's stripes and paint profile. Only the
+        research rankings read these two; the court detector turns them off.
+    """
     scale = np.array([source['dimensions']['width'], source['dimensions']['height']]) / size
     weights = stripes.fragment_weights(observations)
     maps = detector._distance_maps(detector._wide_line_families(segments), size)
@@ -75,13 +80,14 @@ def evaluate_pool(
         if len(shortlist) > 256 and position % 512 == 0:
             print(source['id'], 'full evidence', position, 'of', len(shortlist),
                   'seconds', perf_counter() - started, flush=True)
-        homography = np.asarray(details['homography_working'])
-        stripe = stripes.score_model(stripes.measure(homography, observations, size), weights, 3)
         corners = np.asarray(details['corners_px'])
-        gates = gate_evidence(corners, source, scale, size, families, maps, zone)
-        entries.append({**details, 'corners_px': corners.tolist(), 'shortlist_score': details['shortlist_score'],
-                        'stripe': stripe, 'gates': gates})
-    if entries:
+        entry = {**details, 'corners_px': corners.tolist(), 'shortlist_score': details['shortlist_score']}
+        if legacy_evidence:
+            homography = np.asarray(details['homography_working'])
+            entry['stripe'] = stripes.score_model(stripes.measure(homography, observations, size), weights, 3)
+        entry['gates'] = gate_evidence(corners, source, scale, size, families, maps, zone)
+        entries.append(entry)
+    if entries and legacy_evidence:
         path = frame_path(source, root)
         frame = cv2.imread(str(path))
         if frame is None:
@@ -156,13 +162,10 @@ def generate(source: dict, saved: dict, zone: object, root: Path, pool_path: Pat
             pair_records.append({**record, 'status': 'camera_direction_bound'})
             continue
         pair_start = perf_counter()
-        proposed = propose_role(pair_points, observations, feet, size, settings, zone)
+        proposed = propose_role(pair_points, observations, feet, size, settings)
         proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
                                       dtype=np.float32).reshape(-1, 4, 2)
         proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
-        local_details = {}
-        for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
-            local_details[id(candidate)] = {'candidate_id': f'{pair_id}:{index}', 'pair_id': pair_id, **details}
         retained = select_pool(proposed.candidates)
         pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
                              np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
@@ -170,7 +173,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, pool_path: Pat
                               proposed.player_any, proposed.player_both_halves)))
         shortlist = []
         for candidate in retained:
-            details = local_details[id(candidate)]
+            position = proposed_positions[id(candidate)]
+            details = {'candidate_id': f'{pair_id}:{position}', 'pair_id': pair_id, **proposed.detail(position)}
             provenance[id(candidate)] = details
             shortlist.append({**details, 'corners_px': (candidate.corners_px * scale).tolist(),
                               'shortlist_score': candidate.score})

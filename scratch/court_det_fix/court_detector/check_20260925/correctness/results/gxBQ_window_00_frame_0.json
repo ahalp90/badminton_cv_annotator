@@ -1,0 +1,42 @@
+{
+ "view_id": "gxBQ_window_00_frame_0",
+ "error": null,
+ "detect_seconds": 417.38444751501083,
+ "chosen_key": "G0:22:5046/child",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   131.4965835658487,
+   562.169394039246
+  ],
+  [
+   623.3200938827003,
+   538.4942792886193
+  ],
+  [
+   1568.6674301730413,
+   655.1446553579907
+  ],
+  [
+   969.9492987866709,
+   1160.8683104155386
+  ]
+ ],
+ "checks": {
+  "chosen_key": null,
+  "refit_corrected": null,
+  "feet": null,
+  "grey_differences": null,
+  "G0_entries": null,
+  "G1_entries": null,
+  "line_template_count": null,
+  "line_template_metadata": null,
+  "w5_parents": null,
+  "w5_valid_children": null,
+  "w5_fit_attempts": null,
+  "w5_c_ranking": null,
+  "w5_identity_resolution": null
+ },
+ "all_checks_equal": true
+}

@@ -271,3 +271,13 @@ def test_wide_families_preserve_a_projected_oblique_court() -> None:
     narrow_maps = detector._distance_maps(narrow, FRAME_SIZE)
     _, narrow_scores, _, _ = detector._score(homography[None], narrow_maps, settings, narrow_merged)
     assert narrow_scores[0] < 0
+
+
+def test_distance_map_measures_from_the_line_and_keeps_the_caller_ipp_setting() -> None:
+    horizontal_line = np.array([[10.0, 20.0, 90.0, 20.0]])
+    ipp_before = cv2.ipp.useIPP()
+    distances = detector.distance_map(horizontal_line, (100, 50))
+    assert cv2.ipp.useIPP() == ipp_before
+    assert distances.shape == (50, 100)
+    assert distances[20, 50] == 0.0
+    assert distances[25, 50] == 5.0

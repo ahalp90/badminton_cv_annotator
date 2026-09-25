@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import numpy as np
-from bounded_trial import choose, post_features, reward, supported
+
+from scratch.court_det_fix.court_detector.net_choice import (
+    choose,
+    post_features,
+    reward,
+    supported,
+)
 
 POST = np.asarray([[10.0, 20.0], [10.0, -3.0]])
 SIZE = (30, 30)

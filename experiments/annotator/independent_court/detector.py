@@ -250,19 +250,39 @@ def _image_rectangles(
     return np.asarray(rectangles).reshape(-1, 3, 3)
 
 
-def _distance_maps(families: tuple[np.ndarray, np.ndarray], size: tuple[int, int]) -> np.ndarray:
+def distance_map(segments: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """Give each working-image pixel its distance to the nearest drawn fragment."""
     width, height = size
-    maps = []
-    for segments in families:
-        mask = np.full((height, width), 255, dtype=np.uint8)
-        for x1, y1, x2, y2 in np.rint(segments).astype(int):
-            cv2.line(mask, (x1, y1), (x2, y2), 0, 1)
-        maps.append(cv2.distanceTransform(mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE))
-    return np.stack(maps)
+    mask = np.full((height, width), 255, dtype=np.uint8)
+    for x1, y1, x2, y2 in np.rint(segments).astype(int):
+        cv2.line(mask, (x1, y1), (x2, y2), 0, 1)
+    # Intel's IPP version rounds differently depending on where the output
+    # array lands in memory, so repeat runs gave slightly different scores.
+    # OpenCV's own version gives the same bits every time and is faster here.
+    use_ipp = cv2.ipp.useIPP()
+    cv2.ipp.setUseIPP(False)
+    try:
+        return cv2.distanceTransform(mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    finally:
+        cv2.ipp.setUseIPP(use_ipp)
+
+
+def _distance_maps(families: tuple[np.ndarray, np.ndarray], size: tuple[int, int]) -> np.ndarray:
+    return np.stack([distance_map(segments, size) for segments in families])
 
 
 def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -> tuple[np.ndarray, np.ndarray]:
     """Clip finite projected markings before sampling them uniformly in image space."""
+    starts = endpoints[:, :, 0]
+    vectors = endpoints[:, :, 1] - starts
+    lower, upper, visible = _visible_fractions(endpoints, size)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count)
+    samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
+    return samples, visible
+
+
+def _visible_fractions(endpoints: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per projected marking: first and last in-image fractions of its length, and whether it counts as visible."""
     starts = endpoints[:, :, 0]
     vectors = endpoints[:, :, 1] - starts
     lower = np.zeros(starts.shape[:2])
@@ -279,9 +299,7 @@ def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -
     visible &= upper > lower
     clipped_length = (upper - lower) * np.linalg.norm(vectors, axis=-1)
     visible &= clipped_length >= 12
-    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count)
-    samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
-    return samples, visible
+    return lower, upper, visible
 
 
 def _matched_line_counts(

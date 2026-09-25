@@ -38,7 +38,13 @@ import run_w5  # pyrefly: ignore[missing-import]
 run_w5.add_helper_paths(ROOT)
 import verifier  # pyrefly: ignore[missing-import]
 
-from experiments.annotator.independent_court import net_geometry
+from scratch.court_det_fix.court_detector.net_choice import (
+    DIRECTION_TOLERANCE_DEG,
+    EXTENT_MARGIN_WORKING_PX,
+    PERPENDICULAR_TOLERANCE_WORKING_PX,
+    SAMPLES_PER_PIECE,
+    project_pieces,
+)
 
 AM1 = "am1_window_00_frame_54"
 RECORDS = ROOT / "evidence/holistic_admission/directional_20260921_r5/w5_directional_20260921_r5_43/case_records"
@@ -53,10 +59,6 @@ POOL_LABEL = "am1_seeded_pool"
 
 # Same measurement as the net-feasibility probe (net_fragment_probe.py).
 PIECE_NAMES = ("tape_left", "tape_right", "post_left", "post_right")
-SAMPLES_PER_PIECE = 24
-PERPENDICULAR_TOLERANCE_WORKING_PX = 4.0
-DIRECTION_TOLERANCE_DEG = 8.0
-EXTENT_MARGIN_WORKING_PX = 2.0
 STRONG_SUPPORT = 0.75
 RULE = (
     "Among full-court-gated candidates in stored W5 C provisional_rank order, choose the first whose "
@@ -100,22 +102,6 @@ def piece_coverage(piece: np.ndarray, segments: np.ndarray, working_size: tuple[
     if visible == 0:
         return None, 0
     return float((covered & in_frame).sum() / visible), visible
-
-
-def project_pieces(corners_native: list, context) -> dict:
-    """Project the net from native corners, then convert its pieces to working pixels once."""
-    try:
-        projection = net_geometry.project_net(corners_native, context.native_size)
-    except ValueError as error:
-        return {"state": "projection_failed", "reason": str(error)}
-    native_per_working = np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float)
-    return {
-        "state": "measured",
-        "camera_error": projection.camera_error,
-        "focal_widths": projection.focal_widths,
-        "pieces_native_px": projection.segments_px,  # (piece, start/end, x/y)
-        "pieces_working_px": projection.segments_px / native_per_working,
-    }
 
 
 def is_strong(coverage: list[float | None]) -> bool:

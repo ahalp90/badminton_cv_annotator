@@ -13,11 +13,17 @@ check.
 | `run_given.py` | `scratch/court_det_fix/evidence/direction_search/diagnostics/pregate_loss/remote_src/run_given.py` | `canonicalise` 76-83; `axis_diagnostic` 86-108; `pack_axis` 111-117; `propose_role` 136-171 |
 | `run_population.py` | `scratch/court_det_fix/frozen_helpers_20260914/vp_pruning/run_population.py` | `prepare` 18-28 |
 | `inspect_appearance.py` | `scratch/court_det_fix/frozen_helpers_20260914/axis_matching/inspect_appearance.py` | `profiles` 21-38; `inspect` 51-81 |
-| `assignment.py` | `experiments/annotator/independent_court/assignment.py` | `Observations` 37-45; `prepare_observations` 67-112; support constants 24-34 |
-| `detector.py` | `experiments/annotator/independent_court/detector.py` | `Settings` 35-59; `project` 95-103; line preparation and grouping 158-221 |
-| `stripe_observations.py` | `experiments/annotator/independent_court/stripe_observations.py` | `fragment_weights` 40-46; `measure` 88-120; `score_model` 151-185 |
+| `_assignment.py` | `experiments/annotator/independent_court/assignment.py` | `Observations` 37-45; `prepare_observations` 67-112; support constants 24-34 |
+| `_detector.py` | `experiments/annotator/independent_court/detector.py` | `Settings` 35-59; `project` 95-103; line preparation and grouping 158-221 |
+| `_stripe_observations.py` | `experiments/annotator/independent_court/stripe_observations.py` | `fragment_weights` 40-46; `measure` 88-120; `score_model` 151-185 |
 
 `run_automatic.py` and `run_given.py` are the instrumented producer copies
 used for the pre-gate records. Their candidate construction and axis matcher
 call are unchanged; the extra pre-gate arrays are the only C2-relevant
 instrumentation.
+
+`_assignment.py`, `_detector.py` and `_stripe_observations.py` are stale copies
+of package modules, kept for the line ranges above. Nothing imports them. The
+underscore stops them shadowing the package modules, because this folder comes
+first on the research scripts' `sys.path`. Each has a 3-line warning at the
+top, so its line numbers run 3 past the ranges above.

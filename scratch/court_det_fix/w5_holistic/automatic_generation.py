@@ -64,8 +64,12 @@ def screen_groups(estimator: dict, budget: int) -> dict:
 def generate(source: dict, saved: dict, zone: object, root: Path, helpers: ModuleType,
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
-             max_matched_pairs: int | None = None) -> dict:
-    """Generate courts from original directions, screening pairs before matcher work."""
+             max_matched_pairs: int | None = None, legacy_evidence: bool = True) -> dict:
+    """Generate courts from original directions, screening pairs before matcher work.
+
+    :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
+        two research winners from them. Off leaves those keys out and both winner IDs None.
+    """
     started = perf_counter()
     cpu_started = process_time()
     if min(keep_axes, keep_per_pair, keep_global) <= 0:
@@ -111,22 +115,20 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             continue
         matched_pairs += 1
         pair_start = perf_counter()
-        proposed = helpers.propose_role(pair_points, observations, feet, size, settings, zone)
-        local_details = {}
-        for index, (candidate, details) in enumerate(zip(proposed.candidates, proposed.details, strict=True)):
-            local_details[id(candidate)] = {"candidate_id": f"{pair_id}:{index}", "pair_id": pair_id, **details}
+        proposed = helpers.propose_role(pair_points, observations, feet, size, settings)
         retained = select(proposed.candidates, keep_per_pair)
+        proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
         if pool_path is not None:
             proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
                                           dtype=np.float32).reshape(-1, 4, 2)
-            proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
             pool_records.append((pair_id, len(proposed.candidates), proposed_corners,
                                  np.asarray([proposed_positions[id(candidate)] for candidate in retained], dtype=np.int32),
                                  (proposed.combined_corners, proposed.valid, proposed.usable,
                                   proposed.player_any, proposed.player_both_halves)))
         shortlist = []
         for candidate in retained:
-            details = local_details[id(candidate)]
+            position = proposed_positions[id(candidate)]
+            details = {"candidate_id": f"{pair_id}:{position}", "pair_id": pair_id, **proposed.detail(position)}
             provenance[id(candidate)] = details
             shortlist.append({**details, "corners_px": (candidate.corners_px * scale).tolist(),
                               "shortlist_score": candidate.score})
@@ -142,8 +144,13 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     for candidate in retained:
         shortlist.append({**provenance[id(candidate)], "corners_px": (candidate.corners_px * scale).tolist(),
                           "shortlist_score": candidate.score})
-    entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
-    line_id, paint_id = helpers.winner_ids(entries)
+    if legacy_evidence:
+        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
+        line_id, paint_id = helpers.winner_ids(entries)
+    else:
+        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root,
+                                        legacy_evidence=False)
+        line_id = paint_id = None
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],

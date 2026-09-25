@@ -1,6 +1,7 @@
 """Check assignment semantics and frozen-replay boundaries without model inference."""
 
 from copy import deepcopy
+from dataclasses import fields
 from pathlib import Path
 
 import numpy as np
@@ -137,3 +138,50 @@ def test_reference_metrics_do_not_change_ranking() -> None:
     run_assignment.attach_metrics([record], {"test": {"corners_px": corners, "landmarks": []}})
     assert record["orders"] == before
     assert record["entries"][0]["metrics"]["corner_max_error_px"] == 0
+
+
+def test_segment_distances_match_the_original_vector_form_exactly() -> None:
+    """The x/y form must reproduce the einsum/norm form bit for bit; stripe evidence depends on it."""
+    random = np.random.default_rng(20260924)
+    for trial in range(200):
+        points = random.uniform(-50, 1000, (int(random.integers(1, 300)), 2))
+        segments = random.uniform(-50, 1000, (int(random.integers(1, 40)), 2, 2))
+        if trial % 5 == 0:
+            segments[0, 1] = segments[0, 0]  # A zero-length segment gives NaN in both forms.
+        vectors = segments[:, 1] - segments[:, 0]
+        delta = points[:, None] - segments[None, :, 0]
+        with np.errstate(invalid="ignore"):
+            fraction = np.einsum("psd,sd->ps", delta, vectors) / np.square(vectors).sum(axis=1)
+            nearest = segments[None, :, 0] + np.clip(fraction, 0, 1)[..., None] * vectors[None]
+            expected = np.linalg.norm(points[:, None] - nearest, axis=-1)
+            actual = assignment.distances_to_segments(points, segments)
+        # Bytes rather than values, so signed zeros and NaN bit patterns must match too.
+        assert (actual.dtype, actual.shape, actual.tobytes()) == (expected.dtype, expected.shape, expected.tobytes())
+
+
+def array_bytes(observations: assignment.Observations) -> list[tuple]:
+    """Every array's dtype, shape and bytes, so signed zeros and NaN bit patterns must match too."""
+    arrays = [getattr(observations, field.name) for field in fields(observations) if field.name != "groups"]
+    arrays += list(observations.groups)
+    return [(array.dtype, array.shape, array.tobytes()) for array in arrays]
+
+
+def test_cached_observations_match_the_uncached_path_and_stay_independent() -> None:
+    """Default-ID calls come from a cache; explicit IDs take the uncached path."""
+    segments = np.vstack((project(HOMOGRAPHY[None], SEGMENTS_M)[0].reshape(-1, 4), [380, 40, 380, 580]))
+    uncached = assignment.prepare_observations(segments, SIZE, np.arange(len(segments)))
+    first = assignment.prepare_observations(segments, SIZE)
+    first.segments[:] = 0  # A caller editing its own arrays must not reach later callers.
+    hits_before = assignment._build_with_position_ids.cache_info().hits
+    second = assignment.prepare_observations(segments, SIZE)
+    assert assignment._build_with_position_ids.cache_info().hits == hits_before + 1
+    assert array_bytes(second) == array_bytes(uncached)
+
+
+def test_cache_keeps_equal_sizes_of_different_types_apart() -> None:
+    """2050 and float16(2050) compare equal, but float16 rounds 2050 - 1 to 2048 when clipping."""
+    segments = np.array([[2030.0, 10.0, 2050.0, 10.0]])
+    for size in ((2050, 100), (np.float16(2050), 100)):
+        cached = assignment.prepare_observations(segments, size)
+        uncached = assignment.prepare_observations(segments, size, np.arange(len(segments)))
+        assert array_bytes(cached) == array_bytes(uncached)

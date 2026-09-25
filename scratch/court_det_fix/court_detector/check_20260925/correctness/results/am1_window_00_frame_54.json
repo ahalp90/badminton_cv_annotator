@@ -1,0 +1,42 @@
+{
+ "view_id": "am1_window_00_frame_54",
+ "error": null,
+ "detect_seconds": 179.53311344981194,
+ "chosen_key": "line_template:rectangle_98207:template_12/child",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   654.9555489299985,
+   551.8841722876651
+  ],
+  [
+   1192.0351348688714,
+   554.5345008139358
+  ],
+  [
+   2793.1135374381674,
+   1209.3210702458457
+  ],
+  [
+   -420.1914649859852,
+   1317.802636833243
+  ]
+ ],
+ "checks": {
+  "chosen_key": null,
+  "refit_corrected": null,
+  "feet": null,
+  "grey_differences": null,
+  "G0_entries": null,
+  "G1_entries": null,
+  "line_template_count": null,
+  "line_template_metadata": null,
+  "w5_parents": null,
+  "w5_valid_children": null,
+  "w5_fit_attempts": null,
+  "w5_c_ranking": null,
+  "w5_identity_resolution": null
+ },
+ "all_checks_equal": true
+}

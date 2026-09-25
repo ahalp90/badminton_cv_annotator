@@ -20,15 +20,15 @@ from axis_replay import (
     step_masks,
     sweep,
 )
-from paint_profiles import (
-    FLANK_WINDOWS_WORKING_PX,
-    features,
-    profile_offsets,
-)
 
 from experiments.annotator.independent_court.case_provenance import (
     CaseProvenance,
     ImageKind,
+)
+from scratch.court_det_fix.court_detector.search import (
+    FLANK_WINDOWS_WORKING_PX,
+    features,
+    profile_offsets,
 )
 from shared import (
     ALL_CASE_IDS,

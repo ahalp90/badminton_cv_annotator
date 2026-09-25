@@ -22,6 +22,7 @@ from projective_seed import (
     basis_for,
     combine,
     corner_errors,
+    joint_player_fractions,
     match_axis,
 )
 from run_diagnosis import gate_evidence, read, write
@@ -92,13 +93,16 @@ def axis_diagnostic(matches: AxisMatches, basis: np.ndarray, axis: int, control:
     projected, _ = detector.project(basis @ maps, detector.CORNER_COURT_M)
     truth, _ = detector.project(control[None], detector.CORNER_COURT_M)
     errors = np.linalg.norm(projected - truth, axis=2).max(axis=1)
+    # Under player pruning, player-incompatible rows are never scored (NaN score, zero support),
+    # so the pattern-supported stage is unmeasured.
+    pattern = matches.supported >= Settings().minimum_matches
+    pruned = matches.diagnostics['necessary_player_pruning']
     result = {}
     for name, ids in [('enumerated', np.arange(len(errors))),
-                      ('pattern_supported', np.flatnonzero(matches.supported >= Settings().minimum_matches)),
-                      ('pattern_and_players', np.flatnonzero((matches.supported >= Settings().minimum_matches)
-                                                             & matches.player_compatible)),
+                      ('pattern_supported', None if pruned else np.flatnonzero(pattern)),
+                      ('pattern_and_players', np.flatnonzero(pattern & matches.player_compatible)),
                       ('distinct', matches.distinct), ('retained', matches.retained)]:
-        if not len(ids):
+        if ids is None or not len(ids):
             result[name] = None
             continue
         index = int(ids[np.argmin(errors[ids])])
@@ -123,7 +127,12 @@ class RoleProposals:
     basis: np.ndarray | None
     axes: tuple[AxisMatches, AxisMatches] | None
     candidates: list[detector.Candidate]
-    details: list[dict]
+    # One row per candidate, in candidates order, for detail(): the two axis hypothesis IDs,
+    # whether canonicalise turned the court 180 degrees, the mean axis score and the homography.
+    axis_ids: np.ndarray = field(default_factory=lambda: np.empty((0, 2), dtype=int))
+    rotated: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
+    axis_scores: np.ndarray = field(default_factory=lambda: np.empty(0))
+    homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3)))
     # pregate copy: every combined court in transforms order (working px, float32), the geometry
     # mask, the player mask and the two player fractions. Empty when the basis fails.
     combined_corners: np.ndarray = field(default_factory=lambda: np.empty((0, 4, 2), dtype=np.float32))
@@ -132,40 +141,45 @@ class RoleProposals:
     player_any: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
     player_both_halves: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
 
+    def detail(self, position: int) -> dict:
+        """One candidate's provenance, built on demand because most candidates never reach a shortlist."""
+        first, second = self.axis_ids[position]
+        return {'axis_ids': [int(first), int(second)], 'rotated_180': bool(self.rotated[position]),
+                'axis_score': float(self.axis_scores[position]),
+                'homography_working': self.homographies[position].tolist()}
+
 
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
-    size: tuple[int, int], settings: Settings, zone: object,
+    size: tuple[int, int], settings: Settings,
     player_pruning: bool = True, combined_ranking: str = 'finite',
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels."""
     basis, details = basis_for(points, size, settings)
     record = {'basis_status': details}
     if basis is None:
-        return RoleProposals(record, None, None, [], [])
+        return RoleProposals(record, None, None, [])
     axis_feet = feet if player_pruning else None
     horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings, axis_feet)
     vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings, axis_feet)
     transforms, axis_pairs = combine(basis, horizontal, vertical)
     transforms, rotated = canonicalise(transforms)
     valid, corners = geometry(transforms, size)
-    one, two = zone.player_fractions(transforms, feet) if len(transforms) else (np.array([]), np.array([]))
+    one, two = joint_player_fractions(basis, horizontal, vertical, feet)
     usable = valid & (one == 1) & (two >= .5)
     record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
                    'geometry_players': int(usable.sum())})
     usable_ids = np.flatnonzero(usable)
+    axis_ids = axis_pairs[usable_ids]
+    axis_scores = (horizontal.scores[axis_ids[:, 0]] + vertical.scores[axis_ids[:, 1]]) / 2
     finite = finite_scores(transforms[usable], observations, (horizontal, vertical), size) if (
         combined_ranking == 'finite' and len(usable_ids)) else None
-    candidates, provenance = [], []
-    for position, index in enumerate(usable_ids):
-        first, second = axis_pairs[index]
-        score = float((horizontal.scores[first] + vertical.scores[second]) / 2)
-        shortlist_score = score if finite is None else float(finite[position])
-        candidates.append(detector.Candidate(corners[index], shortlist_score, (0., 0.), (0, 0)))
-        provenance.append({'axis_ids': [int(first), int(second)], 'rotated_180': bool(rotated[index]),
-                           'axis_score': score, 'homography_working': transforms[index].tolist()})
-    return RoleProposals(record, basis, (horizontal, vertical), candidates, provenance,
+    shortlist_scores = axis_scores if finite is None else finite
+    candidates = [detector.Candidate(corners[index], float(score), (0., 0.), (0, 0))
+                  for index, score in zip(usable_ids, shortlist_scores, strict=True)]
+    return RoleProposals(record, basis, (horizontal, vertical), candidates,
+                         axis_ids, rotated[usable_ids], axis_scores, transforms[usable_ids],
                          np.asarray(corners, dtype=np.float32).reshape(-1, 4, 2),
                          np.asarray(valid, dtype=bool), np.asarray(usable, dtype=bool),
                          np.asarray(one, dtype=np.float32), np.asarray(two, dtype=np.float32))
@@ -188,11 +202,11 @@ def run_case(
     counter = 0
     true_corners, _ = detector.project(control[None], detector.CORNER_COURT_M)
     for role, points in enumerate((control[:, :2].T, control[:, [1, 0]].T)):
-        proposed = propose_role(points, observations, feet, size, settings, zone, player_pruning, combined_ranking)
+        proposed = propose_role(points, observations, feet, size, settings, player_pruning, combined_ranking)
         record = {'role': role, **proposed.record}
-        for candidate, details in zip(proposed.candidates, proposed.details, strict=True):
+        for position, candidate in enumerate(proposed.candidates):
             candidates.append(candidate)
-            provenance[id(candidate)] = {'candidate_id': counter, 'role': role, **details}
+            provenance[id(candidate)] = {'candidate_id': counter, 'role': role, **proposed.detail(position)}
             counter += 1
         # Given directions are diagnostic; cap-loss measurements happen after generation.
         if role == 0 and proposed.axes is not None:

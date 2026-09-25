@@ -11,10 +11,11 @@ import math
 import os
 import re
 import sys
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from time import monotonic
-from typing import Any
+from typing import Any, NamedTuple
 
 import cv2
 import numpy as np
@@ -681,7 +682,19 @@ def fit_row_base(parent: dict, status: str, reason: str | None = None) -> dict:
     }
 
 
-def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -> tuple[dict, dict | None, dict[str, np.ndarray] | None]:
+def view_line_maps(context) -> np.ndarray:
+    """The view's two wide-family distance maps. They depend only on the view, so every refit shares one copy."""
+    detector = import_detector()
+    maps = detector._distance_maps(detector._wide_line_families(context.segments), context.size)
+    # Shared across every refit in the view, so a stray in-place write should fail loudly.
+    maps.flags.writeable = False
+    return maps
+
+
+def attempt_refit(
+    context, parent: dict, runtime: dict[str, Any], cache: dict, line_maps: np.ndarray,
+) -> tuple[dict, dict | None, dict[str, np.ndarray] | None]:
+    """Refit one parent court; line_maps is view_line_maps(context)."""
     verifier = runtime["verifier"]
     row = fit_row_base(parent, "not_attempted")
     if not parent["hard_valid"] or "evidence" not in parent:
@@ -744,14 +757,13 @@ def attempt_refit(context, parent: dict, runtime: dict[str, Any], cache: dict) -
         detector.CORNER_COURT_M.astype(np.float32), attempted_working.astype(np.float32)
     ).astype(float)
     native_corners = row["attempted_corners_native"]
-    maps = detector._distance_maps(detector._wide_line_families(context.segments), context.size)
     child_gates = runtime["gate_evidence"](
         np.asarray(native_corners),
         context.source,
         np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float),
         context.size,
         context.families,
-        maps,
+        line_maps,
         runtime["zone"],
     )
     child_entry = {
@@ -854,6 +866,102 @@ def has_source_occurrence(candidate: dict, source: str, candidate_id: str) -> bo
     )
 
 
+class ScoredPopulations(NamedTuple):
+    """One view's W5 parents, refitted children and C ranking."""
+
+    parents: list[dict]
+    children: list[dict]
+    fit_rows: list[dict]
+    arrays: dict[str, np.ndarray]  # per-candidate arrays, keyed "<origin_key>::<name>"
+    identity_resolution: dict
+    b_candidates: list[dict]  # hard-valid parents with evidence
+    c_candidates: list[dict]  # b_candidates, then the valid children
+    c_rankings: dict
+    determinism: dict | None  # None with self-checks off
+    line_maps: np.ndarray  # the view's wide-family distance maps, shared by every refit
+
+
+def score_populations(
+    context,
+    g0: list[dict],
+    g1: list[dict],
+    line_template: list[dict],
+    runtime: dict[str, Any],
+    cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]],
+    progress: Callable[[str], None],
+    *,
+    self_checks: bool = True,
+) -> ScoredPopulations:
+    """Merge the three populations, measure every parent, refit each once and rank them.
+
+    :param cache: make_parent_record's measurement cache. process_case reuses it for its
+        diagnostic controls.
+    :param progress: Receives one progress line at a time.
+    :param self_checks: Reject automatic entries that carry reference fields, and require
+        the C ranking not to depend on candidate order. Both raise on failure.
+    """
+    case_id = context.case_id
+    verifier = runtime["verifier"]
+    if self_checks:
+        contamination_fields = []
+        for index, entry in enumerate(g0 + g1 + line_template):
+            contamination_fields.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
+        if contamination_fields:
+            raise ViewAmbiguity(
+                f"{case_id}: automatic candidate path contains reference fields: {contamination_fields}"
+            )
+    parent_identities, identity_resolution = canonicalise_populations(g0, g1, line_template)
+    progress(
+        f"measuring {len(parent_identities)} parents "
+        f"(G0={len(g0)}, G1={len(g1)}, line_template={len(line_template)}; "
+        f"conflicting geometry groups={len(identity_resolution['conflicting_geometry_groups'])})"
+    )
+    parents = []
+    all_arrays: dict[str, np.ndarray] = {}
+    for parent_index, identity in enumerate(parent_identities, start=1):
+        parent, arrays = make_parent_record(
+            context,
+            identity["entry"],
+            identity["source"],
+            identity["source_order"],
+            identity["origin_index"],
+            runtime,
+            cache,
+            identity=identity,
+        )
+        parents.append(parent)
+        if arrays is not None:
+            for key, value in arrays.items():
+                all_arrays[f"{parent['origin_key']}::{key}"] = value
+        if parent_index % 250 == 0:
+            progress(f"parents {parent_index}/{len(parent_identities)}")
+    fit_rows = []
+    children = []
+    progress(f"refitting {len(parents)} parents")
+    line_maps = view_line_maps(context)
+    for parent_index, parent in enumerate(parents, start=1):
+        row, child, arrays = attempt_refit(context, parent, runtime, cache, line_maps)
+        fit_rows.append(row)
+        if child is not None:
+            children.append(child)
+            for key, value in arrays.items():
+                all_arrays[f"{child['origin_key']}::{key}"] = value
+        if parent_index % 250 == 0:
+            progress(f"refits {parent_index}/{len(parents)}; valid children={len(children)}")
+    b_candidates = [parent for parent in parents if parent.get("hard_valid") and "evidence" in parent]
+    c_candidates = b_candidates + children
+    c_rankings = verifier["rank_candidates"](c_candidates)
+    determinism = None
+    if self_checks:
+        determinism = verifier["permutation_determinism"](c_candidates)
+        if not determinism["match"]:
+            raise RuntimeError(f"{case_id}: W5 ranker is not permutation-deterministic")
+    return ScoredPopulations(
+        parents, children, fit_rows, all_arrays, identity_resolution, b_candidates, c_candidates, c_rankings,
+        determinism, line_maps,
+    )
+
+
 def process_case(
     root: Path,
     case_id: str,
@@ -883,59 +991,10 @@ def process_case(
         min_visible_lengthwise=min_visible_lengthwise,
         min_visible_cross_court=min_visible_cross_court,
     )
-    automatic_entries = g0 + g1 + line_template
-    contamination_fields = []
-    for index, entry in enumerate(automatic_entries):
-        contamination_fields.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
-    if contamination_fields:
-        raise ViewAmbiguity(
-            f"{case_id}: automatic candidate path contains reference fields: {contamination_fields}"
-        )
-    parent_identities, identity_resolution = canonicalise_populations(g0, g1, line_template)
-    progress(
-        f"measuring {len(parent_identities)} parents "
-        f"(G0={len(g0)}, G1={len(g1)}, line_template={len(line_template)}; "
-        f"conflicting geometry groups={len(identity_resolution['conflicting_geometry_groups'])})"
-    )
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]] = {}
-    parents = []
-    all_arrays: dict[str, np.ndarray] = {}
-    for parent_index, identity in enumerate(parent_identities, start=1):
-        parent, arrays = make_parent_record(
-            context,
-            identity["entry"],
-            identity["source"],
-            identity["source_order"],
-            identity["origin_index"],
-            runtime,
-            cache,
-            identity=identity,
-        )
-        parents.append(parent)
-        if arrays is not None:
-            for key, value in arrays.items():
-                all_arrays[f"{parent['origin_key']}::{key}"] = value
-        if parent_index % 250 == 0:
-            progress(f"parents {parent_index}/{len(parent_identities)}")
-    fit_rows = []
-    children = []
-    progress(f"refitting {len(parents)} parents")
-    for parent_index, parent in enumerate(parents, start=1):
-        row, child, arrays = attempt_refit(context, parent, runtime, cache)
-        fit_rows.append(row)
-        if child is not None:
-            children.append(child)
-            for key, value in arrays.items():
-                all_arrays[f"{child['origin_key']}::{key}"] = value
-        if parent_index % 250 == 0:
-            progress(f"refits {parent_index}/{len(parents)}; valid children={len(children)}")
-    b_candidates = [parent for parent in parents if parent.get("hard_valid") and "evidence" in parent]
-    c_candidates = b_candidates + children
-    b_rankings = verifier["rank_candidates"](b_candidates)
-    c_rankings = verifier["rank_candidates"](c_candidates)
-    determinism = verifier["permutation_determinism"](c_candidates)
-    if not determinism["match"]:
-        raise RuntimeError(f"{case_id}: W5 ranker is not permutation-deterministic")
+    scored = score_populations(context, g0, g1, line_template, runtime, cache, progress)
+    parents, children, fit_rows = scored.parents, scored.children, scored.fit_rows
+    b_rankings = verifier["rank_candidates"](scored.b_candidates)
     control_candidates = []
     for control_id, expected in KNOWN_CONTROLS.get(case_id, {}).items():
         entry = load_control_entry(root, case_id, control_id, verifier)
@@ -950,7 +1009,7 @@ def process_case(
         control_candidates.append(control)
     controls = []
     for control in control_candidates:
-        ranking_with_control = verifier["rank_candidates"](c_candidates + [control])
+        ranking_with_control = verifier["rank_candidates"](scored.c_candidates + [control])
 
         control_ranks = {}
         for name in ("ungated_provisional_rank", "r1_paint10_rank", "provisional_rank"):
@@ -974,9 +1033,9 @@ def process_case(
     progress("ranking sensitivity thresholds")
     review_candidates = {
         candidate["origin_key"]: verifier["candidate_review"](candidate)
-        for candidate in c_candidates
+        for candidate in scored.c_candidates
     }
-    sensitivity = rank_sensitivity(list(review_candidates.values()), all_arrays, verifier)
+    sensitivity = rank_sensitivity(list(review_candidates.values()), scored.arrays, verifier)
     progress("saving evidence and arrays")
     full_record = {
         "schema": "w5-case-evidence/2",
@@ -989,14 +1048,14 @@ def process_case(
         "population_counts": {
             "G0": len(g0), "G1": len(g1), "line_template": len(line_template), "union": len(parents),
         },
-        "automatic_contamination_check": {"match": not contamination_fields, "fields": contamination_fields},
-        "identity_resolution": identity_resolution,
+        "automatic_contamination_check": {"match": True, "fields": []},
+        "identity_resolution": scored.identity_resolution,
         "parents": public_parents,
         "valid_children": public_children,
         "diagnostic_controls": controls,
         "fit_attempts": fit_rows,
-        "rankings": {"B": b_rankings, "C": c_rankings},
-        "determinism": determinism,
+        "rankings": {"B": b_rankings, "C": scored.c_rankings},
+        "determinism": scored.determinism,
         "sensitivity": sensitivity,
     }
     case_dir = run_dir / "case_records"
@@ -1004,7 +1063,7 @@ def process_case(
     verifier["write_json_gz"](case_dir / f"{case_id}.json.gz", full_record)
     array_path = run_dir / "arrays" / f"{case_id}.npz"
     array_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(array_path, **all_arrays)
+    np.savez_compressed(array_path, **scored.arrays)
     progress("saved")
     return {
         "schema": "w5-case-result/2",
@@ -1018,15 +1077,15 @@ def process_case(
         "population_counts": {
             "G0": len(g0), "G1": len(g1), "line_template": len(line_template), "union": len(parents),
         },
-        "automatic_contamination_check": {"match": not contamination_fields, "fields": contamination_fields},
-        "identity_resolution": identity_resolution,
+        "automatic_contamination_check": {"match": True, "fields": []},
+        "identity_resolution": scored.identity_resolution,
         "A": verifier["legacy_winners"](parents),
         "B": b_rankings,
-        "C": c_rankings,
+        "C": scored.c_rankings,
         "fit_attempt_count": len(fit_rows),
         "valid_child_count": len(children),
         "diagnostic_controls": controls,
-        "determinism": determinism,
+        "determinism": scored.determinism,
         "array_file": verifier["relative_path"](array_path, run_dir),
         "case_record": verifier["relative_path"](case_dir / f"{case_id}.json.gz", run_dir),
         "fit_rows": fit_rows,

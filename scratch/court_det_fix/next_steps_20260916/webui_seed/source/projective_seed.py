@@ -104,8 +104,13 @@ def score_axes(
     predicted = parameters[:, :1] * coordinates + parameters[:, 1:]
     lines = inverse[axis][None, None] - predicted[..., None] * inverse[2]
     norms = np.linalg.norm(lines[..., :2], axis=2)
-    distances = np.abs(np.einsum('hmd,ged->hmge', lines[..., :2], endpoints) + lines[..., 2, None, None])
-    distances = distances.max(axis=3) / np.maximum(norms[..., None], 1e-15)
+    # Each group's two endpoints get separate arrays, one value per (hypothesis, coordinate, group):
+    # numpy is several times slower reducing a trailing axis of length 2. Same arithmetic order as
+    # the einsum form this replaces, so results are bit-identical.
+    line_x, line_y, line_offset = lines[..., 0, None], lines[..., 1, None], lines[..., 2, None]
+    first = np.abs((line_x * endpoints[:, 0, 0] + line_y * endpoints[:, 0, 1]) + line_offset)
+    second = np.abs((line_x * endpoints[:, 1, 0] + line_y * endpoints[:, 1, 1]) + line_offset)
+    distances = np.maximum(first, second) / np.maximum(norms[..., None], 1e-15)
     nearest = distances.argmin(axis=2)
     residual = np.take_along_axis(distances, nearest[..., None], axis=2)[..., 0]
     response = np.exp(-.5 * np.square(residual / assignment.DISTANCE_SIGMA_PX))
@@ -119,17 +124,61 @@ def score_axes(
     return response.mean(axis=1), np.where(supported, nearest, -1), supported.sum(axis=1)
 
 
-def necessary_players(parameters: np.ndarray, rectified_feet: np.ndarray, axis: int, extent: float) -> np.ndarray:
-    """Apply necessary parts of the existing joint player rule before an axis cap."""
+def rectify_feet(basis: np.ndarray, feet_px: np.ndarray) -> np.ndarray:
+    """Feet in the basis chart: (frames, foot samples, 2), one column per court axis. NaN feet stay NaN."""
+    homogeneous_feet = np.concatenate((feet_px, np.ones((*feet_px.shape[:-1], 1))), axis=2)
+    mapped = homogeneous_feet @ np.linalg.inv(basis).T
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return mapped[..., :2] / mapped[..., 2:]
+
+
+def band_masks(parameters: np.ndarray, rectified_feet: np.ndarray, extent: float) -> tuple[np.ndarray, np.ndarray]:
+    """Foot samples inside each axis hypothesis's court band, and those inside its first half.
+
+    The band is zone_net.player_fractions' court test along this one axis.
+
+    :param rectified_feet: (frames, foot samples) basis-chart coordinate along this axis.
+    :return: two boolean arrays of shape (axis hypotheses, frames, foot samples).
+    """
     with np.errstate(divide='ignore', invalid='ignore'):
         position = (rectified_feet[None] - parameters[:, None, None, 1]) / parameters[:, None, None, 0] / extent
     inside = np.isfinite(position) & (position >= -.15) & (position <= 1.15)
+    return inside, inside & (position < .5)
+
+
+def necessary_players(parameters: np.ndarray, rectified_feet: np.ndarray, axis: int, extent: float) -> np.ndarray:
+    """Apply necessary parts of the existing joint player rule before an axis cap."""
+    inside, far = band_masks(parameters, rectified_feet, extent)
     one = inside.any(axis=2).all(axis=1)
     if axis == 0:
         return one
-    far = inside & (position < .5)
-    near = inside & (position >= .5)
+    near = inside & ~far
     return one & ((far.any(axis=2) & near.any(axis=2)).mean(axis=1) >= .5)
+
+
+def joint_player_fractions(
+    basis: np.ndarray, horizontal: AxisMatches, vertical: AxisMatches, feet_px: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """zone_net.player_fractions for every combined court, in combine() order (horizontal-major).
+
+    A combined court maps court x through its horizontal hypothesis alone and court y through
+    its vertical one, so a foot is inside the court when it is inside both bands. The
+    180-degree relabelling in canonicalise swaps the two halves, which the both-halves test
+    ignores. The two versions round differently, so they could differ for a foot within
+    rounding of a band edge or exactly on the halfway line.
+    """
+    rectified = rectify_feet(basis, feet_px)
+    inside_x, _ = band_masks(horizontal.parameters[horizontal.retained], rectified[..., 0],
+                             float(detector.X_COORDS.max()))
+    inside_y, far_y = band_masks(vertical.parameters[vertical.retained], rectified[..., 1],
+                                 float(detector.Y_COORDS.max()))
+    # Per frame, one matrix product counts the foot samples inside both bands for every
+    # (horizontal, vertical) pair. Counts are small whole numbers, so float32 is exact.
+    by_frame_x = inside_x.transpose(1, 0, 2).astype(np.float32)  # (frames, horizontal, foot samples)
+    anyone = (by_frame_x @ inside_y.transpose(1, 2, 0).astype(np.float32)) > 0  # (frames, horizontal, vertical)
+    far = (by_frame_x @ far_y.transpose(1, 2, 0).astype(np.float32)) > 0
+    near = (by_frame_x @ (inside_y & ~far_y).transpose(1, 2, 0).astype(np.float32)) > 0
+    return anyone.mean(axis=0).reshape(-1), (far & near).mean(axis=0).reshape(-1)
 
 
 def match_axis(
@@ -148,25 +197,25 @@ def match_axis(
     nonzero = np.abs(scale) > 1e-12
     parameters = np.column_stack((scale, shift))[nonzero]
     anchors = np.column_stack((ids[observed], template))[nonzero]
-    scores = np.empty(len(parameters))
+    scores = np.full(len(parameters), np.nan)
     matches = np.full((len(parameters), len(coordinates)), -1, dtype=int)
     supported = np.zeros(len(parameters), dtype=int)
     player_compatible = np.ones(len(parameters), dtype=bool)
-    rectified_feet = None
     if feet_px is not None:
-        homogeneous_feet = np.concatenate((feet_px, np.ones((*feet_px.shape[:-1], 1))), axis=2)
-        mapped = homogeneous_feet @ np.linalg.inv(basis).T
-        with np.errstate(divide='ignore', invalid='ignore'):
-            rectified_feet = mapped[..., axis] / mapped[..., 2]
-    for start in range(0, len(parameters), settings.batch):
-        stop = start + settings.batch
-        batch_scores, group_indexes, counts = score_axes(parameters[start:stop], coordinates, endpoints, basis, axis)
-        scores[start:stop] = batch_scores
-        matches[start:stop] = np.where(group_indexes >= 0, ids[np.maximum(group_indexes, 0)], -1)
-        supported[start:stop] = counts
-        if rectified_feet is not None:
+        rectified_feet = rectify_feet(basis, feet_px)[..., axis]
+        for start in range(0, len(parameters), settings.batch):
+            stop = start + settings.batch
             player_compatible[start:stop] = necessary_players(parameters[start:stop], rectified_feet, axis,
                                                               float(coordinates.max()))
+    # Only player-compatible hypotheses can be retained, so only they are scored. The others
+    # keep NaN scores, no matches and zero support.
+    to_score = np.flatnonzero(player_compatible)
+    for start in range(0, len(to_score), settings.batch):
+        rows = to_score[start:start + settings.batch]
+        batch_scores, group_indexes, counts = score_axes(parameters[rows], coordinates, endpoints, basis, axis)
+        scores[rows] = batch_scores
+        matches[rows] = np.where(group_indexes >= 0, ids[np.maximum(group_indexes, 0)], -1)
+        supported[rows] = counts
     pattern = supported >= settings.minimum_matches
     eligible = np.flatnonzero(pattern & player_compatible)
     ordered = eligible[np.argsort(-scores[eligible], kind='stable')]
@@ -180,8 +229,11 @@ def match_axis(
         distinct.append(int(index))
     retained = np.asarray(distinct[:settings.keep_axes], dtype=int)
     details.update({'pair_anchors': len(observed_pairs), 'enumerated': len(scale),
-                    'zero_scale_excluded': int((~nonzero).sum()), 'pattern_supported': int(pattern.sum()),
-                    'necessary_player_pruning': feet_px is not None, 'pattern_and_players': len(eligible),
+                    # Unmeasured under player pruning: player-incompatible hypotheses are never scored.
+                    'zero_scale_excluded': int((~nonzero).sum()),
+                    'pattern_supported': int(pattern.sum()) if feet_px is None else None,
+                    'necessary_player_pruning': feet_px is not None, 'scored': len(to_score),
+                    'pattern_and_players': len(eligible),
                     'distinct_assignments': len(distinct), 'axis_cap_excluded': max(0, len(distinct) - len(retained))})
     return AxisMatches(parameters, scores, matches, anchors, supported, player_compatible,
                        np.asarray(distinct, dtype=int), retained, details)

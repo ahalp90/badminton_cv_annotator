@@ -23,6 +23,15 @@ sys.path[:0] = [str(ROOT / "colour_consistency"), str(ROOT / "wider_evaluation")
 import am1_net_selection_trial as net  # pyrefly: ignore[missing-import]
 from run_cases import load_runtime  # pyrefly: ignore[missing-import]
 
+from experiments.annotator.independent_court import net_geometry
+from scratch.court_det_fix.court_detector.net_choice import (
+    LOWER_SAMPLE_COUNT,
+    choose,
+    post_features,
+    project_pieces,
+    reward,
+)
+
 SAVED_SCAN = ROOT / "net_recovery/saved_net_scan.json.gz"
 AM1_SCAN = ROOT / "colour_consistency/am1_net_selection_trial.json.gz"
 SPLIT = ROOT / "net_recovery/bounded_split.json.gz"
@@ -31,7 +40,6 @@ CONTROL_PACK = RUN / "control_inputs.json.gz"
 SETTINGS = (("primary", 0.04, 4.0), ("weight_02", 0.02, 4.0),
             ("weight_08", 0.08, 4.0), ("overrun_02", 0.04, 2.0),
             ("overrun_08", 0.04, 8.0), ("zero", 0.0, 4.0))
-LOWER_SAMPLE_COUNT = 6
 
 
 def relative(path: Path) -> str:
@@ -41,75 +49,6 @@ def relative(path: Path) -> str:
 def read(path: Path) -> dict:
     with gzip.open(path, "rt", encoding="utf-8") as stream:
         return json.load(stream)
-
-
-def post_features(piece: np.ndarray, segments: np.ndarray, size: tuple[int, int]) -> dict:
-    """Match the first six old samples to aligned DeepLSD segments in working pixels."""
-    base, top = piece
-    direction = (top - base) / np.linalg.norm(top - base)
-    fractions = np.linspace(0, 1, net.SAMPLES_PER_PIECE)[:LOWER_SAMPLE_COUNT]
-    samples = base + fractions[:, None] * (top - base)
-    sample_x, sample_y = samples.T
-    width, height = size
-    in_frame = (sample_x >= 0) & (sample_x < width) & (sample_y >= 0) & (sample_y < height)
-    covering = np.zeros((LOWER_SAMPLE_COUNT, len(segments)), dtype=bool)
-    if in_frame[0] and len(segments):
-        starts = segments[:, :2]
-        vectors = segments[:, 2:] - starts
-        lengths = np.linalg.norm(vectors, axis=1)
-        unit = vectors / lengths[:, None]
-        aligned = np.abs(unit @ direction) >= np.cos(np.radians(net.DIRECTION_TOLERANCE_DEG))
-        offset = samples[:, None, :] - starts[None, :, :]
-        along = np.sum(offset * unit[None, :, :], axis=2)
-        perpendicular = np.abs(offset[:, :, 0] * unit[None, :, 1] - offset[:, :, 1] * unit[None, :, 0])
-        covering = (in_frame[:, None] & aligned[None, :]
-                    & (along >= -net.EXTENT_MARGIN_WORKING_PX)
-                    & (along <= lengths[None, :] + net.EXTENT_MARGIN_WORKING_PX)
-                    & (perpendicular <= net.PERPENDICULAR_TOLERANCE_WORKING_PX))
-    ids = np.flatnonzero(covering.any(axis=0))
-    lowest = None
-    if len(ids):
-        endpoints = segments[ids].reshape(-1, 2)
-        lowest = float(np.min((endpoints - base) @ direction))
-    return {
-        "samples_working_px": samples.tolist(),
-        "sample_in_frame": in_frame.tolist(),
-        "sample_covered": covering.any(axis=1).tolist(),
-        "visible_count": int(in_frame.sum()),
-        "covered_count": int(covering.any(axis=1).sum()),
-        "covering_ids": ids.tolist(),
-        "lowest_endpoint_offset_working_px": lowest,
-    }
-
-
-def supported(feature: dict, overrun_px: float) -> bool:
-    offset = feature["lowest_endpoint_offset_working_px"]
-    return offset is not None and offset >= -overrun_px
-
-
-def reward(features: dict, overrun_px: float) -> float:
-    return (int(supported(features["post_left"], overrun_px))
-            + int(supported(features["post_right"], overrun_px))) / 2
-
-
-def choose(rows: list[dict], weight: float, overrun_px: float) -> tuple[str | None, list[dict]]:
-    """Keep the first camera-ranked row on exact combined-score ties."""
-    scored = []
-    best_key = None
-    best_score = -float("inf")
-    for row in rows:
-        if not row["historical_fullcourt"]:
-            continue
-        net_reward = reward(row["posts"], overrun_px) if row["net_state"] == "measured" else 0.0
-        bonus = weight * net_reward
-        assert 0 <= bonus <= weight
-        score = row["paint_score"] + bonus
-        scored.append({"origin_key": row["origin_key"], "full_court_rank": row["full_court_rank"],
-                       "paint_score": row["paint_score"], "net_reward": net_reward,
-                       "bonus": bonus, "combined_score": score})
-        if score > best_score:
-            best_key, best_score = row["origin_key"], score
-    return best_key, scored
 
 
 def selected_geometry(candidate: dict, context, projection: dict) -> dict:
@@ -156,7 +95,7 @@ def measure_case(case: dict, source_label: str, cohort: str, manifest: dict, ver
         full_rank += 1
         if frozen["full_court_rank"] != full_rank:
             raise ValueError(f"{case_id}: full-court rank differs at {key}")
-        projection = net.project_pieces(candidate["corners_px"], context)
+        projection = project_pieces(candidate["corners_px"], context)
         projections[key] = projection
         posts = {}
         if projection["state"] == "measured":
@@ -165,8 +104,8 @@ def measure_case(case: dict, source_label: str, cohort: str, manifest: dict, ver
                                             context.segments, context.size)
         focal = projection.get("focal_widths")
         at_focal_search_bound = bool(focal is not None and (
-            np.isclose(focal, net.net_geometry.FOCAL_MIN_WIDTHS)
-            or np.isclose(focal, net.net_geometry.FOCAL_MAX_WIDTHS)))
+            np.isclose(focal, net_geometry.FOCAL_MIN_WIDTHS)
+            or np.isclose(focal, net_geometry.FOCAL_MAX_WIDTHS)))
         rows.append({
             "origin_key": key, "candidate_id": candidate["candidate_id"], "source": candidate["source"],
             "original_rank": rank, "full_court_rank": full_rank, "historical_fullcourt": True,
@@ -327,8 +266,8 @@ def main(output_dir: Path, case_filter: set[str] | None = None) -> None:
                         "perpendicular_working_px": net.PERPENDICULAR_TOLERANCE_WORKING_PX,
                         "absolute_direction_degrees": net.DIRECTION_TOLERANCE_DEG,
                         "endpoint_extent_margin_working_px": net.EXTENT_MARGIN_WORKING_PX,
-                        "focal_search_min_widths": net.net_geometry.FOCAL_MIN_WIDTHS,
-                        "focal_search_max_widths": net.net_geometry.FOCAL_MAX_WIDTHS},
+                        "focal_search_min_widths": net_geometry.FOCAL_MIN_WIDTHS,
+                        "focal_search_max_widths": net_geometry.FOCAL_MAX_WIDTHS},
         "sources": {"saved_scan": relative(SAVED_SCAN), "seeded_scan": relative(AM1_SCAN),
                     "split": relative(SPLIT), "manifest": relative(MANIFEST)},
         "cases": cases,

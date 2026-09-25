@@ -8,7 +8,6 @@ import json
 import os
 import sys
 from copy import deepcopy
-from itertools import combinations
 from pathlib import Path
 from time import monotonic
 
@@ -31,7 +30,8 @@ import run_cases
 import run_w5
 
 run_w5.add_helper_paths(ROOT)
-import vp_pruning
+
+from scratch.court_det_fix.court_detector.search import SEED_LINE_COUNT, seed_points
 
 CASE = "am1_window_00_frame_54"
 SAVED = ROOT / (
@@ -40,7 +40,6 @@ SAVED = ROOT / (
 )
 COMPARISON = ROOT / "wider_evaluation/runs/20260922/comparison.json.gz"
 NUMERIC = ROOT / "wider_evaluation/runs/20260922/numeric_fit.json.gz"
-SEED_LINE_COUNT = 3
 
 
 def read(path: Path) -> dict:
@@ -48,33 +47,11 @@ def read(path: Path) -> dict:
         return json.load(source)
 
 
-def seed_points(lengthwise_lines: np.ndarray) -> np.ndarray:
-    """Use each pair of the longest merged lengthwise lines, including infinity."""
-    points = []
-    for first, second in combinations(lengthwise_lines[:SEED_LINE_COUNT], 2):
-        meeting = np.cross(first, second)
-        norm = np.linalg.norm(meeting)
-        if norm > 0:
-            points.append(meeting / norm)
-    return np.asarray(points, dtype=float).reshape(-1, 3)
-
-
 def generate_seeded(context, runtime, detector):
-    original = vp_pruning.estimate
     seeds = seed_points(context.families[0])
-
-    def estimate(segments, size, settings):
-        points, details = original(segments, size, settings)
-        return np.concatenate((points, seeds)), details
-
-    vp_pruning.estimate = estimate
-    try:
-        generated = line_template_source.generate(
-            context, runtime, detector, min_visible_lengthwise=4, min_visible_cross_court=3,
-        )
-    finally:
-        vp_pruning.estimate = original
-    assert vp_pruning.estimate is original
+    generated = line_template_source.generate(
+        context, runtime, detector, min_visible_lengthwise=4, min_visible_cross_court=3, seed_points=seeds,
+    )
     return generated, seeds
 
 
@@ -209,6 +186,7 @@ def replay_case(case_id: str, comparator: dict, control_pack: Path | None = None
     changed = []
     retained = []
     cache = {}
+    line_maps = run_w5.view_line_maps(context)
     for identity in identities:
         entry = identity["entry"]
         key = identity["origin_key"]
@@ -234,7 +212,7 @@ def replay_case(case_id: str, comparator: dict, control_pack: Path | None = None
                 context, entry, identity["source"], identity["source_order"],
                 identity["origin_index"], runtime, cache, identity=identity,
             )
-            _, child, _ = run_w5.attempt_refit(context, parent, runtime, cache)
+            _, child, _ = run_w5.attempt_refit(context, parent, runtime, cache, line_maps)
             if child is not None:
                 children.append(run_w5.public_candidate(child))
         parents.append(run_w5.public_candidate(parent))

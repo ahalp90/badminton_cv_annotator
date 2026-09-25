@@ -12,38 +12,18 @@ import numpy as np
 
 from experiments.annotator.independent_court import fixed_stripe_refit as fitting
 from scratch.court_det_fix.colour_consistency import observed_colour as observed
+from scratch.court_det_fix.court_detector.stripe_refit import (
+    MIN_POLARITY_SAMPLES,
+    MIN_SIDE_PAIRS,
+    POLARITY_FRACTION,
+    automatic_position,
+    infer_polarity,
+)
 from scratch.court_det_fix.edge_polarity import run_probe as probe
 from scratch.court_det_fix.edge_polarity.local_audit import diagnose, run_amateur
 
 OUTPUT = Path(__file__).with_suffix(".json.gz")
 AUDIT = probe.ROOT / "edge_polarity/local_audit"
-MIN_POLARITY_SAMPLES = 8
-POLARITY_FRACTION = 0.8
-MIN_SIDE_PAIRS = 7
-
-
-def infer_polarity(sampled: dict) -> dict:
-    signs = [row["grey_polarity"] for row in sampled["samples"] if row["valid"]]
-    positive = signs.count(1)
-    negative = signs.count(-1)
-    usable = len(signs)
-    winning = max(positive, negative)
-    polarity = 0
-    if usable >= MIN_POLARITY_SAMPLES and winning / usable >= POLARITY_FRACTION:
-        polarity = 1 if positive > negative else -1
-    return {"polarity": polarity, "usable_samples": usable, "positive_samples": positive,
-            "negative_samples": negative, "confidence": winning / usable if usable else 0.0}
-
-
-def automatic_position(old: int, contrast: float, pairs: int, expected_position_one: float,
-                       polarity: int) -> int:
-    if polarity == 0 or pairs < MIN_SIDE_PAIRS or abs(contrast) < probe.CONTRAST_LEVELS:
-        return old
-    adjusted = contrast * polarity
-    if old == 0:
-        return 1 if adjusted * expected_position_one > 0 else 2
-    expected_original = expected_position_one * (1 if old == 1 else -1)
-    return 3 - old if adjusted * expected_original < 0 else old
 
 
 def saved_case(case_id: str) -> tuple[dict, dict | None]:

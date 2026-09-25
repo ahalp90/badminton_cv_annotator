@@ -16,7 +16,6 @@ from line_template_source import (
     attach_w5_gates,
     geometry_and_support,
     select_with_visibility_floor,
-    union_distance_map,
     vector_camera_errors,
     visibility_eligible,
 )
@@ -316,7 +315,7 @@ def test_previous_stage5_anchor_keeps_only_final_c_selection(tmp_path: Path) -> 
 
 def test_line_template_union_map_keeps_working_image_shape() -> None:
     segments = np.asarray([[10, 10, 90, 10], [10, 90, 90, 90], [10, 10, 10, 90], [90, 10, 90, 90]], dtype=float)
-    distance_map = union_distance_map(segments, (100, 100))
+    distance_map = detector.distance_map(segments, (100, 100))
     assert distance_map.shape == (100, 100)
     corners = np.asarray([[10, 10], [90, 10], [90, 90], [10, 90]], dtype=np.float32)
     homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M.astype(np.float32), corners)
@@ -549,6 +548,51 @@ def test_original_regression_case_order_remains_explicit() -> None:
 def test_line_template_camera_vector_matches_flat_homography() -> None:
     homography = np.eye(3, dtype=float)[None]
     assert abs(vector_camera_errors(homography, (100, 100))[0]) < 1e-12
+
+
+def stacked_camera_errors(homographies: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """The original (courts, focal lengths, 3, 2) form that vector_camera_errors replaced."""
+    width, height = size
+    focals = np.geomspace(0.4 * width, 4.0 * width, 200)
+    axes = np.broadcast_to(homographies[:, None, :, :2], (len(homographies), len(focals), 3, 2)).copy()
+    principal = np.asarray([width / 2.0, height / 2.0])
+    axes[:, :, :2] -= principal[None, None, :, None] * homographies[:, None, 2:3, :2]
+    axes[:, :, :2] /= focals[None, :, None, None]
+    norms = np.linalg.norm(axes, axis=2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cosine = (axes[:, :, :, 0] * axes[:, :, :, 1]).sum(axis=2) / np.prod(norms, axis=2)
+        ratio = np.log(norms[:, :, 0] / norms[:, :, 1])
+        errors = np.hypot(cosine, ratio)
+    usable = np.isfinite(errors) & np.all(np.isfinite(norms), axis=2) & np.all(norms > 0, axis=2)
+    return np.where(usable, errors, np.inf).min(axis=1)
+
+
+def test_line_template_camera_errors_match_the_stacked_form_exactly() -> None:
+    random = np.random.default_rng(20260924)
+    size = (960, 540)
+    court = np.array([[0, 0], [6.1, 0], [6.1, 13.4], [0, 13.4]], dtype=np.float32)
+    image = np.array([[380, 150], [580, 150], [760, 470], [200, 470]], dtype=np.float32)
+    homographies = np.stack([
+        cv2.getPerspectiveTransform(court, (image + random.normal(0, 40, image.shape)).astype(np.float32))
+        for _ in range(400)
+    ]) * random.uniform(0.01, 100.0, (400, 1, 1))
+    homographies[:5, 2, :2] = 0.0  # Affine courts: w is exactly zero.
+    homographies[5:8, :, 0] = 0.0  # A collapsed court direction: zero norm.
+    homographies[8, 0, 0] = np.inf
+    homographies[9, 1, 1] = np.nan
+    homographies[10, 2, 0] = -0.0
+
+    actual = vector_camera_errors(homographies, size)
+    expected = stacked_camera_errors(homographies, size)
+    # Bytes rather than values, so signed zeros and NaN bit patterns must match too.
+    assert (actual.dtype, actual.shape, actual.tobytes()) == (expected.dtype, expected.shape, expected.tobytes())
+    assert np.isfinite(actual[11:]).all() and np.isinf(actual[5:10]).all()
+
+
+def test_line_template_camera_errors_refuse_float32_homographies() -> None:
+    # The stacked form returned float32 for float32 input; the split form would silently return float64.
+    with pytest.raises(TypeError, match="float64"):
+        vector_camera_errors(np.eye(3, dtype=np.float32)[None], (100, 100))
 
 
 def test_ranker_uses_stable_origin_order_for_ties() -> None:
