@@ -711,11 +711,21 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
   within K = 2,048 in their pairs' cheap order?
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
-- Can scoring tell a far-end slip from the right court? Per-sample and
-  line-averaged paint tests have both failed on the gxBQ far lines
-  ([paint test](../court_detector/check_20260926_paint_test/README.md),
-  [line paint](../court_detector/check_20260926_line_paint/README.md)).
-  Adding the search stage's own score to the final choice made it worse
-  ([screen](../court_detector/check_20260926_player_size/README.md#the-search-stages-score-does-not-fix-it)).
-  No tested idea remains. More hand-marked views would show whether any change
-  helps beyond the 10 views every version so far was judged on
+- Can scoring tell a court that slips one line at an end from the right
+  court? A 10% share of the geometry score fixed one slip and is the default
+  ([check](../court_detector/check_20260926_court_choice/README.md)).
+  Everything else tried has failed:
+  - Per-sample and line-averaged paint tests, on the gxBQ far lines
+    ([paint test](../court_detector/check_20260926_paint_test/README.md),
+    [line paint](../court_detector/check_20260926_line_paint/README.md))
+  - Refitting the top 15 courts before choosing
+    ([check](../court_detector/check_20260926_court_choice/README.md))
+  - Adding the search stage's own score to the final choice
+    ([screen](../court_detector/check_20260926_player_size/README.md#the-search-stages-score-does-not-fix-it))
+  - Two other ways to combine the scoring stage's lengthwise and crosswise
+    scores. The one that fixed the player-size filter's am2 slip slipped a
+    whole end on two gxBQ views
+    ([screen](../court_detector/check_20260926_player_size/README.md#combining-the-two-directions-differently-does-not-fix-it-either))
+
+  Every version was judged on the same 10 hand-marked views, and no more are
+  planned. No untested idea remains

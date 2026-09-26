@@ -131,7 +131,9 @@ Steps 3 to 5 take almost all the time.
   filter, and 0.12 to 1.00 m without it (`floor_errors.txt` in the same
   folder). The scoring stage cannot reliably tell a court that slips one line
   at the far end from the right one; `check_20260926_upright/README.md` has
-  the details.
+  the details. Of the scoring changes tried against it, only the geometry
+  blend held up. The open question on slips in
+  `../webui_final_opt_handover/README.md` lists the rest.
 - **Speed.** About 130 s a view on one core, from 29 s for a view with no
   court to 264 s. That comes from 3,703 s over the 28 views, with self-checks
   off and 8 views at a time on Carmack. It leaves out start-up and video

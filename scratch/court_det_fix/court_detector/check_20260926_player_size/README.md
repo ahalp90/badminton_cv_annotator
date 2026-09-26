@@ -102,6 +102,40 @@ It does not help:
 
 So the search score helped on am2 by chance.
 
+## Combining the two directions differently does not fix it either
+
+On am2 the slipped court beats the right one on both paint and fragment
+support, and both get the same net bonus. So no blend of those two scores
+can pick the right court. But the scoring stage measures each court in two
+directions, lengthwise and crosswise, and the final choice keeps only the
+weaker direction of each score.
+
+A second screen tried two other ways to combine them, on the same saved
+scores (`direction_screen.py`, output in `direction_screen.txt`). E1 blends
+paint and fragment support within each direction, then takes the weaker
+direction. E2 takes the harmonic mean of the two blended directions, so a
+strong direction can make up for a weak one. Today's rule reproduces every
+saved score and pick.
+
+Neither holds up (floor error before the final refit, median / largest):
+
+- **E1 breaks am2 in the default arm**, from 0.07 / 0.69 m to 0.66 / 0.99 m,
+  and leaves the filtered arm's slip in place
+- **E2 fixes the filtered arm's am2**, from 0.37 / 0.74 m to 0.07 / 0.69 m,
+  and improves `am3_window_00_frame_0`, from 0.10 / 0.26 m to 0.07 / 0.18 m
+- **But E2 slips a whole end on two gxBQ views:** `gxBQ_window_00_frame_0`
+  from 0.34 to 0.97 m largest error, and `gxBQ_window_00_frame_689` from 0.58
+  to 1.42 m. The error sits at one end of the court; the other end stays
+  within 0.4 m. The final refit pulls lines onto the nearest stripe, so it
+  cannot undo a slip onto the wrong line
+- E2 also changes the court on six unmarked broadcast views, which nobody
+  has looked at
+
+E2's gain and its loss have the same cause. On `gxBQ_window_00_frame_0` the
+slipped court reads far more paint in one direction than today's pick (0.555
+against 0.424). Taking the weaker direction ignores that surplus; the
+harmonic mean rewards it.
+
 ## Players' width on the 28 views
 
 A rebuild of every court each direction pair builds, from the final 26
@@ -122,8 +156,9 @@ The scripts need the filter, so run them at commit `6c787ea3`.
 
 - `run_carmack.sh`: the two-arm run
 - `compare_player_size.py` and its output, `compare_player_size.txt`
-- `search_score_screen.py` and its output, `search_score_screen.txt`. It
-  reads saved artefacts only, so it runs at any commit
+- `search_score_screen.py` and `direction_screen.py`, with their outputs in
+  the matching `.txt` files. They read saved artefacts only, so they run at
+  any commit
 - `blend_default/` and `player_size/`: each arm's per-view results and group
   logs. Remote paths are replaced by `<run root>` and `<ShuttleSet root>`
 - `left_on_carmack.tsv`: the 56 artefact files (399 MB), with sizes and MD5

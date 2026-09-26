@@ -76,7 +76,12 @@ of the geometry score in the final choice fixed one of the two slips and is
 now the default
 ([check](../court_detector/check_20260926_court_choice/README.md)). A paint
 test averaged along each line failed and was taken out
-([check](../court_detector/check_20260926_line_paint/README.md)). The
+([check](../court_detector/check_20260926_line_paint/README.md)). A
+player-size filter removed junk courts but let a slipped court win on one
+view, and was taken out. Two screens on its saved scores, adding the search
+stage's score and combining the lengthwise and crosswise scores differently,
+found no fix either
+([check](../court_detector/check_20260926_player_size/README.md)). The
 estimates below for the cascade and the shortlist caps were made before the
 filter, and need measuring again with it.
 

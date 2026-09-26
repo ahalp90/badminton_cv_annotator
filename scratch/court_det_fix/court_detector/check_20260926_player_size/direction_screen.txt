@@ -1,0 +1,29 @@
+arm	view	today	E1	E2	(* = a different court from today's)
+default	am2_window_00_frame_150	0.06/0.32 (ends 0.32, 0.11)	0.06/0.32 (ends 0.32, 0.11)	0.04/0.35 (ends 0.35, 0.09)*
+default	am2_window_01_frame_28019	0.07/0.69 (ends 0.69, 0.29)	0.66/0.99 (ends 0.99, 0.74)*	0.07/0.69 (ends 0.69, 0.29)
+default	am3_window_00_frame_0	0.10/0.26 (ends 0.26, 0.10)	0.10/0.26 (ends 0.26, 0.10)	0.07/0.18 (ends 0.18, 0.13)*
+default	gxBQ_window_00_frame_0	0.07/0.34 (ends 0.34, 0.20)	0.07/0.34 (ends 0.34, 0.20)	0.11/0.97 (ends 0.97, 0.18)*
+default	gxBQ_window_00_frame_689	0.31/0.58 (ends 0.58, 0.39)	0.31/0.58 (ends 0.58, 0.39)	0.35/1.42 (ends 1.42, 0.38)*
+default	gxBQ_window_03_frame_77876	0.22/1.40 (ends 1.40, 0.23)	0.22/1.40 (ends 1.40, 0.23)	0.24/1.41 (ends 1.41, 0.25)*
+default	letterboxed_short_frame_78	0.06/0.18 (ends 0.18, 0.05)	0.06/0.18 (ends 0.18, 0.05)	0.06/0.19 (ends 0.19, 0.06)*
+default	shuttleset_03_scene_0017	no marks	no marks	no marks*
+default	shuttleset_03_scene_0019	no marks	no marks	no marks*
+default	shuttleset_03_scene_0023	no marks	no marks	no marks*
+default	shuttleset_03_scene_0034	no marks	no marks	no marks*
+default	shuttleset_21_scene_0044	no marks	no marks	no marks*
+default	sset_21_gloiZ_gTJaE_frame_00000001	no marks	no marks*	no marks*
+default	total over the marked views	1.21/4.91	1.79/5.21	1.27/6.35
+player_size	am2_window_00_frame_150	0.06/0.32 (ends 0.32, 0.11)	0.06/0.32 (ends 0.32, 0.11)	0.04/0.35 (ends 0.35, 0.09)*
+player_size	am2_window_01_frame_28019	0.37/0.74 (ends 0.34, 0.74)	0.37/0.74 (ends 0.34, 0.74)	0.07/0.69 (ends 0.69, 0.29)*
+player_size	am3_window_00_frame_0	0.10/0.26 (ends 0.26, 0.10)	0.10/0.26 (ends 0.26, 0.10)	0.07/0.18 (ends 0.18, 0.13)*
+player_size	gxBQ_window_00_frame_0	0.07/0.34 (ends 0.34, 0.20)	0.07/0.34 (ends 0.34, 0.20)	0.11/0.97 (ends 0.97, 0.18)*
+player_size	gxBQ_window_00_frame_689	0.31/0.58 (ends 0.58, 0.39)	0.31/0.58 (ends 0.58, 0.39)	0.35/1.42 (ends 1.42, 0.38)*
+player_size	gxBQ_window_03_frame_77876	0.22/1.40 (ends 1.40, 0.23)	0.22/1.40 (ends 1.40, 0.23)	0.24/1.41 (ends 1.41, 0.25)*
+player_size	letterboxed_short_frame_78	0.06/0.18 (ends 0.18, 0.05)	0.06/0.18 (ends 0.18, 0.05)	0.06/0.19 (ends 0.19, 0.06)*
+player_size	shuttleset_03_scene_0017	no marks	no marks	no marks*
+player_size	shuttleset_03_scene_0019	no marks	no marks	no marks*
+player_size	shuttleset_03_scene_0023	no marks	no marks	no marks*
+player_size	shuttleset_03_scene_0034	no marks	no marks	no marks*
+player_size	shuttleset_21_scene_0044	no marks	no marks	no marks*
+player_size	sset_21_gloiZ_gTJaE_frame_00000001	no marks	no marks*	no marks*
+player_size	total over the marked views	1.51/4.96	1.51/4.96	1.27/6.35
