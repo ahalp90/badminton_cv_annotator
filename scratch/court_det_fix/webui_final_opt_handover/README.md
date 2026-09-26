@@ -10,8 +10,9 @@ The short version:
 - Its first recommendation, one detector that passes results in memory, is
   built. That is the joined detector
 - Its coarse-then-exact scoring cascade is item 16, which was tested and set
-  aside. It is now to be tried, with K = 2,048 as the default and a switch to
-  score every court
+  aside. It was planned again on 26 September, then parked the same day.
+  After the upright-camera filter it would save only about 5–6% of the run,
+  and a court it misses gives no warning
 - Its 128-court cap on each search's overall shortlist was replayed on 26
   September. It kept every chosen court but cut close backups on six hard
   amateur views, so both caps stay at 256. A recheck after the upright-camera
@@ -25,8 +26,7 @@ The short version:
   followed the same day. A 10% share of the geometry score in the final
   choice fixed one slip and is now the default. A stricter paint test and a
   paint test averaged along each line both failed and were taken out. The
-  cascade and cap numbers below were measured before the filter, so they need
-  measuring again
+  cap replay and the cascade's saving were both redone with the filter
 - Other new ideas: running the scoring stage's candidates in parallel, a small
   rewrite of court scoring, and a GPU version of the search
 - Three more ideas were checked on 26 September and set aside. The free
@@ -118,7 +118,7 @@ later. Development runs on an L40 with 48 GB.
 | Proposal | Where it stands | Suggested next step |
 | --- | --- | --- |
 | One in-memory detector | Built: the joined detector | None |
-| Coarse 16-sample score, then exact scores for the top K | Item 16 set it aside. Now to be tried (your decision, 26 September) | Build with K = 2,048 as the default and a switch for no cap |
+| Coarse 16-sample score, then exact scores for the top K | Item 16 set it aside. Planned at K = 2,048, then parked on 26 September: about 5–6% of the run after the upright-camera filter | Parked behind parallel work and court reuse |
 | Cap each search's overall shortlist at 128 | Replayed 26 September: same chosen courts, but cuts close backups on six hard views | Keep 256 |
 | Cap each pair's shortlist at 128 | New. Saves about 0.5% | Drop |
 | Search direction pairs in parallel | Item 8, open | Build |
@@ -127,7 +127,8 @@ later. Development runs on an L40 with 48 GB.
 | GPU search | New | Prototype |
 | Compiled loops (numba) on the CPU | Open list; web-UI adds synthetic timings | Decide with the CPU/GPU question below |
 | Gaussian response computed once per map | New. Bit-identical in a synthetic test; untested in the detector; at most about 3% | Optional, on large pairs only |
-| Candidate objects only for survivors; larger batches | Item 6 and the open list | Unchanged: small |
+| Candidate objects only for survivors | Item 6 | Unchanged: small |
+| Larger axis-scoring batches | On the CPU, decided against on 26 September: no faster than 256, and much slower at 16,384 | On a GPU, an open question |
 | Scoring courts from 1-D line profiles | New, not exact, speculative | Skip for now |
 | Plug-in backend classes and four deployment modes | New | Skip: more structure than needed now |
 
@@ -154,7 +155,37 @@ The joined detector's steps (search, templates, scoring, net choice, stripe
 refit) already give the seams those were for. A backend switch is worth adding
 once a second backend exists, as a plain argument.
 
-## The cascade: item 16, now to be tried
+## The cascade: item 16, parked
+
+**Parked (26 September).** With the upright-camera filter, the cascade would
+save about 5–6% of the joined detector's run, or about 200 s over the 28
+views. That is too little to accept a court that can go missing without
+warning. Parallel work and court reuse come first. The cascade is worth
+another look if CPU-only speed still matters once court reuse is built.
+
+The estimate is not timed
+([cascade_cost.txt](../court_detector_optimisation_handover/claude_evidence/built_courts/cascade_cost.txt)).
+It works from each pair's count of fully scored courts, from the rebuild of
+every built court:
+
+- **The cascade still halves court scoring.** At K = 2,048 it costs 51% of
+  full court scoring, the same as before the filter. Only 20% of pairs build
+  more than 2,048 courts, but they hold 99% of the courts
+- **Court scoring is now a much smaller part of the run.** The filter cut the
+  fully scored courts from 62.5 million to 12.4 million. Scaling the
+  pre-filter share of 30–33% by that drop gives about 400 s, or 10–11% of the
+  3,703 s run
+- **The saving falls mostly on broadcast views.** The six `shuttleset_03`
+  views build 0.7–1.8 million courts each. The gxBQ views build 29,000–81,000,
+  so they gain almost nothing
+
+The saving may be slightly larger. The cheap pass's measured 43% included
+rebuilding the distance maps, which a real build would share with full
+scoring. Carmack's run-to-run noise is 8–12%, so confirming the figure needs
+court scoring timed on its own.
+
+The rest of this section is the evidence and plan from before the filter,
+kept for when the cascade is revisited.
 
 The web-UI's cascade scores every court in a pair cheaply, with 16 samples per
 marking, then scores only the top K exactly with the usual 64. So full scoring
@@ -213,8 +244,8 @@ closely. At K = 4,096 it keeps every pair's own shortlist whole on 22 of 23
 views, against 2 of 23 with 8 samples. Four samples is too coarse: one
 top-five court sat at cheap rank 16,169.
 
-**Decision (26 September): try it, at K = 2,048.** A command-line switch
-scores every court for a hard video. On the 23 views, 2,048 is 1.7 times the
+**The plan before it was parked: K = 2,048.** A command-line switch would
+score every court for a hard video. On the 23 views, 2,048 is 1.7 times the
 deepest court in an overall shortlist, 5.6 times the deepest top-five court and
 11 times the deepest chosen court.
 
@@ -252,8 +283,8 @@ about as deep in their pairs as they do in build order. Keeping every overall
 shortlist whole would need K = 113,937, which skips only 0.04% of full
 scoring. Before the upright-camera filter, the cheap pass kept every overall
 shortlist whole at K = 2,048. That cascade cost about 51% of full scoring: 43%
-for the cheap pass, the rest for fully scoring the 2,048. So the cascade stays
-the plan.
+for the cheap pass, the rest for fully scoring the 2,048. So if the cascade is
+revived, its cheap pass stays the way to choose the K courts.
 
 **The idea.** Cap full scoring at K courts a pair, as the cascade does, but
 choose those K by a score every court already has: the average of its two
@@ -420,8 +451,8 @@ parents, perhaps 7% of the run, and still cuts the two amateur backups above.
 
 So the filter did not make smaller caps safer. The saving is real but modest.
 Scoring still cannot reliably tell a far-end slip from the right court, so any
-change to what reaches scoring can move results by chance. Exact routes to
-faster scoring come first: the cascade and parallel scoring.
+change to what reaches scoring can move results by chance. Parallel scoring
+comes first, because it keeps results exact.
 
 ## Skipping courts that imply a camera looking straight down
 
@@ -647,9 +678,10 @@ that falls short, or if CPU-only speed matters enough.
 ## Suggested order
 
 This is my suggestion, from the evidence above. It was written before the
-upright-camera filter. The filter cut the search's time by about 70%, so the
-cascade saves much less than estimated below, and scoring is now the largest
-step. Re-measure both before building. The filter also moved
+upright-camera filter. The filter cut the search's time by about 70%, so
+scoring is now the largest step. It also cut the cascade's saving to about
+5–6%, so the cascade is parked
+([section](#the-cascade-item-16-parked)). The filter also moved
 `gxBQ_window_00_frame_0`'s right court from G0 #96 to #1. But a recheck of
 128-court caps after the filter still cuts close backups, so both caps stay at
 256 ([recheck](#rechecked-after-the-upright-camera-filter)). Until scoring can
@@ -675,26 +707,20 @@ taken out. A line's contrast depends on its distance, the lighting and its
 width in pixels, so the numbers do not compare across lines
 ([check](../court_detector/check_20260926_line_paint/README.md)).
 
-1. **Build the cascade** with K = 2,048 as the default and a switch for no
-   cap. The free line-guess average cannot replace its cheap pass: it ranks
-   the courts that matter about as deep as build order
-   ([check](#ruled-out-choosing-the-k-courts-by-their-line-guess-average)).
-   Check the result on the 28 views, time it, and measure the depth of the
-   overall shortlists' courts on more views
-2. **Search pairs and score parents in parallel** in the joined detector. Both
+1. **Search pairs and score parents in parallel** in the joined detector. Both
    are exact and help both setups. Measure real scaling at 8 workers on
    Carmack
-3. **Build court reuse** as planned above: the pre-search match from the pieces
+2. **Build court reuse** as planned above: the pre-search match from the pieces
    in `court_views.py`, the warp, the re-check and the fallback. Tune the
    re-check tolerance on same-camera pairs, and look at the cost of no-court
    scenes at the same time
-4. **Prototype GPU court and axis scoring** on the L40, using the same array
+3. **Prototype GPU court and axis scoring** on the L40, using the same array
    code and the CPU rescore check. The web-UI's bar is a fair first gate: each
    function at least 10× faster than one CPU core, including copies to and
    from the GPU, and the whole search at least 2× faster. The L40 differs from
    the target class in memory and float64 speed, so confirm speed and a 16 GB
    peak on a target-class card before deciding
-5. **Profile again**, then revisit compiled loops and float32
+4. **Profile again**, then revisit compiled loops and float32
 
 These steps only work towards the target. The real test is a whole
 five-minute video, cutaways and reused scenes included, against the 30 s goal
@@ -707,10 +733,15 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
 
 - How close must a borrowed court's stripe evidence be to its own scene's
   score? That tolerance needs tuning on known same-camera pairs
-- On new footage, do the courts that reach each overall shortlist stay well
-  within K = 2,048 in their pairs' cheap order?
+- If the cascade is revived: on new footage, do the courts that reach each
+  overall shortlist stay well within K = 2,048 in their pairs' cheap order?
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
+- What batch size suits axis and court scoring on a GPU? On the CPU,
+  batches larger than today's 256 are no faster
+  ([benchmark](../court_detector_optimisation_handover/claude_evidence/axis_batch/axis_batch.txt)).
+  A GPU needs large batches to stay busy, but VRAM caps them. At 128 line
+  groups in float64, axis scoring holds about 24 KiB per hypothesis
 - Can scoring tell a court that slips one line at an end from the right
   court? A 10% share of the geometry score fixed one slip and is the default
   ([check](../court_detector/check_20260926_court_choice/README.md)).

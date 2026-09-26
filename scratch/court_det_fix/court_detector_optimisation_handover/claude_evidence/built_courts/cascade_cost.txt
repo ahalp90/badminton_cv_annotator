@@ -1,0 +1,10 @@
+unfiltered: 5828 pairs, 62.5M courts fully scored without the cascade
+  K = 2048: cascade costs 50% of court scoring; 36% of pairs exceed K and hold 99% of courts
+  K = 4096: cascade costs 56% of court scoring; 30% of pairs exceed K and hold 97% of courts
+  K = 8192: cascade costs 65% of court scoring; 24% of pairs exceed K and hold 94% of courts
+filtered: 2288 pairs, 12.4M courts fully scored without the cascade
+  K = 2048: cascade costs 51% of court scoring; 20% of pairs exceed K and hold 99% of courts
+  K = 4096: cascade costs 57% of court scoring; 16% of pairs exceed K and hold 97% of courts
+  K = 8192: cascade costs 66% of court scoring; 13% of pairs exceed K and hold 93% of courts
+pre-filter scoring share 30%: with the filter, court scoring is about 384 s (10% of 3703 s); K = 2,048 saves about 187 s (5.1% of the run)
+pre-filter scoring share 33%: with the filter, court scoring is about 422 s (11% of 3703 s); K = 2,048 saves about 206 s (5.6% of the run)
