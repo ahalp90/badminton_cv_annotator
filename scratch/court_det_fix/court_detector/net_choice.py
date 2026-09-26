@@ -5,7 +5,8 @@ Each gated court implies a net: two tape halves and two posts
 supported when a line fragment covers one of its six lowest samples and no
 covering fragment reaches more than overrun_px working pixels below its base.
 The winner has the highest W5 evidence plus weight x post reward (0, 0.5 or 1);
-the first row in W5 rank order wins exact ties.
+the first row in W5 rank order wins exact ties. The evidence is W5's ranking score
+(normally the paint score), optionally blended with W5's geometry score.
 
 Research scripts import these back, so this module stays a leaf: it imports only
 numpy and the experiments package, and never edits sys.path.
@@ -89,7 +90,23 @@ def reward(features: dict, overrun_px: float) -> float:
             + int(supported(features["post_right"], overrun_px))) / 2
 
 
-def choose(rows: list[dict], weight: float, overrun_px: float) -> tuple[str | None, list[dict]]:
+def net_reward(net_state: str, posts: dict, overrun_px: float) -> float:
+    return reward(posts, overrun_px) if net_state == "measured" else 0.0
+
+
+def evidence_score(row: dict, geometry_weight: float) -> float:
+    """W5's ranking score, with geometry_weight of W5's geometry score blended in.
+
+    The geometry score counts fragment support alone; the paint score also needs paint at
+    each spot. Rows from the research trials carry no geometry score, so they need weight 0.
+    """
+    if not geometry_weight:
+        return row["paint_score"]
+    return (1 - geometry_weight) * row["paint_score"] + geometry_weight * row["geometry_score"]
+
+
+def choose(rows: list[dict], weight: float, overrun_px: float,
+           geometry_weight: float = 0.0) -> tuple[str | None, list[dict]]:
     """Keep the first camera-ranked row on exact combined-score ties."""
     scored = []
     best_key = None
@@ -97,17 +114,28 @@ def choose(rows: list[dict], weight: float, overrun_px: float) -> tuple[str | No
     for row in rows:
         if not row["historical_fullcourt"]:
             continue
-        net_reward = reward(row["posts"], overrun_px) if row["net_state"] == "measured" else 0.0
-        bonus = weight * net_reward
+        reward_value = net_reward(row["net_state"], row["posts"], overrun_px)
+        bonus = weight * reward_value
         assert 0 <= bonus <= weight
-        score = row["paint_score"] + bonus
+        score = evidence_score(row, geometry_weight) + bonus
         scored.append({"origin_key": row["origin_key"], "full_court_rank": row["full_court_rank"],
-                       "paint_score": row["paint_score"], "net_reward": net_reward,
+                       "paint_score": row["paint_score"], "net_reward": reward_value,
                        "bonus": bonus, "combined_score": score})
         if score > best_score:
             best_key, best_score = row["origin_key"], score
     return best_key, scored
 
+
+def net_posts(corners_native: list, context) -> tuple[str, dict]:
+    """Project a court's net and match its two posts to line fragments: (projection state, posts)."""
+    projection = project_pieces(corners_native, context)
+    posts = {}
+    if projection["state"] == "measured":
+        for name, piece_index in (("post_left", 2), ("post_right", 3)):
+            posts[name] = post_features(
+                np.asarray(projection["pieces_working_px"][piece_index]), context.segments, context.size,
+            )
+    return projection["state"], posts
 
 
 def net_rows(record: dict, context) -> list[dict]:
@@ -126,17 +154,12 @@ def net_rows(record: dict, context) -> list[dict]:
         if not candidate["historical"]["historical_fullcourt"]:
             continue
         full_rank += 1
-        projection = project_pieces(candidate["corners_px"], context)
-        posts = {}
-        if projection["state"] == "measured":
-            for name, piece_index in (("post_left", 2), ("post_right", 3)):
-                posts[name] = post_features(
-                    np.asarray(projection["pieces_working_px"][piece_index]), context.segments, context.size,
-                )
+        net_state, posts = net_posts(candidate["corners_px"], context)
         rows.append({
             "origin_key": key, "candidate_id": candidate["candidate_id"], "source": candidate["source"],
             "original_rank": rank, "full_court_rank": full_rank, "historical_fullcourt": True,
             "camera_eligible": candidate["camera_eligible"], "gate_camera_error": candidate["gates"]["camera_error"],
-            "paint_score": candidate["evidence"][criterion], "net_state": projection["state"], "posts": posts,
+            "paint_score": candidate["evidence"][criterion],
+            "geometry_score": candidate["evidence"]["q_geom_span_weighted"], "net_state": net_state, "posts": posts,
         })
     return rows
