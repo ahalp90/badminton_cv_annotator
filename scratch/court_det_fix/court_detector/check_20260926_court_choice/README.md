@@ -263,6 +263,21 @@ Approved on 26 September:
   that tests paint contrast averaged along each line. The run checks the two
   controls the laptop cannot replay, and times the change
 
+The follow-up failed (`../check_20260926_line_paint/README.md`). The Carmack
+run started on 26 September from commit `cd3011b7`, into
+`court_detector_20260926_final/` in the court-detector run root. It has two
+arms: `blend_default`, the default, and `line_paint`, v3 of the rejected
+follow-up. A file named `done` appears in that folder when it finishes. Then:
+
+1. Copy the folder back, with the upright check's run folder
+   (`court_detector_20260926_upright/`) for its times
+2. Run `../check_20260926_line_paint/compare_carmack.py` on the copy, the
+   line-paint check's `v3/replay/` and the upright run folder. It reports
+   each arm's picks and errors, agreement with the laptop replay and detect
+   seconds against the upright run
+3. Check `sset_21_gloiZ_gTJaE_frame_00100347`, which the laptop cannot replay,
+   and record the blend's time here
+
 ## Files
 
 - `geometry_weight_sweep.py`, `good_court_ranks.py` and their `.txt` outputs:

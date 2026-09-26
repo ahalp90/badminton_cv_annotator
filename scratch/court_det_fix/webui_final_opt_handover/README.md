@@ -19,9 +19,12 @@ The short version:
   open list. The web-UI adds useful design detail to both
 - Not from the web-UI: an upright-camera filter, added on 26 September, cut
   the 28 views' time by 42%. It exposed a scoring weakness: two views now slip
-  one line at the far end. A paint-test change aimed at those slips was tried
-  and reverted the same day. The cascade and cap numbers below were measured
-  before the filter, so they need measuring again
+  one line at the far end. Three scoring changes aimed at those slips
+  followed the same day. A 10% share of the geometry score in the final
+  choice fixed one slip and is now the default. A stricter paint test and a
+  paint test averaged along each line both failed and were taken out. The
+  cascade and cap numbers below were measured before the filter, so they need
+  measuring again
 - Other new ideas: running the scoring stage's candidates in parallel, a small
   rewrite of court scoring, and a GPU version of the search
 - The web-UI sized everything against 90 s per scene. The target is 30 s per
@@ -498,6 +501,16 @@ worse. On the gxBQ views the far lines are too faint to pass one sample at a
 time, so the right court loses its far-end paint along with the slipped one
 ([check](../court_detector/check_20260926_paint_test/README.md)).
 
+Two more changes followed. The final choice now scores courts on 90% paint
+and 10% geometry, plus the net-post bonus. That fixed
+`gxBQ_window_00_frame_689`'s slip (0.94 to 0.32 m);
+`gxBQ_window_03_frame_77876` still slips, 1.06 m out
+([check](../court_detector/check_20260926_court_choice/README.md)). A paint
+test averaged along each line's whole length failed in four versions and was
+taken out. A line's contrast depends on its distance, the lighting and its
+width in pixels, so the numbers do not compare across lines
+([check](../court_detector/check_20260926_line_paint/README.md)).
+
 1. **Build the cascade** with K = 2,048 as the default and a switch for no
    cap. Check it on the 28 views, time it, and measure the depth of the
    overall shortlists' courts on more views
@@ -533,7 +546,9 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
   to replace the cheap pass? (experiment above)
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
-- Can scoring tell a far-end slip from the right court? The untested next idea
-  is to score each line by its mean contrast along its whole length, against
-  what bare floor gives
-  ([check](../court_detector/check_20260926_paint_test/README.md#what-might-work-instead))
+- Can scoring tell a far-end slip from the right court? Per-sample and
+  line-averaged paint tests have both failed on the gxBQ far lines
+  ([paint test](../court_detector/check_20260926_paint_test/README.md),
+  [line paint](../court_detector/check_20260926_line_paint/README.md)). No
+  tested idea remains. More hand-marked views would show whether any change
+  helps beyond the 10 views every version so far was judged on
