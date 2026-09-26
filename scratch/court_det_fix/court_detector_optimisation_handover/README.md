@@ -2,6 +2,8 @@
 
 In the 28-view check, the joined court detector used about 230 process
 seconds per view, with eight single-threaded views running at a time. The
+upright-camera filter, added on 26 September, brings that to about 130 s
+([check](../court_detector/check_20260926_upright/README.md)). The
 target is about 30 s for a whole five-minute video, with 90 s as the upper end
 ([pickup.md](../pickup.md#compute-requirement-and-next-work)). The measured
 exact speed-ups are built in, and a few smaller exact ones remain. The larger
@@ -59,6 +61,16 @@ leaves out start-up and video decoding.
 
 Single views range from 20 s, on a view with no court, to 546 s on
 `gxBQ_window_00_frame_689`.
+
+With the upright-camera filter (26 September), the same run took 3,703 s. The
+G0 search took 951 s (26%), the G1 search 284 s (8%), scoring 1,968 s (53%)
+and line templates 439 s (12%). Scoring is now the largest step. Single
+views range from 29 s to 264 s (`shuttleset_03_scene_0019`). The filter also
+showed that scoring cannot reliably tell a court that slips one line at the
+far end from the right one
+([check](../court_detector/check_20260926_upright/README.md#why-two-views-got-worse)). The
+estimates below for the cascade and the shortlist caps were made before the
+filter, and need measuring again with it.
 
 The joined detector does not time single functions, but the research chain
 does. In its last full run, 8,250 s over the 28 views, three functions took
@@ -121,6 +133,7 @@ the research chain, about the size of run-to-run noise
 
 | Change | Commit or file | Result | Detail | In the joined detector |
 | --- | --- | --- | --- | --- |
+| Upright-camera filter: skip direction pairs whose horizon tilts more than 45 degrees, and courts above their pair's horizon. Not exact: it changes results | c5a7cfdb | 28 views, 6,434 → 3,703 s (42%). 17 of 20 court views keep their court. Of the 3 that change, 1 gets much better and 2 slip about one line at the far end, because courts that sideways-camera courts crowded out now reach scoring | [Check](../court_detector/check_20260926_upright/README.md); [floor-metre errors](claude_evidence/upright_camera/floor_errors.txt) | Yes, on by default; `--any-camera-roll` turns it off |
 | Player test only on courts with valid geometry (patch 1). The matrix product below replaced it | a2e24ddf | With patch 2: six views, 6,255 → 2,572 s (2.4×) | [Item 1](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#1-land-patches-1-and-2) | Through item 3, which replaced it |
 | Stripe evidence measures only fragments with a matching direction (patch 2) | a2e24ddf | Shared with patch 1 | [Item 1](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#1-land-patches-1-and-2) | Yes |
 | Distance maps built without IPP, Intel's optimised routines inside OpenCV | 7b56d58e | Maps 12–16% faster. Repeat runs became bit-identical, so later changes could be checked bit for bit | [Item 2](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#2-make-the-distance-maps-deterministic) | Yes |

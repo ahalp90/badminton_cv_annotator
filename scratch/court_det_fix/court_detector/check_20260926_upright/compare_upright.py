@@ -1,12 +1,12 @@
-"""The upright-camera filter against the unfiltered detector: chosen courts, search ranks and time.
+"""The upright-camera filter against the 25 September detector: chosen courts, search ranks and time.
 
 For each view: the 25 September chosen court and the filtered one, how far their corners are
 apart in native px (allowing the court's 180-degree relabelling), and the search ranks of
-the filtered chosen court's parent. Then total seconds per step for the two same-day timing
-runs.
+the filtered chosen court's parent. Then total seconds per step, self-checks off, for the
+two timing runs.
 
-Usage: compare_upright.py OLD_RESULTS OUT
-  OLD_RESULTS: check_20260925/correctness/results; OUT: the folder run_upright.sh wrote
+Usage: compare_upright.py OLD_CHECK OUT
+  OLD_CHECK: the check_20260925 folder; OUT: the folder run_upright.sh wrote
 """
 
 import gzip
@@ -38,7 +38,8 @@ def search_ranks(artefact_path: Path, chosen: str | None) -> str:
     return " ".join(f"{occurrence['source']}#{occurrence['origin_index'] + 1}" for occurrence in occurrences)
 
 
-old_results, out = Path(sys.argv[1]), Path(sys.argv[2])
+old_check, out = Path(sys.argv[1]), Path(sys.argv[2])
+old_results = old_check / "correctness/results"
 print("view\tsame chosen key\tcorner gap px\told outcome\tnew outcome\tnew chosen from")
 for path in sorted(old_results.glob("*.json")):
     old = json.loads(path.read_text())
@@ -52,9 +53,10 @@ for path in sorted(old_results.glob("*.json")):
 
 print("\nseconds summed over views, self-checks off")
 totals = {}
-for arm in ("timing_any_roll", "timing_upright"):
+arms = {"25 September": old_check / "timing_no_checks", "upright": out / "timing_upright"}
+for arm, folder in arms.items():
     stages: dict[str, float] = {"detect": 0.0}
-    for path in sorted((out / arm / "results").glob("*.json")):
+    for path in sorted((folder / "results").glob("*.json")):
         result = json.loads(path.read_text())
         if result["error"] is not None:
             raise RuntimeError(f"{arm} {path.stem}: {result['error']}")
@@ -62,8 +64,8 @@ for arm in ("timing_any_roll", "timing_upright"):
         for stage, seconds in result["stage_seconds"].items():
             stages[stage] = stages.get(stage, 0.0) + seconds
     totals[arm] = stages
-print(f"{'step':28s} {'any roll':>9s} {'upright':>9s} {'saved':>7s}")
-for stage, before in totals["timing_any_roll"].items():
-    after = totals["timing_upright"][stage]
+print(f"{'step':28s} {'25 Sept':>9s} {'upright':>9s} {'saved':>7s}")
+for stage, before in totals["25 September"].items():
+    after = totals["upright"][stage]
     saved = f"{1 - after / before:.0%}" if before > 1 else "-"
     print(f"{stage:28s} {before:9.0f} {after:9.0f} {saved:>7s}")

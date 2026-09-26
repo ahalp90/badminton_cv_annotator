@@ -17,6 +17,10 @@ The short version:
   amateur views, so both caps stay at 256
 - Parallel direction pairs and court reuse across scenes are already on the
   open list. The web-UI adds useful design detail to both
+- Not from the web-UI: an upright-camera filter, added on 26 September, cut
+  the 28 views' time by 42%. It exposed a scoring weakness: two views now slip
+  one line at the far end. The cascade and cap numbers below were measured
+  before it, so they need measuring again
 - Other new ideas: running the scoring stage's candidates in parallel, a small
   rewrite of court scoring, and a GPU version of the search
 - The web-UI sized everything against 90 s per scene. The target is 30 s per
@@ -78,6 +82,12 @@ That is 230 s a view on average and 546 s at worst
 (`gxBQ_window_00_frame_689`). The web-UI quotes 295 s and 666 s, which are the
 research chain's earlier figures. No whole video has been timed yet, because
 the joined detector still takes prepared inputs for one view at a time.
+
+The upright-camera filter (26 September) skips courts that need a camera on
+its side or upside down. With it, the same run took 3,703 s: 132 s a view on
+average and 264 s at worst. The G0 search fell to 951 s and G1 to 284 s, so
+scoring, at 1,968 s, is now the largest step
+([check](../court_detector/check_20260926_upright/README.md)).
 
 Two things follow from the per-video budget:
 
@@ -471,7 +481,14 @@ that falls short, or if CPU-only speed matters enough.
 
 ## Suggested order
 
-This is my suggestion, from the evidence above.
+This is my suggestion, from the evidence above. It was written before the
+upright-camera filter. The filter cut the search's time by about 70%, so the
+cascade saves much less than estimated below, and scoring is now the largest
+step. Re-measure both before building. The filter also moved
+`gxBQ_window_00_frame_0`'s right court from G0 #96 to #1, so smaller G0 and G1
+shortlists may now be safe. That is a question for later. Until scoring can
+tell a court that slips one line at the far end from the right one, any change
+to what reaches scoring can move results by chance, as the filter did.
 
 1. **Build the cascade** with K = 2,048 as the default and a switch for no
    cap. Check it on the 28 views, time it, and measure the depth of the
