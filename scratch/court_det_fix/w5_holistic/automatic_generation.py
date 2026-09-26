@@ -65,7 +65,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
              max_matched_pairs: int | None = None, legacy_evidence: bool = True,
-             max_horizon_tilt_deg: float | None = None) -> dict:
+             max_horizon_tilt_deg: float | None = None, player_width_m: tuple[float, float] | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
     :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
@@ -73,6 +73,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     :param max_horizon_tilt_deg: Skip pairs whose horizon tilts more than this, and drop
         courts above their pair's horizon. Both need a camera turned on its side or upside
         down. None keeps every pair and court.
+    :param player_width_m: Drop courts whose players, from the source's person boxes, come out
+        narrower or wider than these bounds in metres (helpers.player_widths_m). None keeps them.
     """
     started = perf_counter()
     cpu_started = process_time()
@@ -92,6 +94,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     point_scale = np.append(scale, 1.)
     feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
                        for frame in source["all_feet_px"]], dtype=float) / scale
+    person_boxes = np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4) / np.tile(scale, 2)
     observations = assignment.prepare_observations(segments, size)
     settings = helpers.Settings(keep_axes=keep_axes)
     def select(candidates: list, limit: int) -> list:
@@ -126,7 +129,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         matched_pairs += 1
         pair_start = perf_counter()
         proposed = helpers.propose_role(pair_points, observations, feet, size, settings,
-                                        upright_only=max_horizon_tilt_deg is not None)
+                                        upright_only=max_horizon_tilt_deg is not None,
+                                        person_boxes=person_boxes, player_width_m=player_width_m)
         retained = select(proposed.candidates, keep_per_pair)
         proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
         if pool_path is not None:
@@ -165,7 +169,9 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
     # Off, the record matches the unfiltered runs' records key for key.
-    upright = {} if max_horizon_tilt_deg is None else {"max_horizon_tilt_deg": max_horizon_tilt_deg}
+    filters = {} if max_horizon_tilt_deg is None else {"max_horizon_tilt_deg": max_horizon_tilt_deg}
+    if player_width_m is not None:
+        filters["player_width_m"] = list(player_width_m)
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],
             "automatic_directions": True, "label_guided_generation": False, "emission_decision": None,
             "working_size": size, "settings": asdict(settings), "keep_per_pair": keep_per_pair,
@@ -178,4 +184,4 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
             "line_winner_id": line_id, "paint_winner_id": paint_id,
             "elapsed_s": perf_counter() - started, "cpu_s": process_time() - cpu_started,
-            "global_cap_reached": len(retained) == keep_global, **upright}
+            "global_cap_reached": len(retained) == keep_global, **filters}

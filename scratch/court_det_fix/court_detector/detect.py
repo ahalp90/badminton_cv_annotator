@@ -6,7 +6,8 @@ merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working
 the automatic stripe-polarity refit of the chosen court. By default the court searches skip
 courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
 The net choice blends 10% of W5's geometry score into its paint score (Switches.geometry_weight;
-check_20260926_court_choice/).
+check_20260926_court_choice/). Switches.player_size, off by default, also skips courts whose
+players come out narrower or wider than PLAYER_WIDTH_M (check_20260926_player_size/).
 
 Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
 OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
@@ -45,6 +46,9 @@ NET_OVERRUN_WORKING_PX = 4.0
 # The camera roll a search pair may imply. The chosen courts of the 20 test views with a court
 # imply rolls within 2.5 degrees.
 MAX_HORIZON_TILT_DEG = 45.0
+# With Switches.player_size, the court searches skip courts whose players come out narrower or wider
+# than this, in metres. The chosen courts on the 28 test views sit at 0.47-1.40 m.
+PLAYER_WIDTH_M = (0.2, 3.0)
 # The copies run_d17.py resolves. Several research folders hold same-named modules.
 LIVE_MODULE_FILES = {
     "run_w5": "scratch/court_det_fix/w5_holistic/run_w5.py",
@@ -73,6 +77,7 @@ class Switches:
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
+    player_size: bool = False  # skip courts whose players come out outside PLAYER_WIDTH_M
     geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
@@ -225,6 +230,7 @@ class CourtDetector:
                 population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
                 legacy_evidence=False,
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
+                player_width_m=PLAYER_WIDTH_M if self.switches.player_size else None,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
