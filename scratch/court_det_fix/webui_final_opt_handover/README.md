@@ -414,6 +414,56 @@ Scoring still cannot reliably tell a far-end slip from the right court, so any
 change to what reaches scoring can move results by chance. Exact routes to
 faster scoring come first: the cascade and parallel scoring.
 
+## Skipping courts that imply a camera looking straight down
+
+**Checked 26 September: it would not help gxBQ.** The idea was to skip any
+court that implies a camera within a few degrees of straight down. The limit
+would stay loose enough to keep steep but real views, such as
+`sset_21_gloiZ_gTJaE_frame_00000001` or a high security camera. The suspicion
+was that on the gxBQ views, girders and corrugated shed walls seen face-on
+look like a court seen from directly above, and perhaps nets do too. Such
+courts could flood the search with noise.
+
+**How the angle is measured.** A court's homography maps floor metres to image
+pixels. Around the court's centre, a camera looking straight down stretches
+the floor equally in every direction. A camera looking at an angle squashes it
+along the viewing direction, by the cosine of that angle. So the ratio of the
+two stretches gives the angle from straight down, with no focal length needed
+([view_angle.py](../court_detector_optimisation_handover/claude_evidence/upright_camera/view_angle.py),
+run on the final Carmack run:
+[output](../court_detector_optimisation_handover/claude_evidence/upright_camera/view_angles_final_run.tsv)).
+
+What it shows:
+
+- **Real courts sit far from straight down.** The chosen courts sit at 80-83°
+  on the amateur and hall views and 73-74° on the broadcast views.
+  `letterboxed_short_frame_78` sits at 66° and
+  `sset_21_gloiZ_gTJaE_frame_00000001` at 71°
+- **No court in any G0 or G1 overall shortlist sits within 10° of straight
+  down.** Only 8 of the 10,595 shortlisted courts sit within 20°, all in one
+  broadcast view's G1
+- **On gxBQ the shortlists sit at the right court's angle.** Their middle 90%
+  spans 79-89°, and the right court sits at 83°. So the competitors differ
+  from the right court in where the lines sit, as in the far-end slips the
+  upright check found, not in the camera angle
+- **Nothing in the shortlists looks like a face-on net either.** The net-post
+  bonus is a separate measure and was not checked here
+- **The steepest chosen court is a false one.** Control view
+  `sset_21_gloiZ_gTJaE_frame_00014336` has no court, but the detector picks
+  one at 23° from straight down. A limit of a few degrees would keep it
+
+A flood of junk courts did exist before the upright-camera filter. It came from
+direction pairs implying a camera rolled onto its side: courts from those pairs
+held 253-256 of G0's 256 places on three views. The filter removes them.
+
+**Still open.** Straight-down courts might be common among the courts each
+pair builds before full scoring. There they would cost time without reaching a
+shortlist, and the saved runs do not record them. A hook recording each fully
+scored court's angle would answer that, and could share a run with the
+[line-guess average experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average).
+If such courts are common, a limit of about 15° would keep every real court
+seen here, the steepest at 66°, and leave room for steep security cameras.
+
 ## Parallel work inside one view
 
 **Direction pairs (item 8).** Pairs are independent until their shortlists
@@ -631,6 +681,9 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
   score? That tolerance needs tuning on known same-camera pairs
 - On new footage, do the courts that reach each overall shortlist stay well
   within K = 2,048 in their pairs' cheap order?
+- Do courts that imply a camera looking straight down fill the pairs before
+  full scoring? None reach a shortlist
+  ([check](#skipping-courts-that-imply-a-camera-looking-straight-down))
 - Does the free line-guess average rank the courts that matter shallow enough
   to replace the cheap pass?
   ([experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average))
