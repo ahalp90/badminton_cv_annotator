@@ -2,7 +2,7 @@
 
 A court fitted to each view's landmark hand marks gives the true place of every painted line. The test
 runs along each true line, and along the floor midway between each pair of neighbouring parallel lines,
-with side points as far out as a court line between that pair would get. The pass bar is the contrast,
+with the side distance and reach a court line between that pair would get. The pass bar is the contrast,
 in steps of 0.5 grey levels, that maximises the line pass rate minus the floor pass rate over all
 hand-marked views together; ties go to the higher bar. This rule was set before the measurement.
 
@@ -37,8 +37,8 @@ BARS = np.arange(0, 20.5, 0.5)
 END_MARKINGS = {"y0": (5, 6), "y13": (10, 9)}
 
 
-def midway_lines_m() -> list[tuple[np.ndarray, float]]:
-    """Floor lines halfway between neighbouring parallel painted lines, each with its side distance."""
+def midway_lines_m() -> list[tuple[np.ndarray, tuple[int, int]]]:
+    """Floor lines halfway between neighbouring parallel painted lines, each with its side and reach steps."""
     lines = []
     for axis in (0, 1):
         positions = sorted({segment[0, axis] for segment in CENTRE_SEGMENTS_M
@@ -46,15 +46,15 @@ def midway_lines_m() -> list[tuple[np.ndarray, float]]:
         for first, second in pairwise(positions):
             middle = (first + second) / 2
             line_m = np.array([[middle, 0.0], [middle, 13.4]]) if axis == 0 else np.array([[0.0, middle], [6.1, middle]])
-            lines.append((line_m, min(line_paint.MAX_SIDE_M, line_paint.SIDE_SHARE_OF_GAP * (second - first))))
+            lines.append((line_m, line_paint.steps_for_gap(second - first)))
     return lines
 
 
 def marking_contrast(grey: np.ndarray, homography: np.ndarray, marking: int, boxes: np.ndarray) -> float | None:
-    samples = np.concatenate([line_paint.line_samples(grey, homography, CENTRE_SEGMENTS_M[segment],
-                                                      line_paint.SIDE_DISTANCES_M[segment], boxes)
+    steps = line_paint.SEGMENT_STEPS[MARKING_INTERVALS[marking][0]]
+    samples = np.concatenate([line_paint.line_samples(grey, homography, CENTRE_SEGMENTS_M[segment], steps, boxes)
                               for segment in MARKING_INTERVALS[marking]])
-    return line_paint.line_contrast(samples)
+    return line_paint.line_contrast(samples, steps)
 
 
 def far_end(homography: np.ndarray) -> str:
@@ -86,8 +86,8 @@ def main() -> None:
         if not provenances[view].has_same_image_boxes:
             boxes = np.empty((0, 4))
         lines = {marking: marking_contrast(grey, homography, marking, boxes) for marking in range(11)}
-        floor = [line_paint.line_contrast(line_paint.line_samples(grey, homography, line_m, side_m, boxes))
-                 for line_m, side_m in midway_lines_m()]
+        floor = [line_paint.line_contrast(line_paint.line_samples(grey, homography, line_m, steps, boxes), steps)
+                 for line_m, steps in midway_lines_m()]
         line_values += [value for value in lines.values() if value is not None]
         floor_values += [value for value in floor if value is not None]
         baseline, long_service = END_MARKINGS[far_end(homography)]

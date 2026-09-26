@@ -1,0 +1,27 @@
+{
+ "view_id": "shuttleset_03_scene_0019",
+ "error": null,
+ "choose_seconds": 1.6124016739995568,
+ "chosen_key": "G1:1:11599/child",
+ "no_court_reason": null,
+ "corners_native_px": [
+  [
+   316.3805598505014,
+   216.3545763179664
+  ],
+  [
+   642.6415464353761,
+   215.23612015586716
+  ],
+  [
+   754.7736279422429,
+   493.08059485202824
+  ],
+  [
+   200.93804936660146,
+   493.47065513401054
+  ]
+ ],
+ "stripe_refit_difference": ".original_replay.maximum_absolute_difference_native_px: 1.2050804798491299e-11 != 0.0",
+ "net_choice_difference": null
+}

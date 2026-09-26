@@ -6,8 +6,23 @@ its whole length, instead of sample by sample. The aim is to let the right
 court's faint far lines count, so that a court slipped by one line at the far
 end stops scoring as well as the right one.
 
-**Result: not yet run.** This README sets out the change, the measurement
-behind its pass bar, and how it will be judged.
+**Status: third version under test.** Two versions failed the keep rule
+below, each for a cause found afterwards:
+
+- **v1** (commit `466114d3`, outputs in `v1/`) read each line only at its
+  predicted place. Courts before the refit sit a few centimetres off the
+  paint, so near-right courts failed their own lines. It made
+  `gxBQ_window_00_frame_689` 0.63 m worse
+- **v2** (outputs in `v2/`) added a search across the line, as W5's own test
+  has. It fixed `gxBQ_window_03_frame_77876` (1.06 to 0.35 m) but made
+  `am1_window_00_frame_54` 0.30 m worse. There the right court's near
+  long-service line had no usable row, and v2 counted it as unpainted. It
+  also added about 18 s a view on the laptop
+- **v3** leaves such a line out, as W5 does, and reads a row every 4 cm
+  instead of every 1 cm
+
+The rest of this README describes v1's design; the version notes above give
+the changes.
 
 ## Why
 
