@@ -263,20 +263,31 @@ Approved on 26 September:
   that tests paint contrast averaged along each line. The run checks the two
   controls the laptop cannot replay, and times the change
 
-The follow-up failed (`../check_20260926_line_paint/README.md`). The Carmack
-run started on 26 September from commit `cd3011b7`, into
-`court_detector_20260926_final/` in the court-detector run root. It has two
-arms: `blend_default`, the default, and `line_paint`, v3 of the rejected
-follow-up. A file named `done` appears in that folder when it finishes. Then:
+The follow-up failed (`../check_20260926_line_paint/README.md`).
 
-1. Copy the folder back, with the upright check's run folder
-   (`court_detector_20260926_upright/`) for its times
-2. Run `../check_20260926_line_paint/compare_carmack.py` on the copy, the
-   line-paint check's `v3/replay/` and the upright run folder. It reports
-   each arm's picks and errors, agreement with the laptop replay and detect
-   seconds against the upright run
-3. Check `sset_21_gloiZ_gTJaE_frame_00100347`, which the laptop cannot replay,
-   and record the blend's time here
+## Carmack run
+
+**The blend holds up on Carmack.** The run went from commit `cd3011b7` on 26
+September, with two arms: `blend_default`, the default, and `line_paint`, v3
+of the rejected follow-up. `carmack/` holds each arm's results and logs, with
+remote paths replaced by `<run root>` and `<ShuttleSet root>`.
+`carmack/compare_carmack.txt` is the comparison, from
+`../check_20260926_line_paint/compare_carmack.py`. The artefacts (378 MB) stay
+on Carmack, in `court_detector_20260926_final/` in the court-detector run root.
+
+- **Every job finished.** Both arms ran all 28 views, and all 16 job groups
+  exited 0
+- **Carmack matches the laptop replay.** On the 27 views the laptop can
+  replay, both arms pick the same court, with corners within 0.0001 native px.
+  So the replay's error tables above stand for Carmack
+- **The view the laptop cannot replay keeps its court.** On
+  `sset_21_gloiZ_gTJaE_frame_00100347` the blend picks the upright check's
+  court, with the same corners
+- **This run cannot time the blend.** The same view's detect time differs by
+  up to 1.7× between Carmack runs. `am1_window_00_frame_54` took 108 s in the
+  upright check, 176 s here under the blend and 109 s under v3. Over the 28
+  views the upright check took 3,413 s, the blend 4,059 s and v3 3,823 s. The
+  blend adds one weighted sum per court, far below that noise
 
 ## Files
 

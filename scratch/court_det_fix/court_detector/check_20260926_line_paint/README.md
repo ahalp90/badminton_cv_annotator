@@ -50,9 +50,11 @@ and the blend court already had one bad far mark at 0.62 m, so the slip showed
 as only 0.14 m worse (0.62 to 0.76 m). The median error shows it: 0.07 to
 0.37 m. `compare_line_paint.py` now reports the median too.
 
-The one Carmack run, started before v3 was rejected, has two arms: the blend
-default and v3. Its blend arm checks the default on Carmack, including the
-control view the laptop cannot replay. Its v3 arm only records what v3 costs.
+The one Carmack run, started before v3 was rejected, had two arms: the blend
+default and v3. Both match the laptop replay on the 27 views it can replay, so
+v3 passes the keep rule's numbers on Carmack too. Its time cannot be told apart
+from Carmack's run-to-run noise
+([Carmack run](../check_20260926_court_choice/README.md#carmack-run)).
 
 The rest of this README is the plan as written before the first run, with v1's
 design; the table above gives each later change.
