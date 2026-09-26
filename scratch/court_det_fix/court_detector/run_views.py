@@ -216,23 +216,21 @@ def main() -> int:
     parser.add_argument("--no-self-checks", action="store_true")
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")
-    parser.add_argument("--geometry-weight", type=float, default=0.0,
-                        help="share of W5's geometry score in the net choice, such as 0.1")
-    parser.add_argument("--refit-top", type=int, default=1,
-                        help="refit this many of the net choice's best courts, then choose among them")
+    parser.add_argument("--geometry-weight", type=float, default=0.1,
+                        help="share of W5's geometry score in the net choice; 0 is the accepted chain's paint alone")
     args = parser.parse_args()
     if args.baseline is not None and (args.feet is None or not args.artefacts):
         parser.error("--baseline needs --feet and --artefacts")
     if args.baseline is not None and not args.any_camera_roll:
         parser.error("--baseline compares with a chain that keeps every camera roll; add --any-camera-roll")
-    if args.baseline is not None and (args.geometry_weight or args.refit_top != 1):
-        parser.error("--baseline compares with the accepted chain; leave --geometry-weight and --refit-top alone")
+    if args.baseline is not None and args.geometry_weight:
+        parser.error("--baseline compares with the accepted chain, which uses paint alone; add --geometry-weight 0")
 
     started = perf_counter()
     artefacts_dir = args.output / "artefacts" if args.artefacts else None
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
                                       artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll,
-                                      geometry_weight=args.geometry_weight, refit_top=args.refit_top))
+                                      geometry_weight=args.geometry_weight))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)

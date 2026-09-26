@@ -5,9 +5,8 @@ direction budget 16, seeded line templates with a (4, 3) visibility floor, the W
 merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working px), then
 the automatic stripe-polarity refit of the chosen court. By default the court searches skip
 courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
-Two switches change the final choice, both off by default: a share of W5's geometry score in
-the net choice (Switches.geometry_weight), and refitting the best few courts before choosing
-among them (Switches.refit_top).
+The net choice blends 10% of W5's geometry score into its paint score (Switches.geometry_weight;
+check_20260926_court_choice/).
 
 Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
 OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
@@ -46,8 +45,6 @@ NET_OVERRUN_WORKING_PX = 4.0
 # The camera roll a search pair may imply. The chosen courts of the 20 test views with a court
 # imply rolls within 2.5 degrees.
 MAX_HORIZON_TILT_DEG = 45.0
-# The refitted court's score that matches each W5 ranking criterion (verifier.py rank_candidates).
-REFIT_EVIDENCE_FIELDS = {"q_paint10_span_weighted": "paint_score", "q_geom_span_weighted": "geometry_score"}
 # The copies run_d17.py resolves. Several research folders hold same-named modules.
 LIVE_MODULE_FILES = {
     "run_w5": "scratch/court_det_fix/w5_holistic/run_w5.py",
@@ -76,10 +73,14 @@ class Switches:
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
-    geometry_weight: float = 0.0  # share of W5's geometry score in the net choice; the rest is W5's ranking score
-    refit_top: int = 1  # refit this many of the net choice's best courts, then choose among the refitted ones
+    geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
+
+    def __post_init__(self) -> None:
+        # A NaN weight would make every court's score NaN and the net choice pick none.
+        if not 0 <= self.geometry_weight <= 1:
+            raise ValueError(f"geometry_weight must be between 0 and 1, not {self.geometry_weight}")
 
 
 @dataclass(frozen=True)
@@ -255,28 +256,9 @@ class CourtDetector:
                             laps, artefacts)
 
 
-def refitted_score(corrected: dict, criterion: str, context: Any, geometry_weight: float) -> float | None:
-    """The net choice's score, measured on a refitted court; None if the court is invalid or unscored."""
-    if not corrected["valid"]:
-        return None
-    measurement = corrected["measurement"]
-    evidence = {"paint_score": measurement[REFIT_EVIDENCE_FIELDS[criterion]],
-                "geometry_score": measurement["geometry_score"]}
-    if evidence["paint_score"] is None:
-        return None
-    reward = net_choice.net_reward(*net_choice.net_posts(corrected["corners_native_px"], context),
-                                   NET_OVERRUN_WORKING_PX)
-    return net_choice.evidence_score(evidence, geometry_weight) + NET_WEIGHT * reward
-
-
 def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndarray, line_maps: np.ndarray,
                  live: LiveModules, switches: Switches, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
-    """The net choice and the stripe refit, from W5's case record. Runs inside prepared_measurements.
-
-    The best switches.refit_top courts by the net choice's score are refitted, then scored again on
-    their refitted geometry; the best valid one wins. With refit_top 1 this refits only the net
-    choice's pick, as the accepted chain does.
-    """
+    """The net choice and the stripe refit of its pick, from W5's case record. Runs inside prepared_measurements."""
     rows = net_choice.net_rows(record, context)
     chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight)
     if switches.self_checks:
@@ -288,25 +270,11 @@ def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndar
     if chosen is None:
         return CourtResult(view_id, None, "no_gated_court", None, None)
 
-    # The sort is stable, so ties keep W5 order and the first court is the net choice's pick.
-    shortlist = sorted(net_scores, key=lambda row: -row["combined_score"])[:switches.refit_top]
-    criterion = record["rankings"]["C"]["r2_criterion"]
-    refits, refit_rows = [], []
-    best_index, best_score = 0, -np.inf
-    for index, row in enumerate(shortlist):
-        refit = stripe_refit.refit_chosen(record, row["origin_key"], context, native_frame, live.verifier,
-                                          live.runtime, line_maps, replay_check=switches.self_checks)
-        score = refitted_score(refit["corrected"], criterion, context, switches.geometry_weight)
-        if score is not None and score > best_score:
-            best_index, best_score = index, score
-        refits.append(refit)
-        refit_rows.append({"origin_key": row["origin_key"], "combined_score": row["combined_score"],
-                           "refitted_score": score, "corrected": refit["corrected"]})
-    refit = refits[best_index]
+    refit = stripe_refit.refit_chosen(record, chosen, context, native_frame, live.verifier, live.runtime, line_maps,
+                                      replay_check=switches.self_checks)
     artefacts["stripe_refit"] = refit
-    artefacts["refit_choice"] = refit_rows
     laps.lap("stripe_refit")
     corrected = refit["corrected"]
     if not corrected["valid"]:
         return CourtResult(view_id, None, corrected["validity_reason"], chosen, None)
-    return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, refit["selected_origin_key"], None)
+    return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None)

@@ -9,6 +9,9 @@ Some W5 fits are rank deficient: they have no unique answer, so this machine's l
 where Carmack's did, and the refit's replay check fails. Such a view and arm is logged with its error, and
 the replay carries on.
 
+The arms ran at commit 8e28ec7d. Later commits made the blend the default and removed the refit switch, so
+run this at that commit.
+
 Usage, from the repository root:
   python -m scratch.court_det_fix.court_detector.check_20260926_court_choice.replay_court_choice UPRIGHT_RUN OUT
     UPRIGHT_RUN: the upright check's run folder, with results/ and artefacts/

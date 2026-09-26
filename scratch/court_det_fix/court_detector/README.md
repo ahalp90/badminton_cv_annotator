@@ -83,9 +83,11 @@ longest side is at most 960 pixels. A 16:9 frame becomes 960×540.
    do so in every sampled frame, and one in each half in at least half the
    frames.
 6. **Net choice** (`net_choice.py`). Each gated candidate implies where the
-   two net posts stand. Its score is its scoring-stage evidence plus a small
-   bonus when line fragments support those posts: 0.02 for one post, 0.04 for
-   both. The highest score wins. With no gated candidate, there is no court.
+   two net posts stand. Its score is 90% its scoring-stage paint score and 10%
+   its scoring-stage geometry score (how well line fragments support its
+   lines). A small bonus is added when line fragments support the net posts:
+   0.02 for one post, 0.04 for both. The highest score wins. With no gated
+   candidate, there is no court.
 7. **Stripe refit** (`stripe_refit.py`). A line fragment can sit on a
    painted stripe's centre or on either edge. For the winner, this step checks
    the brightness and colour on either side of each fragment it fits. It moves
@@ -97,7 +99,7 @@ Steps 3 to 5 take almost all the time.
 
 ## Current state
 
-- **It matches the research scripts with the filter off.** On all 28 test
+- **It matches the research scripts with the filter and the blend off.** On all 28 test
   views, the chosen court, the refit and the other results the check compares
   are identical, bit for bit. `check_20260925/README.md` has the evidence and
   says exactly what was compared.
@@ -108,6 +110,10 @@ Steps 3 to 5 take almost all the time.
   because that needs an upside-down camera. A horizon more than 10 image
   diagonals away, from a camera looking nearly straight down, passes both
   tests. `check_20260926_upright/README.md` has the results.
+- **The geometry blend.** The research net choice used the paint score
+  alone. Blending in 10% of the geometry score fixed one far-end slip in a
+  local replay (`gxBQ_window_00_frame_689`, 0.94 to 0.32 m) and changed no
+  other pick. `check_20260926_court_choice/README.md` has the results.
 - **Results on the 28 views.** 20 are court views and 8 are control views
   with no court (`sset_21_…`, from one ShuttleSet video). All 20 court views
   get a court. Of the 8 control views, 6 correctly get no gated court. With the
@@ -173,6 +179,7 @@ the saved research run. The `run_views.py` docstring gives the details.
 | `self_checks` | On | Checks that each step's output is consistent, for example by replaying the scoring stage's fit before the refit. Costs little. It does not compare with the research run; `run_views.py --baseline` does that |
 | `enforce_scene_consistency` | On | Uses only feet from the image's own shot. Planned to default to off once a scene cutter supplies real scene ranges |
 | `upright_camera` | On | Skips courts that need a camera on its side or upside down. `run_views.py --any-camera-roll` turns it off, and `--baseline` needs it off |
+| `geometry_weight` | 0.1 | Share of the geometry score in the net choice's score; the rest is the paint score. `run_views.py --geometry-weight 0` turns it off, and `--baseline` needs it off |
 | `timing` | Off | Reports seconds per step |
 | `artefacts_dir` | None | Writes each view's intermediate results to this folder |
 

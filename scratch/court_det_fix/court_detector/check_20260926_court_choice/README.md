@@ -251,12 +251,17 @@ perspective-image folders, one folder per view:
   `11_blend_and_top15_refit_final_26sep.png`: the final court, only on the 9
   and 10 views where it moved more than 2 native px
 
-## Waiting for approval
+## Decision
 
-- Make the blend the default (`geometry_weight=0.1`)
-- Revert the top-15 refit switch
-- One Carmack run of the new default on all 28 views, which also checks the
-  two controls the laptop cannot replay, and times it
+Approved on 26 September:
+
+- The blend is the default (`geometry_weight=0.1`). The detector refuses a
+  weight outside 0 to 1
+- The top-15 refit switch is reverted. `replay_court_choice.py` needs it, so
+  run the replay at commit `8e28ec7d`, where the arms ran
+- One Carmack run of the final default on all 28 views, after a follow-up
+  that tests paint contrast averaged along each line. The run checks the two
+  controls the laptop cannot replay, and times the change
 
 ## Files
 
