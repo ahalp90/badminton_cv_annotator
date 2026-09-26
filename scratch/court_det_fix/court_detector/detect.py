@@ -4,9 +4,7 @@ The chain: standing feet from a 3 s window, G0 and paint-filtered G1 court searc
 direction budget 16, seeded line templates with a (4, 3) visibility floor, the W5
 merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working px), then
 the automatic stripe-polarity refit of the chosen court. By default the court searches skip
-courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera), and W5
-measures paint on the native frame without reaching past halfway to the next parallel line
-(Switches.gap_bounded_paint).
+courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
 
 Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
 OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
@@ -73,8 +71,6 @@ class Switches:
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
-    # W5 paint test on the native frame, bounded by the gap to the next parallel line
-    gap_bounded_paint: bool = True
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
 
@@ -184,8 +180,7 @@ class CourtDetector:
         source = source_record(view, feet_window.all_feet_px)
         native_frame = view.frame.view()
         native_frame.flags.writeable = False
-        context = live.verifier.view_context(view.view_id, source, view.provenance, native_frame, view.view_id,
-                                             gap_bounded_paint=switches.gap_bounded_paint)
+        context = live.verifier.view_context(view.view_id, source, view.provenance, native_frame, view.view_id)
         freeze_arrays(context)
         laps.lap("context")
 

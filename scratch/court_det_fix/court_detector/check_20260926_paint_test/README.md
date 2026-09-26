@@ -218,5 +218,5 @@ Neither of these has been built or tested:
   `court_detector_20260926_paint_test/` in the court-detector run root on
   Carmack
 - `compare_paint_test.py`, `pass_bar.py`, `per_view_floor.py` and their `.txt`
-  outputs. The last two use the reverted paint test, so run them at the commit
-  before the revert
+  outputs. The last two use the reverted paint test, so run them at commit
+  `55f7615e`
