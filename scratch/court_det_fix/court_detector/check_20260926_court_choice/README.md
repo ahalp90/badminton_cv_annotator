@@ -85,29 +85,40 @@ score in that criterion cannot be ranked, so it drops out.
 ### Defaults
 
 Both switches are off by default: a weight of 0 and a refit of the top 1. This
-reproduces today's detector. The kept change becomes the default after the
-run. The code of any change that fails is reverted.
+reproduces today's detector. After the decision, the kept change becomes the
+default and the code of any change that fails is reverted.
 
 ## What will run
 
-One launch on Carmack, four arms, each in
-`../check_20260925/correctness/groups.txt`'s 8 groups. There are 32 jobs, with
-at most 8 processes at a time, each stopped after 2 hours. Self-checks and
-artefacts are on.
+Both changes act only after W5 scoring. The search, line templates and W5 do not
+change, and repeat runs of them are bit-identical. So a replay of the final
+choice from the upright check's saved results gives what a full run would.
+
+`replay_court_choice.py` runs on the laptop. For each of the 28 views, it
+rebuilds the scoring context from the view's frame, line fragments, person
+boxes and the saved feet. It then calls the detector's own `choose_court` on the
+saved W5 record, once per arm:
 
 | Arm | Switches |
 | --- | --- |
-| `baseline` | none: must reproduce the upright check's chosen courts exactly |
-| `blend` | `--geometry-weight 0.1` |
-| `refit` | `--refit-top 15` |
-| `both` | `--geometry-weight 0.1 --refit-top 15` |
+| `baseline` | none |
+| `blend` | `geometry_weight=0.1` |
+| `refit` | `refit_top=15` |
+| `both` | `geometry_weight=0.1, refit_top=15` |
 
-The baseline arm checks that the new code with both switches off is today's
-detector. It also gives a same-day time for comparison.
+Self-checks are on, so each refit first replays its court's saved W5 fit to
+within 0.0001 native px. The baseline arm must reproduce the upright check's
+saved final court on all 28 views: the same chosen court and outcome, and
+corners within 0.0001 native px. If it does not, the laptop's libraries differ
+too much from Carmack's, and the arms go to Carmack instead.
+
+The keep-or-revert decision waits for the project owner's approval. So does
+one Carmack run of the kept configuration, which checks it end to end and
+times it.
 
 ## How it will be judged
 
-Set before the run. The measure is the largest hand-mark error in floor
+Set before the replay. The measure is the largest hand-mark error in floor
 metres after the final refit, on the 10 views with landmark hand marks,
 against the baseline arm.
 
@@ -122,7 +133,9 @@ against the baseline arm.
 - **If more than one arm passes**, the simplest is kept: the blend, then the
   refit, then both. A bigger arm is kept instead only if its total error over
   the 10 views is more than 0.2 m lower
-- **Time** is reported. It decides nothing unless an arm costs more than 10%
+- **Time** is the replay's seconds in `choose_court`, on the laptop, as a
+  share of the upright check's detect seconds. It decides nothing unless an arm
+  costs more than 10%
 
 ## Files
 
