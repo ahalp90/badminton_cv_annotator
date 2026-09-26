@@ -108,6 +108,13 @@ The people records and videos used on Carmack are not in git. See
 [the data map](../FP_INDEX.md#data-that-is-not-in-git) before a remote rerun or
 new checkout.
 
+Use `--workers 8` to search independent direction pairs in eight processes.
+Results are collected in their original order before choosing courts. Keep the
+total CPU allocation at eight cores on Carmack: run one eight-worker view at a
+time, or several serial views whose combined allocation stays within that limit.
+The runner reports peak memory for the parent and largest worker separately;
+those figures do not measure the combined peak of every process.
+
 ## Settings
 
 | `Switches` field | Default | Behaviour |
@@ -116,6 +123,7 @@ new checkout.
 | `enforce_scene_consistency` | On | Restrict the foot samples to the target's shot |
 | `upright_camera` | On | Reject courts requiring a sideways or upside-down camera; the runner's `--any-camera-roll` disables it |
 | `geometry_weight` | 0.1 | Share of line support in the final score; the rest is paint support. The runner accepts `--geometry-weight` |
+| `workers` | 1 | Processes for independent direction pairs; the runner accepts `--workers` |
 | `timing` | Off | Report seconds per step |
 | `artefacts_dir` | None | Optionally write intermediate results |
 

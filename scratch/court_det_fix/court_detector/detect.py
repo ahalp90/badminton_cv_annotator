@@ -52,8 +52,11 @@ class Switches:
     geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
+    workers: int = 1  # independent search pairs; run_views limits numerical libraries to one thread
 
     def __post_init__(self) -> None:
+        if self.workers < 1:
+            raise ValueError(f"workers must be positive, not {self.workers}")
         # A NaN weight would make every court's score NaN and the net choice pick none.
         if not 0 <= self.geometry_weight <= 1:
             raise ValueError(f"geometry_weight must be between 0 and 1, not {self.geometry_weight}")
@@ -205,6 +208,7 @@ class CourtDetector:
                 population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
                 legacy_evidence=False,
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
+                workers=self.switches.workers,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:

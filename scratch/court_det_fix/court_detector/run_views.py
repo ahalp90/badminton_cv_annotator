@@ -13,7 +13,7 @@ the line templates' count and metadata, and the W5 record. A view that raises is
 
 Usage, from the repository root:
   python -m scratch.court_det_fix.court_detector.run_views --people DIR --output DIR
-      [--baseline ARM_DIR --feet FEET_FILE] [--artefacts] [--timing] [--no-self-checks] VIEW [VIEW ...]
+      [--baseline ARM_DIR --feet FEET_FILE] [--artefacts] [--timing] [--workers N] [--no-self-checks] VIEW [VIEW ...]
 """
 
 import os
@@ -208,12 +208,15 @@ def main() -> int:
     parser.add_argument("--feet", type=Path, help="the baseline's feet file, {view ID: all_feet_px}")
     parser.add_argument("--artefacts", action="store_true", help="write each view's intermediate results")
     parser.add_argument("--timing", action="store_true")
+    parser.add_argument("--workers", type=int, default=1, help="processes for independent direction pairs")
     parser.add_argument("--no-self-checks", action="store_true")
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")
     parser.add_argument("--geometry-weight", type=float, default=0.1,
                         help="share of W5's geometry score in the net choice; 0 is the accepted chain's paint alone")
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers must be positive")
     if args.baseline is not None and (args.feet is None or not args.artefacts):
         parser.error("--baseline needs --feet and --artefacts")
     if args.baseline is not None and not args.any_camera_roll:
@@ -225,7 +228,7 @@ def main() -> int:
     artefacts_dir = args.output / "artefacts" if args.artefacts else None
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
                                       artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll,
-                                      geometry_weight=args.geometry_weight))
+                                      geometry_weight=args.geometry_weight, workers=args.workers))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)
@@ -291,7 +294,9 @@ def main() -> int:
         print(json.dumps({key: row.get(key) for key in ("view_id", "chosen_key", "no_court_reason",
                                                          "all_checks_equal", "error")}), flush=True)
     process = {"views": args.views, "startup_seconds": startup_seconds, "wall_seconds": perf_counter() - started,
-               "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, "failed": failed}
+               "parent_peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+               "largest_worker_peak_rss_mb": resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024,
+               "failed": failed}
     print(json.dumps(process), flush=True)
     return 1 if failed else 0
 
