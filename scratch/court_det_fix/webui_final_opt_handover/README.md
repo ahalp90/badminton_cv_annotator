@@ -10,12 +10,15 @@ The short version:
 - Its first recommendation, one detector that passes results in memory, is
   built. That is the joined detector
 - Its coarse-then-exact scoring cascade is item 16, which was tested and set
-  aside. The web-UI adds a fallback plan but has not tested it
+  aside. It is now to be tried, with K = 2,048 as the default and a switch to
+  score every court
+- Its 128-court cap on each search's overall shortlist was replayed on 26
+  September. It kept every chosen court but cut close backups on six hard
+  amateur views, so both caps stay at 256
 - Parallel direction pairs and court reuse across scenes are already on the
   open list. The web-UI adds useful design detail to both
-- New ideas: a 128-court cap on each search's overall shortlist, running the
-  scoring stage's candidates in parallel, a small rewrite of court scoring,
-  and a GPU version of the search
+- Other new ideas: running the scoring stage's candidates in parallel, a small
+  rewrite of court scoring, and a GPU version of the search
 - The web-UI sized everything against 90 s per scene. The target is 30 s per
   five-minute video, with 90 s as the upper end. So a video can afford only a
   few full searches, and each must be much faster than now
@@ -43,6 +46,9 @@ status is in the
 - **Scoring stage** (W5): measures each candidate against the painted stripes,
   refits it to them and ranks the results. A candidate is a **parent**; its
   refit is a **child**
+- **Net choice**: picks the final court from the scoring stage's ranked courts,
+  with a small reward for net posts that line fragments support
+- **Control views**: the 8 test views with no court
 - **Exact**: saved results bit-identical to the run before a change
 - **Item N**: a numbered entry in the archived
   [speed-up list](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md)
@@ -90,12 +96,12 @@ later. Development runs on an L40 with 48 GB.
 | Proposal | Where it stands | Suggested next step |
 | --- | --- | --- |
 | One in-memory detector | Built: the joined detector | None |
-| Coarse 16-sample score, then exact scores for the top 8,192 | Item 16 tested it and set it aside | None unless a fallback rule can be proven |
-| Cap each search's overall shortlist at 128 | New. Reopens "shrink the shortlists", decided against at 32 a pair | Cheap replay on saved shortlists; adopting it is your call |
+| Coarse 16-sample score, then exact scores for the top K | Item 16 set it aside. Now to be tried (your decision, 26 September) | Build with K = 2,048 as the default and a switch for no cap |
+| Cap each search's overall shortlist at 128 | Replayed 26 September: same chosen courts, but cuts close backups on six hard views | Keep 256 |
 | Cap each pair's shortlist at 128 | New. Saves about 0.5% | Drop |
 | Search direction pairs in parallel | Item 8, open | Build |
 | Score parents and refits in parallel | New | Build |
-| Reuse a court across scenes | Item 9, open. The web-UI adds a design | Needs your rules for "same camera" |
+| Reuse a court across scenes | Item 9. Plan agreed 26 September | Build: warp the borrowed court, re-check it, fall back to a full search |
 | GPU search | New | Prototype |
 | Compiled loops (numba) on the CPU | Open list; web-UI adds synthetic timings | Decide with the CPU/GPU question below |
 | Gaussian response computed once per map | New. Bit-identical in a synthetic test; untested in the detector; at most about 3% | Optional, on large pairs only |
@@ -126,26 +132,128 @@ The joined detector's steps (search, templates, scoring, net choice, stripe
 refit) already give the seams those were for. A backend switch is worth adding
 once a second backend exists, as a plain argument.
 
-## The cascade is item 16 again
+## The cascade: item 16, now to be tried
 
-The web-UI's cascade scores every court cheaply with 16 samples per marking,
-then scores only the top 8,192 exactly. Its evidence is item 16's own replay
-of 3,369 scoring calls
-([summary](../court_detector_optimisation_handover/claude_evidence/prefilter/summary.txt)).
-At K = 8,192 every pair's shortlist came out the same, for about 66% of the
-exact scoring cost, or about 8% off the run. At K = 4,096 one call lost a
-court: it needed 4,511, and the missed court's coarse score sat 0.001 below the
-cut.
+The web-UI's cascade scores every court in a pair cheaply, with 16 samples per
+marking, then scores only the top K exactly with the usual 64. So full scoring
+is capped at K courts a pair. The cheap pass is what picks those K: a pair
+builds up to 262,144 courts in the order it combines line guesses, not by
+quality.
 
-Item 16 set this aside because K is fixed before a view is seen, and nothing
-cheap proves a new view stays inside it. The web-UI agrees that K = 4,096
-needs a fallback. It lists possible triggers but has tested none. Its "shadow
-mode" runs the full exact pass alongside, so it is a test tool rather than a
-saving. Nothing here answers item 16's objection. If the search moves to a GPU,
-scoring every court with all 64 samples becomes cheap, and the cascade matters
-less.
+Item 16 tested it by replaying 3,369 scoring calls on the 23 views that reach
+a search ([summary](../court_detector_optimisation_handover/claude_evidence/prefilter/summary.txt)).
+At K = 8,192 every pair's shortlist came out the same. At K = 4,096 one call
+lost a court: it needed 4,511, and the missed court's coarse score sat 0.001
+below the cut.
+
+Item 16 set this aside because K is fixed before a view is seen, and a miss
+gives no warning. The web-UI agrees that K = 4,096 needs a fallback, and lists
+possible triggers but tested none. Its "shadow mode" runs the full exact pass
+alongside, so it is a test tool rather than a saving.
+
+**Which courts need to get through (26 September).** Item 16 asked for every
+pair's whole shortlist to survive. Most of those courts never reach the
+search's overall shortlist, so they cannot change the result. Joining the same
+replay to the search records shows how deep in its pair's cheap order each
+court that matters sat
+([k_depth_summary.txt](../court_detector_optimisation_handover/claude_evidence/prefilter/k_depth_summary.txt)):
+
+| Courts | Deepest cheap rank within its pair |
+| --- | ---: |
+| The chosen court | 189 |
+| The net choice's top five | 367 |
+| Each search's overall shortlist | 1,211 |
+| Every court any pair kept | 4,511 |
+
+At K = 2,048 the pairs lose 217 courts from their shortlists. Every one scores
+below its search's overall cut, so on all 23 views the overall shortlists stay
+the same. The scoring stage's inputs and the chosen courts should then stay the
+same too. At K = 1,024, 18 lost
+courts could change an overall shortlist; at K = 512, 1,233 could
+([dropped_courts.txt](../court_detector_optimisation_handover/claude_evidence/prefilter/dropped_courts.txt)).
+
+The costs below are estimates from timed pieces, not an end-to-end timing.
+Court scoring is roughly 30–33% of the joined detector's run.
+
+| K | Cost against today's court scoring | Saving on the joined detector's run | Overall shortlists unchanged on the 23 views |
+| --- | ---: | ---: | --- |
+| 8,192 | 66% | 10–11% | Yes, and every pair's shortlist too |
+| 2,048 | 51% | 15–16% | Yes |
+| 512 | about 45% | 16–18% | No, 12 of 23 change |
+
+The cheap pass alone costs about 43% of today's court scoring, so a K below
+about 2,048 buys little. This is a CPU saving: on a GPU, scoring every court
+is cheap anyway.
+
+Eight samples at K = 4,096 also keeps every overall shortlist, at about 47%.
+Sixteen samples stays, because its cheap order tracks the full score more
+closely. At K = 4,096 it keeps every pair's own shortlist whole on 22 of 23
+views, against 2 of 23 with 8 samples. Four samples is too coarse: one
+top-five court sat at cheap rank 16,169.
+
+**Decision (26 September): try it, at K = 2,048.** A command-line switch
+scores every court for a hard video. On the 23 views, 2,048 is 1.7 times the
+deepest court in an overall shortlist, 5.6 times the deepest top-five court and
+11 times the deepest chosen court.
+
+What it needs:
+
+- **The change** is in `propose_role` (`run_given.py`), which the joined
+  detector and the research chain share. When a pair has more usable courts
+  than K, score them all with 16 samples and keep the top K. Put those back in
+  their original order before the exact scoring, since the shortlist breaks
+  score ties by input order. The arrays that record each candidate's origin
+  take the same subset
+- **The setting** passes down through `automatic_generation.generate`, with a
+  flag on `run_views.py` that sets K or turns the cap off
+- **The check** is a 28-view run at the default K. The replay predicts the
+  same overall shortlists as the baseline, and so the same scoring results and
+  chosen courts. Pair records differ where a pair lost courts below the cut,
+  and so do timings and scoring counts
+- **A depth log.** For each search, log the deepest cheap rank, within its
+  pair, of any court in the overall shortlist. A run then shows how close each
+  view came to K. It cannot show a court the cut already dropped, so a view
+  that comes close is worth rerunning with no cap
+
+The switch only helps if someone suspects a view is hard. Before relying on
+the default, measure these depths on more views. The observation-only hook
+(`../court_detector_optimisation_handover/claude_evidence/prefilter/measure_prefilter.py`)
+records the cheap ranks, and `k_depth.py` beside it joins them to the search
+records. If the deepest overall-shortlist court stays well under 2,048 (1,211
+here), the default holds. If it creeps up, raise K.
+
+**Experiment to do: rank by the line-guess scores instead.** A cap needs a
+ranking to choose which K courts get the full score, and the cheap pass costs
+about 43% of today's court scoring. The order a pair builds its courts in is a
+poor ranking. It takes two lists of line guesses, each sorted by score, and
+builds horizontal first: every court from the best horizontal guess, then
+every court from the second best, and so on. Capping at 2,048 in that order,
+with no cheap pass, misses the chosen court on 6 of the 16 court views the
+search wins
+([build_order.tsv](../court_detector_optimisation_handover/claude_evidence/prefilter/build_order.tsv)).
+On `gxBQ_window_00_frame_0` the right court is built 5,047th in its pair, but
+ranks 3rd on the cheap score.
+
+Every court also has a free combined score: the average of its two line-guess
+scores, which `propose_role` already computes (`axis_scores`). If the courts
+that matter rank shallow by that average, full scoring could be capped with no
+cheap pass. That might save roughly 27–30% of the run instead of 15–16%, by the
+same rough estimate. To test it from the saved records:
+
+- Rank each pair's courts by that average, and find how deep the chosen,
+  top-five and overall-shortlist courts sit, as `k_depth.py` does for the
+  cheap score
+- Find the smallest K that leaves every overall shortlist unchanged, as
+  `dropped_courts.py` does
+
+The web-UI advises against this average as the final ranking. Here it would
+only choose which courts get the full score.
 
 ## Shortlist caps of 128
+
+**Result (26 September): keep both caps at 256.** A replay of a 128 cap kept
+every chosen court on the 28 views. But on six hard amateur views, the courts
+it cuts include close backups for the right court.
 
 The search has two caps, both 256: one on each pair's shortlist and one on
 each search's overall shortlist.
@@ -156,29 +264,56 @@ the research chain's 8,250 s, so halving it saves about 0.5%. The web-UI's
 estimate of 1–3% also counts smaller savings in building and pooling
 candidates, which nobody has measured.
 
-**The overall cap cuts the scoring stage's work.** In the recorded run, G0 and
-G1 each sent up to 256 parents to the scoring stage, and the line templates
-another 256. Over the 28 views that was 18,026 parents, or 17,741 once
-duplicates were merged (`../court_detector/check_20260925/run_d17/logs/`).
-Capping G0 and G1 at 128 leaves about 70% of them. If the stage's time follows
-its parent count, that saves about 540 s, or 8% of the joined detector. The
-web-UI estimated 5–15%.
+**The overall cap would cut the scoring stage's work.** G0 and G1 each send up
+to 256 parents to the scoring stage, and the line templates another 256.
+Capping G0 and G1 at 128 cuts the 28 views' parents from 17,741 to 12,491,
+after merging duplicates. If the stage's time follows its parent count, that
+saves about 540 s, or 8% of the joined detector. The web-UI estimated 5–15%.
+Neither figure is timed. The cut parents also yield valid refits more often
+(87% against 80%), so they may cost more than average.
 
-**The accuracy question is a margin.** On the 20 court views the accepted
-parent ranked no lower than 107th in its search's overall shortlist, so a cap
-of 128 keeps every one. But "shrink the shortlists" is on the decided-against
-list, and a 21-place margin measured on 20 views is the same kind of rule as
-item 16's K. The web-UI's replay is still cheap and worth running on Carmack:
+**The replay needed no rescoring.** Each court is scored on its own, and the
+net choice takes the best combined score, so a cap can only delete courts. The
+first 128 of each saved 256 list are exactly what a cap of 128 keeps, because
+the pick walks courts in score order. The replay reruns the ranking on the
+surviving courts and filters the saved net-choice rows
+([replay](../court_detector_optimisation_handover/claude_evidence/shortlist_cap_replay/)).
 
-- Keep the first 128 of each saved G0 and G1 shortlist. The pick walks courts
-  in score order, so this is exactly what a cap of 128 would have kept
-- Rerun scoring, net choice and stripe refit
-- Compare each view's chosen court, including the 8 no-court views
+What it found:
 
-The replay can show the cap is harmless on these views, but not on new ones.
-Its value grows if the search moves to a GPU, because the scoring stage would
-then take most of the remaining CPU time. If plain 128 loses a court, the
-web-UI suggests keeping 32 more, chosen for variety from ranks 129–256.
+- **Every chosen court survives.** That covers all 22 views where the net
+  choice picks a court: the 20 court views and two control views. The other
+  six control views still get none
+- **The margin is thin.** The deepest winning parent sat at rank 107 of 128 in
+  G1, and at 96 in G0
+- **On 14 of the 20 court views, places 2–5 of the net choice stay the same**
+- **On the other 6, the cap removes close backups.** All six are amateur or
+  hall footage (am2, am3 and gxBQ)
+
+`gxBQ_window_00_frame_0` shows why. The net choice's top six are all the right
+court, reached by different routes and within 21 px of each other. The caps
+keep two of them (G0 ranks 96 and 104) and cut four (G0 145; G1 198, 237 and
+247). G0 ranked the right court 96th, behind wrong courts from other pairs,
+most of them largely off-frame. Its search scores are bunched: 0.631 at rank 1,
+0.492 at 96 and 0.483 at 128.
+
+Capping one search at a time:
+
+| Across the 20 court views | Cap G0 only | Cap G1 only |
+| --- | ---: | ---: |
+| Parents kept | 84% | 86% |
+| Deepest winning parent | 96 | 107 |
+| Views where a cut court placed 2nd or 3rd | 0 | 5 |
+| Views where the top five change | 0 | 6 |
+
+Losing the winner's own parent would move the pick 1–5 px on the nine
+`shuttleset_*_scene_*` views, and 12–34 px on the other eleven court views.
+
+So the cap might save about 8% on these 28 views, but it removes the backups on the
+hard frames this detector exists for. The web-UI's fallback, keeping 32 more
+courts from ranks 129–256 for variety, is moot at 256. If the search moves to
+a GPU, the scoring stage becomes most of the CPU time, and the cap may be worth
+another look on a larger set of hard views.
 
 ## Parallel work inside one view
 
@@ -222,13 +357,43 @@ after every scene has been searched, to group three or more scenes that
 already have courts. Reuse needs a different step built from those pieces:
 match one new scene against earlier scenes with a court, before searching it.
 
-Reuse would then re-check the borrowed court on the new frame, and run the full
-detector when the match or the re-check fails. No-court answers stay as they
-are only if the re-check never passes a court on a cutaway, so cutaways belong
-in its tests.
+Putting the borrowed court first saves nothing by itself, because the search
+scores every candidate before it picks. The saving comes from a rule that
+skips the search when the borrowed court is good enough. Today's detector has
+no absolute score threshold, only a ranking, so that rule is new.
 
-Two decisions are yours: what counts as the same camera, and what check a
-reused court must pass. The web-UI's
+**The plan (agreed 26 September).** The same policy runs on the CPU and GPU
+paths, so a video gets the same court on both and the hardware only changes the
+speed.
+
+- **Move the court with the camera.** The alignment step in `court_views.py`
+  (`_view_alignment`) already fits a warp between the two images, though it
+  returns only pass or fail today. Have it return the warp too, and apply the
+  warp to the borrowed court's corners, rather than trying the web-UI's grid
+  of nearby courts
+- **Re-check it on the new scene.** Accept the moved court when, after the
+  stripe refit, it passes the usual full-court checks with the new scene's
+  feet. Its stripe evidence must also be close to what it scored on its own
+  scene, and the refit must move its corners only a little. "Close" is one
+  tolerance, tuned on scene pairs known to share a camera
+- **Otherwise run the full detector.** No-court answers stay as they are only
+  if the re-check never passes a court on a cutaway, so cutaways belong in its
+  tests
+- **Flag disagreement.** When a fallback search finds a different court for
+  the same camera, flag that camera's group. The first search may have been
+  the wrong one
+- **A setting for full searches per camera before reuse.** The default is 1.
+  Raising it to 3 brings back today's check, where each group takes the median
+  of at least three searched courts, so one bad search is outvoted. At about
+  35 s a search even with the GPU (estimate below), 3 does not fit the budget
+  yet
+
+This trades today's outvoting for speed. It matters less than it sounds:
+scenes from one fixed camera have near-identical lines, so their searches tend
+to fail the same way. The outvoting mainly protects against failures in one
+scene, such as a player hiding a line, an overlay or a lighting change.
+
+The web-UI's
 [runbook](court_detector_architecture_handover_2026-09-25/ACCEPTANCE_AND_BENCHMARK_RUNBOOK.md#7-previous-view-reuse-gate)
 lists test cases worth keeping: adjacent scenes from one camera, lighting or
 player changes, a crop or letterbox change, a cut to another camera, and
@@ -308,21 +473,23 @@ that falls short, or if CPU-only speed matters enough.
 
 This is my suggestion, from the evidence above.
 
-1. **Replay the 128 cap** from saved shortlists on Carmack. It is cheap and
-   shows whether the cap changes any chosen court on the 28 views. Adopting it
-   is your call, since it reopens a decided-against item
+1. **Build the cascade** with K = 2,048 as the default and a switch for no
+   cap. Check it on the 28 views, time it, and measure the depth of the
+   overall shortlists' courts on more views
 2. **Search pairs and score parents in parallel** in the joined detector. Both
    are exact and help both setups. Measure real scaling at 8 workers on
    Carmack
-3. **Settle the reuse rules** and build the pre-search match from the pieces in
-   `court_views.py`. Look at the cost of no-court scenes at the same time
+3. **Build court reuse** as planned above: the pre-search match from the pieces
+   in `court_views.py`, the warp, the re-check and the fallback. Tune the
+   re-check tolerance on same-camera pairs, and look at the cost of no-court
+   scenes at the same time
 4. **Prototype GPU court and axis scoring** on the L40, using the same array
    code and the CPU rescore check. The web-UI's bar is a fair first gate: each
    function at least 10× faster than one CPU core, including copies to and
    from the GPU, and the whole search at least 2× faster. The L40 differs from
    the target class in memory and float64 speed, so confirm speed and a 16 GB
    peak on a target-class card before deciding
-5. **Profile again**, then revisit compiled loops, float32 and the cascade
+5. **Profile again**, then revisit compiled loops and float32
 
 These steps only work towards the target. The real test is a whole
 five-minute video, cutaways and reused scenes included, against the 30 s goal
@@ -333,8 +500,11 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
 
 ## Open questions
 
-- Which rules decide that two scenes share a camera, and what must a reused
-  court pass?
-- Is a 21-place margin on 20 views enough to adopt a cap of 128?
+- How close must a borrowed court's stripe evidence be to its own scene's
+  score? That tolerance needs tuning on known same-camera pairs
+- On new footage, do the courts that reach each overall shortlist stay well
+  within K = 2,048 in their pairs' cheap order?
+- Does the free line-guess average rank the courts that matter shallow enough
+  to replace the cheap pass? (experiment above)
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
